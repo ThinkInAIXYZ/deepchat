@@ -1,0 +1,9 @@
+{
+  "loadError": "Resim yüklenemedi",
+  "loading": "Resim yükleniyor...",
+  "preview": "Resmin önizlemesi",
+  "save": "Resmi kaydet",
+  "saveAs": "Resmi Farklı Kaydet...",
+  "saveSuccess": "Resim kaydedildi",
+  "saveFailed": "Resim kaydedilemedi"
+}

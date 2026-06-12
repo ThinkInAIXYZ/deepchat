@@ -27,7 +27,7 @@ describe('telegramOutbound', () => {
     ).toBe('Hello\n\nWorld')
   })
 
-  it('appends desktop confirmation notice for pending approval blocks', () => {
+  it('keeps pending approval content without appending desktop confirmation notice', () => {
     const text = buildTelegramFinalText([
       {
         type: 'content',
@@ -48,7 +48,7 @@ describe('telegramOutbound', () => {
     ])
 
     expect(text).toContain('Need your approval')
-    expect(text).toContain('Desktop confirmation is required')
+    expect(text).not.toContain('Desktop confirmation is required')
   })
 
   it('skips drafts for reasoning and action-only blocks', () => {

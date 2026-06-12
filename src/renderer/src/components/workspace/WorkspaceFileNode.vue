@@ -3,10 +3,12 @@
     <ContextMenu>
       <ContextMenuTrigger as-child>
         <button
-          class="flex w-full items-center gap-1.5 px-4 py-1 text-left text-xs transition hover:bg-muted/40"
+          class="flex w-full cursor-grab items-center gap-1.5 px-4 py-1 text-left text-xs transition hover:bg-muted/40 active:cursor-grabbing"
           :style="{ paddingLeft: `${16 + depth * 12}px` }"
           type="button"
+          draggable="true"
           @click="handleClick"
+          @dragstart="handleDragStart"
         >
           <!-- Expand/collapse icon for directories -->
           <Icon
@@ -52,6 +54,7 @@
         :depth="depth + 1"
         @toggle="$emit('toggle', $event)"
         @append-path="$emit('append-path', $event)"
+        @insert-path="$emit('insert-path', $event)"
       />
     </template>
   </div>
@@ -61,7 +64,8 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
+import { setChatInputWorkspaceItemDragData } from '@/lib/chatInputWorkspaceReference'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -79,10 +83,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: [node: WorkspaceFileNode]
   'append-path': [filePath: string]
+  'insert-path': [filePath: string]
 }>()
 
 const { t } = useI18n()
-const workspacePresenter = usePresenter('workspacePresenter')
+const workspaceClient = createWorkspaceClient()
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',
@@ -123,6 +128,7 @@ const iconName = computed(() => {
 })
 
 const emitAppendPath = () => emit('append-path', props.node.path)
+const emitInsertPath = () => emit('insert-path', props.node.path)
 
 const handleClick = () => {
   if (props.node.isDirectory) {
@@ -139,7 +145,7 @@ const handleOpenFile = async () => {
   }
 
   try {
-    await workspacePresenter.openFile(props.node.path)
+    await workspaceClient.openFile(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to open file: ${props.node.path}`, error)
   }
@@ -147,14 +153,21 @@ const handleOpenFile = async () => {
 
 const handleRevealInFolder = async () => {
   try {
-    await workspacePresenter.revealFileInFolder(props.node.path)
+    await workspaceClient.revealFileInFolder(props.node.path)
   } catch (error) {
     console.error(`[Workspace] Failed to reveal path: ${props.node.path}`, error)
   }
 }
 
 const handleAppendFromMenu = () => {
-  emitAppendPath()
+  emitInsertPath()
+}
+
+const handleDragStart = (event: DragEvent) => {
+  setChatInputWorkspaceItemDragData(event.dataTransfer, {
+    path: props.node.path,
+    isDirectory: props.node.isDirectory
+  })
 }
 </script>
 

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Tray destroy hook
  */
@@ -12,7 +13,7 @@ export const trayDestroyHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('trayDestroyHook: Destroy system tray')
+    logger.info('trayDestroyHook: Destroy system tray')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -21,12 +22,12 @@ export const trayDestroyHook: LifecycleHook = {
 
     // Destroy tray icon
     if (presenter.trayPresenter) {
-      console.log('trayDestroyHook: Destroying tray during will-quit.')
+      logger.info('trayDestroyHook: Destroying tray during will-quit.')
       presenter.trayPresenter.destroy()
     } else {
       console.warn('trayDestroyHook: TrayPresenter not found in presenter during will-quit.')
     }
 
-    console.log('trayDestroyHook: System tray destroyed successfully')
+    logger.info('trayDestroyHook: System tray destroyed successfully')
   }
 }

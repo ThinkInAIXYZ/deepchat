@@ -1,0 +1,89 @@
+{
+  "cancel": "Abbrechen",
+  "confirm": "Bestätigen",
+  "close": "Schließen",
+  "ok": "OK",
+  "delete": {
+    "title": "Diesen Chat wirklich löschen?",
+    "description": "Diese Aktion kann nicht rückgängig gemacht werden. Bitte vorsichtig fortfahren.",
+    "confirm": "Löschen"
+  },
+  "rename": {
+    "title": "Chat umbenennen",
+    "description": "Bitte geben Sie einen neuen Chatnamen ein."
+  },
+  "cleanMessages": {
+    "title": "Chatnachrichten leeren",
+    "description": "Beim Leeren werden alle Nachrichten und Dateien dieses Chats gelöscht. Fortfahren?",
+    "confirm": "Leeren"
+  },
+  "fork": {
+    "title": "Chat-Zweig erstellen",
+    "description": "Kopiert alle Nachrichten von der ersten bis zur aktuell ausgewählten Nachricht in einen neuen Chat. Dort können Sie die Unterhaltung fortsetzen.",
+    "confirm": "Zweig erstellen",
+    "tag": "Zweig"
+  },
+  "error": {
+    "title": "Fehler"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Reasoning aktivieren bestätigen",
+      "functionCall": "Funktionsaufrufe aktivieren bestätigen"
+    },
+    "message": {
+      "reasoning": "Das Aktivieren von Reasoning deaktiviert automatisch Funktionsaufrufe. Das ist eine Einschränkung des DeepSeek-V3.1-Modells; beide Funktionen können nicht gleichzeitig verwendet werden. Fortfahren?",
+      "functionCall": "Das Aktivieren von Funktionsaufrufen deaktiviert automatisch Reasoning. Das ist eine Einschränkung des DeepSeek-V3.1-Modells; beide Funktionen können nicht gleichzeitig verwendet werden. Fortfahren?"
+    },
+    "warningText": {
+      "reasoning": "Hinweis: Das Aktivieren von Reasoning deaktiviert automatisch Funktionsaufrufe. Dies ist eine Einschränkung des DeepSeek-V3.1-Modells.",
+      "functionCall": "Hinweis: Das Aktivieren von Funktionsaufrufen deaktiviert automatisch Reasoning. Dies ist eine Einschränkung des DeepSeek-V3.1-Modells."
+    },
+    "confirmEnable": "Aktivieren bestätigen"
+  },
+  "agentTransfer": {
+    "deleteTitle": "{name} löschen?",
+    "deleteDescription": "Wähle aus, was mit Unterhaltungen passieren soll, die derzeit zu diesem Agent gehören.",
+    "moveTitle": "Unterhaltung verschieben",
+    "moveDescription": "Verschiebe diese abgeschlossene Unterhaltung zu einem anderen Agent, ohne ihre Nachrichten zu ändern.",
+    "loading": "Zugehörige Unterhaltungen werden geprüft...",
+    "processing": "Verarbeitung...",
+    "totalSessions": "Zugehörig",
+    "movableSessions": "Verschiebbar",
+    "emptyDrafts": "Leere Entwürfe",
+    "blockedSessions": "Blockiert",
+    "moveBeforeDeleteTitle": "Unterhaltungen zu einem anderen Agent verschieben",
+    "moveBeforeDeleteDescription": "Abgeschlossene Unterhaltungen behalten ihre Nachrichten und verwenden künftig den Ziel-Agent. Leere Entwürfe werden entfernt.",
+    "deleteSessionsTitle": "Unterhaltungen mit diesem Agent löschen",
+    "deleteSessionsDescription": "Alle zugehörigen Unterhaltungen und Nachrichten werden zusammen mit dem Agent gelöscht.",
+    "targetAgent": "Ziel-Agent",
+    "selectTarget": "Agent auswählen",
+    "acpWorkdir": "ACP-Arbeitsverzeichnis",
+    "acpWorkdirPlaceholder": "Leer lassen, um das Projekt jeder Unterhaltung beizubehalten",
+    "acpWorkdirHint": "ACP-Agents benötigen ein Arbeitsverzeichnis. Wenn eine Unterhaltung kein Projekt hat, gib hier eines an.",
+    "currentAgent": "Aktueller Agent: {name}",
+    "relatedSessions": "Zugehörige Unterhaltungen",
+    "blockedWarning": "Einige Unterhaltungen laufen noch oder haben Eingaben in der Warteschlange. Beende sie, bevor du diesen Agent verschiebst oder löschst.",
+    "agentDeleteBlocked": "Der Agent hat noch zugehörige Unterhaltungen. Verschiebe oder lösche sie zuerst.",
+    "deleteAgentAndSessions": "Agent und Unterhaltungen löschen",
+    "moveAndDeleteAgent": "Verschieben und Agent löschen",
+    "moveConversation": "Unterhaltung verschieben",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Läuft",
+      "pending-input": "In Warteschlange",
+      "missing-target-workdir": "Arbeitsverzeichnis erforderlich",
+      "missing-session": "Fehlt",
+      "same-agent": "Derselbe Agent"
+    },
+    "sampleState": {
+      "ready": "Bereit",
+      "draft": "Entwurf",
+      "subagent": "Unteragent"
+    },
+    "deepChatTargetOnly": "Nur DeepChat-Agents können als Verschiebeziele ausgewählt werden. ACP-Unterhaltungen können zu DeepChat verschoben werden, aber nicht in ACP."
+  }
+}

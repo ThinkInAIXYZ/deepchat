@@ -2,7 +2,7 @@
   <template v-if="!isCapturingImage">
     <TooltipProvider :ignore-non-keyboard-focus="true">
       <div
-        class="w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity"
+        class="w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
         :class="[isAssistant ? '' : 'flex-row-reverse']"
       >
         <span v-show="!loading" class="flex flex-row gap-3">
@@ -13,7 +13,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('save')"
                 >
                   <Icon icon="lucide:check" class="w-3 h-3" />
@@ -26,7 +26,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('cancel')"
                 >
                   <Icon icon="lucide:x" class="w-3 h-3" />
@@ -38,13 +38,12 @@
 
           <!-- Normal mode buttons -->
           <template v-else>
-            <Tooltip :delayDuration="200">
+            <Tooltip v-if="!isAssistant && !isEditMode && !isReadOnly" :delayDuration="200">
               <TooltipTrigger as-child>
                 <Button
-                  v-show="!isAssistant && !isEditMode"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('retry')"
                 >
                   <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
@@ -59,7 +58,7 @@
                   :disabled="currentVariantIndex === 0"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('prev')"
                 >
                   <Icon icon="lucide:chevron-left" class="w-3 h-3" />
@@ -77,7 +76,7 @@
                   :disabled="(currentVariantIndex ?? 0) >= (totalVariants || 0) - 1"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('next')"
                 >
                   <Icon icon="lucide:chevron-right" class="w-3 h-3" />
@@ -90,7 +89,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent relative"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="handleCopy"
                 >
                   <Icon icon="lucide:copy" class="w-3 h-3" />
@@ -110,7 +109,7 @@
                   v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent relative"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   :disabled="isCapturingImage"
                   @mousedown="handleCopyImageStart"
                   @mouseup="handleCopyImageEnd"
@@ -140,13 +139,12 @@
                 }}
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
+            <Tooltip v-if="isAssistant && !isReadOnly">
               <TooltipTrigger as-child>
                 <Button
-                  v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('retry')"
                 >
                   <Icon icon="lucide:refresh-cw" class="w-3 h-3" />
@@ -159,7 +157,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('trace')"
                 >
                   <Icon icon="lucide:bug" class="w-3 h-3" />
@@ -167,13 +165,12 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.trace') }}</TooltipContent>
             </Tooltip>
-            <Tooltip>
+            <Tooltip v-if="isAssistant && !loading && !isInGeneratingThread && !isReadOnly">
               <TooltipTrigger as-child>
                 <Button
-                  v-show="isAssistant && !loading && !isInGeneratingThread"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('fork')"
                 >
                   <Icon icon="lucide:git-branch" class="w-3 h-3" />
@@ -181,13 +178,12 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.fork') }}</TooltipContent>
             </Tooltip>
-            <Tooltip>
+            <Tooltip v-if="!isAssistant && !isEditMode && !isReadOnly">
               <TooltipTrigger as-child>
                 <Button
-                  v-show="!isAssistant && !isEditMode"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('edit')"
                 >
                   <Icon icon="lucide:edit" class="w-3 h-3" />
@@ -195,12 +191,12 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.edit') }}</TooltipContent>
             </Tooltip>
-            <Tooltip>
+            <Tooltip v-if="!isReadOnly">
               <TooltipTrigger as-child>
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('delete')"
                 >
                   <Icon icon="lucide:trash-2" class="w-3 h-3" />
@@ -309,6 +305,7 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   isCapturingImage: boolean
   showTrace?: boolean
+  isReadOnly?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'retry'): void
@@ -328,6 +325,7 @@ const emit = defineEmits<{
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
+const isReadOnly = computed(() => props.isReadOnly === true)
 </script>
 
 <style scoped>

@@ -1,21 +1,23 @@
-import { computed, type ComputedRef, ref } from 'vue'
+import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
 import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
-import { ModelType } from '@shared/model'
+import { isChatSelectableModelType, ModelType } from '@shared/model'
 import {
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
   resolveModelMaxTokens,
   resolveModelVision
 } from '@shared/modelConfigDefaults'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { usePresenter } from '@/composables/usePresenter'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { createModelClient } from '../../api/ModelClient'
 
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
@@ -28,22 +30,161 @@ type ModelQueryHandle<TData> = {
   refetch: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
 }
 
+type ChatSelectableModelGroup = {
+  providerId: string
+  providerName: string
+  models: RENDERER_MODEL_META[]
+}
+
+const resolveRendererModelType = (
+  model: Pick<MODEL_META, 'id' | 'type' | 'supportedEndpointTypes' | 'endpointType'>
+): ModelType => {
+  return (resolveVideoGenerationCompatType({
+    modelId: model.id,
+    type: model.type,
+    endpointType: model.endpointType,
+    supportedEndpointTypes: model.supportedEndpointTypes
+  }) ??
+    model.type ??
+    ModelType.Chat) as ModelType
+}
+
 export const useModelStore = defineStore('model', () => {
-  const configP = usePresenter('configPresenter')
-  const llmP = usePresenter('llmproviderPresenter')
+  const modelClient = createModelClient()
   const providerStore = useProviderStore()
   const modelConfigStore = useModelConfigStore()
   const agentModelStore = useAgentModelStore()
+  const uiSettingsStore = useUiSettingsStore()
 
   const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
   const listenersRegistered = ref(false)
+  const initialized = ref(false)
+  const isInitializing = ref(false)
+  const initializationError = ref<Error | null>(null)
+  const initializationPromise = ref<Promise<void> | null>(null)
 
   const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
   const queryCache = useQueryCache()
+  let removeModelListeners: (() => void) | null = null
+  const inFlightRefreshes = new Map<string, Promise<boolean>>()
+  const rerunRequested = new Set<string>()
+  const pendingRefreshStarts = new Set<string>()
+  const pendingModelStatusEchoes = new Map<string, boolean>()
+  const providerModelsReadyAt = new Map<string, number>()
+  const activeProviderIds = computed(
+    () =>
+      new Set(
+        providerStore.providers.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+  )
+  const activeEnabledModels = computed(() =>
+    enabledModels.value.filter((group) => activeProviderIds.value.has(group.providerId))
+  )
+
+  const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+  const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+  const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+    if (!uiSettingsStore.traceDebugEnabled) {
+      return
+    }
+
+    console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+  }
+
+  const getModelStatusKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+  const getProviderState = (providerId: string) => {
+    return providerStore.providers.find((provider) => provider.id === providerId) ?? null
+  }
+
+  const markProviderModelsReady = (providerId: string) => {
+    providerModelsReadyAt.set(providerId, Date.now())
+  }
+
+  const clearProviderModelsReady = (providerId?: string) => {
+    if (providerId) {
+      providerModelsReadyAt.delete(providerId)
+      return
+    }
+
+    providerModelsReadyAt.clear()
+  }
+
+  const isProviderModelsReady = (providerId: string) => {
+    return providerModelsReadyAt.has(providerId)
+  }
+
+  const trackPendingModelStatusEcho = (providerId: string, modelId: string, enabled: boolean) => {
+    const statusKey = getModelStatusKey(providerId, modelId)
+    pendingModelStatusEchoes.set(statusKey, enabled)
+    setTimeout(() => {
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }, 1500)
+  }
+
+  const ensureModelRuntime = () => {
+    setupModelListeners()
+  }
+
+  const getMaterializedProviderIds = () => {
+    return Array.from(
+      new Set([
+        ...allProviderModels.value.map((entry) => entry.providerId),
+        ...customModels.value.map((entry) => entry.providerId),
+        ...enabledModels.value.map((entry) => entry.providerId)
+      ])
+    ).filter((providerId): providerId is string => Boolean(providerId))
+  }
+
+  const removeProviderGroups = (
+    groups: { providerId: string; models: RENDERER_MODEL_META[] }[],
+    providerId: string
+  ) => {
+    return groups.filter((group) => group.providerId !== providerId)
+  }
+
+  const purgeRemovedProviderState = (providerId: string) => {
+    allProviderModels.value = removeProviderGroups(allProviderModels.value, providerId)
+    customModels.value = removeProviderGroups(customModels.value, providerId)
+    enabledModels.value = removeProviderGroups(enabledModels.value, providerId)
+    providerModelQueries.delete(providerId)
+    customModelQueries.delete(providerId)
+    enabledModelQueries.delete(providerId)
+    pendingRefreshStarts.delete(providerId)
+    rerunRequested.delete(providerId)
+    clearProviderModelsReady(providerId)
+
+    for (const statusKey of Array.from(pendingModelStatusEchoes.keys())) {
+      if (statusKey.startsWith(`${providerId}:`)) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
+  watch(
+    () => providerStore.providers.map((provider) => provider.id),
+    (providerIds) => {
+      const providerIdSet = new Set(providerIds)
+      for (const materializedProviderId of getMaterializedProviderIds()) {
+        if (!providerIdSet.has(materializedProviderId)) {
+          purgeRemovedProviderState(materializedProviderId)
+        }
+      }
+    }
+  )
+
+  const refreshMaterializedProviders = async () => {
+    const providerIds = getMaterializedProviderIds()
+    for (const providerId of providerIds) {
+      await refreshProviderModels(providerId)
+    }
+  }
 
   const matchesProviderModelsEntry = (
     entry: { key: readonly unknown[] },
@@ -55,14 +196,7 @@ export const useModelStore = defineStore('model', () => {
     if (namespace !== 'model-store' || scope !== 'provider-models') return false
     if (!targetProviderId) return true
 
-    // Strict matching: providerId must be a string and exactly match
-    const matches = typeof providerId === 'string' && providerId === targetProviderId
-    if (!matches && targetProviderId) {
-      console.warn(
-        `[ModelStore] matchesProviderModelsEntry: Cache key providerId "${providerId}" does not match target "${targetProviderId}"`
-      )
-    }
-    return matches
+    return typeof providerId === 'string' && providerId === targetProviderId
   }
 
   const invalidateProviderModelsCache = async (providerId?: string) => {
@@ -72,10 +206,6 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateProviderModelsCache = (providerId: string, data: MODEL_META[]) => {
-    console.log(
-      `[ModelStore] updateProviderModelsCache: updating cache for provider "${providerId}" with ${data.length} models`
-    )
-
     // Validate that all models have the correct providerId
     const validatedData = data.filter((model) => {
       if (model.providerId !== providerId) {
@@ -93,16 +223,29 @@ export const useModelStore = defineStore('model', () => {
       )
     }
 
-    console.log(
-      `[ModelStore] updateProviderModelsCache: updating cache with ${validatedData.length} validated models for provider "${providerId}"`
-    )
-
     queryCache.setQueriesData(
       {
         predicate: (entry) => matchesProviderModelsEntry(entry, providerId)
       },
       () => validatedData
     )
+  }
+
+  const resolveExplicitFunctionCall = (
+    ...values: Array<boolean | undefined | null>
+  ): boolean | undefined => {
+    for (const value of values) {
+      if (typeof value === 'boolean') {
+        return value
+      }
+    }
+
+    return undefined
+  }
+
+  const stripDerivedRendererModelFields = <T extends Partial<RENDERER_MODEL_META>>(model: T) => {
+    const { explicitFunctionCall: _explicitFunctionCall, ...persistedModel } = model
+    return persistedModel as Omit<T, 'explicitFunctionCall'>
   }
 
   const normalizeRendererModel = (model: MODEL_META, providerId: string): RENDERER_MODEL_META => ({
@@ -116,9 +259,42 @@ export const useModelStore = defineStore('model', () => {
     isCustom: model.isCustom ?? false,
     vision: resolveModelVision(model.vision),
     functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
     reasoning: model.reasoning ?? false,
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
-    type: (model.type ?? ModelType.Chat) as ModelType
+    type: resolveRendererModelType(model),
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
+  })
+
+  const normalizeDerivedRendererModel = (
+    model: MODEL_META,
+    providerId: string
+  ): RENDERER_MODEL_META => ({
+    id: model.id,
+    name: model.name || model.id,
+    contextLength: resolveModelContextLength(model.contextLength),
+    maxTokens: resolveDerivedModelMaxTokens(model.maxTokens),
+    group: model.group || 'default',
+    providerId,
+    enabled: (model as RENDERER_MODEL_META).enabled ?? false,
+    isCustom: model.isCustom ?? false,
+    vision: resolveModelVision(model.vision),
+    functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
+    reasoning: model.reasoning ?? false,
+    enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+    type: resolveRendererModelType(model),
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
   })
 
   const createQueryHandle = <TData>(
@@ -157,7 +333,7 @@ export const useModelStore = defineStore('model', () => {
     return ensureQueryHandle(providerModelQueries, providerId, {
       key: PROVIDER_MODELS_KEY(providerId),
       staleTime: 30_000,
-      query: async () => configP.getProviderModels(providerId)
+      query: async () => modelClient.getProviderModels(providerId)
     })
   }
 
@@ -165,7 +341,7 @@ export const useModelStore = defineStore('model', () => {
     return ensureQueryHandle(customModelQueries, providerId, {
       key: CUSTOM_MODELS_KEY(providerId),
       staleTime: 30_000,
-      query: async () => configP.getCustomModels(providerId)
+      query: async () => modelClient.getCustomModels(providerId)
     })
   }
 
@@ -175,12 +351,13 @@ export const useModelStore = defineStore('model', () => {
       staleTime: 30_000,
       query: async () => {
         const [providerModels, customModelsList] = await Promise.all([
-          configP.getProviderModels(providerId),
-          configP.getCustomModels(providerId)
+          modelClient.getProviderModels(providerId),
+          modelClient.getCustomModels(providerId)
         ])
-        const modelIds = [...providerModels, ...customModelsList].map((model) => model.id)
-        const statusMap =
-          modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+        const statusMap = await modelClient.getBatchModelStatus(
+          providerId,
+          [...providerModels, ...customModelsList].map((model) => model.id)
+        )
         return [...providerModels, ...customModelsList]
           .filter((model) => statusMap[model.id] === true)
           .map((model) => ({ ...normalizeRendererModel(model, providerId), enabled: true }))
@@ -214,8 +391,16 @@ export const useModelStore = defineStore('model', () => {
           maxTokens: resolvedMaxTokens,
           vision: resolveModelVision(config.vision ?? normalized.vision),
           functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
-          reasoning: config.reasoning ?? normalized.reasoning ?? false,
-          type: config.type ?? normalized.type ?? ModelType.Chat
+          explicitFunctionCall: resolveExplicitFunctionCall(
+            config.functionCall,
+            normalized.explicitFunctionCall
+          ),
+          reasoning: model.isCustom
+            ? (config.reasoning ?? normalized.reasoning ?? false)
+            : normalized.reasoning,
+          type: config.type ?? normalized.type ?? ModelType.Chat,
+          endpointType: config.endpointType ?? normalized.endpointType,
+          ownedBy: config.ownedBy ?? normalized.ownedBy
         }
       }
     } catch (error) {
@@ -244,10 +429,8 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateEnabledState = (providerId: string, models: RENDERER_MODEL_META[]) => {
-    console.log(
-      `[ModelStore] updateEnabledState: updating enabled state for provider "${providerId}" with ${models.length} models`
-    )
-    const enabledModelsList = models.filter((model) => model.enabled)
+    const providerState = getProviderState(providerId)
+    const enabledModelsList = providerState?.enable ? models.filter((model) => model.enabled) : []
     const idx = enabledModels.value.findIndex((item) => item.providerId === providerId)
     if (idx !== -1) {
       if (enabledModelsList.length > 0) {
@@ -262,7 +445,150 @@ export const useModelStore = defineStore('model', () => {
     enabledModels.value = [...enabledModels.value]
   }
 
-  const refreshCustomModels = async (providerId: string): Promise<void> => {
+  const pruneModelState = (providerIds: Set<string>, enabledProviderIds: Set<string>) => {
+    enabledModels.value = enabledModels.value.filter((group) =>
+      enabledProviderIds.has(group.providerId)
+    )
+    allProviderModels.value = allProviderModels.value.filter((group) =>
+      providerIds.has(group.providerId)
+    )
+    customModels.value = customModels.value.filter((group) => providerIds.has(group.providerId))
+  }
+
+  const updateEnabledStateFromLocalProvider = (providerId: string) => {
+    const materializedProviderModels =
+      allProviderModels.value.find((item) => item.providerId === providerId)?.models ?? []
+    const materializedCustomModels =
+      customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+    if (materializedCustomModels.length === 0) {
+      updateEnabledState(providerId, materializedProviderModels)
+      return
+    }
+
+    const mergedModels = new Map<string, RENDERER_MODEL_META>()
+
+    for (const model of materializedProviderModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    for (const model of materializedCustomModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    updateEnabledState(providerId, Array.from(mergedModels.values()))
+  }
+
+  const updateLocalBatchModelStatus = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const previousStates = new Map<string, boolean | null>()
+
+    if (updates.length === 0) {
+      return previousStates
+    }
+
+    const providerEntry = allProviderModels.value.find((item) => item.providerId === providerId)
+    const customEntry = customModels.value.find((item) => item.providerId === providerId)
+    const enabledEntry = enabledModels.value.find((item) => item.providerId === providerId)
+    const providerModelById = providerEntry
+      ? new Map(providerEntry.models.map((model) => [model.id, model]))
+      : null
+    const customModelById = customEntry
+      ? new Map(customEntry.models.map((model) => [model.id, model]))
+      : null
+    const enabledModelIds = enabledEntry
+      ? new Set(enabledEntry.models.map((model) => model.id))
+      : null
+
+    const nextEnabledByModelId = new Map<string, boolean>()
+    for (const update of updates) {
+      const providerModel = providerModelById?.get(update.modelId)
+      const customModel = customModelById?.get(update.modelId)
+      previousStates.set(
+        update.modelId,
+        providerModel
+          ? !!providerModel.enabled
+          : customModel
+            ? !!customModel.enabled
+            : (enabledModelIds?.has(update.modelId) ?? null)
+      )
+      nextEnabledByModelId.set(update.modelId, update.enabled)
+    }
+
+    if (providerEntry) {
+      for (const model of providerEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    if (customEntry) {
+      for (const model of customEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    updateEnabledStateFromLocalProvider(providerId)
+
+    return previousStates
+  }
+
+  const rollbackLocalBatchModelStatus = (
+    providerId: string,
+    previousStates: Map<string, boolean | null>
+  ) => {
+    const rollbackUpdates: { modelId: string; enabled: boolean }[] = []
+    for (const [modelId, enabled] of previousStates) {
+      if (enabled !== null) {
+        rollbackUpdates.push({ modelId, enabled })
+      }
+    }
+
+    if (rollbackUpdates.length > 0) {
+      updateLocalBatchModelStatus(providerId, rollbackUpdates)
+    }
+  }
+
+  const trackPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const trackedEchoes: { statusKey: string; enabled: boolean }[] = []
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      pendingModelStatusEchoes.set(statusKey, update.enabled)
+      trackedEchoes.push({ statusKey, enabled: update.enabled })
+    }
+
+    setTimeout(() => {
+      for (const echo of trackedEchoes) {
+        if (pendingModelStatusEchoes.get(echo.statusKey) === echo.enabled) {
+          pendingModelStatusEchoes.delete(echo.statusKey)
+        }
+      }
+    }, 1500)
+  }
+
+  const clearPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === update.enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
+  const refreshCustomModels = async (providerId: string): Promise<boolean> => {
     try {
       const query = getCustomModelsQuery(providerId)
       await query.refetch()
@@ -271,12 +597,11 @@ export const useModelStore = defineStore('model', () => {
         customModels.value.find((item) => item.providerId === providerId)?.models ?? []
 
       if (customModelsList.length === 0 && existingCustom.length === 0) {
-        return
+        return true
       }
 
       const modelIds = customModelsList.map((model) => model.id)
-      const modelStatusMap =
-        modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
 
       const customModelsWithStatus = await Promise.all(
         customModelsList.map(async (model) => {
@@ -297,32 +622,30 @@ export const useModelStore = defineStore('model', () => {
           ?.models.filter((model) => !model.isCustom) || []
       updateAllProviderState(providerId, [...existingStandard, ...customModelsWithStatus])
       updateEnabledState(providerId, [...existingStandard, ...customModelsWithStatus])
+      markProviderModelsReady(providerId)
+      return true
     } catch (error) {
       console.error(`刷新自定义模型失败: ${providerId}`, error)
+      return false
     }
   }
 
-  const refreshStandardModels = async (providerId: string): Promise<void> => {
+  const refreshStandardModels = async (providerId: string): Promise<boolean> => {
     try {
-      console.log(
-        `[ModelStore] refreshStandardModels: refreshing models for provider "${providerId}"`
-      )
       await invalidateProviderModelsCache(providerId)
-      let models: RENDERER_MODEL_META[] = await configP.getDbProviderModels(providerId)
-      console.log(
-        `[ModelStore] refreshStandardModels: got ${models.length} models from DB for provider "${providerId}"`
-      )
+      const providerState = getProviderState(providerId)
+      const useProviderDbModels = providerState?.apiType !== 'ollama'
+      let models: RENDERER_MODEL_META[] = useProviderDbModels
+        ? await modelClient.getDbProviderModels(providerId)
+        : []
 
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
       let storedModels = providerModelsQuery.data.value ?? []
-      console.log(
-        `[ModelStore] refreshStandardModels: got ${storedModels.length} stored models for provider "${providerId}"`
-      )
 
       if (storedModels.length === 0) {
         // Fallback: try to get models directly from config
-        const fallbackProviderModels = (await configP.getProviderModels(providerId)) ?? []
+        const fallbackProviderModels = (await modelClient.getProviderModels(providerId)) ?? []
         if (fallbackProviderModels.length > 0) {
           storedModels = fallbackProviderModels
           updateProviderModelsCache(providerId, fallbackProviderModels)
@@ -347,15 +670,31 @@ export const useModelStore = defineStore('model', () => {
             contextLength: resolveModelContextLength(
               model.contextLength ?? fallback?.contextLength
             ),
-            maxTokens: resolveModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
+            maxTokens: resolveDerivedModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
             vision: resolveModelVision(model.vision ?? fallback?.vision),
             functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
-            reasoning: model.reasoning ?? fallback?.reasoning ?? false,
+            explicitFunctionCall: resolveExplicitFunctionCall(
+              model.functionCall,
+              fallback?.explicitFunctionCall
+            ),
+            // Standard models should keep DB-backed reasoning capability metadata.
+            reasoning:
+              fallback !== undefined ? (fallback.reasoning ?? false) : (model.reasoning ?? false),
             enableSearch:
               (model as RENDERER_MODEL_META).enableSearch ??
               (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??
               false,
-            type: (model.type ?? fallback?.type ?? ModelType.Chat) as ModelType
+            type: resolveRendererModelType({
+              id: model.id,
+              type: model.type ?? fallback?.type,
+              supportedEndpointTypes:
+                model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+              endpointType: model.endpointType ?? fallback?.endpointType
+            }),
+            supportedEndpointTypes:
+              model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+            endpointType: model.endpointType ?? fallback?.endpointType,
+            ownedBy: model.ownedBy ?? fallback?.ownedBy
           }
         }
 
@@ -369,7 +708,7 @@ export const useModelStore = defineStore('model', () => {
         // If models array is empty, use storedModels directly
         if (models.length === 0) {
           for (const model of storedModelMap.values()) {
-            mergedModels.push(model)
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
           }
         } else {
           // Otherwise, merge db models with stored models
@@ -377,15 +716,17 @@ export const useModelStore = defineStore('model', () => {
             const override = storedModelMap.get(model.id)
             if (override) {
               storedModelMap.delete(model.id)
-              mergedModels.push({ ...model, ...override, providerId })
+              mergedModels.push(
+                normalizeDerivedRendererModel({ ...model, ...override, providerId }, providerId)
+              )
             } else {
-              mergedModels.push({ ...model, providerId })
+              mergedModels.push(normalizeDerivedRendererModel({ ...model, providerId }, providerId))
             }
           }
 
           // Add remaining stored models that are not in db
           for (const model of storedModelMap.values()) {
-            mergedModels.push(model)
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
           }
         }
 
@@ -394,7 +735,7 @@ export const useModelStore = defineStore('model', () => {
 
       if (!models || models.length === 0) {
         try {
-          const modelMetas = await llmP.getModelList(providerId)
+          const modelMetas = await modelClient.getModelList(providerId)
           if (modelMetas) {
             models = modelMetas.map((meta) => ({
               id: meta.id,
@@ -409,7 +750,10 @@ export const useModelStore = defineStore('model', () => {
               vision: meta.vision || false,
               functionCall: meta.functionCall || false,
               reasoning: meta.reasoning || false,
-              type: (meta.type || ModelType.Chat) as ModelType
+              type: (meta.type || ModelType.Chat) as ModelType,
+              supportedEndpointTypes: meta.supportedEndpointTypes,
+              endpointType: meta.endpointType,
+              ownedBy: meta.ownedBy
             }))
           }
         } catch (error) {
@@ -419,13 +763,12 @@ export const useModelStore = defineStore('model', () => {
       }
 
       const modelIds = models.map((model) => model.id)
-      const modelStatusMap =
-        modelIds.length > 0 ? await configP.getBatchModelStatus(providerId, modelIds) : {}
+      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
 
       const modelsWithStatus = await Promise.all(
         models.map(async (model) => {
           const base: RENDERER_MODEL_META = {
-            ...normalizeRendererModel(model, providerId),
+            ...normalizeDerivedRendererModel(model, providerId),
             enabled: modelStatusMap[model.id] ?? true,
             isCustom: model.isCustom || false
           }
@@ -437,40 +780,166 @@ export const useModelStore = defineStore('model', () => {
         customModels.value.find((item) => item.providerId === providerId)?.models || []
       updateAllProviderState(providerId, [...modelsWithStatus, ...existingCustom])
       updateEnabledState(providerId, [...modelsWithStatus, ...existingCustom])
+      markProviderModelsReady(providerId)
+      return true
     } catch (error) {
       console.error(`刷新标准模型失败: ${providerId}`, error)
+      return false
     }
   }
 
-  const refreshProviderModels = async (providerId: string) => {
+  const refreshProviderModelsNow = async (providerId: string): Promise<boolean> => {
     if (providerId === 'acp') {
       try {
         const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
         updateProviderModelsCache(providerId, modelMetas)
         updateAllProviderState(providerId, rendererModels)
         updateEnabledState(providerId, rendererModels)
+        markProviderModelsReady(providerId)
+        return true
       } catch (error) {
         console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
+        clearProviderModelsReady(providerId)
+        return false
       }
-      return
     }
 
-    await refreshStandardModels(providerId)
-    await refreshCustomModels(providerId)
+    const [standardRefreshed, customRefreshed] = await Promise.all([
+      refreshStandardModels(providerId),
+      refreshCustomModels(providerId)
+    ])
+
+    if (!standardRefreshed || !customRefreshed) {
+      clearProviderModelsReady(providerId)
+    }
+
+    return standardRefreshed && customRefreshed
   }
 
-  const _refreshAllModelsInternal = async () => {
-    const activeProviders = providerStore.providers.filter((p) => p.enable)
-    for (const provider of activeProviders) {
-      await refreshProviderModels(provider.id)
+  const refreshProviderModels = (providerId: string): Promise<boolean> => {
+    ensureModelRuntime()
+
+    const existingRefresh = inFlightRefreshes.get(providerId)
+    if (existingRefresh) {
+      if (!pendingRefreshStarts.has(providerId)) {
+        rerunRequested.add(providerId)
+      }
+      return existingRefresh
     }
+
+    pendingRefreshStarts.add(providerId)
+    let refreshPromise: Promise<boolean> | null = null
+    refreshPromise = (async () => {
+      let lastRefreshSucceeded = true
+      try {
+        await Promise.resolve()
+        pendingRefreshStarts.delete(providerId)
+
+        do {
+          rerunRequested.delete(providerId)
+          lastRefreshSucceeded = await refreshProviderModelsNow(providerId)
+        } while (rerunRequested.has(providerId))
+
+        return lastRefreshSucceeded
+      } finally {
+        pendingRefreshStarts.delete(providerId)
+        rerunRequested.delete(providerId)
+        if (refreshPromise && inFlightRefreshes.get(providerId) === refreshPromise) {
+          inFlightRefreshes.delete(providerId)
+        }
+      }
+    })()
+
+    inFlightRefreshes.set(providerId, refreshPromise)
+    return refreshPromise
+  }
+
+  const _refreshAllModelsInternal = async (): Promise<boolean> => {
+    await providerStore.ensureInitialized()
+
+    const activeProviders = providerStore.providers.filter((p) => p.enable)
+    let allProvidersRefreshed = true
+    for (const provider of activeProviders) {
+      const refreshed = await refreshProviderModels(provider.id)
+      allProvidersRefreshed = allProvidersRefreshed && refreshed
+    }
+
+    return allProvidersRefreshed
   }
 
   const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
+  const chatSelectableModelGroups = computed<ChatSelectableModelGroup[]>(() => {
+    const orderedProviders =
+      providerStore.sortedProviders?.length > 0
+        ? providerStore.sortedProviders
+        : providerStore.providers
+    const modelsByProviderId = new Map(
+      enabledModels.value
+        .filter((group) => group.providerId !== 'acp')
+        .map(
+          (group) =>
+            [
+              group.providerId,
+              group.models.filter((model) => isChatSelectableModelType(model.type))
+            ] as const
+        )
+        .filter(([, models]) => models.length > 0)
+    )
+
+    const result: ChatSelectableModelGroup[] = []
+
+    for (const provider of orderedProviders) {
+      if (!provider.enable || provider.id === 'acp') {
+        continue
+      }
+
+      const models = modelsByProviderId.get(provider.id)
+      if (!models || models.length === 0) {
+        continue
+      }
+
+      result.push({
+        providerId: provider.id,
+        providerName: provider.name,
+        models
+      })
+    }
+
+    return result
+  })
+
+  const findChatSelectableModel = (providerId: string, modelId: string) => {
+    const group = chatSelectableModelGroups.value.find((entry) => entry.providerId === providerId)
+    const model = group?.models.find((entry) => entry.id === modelId)
+    if (!group || !model) {
+      return null
+    }
+
+    return {
+      providerId: group.providerId,
+      providerName: group.providerName,
+      model
+    }
+  }
+
+  const pickFirstChatSelectableModel = () => {
+    const firstGroup = chatSelectableModelGroups.value[0]
+    const firstModel = firstGroup?.models[0]
+    if (!firstGroup || !firstModel) {
+      return null
+    }
+
+    return {
+      providerId: firstGroup.providerId,
+      providerName: firstGroup.providerName,
+      model: firstModel
+    }
+  }
+
   const searchModels = (query: string) => {
     const normalized = query.toLowerCase()
-    return enabledModels.value
+    return activeEnabledModels.value
       .map((group) => ({
         providerId: group.providerId,
         models: group.models.filter(
@@ -494,6 +963,11 @@ export const useModelStore = defineStore('model', () => {
     }
     if (customModel) {
       customModel.enabled = enabled
+    }
+
+    if (!getProviderState(providerId)?.enable) {
+      enabledModels.value = enabledModels.value.filter((entry) => entry.providerId !== providerId)
+      return
     }
 
     let enabledProvider = enabledModels.value.find((p) => p.providerId === providerId)
@@ -566,22 +1040,45 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const updateModelStatus = async (providerId: string, modelId: string, enabled: boolean) => {
+    const actionStart = getPerfNow()
     const previousState = getLocalModelEnabledState(providerId, modelId)
+    const localUpdateStart = getPerfNow()
     updateLocalModelStatus(providerId, modelId, enabled)
-
-    const provider = providerStore.providers.find((p) => p.id === providerId)
-    if (provider?.apiType === 'ollama') {
-      return
-    }
+    trackPendingModelStatusEcho(providerId, modelId, enabled)
+    logModelTogglePerf('store.local-update', {
+      providerId,
+      modelId,
+      enabled,
+      previousState,
+      elapsedMs: Math.round(getPerfNow() - localUpdateStart)
+    })
 
     try {
-      await llmP.updateModelStatus(providerId, modelId, enabled)
-      await refreshProviderModels(providerId)
+      const ipcStart = getPerfNow()
+      await modelClient.updateModelStatus(providerId, modelId, enabled)
+      logModelTogglePerf('store.ipc-complete', {
+        providerId,
+        modelId,
+        enabled,
+        elapsedMs: Math.round(getPerfNow() - ipcStart),
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error('Failed to update model status:', error)
+      const statusKey = getModelStatusKey(providerId, modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
       if (previousState !== null && previousState !== enabled) {
         updateLocalModelStatus(providerId, modelId, previousState)
       }
+      logModelTogglePerf('store.rollback', {
+        providerId,
+        modelId,
+        enabled,
+        previousState,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     }
   }
 
@@ -590,8 +1087,10 @@ export const useModelStore = defineStore('model', () => {
     model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ) => {
     try {
-      const newModel = await llmP.addCustomModel(providerId, model)
-      await configP.addCustomModel(providerId, newModel)
+      const newModel = await modelClient.addCustomModel(
+        providerId,
+        stripDerivedRendererModelFields(model)
+      )
       await refreshCustomModels(providerId)
       return newModel
     } catch (error) {
@@ -602,8 +1101,7 @@ export const useModelStore = defineStore('model', () => {
 
   const removeCustomModel = async (providerId: string, modelId: string) => {
     try {
-      await configP.removeCustomModel(providerId, modelId)
-      const success = await llmP.removeCustomModel(providerId, modelId)
+      const success = await modelClient.removeCustomModel(providerId, modelId)
       if (success) {
         await refreshCustomModels(providerId)
       }
@@ -620,7 +1118,11 @@ export const useModelStore = defineStore('model', () => {
     updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
   ) => {
     try {
-      const success = await llmP.updateCustomModel(providerId, modelId, updates)
+      const success = await modelClient.updateCustomModel(
+        providerId,
+        modelId,
+        stripDerivedRendererModelFields(updates)
+      )
       if (success) {
         await refreshCustomModels(providerId)
       }
@@ -631,52 +1133,86 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const enableAllModels = async (providerId: string): Promise<void> => {
+  const enableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
     try {
-      const providerModelsData = allProviderModels.value.find((p) => p.providerId === providerId)
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
       if (!providerModelsData || providerModelsData.models.length === 0) {
         console.warn(`No models found for provider ${providerId}`)
         return
       }
 
-      for (const model of providerModelsData.models) {
-        if (!model.enabled) {
-          await llmP.updateModelStatus(providerId, model.id, true)
-        }
+      const targetModels = providerModelsData.models.filter((model) => !model.enabled)
+      if (targetModels.length === 0) {
+        return
       }
-      await refreshProviderModels(providerId)
+
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: true }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-enable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error(`Failed to enable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
       throw error
     }
   }
 
-  const disableAllModels = async (providerId: string): Promise<void> => {
+  const disableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
     try {
-      const providerModelsData = allProviderModels.value.find((p) => p.providerId === providerId)
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
       if (!providerModelsData || providerModelsData.models.length === 0) {
         console.warn(`No models found for provider ${providerId}`)
         return
       }
 
-      const customModelsData = customModels.value.find((p) => p.providerId === providerId)
-      const standardModels = providerModelsData.models
-      for (const model of standardModels) {
-        if (model.enabled) {
-          await llmP.updateModelStatus(providerId, model.id, false)
-        }
+      const targetModels = providerModelsData.models.filter((model) => model.enabled)
+      if (targetModels.length === 0) {
+        return
       }
 
-      if (customModelsData) {
-        for (const model of customModelsData.models) {
-          if (model.enabled) {
-            await llmP.updateModelStatus(providerId, model.id, false)
-          }
-        }
-      }
-      await refreshProviderModels(providerId)
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: false }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-disable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
     } catch (error) {
       console.error(`Failed to disable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
       throw error
     }
   }
@@ -714,52 +1250,168 @@ export const useModelStore = defineStore('model', () => {
     return null
   }
 
+  watch(
+    () =>
+      providerStore.providers.map((provider) => ({
+        id: provider.id,
+        enable: provider.enable
+      })),
+    (nextProviders, previousProviders) => {
+      const providerIds = new Set(nextProviders.map((provider) => provider.id))
+      const enabledProviderIds = new Set(
+        nextProviders.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+      const previousEnabledProviderIds = new Set(
+        (previousProviders ?? [])
+          .filter((provider) => provider.enable)
+          .map((provider) => provider.id)
+      )
+
+      pruneModelState(providerIds, enabledProviderIds)
+
+      for (const provider of previousProviders ?? []) {
+        if (provider.enable && !enabledProviderIds.has(provider.id)) {
+          clearProviderModelsReady(provider.id)
+        }
+      }
+
+      for (const providerId of providerIds) {
+        if (enabledProviderIds.has(providerId) && !previousEnabledProviderIds.has(providerId)) {
+          updateEnabledStateFromLocalProvider(providerId)
+          if (initialized.value) {
+            void refreshProviderModels(providerId)
+          }
+        }
+      }
+    },
+    { immediate: true }
+  )
+
   const setupModelListeners = () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    window.electron?.ipcRenderer?.on(
-      CONFIG_EVENTS.MODEL_LIST_CHANGED,
-      async (_event, providerId: string) => {
+    const unsubscribeModelListChanged = modelClient.onModelsChanged(
+      async ({ providerId, reason }) => {
         if (providerId) {
           await refreshProviderModels(providerId)
-        } else {
+          return
+        }
+
+        if (reason === 'provider-db-loaded' || reason === 'provider-db-updated') {
+          await refreshMaterializedProviders()
+          return
+        }
+
+        if (initialized.value) {
           await refreshAllModels()
         }
       }
     )
 
-    window.electron?.ipcRenderer?.on(
-      CONFIG_EVENTS.MODEL_STATUS_CHANGED,
-      async (_event, msg: { providerId: string; modelId: string; enabled: boolean }) => {
+    const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
+      async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
+        const statusKey = getModelStatusKey(msg.providerId, msg.modelId)
+        const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+        if (pendingEnabled !== undefined) {
+          pendingModelStatusEchoes.delete(statusKey)
+          if (pendingEnabled === msg.enabled) {
+            return
+          }
+        }
+
         updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
       }
     )
 
-    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
-      await refreshAllModels()
-    })
-    window.electron?.ipcRenderer?.on(PROVIDER_DB_EVENTS.LOADED, async () => {
-      await refreshAllModels()
-    })
+    const unsubscribeModelBatchStatusChanged = modelClient.onModelBatchStatusChanged(
+      async (msg: { providerId: string; updates: { modelId: string; enabled: boolean }[] }) => {
+        for (const update of msg.updates) {
+          const statusKey = getModelStatusKey(msg.providerId, update.modelId)
+          const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+          if (pendingEnabled !== undefined) {
+            pendingModelStatusEchoes.delete(statusKey)
+            if (pendingEnabled === update.enabled) {
+              continue
+            }
+          }
+          updateLocalModelStatus(msg.providerId, update.modelId, update.enabled)
+        }
+      }
+    )
+
+    removeModelListeners = () => {
+      unsubscribeModelListChanged()
+      unsubscribeModelStatusChanged()
+      unsubscribeModelBatchStatusChanged()
+    }
   }
 
   const cleanup = () => {
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_LIST_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(CONFIG_EVENTS.MODEL_STATUS_CHANGED)
-    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.UPDATED)
-    window.electron?.ipcRenderer?.removeAllListeners(PROVIDER_DB_EVENTS.LOADED)
+    removeModelListeners?.()
+    removeModelListeners = null
     listenersRegistered.value = false
+    initialized.value = false
+    isInitializing.value = false
+    initializationError.value = null
+    initializationPromise.value = null
+    inFlightRefreshes.clear()
+    rerunRequested.clear()
+    pendingRefreshStarts.clear()
+    pendingModelStatusEchoes.clear()
+    clearProviderModelsReady()
   }
 
   const initialize = async () => {
-    setupModelListeners()
-    await refreshAllModels()
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationError.value = null
+    isInitializing.value = true
+    initializationPromise.value = (async () => {
+      ensureModelRuntime()
+      const refreshed = await _refreshAllModelsInternal()
+      if (!refreshed) {
+        console.warn('[ModelStore] Some enabled providers failed to refresh during initialization')
+      }
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } catch (error) {
+      initialized.value = false
+      initializationError.value =
+        error instanceof Error ? error : new Error('Failed to initialize enabled models')
+      throw error
+    } finally {
+      isInitializing.value = false
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
+  }
+
+  const ensureProviderModelsReady = async (providerId: string) => {
+    ensureModelRuntime()
+    if (isProviderModelsReady(providerId)) {
+      return
+    }
+
+    await refreshProviderModels(providerId)
   }
 
   const addCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'addCustomModel',
+    mutation: (
+      providerId: string,
+      model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
+    ) => modelClient.addCustomModel(providerId, stripDerivedRendererModelFields(model)),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -767,8 +1419,8 @@ export const useModelStore = defineStore('model', () => {
   })
 
   const removeCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'removeCustomModel',
+    mutation: (providerId: string, modelId: string) =>
+      modelClient.removeCustomModel(providerId, modelId),
     invalidateQueries: (_, [providerId]) => [
       CUSTOM_MODELS_KEY(providerId),
       ENABLED_MODELS_KEY(providerId)
@@ -776,21 +1428,30 @@ export const useModelStore = defineStore('model', () => {
   })
 
   const updateCustomModelMutation = useIpcMutation({
-    presenter: 'configPresenter',
-    method: 'updateCustomModel',
+    mutation: (
+      providerId: string,
+      modelId: string,
+      updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
+    ) =>
+      modelClient.updateCustomModel(providerId, modelId, stripDerivedRendererModelFields(updates)),
     invalidateQueries: (_, [providerId]) => [CUSTOM_MODELS_KEY(providerId)]
   })
 
   return {
     enabledModels,
+    activeEnabledModels,
     allProviderModels,
     customModels,
+    initialized: readonly(initialized),
+    isInitializing: readonly(isInitializing),
+    initializationError: readonly(initializationError),
     getProviderModelsQuery,
     getCustomModelsQuery,
     getEnabledModelsQuery,
     refreshCustomModels,
     refreshStandardModels,
     refreshProviderModels,
+    ensureProviderModelsReady,
     refreshAllModels,
     updateModelStatus,
     updateLocalModelStatus,
@@ -802,6 +1463,9 @@ export const useModelStore = defineStore('model', () => {
     disableAllModels,
     searchModels,
     findModelByIdOrName,
+    chatSelectableModelGroups,
+    findChatSelectableModel,
+    pickFirstChatSelectableModel,
     applyUserDefinedModelConfig,
     addCustomModelMutation,
     removeCustomModelMutation,

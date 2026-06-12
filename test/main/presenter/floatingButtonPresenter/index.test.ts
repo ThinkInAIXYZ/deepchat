@@ -6,70 +6,98 @@ import {
 } from '../../../../src/main/presenter/floatingButtonPresenter/layout'
 import type { SessionWithState } from '../../../../src/shared/types/agent-interface'
 
-const { electronState, floatingWindowState, presenterState, sendToRendererMock, menuPopupMock } =
-  vi.hoisted(() => {
-    const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
-    const invokeHandlers = new Map<string, (...args: unknown[]) => unknown>()
-    const workArea = {
-      x: 0,
-      y: 0,
-      width: 1200,
-      height: 900
-    }
+const {
+  electronState,
+  floatingWindowState,
+  presenterState,
+  sendToRendererMock,
+  menuPopupMock,
+  getAgentsMock,
+  getSessionListMock
+} = vi.hoisted(() => {
+  const eventHandlers = new Map<string, (...args: unknown[]) => unknown>()
+  const invokeHandlers = new Map<string, (...args: unknown[]) => unknown>()
+  const workArea = {
+    x: 0,
+    y: 0,
+    width: 1200,
+    height: 900
+  }
 
-    const floatingWindowState = {
-      bounds: { x: 1136, y: 180, width: 64, height: 64 },
-      dockSide: 'right' as 'left' | 'right',
-      opacity: 1,
-      exists: true,
-      instance: null as null | {
-        create: ReturnType<typeof vi.fn>
-        show: ReturnType<typeof vi.fn>
-        destroy: ReturnType<typeof vi.fn>
-        exists: ReturnType<typeof vi.fn>
-        getState: ReturnType<typeof vi.fn>
-        getBounds: ReturnType<typeof vi.fn>
-        setBounds: ReturnType<typeof vi.fn>
-        setOpacity: ReturnType<typeof vi.fn>
-        getDockSide: ReturnType<typeof vi.fn>
-        setDockSide: ReturnType<typeof vi.fn>
-        getWindow: ReturnType<typeof vi.fn>
+  const floatingWindowState = {
+    bounds: { x: 1136, y: 180, width: 64, height: 64 },
+    dockSide: 'right' as 'left' | 'right',
+    opacity: 1,
+    exists: true,
+    instance: null as null | {
+      create: ReturnType<typeof vi.fn>
+      show: ReturnType<typeof vi.fn>
+      destroy: ReturnType<typeof vi.fn>
+      exists: ReturnType<typeof vi.fn>
+      getState: ReturnType<typeof vi.fn>
+      getBounds: ReturnType<typeof vi.fn>
+      setBounds: ReturnType<typeof vi.fn>
+      setOpacity: ReturnType<typeof vi.fn>
+      getDockSide: ReturnType<typeof vi.fn>
+      setDockSide: ReturnType<typeof vi.fn>
+      getWindow: ReturnType<typeof vi.fn>
+    },
+    reset() {
+      this.bounds = { x: 1136, y: 180, width: 64, height: 64 }
+      this.dockSide = 'right'
+      this.opacity = 1
+      this.exists = true
+      this.instance = null
+    }
+  }
+
+  const presenterState = {
+    sessions: [] as SessionWithState[],
+    agents: [
+      {
+        id: 'deepchat',
+        name: 'DeepChat',
+        type: 'deepchat' as const,
+        enabled: true,
+        avatar: null
       },
-      reset() {
-        this.bounds = { x: 1136, y: 180, width: 64, height: 64 }
-        this.dockSide = 'right'
-        this.opacity = 1
-        this.exists = true
-        this.instance = null
+      {
+        id: 'acp-agent',
+        name: 'ACP Agent',
+        type: 'acp' as const,
+        enabled: true,
+        avatar: null,
+        icon: 'https://example.com/acp-agent.svg'
       }
+    ],
+    reset() {
+      this.sessions = []
     }
+  }
 
-    const presenterState = {
-      sessions: [] as SessionWithState[],
+  const sendToRendererMock = vi.fn()
+  const menuPopupMock = vi.fn()
+  const getAgentsMock = vi.fn(async () => presenterState.agents)
+  const getSessionListMock = vi.fn(async () => presenterState.sessions)
+
+  return {
+    electronState: {
+      workArea,
+      eventHandlers,
+      invokeHandlers,
       reset() {
-        this.sessions = []
+        eventHandlers.clear()
+        invokeHandlers.clear()
       }
-    }
-
-    const sendToRendererMock = vi.fn()
-    const menuPopupMock = vi.fn()
-
-    return {
-      electronState: {
-        workArea,
-        eventHandlers,
-        invokeHandlers,
-        reset() {
-          eventHandlers.clear()
-          invokeHandlers.clear()
-        }
-      },
-      floatingWindowState,
-      presenterState,
-      sendToRendererMock,
-      menuPopupMock
-    }
-  })
+    },
+    floatingWindowState,
+    presenterState,
+    sendToRendererMock,
+    menuPopupMock,
+    getAgentsMock,
+    getSessionListMock
+  }
+})
 
 const BrowserWindow = vi.hoisted(() => class BrowserWindow {})
 
@@ -138,8 +166,9 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
 
 vi.mock('../../../../src/main/presenter/index', () => ({
   presenter: {
-    newAgentPresenter: {
-      getSessionList: vi.fn(async () => presenterState.sessions),
+    agentSessionPresenter: {
+      getAgents: getAgentsMock,
+      getSessionList: getSessionListMock,
       activateSession: vi.fn()
     },
     windowPresenter: {
@@ -164,7 +193,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     ({
       getFloatingButtonEnabled: vi.fn(() => true),
       getLanguage: vi.fn(() => 'zh-CN'),
-      getCurrentThemeIsDark: vi.fn(async () => false)
+      getCurrentThemeIsDark: vi.fn(async () => false),
+      getFloatingButtonBounds: vi.fn(() => null),
+      setFloatingButtonBounds: vi.fn()
     }) as any
 
   const emitEvent = async (channel: string, payload?: unknown) => {
@@ -183,6 +214,8 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     presenterState.reset()
     sendToRendererMock.mockReset()
     menuPopupMock.mockReset()
+    getAgentsMock.mockClear()
+    getSessionListMock.mockClear()
   })
 
   afterEach(async () => {
@@ -225,7 +258,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x: 220, y: 150 })
     expect(floatingWindowState.bounds).toMatchObject({
-      x: 1256,
+      x: 1270,
       y: 230,
       width: getCollapsedWidgetSize(0).width,
       height: getCollapsedWidgetSize(0).height
@@ -242,6 +275,38 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       height: getCollapsedWidgetSize(0).height
     })
     expect(floatingWindowState.opacity).toBe(0.5)
+  })
+
+  it('restores the persisted resting position on initialization', async () => {
+    const configPresenter = createConfigPresenter()
+    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    await floatingPresenter.initialize()
+
+    expect(configPresenter.getFloatingButtonBounds).toHaveBeenCalled()
+  })
+
+  it('persists the docked resting position after a drag ends', async () => {
+    const configPresenter = createConfigPresenter()
+    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    await floatingPresenter.initialize()
+
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_MOVE, { x: 220, y: 150 })
+    await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_END)
+
+    // Snapped/docked bounds (fully on-screen), not the peeked idle position.
+    expect(configPresenter.setFloatingButtonBounds).toHaveBeenCalledWith({
+      x: electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width,
+      y: 230,
+      dockSide: 'right'
+    })
+  })
+
+  it('loads all regular sessions without restricting the agent id', async () => {
+    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    await floatingPresenter.initialize()
+
+    expect(getSessionListMock).toHaveBeenCalledWith()
   })
 
   it('defers layout changes during drag and applies the latest snapshot after drop', async () => {

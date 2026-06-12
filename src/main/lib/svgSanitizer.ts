@@ -17,6 +17,18 @@ const DEFAULT_OPTIONS: Required<SanitizeOptions> = {
   maxSize: 1024 * 1024 // 1MB limit
 }
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  amp: '&',
+  apos: "'",
+  colon: ':',
+  commat: '@',
+  gt: '>',
+  lt: '<',
+  newline: '\n',
+  quot: '"',
+  tab: '\t'
+}
+
 // No need for detailed whitelists in this simplified approach
 
 export class SVGSanitizer {
@@ -224,27 +236,120 @@ export class SVGSanitizer {
     // Remove dangerous protocols from href, src, and xlink:href attributes
     let result = content
 
-    // Remove javascript: protocol
-    result = result.replace(/(href|src|xlink:href)\s*=\s*["']javascript:[^"']*["']/gi, '')
+    result = result.replace(
+      /(\s)(xlink:href|href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi,
+      (
+        match,
+        prefix: string,
+        _attrName: string,
+        doubleValue?: string,
+        singleValue?: string,
+        unquotedValue?: string
+      ) => {
+        const value = doubleValue ?? singleValue ?? unquotedValue ?? ''
+        return this.shouldRemoveUrlAttribute(value) ? prefix : match
+      }
+    )
 
-    // Remove vbscript: protocol
-    result = result.replace(/(href|src|xlink:href)\s*=\s*["']vbscript:[^"']*["']/gi, '')
+    return result
+  }
 
-    // Remove data:text/html protocol
-    result = result.replace(/(href|src|xlink:href)\s*=\s*["']data:text\/html[^"']*["']/gi, '')
+  /**
+   * Decode HTML entities the browser would resolve before URL navigation.
+   */
+  private decodeHtmlEntities(value: string): string {
+    let decoded = value
 
-    // If external resources are not allowed, remove http/https URLs
-    if (!this.options.allowExternalResources) {
-      result = result.replace(/(href|src|xlink:href)\s*=\s*["']https?:[^"']*["']/gi, '')
+    for (let i = 0; i < 5; i++) {
+      const next = decoded.replace(
+        /&(?:#(\d+)|#x([0-9a-f]+)|([a-z][a-z0-9]+));?/gi,
+        (
+          match,
+          decimal: string | undefined,
+          hex: string | undefined,
+          named: string | undefined
+        ) => {
+          if (decimal) {
+            return this.decodeCodePoint(Number.parseInt(decimal, 10), match)
+          }
+
+          if (hex) {
+            return this.decodeCodePoint(Number.parseInt(hex, 16), match)
+          }
+
+          if (named) {
+            return HTML_ENTITY_MAP[named.toLowerCase()] ?? match
+          }
+
+          return match
+        }
+      )
+
+      if (next === decoded) {
+        return decoded
+      }
+
+      decoded = next
+    }
+
+    return decoded
+  }
+
+  private decodeCodePoint(codePoint: number, fallback: string): string {
+    if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+      return fallback
+    }
+
+    try {
+      return String.fromCodePoint(codePoint)
+    } catch {
+      return fallback
+    }
+  }
+
+  private normalizeUrlProtocol(value: string): string {
+    return this.removeUrlControlChars(this.decodeHtmlEntities(value).trim()).toLowerCase()
+  }
+
+  private removeUrlControlChars(value: string): string {
+    let result = ''
+
+    for (const char of value) {
+      const codePoint = char.codePointAt(0)
+
+      if (
+        codePoint === undefined ||
+        codePoint <= 0x20 ||
+        (codePoint >= 0x7f && codePoint <= 0x9f)
+      ) {
+        continue
+      }
+
+      result += char
     }
 
     return result
+  }
+
+  private shouldRemoveUrlAttribute(value: string): boolean {
+    const normalized = this.normalizeUrlProtocol(value)
+
+    if (
+      normalized.startsWith('javascript:') ||
+      normalized.startsWith('vbscript:') ||
+      normalized.startsWith('data:text/html')
+    ) {
+      return true
+    }
+
+    return !this.options.allowExternalResources && /^https?:/.test(normalized)
   }
 
   /**
    * Check if content contains dangerous patterns
    */
   private containsDangerousContent(content: string): boolean {
+    const decodedContent = this.decodeHtmlEntities(content)
     const dangerousPatterns = [
       /<script/i,
       /javascript:/i,
@@ -263,7 +368,7 @@ export class SVGSanitizer {
     ]
 
     for (const pattern of dangerousPatterns) {
-      if (pattern.test(content)) {
+      if (pattern.test(content) || pattern.test(decodedContent)) {
         return true
       }
     }
@@ -272,7 +377,7 @@ export class SVGSanitizer {
     const commentPattern = /<!--[\s\S]*?-->/g
     let match
     while ((match = commentPattern.exec(content)) !== null) {
-      const commentContent = match[0]
+      const commentContent = this.decodeHtmlEntities(match[0])
       if (/<script/i.test(commentContent) || /javascript:/i.test(commentContent)) {
         return true
       }

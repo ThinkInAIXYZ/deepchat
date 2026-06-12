@@ -1,5 +1,6 @@
 <template>
   <div
+    data-testid="chat-message-user"
     v-show="!message.content.continue"
     :data-message-id="message.id"
     class="flex flex-row-reverse group pt-5 pl-11 gap-2 user-message-item"
@@ -34,11 +35,7 @@
           <textarea
             ref="editTextarea"
             v-model="editedText"
-            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full"
-            :style="{
-              width: originalContentWidth + 20 + 'px',
-              maxHeight: editMaxHeight ? editMaxHeight + 'px' : undefined
-            }"
+            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full max-h-[60vh]"
             rows="1"
             @input="autoResize"
             @keydown.meta.enter.prevent="saveEdit"
@@ -46,29 +43,40 @@
             @keydown.esc="cancelEdit"
           ></textarea>
         </div>
-        <div v-else ref="originalContent">
-          <!-- 使用结构化内容渲染 -->
-          <MessageContent
-            v-if="message.content.content && message.content.content.length > 0"
-            :content="message.content.content"
-            @mention-click="handleMentionClick"
-          />
-          <!-- 使用纯文本渲染 -->
-          <MessageTextContent v-else :content="message.content.text || ''" />
+        <div v-else class="flex w-full min-w-0 flex-col items-end gap-1.5">
+          <div
+            data-user-message-content-body="true"
+            :data-user-message-collapsible="String(isCollapsible)"
+            :data-user-message-expanded="String(isExpanded)"
+            class="relative w-full min-w-0"
+          >
+            <div
+              class="w-full min-w-0"
+              :class="{ 'user-message-content--clamped': shouldClampContent }"
+            >
+              <MessageContent
+                v-if="message.content.content && message.content.content.length > 0"
+                :content="message.content.content"
+                @mention-click="handleMentionClick"
+              />
+              <MessageTextContent v-else :content="message.content.text || ''" />
+            </div>
+            <div
+              v-if="showFadeMask"
+              data-user-message-fade="true"
+              class="pointer-events-none absolute inset-x-0 bottom-0 h-12 rounded-b-md bg-gradient-to-t from-muted via-muted/95 to-transparent"
+            />
+          </div>
+          <button
+            v-if="isCollapsible"
+            type="button"
+            data-user-message-toggle="true"
+            class="text-xs leading-5 text-muted-foreground transition-colors hover:text-foreground"
+            @click="toggleExpanded"
+          >
+            {{ isExpanded ? t('common.collapse') : t('common.expand') }}
+          </button>
         </div>
-        <!-- <div
-          v-else-if="message.content.continue"
-          class="text-sm whitespace-pre-wrap break-all flex flex-row flex-wrap items-center gap-2"
-        >
-          <Icon icon="lucide:info" class="w-4 h-4" />
-          <span>用户选择继续对话</span>
-        </div>
-         -->
-        <!-- disable for now -->
-        <!-- <div class="flex flex-row gap-1.5 text-xs text-muted-foreground">
-          <span v-if="message.content.search">联网搜索</span>
-          <span v-if="message.content.reasoning_content">深度思考</span>
-        </div> -->
       </div>
       <MessageToolbar
         class="flex-row-reverse"
@@ -77,6 +85,7 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
+        :is-read-only="isReadOnly"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -90,51 +99,99 @@
 
 <script setup lang="ts">
 import type {
+  DisplayUserMessageCodeBlock,
   DisplayUserMessage,
+  DisplayUserMessageTextBlock,
   DisplayUserMessageMentionBlock
 } from '@/components/chat/messageListItems'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 import MessageInfo from './MessageInfo.vue'
 import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
-import { usePresenter } from '@/composables/usePresenter'
-import { ref, watch, onMounted, nextTick, onBeforeUnmount } from 'vue'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createWindowClient } from '@api/WindowClient'
+import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
-const windowPresenter = usePresenter('windowPresenter')
+const COLLAPSE_CHAR_THRESHOLD = 600
+const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
+
+type DisplayUserMessageRichBlock =
+  | DisplayUserMessageTextBlock
+  | DisplayUserMessageMentionBlock
+  | DisplayUserMessageCodeBlock
+
+const getVisibleMentionLabel = (block: DisplayUserMessageMentionBlock) => {
+  if (block.category === 'prompts') {
+    return block.id || block.content
+  }
+  if (block.category === 'context') {
+    return block.id || block.category
+  }
+  return block.content
+}
+
+const getVisibleBlockText = (block: DisplayUserMessageRichBlock) => {
+  if (block.type === 'mention') {
+    return getVisibleMentionLabel(block)
+  }
+  return block.content
+}
+
+const getVisibleMessageText = (message: DisplayUserMessage) => {
+  const blocks = message.content.content
+  if (blocks && blocks.length > 0) {
+    return blocks.map((block) => getVisibleBlockText(block)).join('')
+  }
+  return message.content.text || ''
+}
+
+const countExplicitLines = (value: string) => {
+  if (!value) {
+    return 0
+  }
+
+  let count = 1
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code === 10) {
+      count += 1
+    } else if (code === 13) {
+      count += 1
+      if (value.charCodeAt(index + 1) === 10) {
+        index += 1
+      }
+    }
+  }
+
+  return count
+}
+
+const deviceClient = createDeviceClient()
+const windowClient = createWindowClient()
+const { t } = useI18n()
 
 const props = defineProps<{
   message: DisplayUserMessage
+  isReadOnly?: boolean
 }>()
 
 const isEditMode = ref(false)
 const editedText = ref('')
-const originalContent = ref(null)
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
-const editMaxHeight = ref(0)
-const originalContentHeight = ref(0)
-const originalContentWidth = ref(0)
-
-onMounted(() => {
-  if (originalContent.value) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    originalContentHeight.value = (originalContent.value as any).offsetHeight
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    originalContentWidth.value = (originalContent.value as any).offsetWidth
-  }
-})
-
-watch(isEditMode, (newValue) => {
-  if (newValue && originalContent.value) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    originalContentHeight.value = (originalContent.value as any).offsetHeight
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    originalContentWidth.value = (originalContent.value as any).offsetWidth
-    computeEditMaxHeight()
-    nextTick(() => autoResize())
-  }
-})
+const isExpanded = ref(true)
+const hasManualCollapsePreference = ref(false)
+const visibleMessageText = computed(() => getVisibleMessageText(props.message))
+const explicitLineCount = computed(() => countExplicitLines(visibleMessageText.value))
+const isCollapsible = computed(
+  () =>
+    visibleMessageText.value.length >= COLLAPSE_CHAR_THRESHOLD ||
+    explicitLineCount.value >= COLLAPSE_EXPLICIT_LINE_THRESHOLD
+)
+const shouldClampContent = computed(() => isCollapsible.value && !isExpanded.value)
+const showFadeMask = computed(() => shouldClampContent.value)
 
 const emit = defineEmits<{
   fileClick: [fileName: string]
@@ -144,10 +201,23 @@ const emit = defineEmits<{
 }>()
 
 const previewFile = (filePath: string) => {
-  windowPresenter.previewFile(filePath)
+  void windowClient.previewFile(filePath)
+}
+
+const toggleExpanded = () => {
+  if (!isCollapsible.value) {
+    return
+  }
+
+  isExpanded.value = !isExpanded.value
+  hasManualCollapsePreference.value = true
 }
 
 const startEdit = () => {
+  if (props.isReadOnly) {
+    return
+  }
+
   isEditMode.value = true
   if (props.message.content?.content && props.message.content.content.length > 0) {
     const textBlocks = props.message.content.content.filter((block) => block.type === 'text')
@@ -155,11 +225,14 @@ const startEdit = () => {
   } else {
     editedText.value = props.message.content.text || ''
   }
-  computeEditMaxHeight()
   nextTick(() => autoResize())
 }
 
 const saveEdit = async () => {
+  if (props.isReadOnly) {
+    return
+  }
+
   const nextText = editedText.value.trim()
   if (!nextText) return
 
@@ -177,6 +250,9 @@ const saveEdit = async () => {
 }
 
 const onRetryAction = () => {
+  if (props.isReadOnly) {
+    return
+  }
   emit('retry', props.message.id)
 }
 
@@ -201,9 +277,12 @@ const cancelEdit = () => {
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
+    if (props.isReadOnly) {
+      return
+    }
     emit('delete', props.message.id)
   } else if (action === 'copy') {
-    window.api.copyText(getCopyText())
+    deviceClient.copyText(getCopyText())
   }
 }
 
@@ -211,14 +290,15 @@ const handleMentionClick = async (_block: DisplayUserMessageMentionBlock) => {
   return
 }
 
-const autoResize = () => {
+let pendingResizeFrame: number | null = null
+
+const runAutoResize = () => {
   const el = editTextarea.value
   if (!el) return
   el.style.height = 'auto'
-  const computed = window.getComputedStyle(el)
-  const maxH = parseFloat(computed.maxHeight || '')
+  const maxH = Math.max(120, Math.floor(window.innerHeight * 0.6))
   const scrollH = el.scrollHeight
-  const target = Number.isFinite(maxH) && maxH > 0 ? Math.min(scrollH, maxH) : scrollH
+  const target = Math.min(scrollH, maxH)
   el.style.height = target + 'px'
   if (scrollH > target) {
     el.style.overflowY = 'auto'
@@ -227,25 +307,54 @@ const autoResize = () => {
   }
 }
 
+const autoResize = () => {
+  if (pendingResizeFrame !== null) {
+    window.cancelAnimationFrame(pendingResizeFrame)
+  }
+
+  pendingResizeFrame = window.requestAnimationFrame(() => {
+    pendingResizeFrame = null
+    runAutoResize()
+  })
+}
+
 watch(editedText, () => {
   if (isEditMode.value) nextTick(() => autoResize())
 })
 
-const computeEditMaxHeight = () => {
-  const container = document.querySelector('.message-list-container') as HTMLElement | null
-  const base = container?.clientHeight || window.innerHeight
-  editMaxHeight.value = Math.max(120, Math.floor(base * 0.6))
-}
+watch(
+  () => [props.message.id, visibleMessageText.value, isCollapsible.value] as const,
+  ([messageId, visibleText, collapsible], previousValue) => {
+    if (!collapsible) {
+      isExpanded.value = true
+      hasManualCollapsePreference.value = false
+      return
+    }
 
-const handleWindowResize = () => {
-  if (isEditMode.value) {
-    computeEditMaxHeight()
-    nextTick(() => autoResize())
-  }
-}
+    if (
+      previousValue?.[0] !== messageId ||
+      previousValue?.[1] !== visibleText ||
+      !hasManualCollapsePreference.value
+    ) {
+      isExpanded.value = false
+    }
+  },
+  { immediate: true }
+)
 
-window.addEventListener('resize', handleWindowResize)
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleWindowResize)
+  if (pendingResizeFrame !== null) {
+    window.cancelAnimationFrame(pendingResizeFrame)
+    pendingResizeFrame = null
+  }
 })
 </script>
+
+<style scoped>
+.user-message-content--clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 12;
+}
+</style>

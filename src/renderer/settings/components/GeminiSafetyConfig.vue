@@ -9,7 +9,7 @@
           <div class="flex flex-col gap-4">
             <div v-for="(setting, key) in safetyCategories" :key="key" class="flex flex-col gap-2">
               <div class="flex justify-between items-center">
-                <Label :for="`${provider.id}-safety-${key}`" class="text-sm cursor-pointer">{{
+                <Label :for="`${provider.id}-safety-${key}`" class="text-sm">{{
                   t(setting.label, key.charAt(0).toUpperCase() + key.slice(1))
                 }}</Label>
                 <span class="text-sm text-muted-foreground">{{

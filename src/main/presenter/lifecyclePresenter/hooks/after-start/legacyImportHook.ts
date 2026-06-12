@@ -12,15 +12,15 @@ export const legacyImportHook: LifecycleHook = {
       throw new Error('legacyImportHook: Presenter not initialized')
     }
 
-    const newAgentPresenter = presenter.newAgentPresenter as unknown as {
+    const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
       startLegacyImport?: () => Promise<void>
     }
-    if (!newAgentPresenter.startLegacyImport) {
+    if (!agentSessionPresenter.startLegacyImport) {
       return
     }
 
     // Fire and forget to avoid blocking app startup.
-    void newAgentPresenter.startLegacyImport().catch((error) => {
+    void agentSessionPresenter.startLegacyImport().catch((error) => {
       console.error('legacyImportHook: failed to start legacy import task:', error)
     })
   }

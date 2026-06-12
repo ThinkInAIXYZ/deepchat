@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import {
   LLM_PROVIDER,
   LLMResponse,
@@ -55,7 +56,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
         await this.fetchModels()
         await this.autoEnableModelsIfNeeded()
-        console.log(`[GitHub Copilot] Initialized successfully`)
+        logger.info(`[GitHub Copilot] Initialized successfully`)
       } catch (error) {
         console.warn(`[GitHub Copilot] Initialization failed:`, error)
         try {
@@ -71,7 +72,16 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     this.init()
   }
 
-  private async getCopilotToken(): Promise<string> {
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    const newDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider.copilotClientId)
+
+    super.updateConfig(provider)
+    this.copilotToken = null
+    this.tokenExpiresAt = 0
+    this.deviceFlow = newDeviceFlow
+  }
+
+  private async getCopilotToken(signal?: AbortSignal): Promise<string> {
     // 优先使用设备流获取 token
     if (this.deviceFlow) {
       try {
@@ -102,7 +112,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
     const requestOptions: RequestInitWithAgent = {
       method: 'GET',
-      headers
+      headers,
+      ...(signal ? { signal } : {})
     }
 
     // 添加代理支持
@@ -359,11 +370,41 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     return models
   }
 
-  private formatMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {
-    return messages.map((msg) => ({
-      role: msg.role,
-      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-    }))
+  private formatMessages(messages: ChatMessage[]): Array<{
+    role: string
+    content: string
+    tool_calls?: ChatMessage['tool_calls']
+    reasoning_content?: string
+  }> {
+    return messages.map((msg) => {
+      const formatted: {
+        role: string
+        content: string
+        tool_calls?: ChatMessage['tool_calls']
+        reasoning_content?: string
+      } = {
+        role: msg.role,
+        content:
+          typeof msg.content === 'string'
+            ? msg.content
+            : msg.content === undefined
+              ? ''
+              : JSON.stringify(msg.content)
+      }
+
+      if (msg.role === 'assistant' && msg.tool_calls?.length) {
+        formatted.tool_calls = msg.tool_calls
+      }
+
+      if (
+        msg.role === 'assistant' &&
+        Object.prototype.hasOwnProperty.call(msg, 'reasoning_content')
+      ) {
+        formatted.reasoning_content = msg.reasoning_content ?? ''
+      }
+
+      return formatted
+    })
   }
 
   async *coreStream(
@@ -375,8 +416,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     tools: MCPToolDefinition[]
   ): AsyncGenerator<LLMCoreStreamEvent, void, unknown> {
     if (!modelId) throw new Error('Model ID is required')
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
-      const token = await this.getCopilotToken()
+      const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
@@ -400,18 +442,19 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       }
 
       // 添加详细的请求日志
-      console.log('📤 [GitHub Copilot] Sending stream request:')
-      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
-      console.log(`   Model: ${modelId}`)
-      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(
+      logger.info('📤 [GitHub Copilot] Sending stream request:')
+      logger.info(`   URL: ${this.baseApiUrl}/chat/completions`)
+      logger.info(`   Model: ${modelId}`)
+      logger.info(`   Headers: ${Object.keys(headers).join(', ')}`)
+      logger.info(
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        ...(signal ? { signal } : {})
       }
 
       await this.emitRequestTrace(modelConfig, {
@@ -429,9 +472,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
-      console.log('📥 [GitHub Copilot] Stream API Response:')
-      console.log(`   Status: ${response.status} ${response.statusText}`)
-      console.log(`   OK: ${response.ok}`)
+      logger.info('📥 [GitHub Copilot] Stream API Response:')
+      logger.info(`   Status: ${response.status} ${response.statusText}`)
+      logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
         let errorBody = ''
@@ -535,8 +578,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         reader.releaseLock()
       }
     } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason
+      }
       console.error('GitHub Copilot stream error:', error)
       throw error
+    } finally {
+      dispose()
     }
   }
 
@@ -547,8 +595,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     _maxTokens?: number
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
+    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
-      const token = await this.getCopilotToken()
+      const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
 
       const requestBody = {
@@ -571,18 +621,19 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       }
 
       // 添加详细的请求日志
-      console.log('📤 [GitHub Copilot] Sending completion request:')
-      console.log(`   URL: ${this.baseApiUrl}/chat/completions`)
-      console.log(`   Model: ${modelId}`)
-      console.log(`   Headers: ${Object.keys(headers).join(', ')}`)
-      console.log(
+      logger.info('📤 [GitHub Copilot] Sending completion request:')
+      logger.info(`   URL: ${this.baseApiUrl}/chat/completions`)
+      logger.info(`   Model: ${modelId}`)
+      logger.info(`   Headers: ${Object.keys(headers).join(', ')}`)
+      logger.info(
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
       const requestOptions: RequestInitWithAgent = {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        ...(signal ? { signal } : {})
       }
 
       // 添加代理支持
@@ -594,9 +645,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       const response = await fetch(`${this.baseApiUrl}/chat/completions`, requestOptions)
 
-      console.log('📥 [GitHub Copilot] Completion API Response:')
-      console.log(`   Status: ${response.status} ${response.statusText}`)
-      console.log(`   OK: ${response.ok}`)
+      logger.info('📥 [GitHub Copilot] Completion API Response:')
+      logger.info(`   Status: ${response.status} ${response.statusText}`)
+      logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
         let errorBody = ''
@@ -645,8 +696,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       return result
     } catch (error) {
+      if (signal?.aborted && signal.reason instanceof Error) {
+        throw signal.reason
+      }
       console.error('GitHub Copilot completion error:', error)
       throw error
+    } finally {
+      dispose()
     }
   }
 

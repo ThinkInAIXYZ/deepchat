@@ -203,6 +203,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'new-api',
+    name: 'New API',
+    apiType: 'new-api',
+    apiKey: '',
+    baseUrl: 'https://www.newapi.ai',
+    enable: false,
+    websites: {
+      official: 'https://www.newapi.ai/',
+      apiKey: 'https://www.newapi.ai/token',
+      docs: 'https://www.newapi.ai/zh/docs/api',
+      models: 'https://www.newapi.ai/zh/docs/api',
+      defaultBaseUrl: 'https://www.newapi.ai'
+    }
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     apiType: 'openai',
@@ -566,6 +581,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'mistral',
+    name: 'Mistral',
+    apiType: 'mistral',
+    apiKey: '',
+    baseUrl: 'https://api.mistral.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://mistral.ai',
+      apiKey: 'https://console.mistral.ai/api-keys/',
+      docs: 'https://docs.mistral.ai/',
+      models: 'https://docs.mistral.ai/getting-started/models/',
+      defaultBaseUrl: 'https://api.mistral.ai/v1'
+    }
+  },
+
+  {
     id: 'grok',
     name: 'Grok',
     apiType: 'grok',
@@ -593,21 +624,6 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   //     docs: 'https://docs.hyperbolic.xyz',
   //     models: 'https://app.hyperbolic.xyz/models',
   //     defaultBaseUrl: 'https://api.hyperbolic.xyz'
-  //   }
-  // },
-  // {
-  //   id: 'mistral',
-  //   name: 'Mistral',
-  //   apiType: 'mistral',
-  //   apiKey: '',
-  //   baseUrl: 'https://api.mistral.ai',
-  //   enable: false,
-  //   websites: {
-  //     official: 'https://mistral.ai',
-  //     apiKey: 'https://console.mistral.ai/api-keys/',
-  //     docs: 'https://docs.mistral.ai',
-  //     models: 'https://docs.mistral.ai/getting-started/models/models_overview',
-  //     defaultBaseUrl: 'https://api.mistral.ai'
   //   }
   // },
   // {
@@ -763,6 +779,51 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'xiaomi-token-plan-cn',
+    name: 'Xiaomi Token Plan (China)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1'
+    }
+  },
+  {
+    id: 'xiaomi-token-plan-sgp',
+    name: 'Xiaomi Token Plan (Singapore)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1'
+    }
+  },
+  {
+    id: 'xiaomi-token-plan-ams',
+    name: 'Xiaomi Token Plan (Europe)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.xiaomimimo.com/',
+      apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
+      docs: 'https://platform.xiaomimimo.com/#/docs',
+      models: 'https://platform.xiaomimimo.com/#/docs',
+      defaultBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1'
+    }
+  },
+  {
     id: 'o3fan',
     name: 'o3.fan',
     apiType: 'o3fan',
@@ -790,6 +851,36 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://novita.ai/docs',
       models: 'https://novita.ai/models',
       defaultBaseUrl: 'https://api.novita.ai/openai'
+    }
+  },
+  {
+    id: 'astraflow',
+    name: 'Astraflow (Global)',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api-us-ca.umodelverse.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://astraflow.ucloud.cn/',
+      apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
+      docs: 'https://astraflow.ucloud.cn/docs',
+      models: 'https://astraflow.ucloud.cn/modelverse/playground',
+      defaultBaseUrl: 'https://api-us-ca.umodelverse.ai/v1'
+    }
+  },
+  {
+    id: 'astraflow-cn',
+    name: 'Astraflow CN',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.modelverse.cn/v1',
+    enable: false,
+    websites: {
+      official: 'https://astraflow.ucloud.cn/',
+      apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
+      docs: 'https://astraflow.ucloud.cn/docs',
+      models: 'https://astraflow.ucloud.cn/modelverse/playground',
+      defaultBaseUrl: 'https://api.modelverse.cn/v1'
     }
   }
 ]

@@ -20,7 +20,7 @@
 
 ```mermaid
 graph LR
-    DeepChat["DeepChatAgentPresenter"] --> ToolPresenter["ToolPresenter"]
+    DeepChat["AgentRuntimePresenter"] --> ToolPresenter["ToolPresenter"]
     ToolPresenter --> Mapper["ToolMapper"]
     ToolPresenter --> Mcp["McpPresenter"]
     ToolPresenter --> AgentTools["AgentToolManager"]
@@ -37,14 +37,14 @@ graph LR
 2. 从 `AgentToolManager` 拉取本地 agent tools。
 3. 用 `ToolMapper` 记录来源，并在重名时优先保留 MCP tool。
 
-这意味着 `deepchatAgentPresenter` 不需要知道 tool 的真实来源，只需要持有统一的
+这意味着 `agentRuntimePresenter` 不需要知道 tool 的真实来源，只需要持有统一的
 `MCPToolDefinition[]`。
 
 ## 调用工具
 
 ```mermaid
 sequenceDiagram
-    participant D as DeepChatAgentPresenter
+    participant D as AgentRuntimePresenter
     participant T as ToolPresenter
     participant Map as ToolMapper
     participant M as MCP tools
@@ -76,7 +76,7 @@ port 负责提供：
 - conversation workdir 解析
 - 已批准路径查询
 - settings approval 消费
-- `newAgentPresenter` 会话上下文桥接
+- `agentSessionPresenter` 会话上下文桥接
 
 权限能力拆分：
 

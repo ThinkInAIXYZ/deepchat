@@ -176,15 +176,6 @@
                   </span>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    class="h-6 rounded-full px-2 text-[11px] text-muted-foreground"
-                    :disabled="disableSteerAction"
-                    @click.stop="emit('convert-queue-to-steer', element.id)"
-                  >
-                    {{ t('chat.pendingInput.toSteer') }}
-                  </Button>
-                  <Button
-                    variant="ghost"
                     size="icon"
                     class="h-6 w-6 rounded-full text-muted-foreground"
                     @click.stop="emit('delete-queue', element.id)"
@@ -231,7 +222,6 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update-queue': [payload: { itemId: string; text: string }]
   'move-queue': [payload: { itemId: string; toIndex: number }]
-  'convert-queue-to-steer': [itemId: string]
   'delete-queue': [itemId: string]
   'resume-queue': []
 }>()

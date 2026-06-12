@@ -1,24 +1,30 @@
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
-import ElectronStore from 'electron-store'
+import type { StoreLike } from './storeLike'
 
 type SetSetting = <T>(key: string, value: T) => void
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
 interface ModelStatusHelperOptions {
-  store: ElectronStore<any>
+  store: StoreLike<any>
   setSetting: SetSetting
 }
 
 export class ModelStatusHelper {
-  private readonly store: ElectronStore<any>
+  private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly cache: Map<string, boolean> = new Map()
+  private statusSnapshot: Map<string, boolean> | null = null
 
   constructor(options: ModelStatusHelperOptions) {
     this.store = options.store
     this.setSetting = options.setSetting
+  }
+
+  setStore(store: StoreLike<any>): void {
+    this.store = store
+    this.clearModelStatusCache()
   }
 
   private getStatusKey(providerId: string, modelId: string): string {
@@ -26,10 +32,61 @@ export class ModelStatusHelper {
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
   }
 
+  private getRawStoreEntries(): [string, unknown][] | null {
+    const candidate = this.store as StoreLike<Record<string, unknown>> & {
+      store?: Record<string, unknown>
+    }
+    const rawStore = candidate.store
+    if (!rawStore || typeof rawStore !== 'object') {
+      return null
+    }
+
+    return Object.entries(rawStore)
+  }
+
+  private buildStatusSnapshot(): Map<string, boolean> | null {
+    const rawEntries = this.getRawStoreEntries()
+    if (!rawEntries) {
+      return null
+    }
+
+    const snapshot = new Map<string, boolean>()
+    for (const [key, value] of rawEntries) {
+      if (!key.startsWith(MODEL_STATUS_KEY_PREFIX)) {
+        continue
+      }
+
+      if (typeof value !== 'boolean') {
+        continue
+      }
+
+      snapshot.set(key, value)
+      this.cache.set(key, value)
+    }
+
+    return snapshot
+  }
+
+  private getStatusSnapshot(): Map<string, boolean> | null {
+    if (this.statusSnapshot) {
+      return this.statusSnapshot
+    }
+
+    this.statusSnapshot = this.buildStatusSnapshot()
+    return this.statusSnapshot
+  }
+
   getModelStatus(providerId: string, modelId: string): boolean {
     const statusKey = this.getStatusKey(providerId, modelId)
     if (this.cache.has(statusKey)) {
       return this.cache.get(statusKey)!
+    }
+
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      const status = statusSnapshot.get(statusKey) ?? false
+      this.cache.set(statusKey, status)
+      return status
     }
 
     const status = this.store.get(statusKey) as boolean | undefined
@@ -40,6 +97,19 @@ export class ModelStatusHelper {
 
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean> {
     const result: Record<string, boolean> = {}
+    const statusSnapshot = this.getStatusSnapshot()
+
+    if (statusSnapshot) {
+      for (const modelId of modelIds) {
+        const statusKey = this.getStatusKey(providerId, modelId)
+        const status = statusSnapshot.get(statusKey) ?? false
+        this.cache.set(statusKey, status)
+        result[modelId] = status
+      }
+
+      return result
+    }
+
     const uncachedKeys: string[] = []
     const uncachedModelIds: string[] = []
 
@@ -65,11 +135,27 @@ export class ModelStatusHelper {
     return result
   }
 
+  private hasStoredStatus(statusKey: string): boolean {
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      return statusSnapshot.has(statusKey)
+    }
+
+    const candidate = this.store as StoreLike<Record<string, unknown>> & {
+      has?: (key: string) => boolean
+    }
+    if (typeof candidate.has === 'function') {
+      return candidate.has(statusKey)
+    }
+    return this.store.get(statusKey) !== undefined
+  }
+
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.setSetting(statusKey, enabled)
     this.cache.set(statusKey, enabled)
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    this.statusSnapshot?.set(statusKey, enabled)
+    eventBus.send(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
       providerId,
       modelId,
       enabled
@@ -84,8 +170,30 @@ export class ModelStatusHelper {
     this.setModelStatus(providerId, modelId, false)
   }
 
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void {
+    const statusKey = this.getStatusKey(providerId, modelId)
+
+    if (this.cache.has(statusKey) || this.hasStoredStatus(statusKey)) {
+      if (!this.cache.has(statusKey)) {
+        const statusSnapshot = this.getStatusSnapshot()
+        if (statusSnapshot) {
+          this.cache.set(statusKey, statusSnapshot.get(statusKey) ?? false)
+        } else {
+          const status = this.store.get(statusKey) as boolean | undefined
+          this.cache.set(statusKey, typeof status === 'boolean' ? status : false)
+        }
+      }
+      return
+    }
+
+    this.store.set(statusKey, enabled)
+    this.cache.set(statusKey, enabled)
+    this.statusSnapshot?.set(statusKey, enabled)
+  }
+
   clearModelStatusCache(): void {
     this.cache.clear()
+    this.statusSnapshot = null
   }
 
   clearProviderModelStatusCache(providerId: string): void {
@@ -97,6 +205,34 @@ export class ModelStatusHelper {
       }
     }
     keysToDelete.forEach((key) => this.cache.delete(key))
+    this.statusSnapshot = null
+  }
+
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void {
+    const persistedStatuses: Record<string, boolean> = {}
+    const updates: { modelId: string; enabled: boolean }[] = []
+
+    for (const [modelId, enabled] of Object.entries(modelStatusMap)) {
+      const statusKey = this.getStatusKey(providerId, modelId)
+      persistedStatuses[statusKey] = enabled
+      updates.push({ modelId, enabled })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    this.store.set(persistedStatuses)
+
+    for (const [statusKey, enabled] of Object.entries(persistedStatuses)) {
+      this.cache.set(statusKey, enabled)
+      this.statusSnapshot?.set(statusKey, enabled)
+    }
+
+    eventBus.send(CONFIG_EVENTS.MODEL_BATCH_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+      providerId,
+      updates
+    })
   }
 
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {
@@ -109,5 +245,41 @@ export class ModelStatusHelper {
     const statusKey = this.getStatusKey(providerId, modelId)
     this.store.delete(statusKey)
     this.cache.delete(statusKey)
+    this.statusSnapshot?.delete(statusKey)
+  }
+
+  deleteProviderModelStatuses(providerId: string): void {
+    const prefix = `${MODEL_STATUS_KEY_PREFIX}${providerId}_`
+    const keysToDelete = new Set<string>()
+
+    const rawEntries = this.getRawStoreEntries()
+    if (rawEntries) {
+      for (const [key] of rawEntries) {
+        if (key.startsWith(prefix)) {
+          keysToDelete.add(key)
+        }
+      }
+    }
+
+    const statusSnapshot = this.getStatusSnapshot()
+    if (statusSnapshot) {
+      for (const key of statusSnapshot.keys()) {
+        if (key.startsWith(prefix)) {
+          keysToDelete.add(key)
+        }
+      }
+    }
+
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        keysToDelete.add(key)
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this.store.delete(key)
+    }
+
+    this.clearProviderModelStatusCache(providerId)
   }
 }

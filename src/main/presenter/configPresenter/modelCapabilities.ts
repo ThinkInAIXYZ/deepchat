@@ -29,6 +29,19 @@ type IndexedPortrait = {
   isUnprefixed: boolean
 }
 
+type IndexedProviderModel = {
+  providerId: string
+  modelId: string
+  model: ProviderModel
+  isUnprefixed: boolean
+}
+
+export type CapabilityModelMatch = {
+  providerId: string
+  modelId: string
+  model: ProviderModel
+}
+
 const OPENAI_REASONING_EFFORT_MODEL_FAMILIES = ['o1', 'o3', 'o4-mini', 'gpt-5']
 const OPENAI_VERBOSITY_MODEL_FAMILIES = ['gpt-5']
 const OPENAI_REASONING_FALLBACK_PROVIDERS = new Set(['openai', 'azure'])
@@ -37,15 +50,46 @@ const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['minimal', 'low', '
 const BINARY_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['low', 'high']
 const DEFAULT_VERBOSITY_OPTIONS: Verbosity[] = ['low', 'medium', 'high']
 
-const normalizeCapabilityModelId = (modelId: string): string => {
-  const normalizedModelId = modelId.toLowerCase()
+const normalizeCapabilityProviderId = (providerId: string): string => {
+  return resolveProviderIdAlias(providerId.toLowerCase())?.toLowerCase() ?? providerId.toLowerCase()
+}
+
+const normalizeModelId = (value: string | undefined): string => value?.trim().toLowerCase() ?? ''
+
+const normalizeSlashUnprefixedModelId = (value: string | undefined): string => {
+  const normalizedModelId = normalizeModelId(value)
   return normalizedModelId.includes('/')
     ? normalizedModelId.slice(normalizedModelId.lastIndexOf('/') + 1)
     : normalizedModelId
 }
 
-const normalizeCapabilityProviderId = (providerId: string): string => {
-  return resolveProviderIdAlias(providerId.toLowerCase())?.toLowerCase() ?? providerId.toLowerCase()
+const normalizeDottedProviderUnprefixedModelId = (value: string | undefined): string => {
+  const normalizedModelId = normalizeSlashUnprefixedModelId(value)
+  const segments = normalizedModelId.split('.')
+  const modelSegmentIndex = segments.findIndex((segment) => segment.includes('-'))
+
+  return modelSegmentIndex > 0 ? segments.slice(modelSegmentIndex).join('.') : normalizedModelId
+}
+
+const normalizeCapabilityModelId = (value: string | undefined): string =>
+  normalizeDottedProviderUnprefixedModelId(value)
+    .replace(/[_:\s]+/g, '-')
+    .replace(/(\d)\.(?=\d)/g, '$1-')
+    .replace(/-+/g, '-')
+
+const getProviderCapabilityModelLookupKeys = (value: string | undefined): string[] => {
+  const exactModelId = normalizeModelId(value)
+  const slashUnprefixedModelId = normalizeSlashUnprefixedModelId(value)
+  const dottedUnprefixedModelId = normalizeDottedProviderUnprefixedModelId(value)
+  const canonicalModelId = normalizeCapabilityModelId(value)
+
+  return Array.from(
+    new Set(
+      [exactModelId, slashUnprefixedModelId, dottedUnprefixedModelId, canonicalModelId].filter(
+        (key) => key.length > 0
+      )
+    )
+  )
 }
 
 const matchesModelFamily = (modelId: string, families: string[]): boolean =>
@@ -78,6 +122,16 @@ const normalizeVerbosityOptions = (options: Verbosity[] | undefined): Verbosity[
     return undefined
   }
   return Array.from(new Set(options))
+}
+
+const usesExtendedEffortDefaultWithoutOptions = (
+  portrait: ReasoningPortrait | undefined
+): boolean => {
+  if (!portrait || portrait.effortOptions !== undefined || portrait.mode === 'budget') {
+    return false
+  }
+
+  return Boolean(portrait.effort && !DEFAULT_REASONING_EFFORT_OPTIONS.includes(portrait.effort))
 }
 
 const supportsEffortControls = (portrait: ReasoningPortrait | undefined | null): boolean => {
@@ -259,6 +313,7 @@ const portraitFromLegacyReasoning = (
 
 export class ModelCapabilities {
   private index: Map<string, Map<string, ProviderModel>> = new Map()
+  private modelLookupIndex: Map<string, Map<string, IndexedProviderModel[]>> = new Map()
   private portraitRegistry: Map<string, IndexedPortrait[]> = new Map()
 
   constructor() {
@@ -270,6 +325,7 @@ export class ModelCapabilities {
   private rebuildIndexFromDb(): void {
     const db = providerDbLoader.getDb()
     this.index.clear()
+    this.modelLookupIndex.clear()
     this.portraitRegistry.clear()
     if (!db) return
     this.buildIndex(db)
@@ -280,12 +336,23 @@ export class ModelCapabilities {
     for (const [pid, provider] of Object.entries(providers)) {
       const pkey = pid.toLowerCase()
       const modelMap: Map<string, ProviderModel> = new Map()
+      const lookupMap: Map<string, IndexedProviderModel[]> = new Map()
 
       for (const model of provider.models || []) {
         const mid = model.id?.toLowerCase()
         if (!mid) continue
 
         modelMap.set(mid, model)
+        for (const lookupKey of getProviderCapabilityModelLookupKeys(model.id)) {
+          const entries = lookupMap.get(lookupKey) ?? []
+          entries.push({
+            providerId: pkey,
+            modelId: mid,
+            model,
+            isUnprefixed: !mid.includes('/')
+          })
+          lookupMap.set(lookupKey, entries)
+        }
 
         const portrait = portraitFromExtraCapabilities(model.extra_capabilities?.reasoning)
         if (!portrait) continue
@@ -302,10 +369,59 @@ export class ModelCapabilities {
       }
 
       this.index.set(pkey, modelMap)
+      this.modelLookupIndex.set(pkey, lookupMap)
     }
   }
 
-  private getProviderMatch(providerId: string, modelId: string): ProviderModel | undefined {
+  private selectIndexedProviderModelMatch(
+    entries: IndexedProviderModel[] | undefined
+  ): CapabilityModelMatch | undefined {
+    if (!entries || entries.length === 0) {
+      return undefined
+    }
+
+    const selected = [...entries].sort((left, right) => {
+      const leftPrefixedRank = left.isUnprefixed ? 0 : 1
+      const rightPrefixedRank = right.isUnprefixed ? 0 : 1
+      if (leftPrefixedRank !== rightPrefixedRank) {
+        return leftPrefixedRank - rightPrefixedRank
+      }
+
+      return left.modelId.localeCompare(right.modelId)
+    })[0]
+
+    return selected
+      ? {
+          providerId: selected.providerId,
+          modelId: selected.modelId,
+          model: selected.model
+        }
+      : undefined
+  }
+
+  private getCanonicalProviderModelMatch(
+    providerId: string,
+    modelId: string
+  ): CapabilityModelMatch | undefined {
+    const lookupMap = this.modelLookupIndex.get(providerId)
+    if (!lookupMap) {
+      return undefined
+    }
+
+    for (const lookupKey of getProviderCapabilityModelLookupKeys(modelId)) {
+      const match = this.selectIndexedProviderModelMatch(lookupMap.get(lookupKey))
+      if (match) {
+        return match
+      }
+    }
+
+    return undefined
+  }
+
+  private getProviderModelMatch(
+    providerId: string,
+    modelId: string
+  ): CapabilityModelMatch | undefined {
     const mid = modelId?.toLowerCase()
     if (!mid || !providerId) {
       return undefined
@@ -316,10 +432,23 @@ export class ModelCapabilities {
       return undefined
     }
 
-    return this.index.get(resolvedProviderId)?.get(mid)
+    const exactMatch = this.index.get(resolvedProviderId)?.get(mid)
+    if (exactMatch) {
+      return {
+        providerId: resolvedProviderId,
+        modelId: mid,
+        model: exactMatch
+      }
+    }
+
+    return this.getCanonicalProviderModelMatch(resolvedProviderId, modelId)
   }
 
-  private getModel(providerId: string, modelId: string): ProviderModel | undefined {
+  private getProviderMatch(providerId: string, modelId: string): ProviderModel | undefined {
+    return this.getProviderModelMatch(providerId, modelId)?.model
+  }
+
+  private getModelMatch(providerId: string, modelId: string): CapabilityModelMatch | undefined {
     const mid = modelId?.toLowerCase()
     if (!mid) return undefined
 
@@ -330,28 +459,51 @@ export class ModelCapabilities {
     if (pid) {
       const providerModels = this.index.get(pid)
       if (providerModels) {
-        const providerMatch = providerModels.get(mid)
+        const exactMatch = providerModels.get(mid)
+        const providerMatch = exactMatch
+          ? {
+              providerId: pid,
+              modelId: mid,
+              model: exactMatch
+            }
+          : this.getCanonicalProviderModelMatch(pid, modelId)
         if (providerMatch) {
           return providerMatch
         }
         return undefined
       }
 
-      return this.findModelAcrossProviders(mid)
+      return this.findModelAcrossProvidersMatch(mid)
     }
 
     if (!hasProviderId) {
       return undefined
     }
 
-    return this.findModelAcrossProviders(mid)
+    return this.findModelAcrossProvidersMatch(mid)
   }
 
-  private findModelAcrossProviders(modelId: string): ProviderModel | undefined {
-    for (const models of this.index.values()) {
+  private getModel(providerId: string, modelId: string): ProviderModel | undefined {
+    return this.getModelMatch(providerId, modelId)?.model
+  }
+
+  private findModelAcrossProvidersMatch(modelId: string): CapabilityModelMatch | undefined {
+    for (const [providerId, models] of this.index.entries()) {
       const fallbackModel = models.get(modelId)
       if (fallbackModel) {
-        return fallbackModel
+        return {
+          providerId,
+          modelId,
+          model: fallbackModel
+        }
+      }
+    }
+    for (const lookupMap of this.modelLookupIndex.values()) {
+      for (const lookupKey of getProviderCapabilityModelLookupKeys(modelId)) {
+        const fallbackMatch = this.selectIndexedProviderModelMatch(lookupMap.get(lookupKey))
+        if (fallbackMatch) {
+          return fallbackMatch
+        }
       }
     }
     return undefined
@@ -438,18 +590,72 @@ export class ModelCapabilities {
     return undefined
   }
 
+  getCapabilityModel(providerId: string, modelId: string): ProviderModel | undefined {
+    return this.getProviderMatch(providerId, modelId) ?? this.getModel(providerId, modelId)
+  }
+
+  getCapabilityModelMatch(providerId: string, modelId: string): CapabilityModelMatch | undefined {
+    return (
+      this.getProviderModelMatch(providerId, modelId) ?? this.getModelMatch(providerId, modelId)
+    )
+  }
+
+  findCapabilityModelMatch(
+    modelId: string,
+    preferredProviderIds: string[] = []
+  ): CapabilityModelMatch | undefined {
+    const resolvedPreferredProviderIds = Array.from(
+      new Set(
+        preferredProviderIds
+          .map((providerId) => this.resolveProviderId(providerId)?.toLowerCase())
+          .filter((providerId): providerId is string =>
+            Boolean(providerId && this.index.has(providerId))
+          )
+      )
+    )
+
+    for (const providerId of resolvedPreferredProviderIds) {
+      const match = this.getProviderModelMatch(providerId, modelId)
+      if (match) {
+        return match
+      }
+    }
+
+    return this.findModelAcrossProvidersMatch(normalizeModelId(modelId))
+  }
+
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
     const exactModel = this.getProviderMatch(providerId, modelId)
     const legacyModel = exactModel ?? this.getModel(providerId, modelId)
+    const legacyPortrait = portraitFromLegacyReasoning(legacyModel?.reasoning)
+    const registryPortrait = this.getRegistryPortrait(providerId, modelId)
+    const extraCapabilitiesPortrait = portraitFromExtraCapabilities(
+      exactModel?.extra_capabilities?.reasoning
+    )
 
     const portrait = mergeReasoningPortraits(
       this.getFallbackReasoningPortrait(providerId, modelId),
-      portraitFromLegacyReasoning(legacyModel?.reasoning),
-      this.getRegistryPortrait(providerId, modelId),
-      portraitFromExtraCapabilities(exactModel?.extra_capabilities?.reasoning)
+      legacyPortrait,
+      registryPortrait,
+      extraCapabilitiesPortrait
     )
 
-    return portrait ? clonePortrait(portrait) : null
+    if (!portrait) {
+      return null
+    }
+
+    const resolvedPortrait = clonePortrait(portrait)
+    const explicitPortrait = mergeReasoningPortraits(
+      legacyPortrait,
+      registryPortrait,
+      extraCapabilitiesPortrait
+    )
+
+    if (usesExtendedEffortDefaultWithoutOptions(explicitPortrait)) {
+      delete resolvedPortrait.effortOptions
+    }
+
+    return resolvedPortrait
   }
 
   supportsReasoning(providerId: string, modelId: string): boolean {
@@ -469,6 +675,16 @@ export class ModelCapabilities {
   supportsSearch(providerId: string, modelId: string): boolean {
     const model = this.getModel(providerId, modelId)
     return model?.search?.supported === true
+  }
+
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined {
+    const model = this.getProviderMatch(providerId, modelId)
+    return typeof model?.temperature === 'boolean' ? model.temperature : undefined
+  }
+
+  supportsTemperatureControl(providerId: string, modelId: string): boolean {
+    const capability = this.getTemperatureCapability(providerId, modelId)
+    return typeof capability === 'boolean' ? capability : true
   }
 
   supportsReasoningEffort(providerId: string, modelId: string): boolean {
@@ -509,6 +725,13 @@ export class ModelCapabilities {
     const inputs = model?.modalities?.input
     if (!Array.isArray(inputs)) return false
     return inputs.includes('image')
+  }
+
+  supportsAudioInput(providerId: string, modelId: string): boolean {
+    const model = this.getModel(providerId, modelId)
+    const inputs = model?.modalities?.input
+    if (!Array.isArray(inputs)) return false
+    return inputs.includes('audio')
   }
 
   supportsToolCall(providerId: string, modelId: string): boolean {

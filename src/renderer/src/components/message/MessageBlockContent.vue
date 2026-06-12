@@ -2,7 +2,18 @@
 <template>
   <template v-for="(part, index) in processedContent" :key="index">
     <!-- 使用结构化渲染器替代 v-html -->
-    <MarkdownRenderer v-if="part.type === 'text'" :content="part.content" :loading="part.loading" />
+    <MarkdownRenderer
+      v-if="part.type === 'text'"
+      :content="part.content"
+      :loading="part.loading"
+      :smooth-streaming="shouldSmoothStream"
+      :message-id="messageId"
+      :thread-id="threadId"
+      :link-context="{
+        source: 'chat',
+        sessionId: threadId
+      }"
+    />
 
     <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
     <div v-else-if="part.type === 'artifact' && part.artifact" class="my-1">
@@ -23,18 +34,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
-
-import { usePresenter } from '@/composables/usePresenter'
-import type { SearchResult } from '@shared/types/core/search'
-
-const newAgentPresenter = usePresenter('newAgentPresenter')
-const searchResults = ref<SearchResult[]>([])
+import { computed, ref } from 'vue'
+import { nextTick, watch } from 'vue'
 
 import ArtifactThinking from '../artifacts/ArtifactThinking.vue'
 import ArtifactPreview from '../artifacts/ArtifactPreview.vue'
 import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
-import { useBlockContent } from '@/composables/useArtifacts'
+import { useBlockContent, type ProcessedPart } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
@@ -48,11 +54,43 @@ const props = defineProps<{
 }>()
 
 const { processedContent } = useBlockContent(props)
+const lastArtifactSnapshot = ref<string>('')
+const shouldSmoothStream = computed(
+  () => props.block.status === 'pending' || props.block.status === 'loading'
+)
 
-// 修改 watch 函数
+const artifactSnapshot = computed(() =>
+  processedContent.value
+    .filter(
+      (
+        part
+      ): part is ProcessedPart & {
+        type: 'artifact'
+        artifact: NonNullable<ProcessedPart['artifact']>
+      } => part.type === 'artifact' && Boolean(part.artifact)
+    )
+    .map((part) => {
+      const artifact = part.artifact
+      return [
+        artifact.identifier,
+        artifact.title,
+        artifact.type,
+        artifact.language || '',
+        part.loading ? '1' : '0',
+        part.content
+      ].join('::')
+    })
+    .join('\n__artifact__\n')
+)
+
 watch(
-  processedContent,
-  () => {
+  artifactSnapshot,
+  (nextSnapshot) => {
+    if (nextSnapshot === lastArtifactSnapshot.value) {
+      return
+    }
+
+    lastArtifactSnapshot.value = nextSnapshot
     nextTick(() => {
       for (const part of processedContent.value) {
         const artifact = part.type === 'artifact' && part.artifact
@@ -94,11 +132,4 @@ watch(
   },
   { immediate: true }
 )
-
-onMounted(async () => {
-  if (props.isSearchResult) {
-    // TODO: remove this temporary fallback after search result loading is fully unified.
-    searchResults.value = await newAgentPresenter.getSearchResults(props.messageId)
-  }
-})
 </script>

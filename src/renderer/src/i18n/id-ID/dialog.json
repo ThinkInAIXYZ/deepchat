@@ -1,0 +1,89 @@
+{
+  "cancel": "Batalkan",
+  "confirm": "Konfirmasikan",
+  "close": "Tutup",
+  "ok": "Oke",
+  "delete": {
+    "title": "Apakah Anda yakin ingin menghapus percakapan ini?",
+    "description": "Operasi ini tidak dapat dibatalkan, harap lanjutkan dengan hati-hati.",
+    "confirm": "Hapus"
+  },
+  "rename": {
+    "title": "Ganti nama sesi",
+    "description": "Silakan masukkan nama sesi baru."
+  },
+  "cleanMessages": {
+    "title": "Hapus pesan percakapan",
+    "description": "Menghapus pesan akan menghapus semua pesan dan file dalam sesi tersebut. Apakah Anda yakin ingin melanjutkan?",
+    "confirm": "Jelas"
+  },
+  "fork": {
+    "title": "Buat cabang sesi",
+    "description": "Menyalin pesan pertama ke pesan yang dipilih saat ini ke dalam percakapan baru di mana Anda dapat melanjutkan percakapan.",
+    "confirm": "Buat cabang",
+    "tag": "cabang"
+  },
+  "error": {
+    "title": "Kesalahan"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Konfirmasikan untuk mengaktifkan kemampuan penalaran",
+      "functionCall": "Konfirmasikan untuk mengaktifkan panggilan fungsi"
+    },
+    "message": {
+      "reasoning": "Mengaktifkan kemampuan inferensi akan secara otomatis mematikan fungsi pemanggilan fungsi. Ini adalah batasan model DeepSeek-V3.1, dan kedua fungsi tidak dapat digunakan secara bersamaan. Melanjutkan?",
+      "functionCall": "Mengaktifkan panggilan fungsi akan secara otomatis mematikan kemampuan inferensi. Ini adalah batasan model DeepSeek-V3.1, dan kedua fungsi tidak dapat digunakan secara bersamaan. Melanjutkan?"
+    },
+    "warningText": {
+      "reasoning": "Catatan: Mengaktifkan kemampuan inferensi akan secara otomatis mematikan fungsi pemanggilan fungsi, yang merupakan batasan model DeepSeek-V3.1.",
+      "functionCall": "Catatan: Mengaktifkan panggilan fungsi akan secara otomatis mematikan kemampuan inferensi, yang merupakan batasan model DeepSeek-V3.1."
+    },
+    "confirmEnable": "Konfirmasikan untuk membuka"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Hapus {name}?",
+    "deleteDescription": "Pilih apa yang harus dilakukan pada percakapan yang saat ini milik agen ini.",
+    "moveTitle": "Pindahkan Percakapan",
+    "moveDescription": "Pindahkan percakapan yang sudah selesai ini ke agen lain tanpa mengubah pesannya.",
+    "loading": "Memeriksa percakapan terkait...",
+    "processing": "Memproses...",
+    "totalSessions": "Terkait",
+    "movableSessions": "Dapat dipindahkan",
+    "emptyDrafts": "Draf kosong",
+    "blockedSessions": "Diblokir",
+    "moveBeforeDeleteTitle": "Pindahkan percakapan ke agen lain",
+    "moveBeforeDeleteDescription": "Percakapan yang selesai tetap menyimpan pesannya dan akan memakai agen tujuan untuk balasan berikutnya. Draf kosong akan dihapus.",
+    "deleteSessionsTitle": "Hapus percakapan dengan agen ini",
+    "deleteSessionsDescription": "Semua percakapan dan pesan terkait akan dihapus bersama agen.",
+    "targetAgent": "Agen tujuan",
+    "selectTarget": "Pilih agen",
+    "acpWorkdir": "Direktori kerja ACP",
+    "acpWorkdirPlaceholder": "Biarkan kosong untuk mempertahankan proyek tiap percakapan",
+    "acpWorkdirHint": "Agen ACP memerlukan direktori kerja. Jika percakapan tidak memiliki proyek, berikan satu di sini.",
+    "currentAgent": "Agen saat ini: {name}",
+    "relatedSessions": "Percakapan terkait",
+    "blockedWarning": "Beberapa percakapan masih berjalan atau memiliki input antrean. Selesaikan sebelum memindahkan atau menghapus agen ini.",
+    "agentDeleteBlocked": "Agen masih memiliki percakapan terkait. Pindahkan atau hapus terlebih dahulu.",
+    "deleteAgentAndSessions": "Hapus Agen dan Percakapan",
+    "moveAndDeleteAgent": "Pindahkan dan Hapus Agen",
+    "moveConversation": "Pindahkan Percakapan",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Berjalan",
+      "pending-input": "Dalam antrean",
+      "missing-target-workdir": "Perlu direktori kerja",
+      "missing-session": "Hilang",
+      "same-agent": "Agen yang sama"
+    },
+    "sampleState": {
+      "ready": "Siap",
+      "draft": "Draf",
+      "subagent": "Subagen"
+    },
+    "deepChatTargetOnly": "Hanya agen DeepChat yang dapat dipilih sebagai tujuan pemindahan. Percakapan ACP dapat dipindahkan ke DeepChat, tetapi tidak ke ACP."
+  }
+}

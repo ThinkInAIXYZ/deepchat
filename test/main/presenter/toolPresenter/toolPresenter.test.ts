@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
+import { TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
+import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 
 vi.mock('electron', () => ({
   app: {
@@ -26,7 +28,100 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
   }
 })
 
+const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
+  ({
+    resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
+    resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
+    getSkillPresenter: () =>
+      ({
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+        listSkillScripts: vi.fn().mockResolvedValue([]),
+        getSkillExtension: vi.fn().mockResolvedValue({
+          version: 1,
+          env: {},
+          runtimePolicy: { python: 'auto', node: 'auto' },
+          scriptOverrides: {}
+        })
+      }) as any,
+    getYoBrowserToolHandler: () => ({
+      getToolDefinitions: vi.fn().mockReturnValue([]),
+      callTool: vi.fn()
+    }),
+    getFilePresenter: () => ({
+      getMimeType: vi.fn(),
+      prepareFileCompletely: vi.fn()
+    }),
+    getLlmProviderPresenter: () => ({
+      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+      generateCompletionStandalone: vi.fn(),
+      generateImageStandalone: vi.fn()
+    }),
+    createSettingsWindow: vi.fn(),
+    sendToWindow: vi.fn().mockReturnValue(true),
+    getApprovedFilePaths: vi.fn().mockReturnValue([]),
+    consumeSettingsApproval: vi.fn().mockReturnValue(false),
+    ...overrides
+  }) as any
+
 describe('ToolPresenter', () => {
+  it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition(IMAGE_GENERATE_TOOL_NAME, 'mcp-images')]),
+      callTool: vi.fn()
+    } as any
+
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+    const imageGenerateDefs = defs.filter((def) => def.function.name === IMAGE_GENERATE_TOOL_NAME)
+
+    expect(imageGenerateDefs).toHaveLength(1)
+    expect(imageGenerateDefs[0].source).toBe('agent')
+    expect(imageGenerateDefs[0].server.name).toBe('agent-image-generation')
+
+    const agentToolManager = (toolPresenter as any).agentToolManager
+    const callToolSpy = vi.fn().mockResolvedValue('agent-image')
+    agentToolManager.callTool = callToolSpy
+
+    await toolPresenter.callTool({
+      id: 'tool-1',
+      type: 'function',
+      function: {
+        name: IMAGE_GENERATE_TOOL_NAME,
+        arguments: '{"prompt":"sunset"}'
+      },
+      conversationId: 'conv-1'
+    })
+
+    expect(callToolSpy).toHaveBeenCalledWith(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'sunset' },
+      'conv-1',
+      expect.objectContaining({
+        toolCallId: 'tool-1'
+      })
+    )
+    expect(mcpPresenter.callTool).not.toHaveBeenCalled()
+  })
+
   it('deduplicates agent tools when MCP tool names overlap', async () => {
     const mcpDefs = [buildToolDefinition('shared', 'mcp')]
     const mcpPresenter = {
@@ -44,39 +139,14 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
+      agentToolRuntime: buildAgentToolRuntimeMock({
         getYoBrowserToolHandler: () => ({
           getToolDefinitions: vi
             .fn()
             .mockReturnValue([buildToolDefinition('shared', 'yo-browser')]),
           callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          generateCompletionStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+        })
+      })
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -100,43 +170,13 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = {
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-      getSkillPresenter: () =>
-        ({
-          getActiveSkills: vi.fn().mockResolvedValue([]),
-          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-          listSkillScripts: vi.fn().mockResolvedValue([]),
-          getSkillExtension: vi.fn().mockResolvedValue({
-            version: 1,
-            env: {},
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }) as any,
-      getYoBrowserToolHandler: () => ({
-        getToolDefinitions: vi.fn().mockReturnValue([]),
-        callTool: vi.fn()
-      }),
-      getFilePresenter: () => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      }),
-      getLlmProviderPresenter: () => ({
-        generateCompletionStandalone: vi.fn()
-      }),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn().mockReturnValue(true),
-      getApprovedFilePaths: vi.fn().mockReturnValue([]),
-      consumeSettingsApproval: vi.fn().mockReturnValue(false)
-    }
+    const runtimePort = buildAgentToolRuntimeMock()
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort as any
+      agentToolRuntime: runtimePort
     })
 
     await toolPresenter.getAllToolDefinitions({
@@ -149,7 +189,7 @@ describe('ToolPresenter', () => {
     const callToolSpy = vi.fn().mockResolvedValue('ok')
     agentToolManager.callTool = callToolSpy
 
-    await toolPresenter.callTool({
+    const result = await toolPresenter.callTool({
       id: 'tool-1',
       type: 'function',
       function: {
@@ -159,7 +199,37 @@ describe('ToolPresenter', () => {
       conversationId: 'conv-1'
     })
 
-    expect(callToolSpy).toHaveBeenCalledWith('read', { path: 'foo' }, 'conv-1')
+    expect(result.rawData.toolResult).toMatchObject({
+      ok: true,
+      data: {
+        content: 'ok',
+        source: 'agent'
+      }
+    })
+    callToolSpy.mockResolvedValueOnce({
+      rawData: {
+        content: 'from-raw'
+      }
+    })
+    const rawOnlyResult = await toolPresenter.callTool({
+      id: 'tool-2',
+      type: 'function',
+      function: {
+        name: 'read',
+        arguments: '{"path":"bar"}'
+      },
+      conversationId: 'conv-1'
+    })
+
+    expect(rawOnlyResult.content).toBe('from-raw')
+    expect(callToolSpy).toHaveBeenCalledWith(
+      'read',
+      { path: 'foo' },
+      'conv-1',
+      expect.objectContaining({
+        toolCallId: 'tool-1'
+      })
+    )
   })
 
   it('filters disabled agent tools while preserving MCP tools', async () => {
@@ -173,43 +243,13 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = {
-      resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-      resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-      getSkillPresenter: () =>
-        ({
-          getActiveSkills: vi.fn().mockResolvedValue([]),
-          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-          listSkillScripts: vi.fn().mockResolvedValue([]),
-          getSkillExtension: vi.fn().mockResolvedValue({
-            version: 1,
-            env: {},
-            runtimePolicy: { python: 'auto', node: 'auto' },
-            scriptOverrides: {}
-          })
-        }) as any,
-      getYoBrowserToolHandler: () => ({
-        getToolDefinitions: vi.fn().mockReturnValue([]),
-        callTool: vi.fn()
-      }),
-      getFilePresenter: () => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      }),
-      getLlmProviderPresenter: () => ({
-        generateCompletionStandalone: vi.fn()
-      }),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn().mockReturnValue(true),
-      getApprovedFilePaths: vi.fn().mockReturnValue([]),
-      consumeSettingsApproval: vi.fn().mockReturnValue(false)
-    }
+    const runtimePort = buildAgentToolRuntimeMock()
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort as any
+      agentToolRuntime: runtimePort
     })
 
     const defs = await toolPresenter.getAllToolDefinitions({
@@ -224,8 +264,9 @@ describe('ToolPresenter', () => {
     )
     expect(defs.some((tool) => tool.function.name === 'read')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'exec')).toBe(false)
+    expect(defs.some((tool) => tool.function.name === 'glob')).toBe(true)
+    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
-    expect(defs.some((tool) => tool.function.name === 'grep')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
@@ -244,37 +285,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          generateCompletionStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const withoutYoBrowser = toolPresenter.buildToolSystemPrompt({
@@ -313,6 +324,9 @@ describe('ToolPresenter', () => {
     expect(withYoBrowser).toContain(
       'Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.'
     )
+    expect(withYoBrowser).toContain(
+      'If `cdp_send` reports `yobrowser_unavailable`, call `get_browser_status`, then use `load_url` with the target URL when available.'
+    )
   })
 
   it('includes question guidance only when deepchat_question is enabled', () => {
@@ -330,37 +344,7 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          generateCompletionStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
     const withoutQuestion = toolPresenter.buildToolSystemPrompt({
@@ -382,8 +366,164 @@ describe('ToolPresenter', () => {
       ]
     })
 
-    expect(withoutQuestion).not.toContain('deepchat_question')
-    expect(withQuestion).toContain('deepchat_question')
+    expect(withoutQuestion).not.toContain('## User Interaction')
+    expect(withQuestion).toContain('## User Interaction')
+    expect(withQuestion).toContain(
+      'Use `deepchat_question` when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result.'
+    )
+    expect(withQuestion).toContain(
+      'Do not ask for facts you can discover from the repo, tools, or existing conversation context.'
+    )
+    expect(withQuestion).toContain(
+      'Ask exactly one question per `deepchat_question` call. If multiple clarifications are needed, split them into multiple tool calls.'
+    )
+    expect(withQuestion).toContain(
+      'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
+    )
+  })
+
+  it('includes progress guidance only when update_plan is enabled', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const withoutProgress = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('read', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    const withProgress = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(withoutProgress).not.toContain('## Progress Checklist Tool')
+    expect(withProgress).toContain('## Progress Checklist Tool')
+    expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
+    expect(withProgress).toContain('At most one step may be in_progress at a time.')
+  })
+
+  it('describes only enabled tape tools in the tape prompt', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const prompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.info, 'agent-tape'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.anchors, 'agent-tape'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(prompt).toContain('## Tape Tools')
+    expect(prompt).toContain('`tape_info` inspects')
+    expect(prompt).toContain('`tape_anchors` lists')
+    expect(prompt).not.toContain('`tape_search` supports')
+    expect(prompt).not.toContain('`tape_handoff` writes')
+  })
+
+  it('describes the question schema and returns actionable validation errors', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+    const runtimePort = buildAgentToolRuntimeMock()
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: runtimePort
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+    const questionDef = defs.find((def) => def.function.name === 'deepchat_question')
+
+    expect(questionDef?.function.description).toContain('one structured clarification question')
+    expect(questionDef?.function.description).toContain(
+      'The loop resumes only after the user responds.'
+    )
+    expect((questionDef?.function.parameters as any)?.description).toContain(
+      'Ask exactly one blocking clarification question.'
+    )
+    expect((questionDef?.function.parameters as any)?.properties?.options?.description).toContain(
+      'Do not pass a stringified JSON array.'
+    )
+    expect((questionDef?.function.parameters as any)?.properties?.custom?.description).toContain(
+      'The field name is `custom`, not `allowOther`.'
+    )
+
+    await expect(
+      toolPresenter.callTool({
+        id: 'tool-1',
+        type: 'function',
+        function: {
+          name: 'deepchat_question',
+          arguments: JSON.stringify({
+            questions: [
+              {
+                question: 'Pick one',
+                options: [{ label: 'A' }]
+              }
+            ]
+          })
+        },
+        conversationId: 'conv-1'
+      })
+    ).rejects.toThrow(
+      'Use a single object with `header?`, `question`, `options`, `multiple?`, and `custom?`.'
+    )
   })
 
   it('guides search and directory discovery through exec', () => {
@@ -401,40 +541,10 @@ describe('ToolPresenter', () => {
       mcpPresenter,
       configPresenter: configPresenter as any,
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: {
-        resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
-          getToolDefinitions: vi.fn().mockReturnValue([]),
-          callTool: vi.fn()
-        }),
-        getFilePresenter: () => ({
-          getMimeType: vi.fn(),
-          prepareFileCompletely: vi.fn()
-        }),
-        getLlmProviderPresenter: () => ({
-          generateCompletionStandalone: vi.fn()
-        }),
-        createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
-        getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      agentToolRuntime: buildAgentToolRuntimeMock()
     })
 
-    const prompt = toolPresenter.buildToolSystemPrompt({
+    const promptWithoutFocusedTools = toolPresenter.buildToolSystemPrompt({
       conversationId: 'conv-1',
       toolDefinitions: [
         {
@@ -450,6 +560,14 @@ describe('ToolPresenter', () => {
           source: 'agent'
         },
         {
+          ...buildToolDefinition('glob', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        },
+        {
           ...buildToolDefinition('exec', 'agent-filesystem'),
           source: 'agent'
         },
@@ -459,13 +577,33 @@ describe('ToolPresenter', () => {
         }
       ]
     })
+    expect(promptWithoutFocusedTools).toContain(
+      'Use canonical Agent tool names only: read, write, edit, glob, grep, exec, process.'
+    )
+    expect(promptWithoutFocusedTools).toContain(
+      'Use `glob` for file discovery and `grep` for content search; both return structured JSON.'
+    )
+    expect(promptWithoutFocusedTools).toContain(
+      'Search order: `glob(query)` -> choose relevant `pathScope` -> `grep(query, pathScope, contextLines)` -> `read` concrete files.'
+    )
+    expect(promptWithoutFocusedTools).toContain(
+      'Recommended file task flow: `glob` / `grep` -> `read` -> `edit`/`write`.'
+    )
+    expect(promptWithoutFocusedTools).not.toContain('rg -n')
+    expect(promptWithoutFocusedTools).not.toContain('rg --files')
 
-    expect(prompt).toContain(
-      'Use canonical Agent tool names only: read, write, edit, exec, process.'
+    const grepOnlyPrompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition('grep', 'agent-filesystem'),
+          source: 'agent'
+        }
+      ]
+    })
+    expect(grepOnlyPrompt).toContain(
+      'Use `grep` for content search; it returns structured JSON and supports `mode: "regex"` for regular expressions.'
     )
-    expect(prompt).toContain(
-      'Prefer shell patterns like `rg -n`, `rg --files`, `find . -name ...`, `ls`, and `tree` inside `exec`.'
-    )
-    expect(prompt).not.toContain('Use `read`/`find`/`grep`/`ls` for file inspection')
+    expect(grepOnlyPrompt).not.toContain('Search order: `glob(query)`')
   })
 })

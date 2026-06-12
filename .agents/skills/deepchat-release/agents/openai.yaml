@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepChat Release"
+  short_description: "Prepare and publish DeepChat releases"
+  default_prompt: "Use $deepchat-release to prepare, continue, or publish a DeepChat version release."

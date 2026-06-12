@@ -19,8 +19,16 @@ export interface SkillMetadata {
   path: string
   /** Skill root directory path */
   skillRoot: string
+  /** Optional category path derived from nested folders under the skills root */
+  category?: string | null
+  /** Optional platform restrictions declared in SKILL.md */
+  platforms?: string[]
+  /** Optional arbitrary metadata declared in SKILL.md */
+  metadata?: Record<string, unknown>
   /** Optional additional tools required by this skill */
   allowedTools?: string[]
+  /** Plugin owner id when the skill is contributed by a plugin */
+  ownerPluginId?: string
 }
 
 /**
@@ -70,7 +78,9 @@ export interface SkillScriptDescriptor {
 export interface SkillInstallResult {
   success: boolean
   error?: string
+  errorCode?: 'conflict' | 'invalid_skill' | 'not_found' | 'io_error'
   skillName?: string
+  existingSkillName?: string
 }
 
 /**
@@ -97,7 +107,7 @@ export interface SkillFolderNode {
 export interface SkillState {
   /** Associated conversation ID */
   conversationId: string
-  /** Set of activated skill names */
+  /** Persisted pinned skill names (legacy field name kept for compatibility) */
   activeSkills: string[]
 }
 
@@ -107,13 +117,64 @@ export interface SkillState {
 export interface SkillListItem {
   name: string
   description: string
-  active: boolean
+  category?: string | null
+  platforms?: string[]
+  metadata?: Record<string, unknown>
+  isPinned: boolean
+  active?: boolean
 }
 
-/**
- * Skill control action type
- */
-export type SkillControlAction = 'activate' | 'deactivate'
+export interface SkillLinkedFile {
+  path: string
+  kind: 'reference' | 'template' | 'script' | 'asset' | 'other'
+}
+
+export interface SkillViewResult {
+  success: boolean
+  name?: string
+  category?: string | null
+  skillRoot?: string
+  filePath?: string | null
+  content?: string
+  platforms?: string[]
+  metadata?: Record<string, unknown>
+  linkedFiles?: SkillLinkedFile[]
+  isPinned?: boolean
+  error?: string
+}
+
+export type SkillManageAction = 'create' | 'edit' | 'write_file' | 'remove_file' | 'delete'
+
+export interface SkillManageRequest {
+  action: SkillManageAction
+  draftId?: string
+  content?: string
+  filePath?: string
+  fileContent?: string
+}
+
+export interface SkillManageResult {
+  success: boolean
+  action: SkillManageAction
+  draftId?: string
+  filePath?: string
+  skillName?: string
+  draftStatus?: 'created' | 'updated' | 'deleted' | 'installed' | 'viewed'
+  content?: string
+  error?: string
+}
+
+export type SkillDraftUserAction = 'view' | 'install' | 'discard'
+
+export interface SkillDraftActionResult {
+  success: boolean
+  action: SkillDraftUserAction
+  draftId: string
+  skillName?: string
+  content?: string
+  installedSkillName?: string
+  error?: string
+}
 
 /**
  * Skill Presenter interface for main process
@@ -127,6 +188,17 @@ export interface ISkillPresenter {
 
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>
+  viewSkill(
+    name: string,
+    options?: {
+      filePath?: string
+      conversationId?: string
+    }
+  ): Promise<SkillViewResult>
+  viewDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
+  installDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
+  discardDraftSkill(conversationId: string, draftId: string): Promise<SkillDraftActionResult>
+  manageDraftSkill(conversationId: string, request: SkillManageRequest): Promise<SkillManageResult>
 
   // Installation and uninstallation
   installBuiltinSkills(): Promise<void>
@@ -134,6 +206,13 @@ export interface ISkillPresenter {
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromUrl(url: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   uninstallSkill(name: string): Promise<SkillInstallResult>
+  registerPluginSkill?(input: {
+    ownerPluginId: string
+    id: string
+    skillRoot: string
+    pluginRoot?: string
+  }): Promise<void> | void
+  unregisterPluginSkillsByOwner?(ownerPluginId: string): Promise<void> | void
 
   // File operations
   readSkillFile(name: string): Promise<string>
@@ -151,7 +230,7 @@ export interface ISkillPresenter {
 
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>
-  setActiveSkills(conversationId: string, skills: string[]): Promise<void>
+  setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   clearNewAgentSessionSkills?(conversationId: string): Promise<void>
   validateSkillNames(names: string[]): Promise<string[]>
 

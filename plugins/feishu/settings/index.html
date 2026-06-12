@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feishu/Lark Integration</title>
+    <link rel="stylesheet" href="./assets/index.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Official Plugin</p>
+          <h1>Feishu/Lark Integration</h1>
+        </div>
+        <span id="plugin-state" class="state state-muted">Loading</span>
+      </header>
+
+      <section class="panel">
+        <h2 class="section-title">Credentials</h2>
+        <div class="form-group">
+          <label for="brand">Brand</label>
+          <select id="brand">
+            <option value="feishu">Feishu</option>
+            <option value="lark">Lark</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="app-id">App ID</label>
+          <input
+            id="app-id"
+            type="text"
+            placeholder="cli_xxxx"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="form-group">
+          <label for="app-secret">App Secret</label>
+          <input
+            id="app-secret"
+            type="password"
+            placeholder="App Secret"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">MCP Preset</h2>
+        <div class="form-group">
+          <label for="preset">Tool Preset</label>
+          <select id="preset">
+            <option value="preset.default">Default (recommended)</option>
+            <option value="preset.light">Light</option>
+            <option value="preset.im.default">IM / Messaging</option>
+            <option value="preset.base.default">Base / Database</option>
+            <option value="preset.doc.default">Docs</option>
+            <option value="preset.task.default">Tasks</option>
+            <option value="preset.calendar.default">Calendar</option>
+          </select>
+          <p class="hint">
+            Controls which API tools are available.
+            <a id="preset-docs" href="#">View preset details</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="row">
+          <span>MCP Server</span>
+          <strong id="mcp-state">Unknown</strong>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <button id="save" class="primary">Save</button>
+        <button id="disable" class="danger">Disable Plugin</button>
+      </footer>
+
+      <p id="message" class="message" role="status"></p>
+    </main>
+    <script src="./assets/index.js"></script>
+  </body>
+</html>

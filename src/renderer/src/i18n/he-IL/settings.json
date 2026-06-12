@@ -8,7 +8,16 @@
     "searchEngine": "מנוע חיפוש",
     "searchEngineSelect": "בחר מנוע חיפוש",
     "searchPreview": "תצוגה מקדימה של חיפוש",
+    "launchAtLoginEnabled": "הפעלת DeepChat בעת הכניסה למערכת",
     "autoScrollEnabled": "גלילה אוטומטית בזמן יצירה",
+    "privacyMode": "מצב פרטיות",
+    "privacyModeDescription": "עצירת בקשות יוצאות אוטומטיות שמנוהלות על ידי DeepChat:",
+    "privacyModeAutoUpdate": "בדיקת עדכוני יישום",
+    "privacyModeProviderDb": "רענון מטא־נתונים של ספקים ומודלים",
+    "privacyModeAcpRegistry": "רענון מרשם ACP וסנכרון סמלים",
+    "privacyModeNpmRegistry": "זיהוי אוטומטי של מרשם ה-npm של MCP",
+    "privacyModeManualActions": "בדיקות ידניות ופעולות רענון ידניות נשארות זמינות.",
+    "privacyModeIntegrations": "אינטגרציות צד שלישי שהוגדרו נשארות זמינות.",
     "searchAssistantModel": "מודל עוזר",
     "selectModel": "בחר מודל",
     "proxyMode": "מצב פרוקסי",
@@ -78,7 +87,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "הגדרת התראות webhook ו‑hooks של מחזור החיים.",
+    "description": "הגדר פקודות Hook עבור אירועי מחזור החיים.",
     "events": {
       "title": "אירועים",
       "SessionStart": "תחילת סשן",
@@ -90,32 +99,45 @@
       "Stop": "עצירה",
       "SessionEnd": "סיום סשן"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "שליחת התראות דרך בוט טלגרם.",
-      "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט טלגרם",
-      "chatId": "מזהה צ׳אט",
-      "chatIdPlaceholder": "למשל 123456789",
-      "threadId": "מזהה שרשור (אופציונלי)",
-      "threadIdPlaceholder": "מזהה שרשור אופציונלי"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "שליחת התראות דרך webhook של Discord.",
-      "webhookUrl": "URL של Webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "שליחת התראות דרך hook של Confirmo (כל האירועים).",
-      "unavailable": "ה‑hook של Confirmo לא נמצא: {path}"
-    },
     "commands": {
-      "title": "פקודות Hooks",
-      "description": "הרצת פקודה עבור כל אירוע.",
-      "hint": "ה‑payload נשלח ל‑stdin כ‑JSON.",
-      "commandPlaceholder": "פקודה להרצה"
+      "title": "פקודות Hook",
+      "description": "הרץ פקודות מותאמות אישית עבור אירועי מחזור החיים שנבחרו.",
+      "hint": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "commandPlaceholder": "פקודה להרצה",
+      "commandLabel": "פקודה",
+      "name": "שם",
+      "namePlaceholder": "שם ה-Hook",
+      "newHook": "Hook חדש",
+      "empty": "עדיין אין Hooks. הוסף אחד כדי להתחיל.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "איך משתמשים",
+      "guideDescription": "כאשר אירוע מסומן מופעל, DeepChat מריץ את הפקודה. את האירוע הנוכחי אפשר לקרוא מ-JSON ב-stdin, ממשתני סביבה וממצייני מיקום בשורת הפקודה.",
+      "deliveryTitle": "איך הנתונים מועברים",
+      "deliveryStdin": "כל ה-payload נכתב ל-stdin כ-JSON.",
+      "deliveryPlaceholder": "אפשר להשתמש במצייני מיקום של שורת הפקודה ישירות בתוך הפקודה.",
+      "deliveryEnv": "אותם נתוני מטא בסיסיים זמינים גם כמשתני סביבה.",
+      "metadataOnly": "מצייני מיקום של שורת הפקודה מתאימים למטא-דאטה קטנה. את פרטי ה-prompt/tool, permission, usage, stop ו-error קראו מתוך ה-JSON שב-stdin.",
+      "stdinPreviewLabel": "דוגמת stdin",
+      "placeholdersTitle": "מצייני מיקום של שורת הפקודה",
+      "placeholdersDescription": "מצייני המיקום מורחבים לפני ההרצה, ואפשר להעביר אותם כארגומנטים של הפקודה.",
+      "envTitle": "משתני סביבה",
+      "examplesTitle": "דוגמאות",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "שם האירוע הנוכחי",
+        "time": "זמן האירוע בפורמט ISO-8601",
+        "isTest": "האם ההרצה הזו הגיעה מכפתור הבדיקה",
+        "conversationId": "מזהה השיחה / הסשן הנוכחי",
+        "workdir": "ספריית העבודה שנפתרה עבור הסשן",
+        "agentId": "מזהה ה-Agent הנוכחי אם זמין",
+        "providerId": "מזהה ה-Provider הנוכחי אם זמין",
+        "modelId": "מזהה ה-Model הנוכחי אם זמין",
+        "messageId": "מזהה הודעת המשתמש הנוכחית אם זמין",
+        "toolName": "שם הכלי הנוכחי אם זמין",
+        "toolCallId": "מזהה קריאת הכלי הנוכחית אם זמין"
+      }
     },
     "test": {
       "button": "בדיקה",
@@ -171,6 +193,23 @@
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "modelConfigUpdate": {
+      "title": "עדכון הגדרות המודלים",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
+      "button": "עדכן עכשיו",
+      "updating": "מעדכן...",
+      "updatedTitle": "הגדרות המודלים עודכנו",
+      "updatedDescription": "מטא־הנתונים העדכניים של הספקים נטענו בהצלחה.",
+      "upToDateTitle": "כבר מעודכן",
+      "upToDateDescription": "הגדרות המודלים המקומיות כבר משתמשות במטא־הנתונים העדכניים ביותר של הספקים.",
+      "failedTitle": "העדכון נכשל",
+      "failedDescription": "כרגע אי אפשר לעדכן את הגדרות המודלים. נסה שוב מאוחר יותר."
+    },
     "yoBrowser": {
       "clearButton": "נקה את נתוני YoBrowser",
       "clearFailedDescription": "אנא נסה שוב או בדוק את היומנים לקבלת מידע נוסף.",
@@ -183,6 +222,210 @@
       "confirmTitle": "לאשר לנקות נתוני YoBrowser?",
       "description": "ארגז חול עצמאי של דפדפן שאינו חולק עוגיות ואחסון מקומי עם האפליקציה הראשית. ניתן לנקות את נתוני YoBrowser בלחיצה אחת כאן.",
       "title": "ארגז חול של YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "תיקון מסד הנתונים",
+      "description": "Detect and automatically repair the database",
+      "button": "בדוק ותקן את מסד הנתונים",
+      "running": "בודק ומתקן...",
+      "lastResultLabel": "תוצאה אחרונה: {result}",
+      "summaryHealthy": "תקין",
+      "summaryRepaired": "{count} בעיות תוקנו",
+      "summaryRepairedWithManual": "{repaired} בעיות תוקנו, {manual} דורשות טיפול ידני",
+      "summaryManualOnly": "{manual} בעיות דורשות תשומת לב",
+      "manualHint": "עדיין נדרש טיפול ידני ב-{count} בעיות.",
+      "toastSuggestedTitle": "מומלץ לתקן את מסד הנתונים",
+      "toastSuggestedDescription": "DeepChat זיהה בעיית סכימה ({reason}). אפשר להפעיל עכשיו תיקון למסד הנתונים.",
+      "toastAction": "עבור לתיקון",
+      "toastHealthyTitle": "מסד הנתונים תקין",
+      "toastHealthyDescription": "לא נמצאו בעיות סכימה.",
+      "toastCompletedTitle": "תיקון מסד הנתונים הושלם",
+      "toastRepairedDescription": "{count} בעיות תוקנו.",
+      "toastManualDescription": "{repaired} בעיות תוקנו. {manual} בעיות עדיין דורשות טיפול ידני.",
+      "toastFailedTitle": "תיקון מסד הנתונים נכשל",
+      "toastFailedDescription": "לא ניתן להשלים כרגע את תיקון מסד הנתונים. בדוק את הלוגים ונסה שוב.",
+      "reasons": {
+        "missing-table": "טבלה חסרה",
+        "missing-column": "עמודה חסרה",
+        "column-count-mismatch": "אי-התאמה במספר העמודות",
+        "type-mismatch": "אי-התאמה בסוג העמודה"
+      }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "Manage backup, sync, privacy mode, maintenance, and dangerous operations.",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "ייבוא הגדרות ספק",
+      "entryDescription": "סריקת CC Switch, Alma, Cherry Studio, Hermes ו-OpenClaw לאיתור פרטי ספק ורשימות מודלים.",
+      "entryButton": "ייבוא מסוכנים",
+      "dialogTitle": "ייבוא מסוכנים אחרים",
+      "dialogDescription": "בחר תחילה את האפליקציות שזוהו, ואז בדוק את הספקים ש-DeepChat יכול לייבא.",
+      "toastTitle": "ייבוא הספקים הסתיים",
+      "toastDescription": "יובאו {count} ספקים.",
+      "steps": {
+        "scan": "סריקה",
+        "providers": "ספקים",
+        "done": "סיום"
+      },
+      "scanningTitle": "סורק סוכנים מותקנים",
+      "scanningDescription": "DeepChat בודק קובצי תצורה מקומיים מוכרים בלי לשלוח נתונים.",
+      "scanFailedTitle": "הסריקה נכשלה",
+      "sourcesTitle": "מקורות שזוהו",
+      "sourcesDescription": "בחר סוכן אחד או יותר. הסוכנים שנבחרו יעובדו בסדר המוצג.",
+      "selectedSources": "{selected}/{total} נבחרו",
+      "noSourcesTitle": "לא נמצאה תצורת ספק שניתן לייבא",
+      "noSourcesDescription": "התקן אחד מהסוכנים הנתמכים או הגדר בו תחילה פרטי ספק.",
+      "providersFound": "{count} ספקים",
+      "sourceProgress": "{current} מתוך {total}",
+      "overwriteNote": "אם כמה ספקים שנבחרו ממופים לאותו ספק DeepChat, המקור המאוחר יחליף את המוקדם.",
+      "noProvidersTitle": "אין נתוני ספק במקור הזה",
+      "noProvidersDescription": "הסוכן נבחר, אך לא נמצאה רשומת ספק שניתן לייבא.",
+      "apiKey": "מפתח {value}",
+      "noModels": "אין רשימת מודלים",
+      "modelsImported": "{count} מודלים",
+      "importingTitle": "מייבא ספקים",
+      "importingDescription": "DeepChat כותב את הספקים שנבחרו ואת רשומות המודלים המותאמים.",
+      "doneTitle": "סיכום הייבוא",
+      "doneDescription": "יובאו {count} ספקים. בדוק למטה את התוצאה לכל ספק.",
+      "badges": {
+        "configured": "מוגדר"
+      },
+      "sourceStatus": {
+        "found": "נמצא",
+        "not_found": "לא נמצא",
+        "error": "שגיאה",
+        "unsupported_platform": "פלטפורמה לא נתמכת"
+      },
+      "targetKind": {
+        "builtin": "מובנה",
+        "custom": "מותאם אישית",
+        "unsupported": "לא נתמך"
+      },
+      "warnings": {
+        "already_configured": "כבר מוגדר ב-DeepChat, לכן אינו נבחר כברירת מחדל.",
+        "missing_api_key": "חסר מפתח API או endpoint נדרש.",
+        "unsupported_provider": "DeepChat לא יכול לייבא את הספק הזה אוטומטית.",
+        "overwrites_previous_selection": "הבחירה הזו מתנגשת עם מקור קודם.",
+        "credential_only_import": "רק מפתח ה-API ייובא; DeepChat ישמור את ה-endpoint וה-runtime של הספק המובנה."
+      },
+      "conflicts": {
+        "overridesPrevious": "הבחירה הזו תחליף ספק שנבחר קודם.",
+        "overwrittenByLater": "מקור מאוחר יותר שנבחר יחליף את הספק הזה."
+      },
+      "summary": {
+        "imported": "יובאו",
+        "created": "נוצרו",
+        "updated": "עודכנו",
+        "overwritten": "הוחלפו",
+        "models": "מודלים",
+        "skipped": "דולגו"
+      },
+      "resultStatus": {
+        "created": "נוצר",
+        "updated": "עודכן",
+        "skipped": "דולג",
+        "overwritten": "הוחלף"
+      },
+      "actions": {
+        "rescan": "סרוק שוב",
+        "selectAll": "בחר הכול",
+        "clearSelected": "נקה",
+        "import": "ייבא נבחרים"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "הייבוא נכשל: {message}"
+    },
+    "databaseEncryption": {
+      "title": "הצפנת מסד נתונים SQLite",
+      "description": "הצפנת agent.db באמצעות SQLCipher ודרישת סיסמת SQLite כאשר לא ניתן להשתמש בפתיחת נעילה של המערכת.",
+      "enabled": "מופעל",
+      "disabled": "מושבת",
+      "cipher": "צופן",
+      "systemUnlock": "פתיחת נעילה של המערכת",
+      "startupUnlock": "פתיחת נעילה בעת הפעלה",
+      "lastMigration": "העברה אחרונה",
+      "loading": "טוען",
+      "never": "אף פעם",
+      "notRequired": "לא נדרש",
+      "systemUnlockAvailable": "זמין",
+      "systemUnlockUnavailable": "לא זמין",
+      "systemUnlockMode": "פתיחת נעילה של המערכת",
+      "manualUnlock": "סיסמה ידנית",
+      "currentPassword": "סיסמה נוכחית",
+      "newPassword": "סיסמת SQLite חדשה",
+      "confirmPassword": "אימות סיסמה",
+      "passwordMismatch": "הסיסמאות אינן תואמות",
+      "systemCredentialStore": "כאשר אחסון מאובטח של המערכת זמין, DeepChat שומר את סיסמת SQLite בצורה מוצפנת בכספת האישורים של מערכת ההפעלה (macOS Keychain, Windows Credential Vault או Linux secret store). לאחר פתיחת נעילה מוצלחת אחת, הפעלות עתידיות בדרך כלל ייפתחו אוטומטית; צריך להזין שוב את מפתח ההצפנה רק אחרי העברת נתונים, כאשר אישור המערכת חסר או לא ניתן לפענוח, או כאשר אחסון מאובטח אינו זמין.",
+      "safeStorageUnavailable": "Electron safeStorage אינו זמין במערכת זו. לאחר הפעלת הצפנה, יהיה צורך להזין את הסיסמה בכל הפעלה.",
+      "enableButton": "הפעל הצפנה",
+      "changeButton": "שנה סיסמה",
+      "disableButton": "השבת הצפנה",
+      "enabledTitle": "הצפנת מסד הנתונים הופעלה",
+      "changedTitle": "סיסמת SQLite שונתה",
+      "disabledTitle": "הצפנת מסד הנתונים הושבתה",
+      "failedTitle": "הצפנת מסד הנתונים נכשלה",
+      "failedDescription": "בדוק את הסיסמה ונסה שוב.",
+      "setPasswordButton": "הגדר סיסמה",
+      "enableDialogTitle": "הגדר סיסמת SQLite",
+      "changeDialogTitle": "שנה סיסמת SQLite",
+      "disableDialogTitle": "השבת הצפנת מסד נתונים",
+      "enableDialogDescription": "יצירת מסד נתונים SQLite מוצפן והעברת הנתונים המקומיים הנוכחיים אליו.",
+      "changeDialogDescription": "העברת מסד הנתונים המוצפן הנוכחי למסד נתונים מוצפן חדש עם הסיסמה החדשה.",
+      "disableDialogDescription": "העברת מסד הנתונים המוצפן הנוכחי בחזרה למסד נתונים מקומי גלוי.",
+      "cancelButton": "ביטול",
+      "unknown": "לא ידוע"
+    },
+    "cloudSync": {
+      "title": "סנכרון ענן (תואם S3)",
+      "description": "העלה גיבויים לאחסון תואם S3 כמו Cloudflare R2, ומשוך את הגיבוי האחרון במכשיר אחר.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "אזור",
+      "prefix": "קידומת נתיב",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "מוגדר (השאר ריק כדי לשמור)",
+      "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; אי אפשר לשמור את המפתח הסודי באופן מאובטח.",
+      "save": "שמור",
+      "test": "בדוק חיבור",
+      "upload": "העלה לענן",
+      "pull": "משוך את האחרון מהענן",
+      "savedTitle": "תצורת הענן נשמרה",
+      "testSuccessTitle": "החיבור הצליח",
+      "testFailedTitle": "החיבור נכשל",
+      "uploadSuccessTitle": "ההעלאה הצליחה",
+      "uploadFailedTitle": "ההעלאה נכשלה",
+      "pullSuccessTitle": "המשיכה הצליחה",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "תואם S3 מותאם אישית",
+      "r2GuideTitle": "העתק את אישורי לקוח S3 מדף אסימון ה-API של Cloudflare R2.",
+      "r2EndpointHint": "השתמש בכתובת ה-Endpoint הספציפית לתחום השיפוט עבור לקוחות S3",
+      "r2AccessKeyHint": "השתמש ב-Access Key ID, לא ב-Account ID",
+      "r2SecretHint": "השתמש ב-Secret Access Key, לא בערך אסימון שמתחיל ב-cfat_",
+      "r2DocsLink": "פתח את תיעוד Cloudflare R2 S3",
+      "endpointR2Description": "השתמש ב-https://<account_id>.r2.cloudflarestorage.com ללא שם bucket.",
+      "endpointCustomDescription": "השתמש ב-Endpoint של שירות תואם S3.",
+      "r2AccessKeyAccountIdWarning": "הערך הזה נראה כמו R2 Account ID. ה-Access Key ID מגיע מאזור אישורי לקוח S3.",
+      "r2SecretApiTokenError": "השתמש כאן ב-S3 Secret Access Key, לא בערך אסימון API של Cloudflare שמתחיל ב-cfat_.",
+      "secretStoredDescription": "מפתח סודי שמור. השאר ריק כדי לשמור אותו, או הזן ערך חדש כדי להחליף אותו.",
+      "secretInputDescription": "העתק את ה-Secret Access Key מאזור אישורי לקוח S3.",
+      "advancedTitle": "הגדרות מתקדמות",
+      "r2RegionDescription": "Cloudflare R2 בדרך כלל צריך להישאר על auto.",
+      "prefixDescription": "גיבויים נכתבים תחת קידומת הנתיב הזו.",
+      "saveAndTest": "שמור ובדוק",
+      "saveOnly": "שמור בלבד",
+      "saveAndTestFirst": "שמור ובדוק קודם את תצורת הענן."
     }
   },
   "dashboard": {
@@ -288,6 +531,9 @@
     },
     "unavailable": "לא זמין"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "יכולת Agent חלשה: תומך רק בקריאות כלים של fallback מדור קודם"
+  },
   "model": {
     "title": "הגדרות מודל",
     "systemPrompt": {
@@ -346,6 +592,10 @@
       },
       "createTitle": "הוסף מודל מותאם אישית",
       "editTitle": "ערוך תצורת מודל - {name}",
+      "speechRecognition": {
+        "label": "זיהוי דיבור",
+        "description": "קובע אם המודל הזה מאפשר קלט קולי עם המרה מקומית מדיבור לטקסט."
+      },
       "functionCall": {
         "description": "האם המודל תומך בקריאות לפונקציות באופן טבעי (DeepChat יסמלץ אוטומטית קריאות לפונקציות לאחר כיבוי אפשרות זו)",
         "label": "קריאות לפונקציות"
@@ -355,8 +605,12 @@
         "label": "אורך פלט מקסימלי"
       },
       "reasoning": {
-        "description": "האם המודל תומך ביכולת חשיבה (Reasoning)?",
+        "description": "המודל הזה תומך בהנמקה",
         "label": "יכולת חשיבה"
+      },
+      "reasoningToggle": {
+        "description": "שולט אם ההנמקה מופעלת כברירת מחדל עבור המודל הזה",
+        "label": "הפעלת הנמקה"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -383,10 +637,13 @@
         "description": "שולט בעומק החשיבה של המודל; מאמץ גבוה יותר מפיק תוצאות טובות יותר אך תגובות איטיות יותר",
         "placeholder": "בחר מאמץ חשיבה",
         "options": {
+          "none": "ללא - ללא הנמקה",
           "minimal": "מינימלי - התגובה המהירה ביותר",
           "low": "נמוך - מאמץ נמוך",
           "medium": "בינוני - מאמץ בינוני",
-          "high": "גבוה - מאמץ גבוה"
+          "high": "גבוה - מאמץ גבוה",
+          "xhigh": "גבוה מאוד - מאמץ מרבי",
+          "max": "Max - רמת המאמץ הגבוהה ביותר"
         }
       },
       "verbosity": {
@@ -405,7 +662,12 @@
       "currentUsingModelDefault": "משתמש כעת בתצורת ברירת המחדל של המודל",
       "temperature": {
         "description": "שלוט באקראיות הפלט. רוב המודלים הם 0-1, וחלקם תומכים בין 0-2. ערכים גבוהים יותר מגבירים את האקראיות.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
         "label": "טמפרטורה"
+      },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
       },
       "title": "פרמטרים מותאמים למודל",
       "type": {
@@ -415,7 +677,8 @@
           "chat": "מודל שפה (Chat)",
           "embedding": "מודל הטמעה (Embedding)",
           "imageGeneration": "מודל יצירת תמונות",
-          "rerank": "מודל דירוג מחדש (Rerank)"
+          "rerank": "מודל דירוג מחדש (Rerank)",
+          "videoGeneration": "מודל יצירת וידאו"
         }
       },
       "validation": {
@@ -427,7 +690,10 @@
         "maxTokensRequired": "אורך הפלט המקסימלי אינו יכול להיות ריק",
         "temperatureMax": "הטמפרטורה חייבת להיות קטנה או שווה ל-2",
         "temperatureMin": "הטמפרטורה חייבת להיות גדולה או שווה ל-0",
-        "temperatureRequired": "הטמפרטורה אינה יכולה להיות ריקה"
+        "temperatureRequired": "הטמפרטורה אינה יכולה להיות ריקה",
+        "timeoutMin": "הטיימאוט חייב להיות לפחות 1000ms",
+        "timeoutMax": "הטיימאוט אינו יכול לעלות על 3600000ms",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "האם המודל תומך ביכולת חזותית?",
@@ -438,7 +704,118 @@
         "label": "נקודת קצה API",
         "options": {
           "chat": "יצירת טקסט",
-          "image": "יצירת תמונות"
+          "image": "יצירת תמונות",
+          "video": "Video Generation"
+        }
+      },
+      "endpointType": {
+        "label": "סוג נקודת קצה",
+        "description": "בחר באיזה פרוטוקול upstream ישתמש New API עבור מודל זה.",
+        "placeholder": "בחר סוג נקודת קצה",
+        "required": "סוג נקודת קצה נדרש",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "יצירת תמונות",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "תצוגת ההנמקה",
+        "description": "קובע אם תוכן ההנמקה יוסתר או יוצג כסיכום כאשר ההנמקה מופעלת",
+        "placeholder": "בחר את אופן תצוגת ההנמקה",
+        "options": {
+          "omitted": "Omitted - הסתר את תוכן ההנמקה",
+          "summarized": "Summarized - הצג סיכום של ההנמקה"
+        }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "ברירת מחדל",
+        "size": {
+          "label": "גודל תמונה",
+          "custom": "מותאם אישית",
+          "placeholder": "לדוגמה 2048x2048",
+          "experimental": "גדלים מעל 2560x1440 מסומנים על ידי OpenAI כניסיוניים.",
+          "validation": {
+            "invalid_format": "יש להשתמש בתבנית {width}x{height}.",
+            "invalid_multiple": "הרוחב והגובה חייבים להיות כפולות של 16.",
+            "side_too_large": "הרוחב והגובה חייבים להיות 3840px או פחות.",
+            "aspect_ratio_too_large": "הצלע הארוכה לא יכולה להיות יותר מפי 3 מהצלע הקצרה.",
+            "pixel_count_out_of_range": "סך הפיקסלים חייב להיות בין 655360 ל-8294400."
+          }
+        },
+        "quality": {
+          "label": "איכות",
+          "options": {
+            "low": "נמוכה",
+            "medium": "בינונית",
+            "high": "גבוהה",
+            "auto": "אוטומטי"
+          }
+        },
+        "outputFormat": {
+          "label": "פורמט פלט",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "דחיסה",
+          "placeholder": "ברירת מחדל: 100",
+          "validation": "הדחיסה חייבת להיות מספר שלם בין 0 ל-100."
+        },
+        "background": {
+          "label": "רקע",
+          "options": {
+            "auto": "אוטומטי",
+            "opaque": "אטום"
+          }
+        },
+        "moderation": {
+          "label": "סינון תוכן",
+          "options": {
+            "auto": "אוטומטי",
+            "low": "נמוכה"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -450,6 +827,11 @@
     "disabled": "מושבת",
     "urlPlaceholder": "אנא הזן כתובת API",
     "keyPlaceholder": "אנא הזן מפתח API",
+    "authMode": "שיטת אימות",
+    "authModeAccessKeys": "מפתחות גישה",
+    "authModeProfile": "פרופיל AWS",
+    "profileNameLabel": "שם פרופיל AWS",
+    "profilePlaceholder": "הזן את שם פרופיל AWS (למשל default)",
     "accessKeyIdPlaceholder": "אנא הזן AWS Access Key ID",
     "secretAccessKeyPlaceholder": "אנא הזן AWS Secret Access Key",
     "regionPlaceholder": "אנא הזן אזור AWS",
@@ -472,6 +854,9 @@
     "urlFormat": "דוגמת API: {defaultUrl}",
     "urlFormatFill": "מילוי בכתובת ה-API",
     "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
+    "modifyBaseUrl": "ערוך",
+    "baseUrlLockedHint": "הספק הזה נעול לכתובת הבסיס המומלצת כדי לצמצם שגיאות תצורה.",
+    "refreshModelsWithMetadataHint": "רענון הספק הזה יסנכרן קודם את המטא־דאטה במעלה הזרם ולאחר מכן יבנה מחדש את רשימת המודלים המקומית.",
     "modelList": "רשימת מודלים",
     "enableModels": "הפעל מודלים",
     "disableAllModels": "השבת את כל המודלים",
@@ -487,8 +872,8 @@
     "stopModel": "עצור מודל",
     "pulling": "מושך...",
     "runModel": "הרץ מודל",
-    "voiceai": {
-      "title": "המרת טקסט לדיבור של Voice.ai",
+    "tts": {
+      "title": "המרת טקסט לדיבור (TTS)",
       "description": "יצירת דיבור מטקסט. קולות יופיעו ברשימת המודלים למטה.",
       "audioFormat": {
         "label": "פורמט שמע",
@@ -566,6 +951,11 @@
         "overwriteWarning": "ייבוא זה ידרוס את תצורת הספק הנוכחית.",
         "confirming": "מייבא..."
       },
+      "baseUrlUnlock": {
+        "title": "אישור שינוי כתובת הבסיס",
+        "description": "לא מומלץ לשנות את כתובת הבסיס של הספק הזה. נקודת קצה שגויה עלולה לגרום לכשלי בקשות או להתנהגות בלתי צפויה אחרת. אפשר עדיין להמשיך אם מבינים את הסיכון.",
+        "confirm": "המשך"
+      },
       "deleteProvider": {
         "title": "אשר מחיקת ספק",
         "content": "האם אתה בטוח שברצונך למחוק את הספק \"{name}\"? לא ניתן לבטל פעולה זו.",
@@ -640,7 +1030,13 @@
       "backupSuccessTitle": "הגיבוי הושלם",
       "backupSuccessMessage": "הגיבוי נשמר ב-{time} ({size})",
       "importSuccessTitle": "הייבוא הושלם",
-      "importSuccessMessage": "יובאו בהצלחה {count} שיחות"
+      "importSuccessMessage": "יובאו בהצלחה {count} שיחות",
+      "refreshModelsSuccessTitle": "המודלים רועננו",
+      "refreshModelsSuccessDescription": "רשימת המודלים העדכנית סונכרנה עבור הספק הזה.",
+      "refreshModelsSuccessDescriptionWithMetadata": "המטא־דאטה במעלה הזרם ורשימת המודלים העדכנית סונכרנו עבור הספק הזה.",
+      "refreshModelsFailedTitle": "הרענון נכשל",
+      "refreshModelsFailedDescription": "לא ניתן לרענן כעת את המודלים של הספק הזה. נסה שוב מאוחר יותר.",
+      "refreshModelsFailedDescriptionWithMetadata": "לא ניתן לסנכרן כעת את המטא־דאטה במעלה הזרם ואת המודלים של הספק הזה. נסה שוב מאוחר יותר."
     },
     "modelscope": {
       "mcpSync": {
@@ -703,7 +1099,25 @@
     "operationSuccess": "הפעולה הצליחה",
     "settingsApplied": "ההגדרות הוחלו",
     "bedrockLimitTip": "* נתמך רק עבור Anthropic Claude (כולל מודלי Opus, Sonnet, Haiku)",
-    "bedrockVerifyTip": "DeepChat משתמש ב-Claude 3.5 Sonnet לאימות. אם אין לך הרשאה להפעיל אותו, האימות ייכשל. זה לא ישפיע על השימוש במודלים אחרים."
+    "bedrockVerifyTip": "DeepChat משתמש ב-Claude 3.5 Sonnet לאימות. אם אין לך הרשאה להפעיל אותו, האימות ייכשל. זה לא ישפיע על השימוש במודלים אחרים.",
+    "center": {
+      "title": "Provider Center",
+      "description": "Manage provider connections, models, and advanced configuration.",
+      "noApiUrl": "No API URL configured",
+      "enabledModels": "{count} models enabled",
+      "noAdvancedConfig": "This provider has no extra advanced configuration.",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "הגדרות בסיס ידע",
@@ -853,6 +1267,7 @@
     "stopServer": "עצור שרת",
     "startServer": "התחל שרת",
     "noServersFound": "לא נמצאו שרתים",
+    "noServersDescription": "הוסף שרת MCP כדי להשתמש בכלים, הנחיות ומשאבים.",
     "addServerDialog": {
       "title": "הוסף שרת",
       "description": "הגדר שרת MCP חדש"
@@ -963,7 +1378,7 @@
     "removeDefaultFirst": "אנא הסר תחילה מספר שרתי ברירת מחדל",
     "higressMarket": "עבור להתקנת Higress MCP",
     "npmRegistry": {
-      "title": "תצורת NPM Registry",
+      "title": "מקור NPM",
       "currentSource": "מקור נוכחי",
       "cached": "במטמון",
       "lastChecked": "נבדק לאחרונה",
@@ -1002,6 +1417,84 @@
       "redetectCompleteDesc": "זוהה והוגדר ה-NPM registry האופטימלי הנוכחי",
       "redetectFailed": "זיהוי מחדש נכשל",
       "redetectFailedDesc": "לא ניתן לזהות מחדש registry אופטימלי, ישתמש בתצורת ברירת המחדל"
+    },
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "Search MCP servers...",
+      "noResults": "No matching MCP servers",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "משימות מתוזמנות",
+    "description": "הצג התראת מערכת או שלח פרומפט מוכן לסוכן בזמן שנבחר.",
+    "hint": "משימות חד-פעמיות שפוספסו כשהאפליקציה הייתה סגורה יופעלו בהפעלה הבאה; משימות חוזרות יקפצו למועד הבא.",
+    "newTask": "משימה חדשה",
+    "empty": "אין עדיין משימות",
+    "namePlaceholder": "שם המשימה",
+    "fireNow": "הפעל עכשיו",
+    "fireNowSuccess": "המשימה הופעלה",
+    "defaults": {
+      "name": "משימה חדשה",
+      "title": "תזכורת",
+      "body": "הגיע הזמן"
+    },
+    "trigger": {
+      "title": "טריגר",
+      "kind": "סוג טריגר",
+      "kindOnce": "פעם אחת",
+      "kindDaily": "יומי",
+      "kindWeekly": "שבועי",
+      "firesAt": "הפעל בשעה",
+      "dayOfWeek": "יום בשבוע",
+      "time": "שעה",
+      "description": "בחר מתי המשימה הזו תפעל."
+    },
+    "action": {
+      "title": "פעולה",
+      "kind": "סוג פעולה",
+      "kindNotify": "התראה",
+      "kindPrompt": "פרומפט צ׳אט",
+      "titleField": "כותרת",
+      "titlePlaceholder": "כותרת ההתראה",
+      "body": "גוף",
+      "message": "הודעה",
+      "agentId": "סוכן",
+      "agentIdPlaceholder": "ברירת מחדל: deepchat",
+      "modelId": "מודל",
+      "modelIdPlaceholder": "השאר ריק לברירת המחדל",
+      "systemPrompt": "פרומפט מערכת",
+      "autoSend": "שלח אוטומטית לסוכן שנבחר",
+      "description": "בחר התראה או פרומפט לסוכן."
+    },
+    "weekday": {
+      "sun": "א׳",
+      "mon": "ב׳",
+      "tue": "ג׳",
+      "wed": "ד׳",
+      "thu": "ה׳",
+      "fri": "ו׳",
+      "sat": "ש׳"
+    },
+    "listTitle": "רשימת משימות",
+    "listDescription": "נהל לוחות זמנים, פעולות ומצב הפעלה במקום אחד.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "כל יום בשעה {time}",
+      "weekly": "{day} בשעה {time}"
     }
   },
   "about": {
@@ -1044,12 +1537,15 @@
     "goSettings": "פתח הגדרות",
     "hideWindow": "הסתר חלון",
     "quitApp": "צא מהאפליקציה",
+    "toggleSidebar": "הצג/הסתר סרגל צד",
+    "toggleWorkspace": "הצג/הסתר סביבת עבודה",
     "zoomIn": "הגדל תצוגה ",
     "zoomOut": "הקטן תצוגה ",
     "zoomReset": "אפס תצוגה",
     "newWindow": "פתח חלון חדש",
     "showHideWindow": "הצג/הסתר חלון",
     "newConversation": "שיחה חדשה",
+    "quickSearch": "חיפוש Spotlight",
     "closeWindow": "סגור את הכרטיסייה הנוכחית"
   },
   "acp": {
@@ -1157,14 +1653,21 @@
       "eventCount": "{count} פריטים",
       "eventKinds": {
         "error": "טָעוּת",
+        "lifecycle": "מחזור חיים",
         "notification": "לְהוֹדִיעַ",
         "permission": "הרשאות",
         "request": "לִשְׁאוֹל",
-        "response": "תְגוּבָה"
+        "response": "תְגוּבָה",
+        "stderr": "stderr"
       },
       "events": "מִקרֶה",
       "format": "פורמט JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "הפעלה/ביטול",
         "extMethod": "הרחבה/שיטה",
         "extNotification": "שלוחה/הודעה",
@@ -1223,6 +1726,10 @@
     "installedEmptyDescription": "התקן תחילה סוכן מ-ACP Registry, ואז הגדר אותו כאן.",
     "registryOverlayEmpty": "אין סוכנים שתואמים למסננים הנוכחיים.",
     "registryInstallAction": "התקן",
+    "registryUninstallAction": "הסר התקנה",
+    "registryUninstallConfirm": "להסיר את ההתקנה של הסוכן \"{name}\"?",
+    "registryUninstallDescription": "DeepChat ישבית את הסוכן הזה, וכשיש צורך גם ינקה נתוני התקנה שמנוהלים מקומית. אפשר להתקין אותו שוב מאוחר יותר דרך ACP Registry.",
+    "registryUninstallFailed": "הסרת ההתקנה של הסוכן נכשלה",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "חיפוש, סינון והתקנה של סוכני ACP. לאחר ההתקנה חזור להגדרות כדי להגדיר אותם.",
     "registryLearnMore": "מידע נוסף",
@@ -1261,6 +1768,10 @@
   },
   "skills": {
     "addSkill": "הוסף skill",
+    "draftSuggestions": {
+      "title": "הצע טיוטות מיומנות",
+      "description": "לאחר השלמת משימה, אפשר ל-Agent להציע טיוטות זמניות וניתנות לשימוש חוזר של מיומנויות. הטיוטות יישארו בתיקייה זמנית עד שתבחר לייבא אותן ידנית."
+    },
     "conflict": {
       "description": "הכישור בשם \"{name}\" כבר קיים. האם ברצונך לדרוס?",
       "overwrite": "כיסוי",
@@ -1314,9 +1825,9 @@
     "emptyHint": "לחץ על כפתור „הוסף skill“ להתקנת skill חדש",
     "install": {
       "description": "בחר שיטת התקנת skill",
-      "dragNotSupported": "גרירה ושחרור זמנית לא נתמכות, נא ללחוץ לבחירה",
+      "dragInvalid": "התוכן אינו נתמך. גרור תיקיית skill או קובץ .zip יחיד.",
       "failed": "התקנה נכשלה",
-      "folderHint": "לחץ כדי לבחור את תיקיית skill",
+      "folderHint": "לחץ או גרור לכאן תיקיית skill",
       "folderTip": "תומך בייבוא ישיר מ־~/.claude/skills/ ומקליינטים אחרים וכדומה",
       "fromFolder": "התקנה מתיקייה",
       "installButton": "התקנה",
@@ -1330,7 +1841,7 @@
       "title": "התקן skill",
       "urlHint": "הזן את קישור ההורדה של חבילת ה-skill",
       "urlPlaceholder": "הזן כתובת הורדת skill ZIP",
-      "zipHint": "לחץ כדי לבחור קובץ ZIP"
+      "zipHint": "לחץ או גרור לכאן קובץ ZIP"
     },
     "noResults": "לא נמצא כישור תואם",
     "openFolder": "פתח תיקייה",
@@ -1479,12 +1990,50 @@
   },
   "remote": {
     "title": "שליטה מרחוק",
-    "description": "הגדר שליטה מרחוק ב-Telegram וב-Feishu במקום אחד.",
+    "description": "הגדר במקום אחד שליטה מרחוק דרך Telegram, Feishu, QQBot ו-WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "נהל בוט Telegram אחד עבור שליטה מרחוק ושליחת Hooks.",
+      "description": "חברו בוט Telegram לשליטה מרחוק דרך הודעות פרטיות, קבוצות ושרשורי נושאים.",
       "botToken": "טוקן בוט",
-      "botTokenPlaceholder": "טוקן בוט Telegram"
+      "botTokenPlaceholder": "טוקן בוט Telegram",
+      "botTokenDescription": "הזינו את טוקן הבוט של Telegram שישמש לשליטה מרחוק דרך Telegram."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
+      "brand": "מותג",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "מזהה יישום",
+      "appIdPlaceholder": "מזהה יישום של Feishu",
+      "appSecret": "סוד היישום",
+      "appSecretPlaceholder": "סוד היישום של Feishu",
+      "verificationToken": "אסימון אימות",
+      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
+      "encryptKey": "מפתח הצפנה (אופציונלי)",
+      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
+      "botUser": "משתמש הבוט: {name} ({openId})",
+      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
+      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
+      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
+      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
+      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "חברו בוט Discord להודעות פרטיות, אזכורים בערוצים ושליטה מרחוק באמצעות Slash Commands.",
+      "botToken": "אסימון בוט",
+      "botTokenPlaceholder": "אסימון בוט של Discord",
+      "remoteControlDescription": "השליטה מרחוק ב-Discord משתמשת בטוקן בוט, Gateway וזרימת REST משלה.",
+      "accessRule1": "שלחו /pair [code] בהודעה פרטית או בערוץ היעד כדי לאשר את נקודת הקצה הנוכחית של Discord.",
+      "accessRule2": "הודעות בערוץ נכנסות לשיחה רק כאשר מזכירים את הבוט, כדי לא לקלוט בטעות צ'אט רגיל."
+    },
+    "sections": {
+      "credentials": "אישורים",
+      "remoteControl": "שליטה מרחוק",
+      "notifications": "התראות",
+      "accessRules": "כללי גישה"
     },
     "remoteControl": {
       "title": "שליטה מרחוק",
@@ -1496,6 +2045,9 @@
       "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
       "defaultAgent": "סוכן DeepChat ברירת מחדל",
       "defaultAgentPlaceholder": "בחר סוכן",
+      "defaultWorkdir": "תיקיית ברירת מחדל",
+      "defaultWorkdirPlaceholder": "בחר תיקיית ברירת מחדל",
+      "defaultWorkdirHelper": "תיקיית העבודה עבור הפעלות שליטה מרחוק. נדרש כאשר סוכן ברירת המחדל הוא ACP.",
       "openPairDialog": "צימוד",
       "manageBindings": "ניהול קישורים",
       "pairCode": "קוד צימוד",
@@ -1514,7 +2066,16 @@
       "clearBindings": "נקה קישורים",
       "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
-      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:"
+      "pairDialogInstructionFeishu": "שלחו את הפקודה הזו לבוט Feishu בהודעה פרטית:",
+      "pairDialogInstructionDiscord": "שלחו את הפקודה הזו לבוט Discord בהודעה פרטית או בערוץ היעד:",
+      "pairDialogInstructionQQBot": "שלח את הפקודה הזו בצ'אט של QQ Bot או בקבוצת QQ מורשית:",
+      "authorizedPrincipalsTitle": "ישויות מורשות",
+      "authorizedPrincipalsDescription": "חשבונות {channel} האלה מורשים לבצע צימוד ולשלוט בסשנים.",
+      "authorizedPrincipalsEmpty": "עדיין אין ישויות מורשות.",
+      "sessionBindingsTitle": "קישורי סשנים",
+      "sessionBindingsDescription": "כל נקודת קצה מרוחקת שלהלן מקושרת כעת לסשן אחד של DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "נדרשת תיקיית ברירת מחדל",
+      "acpDefaultWorkdirRequiredDescription": "סוכני ACP זקוקים לסביבת עבודה מקומית. בחר תיקיית ברירת מחדל לפני השמירה."
     },
     "hooks": {
       "title": "Hooks של Telegram",
@@ -1535,43 +2096,62 @@
         "running": "פועל",
         "backoff": "מנסה שוב לאחר כשל",
         "error": "שגיאה"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "חבר בוט Feishu להודעות פרטיות, שיחות קבוצתיות ושרשורי נושאים.",
-      "appId": "מזהה יישום",
-      "appIdPlaceholder": "מזהה יישום של Feishu",
-      "appSecret": "סוד היישום",
-      "appSecretPlaceholder": "סוד היישום של Feishu",
-      "verificationToken": "אסימון אימות",
-      "verificationTokenPlaceholder": "אסימון האימות של Feishu",
-      "encryptKey": "מפתח הצפנה (אופציונלי)",
-      "encryptKeyPlaceholder": "השאר ריק אם הצפנת אירועים לא מופעלת",
-      "botUser": "משתמש הבוט: {name} ({openId})",
-      "bindings": "קישורים: {count}, משתמשים מצומדים: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID של משתמשים מצומדים",
-      "pairedUserOpenIdsPlaceholder": "למשל ou_xxx, ou_yyy",
-      "accessRulesDescription": "צריך לבצע צימוד קודם בהודעה פרטית. בקבוצות, רק משתמשים מצומדים שמזכירים את הבוט עם {'@'} יכולים לשלוט בסשן.",
-      "accessRule1": "בצעו צימוד בהודעה פרטית עם /pair [קוד].",
-      "accessRule2": "בקבוצות ובנושאים, הבוט מגיב רק כאשר משתמש מצומד מזכיר אותו עם {'@'}."
-    },
-    "sections": {
-      "credentials": "אישורים",
-      "remoteControl": "שליטה מרחוק",
-      "notifications": "התראות",
-      "accessRules": "כללי גישה"
+      },
+      "bindingOnly": "קישורים: {count}, ישויות מותאמות: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים, hooks {hooks}",
+      "telegram": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "feishu": "{bindingCount} קישורים, {pairedCount} משתמשים מצומדים",
       "hooksOn": "מופעלים",
-      "hooksOff": "כבויים"
+      "hooksOff": "כבויים",
+      "qqbot": "{bindingCount} קישורים, {pairedCount} משתמשים מותאמים",
+      "discord": "{bindingCount} קישורים, {pairedCount} ערוצים מצומדים",
+      "weixinIlink": "{bindingCount} קישורים, {accountCount} חשבונות, {connectedCount} מחוברים"
     },
     "bindingKinds": {
       "dm": "הודעה פרטית",
       "group": "קבוצה",
       "topic": "נושא"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "חבר QQ Bot רשמי עבור שיחות C2C ושליטה בבוט באמצעות אזכור בקבוצות מורשות.",
+      "appId": "מזהה אפליקציה",
+      "appIdPlaceholder": "מזהה האפליקציה של QQ Bot",
+      "clientSecret": "סוד לקוח",
+      "clientSecretPlaceholder": "סוד הלקוח של QQ Bot",
+      "remoteControlDescription": "מזהי ה-openid הרשמיים של QQ שונים בין C2C לקבוצות, לכן הודעות פרטיות מצמדות משתמשים ואילו קבוצות חייבות לקבל הרשאה בנפרד באמצעות /pair.",
+      "pairedUserIds": "OpenID של משתמשים מותאמים",
+      "pairedUserIdsPlaceholder": "למשל user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "חבר בוט WeChat iLink רשמי באמצעות התחברות ב-QR, והמתאם המובנה יטפל בסשני השליטה מרחוק.",
+      "loginDescription": "לחץ על הכפתור למטה כדי לפתוח את חלון ההתחברות הרשמי של WeChat. השלם שם את אישור ה-iLink Bot והחשבון המחובר יתווסף אוטומטית לרשימה למטה.",
+      "ownerOnlyNotice": "בגרסה הראשונה רק חשבון הבעלים שהתחבר דרך קוד ה-QR יכול לשלוט ב-DeepChat.",
+      "connectButton": "פתח חלון התחברות",
+      "refreshQrCode": "פתח שוב את חלון ההתחברות",
+      "loginDialogTitle": "חיבור WeChat iLink",
+      "loginDialogDescription": "דף ההתחברות הרשמי של WeChat נפתח בחלון נפרד. השלם שם את אישור קוד ה-QR והשאר את תיבת הדו-שיח הזו פתוחה עד לסיום החיבור.",
+      "loginFailed": "ההתחברות ל-WeChat iLink נכשלה.",
+      "loginSuccessTitle": "WeChat iLink חובר",
+      "loginSuccessDescription": "החשבון {accountId} מוכן.",
+      "accountsTitle": "חשבונות",
+      "accountsDescription": "כל חשבון iLink Bot מחובר פועל בנפרד ושומר על הקישורים והמצב שלו.",
+      "noAccounts": "עדיין לא חוברו חשבונות WeChat iLink.",
+      "ownerUserId": "מזהה משתמש בעלים: {ownerUserId}",
+      "baseUrl": "כתובת בסיס: {baseUrl}",
+      "accountBindings": "קישורים: {count}",
+      "remoteControlDescription": "הגדר את סוכן ברירת המחדל המשותף לחשבונות WeChat iLink ולאחר מכן נהל את הקישורים שנוצרים מסשנים נכנסים.",
+      "removeAccount": "הסר חשבון",
+      "restartAccount": "הפעל מחדש חשבון",
+      "statusSummary": "{accounts} חשבונות, {connected} מחוברים, {bindings} קישורים",
+      "qrcodeAlt": "קוד QR של WeChat iLink",
+      "loginWindowOpened": "חלון ההתחברות הרשמי של WeChat נפתח. השלם שם את אישור קוד ה-QR.",
+      "loginSessionExpired": "תוקף סשן ההתחברות הזה פג. פתח מחדש את חלון ההתחברות ונסה שוב.",
+      "loginResponseIncomplete": "תגובת ההתחברות של WeChat iLink הייתה חלקית. נסה שוב.",
+      "loginTimedOut": "פג הזמן להמתנה לאישור WeChat iLink. פתח מחדש את חלון ההתחברות ונסה שוב.",
+      "loginConnected": "חשבון WeChat iLink חובר."
     }
   },
   "deepchatAgents": {
@@ -1602,6 +2182,8 @@
     "modelsTitle": "ברירות מחדל למודל",
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
+    "visionModel": "מודל ראייה",
+    "imageGenerationModel": "מודל יצירת תמונות",
     "temperature": "טמפרטורה",
     "contextLength": "אורך הקשר",
     "maxTokens": "מספר טוקנים מרבי",
@@ -1622,6 +2204,121 @@
     "compactionDescription": "ברירות המחדל האלה משפיעות רק על שיחות DeepChat חדשות.",
     "compactionThreshold": "סף הפעלה",
     "compactionRetainPairs": "שמירת הזוגות האחרונים",
-    "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה."
+    "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה.",
+    "subagentsTitle": "סוכני משנה",
+    "subagentsDescription": "הגדירו את משבצות שיחות-הבת הניתנות לשימוש חוזר ש-`subagent_orchestrator` חושף.",
+    "subagentsEnabled": "הפעלת סוכני משנה",
+    "subagentTargetType": "סוג יעד",
+    "subagentTargetSelf": "הסוכן הזה",
+    "subagentTargetAgent": "סוכן",
+    "subagentDisplayName": "שם תצוגה",
+    "subagentDescription": "תיאור המשבצת",
+    "subagentTargetAgentLabel": "סוכן יעד",
+    "subagentLimit": "{count}/{max} משבצות",
+    "addSubagentSlot": "+ הוספת משבצת"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "Overview",
+      "setup": "Setup",
+      "models": "Agent Settings",
+      "tools": "Capability Extensions",
+      "knowledge": "Knowledge",
+      "system": "System"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "Data",
+      "enabledCount": "{count} enabled",
+      "runningCount": "{count} running",
+      "enabledAgentCount": "{count} agents enabled",
+      "providersDescription": "Provider connection status",
+      "deepchatAgentsDescription": "Agent configuration entry point",
+      "mcpOn": "MCP enabled",
+      "mcpOff": "MCP disabled",
+      "syncOn": "Sync enabled",
+      "syncOff": "Sync disabled",
+      "backupNever": "Backup: never"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "Configure provider access",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "Turn on a usable model",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "Start tool servers",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "Create a data backup"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "Nothing needs attention",
+      "noModels": "No model is enabled",
+      "privacyOff": "Privacy Mode is off",
+      "backupNever": "Backup has never run"
+    },
+    "activity": {
+      "title": "Recent changes",
+      "description": "Shows the newest 200 changes while retaining the newest 2000 records.",
+      "when": "Time",
+      "category": "Category",
+      "change": "Change",
+      "empty": "No recent changes",
+      "emptyDescription": "Successful settings changes will appear here.",
+      "settingUpdated": "Updated setting: {key}",
+      "providerUpdated": "Updated provider: {name}",
+      "providerCreated": "Added provider: {name}",
+      "providerRemoved": "Removed provider: {name}",
+      "providerModelsRefreshed": "Refreshed provider models: {name}",
+      "modelStatusChanged": "Updated model status: {model}",
+      "modelBatchUpdated": "Updated {count} models",
+      "mcpServerCreated": "Added MCP server: {name}",
+      "mcpServerUpdated": "Updated MCP server: {name}",
+      "mcpServerRemoved": "Removed MCP server: {name}",
+      "mcpServerStatusChanged": "Toggled MCP server: {name}",
+      "mcpGlobalStatusChanged": "Toggled MCP global status: {status}",
+      "mcpServerStarted": "Started MCP server: {name}",
+      "mcpServerStopped": "Stopped MCP server: {name}",
+      "mcpRegistryRefreshed": "Refreshed MCP NPM registry",
+      "backupCreated": "Created backup: {name}",
+      "backupImported": "Imported backup: {name}",
+      "databaseRepaired": "Database repair finished: {status}"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ModelConfigHelper } from '../../../src/main/presenter/configPresenter/modelConfig'
 import { ModelType } from '../../../src/shared/model'
+import { DEFAULT_MODEL_TIMEOUT } from '../../../src/shared/modelConfigDefaults'
 import { ModelConfig } from '../../../src/shared/presenter'
 import { providerDbLoader } from '../../../src/main/presenter/configPresenter/providerDbLoader'
 import { modelCapabilities } from '../../../src/main/presenter/configPresenter/modelCapabilities'
@@ -123,6 +124,7 @@ describe('Model Configuration Tests', () => {
       expect(defaultConfig).toMatchObject({
         maxTokens: 4096,
         contextLength: 16000,
+        timeout: DEFAULT_MODEL_TIMEOUT,
         temperature: 0.6,
         vision: false,
         functionCall: true,
@@ -355,8 +357,8 @@ describe('Model Configuration Tests', () => {
 
     it('marks provider-managed configs as non-user entries', () => {
       const providerConfig: ModelConfig = {
-        maxTokens: 5555,
-        contextLength: 9999,
+        maxTokens: 64000,
+        contextLength: 128000,
         temperature: 0.4,
         vision: false,
         functionCall: true,
@@ -372,7 +374,7 @@ describe('Model Configuration Tests', () => {
 
       const storedConfig = modelConfigHelper.getModelConfig(providerManagedModelId, providerId)
       expect(storedConfig.isUserDefined).toBe(false)
-      expect(storedConfig.maxTokens).toBe(providerConfig.maxTokens)
+      expect(storedConfig.maxTokens).toBe(32000)
     })
 
     it('keeps user configs but drops provider configs when defaults change', () => {
@@ -506,6 +508,120 @@ describe('Model Configuration Tests', () => {
 
       expect(config.forceInterleavedThinkingCompat).toBe(false)
       expect(config.isUserDefined).toBe(true)
+    })
+
+    it('derives anthropic reasoning visibility from provider portraits', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          anthropic: {
+            id: 'anthropic',
+            models: [{ id: 'claude-opus-4-7', tool_call: true, temperature: false }]
+          }
+        }
+      } as any)
+      const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      })
+
+      const config = modelConfigHelper.getModelConfig('claude-opus-4-7', 'anthropic')
+
+      expect(config.reasoning).toBe(false)
+      expect(config.reasoningVisibility).toBe('omitted')
+      expect(config.reasoningEffort).toBe('high')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
+
+    it('derives anthropic reasoning visibility for zenmux anthropic routes', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          zenmux: {
+            id: 'zenmux',
+            models: [{ id: 'anthropic/claude-opus-4-7', tool_call: true, temperature: false }]
+          }
+        }
+      } as any)
+      const portraitSpy = vi
+        .spyOn(modelCapabilities, 'getReasoningPortrait')
+        .mockImplementation((providerId: string, modelId: string) => {
+          if (providerId === 'zenmux' && modelId === 'anthropic/claude-opus-4-7') {
+            return {
+              supported: true,
+              defaultEnabled: false,
+              mode: 'effort',
+              effort: 'high',
+              effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+              visibility: 'omitted'
+            }
+          }
+
+          return null
+        })
+
+      const config = modelConfigHelper.getModelConfig('anthropic/claude-opus-4-7', 'zenmux')
+
+      expect(config.reasoning).toBe(false)
+      expect(config.reasoningVisibility).toBe('omitted')
+      expect(config.reasoningEffort).toBe('high')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
+    })
+
+    it('preserves non-anthropic reasoning visibility values from provider portraits', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          openai: {
+            id: 'openai',
+            models: [
+              { id: 'gpt-5', tool_call: true, temperature: true },
+              { id: 'gpt-5-mini', tool_call: true, temperature: true }
+            ]
+          }
+        }
+      } as any)
+      const portraitSpy = vi
+        .spyOn(modelCapabilities, 'getReasoningPortrait')
+        .mockImplementation((providerId: string, modelId: string) => {
+          if (providerId === 'openai' && modelId === 'gpt-5') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'effort',
+              effort: 'medium',
+              effortOptions: ['minimal', 'low', 'medium', 'high'],
+              visibility: 'hidden'
+            }
+          }
+
+          if (providerId === 'openai' && modelId === 'gpt-5-mini') {
+            return {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'effort',
+              effort: 'medium',
+              effortOptions: ['minimal', 'low', 'medium', 'high'],
+              visibility: 'summary'
+            }
+          }
+
+          return null
+        })
+
+      const hiddenConfig = modelConfigHelper.getModelConfig('gpt-5', 'openai')
+      const summaryConfig = modelConfigHelper.getModelConfig('gpt-5-mini', 'openai')
+
+      expect(hiddenConfig.reasoningVisibility).toBe('hidden')
+      expect(summaryConfig.reasoningVisibility).toBe('summary')
+
+      portraitSpy.mockRestore()
+      getDbSpy.mockRestore()
     })
   })
 })

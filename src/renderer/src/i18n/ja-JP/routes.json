@@ -1,7 +1,6 @@
 {
   "chat": "チャット",
   "welcome": "ようこそ",
-  "playground": "プレイグラウンド",
   "settings": "設定",
   "settings-common": "一般設定",
   "settings-provider": "プロバイダー設定",
@@ -16,8 +15,11 @@
   "settings-acp": "ACPエージェント",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "フック",
+  "settings-scheduled-tasks": "スケジュールタスク",
   "settings-dashboard": "Dashboard",
   "settings-environments": "環境",
   "settings-remote": "リモート",
-  "settings-deepchat-agents": "DeepChatエージェント"
+  "settings-deepchat-agents": "DeepChatエージェント",
+  "settings-plugins": "プラグイン",
+  "settings-overview": "設定の概要"
 }

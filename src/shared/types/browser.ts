@@ -52,6 +52,49 @@ export interface DownloadInfo {
   error?: string
 }
 
+export type YoBrowserActivityKind = 'navigation' | 'vision' | 'pointer' | 'scroll' | 'keyboard'
+
+export type YoBrowserActivityAction =
+  | 'navigate'
+  | 'reload'
+  | 'screenshot'
+  | 'dom'
+  | 'runtime'
+  | 'mouse_move'
+  | 'mouse_click'
+  | 'mouse_wheel'
+  | 'key'
+
+export type YoBrowserActivityPhase = 'started' | 'completed' | 'failed'
+
+export type YoBrowserActivityDirection = 'up' | 'down' | 'left' | 'right'
+
+export interface YoBrowserActivityPoint {
+  x: number
+  y: number
+}
+
+export interface YoBrowserActivityRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface YoBrowserActivityPayload {
+  id: string
+  sessionId: string
+  windowId: number | null
+  pageId?: string
+  kind: YoBrowserActivityKind
+  action: YoBrowserActivityAction
+  phase: YoBrowserActivityPhase
+  point?: YoBrowserActivityPoint
+  rect?: YoBrowserActivityRect
+  direction?: YoBrowserActivityDirection
+  timestamp: number
+}
+
 export interface BrowserToolDefinition {
   name: string
   description: string

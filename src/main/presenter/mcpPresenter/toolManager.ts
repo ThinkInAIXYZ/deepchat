@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
 import {
@@ -14,6 +15,7 @@ import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
+import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -41,6 +43,14 @@ export class ToolManager {
     console.info('MCP configuration changed, clearing cached data.')
     this.cachedToolDefinitions = null
     this.toolNameToTargetMap = null
+  }
+
+  private isPluginOwnedClient(client: McpClient): boolean {
+    const serverConfig = client.serverConfig as {
+      ownerPluginId?: unknown
+      source?: unknown
+    }
+    return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
   }
 
   public async getRunningClients(): Promise<McpClient[]> {
@@ -84,6 +94,7 @@ export class ToolManager {
     for (const client of clients) {
       try {
         const clientTools = await client.listTools()
+        this.serverManager.clearServerLastError(client.serverName)
         if (!clientTools) continue
 
         const currentServerRenames: Set<string> = toolsToRename.get(client.serverName) || new Set()
@@ -117,20 +128,24 @@ export class ToolManager {
           `Pass 1 Error: Failed to get tool list from server '${serverName}':`,
           errorMessage
         )
-        // Send notification (existing logic from previous commit)
-        const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
-        const errorMessages = getErrorMessageLabels(locale)
-        const formattedMessage =
-          errorMessages.getMcpToolListErrorMessage
-            ?.replace('{serverName}', serverName)
-            .replace('{errorMessage}', errorMessage) ||
-          `Failed to get tool list from server '${serverName}': ${errorMessage}`
-        eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
-          title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
-          message: formattedMessage,
-          id: `mcp-error-pass1-${serverName}-${Date.now()}`,
-          type: 'error'
-        })
+        this.serverManager.setServerLastError(serverName, errorMessage)
+        if (!this.isPluginOwnedClient(client)) {
+          // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
+          // plugin status surfaces instead of global toasts.
+          const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+          const errorMessages = getErrorMessageLabels(locale)
+          const formattedMessage =
+            errorMessages.getMcpToolListErrorMessage
+              ?.replace('{serverName}', serverName)
+              .replace('{errorMessage}', errorMessage) ||
+            `Failed to get tool list from server '${serverName}': ${errorMessage}`
+          eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+            title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
+            message: formattedMessage,
+            id: `mcp-error-pass1-${serverName}-${Date.now()}`,
+            type: 'error'
+          })
+        }
         continue // Continue to next client
       }
     }
@@ -139,6 +154,7 @@ export class ToolManager {
     for (const client of clients) {
       try {
         const clientTools = await client.listTools()
+        this.serverManager.clearServerLastError(client.serverName)
         if (!clientTools) continue
 
         const renamesForThisServer = toolsToRename.get(client.serverName) || new Set()
@@ -201,6 +217,7 @@ export class ToolManager {
           `Pass 2 Error: Error processing tools from server '${serverName}':`,
           errorMessage
         )
+        this.serverManager.setServerLastError(serverName, errorMessage)
         // Maybe skip adding tools from this client if listTools fails here again,
         // though it succeeded in Pass 1. Or rely on the notification from Pass 1.
         continue // Continue to next client
@@ -281,7 +298,7 @@ export class ToolManager {
     }
 
     try {
-      const session = await presenter.newAgentPresenter.getSession(sessionId)
+      const session = await presenter.agentSessionPresenter.getSession(sessionId)
       const agentId = session?.agentId?.trim()
       const providerId = session?.providerId?.trim()
       if (session && providerId === 'acp' && agentId) {
@@ -306,38 +323,53 @@ export class ToolManager {
     autoApprove: string[],
     conversationId?: string
   ): boolean {
-    console.log(
+    logger.info(
       `[ToolManager] Checking permissions for tool '${originalToolName}' on server '${serverName}' with autoApprove:`,
       autoApprove,
       `conversationId: ${conversationId}`
     )
 
     const permissionType = this.determinePermissionType(originalToolName)
-    console.log(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
+    logger.info(`[ToolManager] Tool '${originalToolName}' requires '${permissionType}' permission`)
 
     // 1. 优先检查 session 级别的内存权限（当前会话自动执行）
     if (conversationId && this.checkSessionPermission(conversationId, serverName, permissionType)) {
-      console.log(
+      logger.info(
         `[ToolManager] Permission granted via session cache: server '${serverName}' has '${permissionType}' permission`
       )
       return true
     }
 
-    // 2. 检查持久化的 'all' 权限
+    // 2. Plugin-owned exact policies override persisted server auto-approve settings.
+    const pluginPolicy = getPluginToolPolicy(serverName, originalToolName)
+    if (pluginPolicy === 'allow') {
+      logger.info(
+        `[ToolManager] Permission granted by plugin tool policy: ${serverName}.${originalToolName}`
+      )
+      return true
+    }
+    if (pluginPolicy === 'ask' || pluginPolicy === 'deny') {
+      logger.info(
+        `[ToolManager] Permission blocked by plugin tool policy '${pluginPolicy}': ${serverName}.${originalToolName}`
+      )
+      return false
+    }
+
+    // 3. 检查持久化的 'all' 权限
     if (autoApprove.includes('all')) {
-      console.log(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
+      logger.info(`[ToolManager] Permission granted: server '${serverName}' has 'all' permissions`)
       return true
     }
 
-    // 3. 检查持久化的特定权限类型
+    // 4. 检查持久化的特定权限类型
     if (autoApprove.includes(permissionType)) {
-      console.log(
+      logger.info(
         `[ToolManager] Permission granted: server '${serverName}' has '${permissionType}' permission`
       )
       return true
     }
 
-    console.log(
+    logger.info(
       `[ToolManager] Permission required for tool '${originalToolName}' on server '${serverName}'.`
     )
     return false
@@ -387,6 +419,11 @@ export class ToolManager {
     const servers = await this.configPresenter.getMcpServers()
     const serverConfig = servers[toolServerName]
     const autoApprove = serverConfig?.autoApprove || []
+    const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+
+    if (pluginPolicy === 'deny') {
+      return null
+    }
 
     // Check permission using existing logic
     const hasPermission = this.checkToolPermission(
@@ -415,7 +452,7 @@ export class ToolManager {
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
 
-      console.log(`[ToolManager] Calling tool:`, {
+      logger.info(`[ToolManager] Calling tool:`, {
         requestedName: finalName,
         originalName: finalName,
         serverName: toolCall.server?.name || 'unknown',
@@ -517,7 +554,15 @@ export class ToolManager {
         }
       }
       const autoApprove = serverConfig?.autoApprove || []
-      console.log(
+      const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
+      if (pluginPolicy === 'deny') {
+        return {
+          toolCallId: toolCall.id,
+          content: `Tool '${originalName}' on server '${toolServerName}' is blocked by plugin policy.`,
+          isError: true
+        }
+      }
+      logger.info(
         `Checking permissions for tool '${originalName}' on server '${toolServerName}' with autoApprove:`,
         autoApprove
       )
@@ -654,7 +699,7 @@ export class ToolManager {
     remember: boolean = true,
     conversationId?: string
   ): Promise<void> {
-    console.log(
+    logger.info(
       `[ToolManager] Granting permission: ${permissionType} for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
     )
 
@@ -668,11 +713,11 @@ export class ToolManager {
         const existing = this.sessionPermissions.get(conversationId) ?? new Set<string>()
         existing.add(key)
         this.sessionPermissions.set(conversationId, existing)
-        console.log(
+        logger.info(
           `[ToolManager] Session permission stored: ${key} for conversation ${conversationId}`
         )
       } else {
-        console.log(`[ToolManager] Temporary permission granted (no conversationId)`)
+        logger.info(`[ToolManager] Temporary permission granted (no conversationId)`)
       }
     }
   }
@@ -701,7 +746,7 @@ export class ToolManager {
       const storedPermission = permKey.slice(prefix.length) as 'read' | 'write' | 'all'
       const storedLevel = permissionLevelMap[storedPermission]
       if (storedLevel >= requiredLevel) {
-        console.log(
+        logger.info(
           `[ToolManager] Session auto-execute: server '${serverName}' has granted permission '${permKey}' in conversation '${conversationId}', required='${permissionType}'`
         )
         return true
@@ -721,7 +766,7 @@ export class ToolManager {
     permissionType: 'read' | 'write' | 'all'
   ): Promise<void> {
     try {
-      console.log(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
+      logger.info(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
       const servers = await this.configPresenter.getMcpServers()
       const serverConfig = servers[serverName]
 
@@ -730,7 +775,7 @@ export class ToolManager {
 
         // If 'all' permission already exists, no need to add specific permissions
         if (autoApprove.includes('all')) {
-          console.log(`Server ${serverName} already has 'all' permissions`)
+          logger.info(`Server ${serverName} already has 'all' permissions`)
           return
         }
 
@@ -745,11 +790,11 @@ export class ToolManager {
           }
         }
 
-        console.log(
+        logger.info(
           `[ToolManager] Before update - Server ${serverName} permissions:`,
           serverConfig.autoApprove || []
         )
-        console.log(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
+        logger.info(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
 
         // Update server configuration
         await this.configPresenter.updateMcpServer(serverName, {
@@ -757,7 +802,7 @@ export class ToolManager {
           autoApprove
         })
 
-        console.log(
+        logger.info(
           `[ToolManager] Successfully updated server ${serverName} permissions to:`,
           autoApprove
         )
@@ -765,7 +810,7 @@ export class ToolManager {
         // Verify the update by reading back
         const updatedServers = await this.configPresenter.getMcpServers()
         const updatedConfig = updatedServers[serverName]
-        console.log(
+        logger.info(
           `[ToolManager] Verification - Server ${serverName} current permissions:`,
           updatedConfig?.autoApprove || []
         )

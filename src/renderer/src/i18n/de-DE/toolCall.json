@@ -1,0 +1,25 @@
+{
+  "calling": "Wird aufgerufen",
+  "response": "Wird ausgeführt",
+  "end": "Abgeschlossen",
+  "error": "Fehler",
+  "title": "Tool-Aufruf",
+  "clickToView": "Zum Anzeigen der Details klicken",
+  "functionName": "Funktionsname",
+  "permission": "Berechtigung wird angefragt",
+  "params": "Funktionsparameter",
+  "responseData": "Funktionsantwort",
+  "imagePreview": "Bildvorschau",
+  "imagePreviewCount": "Keine Bildvorschau | {count} Bildvorschau | {count} Bildvorschauen",
+  "terminalOutput": "Terminalausgabe",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "{count} Ersetzungen abgeschlossen",
+  "fileOperation": "Dateivorgang",
+  "fileRead": "Datei lesen",
+  "fileWrite": "Datei schreiben",
+  "filePath": "Dateipfad",
+  "success": "Erfolgreich",
+  "failed": "Fehlgeschlagen"
+}

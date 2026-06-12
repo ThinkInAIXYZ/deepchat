@@ -1,9 +1,12 @@
+import { MODEL_TIMEOUT_MAX_MS, MODEL_TIMEOUT_MIN_MS } from '../modelConfigDefaults'
 import type { SessionGenerationSettings } from '../types/agent-interface'
 
 export type GenerationNumericField =
   | 'temperature'
+  | 'topP'
   | 'contextLength'
   | 'maxTokens'
+  | 'timeout'
   | 'thinkingBudget'
 
 export type GenerationNumericValidationCode =
@@ -11,6 +14,9 @@ export type GenerationNumericValidationCode =
   | 'non_negative_integer'
   | 'context_length_below_max_tokens'
   | 'max_tokens_exceed_context_length'
+  | 'timeout_too_small'
+  | 'timeout_too_large'
+  | 'top_p_out_of_range'
 
 type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'>
 
@@ -54,6 +60,13 @@ export const validateGenerationNumericField = (
     return numeric === undefined ? 'finite_number' : null
   }
 
+  if (field === 'topP') {
+    if (numeric === undefined) {
+      return 'finite_number'
+    }
+    return numeric >= 0.1 && numeric <= 1 ? null : 'top_p_out_of_range'
+  }
+
   if (!isNonNegativeInteger(numeric)) {
     return 'non_negative_integer'
   }
@@ -69,6 +82,15 @@ export const validateGenerationNumericField = (
     const contextLength = context.contextLength
     if (isNonNegativeInteger(contextLength) && numeric > contextLength) {
       return 'max_tokens_exceed_context_length'
+    }
+  }
+
+  if (field === 'timeout') {
+    if (numeric < MODEL_TIMEOUT_MIN_MS) {
+      return 'timeout_too_small'
+    }
+    if (numeric > MODEL_TIMEOUT_MAX_MS) {
+      return 'timeout_too_large'
     }
   }
 

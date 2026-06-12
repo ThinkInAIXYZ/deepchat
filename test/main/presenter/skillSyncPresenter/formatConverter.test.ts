@@ -52,7 +52,10 @@ Do something useful.`
     })
 
     it('should parse Cursor format correctly', async () => {
-      const content = `# Code Review
+      const content = `---
+name: code-review
+description: Review the code and provide feedback.
+---
 
 Review the code and provide feedback.`
 
@@ -64,7 +67,6 @@ Review the code and provide feedback.`
 
       const result = await converter.parseExternal(content, context)
 
-      // Cursor adapter converts title to kebab-case
       expect(result.name).toBe('code-review')
       expect(result.instructions).toContain('Review the code')
     })
@@ -109,8 +111,7 @@ Review the code and provide feedback.`
 
       const result = converter.serializeToExternal(skill, 'cursor')
 
-      // Cursor adapter converts name to title case
-      expect(result).toContain('# My Skill')
+      expect(result).toContain('name: my-skill')
       expect(result).toContain('A test skill')
       expect(result).toContain('Do something useful.')
     })
@@ -156,7 +157,7 @@ Review the code and provide feedback.`
         allowedTools: ['Read', 'Write']
       }
 
-      const warnings = converter.getConversionWarnings(skill, 'cursor')
+      const warnings = converter.getConversionWarnings(skill, 'windsurf')
 
       expect(warnings.some((w) => w.field === 'allowedTools')).toBe(true)
       expect(warnings.some((w) => w.type === 'feature_loss')).toBe(true)
@@ -170,7 +171,7 @@ Review the code and provide feedback.`
         model: 'claude-3-sonnet'
       }
 
-      const warnings = converter.getConversionWarnings(skill, 'cursor')
+      const warnings = converter.getConversionWarnings(skill, 'windsurf')
 
       expect(warnings.some((w) => w.field === 'model')).toBe(true)
     })
@@ -183,7 +184,7 @@ Review the code and provide feedback.`
         references: [{ name: 'ref.md', content: 'content', relativePath: 'references/ref.md' }]
       }
 
-      const warnings = converter.getConversionWarnings(skill, 'cursor')
+      const warnings = converter.getConversionWarnings(skill, 'windsurf')
 
       expect(warnings.some((w) => w.field === 'references')).toBe(true)
     })
@@ -196,7 +197,7 @@ Review the code and provide feedback.`
         scripts: [{ name: 'script.sh', content: 'echo test', relativePath: 'scripts/script.sh' }]
       }
 
-      const warnings = converter.getConversionWarnings(skill, 'cursor')
+      const warnings = converter.getConversionWarnings(skill, 'windsurf')
 
       expect(warnings.some((w) => w.field === 'scripts')).toBe(true)
     })

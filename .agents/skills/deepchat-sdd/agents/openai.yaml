@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepChat SDD"
+  short_description: "Prepare SDD specs before DeepChat changes"
+  default_prompt: "Use $deepchat-sdd before implementing DeepChat changes to classify the goal and prepare spec, plan, and tasks artifacts."

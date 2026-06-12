@@ -6,9 +6,9 @@
           <Icon icon="lucide:audio-waveform" class="h-5 w-5" />
         </div>
         <div class="space-y-1">
-          <p class="text-sm font-medium">{{ t('settings.provider.voiceai.title') }}</p>
+          <p class="text-sm font-medium">{{ t('settings.provider.tts.title') }}</p>
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.description') }}
+            {{ t('settings.provider.tts.description') }}
           </p>
         </div>
       </div>
@@ -18,11 +18,11 @@
       <div class="grid gap-4 md:grid-cols-2">
         <div class="space-y-2">
           <Label :for="`${provider.id}-audio-format`" class="text-xs font-medium">
-            {{ t('settings.provider.voiceai.audioFormat.label') }}
+            {{ t('settings.provider.tts.audioFormat.label') }}
           </Label>
           <Select v-model="audioFormat" :disabled="isHydrating">
             <SelectTrigger :id="`${provider.id}-audio-format`">
-              <SelectValue :placeholder="t('settings.provider.voiceai.audioFormat.placeholder')" />
+              <SelectValue :placeholder="t('settings.provider.tts.audioFormat.placeholder')" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="mp3">MP3</SelectItem>
@@ -31,17 +31,17 @@
             </SelectContent>
           </Select>
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.audioFormat.helper') }}
+            {{ t('settings.provider.tts.audioFormat.helper') }}
           </p>
         </div>
 
         <div class="space-y-2">
           <Label :for="`${provider.id}-language`" class="text-xs font-medium">
-            {{ t('settings.provider.voiceai.language.label') }}
+            {{ t('settings.provider.tts.language.label') }}
           </Label>
           <Select v-model="language" :disabled="isHydrating">
             <SelectTrigger :id="`${provider.id}-language`">
-              <SelectValue :placeholder="t('settings.provider.voiceai.language.placeholder')" />
+              <SelectValue :placeholder="t('settings.provider.tts.language.placeholder')" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem
@@ -54,37 +54,37 @@
             </SelectContent>
           </Select>
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.language.helper') }}
+            {{ t('settings.provider.tts.language.helper') }}
           </p>
         </div>
 
         <div class="space-y-2 md:col-span-2">
           <Label :for="`${provider.id}-tts-model`" class="text-xs font-medium">
-            {{ t('settings.provider.voiceai.model.label') }}
+            {{ t('settings.provider.tts.model.label') }}
           </Label>
           <Input
             :id="`${provider.id}-tts-model`"
             v-model="ttsModel"
-            :placeholder="t('settings.provider.voiceai.model.placeholder')"
+            :placeholder="t('settings.provider.tts.model.placeholder')"
             :disabled="isHydrating"
           />
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.model.helper') }}
+            {{ t('settings.provider.tts.model.helper') }}
           </p>
         </div>
 
         <div class="space-y-2 md:col-span-2">
           <Label :for="`${provider.id}-agent-id`" class="text-xs font-medium">
-            {{ t('settings.provider.voiceai.agentId.label') }}
+            {{ t('settings.provider.tts.agentId.label') }}
           </Label>
           <Input
             :id="`${provider.id}-agent-id`"
             v-model="agentId"
-            :placeholder="t('settings.provider.voiceai.agentId.placeholder')"
+            :placeholder="t('settings.provider.tts.agentId.placeholder')"
             :disabled="isHydrating"
           />
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.agentId.helper') }}
+            {{ t('settings.provider.tts.agentId.helper') }}
           </p>
         </div>
       </div>
@@ -95,7 +95,7 @@
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <Label :for="`${provider.id}-temperature`" class="text-xs font-medium">
-              {{ t('settings.provider.voiceai.temperature.label') }}
+              {{ t('settings.provider.tts.temperature.label') }}
             </Label>
             <span class="text-xs text-muted-foreground">{{ temperature.toFixed(2) }}</span>
           </div>
@@ -108,14 +108,14 @@
             @update:model-value="onTemperatureChange"
           />
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.temperature.helper') }}
+            {{ t('settings.provider.tts.temperature.helper') }}
           </p>
         </div>
 
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <Label :for="`${provider.id}-top-p`" class="text-xs font-medium">
-              {{ t('settings.provider.voiceai.topP.label') }}
+              {{ t('settings.provider.tts.topP.label') }}
             </Label>
             <span class="text-xs text-muted-foreground">{{ topP.toFixed(2) }}</span>
           </div>
@@ -128,7 +128,7 @@
             @update:model-value="onTopPChange"
           />
           <p class="text-xs text-muted-foreground">
-            {{ t('settings.provider.voiceai.topP.helper') }}
+            {{ t('settings.provider.tts.topP.helper') }}
           </p>
         </div>
       </div>

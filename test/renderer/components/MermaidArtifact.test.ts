@@ -2,6 +2,13 @@ import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key === 'artifacts.mermaid.renderError' ? `${key}:${values?.message ?? ''}` : key
+  })
+}))
+
 // Mock mermaid library
 vi.mock('mermaid', () => ({
   default: {
@@ -31,13 +38,13 @@ describe('MermaidArtifact', () => {
       // Wait for component to mount and initialize
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.exists()).toBe(true)
 
       // The content should be sanitized and set to innerHTML
       // Since we can't directly access the sanitizeMermaidContent function,
       // we verify that the content is set and doesn't contain dangerous tags
-      expect(mermaidRef.element.innerHTML).toBe('graph TD\nA-->B')
+      expect(mermaidRef.element.textContent).toBe('graph TD\nA-->B')
     })
 
     it('should filter dangerous img tag with onerror', async () => {
@@ -57,7 +64,7 @@ describe('MermaidArtifact', () => {
       // Wait for component to mount and initialize
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.exists()).toBe(true)
 
       // The img tag should be removed
@@ -84,7 +91,7 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('<script>')
       expect(mermaidRef.element.innerHTML).not.toContain('alert(1)')
       expect(mermaidRef.element.innerHTML).toContain('graph TD')
@@ -106,7 +113,7 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('onclick')
       expect(mermaidRef.element.innerHTML).not.toContain('alert(1)')
     })
@@ -127,7 +134,7 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       expect(mermaidRef.element.innerHTML).not.toContain('javascript:')
       expect(mermaidRef.element.innerHTML).toContain('graph TD')
     })
@@ -149,7 +156,7 @@ describe('MermaidArtifact', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const mermaidRef = wrapper.find('[ref="mermaidRef"]')
+      const mermaidRef = wrapper.get('[data-testid="mermaid-artifact-preview"]')
       // The img tag should be completely removed
       expect(mermaidRef.element.innerHTML).not.toContain('<img')
       expect(mermaidRef.element.innerHTML).not.toContain('onerror')
@@ -177,5 +184,27 @@ describe('MermaidArtifact', () => {
     expect(pre.exists()).toBe(true)
     expect(pre.text()).toContain('graph TD')
     expect(pre.text()).toContain('A-->B')
+  })
+
+  it('uses full-height preview classes without viewport-based caps', () => {
+    const wrapper = mount(MermaidArtifact, {
+      props: {
+        block: {
+          content: 'graph TD\nA-->B',
+          artifact: { type: 'application/vnd.ant.mermaid', title: 'Test Diagram' }
+        },
+        isPreview: true
+      }
+    })
+
+    expect(wrapper.get('[data-testid="mermaid-artifact-root"]').classes()).toEqual(
+      expect.arrayContaining(['flex', 'h-full', 'min-h-0', 'w-full', 'flex-col', 'overflow-hidden'])
+    )
+
+    const preview = wrapper.get('[data-testid="mermaid-artifact-preview"]')
+    expect(preview.classes()).toEqual(
+      expect.arrayContaining(['flex', 'h-full', 'min-h-0', 'w-full', 'flex-1', 'overflow-auto'])
+    )
+    expect(preview.attributes('class')).not.toContain('max-h-[calc(100vh-120px)]')
   })
 })

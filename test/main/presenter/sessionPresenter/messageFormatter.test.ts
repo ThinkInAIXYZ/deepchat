@@ -110,4 +110,55 @@ describe('messageFormatter', () => {
     expect(String(messages[0].content)).toContain('function_call_record')
     expect(String(messages[0].content)).toContain('search')
   })
+
+  it('preserves tool call provider options when function calling is enabled', () => {
+    const toolCallBlock: AssistantMessageBlock = {
+      type: 'tool_call',
+      status: 'success',
+      timestamp: Date.now(),
+      extra: {
+        providerOptionsJson: JSON.stringify({
+          vertex: {
+            thoughtSignature: 'tool-thought-signature'
+          }
+        })
+      },
+      tool_call: {
+        id: 'tool-1',
+        name: 'search',
+        params: '{"q":"hi"}',
+        response: 'ok'
+      }
+    }
+
+    const assistantMessage = createMessage('assistant-1', 'assistant', [toolCallBlock])
+    const messages = addContextMessages([assistantMessage], false, true)
+
+    expect(messages).toEqual([
+      {
+        role: 'assistant',
+        content: undefined,
+        tool_calls: [
+          {
+            id: 'tool-1',
+            type: 'function',
+            function: {
+              name: 'search',
+              arguments: '{"q":"hi"}'
+            },
+            provider_options: {
+              vertex: {
+                thoughtSignature: 'tool-thought-signature'
+              }
+            }
+          }
+        ]
+      },
+      {
+        role: 'tool',
+        content: 'ok',
+        tool_call_id: 'tool-1'
+      }
+    ])
+  })
 })

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -178,7 +179,7 @@ export class KnowledgeStorePresenter {
           onSuccess: () => this.handleChunkCompletion(chunkMsg.id, fileMessage.id),
           onError: (error: Error) =>
             this.handleChunkError(chunkMsg.id, fileMessage.id, error.message),
-          onTerminate: () => console.log(`[RAG] Chunk processing terminated for ${chunkMsg.id}`)
+          onTerminate: () => logger.info(`[RAG] Chunk processing terminated for ${chunkMsg.id}`)
         }
 
         this.taskP.addTask(chunkTask)
@@ -294,7 +295,7 @@ export class KnowledgeStorePresenter {
         fileMessage.status = 'completed'
         await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
         eventBus.sendToRenderer(RAG_EVENTS.FILE_UPDATED, SendTarget.ALL_WINDOWS, fileMessage)
-        console.log(`[RAG] File processing completed for ${fileId}`)
+        logger.info(`[RAG] File processing completed for ${fileId}`)
       }
     } catch (error) {
       console.error(`[RAG] Error in onFileFinish for ${fileId}:`, error)
@@ -429,7 +430,7 @@ export class KnowledgeStorePresenter {
         onSuccess: () => this.handleChunkCompletion(chunkMessage.id, chunkMessage.fileId),
         onError: (error: Error) =>
           this.handleChunkError(chunkMessage.id, chunkMessage.fileId, error.message),
-        onTerminate: () => console.log(`[RAG] Chunk processing terminated for ${chunkMessage.id}`)
+        onTerminate: () => logger.info(`[RAG] Chunk processing terminated for ${chunkMessage.id}`)
       }
       this.taskP.addTask(chunkTask)
     }

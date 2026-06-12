@@ -1,4 +1,8 @@
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import type {
+  RemotePendingInteraction,
+  TelegramAgentMenuCallback,
+  TelegramAgentOption,
   TelegramCallbackAnswer,
   TelegramInboundCallbackQuery,
   TelegramInboundEvent,
@@ -6,17 +10,28 @@ import type {
   TelegramInlineKeyboardMarkup,
   TelegramModelProviderOption,
   TelegramOutboundAction,
+  TelegramPendingInteractionCallback,
   TelegramPollerStatusSnapshot
 } from '../types'
 import {
+  TELEGRAM_AGENT_MENU_TTL_MS,
+  TELEGRAM_INTERACTION_CALLBACK_TTL_MS,
   TELEGRAM_MODEL_MENU_TTL_MS,
   TELEGRAM_REMOTE_COMMANDS,
+  buildAgentMenuCancelCallbackData,
+  buildAgentMenuChoiceCallbackData,
   buildModelMenuBackCallbackData,
   buildModelMenuCancelCallbackData,
   buildModelMenuChoiceCallbackData,
   buildModelMenuProviderCallbackData,
-  parseModelMenuCallbackData
+  parseAgentMenuCallbackData,
+  parseModelMenuCallbackData,
+  parsePendingInteractionCallbackData
 } from '../types'
+import {
+  buildTelegramInteractionResolvedText,
+  buildTelegramPendingInteractionPrompt
+} from '../telegram/telegramInteractionPrompt'
 import type { RemoteConversationExecution } from './remoteConversationRunner'
 import { RemoteAuthGuard } from './remoteAuthGuard'
 import { RemoteBindingStore } from './remoteBindingStore'
@@ -27,6 +42,13 @@ export interface RemoteCommandRouteResult {
   outboundActions?: TelegramOutboundAction[]
   conversation?: RemoteConversationExecution
   callbackAnswer?: TelegramCallbackAnswer
+  deferred?: Promise<RemoteCommandRouteContinuation>
+}
+
+export interface RemoteCommandRouteContinuation {
+  replies?: string[]
+  outboundActions?: TelegramOutboundAction[]
+  conversation?: RemoteConversationExecution
 }
 
 type RemoteCommandRouterDeps = {
@@ -35,6 +57,8 @@ type RemoteCommandRouterDeps = {
   bindingStore: RemoteBindingStore
   getPollerStatus: () => TelegramPollerStatusSnapshot
 }
+
+const TELEGRAM_PENDING_ALLOWED_COMMANDS = new Set(['start', 'help', 'status', 'open', 'pending'])
 
 export class RemoteCommandRouter {
   constructor(private readonly deps: RemoteCommandRouterDeps) {}
@@ -80,6 +104,23 @@ export class RemoteCommandRouter {
     }
 
     try {
+      const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
+      if (pendingInteraction) {
+        if (!command) {
+          return await this.handlePendingTextResponse(endpointKey, message.text, pendingInteraction)
+        }
+
+        if (command === 'pending') {
+          return this.buildPendingPromptResult(endpointKey, pendingInteraction)
+        }
+
+        if (!TELEGRAM_PENDING_ALLOWED_COMMANDS.has(command)) {
+          return {
+            replies: [this.formatPendingCommandBlockedMessage(pendingInteraction)]
+          }
+        }
+      }
+
       switch (command) {
         case 'new': {
           const title = message.command?.args?.trim()
@@ -93,7 +134,7 @@ export class RemoteCommandRouter {
           const sessions = await this.deps.runner.listSessions(endpointKey)
           if (sessions.length === 0) {
             return {
-              replies: ['No DeepChat sessions were found.']
+              replies: ['No sessions were found.']
             }
           }
 
@@ -144,11 +185,23 @@ export class RemoteCommandRouter {
           }
         }
 
+        case 'pending': {
+          return {
+            replies: ['No pending interaction is waiting.']
+          }
+        }
+
         case 'model': {
           const session = await this.deps.runner.getCurrentSession(endpointKey)
           if (!session) {
             return {
               replies: ['No bound session. Send a message, /new, or /use first.']
+            }
+          }
+
+          if (await this.deps.runner.isSessionModelLocked(session)) {
+            return {
+              replies: ['ACP sessions lock the model. Change the channel default agent instead.']
             }
           }
 
@@ -177,22 +230,54 @@ export class RemoteCommandRouter {
           }
         }
 
+        case 'agent': {
+          const session = await this.deps.runner.getCurrentSession(endpointKey)
+          if (!session) {
+            return {
+              replies: ['No bound session. Send a message, /new, or /use first.']
+            }
+          }
+
+          const agents = await this.deps.runner.listAvailableAgents()
+          if (agents.length === 0) {
+            return {
+              replies: ['No enabled agents are available.']
+            }
+          }
+
+          const token = this.deps.bindingStore.createAgentMenuState(endpointKey, session.id, agents)
+
+          return {
+            replies: [],
+            outboundActions: [
+              {
+                type: 'sendMessage',
+                text: this.formatAgentMenuText(session, agents),
+                replyMarkup: this.buildAgentMenuKeyboard(token, agents)
+              }
+            ]
+          }
+        }
+
         case 'status': {
           const runtime = this.deps.getPollerStatus()
           const status = await this.deps.runner.getStatus(endpointKey)
           const defaultAgentId = await this.deps.runner.getDefaultAgentId()
+          const defaultWorkdir = await this.deps.runner.getDefaultWorkdir(endpointKey)
           const telegramConfig = this.deps.bindingStore.getTelegramConfig()
           return {
             replies: [
               [
                 'DeepChat Telegram Remote',
                 `Runtime: ${runtime.state}`,
-                `Stream mode: ${telegramConfig.streamMode}`,
                 `Default agent: ${defaultAgentId}`,
+                `Default workdir: ${defaultWorkdir ?? 'none'}`,
                 `Current session: ${status.session ? this.formatSessionLabel(status.session) : 'none'}`,
                 `Current agent: ${status.session?.agentId ?? 'none'}`,
                 `Current model: ${status.session?.modelId ?? 'none'}`,
+                `Current workdir: ${status.session?.projectDir?.trim() || 'none'}`,
                 `Generating: ${status.isGenerating ? 'yes' : 'no'}`,
+                `Waiting: ${status.pendingInteraction ? this.formatPendingStatus(status.pendingInteraction) : 'none'}`,
                 `Allowed users: ${telegramConfig.allowlist.length}`,
                 `Bindings: ${Object.keys(telegramConfig.bindings).length}`,
                 `Last error: ${runtime.lastError ?? 'none'}`
@@ -205,9 +290,17 @@ export class RemoteCommandRouter {
           break
       }
 
+      const attachments = message.attachments ?? []
       return {
         replies: [],
-        conversation: await this.deps.runner.sendText(endpointKey, message.text)
+        conversation:
+          attachments.length > 0
+            ? await this.deps.runner.sendInput(endpointKey, {
+                text: message.text,
+                attachments,
+                sourceMessageId: String(message.messageId)
+              })
+            : await this.deps.runner.sendText(endpointKey, message.text)
       }
     } catch (error) {
       return {
@@ -229,6 +322,27 @@ export class RemoteCommandRouter {
           showAlert: true
         }
       }
+    }
+
+    const pendingCallback = parsePendingInteractionCallbackData(event.data)
+    if (pendingCallback) {
+      return await this.handlePendingCallbackQuery(event, endpointKey, pendingCallback)
+    }
+
+    const pendingInteraction = await this.deps.runner.getPendingInteraction(endpointKey)
+    if (pendingInteraction) {
+      return {
+        replies: [],
+        callbackAnswer: {
+          text: this.formatPendingCommandBlockedMessage(pendingInteraction),
+          showAlert: true
+        }
+      }
+    }
+
+    const agentCallback = parseAgentMenuCallbackData(event.data)
+    if (agentCallback) {
+      return await this.handleAgentMenuCallback(event, endpointKey, agentCallback)
     }
 
     const callback = parseModelMenuCallbackData(event.data)
@@ -358,6 +472,84 @@ export class RemoteCommandRouter {
     }
   }
 
+  private async handlePendingCallbackQuery(
+    event: TelegramInboundCallbackQuery,
+    endpointKey: string,
+    callback: TelegramPendingInteractionCallback
+  ): Promise<RemoteCommandRouteResult> {
+    const interaction = await this.deps.runner.getPendingInteraction(endpointKey)
+    const state = this.deps.bindingStore.getPendingInteractionState(
+      callback.token,
+      TELEGRAM_INTERACTION_CALLBACK_TTL_MS
+    )
+
+    if (
+      !interaction ||
+      !state ||
+      state.endpointKey !== endpointKey ||
+      state.messageId !== interaction.messageId ||
+      state.toolCallId !== interaction.toolCallId
+    ) {
+      return await this.buildExpiredPendingInteractionResult(event.messageId, endpointKey)
+    }
+
+    const response = this.resolvePendingCallbackResponse(interaction, callback)
+    if (!response) {
+      return await this.buildExpiredPendingInteractionResult(event.messageId, endpointKey)
+    }
+
+    this.deps.bindingStore.clearPendingInteractionState(callback.token)
+
+    const waitingForUserMessage = response.kind === 'question_other'
+    return {
+      replies: [],
+      outboundActions: [
+        {
+          type: 'editMessageText',
+          messageId: event.messageId,
+          text: buildTelegramInteractionResolvedText({
+            interaction,
+            responseText: this.describeInteractionResponse(interaction, response),
+            waitingForUserMessage
+          }),
+          replyMarkup: null
+        }
+      ],
+      callbackAnswer: {
+        text: waitingForUserMessage ? 'Reply with your answer.' : 'Continuing...'
+      },
+      deferred: this.buildPendingCallbackContinuation(
+        endpointKey,
+        event.messageId,
+        interaction,
+        response
+      )
+    }
+  }
+
+  private async handlePendingTextResponse(
+    endpointKey: string,
+    text: string,
+    interaction: RemotePendingInteraction
+  ): Promise<RemoteCommandRouteResult> {
+    const response = this.resolvePendingTextResponse(text, interaction)
+    if (!response) {
+      return {
+        replies: [this.formatPendingTextReplyHint(interaction)]
+      }
+    }
+
+    const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+    return {
+      replies: [
+        result.waitingForUserMessage
+          ? 'Reply with your answer in your next message.'
+          : this.describeInteractionResponse(interaction, response)
+      ],
+      ...(result.execution ? { conversation: result.execution } : {})
+    }
+  }
+
   private buildExpiredMenuResult(messageId: number): RemoteCommandRouteResult {
     return {
       replies: [],
@@ -372,6 +564,134 @@ export class RemoteCommandRouter {
       callbackAnswer: {
         text: 'Model menu expired. Run /model again.',
         showAlert: true
+      }
+    }
+  }
+
+  private buildExpiredAgentMenuResult(messageId: number): RemoteCommandRouteResult {
+    return {
+      replies: [],
+      outboundActions: [
+        {
+          type: 'editMessageText',
+          messageId,
+          text: 'Agent menu expired. Run /agent again.',
+          replyMarkup: null
+        }
+      ],
+      callbackAnswer: {
+        text: 'Agent menu expired. Run /agent again.',
+        showAlert: true
+      }
+    }
+  }
+
+  private async handleAgentMenuCallback(
+    event: TelegramInboundCallbackQuery,
+    endpointKey: string,
+    callback: TelegramAgentMenuCallback
+  ): Promise<RemoteCommandRouteResult> {
+    const state = this.deps.bindingStore.getAgentMenuState(
+      callback.token,
+      TELEGRAM_AGENT_MENU_TTL_MS
+    )
+    const expiredResult = this.buildExpiredAgentMenuResult(event.messageId)
+    if (!state || state.endpointKey !== endpointKey) {
+      return expiredResult
+    }
+
+    const session = await this.deps.runner.getCurrentSession(endpointKey)
+    if (!session || session.id !== state.sessionId) {
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+      return expiredResult
+    }
+
+    if (callback.action === 'cancel') {
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId: event.messageId,
+            text: 'Agent selection cancelled.',
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Cancelled.'
+        }
+      }
+    }
+
+    const agentOption = state.agents[callback.agentIndex]
+    if (!agentOption) {
+      return expiredResult
+    }
+
+    try {
+      const result = await this.deps.runner.setChannelDefaultAgent(endpointKey, agentOption.agentId)
+      this.deps.bindingStore.clearAgentMenuState(callback.token)
+
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId: event.messageId,
+            text: this.formatAgentSwitchSuccessText(result.agent, result.session),
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Agent switched.'
+        }
+      }
+    } catch (error) {
+      return {
+        replies: [],
+        callbackAnswer: {
+          text: error instanceof Error ? error.message : String(error),
+          showAlert: true
+        }
+      }
+    }
+  }
+
+  private async buildExpiredPendingInteractionResult(
+    messageId: number,
+    endpointKey: string
+  ): Promise<RemoteCommandRouteResult> {
+    const interaction = await this.deps.runner.getPendingInteraction(endpointKey)
+    if (!interaction) {
+      return {
+        replies: [],
+        outboundActions: [
+          {
+            type: 'editMessageText',
+            messageId,
+            text: 'Pending interaction expired. Run /pending if another action is waiting.',
+            replyMarkup: null
+          }
+        ],
+        callbackAnswer: {
+          text: 'Pending interaction expired.',
+          showAlert: true
+        }
+      }
+    }
+
+    const prompt = this.createPendingPromptAction(
+      endpointKey,
+      interaction,
+      'editMessageText',
+      messageId
+    )
+    return {
+      replies: [],
+      outboundActions: [prompt],
+      callbackAnswer: {
+        text: 'Prompt refreshed.'
       }
     }
   }
@@ -425,6 +745,237 @@ export class RemoteCommandRouter {
     }
   }
 
+  private buildAgentMenuKeyboard(
+    token: string,
+    agents: TelegramAgentOption[]
+  ): TelegramInlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        ...agents.map((agent, index) => [
+          {
+            text: this.formatAgentButtonLabel(agent),
+            callback_data: buildAgentMenuChoiceCallbackData(token, index)
+          }
+        ]),
+        [
+          {
+            text: 'Cancel',
+            callback_data: buildAgentMenuCancelCallbackData(token)
+          }
+        ]
+      ]
+    }
+  }
+
+  private buildPendingPromptResult(
+    endpointKey: string,
+    interaction: RemotePendingInteraction
+  ): RemoteCommandRouteResult {
+    return {
+      replies: [],
+      outboundActions: [this.createPendingPromptAction(endpointKey, interaction, 'sendMessage')]
+    }
+  }
+
+  private createPendingPromptAction(
+    endpointKey: string,
+    interaction: RemotePendingInteraction,
+    mode: 'sendMessage' | 'editMessageText',
+    messageId?: number
+  ): TelegramOutboundAction {
+    const token = this.deps.bindingStore.createPendingInteractionState(endpointKey, interaction)
+    const prompt = buildTelegramPendingInteractionPrompt(interaction, token)
+    if (mode === 'editMessageText' && typeof messageId === 'number') {
+      return {
+        type: 'editMessageText',
+        messageId,
+        text: prompt.text,
+        replyMarkup: prompt.replyMarkup ?? null
+      }
+    }
+
+    return {
+      type: 'sendMessage',
+      text: prompt.text,
+      ...(prompt.replyMarkup ? { replyMarkup: prompt.replyMarkup } : {})
+    }
+  }
+
+  private async buildPendingCallbackContinuation(
+    endpointKey: string,
+    messageId: number,
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): Promise<RemoteCommandRouteContinuation> {
+    try {
+      const result = await this.deps.runner.respondToPendingInteraction(endpointKey, response)
+
+      if (result.waitingForUserMessage) {
+        if (response.kind === 'question_other') {
+          return {}
+        }
+
+        return {
+          outboundActions: [
+            {
+              type: 'editMessageText',
+              messageId,
+              text: buildTelegramInteractionResolvedText({
+                interaction,
+                responseText: this.describeInteractionResponse(interaction, response),
+                waitingForUserMessage: true
+              }),
+              replyMarkup: null
+            }
+          ]
+        }
+      }
+
+      return result.execution ? { conversation: result.execution } : {}
+    } catch (error) {
+      return {
+        replies: [error instanceof Error ? error.message : String(error)]
+      }
+    }
+  }
+
+  private resolvePendingCallbackResponse(
+    interaction: RemotePendingInteraction,
+    callback: TelegramPendingInteractionCallback
+  ): ToolInteractionResponse | null {
+    if (interaction.type === 'permission') {
+      if (callback.action === 'allow') {
+        return { kind: 'permission', granted: true }
+      }
+      if (callback.action === 'deny') {
+        return { kind: 'permission', granted: false }
+      }
+      return null
+    }
+
+    if (callback.action === 'other') {
+      return { kind: 'question_other' }
+    }
+
+    if (callback.action !== 'option') {
+      return null
+    }
+
+    const option = interaction.question?.options?.[callback.optionIndex]
+    if (!option) {
+      return null
+    }
+
+    return {
+      kind: 'question_option',
+      optionLabel: option.label
+    }
+  }
+
+  private resolvePendingTextResponse(
+    text: string,
+    interaction: RemotePendingInteraction
+  ): ToolInteractionResponse | null {
+    const normalized = text.trim()
+    if (!normalized) {
+      return null
+    }
+
+    if (interaction.type === 'permission') {
+      const lowered = normalized.toLowerCase()
+      if (lowered === 'allow') {
+        return { kind: 'permission', granted: true }
+      }
+      if (lowered === 'deny') {
+        return { kind: 'permission', granted: false }
+      }
+      return null
+    }
+
+    const question = interaction.question
+    if (!question) {
+      return null
+    }
+
+    if (!question.multiple) {
+      const optionByIndex = Number.parseInt(normalized, 10)
+      if (
+        Number.isInteger(optionByIndex) &&
+        optionByIndex > 0 &&
+        optionByIndex <= question.options.length
+      ) {
+        return {
+          kind: 'question_option',
+          optionLabel: question.options[optionByIndex - 1].label
+        }
+      }
+
+      const matchedOption = question.options.find(
+        (option) =>
+          option.label.localeCompare(normalized, undefined, { sensitivity: 'accent' }) === 0
+      )
+      if (matchedOption) {
+        return {
+          kind: 'question_option',
+          optionLabel: matchedOption.label
+        }
+      }
+    }
+
+    if (question.multiple || question.custom !== false) {
+      return {
+        kind: 'question_custom',
+        answerText: normalized
+      }
+    }
+
+    return null
+  }
+
+  private describeInteractionResponse(
+    interaction: RemotePendingInteraction,
+    response: ToolInteractionResponse
+  ): string {
+    if (interaction.type === 'permission' && response.kind === 'permission') {
+      return response.granted ? 'Approved. Continuing...' : 'Denied.'
+    }
+
+    if (response.kind === 'question_option') {
+      return `Selected: ${response.optionLabel}`
+    }
+
+    if (response.kind === 'question_custom') {
+      return `Answer received: ${response.answerText.trim()}`
+    }
+
+    return 'Reply with your answer in a new message.'
+  }
+
+  private formatPendingTextReplyHint(interaction: RemotePendingInteraction): string {
+    if (interaction.type === 'permission') {
+      return 'Reply with ALLOW or DENY, or use /pending to show the buttons again.'
+    }
+
+    if (interaction.question?.multiple) {
+      return 'Reply with your answer in plain text.'
+    }
+
+    if (interaction.question?.custom !== false) {
+      return 'Reply with an option number, exact label, or your own answer.'
+    }
+
+    return 'Reply with an option number or exact label, or use /pending to show the buttons again.'
+  }
+
+  private formatPendingCommandBlockedMessage(interaction: RemotePendingInteraction): string {
+    return `Resolve the pending ${interaction.type} first. Use /pending to review it again.`
+  }
+
+  private formatPendingStatus(interaction: RemotePendingInteraction): string {
+    const toolLabel = interaction.toolName.trim() || 'unknown tool'
+    return `${interaction.type} via ${toolLabel}`
+  }
+
   private formatStartMessage(isAuthorized: boolean): string {
     const statusLine = isAuthorized
       ? 'Status: paired'
@@ -449,7 +1000,7 @@ export class RemoteCommandRouter {
               ? '/use <index> - Bind a listed session'
               : `/${item.command} - ${item.description}`
       ),
-      'Plain text sends to the current bound session.'
+      'Plain text sends to the current bound session unless a tool interaction is waiting.'
     ].join('\n')
   }
 
@@ -475,6 +1026,41 @@ export class RemoteCommandRouter {
       `Current: ${session.providerId || 'none'} / ${session.modelId || 'none'}`,
       `Provider: ${provider.providerName}`,
       'Choose a model:'
+    ].join('\n')
+  }
+
+  private formatAgentMenuText(
+    session: { title: string; id: string; agentId: string },
+    agents: TelegramAgentOption[]
+  ): string {
+    const current = agents.find((agent) => agent.agentId === session.agentId)
+    const currentLabel = current
+      ? `${current.agentName} [${current.agentId}]`
+      : session.agentId || 'none'
+    return [
+      `Session: ${this.formatSessionLabel(session)}`,
+      `Current agent: ${currentLabel}`,
+      'Choose an agent (switching starts a new session):'
+    ].join('\n')
+  }
+
+  private formatAgentButtonLabel(agent: TelegramAgentOption): string {
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'DeepChat'
+    return `${agent.agentName} · ${typeLabel}`
+  }
+
+  private formatAgentSwitchSuccessText(
+    agent: TelegramAgentOption,
+    session: { title: string; id: string; providerId: string; modelId: string }
+  ): string {
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'DeepChat'
+    const providerLine = session.providerId
+      ? `Provider / Model: ${session.providerId} / ${session.modelId || 'none'}`
+      : `Provider / Model: none`
+    return [
+      `Agent switched to ${agent.agentName} [${agent.agentId}] (${typeLabel}).`,
+      `Started a new session: ${this.formatSessionLabel(session)}`,
+      providerLine
     ].join('\n')
   }
 

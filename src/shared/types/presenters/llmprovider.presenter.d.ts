@@ -1,6 +1,9 @@
 import { ShowResponse } from 'ollama'
 import type { ChatMessage } from '../core/chat-message'
 import { ModelType } from '../core/model'
+import type { NewApiEndpointType } from '@shared/model'
+import type { ImageGenerationOptions } from '../../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './legacy.presenters'
 
 /**
@@ -17,12 +20,16 @@ export type RENDERER_MODEL_META = {
   isCustom?: boolean
   vision?: boolean
   functionCall?: boolean
+  explicitFunctionCall?: boolean
   reasoning?: boolean
   enableSearch?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 
 export type MODEL_META = {
@@ -40,10 +47,14 @@ export type MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 
 export type LLM_PROVIDER = {
   id: string
+  capabilityProviderId?: string
   name: string
   apiType: string
   apiKey: string
@@ -99,6 +110,20 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+export type StandaloneImageGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: ImageGenerationOptions
+  images: Array<{ data: string; mimeType: string }>
+}
+
+export type StandaloneVideoGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: VideoGenerationOptions
+  videos: Array<{ data: string; mimeType: string }>
+}
+
 export interface KeyStatus {
   remainNum?: number
   /** Remaining quota */
@@ -108,9 +133,11 @@ export interface KeyStatus {
 }
 
 export interface AwsBedrockCredential {
+  authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
   region?: string
+  profile?: string
 }
 
 export type AWS_BEDROCK_PROVIDER = LLM_PROVIDER & {
@@ -169,6 +196,14 @@ export interface ModelScopeMcpSyncResult {
   errors: string[]
 }
 
+export type RateLimitQueueSnapshot = {
+  providerId: string
+  qpsLimit: number
+  currentQps: number
+  queueLength: number
+  estimatedWaitTime: number
+}
+
 export type AcpConfigOptionValue = {
   value: string
   label: string
@@ -200,6 +235,10 @@ export interface ILlmProviderPresenter {
   getExistingProviderInstance(providerId: string): unknown
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
+  batchUpdateModelStatus(
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ): Promise<void>
   addCustomModel(
     providerId: string,
     model: Omit<MODEL_META, 'providerId' | 'isCustom' | 'group'>
@@ -259,6 +298,13 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+    }
+  ): Promise<void>
   syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions
@@ -270,8 +316,33 @@ export interface ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
+  ): Promise<string>
+
+  transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
     options?: { signal?: AbortSignal }
   ): Promise<string>
+
+  generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult>
+
+  generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult>
 
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>

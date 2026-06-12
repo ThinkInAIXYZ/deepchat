@@ -6,15 +6,25 @@ Specification-Driven Development (SDD) eliminates the gap between requirements a
 
 In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and PR review. Prefer small, reviewable increments that keep spec → plan → code traceability.
 
-## Recommended Artifacts
+## Required Artifacts
 
-Keep feature work in a lightweight spec folder so reviewers can find the intent without hunting through code:
+Keep every active change in a lightweight SDD folder so reviewers can find the intent without hunting through code. Use one kebab-case folder per goal:
 
-- `docs/specs/<feature>/spec.md` - user stories, acceptance criteria, non-goals, open questions
-- `docs/specs/<feature>/plan.md` - architecture decisions, event flow, data model, test strategy
-- `docs/specs/<feature>/tasks.md` - small, ordered tasks that map to commits/PRs (optional but recommended)
+- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools
+- `docs/issues/<goal>/` - bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
+- `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
 
-If a change is tiny, a single `spec.md` is enough—don’t over-document.
+Pure release metadata work is exempt from SDD. Version bumps, `CHANGELOG.md` updates, release branch
+management, tags, and release PR preparation should follow `docs/release-flow.md` without creating a
+release-specific SDD folder.
+
+Each active goal folder contains:
+
+- `spec.md` - user stories, acceptance criteria, non-goals, constraints, open questions
+- `plan.md` - architecture decisions, event flow, data model, compatibility, test strategy
+- `tasks.md` - small, ordered tasks that map to commits/PRs
+
+If a change is tiny, keep all three files short.
 
 ## Workflow
 
@@ -22,6 +32,15 @@ If a change is tiny, a single `spec.md` is enough—don’t over-document.
 2. **Implementation Plan** - Architecture decisions, event flow, IPC surface, test strategy
 3. **Task Breakdown** - Small tasks that can be reviewed independently
 4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
+
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep SDD folders active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs and delete the old goal folder. Delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
+
+Retention policy:
+
+- Feature and architecture SDD folders stay only while the work is active.
+- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`.
+- Bug-fix issue SDD folders older than two weeks should be removed unless they still describe an active regression.
+- Long-term history should be recovered from git history, not accumulated under `docs/archives/`.
 
 ## Six Core Principles
 
@@ -38,6 +57,9 @@ Follow DeepChat's existing architectural patterns:
 - **Type Definitions**: Shared types live in `src/shared/`
 
 Every feature should integrate seamlessly with existing Presenters and use the established event flow patterns.
+
+对于 renderer-main 新能力，当前默认路径已经从 `useLegacyPresenter()` 转向 typed route / typed event +
+`renderer/api/*Client`。`useLegacyPresenter()` 只保留给兼容路径，不应再作为新代码模式复制。
 
 ### 3. Minimal Complexity
 
@@ -97,28 +119,36 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 ## Common Patterns
 
 ```typescript
-// 1. Presenter Method Signature
+// 1. Typed Route / Client Method Signature
 async methodName(params: InputType): Promise<OutputType>
 
 // 2. EventBus Communication (Main Process)
 eventBus.sendToRenderer(CONFIG_EVENTS.SETTING_CHANGED, SendTarget.ALL_WINDOWS, payload)
 
-// 3. Component-Presenter Integration
-const configPresenter = usePresenter('configPresenter')
-await configPresenter.methodName()
+// 3. Renderer-main Integration
+const settingsClient = new SettingsClient()
+await settingsClient.update([{ key: 'fontSizeLevel', value: 2 }])
 
 // 4. Vue 3 Component Pattern
 <script setup lang="ts">
-import { usePresenter } from '@/composables/usePresenter'
+import { SettingsClient } from '../../api/SettingsClient'
 
-const sessionPresenter = usePresenter('sessionPresenter')
+const settingsClient = new SettingsClient()
 // Composition API logic
 </script>
 ```
 
+Compatibility note:
+
+- 新 renderer-main 能力优先定义 `shared/contracts/*` 和 `renderer/api/*Client`
+- `useLegacyPresenter()` 不再是推荐模式
+- 如果必须临时保留 legacy transport，应先收口到 `src/renderer/api/legacy/**`，而不是直接进入业务模块
+- 不允许再创建第二个 quarantine 目录来承接 renderer-main legacy transport
+
 ## Quick Reference
 
 - **Presenters**: `src/main/presenter/**`
+- **Renderer clients**: `src/renderer/api/**`
 - **Tests**: `test/main/**/*`, `test/renderer/**/*`
 - **EventBus**: `src/main/eventbus.ts`
 - **Events**: `src/main/events.ts` (main) and `src/renderer/src/events.ts` (renderer)

@@ -1,0 +1,70 @@
+{
+  "emojiPicker": {
+    "search": "Cari emotikon",
+    "smileys": "Ungkapan dan emosi",
+    "people": "Tokoh dan jasad",
+    "animals": "haiwan dan alam semula jadi",
+    "food": "makanan dan minuman",
+    "travel": "Perjalanan dan Tempat",
+    "activities": "Aktiviti",
+    "objects": "benda",
+    "symbols": "simbol",
+    "flags": "sepanduk"
+  },
+  "messageBlockAction": {
+    "continue": "teruskan",
+    "continued": "Bersambung"
+  },
+  "messageBlockPermissionRequest": {
+    "title": "Kebenaran diperlukan",
+    "allow": "benarkan",
+    "allowOnce": "dibenarkan sekali",
+    "allowForSession": "Laksanakan sesi semasa secara automatik",
+    "allowOnceTooltip": "Perintah ini dilaksanakan hanya kali ini dan keputusan tidak disimpan.",
+    "allowForSessionTooltip": "Ingat arahan ini dalam sesi semasa.",
+    "deny": "menolak",
+    "rememberChoice": "Ingat pilihan ini",
+    "granted": "Kebenaran diberikan",
+    "denied": "Kebenaran ditolak",
+    "riskLabel": "risiko",
+    "type": {
+      "read": "Izin baca",
+      "write": "Tulis kebenaran",
+      "all": "kebenaran penuh",
+      "command": "melaksanakan perintah"
+    },
+    "description": {
+      "read": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi baca?",
+      "write": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi tulis?",
+      "all": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi baca dan tulis?",
+      "command": "Laksanakan arahan: {command}",
+      "commandWithRisk": "Laksanakan arahan: {command}\n\nTahap risiko: {riskLevel}\n\nCadangan: {suggestion}"
+    },
+    "riskLevel": {
+      "low": "rendah",
+      "medium": "tengah",
+      "high": "tinggi",
+      "critical": "serius"
+    },
+    "suggestion": {
+      "low": "Perintah ini ialah operasi baca sahaja dan mempunyai sedikit kesan.",
+      "medium": "Perintah ini boleh memasang kebergantungan atau mengubah suai status, sila sahkan sebelum melaksanakan.",
+      "high": "Perintah ini akan mengubah suai fail atau status sistem, jadi sila berhati-hati.",
+      "critical": "Perintah ini mungkin merosakkan atau mengakses rangkaian luaran, sila sahkan."
+    }
+  },
+  "promptParamsDialog": {
+    "title": "Tetapan parameter {name}",
+    "description": "Sila isikan parameter berikut, item dengan * diperlukan.",
+    "required": "Parameter ini diperlukan"
+  },
+  "messageBlockQuestionRequest": {
+    "title": "soalan",
+    "send": "hantar",
+    "reject": "menolak",
+    "selected": "Dipilih",
+    "rejected": "ditolak",
+    "customPlaceholder": "Masukkan jawapan anda...",
+    "answerLabel": "jawab"
+  }
+}

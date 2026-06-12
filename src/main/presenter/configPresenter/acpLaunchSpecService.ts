@@ -52,6 +52,15 @@ const ensureDir = (dir: string): void => {
   }
 }
 
+const isPathWithinRoot = (candidatePath: string, rootPath: string, allowEqual = false): boolean => {
+  const relative = path.relative(rootPath, candidatePath)
+  if (!relative) {
+    return allowEqual
+  }
+
+  return !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
 const listFilesRecursive = (root: string): string[] => {
   if (!fs.existsSync(root)) {
     return []
@@ -218,6 +227,28 @@ export class AcpLaunchSpecService {
     }
   }
 
+  async uninstallRegistryAgent(
+    agent: AcpRegistryAgent,
+    installState: AcpAgentInstallState | null
+  ): Promise<void> {
+    const selection = this.selectRegistryDistribution(agent)
+    if (selection?.type !== 'binary') {
+      return
+    }
+
+    const candidateDirs = new Set<string>()
+    if (typeof installState?.installDir === 'string' && installState.installDir.trim()) {
+      candidateDirs.add(path.resolve(installState.installDir))
+    }
+    candidateDirs.add(this.getBinaryInstallDir(agent))
+
+    for (const installDir of candidateDirs) {
+      this.removeInstallDir(installDir)
+    }
+
+    this.pruneEmptyAgentInstallRoot(agent.id)
+  }
+
   async resolveRegistryLaunchSpec(
     agent: AcpRegistryAgent,
     installState: AcpAgentInstallState | null
@@ -289,10 +320,7 @@ export class AcpLaunchSpecService {
     const resolvedInstallDir = path.resolve(installDir)
     const resolvedInstallRoot = path.resolve(this.installRoot)
 
-    if (
-      resolvedInstallDir !== resolvedInstallRoot &&
-      !resolvedInstallDir.startsWith(`${resolvedInstallRoot}${path.sep}`)
-    ) {
+    if (!isPathWithinRoot(resolvedInstallDir, resolvedInstallRoot)) {
       throw new Error(`Unsafe ACP install directory for ${agent.id}@${agent.version}`)
     }
 
@@ -308,6 +336,36 @@ export class AcpLaunchSpecService {
 
     const basename = path.basename(normalized)
     return listFilesRecursive(installDir).find((file) => path.basename(file) === basename) ?? null
+  }
+
+  private removeInstallDir(installDir: string): void {
+    const resolvedInstallDir = path.resolve(installDir)
+    const resolvedInstallRoot = path.resolve(this.installRoot)
+
+    if (!isPathWithinRoot(resolvedInstallDir, resolvedInstallRoot)) {
+      throw new Error(`Unsafe ACP install directory for uninstall: ${installDir}`)
+    }
+
+    if (!fs.existsSync(resolvedInstallDir)) {
+      return
+    }
+
+    fs.rmSync(resolvedInstallDir, { recursive: true, force: true })
+  }
+
+  private pruneEmptyAgentInstallRoot(agentId: string): void {
+    const safeAgentId = sanitizeInstallSegment(agentId, 'agent id')
+    const agentRoot = path.resolve(path.join(this.installRoot, safeAgentId))
+    const resolvedInstallRoot = path.resolve(this.installRoot)
+
+    if (!isPathWithinRoot(agentRoot, resolvedInstallRoot) || !fs.existsSync(agentRoot)) {
+      return
+    }
+
+    const remainingEntries = fs.readdirSync(agentRoot)
+    if (remainingEntries.length === 0) {
+      fs.rmSync(agentRoot, { recursive: true, force: true })
+    }
   }
 
   private getPlatformKey(): string | null {

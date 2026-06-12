@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
-import { CONFIG_EVENTS } from '@/events'
+import { createConfigClient } from '../../../api/ConfigClient'
+import { createProjectClient } from '@api/ProjectClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
 
 // --- Type Definitions ---
@@ -18,8 +18,8 @@ type ProjectSelectionSource = 'none' | 'manual' | 'default'
 // --- Store ---
 
 export const useProjectStore = defineStore('project', () => {
-  const projectPresenter = usePresenter('projectPresenter', { safeCall: false })
-  const configPresenter = usePresenter('configPresenter', { safeCall: false })
+  const configClient = createConfigClient()
+  const projectClient = createProjectClient()
 
   // --- State ---
   const projects = ref<UIProject[]>([])
@@ -96,12 +96,17 @@ export const useProjectStore = defineStore('project', () => {
     applyDefaultSelection()
   }
 
+  const applyBootstrapDefaultProjectPath = (path: string | null | undefined) => {
+    defaultProjectPath.value = normalizePath(path)
+    projects.value = reconcileProjects(projects.value)
+    applyDefaultSelection()
+  }
+
   const ensureListenersRegistered = () => {
-    if (listenersRegistered || !window?.electron?.ipcRenderer) return
-    window.electron.ipcRenderer.on(
-      CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED,
-      handleDefaultProjectPathChanged
-    )
+    if (listenersRegistered) return
+    configClient.onDefaultProjectPathChanged(({ path }) => {
+      handleDefaultProjectPathChanged(undefined, { path })
+    })
     listenersRegistered = true
   }
 
@@ -111,9 +116,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function loadDefaultProjectPath(): Promise<void> {
     try {
-      defaultProjectPath.value = normalizePath(await configPresenter.getDefaultProjectPath())
-      projects.value = reconcileProjects(projects.value)
-      applyDefaultSelection()
+      applyBootstrapDefaultProjectPath(await configClient.getDefaultProjectPath())
     } catch (e) {
       error.value = `Failed to load default project path: ${e}`
     }
@@ -122,8 +125,8 @@ export const useProjectStore = defineStore('project', () => {
   async function fetchProjects(): Promise<void> {
     try {
       const [result, nextDefaultProjectPath] = await Promise.all([
-        projectPresenter.getRecentProjects(20),
-        configPresenter.getDefaultProjectPath()
+        projectClient.listRecent(20),
+        configClient.getDefaultProjectPath()
       ])
 
       defaultProjectPath.value = normalizePath(nextDefaultProjectPath)
@@ -142,7 +145,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function fetchEnvironments(): Promise<void> {
     try {
-      environments.value = await projectPresenter.getEnvironments()
+      environments.value = await projectClient.listEnvironments()
     } catch (e) {
       error.value = `Failed to load environments: ${e}`
     }
@@ -153,14 +156,14 @@ export const useProjectStore = defineStore('project', () => {
     source: ProjectSelectionSource = normalizePath(path) ? 'manual' : 'none'
   ): void {
     selectedProjectPath.value = normalizePath(path)
-    selectionSource.value = selectedProjectPath.value ? source : 'none'
+    selectionSource.value = selectedProjectPath.value || source === 'manual' ? source : 'none'
     projects.value = reconcileProjects(projects.value)
   }
 
   async function setDefaultProject(path: string | null): Promise<void> {
     const normalizedPath = normalizePath(path)
     try {
-      await configPresenter.setDefaultProjectPath(normalizedPath)
+      await configClient.setDefaultProjectPath(normalizedPath)
       handleDefaultProjectPathChanged(undefined, { path: normalizedPath })
     } catch (e) {
       error.value = `Failed to update default project path: ${e}`
@@ -174,7 +177,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function openDirectory(path: string): Promise<void> {
     try {
-      await projectPresenter.openDirectory(path)
+      await projectClient.openDirectory(path)
     } catch (e) {
       error.value = `Failed to open directory: ${e}`
       throw e
@@ -187,7 +190,7 @@ export const useProjectStore = defineStore('project', () => {
 
   async function openFolderPicker(): Promise<void> {
     try {
-      const selectedPath = await projectPresenter.selectDirectory()
+      const selectedPath = await projectClient.selectDirectory()
       if (selectedPath) {
         const name = selectedPath.split(/[/\\]/).pop() ?? selectedPath
         const nextProjects = projects.value.filter((project) => project.path !== selectedPath)
@@ -209,11 +212,13 @@ export const useProjectStore = defineStore('project', () => {
     environments,
     selectedProjectPath,
     defaultProjectPath,
+    selectionSource,
     error,
     selectedProject,
     fetchProjects,
     fetchEnvironments,
     loadDefaultProjectPath,
+    applyBootstrapDefaultProjectPath,
     refreshEnvironmentData,
     selectProject,
     setDefaultProject,

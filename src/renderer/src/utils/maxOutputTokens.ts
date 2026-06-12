@@ -1,4 +1,6 @@
-const GLOBAL_OUTPUT_TOKEN_MAX = 32000
+import { DERIVED_MODEL_MAX_TOKENS_CAP } from '@shared/modelConfigDefaults'
+
+const GLOBAL_OUTPUT_TOKEN_MAX = DERIVED_MODEL_MAX_TOKENS_CAP
 
 interface CalculateSafeDefaultOptions {
   modelMaxTokens: number

@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat è un client AI multipiattaforma pensato per rendere l'AI più accessibile a tutti.",
+  "website": "Visita il nostro sito",
+  "disclaimerButton": "Disclaimer",
+  "feedbackButton": "Feedback",
+  "disclaimerTitle": "Dichiarazione sui termini d'uso",
+  "checkUpdateButton": "Controlla aggiornamenti",
+  "mockUpdateButton": "Simula aggiornamento scaricato",
+  "clearMockUpdateButton": "Rimuovi aggiornamento simulato",
+  "mockOnboardingButton": "Simula guida iniziale",
+  "updateChannel": "Canale di aggiornamento",
+  "stableChannel": "Stabile",
+  "betaChannel": "Beta",
+  "deviceInfo": {
+    "title": "Informazioni dispositivo",
+    "platform": "Piattaforma",
+    "arch": "Architettura",
+    "cpuModel": "Modello CPU",
+    "totalMemory": "Memoria totale",
+    "osVersion": "Versione sistema"
+  }
+}

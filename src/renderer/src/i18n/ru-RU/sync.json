@@ -1,17 +1,30 @@
 {
   "success": {
-    "importComplete": "Успешно импортировано {count} диалогов."
+    "importComplete": "Успешно импортировано {count} диалогов.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "Функция синхронизации не включена",
     "folderNotExists": "Папка синхронизации не существует",
     "noValidBackup": "В папке синхронизации нет действительных файлов резервной копии",
+    "unsupportedBackupVersion": "Эта резервная копия создана более новой версией DeepChat и не может быть импортирована.",
     "dbNotExists": "Файл базы данных не существует",
     "configNotExists": "Файл конфигурации не существует",
     "tempDbFailed": "Не удалось создать временный файл резервной копии базы данных",
     "tempConfigFailed": "Не удалось создать временный файл резервной копии конфигурации",
     "importFailed": "Импорт не удался, восстановлены исходные данные",
     "importProcess": "Ошибка в процессе импорта",
-    "unknown": "Неизвестная ошибка"
+    "unknown": "Неизвестная ошибка",
+    "encryptedBackupPasswordMissing": "Эта резервная копия зашифрована, но ключ локальной базы данных недоступен. Сначала разблокируйте зашифрованную базу, затем импортируйте снова.",
+    "overwriteEncryptionMismatch": "Для импорта с заменой резервная копия и текущая база должны иметь одинаковое состояние шифрования.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Системная связка ключей недоступна; невозможно безопасно сохранить секретный ключ.",
+    "cloudUnauthorized": "Аутентификация в облаке не удалась. Проверьте Endpoint, bucket, Access Key ID, Secret Access Key и разрешения токена R2."
   }
 }

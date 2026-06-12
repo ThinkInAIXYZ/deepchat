@@ -33,11 +33,44 @@ interface SessionHooks {
   onPermission: PermissionResolver
 }
 
+type AcpConnectionWithUnstableSessionLifecycle = ClientSideConnectionType & {
+  unstable_resumeSession?: (
+    params: schema.ResumeSessionRequest
+  ) => Promise<schema.ResumeSessionResponse>
+  unstable_closeSession?: (
+    params: schema.CloseSessionRequest
+  ) => Promise<schema.CloseSessionResponse>
+  unstable_forkSession?: (params: schema.ForkSessionRequest) => Promise<schema.ForkSessionResponse>
+}
+
+const summarizeMcpServers = (mcpServers: schema.McpServer[]) =>
+  mcpServers.map((server) => {
+    const record = server as Record<string, unknown>
+    return {
+      name: typeof record.name === 'string' ? record.name : 'unknown',
+      type: typeof record.type === 'string' ? record.type : 'stdio'
+    }
+  })
+
+const summarizeSessionResponse = (
+  response: schema.LoadSessionResponse | schema.NewSessionResponse | schema.ResumeSessionResponse
+) => ({
+  sessionId: 'sessionId' in response ? response.sessionId : undefined,
+  keys: Object.keys(response as Record<string, unknown>),
+  configOptionCount: response.configOptions?.length ?? 0,
+  modelCount: response.models?.availableModels?.length ?? 0,
+  currentModelId: response.models?.currentModelId,
+  modeCount: response.modes?.availableModes?.length ?? 0,
+  currentModeId: response.modes?.currentModeId
+})
+
 export interface AcpSessionRecord extends AgentSessionState {
   connection: ClientSideConnectionType
   detachHandlers: Array<() => void>
   workdir: string
   configState?: AcpConfigState
+  promptCapabilities?: schema.PromptCapabilities
+  systemPromptSent?: boolean
   availableModes?: Array<{ id: string; name: string; description: string }>
   currentModeId?: string
   availableCommands?: Array<{
@@ -147,12 +180,6 @@ export class AcpSessionManager {
     this.processManager.clearSession(session.sessionId)
 
     try {
-      await session.connection.cancel({ sessionId: session.sessionId })
-    } catch (error) {
-      console.warn(`[ACP] Failed to cancel session ${session.sessionId}:`, error)
-    }
-
-    try {
       await this.processManager.unbindProcess(session.agentId, conversationId)
     } catch (error) {
       console.warn(
@@ -193,13 +220,26 @@ export class AcpSessionManager {
     }
     this.processManager.bindProcess(agent.id, conversationId, workdir)
 
-    const session = await this.initializeSession(handle, conversationId, agent, workdir).catch(
-      async (error) => {
+    const session = await this.initializeSession(
+      handle,
+      conversationId,
+      agent,
+      workdir,
+      hooks
+    ).catch(async (error) => {
+      const initError = error
+      try {
         await this.processManager.unbindProcess(agent.id, conversationId)
-        throw error
+      } catch (cleanupError) {
+        console.warn(
+          '[ACP] Failed to unbind process after session initialization error:',
+          cleanupError
+        )
       }
-    )
-    const detachListeners = this.attachSessionHooks(agent.id, session.sessionId, hooks)
+      throw initError
+    })
+    const detachListeners =
+      session.detachHandlers ?? this.attachSessionHooks(agent.id, session.sessionId, hooks)
 
     // Register session workdir for fs/terminal operations
     this.processManager.registerSessionWorkdir(session.sessionId, workdir, conversationId)
@@ -269,7 +309,8 @@ export class AcpSessionManager {
       workdir,
       configState,
       availableModes,
-      currentModeId
+      currentModeId,
+      promptCapabilities: handle.promptCapabilities
     }
   }
 
@@ -295,57 +336,18 @@ export class AcpSessionManager {
     handle: AcpProcessHandle,
     conversationId: string,
     agent: AcpAgentConfig,
-    workdir: string
+    workdir: string,
+    hooks: SessionHooks
   ): Promise<{
     sessionId: string
     configState: AcpConfigState
+    promptCapabilities?: schema.PromptCapabilities
     availableModes?: Array<{ id: string; name: string; description: string }>
     currentModeId?: string
+    detachHandlers?: Array<() => void>
   }> {
     try {
-      let mcpServers: schema.McpServer[] = []
-      try {
-        const selections = await this.configPresenter.getAgentMcpSelections(agent.id)
-        if (selections.length > 0) {
-          const serverConfigs = await this.configPresenter.getMcpServers()
-          const converted = selections
-            .map((name) => {
-              const cfg = serverConfigs[name]
-              if (!cfg) return null
-              return convertMcpConfigToAcpFormat(name, cfg)
-            })
-            .filter((item): item is schema.McpServer => Boolean(item))
-
-          mcpServers = filterMcpServersByTransportSupport(converted, handle.mcpCapabilities)
-
-          if (converted.length !== mcpServers.length) {
-            console.info(`[ACP] Filtered MCP servers by transport support for agent ${agent.id}:`, {
-              selected: selections,
-              converted: converted.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              ),
-              passed: mcpServers.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              )
-            })
-          } else {
-            console.info(`[ACP] Passing MCP servers to agent ${agent.id}:`, {
-              selected: selections,
-              passed: mcpServers.map((s) =>
-                'type' in s ? `${s.name}:${s.type}` : `${s.name}:stdio`
-              )
-            })
-          }
-        } else {
-          console.info(`[ACP] No MCP selections for agent ${agent.id}; passing none.`)
-        }
-      } catch (error) {
-        console.warn(
-          `[ACP] Failed to resolve MCP servers for agent ${agent.id}; passing none.`,
-          error
-        )
-        mcpServers = []
-      }
+      const mcpServers = await this.resolveMcpServersForAgent(agent.id, handle.mcpCapabilities)
 
       const persistedSession = await this.sessionPersistence.getSessionData(
         conversationId,
@@ -355,17 +357,121 @@ export class AcpSessionManager {
 
       let sessionId = ''
       let configState = handle.configState ?? createEmptyAcpConfigState('legacy')
+      let detachHandlers: Array<() => void> | undefined
       let responseModeState:
         | {
             availableModes?: Array<{ id: string; name: string; description?: string | null }>
             currentModeId?: string
           }
         | undefined
-      let sessionResponse: schema.LoadSessionResponse | schema.NewSessionResponse | undefined
+      let sessionResponse:
+        | schema.LoadSessionResponse
+        | schema.NewSessionResponse
+        | schema.ResumeSessionResponse
+        | undefined
 
+      const connection = handle.connection as AcpConnectionWithUnstableSessionLifecycle
+      const canResumeSession = Boolean(
+        handle.supportsSessionResume && connection.unstable_resumeSession
+      )
       const canLoadSession = Boolean(handle.supportsLoadSession)
-      if (canLoadSession && persistedSessionId) {
+      console.info(`[ACP] Initializing ACP session for agent ${agent.id}:`, {
+        conversationId,
+        workdir,
+        canResumeSession,
+        canLoadSession,
+        persistedSessionId,
+        mcpServerCount: mcpServers.length
+      })
+      if (canResumeSession && persistedSessionId) {
         try {
+          const resumeRequestSummary = {
+            cwd: workdir,
+            sessionId: persistedSessionId,
+            mcpServerCount: mcpServers.length,
+            mcpServers: summarizeMcpServers(mcpServers)
+          }
+          console.info(
+            `[ACP] Resuming persisted ACP session ${persistedSessionId} for conversation ${conversationId}`,
+            resumeRequestSummary
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'request',
+            action: 'session/resume',
+            sessionId: persistedSessionId,
+            payload: resumeRequestSummary
+          })
+          this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
+          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
+          const resumeResponse = await connection.unstable_resumeSession!({
+            cwd: workdir,
+            mcpServers,
+            sessionId: persistedSessionId
+          })
+          sessionId = persistedSessionId
+          sessionResponse = resumeResponse
+          responseModeState = resumeResponse.modes ?? undefined
+          const resumedConfigState = normalizeAcpConfigState({
+            configOptions: resumeResponse.configOptions,
+            models: resumeResponse.models,
+            modes: resumeResponse.modes
+          })
+          if (hasAcpConfigStateData(resumedConfigState)) {
+            configState = resumedConfigState
+          }
+          console.info(
+            `[ACP] Resumed persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'response',
+            action: 'session/resume',
+            sessionId,
+            payload: summarizeSessionResponse(resumeResponse)
+          })
+        } catch (error) {
+          detachHandlers?.forEach((dispose) => {
+            try {
+              dispose()
+            } catch (disposeError) {
+              console.warn('[ACP] Failed to detach resumed session handler:', disposeError)
+            }
+          })
+          detachHandlers = undefined
+          this.processManager.clearSession(persistedSessionId)
+          console.warn(
+            `[ACP] Failed to resume persisted session ${persistedSessionId} for conversation ${conversationId}; trying load/new fallback.`,
+            error
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'error',
+            action: 'session/resume',
+            sessionId: persistedSessionId,
+            message: error instanceof Error ? error.message : String(error),
+            payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+          })
+        }
+      }
+
+      if (!sessionId && canLoadSession && persistedSessionId) {
+        try {
+          const loadRequestSummary = {
+            cwd: workdir,
+            sessionId: persistedSessionId,
+            mcpServerCount: mcpServers.length,
+            mcpServers: summarizeMcpServers(mcpServers)
+          }
+          console.info(
+            `[ACP] Loading persisted ACP session ${persistedSessionId} for conversation ${conversationId}`,
+            loadRequestSummary
+          )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'request',
+            action: 'session/load',
+            sessionId: persistedSessionId,
+            payload: loadRequestSummary
+          })
+          this.processManager.registerSessionWorkdir(persistedSessionId, workdir, conversationId)
+          detachHandlers = this.attachSessionHooks(agent.id, persistedSessionId, hooks)
           const loadResponse = await handle.connection.loadSession({
             cwd: workdir,
             mcpServers,
@@ -385,15 +491,51 @@ export class AcpSessionManager {
           console.info(
             `[ACP] Loaded persisted session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
           )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'response',
+            action: 'session/load',
+            sessionId,
+            payload: summarizeSessionResponse(loadResponse)
+          })
         } catch (error) {
+          detachHandlers?.forEach((dispose) => {
+            try {
+              dispose()
+            } catch (disposeError) {
+              console.warn('[ACP] Failed to detach persisted session handler:', disposeError)
+            }
+          })
+          detachHandlers = undefined
+          this.processManager.clearSession(persistedSessionId)
           console.warn(
             `[ACP] Failed to load persisted session ${persistedSessionId} for conversation ${conversationId}; falling back to newSession.`,
             error
           )
+          this.processManager.appendDebugEvent?.(agent.id, {
+            kind: 'error',
+            action: 'session/load',
+            sessionId: persistedSessionId,
+            message: error instanceof Error ? error.message : String(error),
+            payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+          })
         }
       }
 
       if (!sessionId) {
+        const newSessionRequestSummary = {
+          cwd: workdir,
+          mcpServerCount: mcpServers.length,
+          mcpServers: summarizeMcpServers(mcpServers)
+        }
+        console.info(
+          `[ACP] Creating new ACP session for conversation ${conversationId} (agent ${agent.id})`,
+          newSessionRequestSummary
+        )
+        this.processManager.appendDebugEvent?.(agent.id, {
+          kind: 'request',
+          action: 'session/new',
+          payload: newSessionRequestSummary
+        })
         const response = await handle.connection.newSession({
           cwd: workdir,
           mcpServers
@@ -409,6 +551,15 @@ export class AcpSessionManager {
         if (hasAcpConfigStateData(nextConfigState)) {
           configState = nextConfigState
         }
+        console.info(
+          `[ACP] Created new ACP session ${sessionId} for conversation ${conversationId} (agent ${agent.id})`
+        )
+        this.processManager.appendDebugEvent?.(agent.id, {
+          kind: 'response',
+          action: 'session/new',
+          sessionId,
+          payload: summarizeSessionResponse(response)
+        })
       }
 
       if (!sessionResponse) {
@@ -463,11 +614,65 @@ export class AcpSessionManager {
         sessionId,
         configState,
         availableModes,
-        currentModeId
+        currentModeId,
+        detachHandlers,
+        promptCapabilities: handle.promptCapabilities
       }
     } catch (error) {
       console.error(`[ACP] Failed to initialize session for agent ${agent.id}:`, error)
+      this.processManager.appendDebugEvent?.(agent.id, {
+        kind: 'error',
+        action: 'session/initialize',
+        message: error instanceof Error ? error.message : String(error),
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
       throw error
+    }
+  }
+
+  async resolveMcpServersForAgent(
+    agentId: string,
+    mcpCapabilities?: schema.McpCapabilities
+  ): Promise<schema.McpServer[]> {
+    try {
+      const selections = await this.configPresenter.getAgentMcpSelections(agentId)
+      if (selections.length === 0) {
+        console.info(`[ACP] No MCP selections for agent ${agentId}; passing none.`)
+        return []
+      }
+
+      const serverConfigs = await this.configPresenter.getMcpServers()
+      const converted = selections
+        .map((name) => {
+          const cfg = serverConfigs[name]
+          if (!cfg) return null
+          return convertMcpConfigToAcpFormat(name, cfg)
+        })
+        .filter((item): item is schema.McpServer => Boolean(item))
+
+      const filtered = filterMcpServersByTransportSupport(converted, mcpCapabilities)
+      if (converted.length !== filtered.length) {
+        console.info(`[ACP] Filtered MCP servers by transport support for agent ${agentId}:`, {
+          selected: selections,
+          converted: converted.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          ),
+          passed: filtered.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          )
+        })
+      } else {
+        console.info(`[ACP] Passing MCP servers to agent ${agentId}:`, {
+          selected: selections,
+          passed: filtered.map((server) =>
+            'type' in server ? `${server.name}:${server.type}` : `${server.name}:stdio`
+          )
+        })
+      }
+      return filtered
+    } catch (error) {
+      console.warn(`[ACP] Failed to resolve MCP servers for agent ${agentId}; passing none.`, error)
+      return []
     }
   }
 }

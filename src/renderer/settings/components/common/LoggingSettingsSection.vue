@@ -66,12 +66,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 const uiSettingsStore = useUiSettingsStore()
 const langStore = useLanguageStore()
 

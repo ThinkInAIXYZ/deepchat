@@ -2,7 +2,20 @@ import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vite
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
-import { OpenAICompatibleProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
+import { AiSdkProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+
+const {
+  mockRunAiSdkCoreStream,
+  mockRunAiSdkDimensions,
+  mockRunAiSdkEmbeddings,
+  mockRunAiSdkGenerateText
+} = vi.hoisted(() => ({
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkDimensions: vi.fn(),
+  mockRunAiSdkEmbeddings: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'mock completion' })
+}))
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -75,6 +88,13 @@ vi.mock('@/presenter/proxyConfig', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)
   }
+}))
+
+vi.mock('../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
+  runAiSdkDimensions: mockRunAiSdkDimensions,
+  runAiSdkEmbeddings: mockRunAiSdkEmbeddings,
+  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
 describe('LLMProviderPresenter Integration Tests', () => {
@@ -158,6 +178,19 @@ describe('LLMProviderPresenter Integration Tests', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
+    mockRunAiSdkGenerateText.mockResolvedValue({ content: 'mock completion' })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [{ id: 'mock-gpt-thinking' }, { id: 'gpt-4-mock' }, { id: 'mock-gpt-markdown' }]
+        }),
+        text: vi.fn().mockResolvedValue('')
+      })
+    )
 
     // Reset mock implementations
     mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
@@ -194,6 +227,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
     // Wait for any pending async operations to complete
     await new Promise((resolve) => setTimeout(resolve, 100))
+    vi.unstubAllGlobals()
   })
 
   describe('Basic Provider Management', () => {
@@ -214,6 +248,27 @@ describe('LLMProviderPresenter Integration Tests', () => {
       await llmProviderPresenter.setCurrentProvider('mock-openai-api')
       const currentProvider = llmProviderPresenter.getCurrentProvider()
       expect(currentProvider?.id).toBe('mock-openai-api')
+    })
+
+    it('defers provider bootstrap until a provider instance is requested', async () => {
+      const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
+
+      const presenter = new LLMProviderPresenter(
+        mockConfigPresenter,
+        mockSqlitePresenter,
+        presenterRuntimeMock.mcpPresenter as any
+      )
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+
+      presenter.getProviderInstance('mock-openai-api')
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
     })
 
     it('should resolve novita via apiType fallback without an id-specific provider mapping', () => {
@@ -237,7 +292,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
       const providerInstance = llmProviderPresenter.getProviderInstance('novita')
 
-      expect(providerInstance).toBeInstanceOf(OpenAICompatibleProvider)
+      expect(providerInstance).toBeInstanceOf(AiSdkProvider)
     })
   })
 
@@ -310,6 +365,112 @@ describe('LLMProviderPresenter Integration Tests', () => {
       expect(response.length).toBeGreaterThan(0)
     }, 15000)
 
+    it('falls back to completion transcription when audio endpoint is unsupported', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: string | URL | Request) => {
+          const url =
+            typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+          if (url.endsWith('/audio/transcriptions')) {
+            return {
+              ok: false,
+              status: 404,
+              text: vi.fn().mockResolvedValue('mock transcription failure')
+            }
+          }
+
+          return {
+            ok: true,
+            json: vi.fn().mockResolvedValue({
+              data: [{ id: 'mock-gpt-thinking' }, { id: 'gpt-4-mock' }, { id: 'mock-gpt-markdown' }]
+            }),
+            text: vi.fn().mockResolvedValue('')
+          }
+        })
+      )
+
+      const transcript = await llmProviderPresenter.transcribeAudioStandalone(
+        'mock-openai-api',
+        'mock-gpt-thinking',
+        'AQID',
+        'audio/wav',
+        'recording.wav'
+      )
+
+      expect(transcript).toBe('mock completion')
+    }, 15000)
+
+    it('normalizes audio MIME type casing before transcription validation', async () => {
+      const transcribeSpy = vi
+        .spyOn(AiSdkProvider.prototype, 'transcribeAudio')
+        .mockResolvedValue('mock transcript')
+
+      const transcript = await llmProviderPresenter.transcribeAudioStandalone(
+        'mock-openai-api',
+        'mock-gpt-thinking',
+        'AQID',
+        'Audio/WAV',
+        'recording.wav'
+      )
+
+      expect(transcript).toBe('mock transcript')
+      expect(transcribeSpy).toHaveBeenCalledWith(
+        'mock-gpt-thinking',
+        'AQID',
+        'audio/wav',
+        'recording.wav',
+        expect.any(Object)
+      )
+    }, 15000)
+
+    it('should generate images through the standalone image runtime', async () => {
+      mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+        maxTokens: 4096,
+        contextLength: 4096,
+        temperature: 0.7,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.ImageGeneration,
+        imageGeneration: { quality: 'low' }
+      })
+      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
+        yield {
+          type: 'image_data',
+          image_data: { data: 'imgcache://generated.png', mimeType: 'image/png' }
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+
+      const response = await llmProviderPresenter.generateImageStandalone(
+        'mock-openai-api',
+        'A warm sunset over the ocean',
+        'gpt-image-1',
+        { size: '1024x1024' }
+      )
+
+      expect(response).toEqual({
+        providerId: 'mock-openai-api',
+        modelId: 'gpt-image-1',
+        options: { quality: 'low', size: '1024x1024' },
+        images: [{ data: 'imgcache://generated.png', mimeType: 'image/png' }]
+      })
+      expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
+        expect.any(Object),
+        [{ role: 'user', content: 'A warm sunset over the ocean' }],
+        'gpt-image-1',
+        expect.objectContaining({
+          apiEndpoint: ApiEndpointType.Image,
+          type: ModelType.ImageGeneration,
+          imageGeneration: { quality: 'low', size: '1024x1024' }
+        }),
+        0.7,
+        4096,
+        []
+      )
+    }, 15000)
+
     it('should summarize titles', async () => {
       const messages = [
         { role: 'user' as const, content: 'Hello, I want to learn about artificial intelligence' },
@@ -369,6 +530,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
     })
 
     it('should handle provider check failure for invalid config', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+
       // 创建一个无效配置的provider
       const invalidProvider: LLM_PROVIDER = {
         id: 'invalid-test',

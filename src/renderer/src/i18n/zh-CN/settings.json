@@ -8,7 +8,16 @@
     "searchEngine": "搜索引擎",
     "searchEngineSelect": "选择搜索引擎",
     "searchPreview": "搜索预览",
+    "launchAtLoginEnabled": "开机时启动 DeepChat",
     "autoScrollEnabled": "生成时自动滚动",
+    "privacyMode": "隐私模式",
+    "privacyModeDescription": "启动隐私模式后，DeepChat 将不会自动发起如下请求：",
+    "privacyModeAutoUpdate": "应用更新检查",
+    "privacyModeProviderDb": "服务商与模型元数据刷新",
+    "privacyModeAcpRegistry": "ACP 注册表刷新与图标同步",
+    "privacyModeNpmRegistry": "MCP npm 注册表自动探测",
+    "privacyModeManualActions": "手动检查与手动刷新继续可用。",
+    "privacyModeIntegrations": "自行配置的 MCP / Remote 等第三方集成不受影响",
     "autoCompaction": {
       "title": "自动压缩",
       "enabled": "启用自动压缩",
@@ -104,12 +113,14 @@
     "modelsTitle": "模型默认值",
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
-    "temperature": "Temperature",
-    "contextLength": "Context Length",
-    "maxTokens": "Max Tokens",
-    "thinkingBudget": "Thinking Budget",
-    "reasoningEffort": "Reasoning Effort",
-    "verbosity": "Verbosity",
+    "visionModel": "视觉模型",
+    "imageGenerationModel": "图像生成模型",
+    "temperature": "温度",
+    "contextLength": "上下文长度",
+    "maxTokens": "最大 Token 数",
+    "thinkingBudget": "思考预算",
+    "reasoningEffort": "推理强度",
+    "verbosity": "详细程度",
     "interleaved": "强制兼容交错思考",
     "systemPrompt": "默认系统提示词",
     "systemPromptPlaceholder": "留空则使用空白系统提示词",
@@ -118,6 +129,17 @@
     "permissionMode": "默认权限",
     "permissionFullAccess": "全部启用",
     "permissionDefault": "默认权限",
+    "subagentsTitle": "subagent",
+    "subagentsDescription": "配置 `subagent_orchestrator` 可复用的 subagent 会话槽位。",
+    "subagentsEnabled": "启用 subagent",
+    "subagentTargetType": "目标类型",
+    "subagentTargetSelf": "当前智能体",
+    "subagentTargetAgent": "指定智能体",
+    "subagentDisplayName": "显示名称",
+    "subagentDescription": "槽位描述",
+    "subagentTargetAgentLabel": "目标智能体",
+    "subagentLimit": "{count}/{max} 个槽位",
+    "addSubagentSlot": "+ 添加槽位",
     "toolsTitle": "内置工具",
     "compactionTitle": "自动压缩",
     "compactionEnabled": "启用自动压缩",
@@ -128,7 +150,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "配置 webhook 通知与生命周期 hooks。",
+    "description": "配置生命周期 Hook 命令。",
     "events": {
       "title": "事件",
       "SessionStart": "会话开始",
@@ -140,32 +162,45 @@
       "Stop": "停止",
       "SessionEnd": "会话结束"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "通过 Telegram Bot 发送通知。",
-      "botToken": "机器人 Token",
-      "botTokenPlaceholder": "Telegram 机器人 Token",
-      "chatId": "聊天 ID",
-      "chatIdPlaceholder": "例如 123456789",
-      "threadId": "话题 ID（可选）",
-      "threadIdPlaceholder": "可选的话题 ID"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "通过 Discord webhook 发送通知。",
-      "webhookUrl": "Webhook URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "通过 Confirmo Hook 发送通知（默认发送全部事件）。",
-      "unavailable": "未找到 Confirmo Hook：{path}"
-    },
     "commands": {
       "title": "Hooks Commands",
-      "description": "为每个事件执行命令。",
-      "hint": "payload 以 JSON 写入 stdin。",
-      "commandPlaceholder": "要执行的命令"
+      "description": "按选中的生命周期事件执行自定义命令。",
+      "hint": "完整 payload 会以 JSON 写入 stdin。",
+      "commandPlaceholder": "要执行的命令",
+      "commandLabel": "命令",
+      "name": "名称",
+      "namePlaceholder": "Hook 名称",
+      "newHook": "新建 Hook",
+      "empty": "暂无 Hook，点击右上角新建。",
+      "defaultName": "Hook {index}",
+      "guideTitle": "使用说明",
+      "guideDescription": "勾选的事件触发后，DeepChat 会执行该命令。当前事件可通过 stdin JSON、环境变量和命令行占位符读取。",
+      "deliveryTitle": "传参方式",
+      "deliveryStdin": "完整 payload 会以 JSON 写入 stdin。",
+      "deliveryPlaceholder": "可以在命令行中直接使用命令行占位符。",
+      "deliveryEnv": "同一组基础元数据也会同步写入环境变量。",
+      "metadataOnly": "命令行占位符更适合小型元数据；prompt、tool 详情、permission、usage、stop、error 等内容请从 stdin JSON 读取。",
+      "stdinPreviewLabel": "stdin 示例",
+      "placeholdersTitle": "命令行占位符",
+      "placeholdersDescription": "占位符会在执行前展开，可以直接放在命令后面作为参数。",
+      "envTitle": "环境变量",
+      "examplesTitle": "示例命令",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "当前事件名",
+        "time": "事件时间，ISO-8601 格式",
+        "isTest": "是否由测试按钮触发",
+        "conversationId": "当前会话 ID",
+        "workdir": "当前会话解析出的工作目录",
+        "agentId": "当前 Agent ID（如有）",
+        "providerId": "当前 Provider ID（如有）",
+        "modelId": "当前 Model ID（如有）",
+        "messageId": "当前用户消息 ID（如有）",
+        "toolName": "当前工具名（如有）",
+        "toolCallId": "当前工具调用 ID（如有）"
+      }
     },
     "test": {
       "button": "测试",
@@ -192,6 +227,47 @@
     "importData": "导入数据",
     "incrementImport": "增量导入",
     "overwriteImport": "覆盖导入",
+    "cloudSync": {
+      "title": "云同步 (S3 兼容)",
+      "description": "将备份上传到 Cloudflare R2 等 S3 兼容存储，并在另一台设备拉取最新备份。",
+      "endpoint": "Endpoint",
+      "bucket": "存储桶",
+      "region": "区域",
+      "prefix": "路径前缀",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "已配置（留空表示不修改）",
+      "safeStorageUnavailable": "系统密钥链不可用，无法安全保存密钥。",
+      "save": "保存",
+      "test": "测试连接",
+      "upload": "上传到云端",
+      "pull": "从云端拉取最新备份",
+      "savedTitle": "云端配置已保存",
+      "testSuccessTitle": "连接成功",
+      "testFailedTitle": "连接失败",
+      "uploadSuccessTitle": "上传成功",
+      "uploadFailedTitle": "上传失败",
+      "pullSuccessTitle": "拉取成功",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "自定义 S3 兼容",
+      "r2GuideTitle": "在 Cloudflare R2 的 API 令牌页面复制 S3 客户端凭据。",
+      "r2EndpointHint": "复制“S3 客户端使用管辖权地特定的终结点”里的 URL",
+      "r2AccessKeyHint": "复制“访问密钥 ID”，不是 Account ID",
+      "r2SecretHint": "复制“机密访问密钥”，不要使用 cfat_ 开头的令牌值",
+      "r2DocsLink": "查看 Cloudflare R2 S3 文档",
+      "endpointR2Description": "形如 https://<account_id>.r2.cloudflarestorage.com，不要带存储桶名。",
+      "endpointCustomDescription": "填写 S3 兼容服务的 Endpoint。",
+      "r2AccessKeyAccountIdWarning": "这个值看起来像 R2 Account ID；Access Key ID 应该来自 S3 客户端凭据区域。",
+      "r2SecretApiTokenError": "这里需要 S3 Secret Access Key，不是 cfat_ 开头的 Cloudflare API 令牌值。",
+      "secretStoredDescription": "已保存密钥；留空会保留当前密钥，输入新值会替换。",
+      "secretInputDescription": "从 S3 客户端凭据中复制 Secret Access Key。",
+      "advancedTitle": "高级设置",
+      "r2RegionDescription": "Cloudflare R2 通常保持 auto。",
+      "prefixDescription": "备份会写入这个路径前缀下。",
+      "saveAndTest": "保存并测试",
+      "saveOnly": "仅保存",
+      "saveAndTestFirst": "请先保存并测试云端配置。"
+    },
     "backupSelectLabel": "选择备份时间点",
     "backupSelectDescription": "请选择需要导入的备份。",
     "selectBackupPlaceholder": "请选择备份",
@@ -221,6 +297,91 @@
       "backupSuccessTitle": "备份成功",
       "backupSuccessMessage": "成功备份了数据"
     },
+    "syncSectionTitle": "数据备份与同步",
+    "operationsSectionTitle": "数据操作",
+    "resetDataDescription": "按类型重置聊天、知识库、配置或全部数据。",
+    "databaseRepair": {
+      "title": "数据库修复",
+      "description": "检测并自动修复数据库",
+      "button": "检查并修复数据库",
+      "running": "检查并修复中...",
+      "lastResultLabel": "最近结果：{result}",
+      "summaryHealthy": "结构正常",
+      "summaryRepaired": "已修复 {count} 个问题",
+      "summaryRepairedWithManual": "已修复 {repaired} 个问题，仍有 {manual} 个需手动处理",
+      "summaryManualOnly": "仍有 {manual} 个问题需要人工处理",
+      "manualHint": "仍有 {count} 个问题未自动修复，需要人工处理。",
+      "toastSuggestedTitle": "建议修复数据库",
+      "toastSuggestedDescription": "DeepChat 检测到数据库结构问题（{reason}），可以现在执行数据库修复。",
+      "toastAction": "去修复",
+      "toastHealthyTitle": "数据库结构正常",
+      "toastHealthyDescription": "未发现需要修复的 schema 问题。",
+      "toastCompletedTitle": "数据库修复完成",
+      "toastRepairedDescription": "已修复 {count} 个问题。",
+      "toastManualDescription": "已修复 {repaired} 个问题，仍有 {manual} 个问题需要人工处理。",
+      "toastFailedTitle": "数据库修复失败",
+      "toastFailedDescription": "暂时无法完成数据库修复，请查看日志后重试。",
+      "reasons": {
+        "missing-table": "缺表",
+        "missing-column": "缺列",
+        "column-count-mismatch": "列数不匹配",
+        "type-mismatch": "列类型不匹配"
+      }
+    },
+    "databaseEncryption": {
+      "title": "SQLite 数据库加密",
+      "description": "使用 SQLCipher 加密 agent.db；系统解锁不可用时需要输入 SQLite 密码。",
+      "enabled": "已启用",
+      "disabled": "未启用",
+      "cipher": "加密方式",
+      "systemUnlock": "系统解锁",
+      "startupUnlock": "启动解锁",
+      "lastMigration": "上次迁移",
+      "loading": "加载中",
+      "never": "从未",
+      "notRequired": "不需要",
+      "systemUnlockAvailable": "可用",
+      "systemUnlockUnavailable": "不可用",
+      "systemUnlockMode": "系统解锁",
+      "manualUnlock": "手动输入密码",
+      "currentPassword": "当前密码",
+      "newPassword": "新的 SQLite 密码",
+      "confirmPassword": "确认密码",
+      "passwordMismatch": "两次输入的密码不一致",
+      "systemCredentialStore": "系统安全存储可用时，DeepChat 会把 SQLite 密码加密保存到系统凭据库（例如 macOS Keychain、Windows 凭据保险箱或 Linux secret store）。首次解锁成功后，后续启动通常会自动打开；只有迁移数据、系统凭据丢失或无法解密、以及安全存储不可用时，才需要再次输入加密密钥。",
+      "safeStorageUnavailable": "当前系统无法使用 Electron safeStorage。启用后每次启动都需要手动输入密码。",
+      "enableButton": "启用加密",
+      "changeButton": "修改密码",
+      "disableButton": "关闭加密",
+      "enabledTitle": "数据库加密已启用",
+      "changedTitle": "SQLite 密码已修改",
+      "disabledTitle": "数据库加密已关闭",
+      "failedTitle": "数据库加密操作失败",
+      "failedDescription": "请检查密码后重试。",
+      "setPasswordButton": "设置密码",
+      "enableDialogTitle": "设置 SQLite 密码",
+      "changeDialogTitle": "修改 SQLite 密码",
+      "disableDialogTitle": "关闭数据库加密",
+      "enableDialogDescription": "创建加密 SQLite 数据库，并将当前本地数据迁移进去。",
+      "changeDialogDescription": "将当前加密数据库迁移为使用新密码的新加密数据库。",
+      "disableDialogDescription": "将当前加密数据库迁移回本地明文数据库。",
+      "cancelButton": "取消",
+      "unknown": "未知"
+    },
+    "modelConfigUpdate": {
+      "title": "更新模型配置",
+      "descriptionPrefix": "从 ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": " 项目同步模型数据",
+      "button": "立即更新",
+      "updating": "更新中...",
+      "updatedTitle": "模型配置已更新",
+      "updatedDescription": "已刷新到最新的服务商元数据。",
+      "upToDateTitle": "已是最新",
+      "upToDateDescription": "当前本地模型配置已使用最新的服务商元数据。",
+      "failedTitle": "更新失败",
+      "failedDescription": "暂时无法刷新模型配置，请稍后重试。"
+    },
     "yoBrowser": {
       "title": "YoBrowser 沙盒",
       "description": "独立的浏览器沙盒，不与主应用共享 Cookie 和本地存储。可在此一键清空 YoBrowser 数据。",
@@ -233,6 +394,101 @@
       "clearedDescription": "沙盒会话已重置，相关标签页将重新加载。",
       "clearFailedTitle": "清空失败",
       "clearFailedDescription": "请重试或查看日志获取更多信息。"
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "管理备份同步、隐私模式、数据维护与危险操作。",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "重置聊天、知识库或全部数据。此操作不可撤销。"
+    },
+    "providerImport": {
+      "entryTitle": "导入其他 Agent 配置",
+      "entryDescription": "扫描 CC Switch、Alma、Cherry Studio、Hermes 和 OpenClaw 的本地 provider 配置，快速迁移密钥和模型列表。",
+      "entryButton": "从其他 Agent 导入",
+      "dialogTitle": "从其他 Agent 导入",
+      "dialogDescription": "先选择检测到的应用，再逐个确认要导入到 DeepChat 的 provider。",
+      "toastTitle": "Provider 导入完成",
+      "toastDescription": "已导入 {count} 个 provider。",
+      "steps": {
+        "scan": "扫描",
+        "providers": "Provider",
+        "done": "完成"
+      },
+      "scanningTitle": "正在扫描已安装的 Agent",
+      "scanningDescription": "DeepChat 只读取已知的本地配置文件，不会上传任何数据。",
+      "scanFailedTitle": "扫描失败",
+      "sourcesTitle": "检测到的来源",
+      "sourcesDescription": "可以选择一个或多个 Agent，DeepChat 会按列表顺序依次处理。",
+      "selectedSources": "已选择 {selected}/{total}",
+      "noSourcesTitle": "没有找到可导入的 provider 配置",
+      "noSourcesDescription": "请先安装支持的 Agent，或在对应 Agent 中配置 provider 密钥。",
+      "providersFound": "{count} 个 provider",
+      "sourceProgress": "{current}/{total}",
+      "overwriteNote": "如果多个选中的 provider 映射到同一个 DeepChat provider，后面的来源会覆盖前面的来源。",
+      "noProvidersTitle": "这个来源里没有 provider 数据",
+      "noProvidersDescription": "已选择该 Agent，但没有解析到可导入的 provider 条目。",
+      "apiKey": "密钥 {value}",
+      "noModels": "没有模型列表",
+      "modelsImported": "{count} 个模型",
+      "importingTitle": "正在导入 provider",
+      "importingDescription": "DeepChat 正在写入选中的 provider 和自定义模型条目。",
+      "doneTitle": "导入总情况",
+      "doneDescription": "已导入 {count} 个 provider。下面可以查看每个 provider 的结果。",
+      "badges": {
+        "configured": "已配置"
+      },
+      "sourceStatus": {
+        "found": "已找到",
+        "not_found": "未找到",
+        "error": "读取失败",
+        "unsupported_platform": "不支持当前平台"
+      },
+      "targetKind": {
+        "builtin": "内置",
+        "custom": "自定义",
+        "unsupported": "不支持"
+      },
+      "warnings": {
+        "already_configured": "DeepChat 中已有配置，默认不会选中。",
+        "missing_api_key": "缺少 API Key 或必要的 endpoint。",
+        "unsupported_provider": "DeepChat 暂时无法自动导入这个 provider。",
+        "overwrites_previous_selection": "这个选择与前面的来源冲突。",
+        "credential_only_import": "仅导入 API Key，DeepChat 会保留内置 provider 的 endpoint 和 runtime。"
+      },
+      "conflicts": {
+        "overridesPrevious": "这个选择会覆盖前面选中的同名 DeepChat provider。",
+        "overwrittenByLater": "后面选中的来源会覆盖这个 provider。"
+      },
+      "summary": {
+        "imported": "已导入",
+        "created": "新建",
+        "updated": "更新",
+        "overwritten": "覆盖",
+        "models": "模型",
+        "skipped": "跳过"
+      },
+      "resultStatus": {
+        "created": "已新建",
+        "updated": "已更新",
+        "skipped": "已跳过",
+        "overwritten": "已覆盖"
+      },
+      "actions": {
+        "rescan": "重新扫描",
+        "selectAll": "全选",
+        "clearSelected": "清空",
+        "import": "导入选中项"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "导入失败：{message}"
     }
   },
   "dashboard": {
@@ -338,6 +594,9 @@
     },
     "unavailable": "暂无"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "弱 Agent 能力：仅支持 legacy fallback 工具调用"
+  },
   "model": {
     "title": "模型设置",
     "systemPrompt": {
@@ -402,11 +661,20 @@
       },
       "temperature": {
         "label": "温度",
-        "description": "控制输出的随机性，大部分模型0-1，部分支持0-2之间，越高越随机"
+        "description": "控制输出的随机性，大部分模型0-1，部分支持0-2之间，越高越随机",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在开启思考时固定为 {enabled}，关闭思考时固定为 {disabled}。"
+      },
+      "topP": {
+        "label": "Top P（核采样）",
+        "description": "控制核采样范围。留空使用模型或服务商默认值。"
       },
       "vision": {
         "label": "视觉能力",
         "description": "模型是否支持视觉能力"
+      },
+      "speechRecognition": {
+        "label": "语音识别",
+        "description": "控制此模型是否允许通过本地语音识别转成文字输入。"
       },
       "functionCall": {
         "label": "函数调用",
@@ -414,7 +682,11 @@
       },
       "reasoning": {
         "label": "推理能力",
-        "description": "模型是否支持推理能力"
+        "description": "该模型支持推理能力"
+      },
+      "reasoningToggle": {
+        "label": "启用推理",
+        "description": "控制该模型默认是否启用推理"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -438,7 +710,8 @@
           "chat": "语言模型",
           "embedding": "嵌入模型",
           "rerank": "重排序模型",
-          "imageGeneration": "图像生成模型"
+          "imageGeneration": "图像生成模型",
+          "videoGeneration": "视频生成模型"
         }
       },
       "apiEndpoint": {
@@ -446,7 +719,8 @@
         "description": "选择此模型使用的 OpenAI API 端点。",
         "options": {
           "chat": "文本生成",
-          "image": "图片生成"
+          "image": "图片生成",
+          "video": "视频生成"
         }
       },
       "resetToDefault": "重置为默认",
@@ -464,10 +738,13 @@
         "description": "控制模型的推理深度，更高的努力程度会产生更好的结果但响应更慢",
         "placeholder": "选择推理努力程度",
         "options": {
+          "none": "None - 不使用推理",
           "minimal": "Minimal - 最快响应",
           "low": "Low - 低努力",
           "medium": "Medium - 中等努力",
-          "high": "High - 高努力"
+          "high": "High - 高努力",
+          "xhigh": "XHigh - 最大努力程度",
+          "max": "Max - 极限努力程度"
         }
       },
       "verbosity": {
@@ -489,7 +766,120 @@
         "contextLengthMax": "上下文长度不能超过10000000",
         "temperatureRequired": "温度不能为空",
         "temperatureMin": "温度必须大于等于0",
-        "temperatureMax": "温度必须小于等于2"
+        "temperatureMax": "温度必须小于等于2",
+        "timeoutMin": "请求超时时间不能小于1000毫秒",
+        "timeoutMax": "请求超时时间不能超过3600000毫秒",
+        "topPRange": "Top P 必须大于 0 且小于或等于 1"
+      },
+      "endpointType": {
+        "label": "协议类型",
+        "description": "选择 New API 为当前模型使用的上游协议。",
+        "placeholder": "选择协议类型",
+        "required": "协议类型为必填项",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Image Generation",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "推理内容显示",
+        "description": "在开启推理时，控制推理内容是隐藏还是以摘要形式显示",
+        "placeholder": "选择推理内容显示方式",
+        "options": {
+          "omitted": "Omitted - 隐藏推理内容",
+          "summarized": "Summarized - 显示推理摘要"
+        }
+      },
+      "timeout": {
+        "label": "请求超时时间（毫秒）",
+        "description": "设置模型单次请求的超时时间，超过后将自动中断请求。"
+      },
+      "imageGeneration": {
+        "default": "默认",
+        "size": {
+          "label": "图片尺寸",
+          "custom": "自定义",
+          "placeholder": "例如 2048x2048",
+          "experimental": "该尺寸超过 2560x1440，OpenAI 标记为实验性输出。",
+          "validation": {
+            "invalid_format": "请使用 {width}x{height} 格式。",
+            "invalid_multiple": "宽高都必须是 16 的倍数。",
+            "side_too_large": "宽高都不能超过 3840px。",
+            "aspect_ratio_too_large": "长边不能超过短边的 3 倍。",
+            "pixel_count_out_of_range": "总像素必须在 655360 到 8294400 之间。"
+          }
+        },
+        "quality": {
+          "label": "图片质量",
+          "options": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "auto": "自动"
+          }
+        },
+        "outputFormat": {
+          "label": "输出格式",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "压缩质量",
+          "placeholder": "默认：100",
+          "validation": "压缩质量必须是 0 到 100 的整数。"
+        },
+        "background": {
+          "label": "背景",
+          "options": {
+            "auto": "自动",
+            "opaque": "不透明"
+          }
+        },
+        "moderation": {
+          "label": "内容过滤",
+          "options": {
+            "auto": "自动",
+            "low": "低"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "视频尺寸",
+          "placeholder": "例如 1280x720"
+        },
+        "seconds": {
+          "label": "秒数",
+          "placeholder": "例如 5"
+        },
+        "duration": {
+          "label": "时长",
+          "placeholder": "例如 5",
+          "description": "会通过兼容视频接口的 extra_body.duration 发给上游。"
+        },
+        "ratio": {
+          "label": "宽高比",
+          "placeholder": "例如 16:9"
+        },
+        "resolution": {
+          "label": "分辨率",
+          "placeholder": "例如 720p"
+        },
+        "watermark": {
+          "label": "水印",
+          "description": "当上游接口支持时，请求服务端为生成结果添加水印。"
+        },
+        "generateAudio": {
+          "label": "生成音频",
+          "description": "当上游接口支持时，同时为视频生成音轨。"
+        }
       }
     }
   },
@@ -500,6 +890,11 @@
     "disabled": "已禁用",
     "urlPlaceholder": "请输入API URL",
     "keyPlaceholder": "请输入API Key",
+    "authMode": "认证方式",
+    "authModeAccessKeys": "访问密钥",
+    "authModeProfile": "AWS Profile",
+    "profileNameLabel": "AWS Profile 名称",
+    "profilePlaceholder": "请输入 AWS profile 名称（如 default）",
     "accessKeyIdPlaceholder": "请输入AWS Access Key ID",
     "secretAccessKeyPlaceholder": "请输入AWS Secret Access Key",
     "regionPlaceholder": "请输入AWS区域",
@@ -523,6 +918,9 @@
     "urlFormat": "API样例：{defaultUrl}",
     "urlFormatFill": "填充到 API URL",
     "openaiResponsesNotice": "OpenAI 官方服务默认使用 Responses API；若第三方仅支持 Chat Completions，请使用 OpenAI Completions 服务商。",
+    "modifyBaseUrl": "修改",
+    "baseUrlLockedHint": "此类 provider 默认固定为推荐的 Base URL，避免误修改导致请求异常。",
+    "refreshModelsWithMetadataHint": "刷新该服务商时会先同步上游元数据，再重建本地模型列表。",
     "modelList": "模型列表",
     "enableModels": "启用模型",
     "disableAllModels": "禁用全部",
@@ -550,7 +948,13 @@
       "backupSuccessTitle": "备份完成",
       "backupSuccessMessage": "备份已保存（时间：{time}，大小：{size}）",
       "importSuccessTitle": "导入完成",
-      "importSuccessMessage": "成功导入 {count} 条会话"
+      "importSuccessMessage": "成功导入 {count} 条会话",
+      "refreshModelsSuccessTitle": "模型已刷新",
+      "refreshModelsSuccessDescription": "该服务商的最新模型列表已同步。",
+      "refreshModelsSuccessDescriptionWithMetadata": "该服务商的上游元数据和最新模型列表已同步。",
+      "refreshModelsFailedTitle": "刷新失败",
+      "refreshModelsFailedDescription": "暂时无法刷新该服务商的模型列表，请稍后重试。",
+      "refreshModelsFailedDescriptionWithMetadata": "暂时无法刷新该服务商的上游元数据和模型列表，请稍后重试。"
     },
     "modelscope": {
       "name": "ModelScope",
@@ -604,8 +1008,8 @@
         "operationalDescription": "同步 ModelScope 平台上可直接使用的 MCP 服务器"
       }
     },
-    "voiceai": {
-      "title": "Voice.ai 文字转语音",
+    "tts": {
+      "title": "文本转语音 (TTS)",
       "description": "将文本生成语音，voice 会在下方模型列表中展示。",
       "audioFormat": {
         "label": "音频格式",
@@ -683,6 +1087,11 @@
         "overwriteWarning": "本次导入会覆盖当前服务商配置。",
         "confirming": "导入中..."
       },
+      "baseUrlUnlock": {
+        "title": "确认修改 Base URL",
+        "description": "此类 provider 不建议修改 Base URL，错误的地址可能导致请求失败或行为异常。确认后仍可继续手动修改。",
+        "confirm": "继续修改"
+      },
       "deleteProvider": {
         "title": "确认删除服务商",
         "content": "是否确认删除服务商 \"{name}\"？此操作不可恢复。",
@@ -753,7 +1162,25 @@
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",
     "bedrockLimitTip": "* 仅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
-    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型验证，若您无此模型的调用权限验证将失败。这不会影响其他模型的使用。"
+    "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型验证，若您无此模型的调用权限验证将失败。这不会影响其他模型的使用。",
+    "center": {
+      "title": "Provider Center",
+      "description": "管理服务商连接、模型与高级配置。",
+      "noApiUrl": "未配置 API URL",
+      "enabledModels": "{count} 个模型已启用",
+      "noAdvancedConfig": "此服务商没有额外高级配置。",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "知识库设置",
@@ -902,6 +1329,7 @@
     "stopServer": "停止服务器",
     "startServer": "启动服务器",
     "noServersFound": "未找到服务器",
+    "noServersDescription": "添加 MCP 服务器后即可使用工具、提示词和资源。",
     "addServerDialog": {
       "title": "添加服务器",
       "description": "配置新的MCP服务器"
@@ -1013,7 +1441,7 @@
     "higressMarket": "前往 Higress MCP 安装",
     "totalServers": "服务器总数",
     "npmRegistry": {
-      "title": "NPM源配置",
+      "title": "NPM 源",
       "currentSource": "当前源",
       "cached": "缓存",
       "lastChecked": "上次检测",
@@ -1052,6 +1480,84 @@
       "redetectCompleteDesc": "已检测并设置当前最优的NPM源",
       "redetectFailed": "重新检测失败",
       "redetectFailedDesc": "无法重新检测最优源，将使用默认配置"
+    },
+    "managedServerReadOnly": "DeepChat托管服务",
+    "managedServerReadOnlyDesc": "请在对应插件设置中管理启用和权限",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "搜索 MCP servers...",
+      "noResults": "没有匹配的 MCP server",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "定时任务",
+    "description": "在设定的时间触发系统通知或自动向 Agent 发送消息。",
+    "hint": "App 未运行时错过的一次性任务会在下次启动时补发，重复任务只跳到下一个时间点。",
+    "newTask": "新建任务",
+    "empty": "暂无任务",
+    "namePlaceholder": "任务名称",
+    "fireNow": "立即执行",
+    "fireNowSuccess": "任务已触发",
+    "defaults": {
+      "name": "新任务",
+      "title": "提醒",
+      "body": "到点啦"
+    },
+    "trigger": {
+      "title": "触发时间",
+      "kind": "触发方式",
+      "kindOnce": "一次性",
+      "kindDaily": "每天",
+      "kindWeekly": "每周",
+      "firesAt": "时间点",
+      "dayOfWeek": "星期",
+      "time": "时间",
+      "description": "选择执行频率和时间。"
+    },
+    "action": {
+      "title": "执行动作",
+      "kind": "动作类型",
+      "kindNotify": "系统通知",
+      "kindPrompt": "聊天提示",
+      "titleField": "标题",
+      "titlePlaceholder": "通知标题",
+      "body": "通知内容",
+      "message": "消息内容",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "默认 deepchat",
+      "modelId": "模型",
+      "modelIdPlaceholder": "留空使用默认",
+      "systemPrompt": "系统提示词",
+      "autoSend": "自动发送到所选 Agent",
+      "description": "选择通知或发送给 Agent 的提示。"
+    },
+    "weekday": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "listTitle": "任务列表",
+    "listDescription": "集中管理定时触发、执行动作和启用状态。",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "每天 {time}",
+      "weekly": "{day} {time}"
     }
   },
   "about": {
@@ -1097,9 +1603,12 @@
     "deleteConversation": "删除会话",
     "hideWindow": "隐藏窗口",
     "quitApp": "退出程序",
+    "toggleSidebar": "切换侧边栏",
+    "toggleWorkspace": "切换工作区",
     "newWindow": "打开新窗口",
     "showHideWindow": "显示/隐藏窗口",
     "newConversation": "新会话",
+    "quickSearch": "聚焦搜索",
     "closeWindow": "关闭当前窗口"
   },
   "acp": {
@@ -1142,6 +1651,10 @@
     "registryRefresh": "刷新 Registry",
     "registryRepair": "修复",
     "registryInstallAction": "安装",
+    "registryUninstallAction": "卸载",
+    "registryUninstallConfirm": "卸载“{name}”？",
+    "registryUninstallDescription": "DeepChat 会禁用该 Agent，并在适用时清理本地托管的安装数据，之后仍可在 ACP Registry 中重新安装。",
+    "registryUninstallFailed": "卸载 Agent 失败",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "搜索、筛选并安装 ACP Agent。安装完成后回到设置页配置。",
     "registryLearnMore": "了解更多",
@@ -1264,11 +1777,16 @@
       "customMethodRequired": "请填写扩展方法名",
       "requestFailed": "请求失败",
       "methods": {
+        "authenticate": "authenticate",
         "initialize": "initialize",
-        "newSession": "session/new",
         "loadSession": "session/load",
+        "newSession": "session/new",
         "prompt": "session/prompt",
         "cancel": "session/cancel",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "setSessionMode": "session/setMode",
         "setSessionModel": "session/setModel",
         "extMethod": "ext/method",
@@ -1279,6 +1797,8 @@
         "response": "响应",
         "notification": "通知",
         "permission": "权限",
+        "lifecycle": "生命周期",
+        "stderr": "stderr",
         "error": "错误"
       }
     }
@@ -1312,6 +1832,10 @@
   "skills": {
     "title": "Skills设置",
     "description": "管理和配置 AI 助手的 skill 模块",
+    "draftSuggestions": {
+      "title": "任务后建议沉淀 Skill Draft",
+      "description": "任务完成后，允许 Agent 在识别到可复用流程时建议生成临时 skill draft。draft 会先保存在临时目录，需你手动决定是否导入安装。"
+    },
     "openFolder": "打开文件夹",
     "addSkill": "添加 skill",
     "empty": "暂无 skill",
@@ -1327,9 +1851,9 @@
       "tabUrl": "URL",
       "fromFolder": "从文件夹安装",
       "selectFolder": "选择 skill 文件夹",
-      "folderHint": "点击选择 skill 文件夹",
+      "folderHint": "点击或拖拽 skill 文件夹到此处",
       "folderTip": "支持从 ~/.claude/skills/ 等其他客户端直接导入",
-      "zipHint": "点击选择 ZIP 文件",
+      "zipHint": "点击或拖拽 ZIP 文件到此处",
       "urlPlaceholder": "输入 skill ZIP 下载地址",
       "urlHint": "输入 skill 包的下载链接",
       "installButton": "安装",
@@ -1337,7 +1861,7 @@
       "success": "安装成功",
       "successMessage": "skill {name} 已成功安装",
       "failed": "安装失败",
-      "dragNotSupported": "暂不支持拖拽，请点击选择"
+      "dragInvalid": "不支持的拖拽内容，请拖入 skill 文件夹或单个 .zip 文件。"
     },
     "delete": {
       "title": "删除 skill",
@@ -1529,16 +2053,20 @@
   },
   "remote": {
     "title": "远程",
-    "description": "统一配置 Telegram 和飞书远程控制。",
+    "description": "统一配置 Telegram、飞书 / Lark、QQBot、Discord 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
-      "description": "用同一个 Telegram Bot 管理远程控制和 Hook 投递。",
+      "description": "接入 Telegram Bot，支持私聊、群聊和话题线程远程控制。",
       "botToken": "机器人 Token",
-      "botTokenPlaceholder": "Telegram 机器人 Token"
+      "botTokenPlaceholder": "Telegram 机器人 Token",
+      "botTokenDescription": "填写用于 Telegram 远程控制的机器人 Token。"
     },
     "feishu": {
-      "title": "飞书",
+      "title": "飞书 / Lark",
       "description": "接入飞书 Bot，支持私聊、群聊和话题线程远程控制。",
+      "brand": "品牌",
+      "brandFeishu": "飞书",
+      "brandLark": "Lark",
       "appId": "应用 ID",
       "appIdPlaceholder": "飞书应用 ID",
       "appSecret": "应用密钥",
@@ -1555,6 +2083,15 @@
       "accessRule1": "先私聊机器人发送 /pair [配对码] 完成配对。",
       "accessRule2": "群聊和话题线程里，只有已配对用户以 {'@'} 提及机器人时，消息才会进入会话。"
     },
+    "discord": {
+      "title": "Discord",
+      "description": "接入 Discord Bot，支持私聊、频道提及和 Slash Commands 远程控制。",
+      "botToken": "Bot Token",
+      "botTokenPlaceholder": "Discord Bot Token",
+      "remoteControlDescription": "Discord 远控使用独立的 Bot Token、Gateway 和 REST 流程。",
+      "accessRule1": "私聊或频道里发送 /pair [配对码]，把当前 DM 或频道授权给 DeepChat。",
+      "accessRule2": "频道消息只有在提及机器人时才会进入会话，避免误处理普通聊天。"
+    },
     "sections": {
       "credentials": "凭证",
       "remoteControl": "远程控制",
@@ -1562,11 +2099,14 @@
       "accessRules": "访问规则"
     },
     "remoteControl": {
-      "description": "将每个远程入口绑定到一个 DeepChat 会话，并在不同命令之间持续复用该会话。",
+      "description": "将每个远程入口绑定到一个会话，并在不同命令之间持续复用该会话。",
       "allowedUserIds": "允许的用户 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
-      "defaultAgent": "默认 DeepChat 智能体",
+      "defaultAgent": "默认智能体",
       "defaultAgentPlaceholder": "选择一个智能体",
+      "defaultWorkdir": "默认目录",
+      "defaultWorkdirPlaceholder": "选择默认目录",
+      "defaultWorkdirHelper": "远控会话的工作目录。默认智能体为 ACP 时必须选择。",
       "openPairDialog": "配对",
       "manageBindings": "管理绑定",
       "pairCode": "配对码",
@@ -1576,11 +2116,20 @@
       "pairDialogDescription": "生成配对码后，请去对应的 {channel} 机器人里完成配对。",
       "pairDialogInstructionTelegram": "去 Telegram 机器人里发送这条命令：",
       "pairDialogInstructionFeishu": "去飞书机器人的私聊里发送这条命令：",
+      "pairDialogInstructionDiscord": "去 Discord 机器人的私聊或目标频道里发送这条命令：",
       "bindingsDialogTitle": "{channel} 绑定",
       "bindingsDialogDescription": "逐条移除远程入口与 DeepChat 会话的绑定关系。",
       "bindingsEmpty": "当前还没有绑定的会话。",
       "pairingSuccessTitle": "配对成功",
-      "pairingSuccessDescription": "已配对主体列表已刷新。"
+      "pairingSuccessDescription": "已配对主体列表已刷新。",
+      "pairDialogInstructionQQBot": "去 QQ 机器人私聊或已授权群聊里发送这条命令：",
+      "authorizedPrincipalsTitle": "已授权主体",
+      "authorizedPrincipalsDescription": "这些 {channel} 账号已经授权，可以配对并操作会话。",
+      "authorizedPrincipalsEmpty": "当前还没有已授权主体。",
+      "sessionBindingsTitle": "会话绑定",
+      "sessionBindingsDescription": "下方每个远程入口当前都绑定到了一个 DeepChat 会话。",
+      "acpDefaultWorkdirRequiredTitle": "需要先设置默认目录",
+      "acpDefaultWorkdirRequiredDescription": "ACP 智能体需要本地工作目录。请先在「默认目录」中选择一个目录，再保存。"
     },
     "hooks": {
       "title": "Telegram Hook 通知",
@@ -1601,18 +2150,166 @@
         "running": "运行中",
         "backoff": "失败后重试中",
         "error": "错误"
-      }
+      },
+      "bindingOnly": "绑定数：{count}，已配对主体：{paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户，hooks {hooks}",
+      "telegram": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
       "feishu": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
       "hooksOn": "开启",
-      "hooksOff": "关闭"
+      "hooksOff": "关闭",
+      "qqbot": "{bindingCount} 个绑定，{pairedCount} 个已配对用户",
+      "discord": "{bindingCount} 个绑定，{pairedCount} 个已配对频道",
+      "weixinIlink": "{bindingCount} 个绑定，{accountCount} 个账号，{connectedCount} 个已连接"
     },
     "bindingKinds": {
       "dm": "私聊",
       "group": "群聊",
       "topic": "话题"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "接入 QQ 机器人开放平台 Bot，支持单聊和已授权群聊提及机器人控制。",
+      "appId": "应用 ID",
+      "appIdPlaceholder": "QQBot 应用 ID",
+      "clientSecret": "客户端密钥",
+      "clientSecretPlaceholder": "QQBot 客户端密钥",
+      "remoteControlDescription": "QQ 官方单聊 user_openid 与群聊 member_openid 不是同一身份空间，所以单聊配对授权用户，群聊需要在群内单独用 /pair 授权。",
+      "pairedUserIds": "已配对用户 OpenID",
+      "pairedUserIdsPlaceholder": "例如 user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "微信 iLink",
+      "description": "通过扫码接入官方微信 iLink Bot，并用内建适配器承接远程控制会话。",
+      "loginDescription": "点击下方按钮后，DeepChat 会打开官方微信登录窗口，请在该窗口内完成 iLink Bot 扫码授权。连接成功的账号会自动加入下方列表。",
+      "ownerOnlyNotice": "当前首版仅允许扫码登录对应的账号所有者控制 DeepChat。",
+      "connectButton": "打开登录窗口",
+      "refreshQrCode": "重新打开登录窗口",
+      "loginDialogTitle": "连接微信 iLink",
+      "loginDialogDescription": "官方微信登录页会在独立窗口中打开，请在该窗口内完成扫码授权，并保持此对话框开启直到连接完成。",
+      "loginFailed": "微信 iLink 登录失败。",
+      "loginSuccessTitle": "微信 iLink 已连接",
+      "loginSuccessDescription": "账号 {accountId} 已可用。",
+      "accountsTitle": "账号",
+      "accountsDescription": "每个已连接的 iLink Bot 账号都会独立运行，并维护各自的绑定和运行状态。",
+      "noAccounts": "还没有连接任何微信 iLink 账号。",
+      "ownerUserId": "所有者用户 ID：{ownerUserId}",
+      "baseUrl": "服务地址：{baseUrl}",
+      "accountBindings": "绑定数：{count}",
+      "remoteControlDescription": "为微信 iLink 账号设置共享的默认智能体，并管理这些账号产生的会话绑定。",
+      "removeAccount": "移除账号",
+      "restartAccount": "重启账号",
+      "statusSummary": "账号 {accounts} 个，已连接 {connected} 个，绑定 {bindings} 个",
+      "qrcodeAlt": "微信 iLink 二维码",
+      "loginWindowOpened": "官方微信登录窗口已打开，请在该窗口内完成扫码授权。",
+      "loginSessionExpired": "本次登录会话已过期，请重新打开登录窗口后再试。",
+      "loginResponseIncomplete": "微信 iLink 登录返回不完整，请重新尝试。",
+      "loginTimedOut": "等待微信 iLink 授权超时，请重新打开登录窗口后再试。",
+      "loginConnected": "微信 iLink 账号已连接。"
+    }
+  },
+  "plugins": {
+    "title": "插件",
+    "officialOnly": "管理当前 DeepChat 版本内置官方插件的启用状态",
+    "refresh": "刷新",
+    "empty": "暂无可用官方插件",
+    "emptyTitle": "暂无内置插件",
+    "emptyDescription": "当前平台在此 DeepChat 版本中暂无内置官方插件。",
+    "loadFailed": "插件加载失败",
+    "actionFailed": "插件操作失败",
+    "install": "安装",
+    "installFromFile": "选择 .dcplugin",
+    "openRelease": "GitHub Release",
+    "enable": "启用",
+    "disable": "停用",
+    "openSettings": "设置",
+    "runtime": "运行时",
+    "version": "版本",
+    "command": "命令",
+    "status": {
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "available": "可用"
+    },
+    "runtimeStates": {
+      "missing": "未安装",
+      "installed": "已安装",
+      "running": "运行中",
+      "error": "错误"
+    }
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "概览",
+      "setup": "基础",
+      "models": "Agent设置",
+      "tools": "能力扩展",
+      "knowledge": "上下文工程",
+      "system": "系统"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "集中查看服务商、MCP、Agent、数据与用量状态。",
+      "searchPlaceholder": "搜索设置、服务商、模型、Agent、MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "最后备份时间",
+      "enabledCount": "{count} 个已启用",
+      "runningCount": "{count} 个运行中",
+      "enabledAgentCount": "{count} 个 Agent 已启用",
+      "providersDescription": "服务商连接状态",
+      "deepchatAgentsDescription": "Agent 配置入口",
+      "mcpOn": "MCP 已启用",
+      "mcpOff": "MCP 已关闭",
+      "syncOn": "同步已启用",
+      "syncOff": "同步未启用",
+      "backupNever": "从未备份"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "配置服务商连接",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "启用可用模型",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "启动工具服务",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "立即备份数据"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "当前没有需要处理的项目",
+      "noModels": "还没有启用模型",
+      "privacyOff": "隐私模式未开启",
+      "backupNever": "数据从未备份"
+    },
+    "activity": {
+      "title": "最近设置变更",
+      "description": "只展示最近 200 条设置变更，数据库保留最近 2000 条。",
+      "when": "时间",
+      "category": "类型",
+      "change": "修改",
+      "empty": "暂无修改记录",
+      "emptyDescription": "成功修改设置后会出现在这里。",
+      "settingUpdated": "更新设置：{key}",
+      "providerUpdated": "更新服务商：{name}",
+      "providerCreated": "新增服务商：{name}",
+      "providerRemoved": "移除服务商：{name}",
+      "providerModelsRefreshed": "刷新服务商模型：{name}",
+      "modelStatusChanged": "更新模型状态：{model}",
+      "modelBatchUpdated": "批量更新 {count} 个模型",
+      "mcpServerCreated": "新增 MCP Server：{name}",
+      "mcpServerUpdated": "更新 MCP Server：{name}",
+      "mcpServerRemoved": "移除 MCP Server：{name}",
+      "mcpServerStatusChanged": "切换 MCP Server：{name}",
+      "mcpGlobalStatusChanged": "切换 MCP 全局状态：{status}",
+      "mcpServerStarted": "启动 MCP Server：{name}",
+      "mcpServerStopped": "停止 MCP Server：{name}",
+      "mcpRegistryRefreshed": "刷新 MCP NPM registry",
+      "backupCreated": "创建备份：{name}",
+      "backupImported": "导入备份：{name}",
+      "databaseRepaired": "数据库修复完成：{status}"
     }
   }
 }

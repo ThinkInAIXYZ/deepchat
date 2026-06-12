@@ -14,6 +14,7 @@ export const CONFIG_EVENTS = {
   PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 批量 provider 更新
   MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
+  MODEL_BATCH_STATUS_CHANGED: 'config:model-batch-status-changed', // 批量模型状态变更事件
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
   PROXY_MODE_CHANGED: 'config:proxy-mode-changed',
   CUSTOM_PROXY_URL_CHANGED: 'config:custom-proxy-url-changed',
@@ -74,12 +75,21 @@ export const WINDOW_EVENTS = {
   WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen'
 }
 
+export const APP_RUNTIME_EVENTS = {
+  WINDOW_FOCUSED: 'window-focused',
+  WINDOW_BLURRED: 'window-blurred'
+}
+
 // Settings related events
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
   NAVIGATE: 'settings:navigate',
   CHECK_FOR_UPDATES: 'settings:check-for-updates',
   PROVIDER_INSTALL: 'settings:provider-install'
+}
+
+export const DEV_EVENTS = {
+  START_GUIDED_ONBOARDING: 'dev:start-guided-onboarding'
 }
 
 // ollama 相关事件
@@ -128,6 +138,7 @@ export const DEEPLINK_EVENTS = {
 // 全局通知相关事件
 export const NOTIFICATION_EVENTS = {
   SHOW_ERROR: 'notification:show-error', // 显示错误通知
+  DATABASE_REPAIR_SUGGESTED: 'notification:database-repair-suggested',
   SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked', // 系统通知点击事件
   DATA_RESET_COMPLETE_DEV: 'notification:data-reset-complete-dev' // 开发环境数据重置完成通知
 }
@@ -141,6 +152,9 @@ export const SHORTCUT_EVENTS = {
   ZOOM_OUT: 'shortcut:zoom-out',
   ZOOM_RESUME: 'shortcut:zoom-resume',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
+  TOGGLE_SPOTLIGHT: 'shortcut:toggle-spotlight',
+  TOGGLE_SIDEBAR: 'shortcut:toggle-sidebar',
+  TOGGLE_WORKSPACE: 'shortcut:toggle-workspace',
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
   DELETE_CONVERSATION: 'shortcut:delete-conversation'
@@ -196,6 +210,7 @@ export const FLOATING_BUTTON_EVENTS = {
   LANGUAGE_CHANGED: 'floating-button:language-changed',
   THEME_REQUEST: 'floating-button:theme-request',
   THEME_CHANGED: 'floating-button:theme-changed',
+  ACP_REGISTRY_ICON_REQUEST: 'floating-button:acp-registry-icon-request',
   TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
   SET_EXPANDED: 'floating-button:set-expanded',
   OPEN_SESSION: 'floating-button:open-session',
@@ -233,7 +248,8 @@ export const SYSTEM_EVENTS = {
 // Workspace events
 export const WORKSPACE_EVENTS = {
   INVALIDATED: 'workspace:files-changed', // Workspace invalidation event
-  FILES_CHANGED: 'workspace:files-changed' // Legacy alias
+  FILES_CHANGED: 'workspace:files-changed', // Legacy alias
+  INSERT_REFERENCE_REQUESTED: 'workspace:insert-reference-requested'
 }
 
 // ACP-specific workspace events

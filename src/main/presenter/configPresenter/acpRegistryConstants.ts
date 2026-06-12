@@ -15,15 +15,7 @@ export const ACP_REGISTRY_ICON_CACHE_DIRNAME = 'icons'
 
 const ACP_REGISTRY_FILE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/
 
-export const ACP_LEGACY_AGENT_ID_ALIASES: Record<string, string> = {
-  'kimi-cli': 'kimi',
-  'claude-code-acp': 'claude-acp',
-  'codex-acp': 'codex-acp',
-  'dimcode-acp': 'dimcode'
-}
-
-export const resolveAcpAgentAlias = (agentId: string): string =>
-  ACP_LEGACY_AGENT_ID_ALIASES[agentId] ?? agentId
+export { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 
 export const isAcpRegistryIconUrl = (iconUrl: string): boolean =>
   iconUrl.startsWith(ACP_REGISTRY_ICON_PREFIX) && iconUrl.endsWith('.svg')

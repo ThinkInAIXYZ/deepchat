@@ -2,12 +2,14 @@
   "actions": {
     "rename": "שנה שם",
     "delete": "מחק",
+    "switchWithShortcut": "עבור לצ'אט הזה עם {shortcut}",
     "cleanMessages": "נקה הודעות",
     "pin": "נעץ",
     "unpin": "בטל נעיצה",
     "export": "ייצוא",
     "exportText": "טקסט רגיל",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "העבר שיחה"
   },
   "toolbar": {
     "save": "שמור",

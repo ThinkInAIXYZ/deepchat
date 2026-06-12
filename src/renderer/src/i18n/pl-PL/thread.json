@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Zmień nazwę",
+    "delete": "Usuń",
+    "switchWithShortcut": "Przełącz na ten czat za pomocą {shortcut}",
+    "cleanMessages": "Wyczyść Wiadomości",
+    "pin": "Przypnij",
+    "unpin": "Odepnij",
+    "export": "Eksportuj",
+    "exportText": "Zwykły tekst",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Przenieś rozmowę"
+  },
+  "toolbar": {
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "previousVariant": "Poprzedni wariant",
+    "nextVariant": "Następny wariant",
+    "copy": "Skopiuj jako Markdown",
+    "copyImage": "Skopiuj jako obraz",
+    "copyImageWithLongPress": "Skopiuj jako obraz (naciśnij długo, aby przechwycić od góry)",
+    "copyFromTopSuccess": "Skopiowano obraz pełnej rozmowy",
+    "capturing": "Przechwytywanie...",
+    "retry": "Zregeneruj się",
+    "fork": "Przejdź do nowego czatu",
+    "edit": "Edytuj wiadomość",
+    "delete": "Usuń wiadomość",
+    "trace": "Żądanie śledzenia"
+  },
+  "message": {
+    "toolbar": {
+      "save": "Zapisz"
+    }
+  },
+  "export": {
+    "failed": "Eksport nie powiódł się",
+    "failedDesc": "Wystąpił błąd podczas procesu eksportu. Spróbuj ponownie",
+    "success": "Eksport udany",
+    "successDesc": "Rozmowa została pomyślnie wyeksportowana",
+    "nowledgeMemSuccess": "Eksport Nowledge-mem powiódł się",
+    "nowledgeMemSuccessDesc": "Rozmowa została pomyślnie wyeksportowana do formatu nowledge-mem",
+    "nowledgeMemSubmitPrompt": "Czy chcesz przesłać tę rozmowę do nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem Przesyłanie powiodło się",
+    "nowledgeMemSubmitSuccessDesc": "Rozmowa została pomyślnie przesłana do nowledge-mem",
+    "nowledgeMemSubmitFailed": "Przesyłanie Nowledge-mem nie powiodło się",
+    "nowledgeMemSubmitFailedDesc": "Nie udało się przesłać rozmowy do nowledge-mem"
+  }
+}

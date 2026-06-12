@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-full flex flex-col">
+  <div data-testid="settings-acp-page" class="w-full h-full flex flex-col">
     <div class="shrink-0 px-4 pt-4 space-y-4">
       <div class="flex items-center justify-between gap-4">
         <div>
@@ -125,11 +125,21 @@
                       {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
                     </CardDescription>
                   </div>
-                  <Switch
-                    :model-value="agent.enabled"
-                    :disabled="Boolean(agentPending[agent.id])"
-                    @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
-                  />
+                  <div class="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmRegistryAgentUninstall(agent)"
+                    >
+                      {{ t('settings.acp.registryUninstallAction') }}
+                    </Button>
+                    <Switch
+                      :model-value="agent.enabled"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -269,7 +279,12 @@
                     <Button size="sm" variant="ghost" @click="openManualDialog(agent)">
                       {{ t('common.edit') }}
                     </Button>
-                    <Button size="sm" variant="ghost" @click="confirmAndDeleteManualAgent(agent)">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      :disabled="Boolean(agentPending[agent.id])"
+                      @click="confirmAndDeleteManualAgent(agent)"
+                    >
                       {{ t('common.delete') }}
                     </Button>
                     <Button
@@ -526,15 +541,32 @@
       :agent-name="debugDialog.agentName"
       @update:open="(value) => (debugDialog.open = value)"
     />
+
+    <AgentTransferDialog
+      v-model:open="transferDialogOpen"
+      mode="delete-agent"
+      :source-agent-id="pendingDeleteAgent?.id ?? ''"
+      :source-agent-name="pendingDeleteAgent?.name ?? ''"
+      :agents="transferAgents"
+      :impact="transferImpact"
+      :loading="transferDialogLoading"
+      :busy="transferDialogBusy"
+      :error="transferDialogError"
+      @confirm-move="handleDeleteAgentWithMove"
+      @confirm-delete="handleDeleteAgentWithSessions"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
+import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSessionClient } from '@api/SessionClient'
+import { CONFIG_EVENTS } from '@/events'
 import { Icon } from '@iconify/vue'
 import {
   Card,
@@ -560,14 +592,20 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import AcpDebugDialog from './AcpDebugDialog.vue'
+import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import AgentMcpSelector from '@/components/mcp-config/AgentMcpSelector.vue'
 import AcpAgentIcon from '@/components/icons/AcpAgentIcon.vue'
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 type RegistryDialogFilter = 'all' | 'installed' | 'not_installed'
+type PendingDeleteAgent = {
+  id: string
+  name: string
+  source: 'manual' | 'registry'
+}
 
 const acpEnabled = ref(false)
 const toggling = ref(false)
@@ -582,6 +620,15 @@ const registryAgents = ref<AcpRegistryAgent[]>([])
 const manualAgents = ref<AcpManualAgent[]>([])
 const envDrafts = reactive<Record<string, string>>({})
 const agentPending = reactive<Record<string, boolean>>({})
+const transferAgents = ref<
+  Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled?: boolean }>
+>([])
+const transferDialogOpen = ref(false)
+const transferDialogLoading = ref(false)
+const transferDialogBusy = ref(false)
+const transferDialogError = ref<string | null>(null)
+const transferImpact = ref<AgentTransferImpact | null>(null)
+const pendingDeleteAgent = ref<PendingDeleteAgent | null>(null)
 
 const debugDialog = reactive({
   open: false,
@@ -722,10 +769,10 @@ const setAgentPending = (agentId: string, pending: boolean) => {
   }
 }
 
-const handleError = (error: unknown, description?: string) => {
+const handleError = (error: unknown, description?: string, title?: string) => {
   console.error('[ACP] settings error:', error)
   toast({
-    title: t('settings.acp.saveFailed'),
+    title: title ?? t('settings.acp.saveFailed'),
     description:
       description ?? (error instanceof Error ? error.message : t('common.error.requestFailed')),
     variant: 'destructive'
@@ -923,24 +970,100 @@ const toggleManualAgent = async (agent: AcpManualAgent, enabled: boolean) => {
   }
 }
 
-const deleteManualAgent = async (agent: AcpManualAgent) => {
+const openAgentTransferDialog = async (agent: PendingDeleteAgent) => {
+  pendingDeleteAgent.value = agent
+  transferDialogOpen.value = true
+  transferDialogLoading.value = true
+  transferDialogError.value = null
+  transferImpact.value = null
   try {
-    await configPresenter.removeManualAcpAgent(agent.id)
-    await loadAcpData()
+    const sessionClient = createSessionClient()
+    const [impact, agents] = await Promise.all([
+      sessionClient.getAgentTransferImpact(agent.id),
+      configPresenter.listAgents()
+    ])
+    transferImpact.value = impact
+    transferAgents.value = agents
+      .filter((item) => item.type === 'deepchat')
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        enabled: item.enabled
+      }))
   } catch (error) {
-    handleError(error)
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogLoading.value = false
   }
 }
 
 const confirmAndDeleteManualAgent = async (agent: AcpManualAgent) => {
-  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-    const confirmed = window.confirm(t('settings.acp.customDeleteConfirm', { name: agent.name }))
-    if (!confirmed) {
-      return
+  await openAgentTransferDialog({
+    id: agent.id,
+    name: agent.name,
+    source: 'manual'
+  })
+}
+
+const confirmRegistryAgentUninstall = async (agent: AcpRegistryAgent) => {
+  await openAgentTransferDialog({
+    id: agent.id,
+    name: agent.name,
+    source: 'registry'
+  })
+}
+
+const finishDeleteAgent = async (agent: PendingDeleteAgent) => {
+  if (agent.source === 'registry') {
+    await configPresenter.uninstallAcpRegistryAgent(agent.id)
+    toast({ title: t('settings.acp.deleteSuccess') })
+  } else {
+    const removed = await configPresenter.removeManualAcpAgent(agent.id)
+    if (!removed) {
+      throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
     }
   }
 
-  await deleteManualAgent(agent)
+  await loadAcpData()
+  transferDialogOpen.value = false
+  pendingDeleteAgent.value = null
+}
+
+const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
+    await finishDeleteAgent(agent)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
+}
+
+const handleDeleteAgentWithSessions = async () => {
+  const agent = pendingDeleteAgent.value
+  if (!agent) return
+  setAgentPending(agent.id, true)
+  transferDialogBusy.value = true
+  transferDialogError.value = null
+  try {
+    const sessionClient = createSessionClient()
+    await sessionClient.deleteAgentSessions(agent.id)
+    await finishDeleteAgent(agent)
+  } catch (error) {
+    transferDialogError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    transferDialogBusy.value = false
+    setAgentPending(agent.id, false)
+  }
 }
 
 const openRegistryDialog = () => {
@@ -949,7 +1072,7 @@ const openRegistryDialog = () => {
 
 const registryActionLabel = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return t('settings.acp.installState.installed')
+  if (status === 'installed') return t('settings.acp.registryUninstallAction')
   if (status === 'installing') return t('settings.acp.installState.installing')
   if (status === 'error') return t('settings.acp.registryRepair')
   return t('settings.acp.registryInstallAction')
@@ -957,12 +1080,12 @@ const registryActionLabel = (agent: AcpRegistryAgent) => {
 
 const registryActionVariant = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return status === 'installed' ? 'outline' : 'default'
+  return status === 'installed' ? 'destructive' : 'default'
 }
 
 const registryActionIcon = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  if (status === 'installed') return 'lucide:check'
+  if (status === 'installed') return 'lucide:trash-2'
   if (status === 'installing') return 'lucide:loader'
   if (status === 'error') return 'lucide:wrench'
   return 'lucide:download'
@@ -974,17 +1097,42 @@ const registryActionSpins = (agent: AcpRegistryAgent) => {
 
 const isRegistryActionDisabled = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
-  return Boolean(agentPending[agent.id]) || status === 'installing' || status === 'installed'
+  return Boolean(agentPending[agent.id]) || status === 'installing'
 }
 
 const handleRegistryCatalogAction = async (agent: AcpRegistryAgent) => {
   if (isRegistryActionDisabled(agent)) {
     return
   }
+  if ((agent.installState?.status ?? 'not_installed') === 'installed') {
+    await confirmRegistryAgentUninstall(agent)
+    return
+  }
   await installRegistryAgent(agent)
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+const scheduleAcpDataReload = () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+  }
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    void loadAcpData()
+  }, 80)
 }
 
 onMounted(() => {
   void loadAcpData()
+  window.electron?.ipcRenderer?.on(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+  window.electron?.ipcRenderer?.removeListener(CONFIG_EVENTS.AGENTS_CHANGED, scheduleAcpDataReload)
 })
 </script>

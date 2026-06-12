@@ -1,31 +1,34 @@
 import { useRouter } from 'vue-router'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { useModelStore } from '@/stores/modelStore'
-import { useOllamaStore } from '@/stores/ollamaStore'
 import { useMcpStore } from '@/stores/mcp'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 import { DEEPLINK_EVENTS } from '@/events'
+import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
   const providerStore = useProviderStore()
-  const modelStore = useModelStore()
-  const ollamaStore = useOllamaStore()
+  let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
 
-  await uiSettingsStore.loadSettings()
+  try {
+    startupWorkloadStore = useStartupWorkloadStore()
+  } catch (error) {
+    console.warn('[Startup][Renderer] startupWorkloadStore unavailable during initAppStores', error)
+  }
 
-  await providerStore.initialize()
-  await providerStore.refreshProviders()
+  console.info('[Startup][Renderer] initAppStores begin')
+  startupWorkloadStore?.connect()
 
-  modelStore.setupModelListeners()
-  await modelStore.refreshAllModels()
-
-  await ollamaStore.initialize()
+  // Run both in parallel since they don't depend on each other
+  await Promise.all([uiSettingsStore.loadSettings(), providerStore.initialize()])
+  console.info('[Startup][Renderer] initAppStores critical stores ready')
 }
 
 export const useMcpInstallDeeplinkHandler = () => {
   const router = useRouter()
   const mcpStore = useMcpStore()
+  let cleanupIpcListeners: (() => void) | null = null
 
   const navigateToMcpSettings = async () => {
     await router.isReady()
@@ -78,11 +81,15 @@ export const useMcpInstallDeeplinkHandler = () => {
   }
 
   const setup = () => {
-    window.electron.ipcRenderer.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
+    cleanupIpcListeners?.()
+    const scope = createIpcSubscriptionScope()
+    scope.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
+    cleanupIpcListeners = scope.cleanup
   }
 
   const cleanup = () => {
-    window.electron.ipcRenderer.removeAllListeners(DEEPLINK_EVENTS.MCP_INSTALL)
+    cleanupIpcListeners?.()
+    cleanupIpcListeners = null
   }
 
   return { setup, cleanup }

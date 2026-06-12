@@ -1,4 +1,6 @@
 import { FileMetaData } from './presenter'
+import type { ToolCallImagePreview } from './types/core/mcp'
+import type { AgentPlanDisplayItem } from './types/agent-plan'
 
 export type Message = {
   id: string
@@ -124,6 +126,7 @@ export type AssistantMessageBlock = {
     name?: string
     params?: string
     response?: string
+    imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string
     server_description?: string
@@ -179,6 +182,19 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
+  subagentProgress?: string
+  subagentFinal?: string
 }
 // Search-related message block types
 export type SearchBlock = {

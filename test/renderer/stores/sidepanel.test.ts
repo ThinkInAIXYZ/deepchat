@@ -1,10 +1,10 @@
 import { ref } from 'vue'
-import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('sidepanel store', () => {
   const setupSidepanelStore = async (innerWidth: number) => {
     vi.resetModules()
+    vi.doUnmock('pinia')
 
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
@@ -18,6 +18,7 @@ describe('sidepanel store', () => {
       useStorage: () => storageRef
     }))
 
+    const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
     setActivePinia(createPinia())
 
     const { useSidepanelStore } = await import('@/stores/ui/sidepanel')

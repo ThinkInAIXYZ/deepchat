@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Namakan semula",
+    "delete": "padam",
+    "switchWithShortcut": "Beralih ke sembang ini dengan {shortcut}",
+    "cleanMessages": "Kosongkan mesej",
+    "pin": "pin ke atas",
+    "unpin": "Nyahsemat",
+    "export": "Eksport",
+    "exportText": "teks biasa",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Pindahkan Perbualan"
+  },
+  "export": {
+    "failed": "Eksport gagal",
+    "failedDesc": "Ralat berlaku semasa eksport, sila cuba lagi",
+    "nowledgeMemSubmitFailed": "Penyerahan kepada Nowledge-mem gagal",
+    "nowledgeMemSubmitFailedDesc": "Penyerahan sesi kepada nowledge-mem gagal",
+    "nowledgeMemSubmitPrompt": "Adakah anda pasti anda perlu mengeksport sesi semasa ke nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Dihantar kepada Nowledge-mem dengan jayanya",
+    "nowledgeMemSubmitSuccessDesc": "Berjaya menyerahkan sesi kepada Nowledge-mem",
+    "nowledgeMemSuccessDesc": "Sesi berjaya dieksport ke format Nowledge-mem",
+    "success": "Eksport berjaya",
+    "nowledgeMemSuccess": "Berjaya dieksport ke Nowledge-mem",
+    "successDesc": "Eksport sesi berjaya"
+  },
+  "message": {
+    "toolbar": {
+      "save": "jimat"
+    }
+  },
+  "toolbar": {
+    "save": "jimat",
+    "cancel": "Batal",
+    "previousVariant": "Tukar kepada versi sebelumnya",
+    "nextVariant": "Beralih ke versi seterusnya",
+    "copy": "Salin jawapan sebagai Markdown",
+    "copyImage": "Salin seperti gambar",
+    "copyImageWithLongPress": "Salin sebagai gambar (tekan lama untuk menangkap dari atas)",
+    "copyFromTopSuccess": "Gambar sesi lengkap disalin",
+    "capturing": "Mengambil tangkapan skrin...",
+    "retry": "Menjana semula",
+    "fork": "Bercabang ke sesi baharu",
+    "edit": "Edit mesej",
+    "delete": "Padam mesej",
+    "trace": "Lihat parameter permintaan"
+  }
+}

@@ -22,6 +22,7 @@ export const SUPPORTED_PROVIDER_INSTALL_CUSTOM_TYPES = [
   'openai-compatible',
   'openai-responses',
   'lmstudio',
+  'mistral',
   'together',
   'groq',
   'grok',

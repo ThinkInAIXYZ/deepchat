@@ -8,6 +8,7 @@ export class DocFileAdapter extends BaseFileAdapter {
   private fileContent: string | undefined
   private maxFileSize: number
   private htmlContent: string | undefined
+  private documentError: string | undefined
   private turndownService: TurndownService
 
   constructor(filePath: string, maxFileSize: number) {
@@ -28,17 +29,31 @@ export class DocFileAdapter extends BaseFileAdapter {
       const stats = await fs.stat(this.filePath)
       if (stats.size <= this.maxFileSize) {
         const buffer = await fs.readFile(this.filePath)
-        const result = await mammoth.convertToHtml(
-          {
-            buffer
-          },
-          {
-            convertImage: mammoth.images.imgElement(function (_image) {
-              return Promise.resolve({ type: 'ignore', src: '' })
-            })
+        try {
+          const result = await mammoth.convertToHtml(
+            {
+              buffer
+            },
+            {
+              convertImage: mammoth.images.imgElement(function (_image) {
+                return Promise.resolve({ type: 'ignore', src: '' })
+              })
+            }
+          )
+          this.htmlContent = result.value
+        } catch (error) {
+          const rawText = await mammoth.extractRawText({ buffer }).catch(() => undefined)
+          if (rawText?.value) {
+            this.htmlContent = rawText.value
+              .split(/\n{2,}/)
+              .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+              .join('\n')
+            return this.htmlContent
           }
-        )
-        this.htmlContent = result.value
+
+          this.documentError = `Error processing Word document: ${(error as Error).message}`
+          console.error('Error extracting text from Word document:', error)
+        }
       }
     }
     return this.htmlContent
@@ -74,6 +89,8 @@ export class DocFileAdapter extends BaseFileAdapter {
       if (html) {
         const markdown = this.turndownService.turndown(html)
         this.fileContent = markdown
+      } else if (this.documentError) {
+        this.fileContent = this.documentError
       }
     }
     return this.fileContent
@@ -81,7 +98,7 @@ export class DocFileAdapter extends BaseFileAdapter {
 
   public async getLLMContent(): Promise<string | undefined> {
     const html = await this.loadDocumentContent()
-    if (!html) return undefined
+    if (!html) return this.documentError
 
     const markdown = this.turndownService.turndown(html)
     const pages = this.paginateContent(markdown)
@@ -112,4 +129,13 @@ export class DocFileAdapter extends BaseFileAdapter {
   async getThumbnail(): Promise<string | undefined> {
     return ''
   }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }

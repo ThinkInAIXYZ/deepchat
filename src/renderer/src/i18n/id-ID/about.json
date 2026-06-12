@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat adalah klien AI lintas platform yang didedikasikan untuk memungkinkan lebih banyak orang menggunakan AI dengan nyaman.",
+  "website": "Kunjungi situs web kami",
+  "disclaimerButton": "Penafian",
+  "feedbackButton": "Umpan balik",
+  "disclaimerTitle": "Pernyataan ketentuan penggunaan",
+  "checkUpdateButton": "Periksa pembaruan",
+  "mockUpdateButton": "Simulasi mengunduh pembaruan",
+  "clearMockUpdateButton": "Hapus pembaruan simulasi",
+  "mockOnboardingButton": "Simulasikan booting untuk pertama kalinya",
+  "updateChannel": "Perbarui saluran",
+  "stableChannel": "Versi resmi",
+  "betaChannel": "Versi beta internal",
+  "deviceInfo": {
+    "title": "Informasi perangkat",
+    "platform": "Peron",
+    "arch": "Arsitektur",
+    "cpuModel": "model prosesor",
+    "totalMemory": "memori keseluruhan",
+    "osVersion": "Versi sistem"
+  }
+}

@@ -8,7 +8,16 @@
     "searchEngine": "Søgemaskine",
     "searchEngineSelect": "Vælg søgemaskine",
     "searchPreview": "Søgeforhåndsvisning",
+    "launchAtLoginEnabled": "Start DeepChat ved indlogning",
     "autoScrollEnabled": "Automatisk rulning under generering",
+    "privacyMode": "Privatlivstilstand",
+    "privacyModeDescription": "Stop automatiske udgående forespørgsler, som DeepChat selv står for:",
+    "privacyModeAutoUpdate": "Kontrol af appopdateringer",
+    "privacyModeProviderDb": "Opdatering af metadata for udbydere og modeller",
+    "privacyModeAcpRegistry": "Opdatering af ACP-registret og synkronisering af ikoner",
+    "privacyModeNpmRegistry": "Automatisk registrering af MCP npm-register",
+    "privacyModeManualActions": "Manuelle kontroller og manuelle opdateringer forbliver tilgængelige.",
+    "privacyModeIntegrations": "Konfigurerede tredjepartsintegrationer forbliver tilgængelige.",
     "searchAssistantModel": "Assistentmodel",
     "selectModel": "Vælg model",
     "proxyMode": "Proxytilstand",
@@ -117,6 +126,23 @@
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
     },
+    "syncSectionTitle": "Sikkerhedskopiering og synkronisering",
+    "operationsSectionTitle": "Datahandlinger",
+    "resetDataDescription": "Nulstil chat, vidensbase, konfiguration eller alle data efter type.",
+    "modelConfigUpdate": {
+      "title": "Opdater modelkonfiguration",
+      "descriptionPrefix": "Synkroniser modeldata fra ",
+      "linkLabel": "repoet ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
+      "button": "Opdater nu",
+      "updating": "Opdaterer...",
+      "updatedTitle": "Modelkonfiguration opdateret",
+      "updatedDescription": "De seneste providerdata er blevet hentet.",
+      "upToDateTitle": "Allerede opdateret",
+      "upToDateDescription": "Den lokale modelkonfiguration bruger allerede de nyeste providerdata.",
+      "failedTitle": "Opdatering mislykkedes",
+      "failedDescription": "Modelkonfigurationen kunne ikke opdateres lige nu. Prøv igen senere."
+    },
     "yoBrowser": {
       "clearButton": "Ryd YoBrowser-data",
       "clearFailedDescription": "Prøv venligst igen, eller tjek logfilerne for at få flere oplysninger.",
@@ -129,6 +155,210 @@
       "confirmTitle": "Bekræft at rydde YoBrowser-data?",
       "description": "En uafhængig browsersandbox, der ikke deler cookies og lokal lagring med hovedapplikationen. YoBrowser-data kan ryddes med et enkelt klik her.",
       "title": "YoBrowser Sandbox"
+    },
+    "databaseRepair": {
+      "title": "Databasereparation",
+      "description": "Find og reparer databasen automatisk",
+      "button": "Kontrollér og reparer databasen",
+      "running": "Kontrollerer og reparerer...",
+      "lastResultLabel": "Seneste resultat: {result}",
+      "summaryHealthy": "Intakt",
+      "summaryRepaired": "Reparerede {count} problem(er)",
+      "summaryRepairedWithManual": "Reparerede {repaired} problem(er), {manual} kræver manuel håndtering",
+      "summaryManualOnly": "{manual} problem(er) kræver opmærksomhed",
+      "manualHint": "{count} problem(er) kræver stadig manuel håndtering.",
+      "toastSuggestedTitle": "Databasereparation anbefales",
+      "toastSuggestedDescription": "DeepChat opdagede et skemaproblem ({reason}). Du kan køre databasereparation nu.",
+      "toastAction": "Gå til reparation",
+      "toastHealthyTitle": "Databasen er intakt",
+      "toastHealthyDescription": "Der blev ikke fundet nogen skemaproblemer.",
+      "toastCompletedTitle": "Databasereparation fuldført",
+      "toastRepairedDescription": "Reparerede {count} problem(er).",
+      "toastManualDescription": "Reparerede {repaired} problem(er). {manual} problem(er) kræver stadig manuel håndtering.",
+      "toastFailedTitle": "Databasereparation mislykkedes",
+      "toastFailedDescription": "Databasereparation kunne ikke fuldføres lige nu. Tjek loggene, og prøv igen.",
+      "reasons": {
+        "missing-table": "manglende tabel",
+        "missing-column": "manglende kolonne",
+        "column-count-mismatch": "kolonneantal matcher ikke",
+        "type-mismatch": "kolonnetype matcher ikke"
+      }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "Manage backup, sync, privacy mode, maintenance, and dangerous operations.",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Importer providerindstillinger",
+      "entryDescription": "Scan CC Switch, Alma, Cherry Studio, Hermes og OpenClaw for provider-legitimationsoplysninger og modellister.",
+      "entryButton": "Importer fra agenter",
+      "dialogTitle": "Importer fra andre agenter",
+      "dialogDescription": "Vælg først registrerede apps, og gennemgå derefter de providers, DeepChat kan importere.",
+      "toastTitle": "Providerimport fuldført",
+      "toastDescription": "Importerede {count} provider(e).",
+      "steps": {
+        "scan": "Scan",
+        "providers": "Providers",
+        "done": "Færdig"
+      },
+      "scanningTitle": "Scanner installerede agenter",
+      "scanningDescription": "DeepChat kontrollerer kendte lokale konfigurationsfiler uden at sende data nogen steder.",
+      "scanFailedTitle": "Scanning mislykkedes",
+      "sourcesTitle": "Registrerede kilder",
+      "sourcesDescription": "Vælg en eller flere agenter. Valgte agenter behandles i den viste rækkefølge.",
+      "selectedSources": "{selected}/{total} valgt",
+      "noSourcesTitle": "Ingen providerkonfiguration fundet til import",
+      "noSourcesDescription": "Installer en af de understøttede agenter, eller konfigurer provider-legitimationsoplysninger der først.",
+      "providersFound": "{count} provider(e)",
+      "sourceProgress": "{current} af {total}",
+      "overwriteNote": "Hvis flere valgte providers matcher den samme DeepChat-provider, overskriver den senere kilde den tidligere.",
+      "noProvidersTitle": "Ingen providerdata i denne kilde",
+      "noProvidersDescription": "Denne agent blev valgt, men der blev ikke fundet en providerpost, der kan importeres.",
+      "apiKey": "Nøgle {value}",
+      "noModels": "Ingen modelliste",
+      "modelsImported": "{count} model(ler)",
+      "importingTitle": "Importerer providers",
+      "importingDescription": "DeepChat skriver valgte providers og brugerdefinerede modelposter.",
+      "doneTitle": "Importoversigt",
+      "doneDescription": "Importerede {count} provider(e). Gennemgå resultatet for hver provider nedenfor.",
+      "badges": {
+        "configured": "Konfigureret"
+      },
+      "sourceStatus": {
+        "found": "Fundet",
+        "not_found": "Ikke fundet",
+        "error": "Fejl",
+        "unsupported_platform": "Ikke-understøttet platform"
+      },
+      "targetKind": {
+        "builtin": "Indbygget",
+        "custom": "Brugerdefineret",
+        "unsupported": "Ikke understøttet"
+      },
+      "warnings": {
+        "already_configured": "Allerede konfigureret i DeepChat, så den er ikke valgt som standard.",
+        "missing_api_key": "Mangler API-nøgle eller påkrævet endpoint.",
+        "unsupported_provider": "DeepChat kan ikke importere denne provider automatisk.",
+        "overwrites_previous_selection": "Dette valg er i konflikt med en tidligere kilde.",
+        "credential_only_import": "Kun API-nøglen importeres; DeepChat beholder den indbyggede providers endpoint og runtime."
+      },
+      "conflicts": {
+        "overridesPrevious": "Dette valg overskriver en tidligere valgt provider.",
+        "overwrittenByLater": "En senere valgt kilde overskriver denne provider."
+      },
+      "summary": {
+        "imported": "Importeret",
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "overwritten": "Overskrevet",
+        "models": "Modeller",
+        "skipped": "Sprunget over"
+      },
+      "resultStatus": {
+        "created": "Oprettet",
+        "updated": "Opdateret",
+        "skipped": "Sprunget over",
+        "overwritten": "Overskrevet"
+      },
+      "actions": {
+        "rescan": "Scan igen",
+        "selectAll": "Vælg alle",
+        "clearSelected": "Ryd",
+        "import": "Importer valgte"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Import mislykkedes: {message}"
+    },
+    "databaseEncryption": {
+      "title": "SQLite-databasekryptering",
+      "description": "Krypter agent.db med SQLCipher, og kræv en SQLite-adgangskode, når systemoplåsning ikke kan bruges.",
+      "enabled": "Aktiveret",
+      "disabled": "Deaktiveret",
+      "cipher": "Kryptering",
+      "systemUnlock": "Systemoplåsning",
+      "startupUnlock": "Opstartsoplåsning",
+      "lastMigration": "Seneste migrering",
+      "loading": "Indlæser",
+      "never": "Aldrig",
+      "notRequired": "Ikke påkrævet",
+      "systemUnlockAvailable": "Tilgængelig",
+      "systemUnlockUnavailable": "Ikke tilgængelig",
+      "systemUnlockMode": "Systemoplåsning",
+      "manualUnlock": "Manuel adgangskode",
+      "currentPassword": "Nuværende adgangskode",
+      "newPassword": "Ny SQLite-adgangskode",
+      "confirmPassword": "Bekræft adgangskode",
+      "passwordMismatch": "Adgangskoderne stemmer ikke overens",
+      "systemCredentialStore": "Når sikker systemlagring er tilgængelig, gemmer DeepChat SQLite-adgangskoden krypteret i systemets legitimationslager (f.eks. macOS Keychain, Windows Credential Vault eller en Linux secret store). Efter en vellykket oplåsning åbner senere opstarter normalt automatisk; du skal kun indtaste krypteringsnøglen igen efter datamigrering, hvis systemlegitimationsoplysningerne mangler eller ikke kan dekrypteres, eller hvis sikker lagring ikke er tilgængelig.",
+      "safeStorageUnavailable": "Electron safeStorage er ikke tilgængelig på dette system. Når kryptering er aktiveret, skal du indtaste adgangskoden ved hver opstart.",
+      "enableButton": "Aktivér kryptering",
+      "changeButton": "Skift adgangskode",
+      "disableButton": "Deaktivér kryptering",
+      "enabledTitle": "Databasekryptering aktiveret",
+      "changedTitle": "SQLite-adgangskoden er ændret",
+      "disabledTitle": "Databasekryptering deaktiveret",
+      "failedTitle": "Databasekryptering mislykkedes",
+      "failedDescription": "Kontrollér adgangskoden, og prøv igen.",
+      "setPasswordButton": "Angiv adgangskode",
+      "enableDialogTitle": "Angiv SQLite-adgangskode",
+      "changeDialogTitle": "Skift SQLite-adgangskode",
+      "disableDialogTitle": "Deaktivér databasekryptering",
+      "enableDialogDescription": "Opret en krypteret SQLite-database, og migrér de aktuelle lokale data til den.",
+      "changeDialogDescription": "Migrér den aktuelle krypterede database til en ny krypteret database med den nye adgangskode.",
+      "disableDialogDescription": "Migrér den aktuelle krypterede database tilbage til en lokal database i klartekst.",
+      "cancelButton": "Annuller",
+      "unknown": "Ukendt"
+    },
+    "cloudSync": {
+      "title": "Cloud-synkronisering (S3-kompatibel)",
+      "description": "Upload sikkerhedskopier til S3-kompatibel lagring som Cloudflare R2, og hent den nyeste sikkerhedskopi på en anden enhed.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "Region",
+      "prefix": "Stipræfiks",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "Konfigureret (lad feltet være tomt for at beholde)",
+      "safeStorageUnavailable": "Systemets nøglering er ikke tilgængelig; den hemmelige nøgle kan ikke gemmes sikkert.",
+      "save": "Gem",
+      "test": "Test forbindelse",
+      "upload": "Upload til skyen",
+      "pull": "Hent nyeste fra skyen",
+      "savedTitle": "Cloud-konfiguration gemt",
+      "testSuccessTitle": "Forbindelsen lykkedes",
+      "testFailedTitle": "Forbindelsen mislykkedes",
+      "uploadSuccessTitle": "Upload lykkedes",
+      "uploadFailedTitle": "Upload mislykkedes",
+      "pullSuccessTitle": "Hentning lykkedes",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "Brugerdefineret S3-kompatibel",
+      "r2GuideTitle": "Kopiér S3-klientoplysningerne fra API-token-siden i Cloudflare R2.",
+      "r2EndpointHint": "Brug den jurisdiktionsspecifikke Endpoint-URL til S3-klienter",
+      "r2AccessKeyHint": "Brug Access Key ID, ikke Account ID",
+      "r2SecretHint": "Brug Secret Access Key, ikke token-værdien der starter med cfat_",
+      "r2DocsLink": "Åbn Cloudflare R2 S3-dokumentationen",
+      "endpointR2Description": "Brug https://<account_id>.r2.cloudflarestorage.com uden bucket-navn.",
+      "endpointCustomDescription": "Brug Endpoint for en S3-kompatibel tjeneste.",
+      "r2AccessKeyAccountIdWarning": "Dette ligner R2 Account ID. Access Key ID findes i sektionen med S3-klientoplysninger.",
+      "r2SecretApiTokenError": "Brug S3 Secret Access Key her, ikke en Cloudflare API-tokenværdi der starter med cfat_.",
+      "secretStoredDescription": "En hemmelig nøgle er gemt. Lad feltet være tomt for at beholde den, eller indtast en ny værdi for at erstatte den.",
+      "secretInputDescription": "Kopiér Secret Access Key fra sektionen med S3-klientoplysninger.",
+      "advancedTitle": "Avancerede indstillinger",
+      "r2RegionDescription": "Cloudflare R2 bør normalt blive stående på auto.",
+      "prefixDescription": "Sikkerhedskopier skrives under dette stipræfiks.",
+      "saveAndTest": "Gem og test",
+      "saveOnly": "Gem kun",
+      "saveAndTestFirst": "Gem og test cloud-konfigurationen først."
     }
   },
   "dashboard": {
@@ -234,6 +464,9 @@
     },
     "unavailable": "Ikke tilgængelig"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald"
+  },
   "model": {
     "title": "Modelindstillinger",
     "systemPrompt": {
@@ -292,6 +525,10 @@
       },
       "createTitle": "Tilføj brugerdefineret model",
       "editTitle": "Rediger modelkonfiguration - {name}",
+      "speechRecognition": {
+        "label": "Stemmegenkendelse",
+        "description": "Styrer om denne model tillader stemmeinput med lokal tale-til-tekst."
+      },
       "functionCall": {
         "description": "Om modellen understøtter funktionskald direkte (DeepChat simulerer automatisk funktionskald, hvis denne mulighed slås fra)",
         "label": "Funktionskald"
@@ -301,8 +538,12 @@
         "label": "Maksimal outputlængde"
       },
       "reasoning": {
-        "description": "Understøtter modellen ræsonnering?",
+        "description": "Denne model understøtter ræsonnering",
         "label": "Ræsonnering"
+      },
+      "reasoningToggle": {
+        "description": "Styrer om ræsonnering er aktiveret som standard for denne model",
+        "label": "Aktivér ræsonnering"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -329,10 +570,13 @@
         "description": "Styrer hvor dybt modellen ræsonnerer; højere indsats giver bedre resultater men længere svartid",
         "placeholder": "Vælg niveau for ræsonnering",
         "options": {
+          "none": "Ingen - Ingen ræsonnering",
           "minimal": "Minimal - Hurtigste svar",
           "low": "Lav - Lav indsats",
           "medium": "Mellem - Moderat indsats",
-          "high": "Høj - Stor indsats"
+          "high": "Høj - Stor indsats",
+          "xhigh": "Ekstra høj - Maksimal indsats",
+          "max": "Max - Højeste indsats"
         }
       },
       "verbosity": {
@@ -351,7 +595,12 @@
       "currentUsingModelDefault": "Bruger i øjeblikket modellens standardkonfiguration",
       "temperature": {
         "description": "Styrer tilfældigheden i output. De fleste modeller bruger 0-1, nogle understøtter 0-2. Højere værdi øger tilfældigheden.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
         "label": "Temperatur"
+      },
+      "topP": {
+        "label": "Top P",
+        "description": "Styrer nucleus-sampling. Lad feltet stå tomt for at bruge model- eller udbyderstandarden."
       },
       "title": "Brugerdefinerede modelparametre",
       "type": {
@@ -361,7 +610,8 @@
           "chat": "Sprogmodel",
           "embedding": "Embedding-model",
           "imageGeneration": "Billedgenereringsmodel",
-          "rerank": "Rerank-model"
+          "rerank": "Rerank-model",
+          "videoGeneration": "Videogenereringsmodel"
         }
       },
       "validation": {
@@ -373,7 +623,10 @@
         "maxTokensRequired": "Den maksimale outputlængde må ikke være tom",
         "temperatureMax": "Temperaturen skal være mindre end eller lig 2",
         "temperatureMin": "Temperaturen skal være større end eller lig 0",
-        "temperatureRequired": "Temperaturen må ikke være tom"
+        "temperatureRequired": "Temperaturen må ikke være tom",
+        "timeoutMin": "Tidsgrænsen for anmodning skal være mindst 1000ms",
+        "timeoutMax": "Tidsgrænsen for anmodning må ikke overstige 3600000ms",
+        "topPRange": "Top P skal være større end 0 og mindre end eller lig med 1"
       },
       "vision": {
         "description": "Understøtter modellen visuelle funktioner?",
@@ -384,7 +637,118 @@
         "label": "API-endpunkt",
         "options": {
           "chat": "tekstgenerering",
-          "image": "Billedgenerering"
+          "image": "Billedgenerering",
+          "video": "Video Generation"
+        }
+      },
+      "endpointType": {
+        "label": "Endpunkttype",
+        "description": "Vælg hvilken upstream-protokol New API skal bruge til denne model.",
+        "placeholder": "Vælg endpunkttype",
+        "required": "Endpunkttype er påkrævet",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Billedgenerering",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Synlighed for ræsonnering",
+        "description": "Styrer om ræsonneringsindhold skjules eller vises som et kort resumé, når ræsonnering er aktiveret",
+        "placeholder": "Vælg synlighed for ræsonnering",
+        "options": {
+          "omitted": "Omitted - Skjul ræsonneringsindhold",
+          "summarized": "Summarized - Vis ræsonnering som resumé"
+        }
+      },
+      "timeout": {
+        "label": "Tidsgrænse for anmodning (ms)",
+        "description": "Indstil tidsgrænsen for en enkelt modelanmodning. Hvis den overskrides, afbrydes anmodningen."
+      },
+      "imageGeneration": {
+        "default": "Standard",
+        "size": {
+          "label": "Billedstørrelse",
+          "custom": "Brugerdefineret",
+          "placeholder": "f.eks. 2048x2048",
+          "experimental": "Størrelser over 2560x1440 er markeret som eksperimentelle af OpenAI.",
+          "validation": {
+            "invalid_format": "Brug formatet {width}x{height}.",
+            "invalid_multiple": "Bredde og højde skal være multipla af 16.",
+            "side_too_large": "Bredde og højde må højst være 3840px.",
+            "aspect_ratio_too_large": "Den lange side må ikke være mere end 3x den korte side.",
+            "pixel_count_out_of_range": "Det samlede antal pixels skal være mellem 655360 og 8294400."
+          }
+        },
+        "quality": {
+          "label": "Kvalitet",
+          "options": {
+            "low": "Lav",
+            "medium": "Mellem",
+            "high": "Høj",
+            "auto": "Auto"
+          }
+        },
+        "outputFormat": {
+          "label": "Outputformat",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Komprimering",
+          "placeholder": "Standard: 100",
+          "validation": "Komprimering skal være et heltal fra 0 til 100."
+        },
+        "background": {
+          "label": "Baggrund",
+          "options": {
+            "auto": "Auto",
+            "opaque": "Uigennemsigtig"
+          }
+        },
+        "moderation": {
+          "label": "Moderation",
+          "options": {
+            "auto": "Auto",
+            "low": "Lav"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -396,6 +760,11 @@
     "disabled": "Deaktiveret",
     "urlPlaceholder": "Indtast API-URL",
     "keyPlaceholder": "Indtast API-nøgle",
+    "authMode": "Godkendelsesmetode",
+    "authModeAccessKeys": "Adgangsnøgler",
+    "authModeProfile": "AWS-profil",
+    "profileNameLabel": "AWS-profilnavn",
+    "profilePlaceholder": "Indtast venligst AWS-profilnavn (f.eks. default)",
     "accessKeyIdPlaceholder": "Indtast AWS Access Key ID",
     "secretAccessKeyPlaceholder": "Indtast AWS Secret Access Key",
     "regionPlaceholder": "Indtast AWS-region",
@@ -406,6 +775,9 @@
     "urlFormat": "API-eksempel: {defaultUrl}",
     "urlFormatFill": "Udfyld API-URL",
     "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
+    "modifyBaseUrl": "Rediger",
+    "baseUrlLockedHint": "Denne udbyder er låst til den anbefalede basis-URL for at mindske fejlkonfiguration.",
+    "refreshModelsWithMetadataHint": "Opdatering af denne udbyder synkroniserer først upstream-metadata og genopbygger derefter den lokale modelliste.",
     "modelList": "Modelliste",
     "enableModels": "Aktivér modeller",
     "disableAllModels": "Deaktiver alle modeller",
@@ -421,8 +793,8 @@
     "stopModel": "Stop model",
     "pulling": "Henter...",
     "runModel": "Kør model",
-    "voiceai": {
-      "title": "Voice.ai tekst-til-tale",
+    "tts": {
+      "title": "Tekst-til-tale (TTS)",
       "description": "Generér tale fra tekst. Stemmer vises i modellisten nedenfor.",
       "audioFormat": {
         "label": "Lydformat",
@@ -500,6 +872,11 @@
         "overwriteWarning": "Denne import vil overskrive den nuværende udbyderkonfiguration.",
         "confirming": "Importerer..."
       },
+      "baseUrlUnlock": {
+        "title": "Bekræft ændring af basis-URL",
+        "description": "Det anbefales ikke at ændre basis-URL'en for denne udbyder. Et forkert endpoint kan medføre fejl i forespørgsler eller anden uventet adfærd. Du kan stadig fortsætte, hvis du forstår risikoen.",
+        "confirm": "Fortsæt"
+      },
       "deleteProvider": {
         "title": "Bekræft sletning af udbyder",
         "content": "Er du sikker på, at du vil slette udbyderen \"{name}\"? Handlingen kan ikke fortrydes.",
@@ -574,7 +951,13 @@
       "backupSuccessTitle": "Backup fuldført",
       "backupSuccessMessage": "Backup gemt {time} ({size})",
       "importSuccessTitle": "Import fuldført",
-      "importSuccessMessage": "Importerede {count} samtaler"
+      "importSuccessMessage": "Importerede {count} samtaler",
+      "refreshModelsSuccessTitle": "Modeller opdateret",
+      "refreshModelsSuccessDescription": "Den nyeste modelliste er blevet synkroniseret for denne udbyder.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Upstream-metadata og den nyeste modelliste er blevet synkroniseret for denne udbyder.",
+      "refreshModelsFailedTitle": "Opdatering mislykkedes",
+      "refreshModelsFailedDescription": "Modellerne for denne udbyder kunne ikke opdateres lige nu. Prøv igen senere.",
+      "refreshModelsFailedDescriptionWithMetadata": "Upstream-metadata og modeller for denne udbyder kunne ikke opdateres lige nu. Prøv igen senere."
     },
     "modelscope": {
       "mcpSync": {
@@ -649,7 +1032,25 @@
     "vertexProjectId": "Projekt ID",
     "vertexProjectIdPlaceholder": "Indtast dit Google Cloud-projekt-id",
     "vertexServiceEmailPlaceholder": "Indtast venligst tjenestekontoens e-mail",
-    "vertexServiceEmail": "Servicekonto-e-mail"
+    "vertexServiceEmail": "Servicekonto-e-mail",
+    "center": {
+      "title": "Provider Center",
+      "description": "Manage provider connections, models, and advanced configuration.",
+      "noApiUrl": "No API URL configured",
+      "enabledModels": "{count} models enabled",
+      "noAdvancedConfig": "This provider has no extra advanced configuration.",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",
@@ -799,6 +1200,7 @@
     "stopServer": "Stop server",
     "startServer": "Start server",
     "noServersFound": "Ingen servere fundet",
+    "noServersDescription": "Tilføj en MCP-server for at bruge værktøjer, prompts og ressourcer.",
     "addServerDialog": {
       "title": "Tilføj server",
       "description": "Konfigurér en ny MCP-server"
@@ -909,7 +1311,7 @@
     "removeDefaultFirst": "Fjern nogle standardservere først",
     "higressMarket": "Gå til Higress MCP-installation",
     "npmRegistry": {
-      "title": "Konfiguration af NPM-registry",
+      "title": "NPM-kilde",
       "currentSource": "Aktuel kilde",
       "cached": "Cachelagret",
       "lastChecked": "Sidst kontrolleret",
@@ -948,6 +1350,84 @@
       "redetectCompleteDesc": "Den nuværende optimale NPM-kilde er fundet og sat",
       "redetectFailed": "Gen-detektion mislykkedes",
       "redetectFailedDesc": "Kan ikke finde ny optimal kilde, bruger standardkonfiguration"
+    },
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "Search MCP servers...",
+      "noResults": "No matching MCP servers",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "Planlagte opgaver",
+    "description": "Vis en systemnotifikation, eller send en foruddefineret prompt til en agent på et valgt tidspunkt.",
+    "hint": "Engangsopgaver, der blev overset mens appen var lukket, køres ved næste start; gentagne opgaver springer til næste tidspunkt.",
+    "newTask": "Ny opgave",
+    "empty": "Ingen opgaver endnu",
+    "namePlaceholder": "Opgavenavn",
+    "fireNow": "Kør nu",
+    "fireNowSuccess": "Opgaven blev kørt",
+    "defaults": {
+      "name": "Ny opgave",
+      "title": "Påmindelse",
+      "body": "Tiden er gået"
+    },
+    "trigger": {
+      "title": "Udløser",
+      "kind": "Udløsertype",
+      "kindOnce": "Én gang",
+      "kindDaily": "Dagligt",
+      "kindWeekly": "Ugentligt",
+      "firesAt": "Kør kl.",
+      "dayOfWeek": "Ugedag",
+      "time": "Tid",
+      "description": "Vælg hvornår opgaven skal køre."
+    },
+    "action": {
+      "title": "Handling",
+      "kind": "Handlingstype",
+      "kindNotify": "Notifikation",
+      "kindPrompt": "Chatprompt",
+      "titleField": "Titel",
+      "titlePlaceholder": "Notifikationstitel",
+      "body": "Indhold",
+      "message": "Besked",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "standard: deepchat",
+      "modelId": "Model",
+      "modelIdPlaceholder": "lad stå tom for standard",
+      "systemPrompt": "Systemprompt",
+      "autoSend": "Send automatisk til den valgte agent",
+      "description": "Vælg en notifikation eller en agentprompt."
+    },
+    "weekday": {
+      "sun": "Søn",
+      "mon": "Man",
+      "tue": "Tir",
+      "wed": "Ons",
+      "thu": "Tor",
+      "fri": "Fre",
+      "sat": "Lør"
+    },
+    "listTitle": "Opgaveliste",
+    "listDescription": "Administrer tidsplaner, handlinger og aktiveret status ét sted.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Hver dag kl. {time}",
+      "weekly": "{day} kl. {time}"
     }
   },
   "about": {
@@ -990,12 +1470,15 @@
     "goSettings": "Åbn indstillinger",
     "hideWindow": "Skjul vindue",
     "quitApp": "Afslut app",
+    "toggleSidebar": "Vis/skjul sidepanel",
+    "toggleWorkspace": "Vis/skjul arbejdsområde",
     "zoomIn": "Zoom ind",
     "zoomOut": "Zoom ud",
     "zoomReset": "Nulstil zoom",
     "newWindow": "Åbn nyt vindue",
     "showHideWindow": "Vis/skjul vindue",
     "newConversation": "Ny samtale",
+    "quickSearch": "Spotlight-søgning",
     "closeWindow": "Luk aktiv fane"
   },
   "acp": {
@@ -1103,14 +1586,21 @@
       "eventCount": "{count} hændelser",
       "eventKinds": {
         "error": "fejl",
+        "lifecycle": "Livscyklus",
         "notification": "Meddelelse",
         "permission": "Tilladelse",
         "request": "Anmodning",
-        "response": "Svar"
+        "response": "Svar",
+        "stderr": "stderr"
       },
       "events": "Hændelser",
       "format": "Formater JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/aflys",
         "extMethod": "ext/metode",
         "extNotification": "ext/meddelelse",
@@ -1169,6 +1659,10 @@
     "installedEmptyDescription": "Install an agent from the ACP Registry first, then configure it here.",
     "registryOverlayEmpty": "No agents match the current filters.",
     "registryInstallAction": "Install",
+    "registryUninstallAction": "Afinstaller",
+    "registryUninstallConfirm": "Vil du afinstallere agenten \"{name}\"?",
+    "registryUninstallDescription": "DeepChat deaktiverer agenten og rydder lokalt administrerede installationsdata, når det er relevant. Du kan installere den igen senere fra ACP Registry.",
+    "registryUninstallFailed": "Kunne ikke afinstallere agenten",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Search, filter, and install ACP agents. Configure them back in settings after installation.",
     "registryLearnMore": "Learn More",
@@ -1207,6 +1701,10 @@
   },
   "skills": {
     "addSkill": "Tilføj færdighed",
+    "draftSuggestions": {
+      "title": "Foreslå skill-kladder",
+      "description": "Når en opgave er færdig, kan agenten foreslå midlertidige og genanvendelige skill-kladder. Kladderne bliver i en midlertidig mappe, indtil du vælger at importere dem manuelt."
+    },
     "conflict": {
       "description": "Skillen \"{name}\" findes allerede. Vil du overskrive?",
       "overwrite": "dække",
@@ -1260,9 +1758,9 @@
     "emptyHint": "Klik på knappen „Tilføj skill“ for at installere en ny skill",
     "install": {
       "description": "Vælg skill-installationsmetode",
-      "dragNotSupported": "Træk og slip understøttes ikke endnu. Klik venligst for at vælge.",
+      "dragInvalid": "Indholdet understøttes ikke. Træk en skill-mappe eller en enkelt .zip-fil.",
       "failed": "Installation mislykkedes",
-      "folderHint": "Klik for at vælge skill-mappen",
+      "folderHint": "Klik eller træk en skill-mappe hertil",
       "folderTip": "Understøtter direkte import fra ~/.claude/skills/ og andre klienter",
       "fromFolder": "Installér fra mappe",
       "installButton": "installere",
@@ -1276,7 +1774,7 @@
       "title": "Installer skill",
       "urlHint": "Indtast downloadlinket til skill-pakken",
       "urlPlaceholder": "Indtast skill ZIP-downloadadresse",
-      "zipHint": "Klik for at vælge ZIP-fil"
+      "zipHint": "Klik eller træk en ZIP-fil hertil"
     },
     "noResults": "Ingen matchende skill fundet",
     "openFolder": "Åbn mappe",
@@ -1381,23 +1879,46 @@
   },
   "notificationsHooks": {
     "commands": {
-      "commandPlaceholder": "Kommandoen der skal udføres",
-      "description": "Udfør kommandoen for hver begivenhed.",
-      "hint": "Skriv payload som JSON til stdin.",
-      "title": "Hooks kommandoer"
+      "title": "Hook-kommandoer",
+      "description": "Kør brugerdefinerede kommandoer for de valgte livscyklusbegivenheder.",
+      "hint": "Hele payloaden skrives til stdin som JSON.",
+      "commandPlaceholder": "Kommando, der skal køres",
+      "commandLabel": "Kommando",
+      "name": "Navn",
+      "namePlaceholder": "Hook-navn",
+      "newHook": "Nyt hook",
+      "empty": "Der er endnu ingen hooks. Tilføj et for at komme i gang.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Sådan bruges det",
+      "guideDescription": "Når en markeret begivenhed udløses, kører DeepChat kommandoen. Den aktuelle begivenhed kan læses via stdin-JSON, miljøvariabler og kommandolinje-pladsholdere.",
+      "deliveryTitle": "Sådan sendes data",
+      "deliveryStdin": "Hele payloaden skrives til stdin som JSON.",
+      "deliveryPlaceholder": "Du kan bruge kommandolinje-pladsholdere direkte i kommandoen.",
+      "deliveryEnv": "De samme grundlæggende metadata er også tilgængelige som miljøvariabler.",
+      "metadataOnly": "Kommandolinje-pladsholdere er bedst til små metadata. Læs prompt/tool-detaljer, permission, usage, stop og error fra stdin-JSON.",
+      "stdinPreviewLabel": "stdin-eksempel",
+      "placeholdersTitle": "Kommandolinje-pladsholdere",
+      "placeholdersDescription": "Pladsholdere udvides før kørsel og kan sendes som kommandoargumenter.",
+      "envTitle": "Miljøvariabler",
+      "examplesTitle": "Eksempler",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Navnet på den aktuelle begivenhed",
+        "time": "Begivenhedstid i ISO-8601-format",
+        "isTest": "Om kørslen kommer fra testknappen",
+        "conversationId": "ID for den aktuelle samtale / session",
+        "workdir": "Løst arbejdsmappe for sessionen",
+        "agentId": "Aktuelt Agent-ID, når det er tilgængeligt",
+        "providerId": "Aktuelt Provider-ID, når det er tilgængeligt",
+        "modelId": "Aktuelt Model-ID, når det er tilgængeligt",
+        "messageId": "Aktuelt brugerbesked-ID, når det er tilgængeligt",
+        "toolName": "Aktuelt værktøjsnavn, når det er tilgængeligt",
+        "toolCallId": "Aktuelt værktøjskald-ID, når det er tilgængeligt"
+      }
     },
-    "confirmo": {
-      "description": "Send notifikationer via Confirmo Hook (standard sender alle begivenheder).",
-      "title": "Confirmo",
-      "unavailable": "Confirmo Hook ikke fundet: {path}"
-    },
-    "description": "Konfigurer webhook-notifikationer og livscyklus-hooks.",
-    "discord": {
-      "description": "Send notifikationer via Discord webhook.",
-      "title": "Discord",
-      "webhookUrl": "Webhook-URL",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
+    "description": "Konfigurer hook-kommandoer til livscyklusbegivenheder.",
     "events": {
       "PermissionRequest": "Tilladelsesforespørgsel",
       "PostToolUse": "Efter værktøjskald",
@@ -1408,16 +1929,6 @@
       "Stop": "stop",
       "UserPromptSubmit": "Brugerindsendelse",
       "title": "begivenhed"
-    },
-    "telegram": {
-      "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram Bot Token",
-      "chatId": "Chat-ID",
-      "chatIdPlaceholder": "For eksempel 123456789",
-      "description": "Send notifikationer via Telegram Bot.",
-      "threadId": "Trådid (valgfri)",
-      "threadIdPlaceholder": "Valgfri tråd-ID",
-      "title": "Telegram"
     },
     "test": {
       "button": "Test",
@@ -1479,12 +1990,50 @@
   },
   "remote": {
     "title": "Fjernstyring",
-    "description": "Konfigurer Telegram- og Feishu-fjernstyring ét sted.",
+    "description": "Konfigurer fjernstyring via Telegram, Feishu, QQBot, Discord og WeChat iLink ét sted.",
     "telegram": {
       "title": "Telegram",
-      "description": "Administrer én Telegram-bot til fjernstyring og hook-levering.",
+      "description": "Tilslut en Telegram-bot til fjernstyring via direkte beskeder, grupper og emnetråde.",
       "botToken": "Bot-token",
-      "botTokenPlaceholder": "Telegram bot-token"
+      "botTokenPlaceholder": "Telegram bot-token",
+      "botTokenDescription": "Indtast det Telegram-bot-token, der bruges til fjernstyring via Telegram."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
+      "brand": "Mærke",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "App-id",
+      "appIdPlaceholder": "Feishu app-id",
+      "appSecret": "App-hemmelighed",
+      "appSecretPlaceholder": "Feishu app-hemmelighed",
+      "verificationToken": "Bekræftelsestoken",
+      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
+      "encryptKey": "Krypteringsnøgle (valgfri)",
+      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
+      "botUser": "Bot-bruger: {name} ({openId})",
+      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID'er for parrede brugere",
+      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
+      "accessRule1": "Par i en direkte besked med /pair [kode].",
+      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Tilslut en Discord-bot til DM'er, kanalomtaler og fjernstyring via slash-kommandoer.",
+      "botToken": "Bot-token",
+      "botTokenPlaceholder": "Discord bot-token",
+      "remoteControlDescription": "Discord-fjernstyring bruger sit eget bot-token, gateway og REST-flow.",
+      "accessRule1": "Send /pair [kode] i en DM eller målkanal for at godkende det aktuelle Discord-endpoint.",
+      "accessRule2": "Kanalbeskeder går kun ind i sessionen, når botten omtales, så almindelig chat ikke opsuges."
+    },
+    "sections": {
+      "credentials": "Oplysninger",
+      "remoteControl": "Fjernstyring",
+      "notifications": "Notifikationer",
+      "accessRules": "Adgangsregler"
     },
     "remoteControl": {
       "title": "Fjernstyring",
@@ -1496,6 +2045,9 @@
       "allowedUserIdsPlaceholder": "fx 123456789, 987654321",
       "defaultAgent": "Standard DeepChat-agent",
       "defaultAgentPlaceholder": "Vælg en agent",
+      "defaultWorkdir": "Standardmappe",
+      "defaultWorkdirPlaceholder": "Vælg standardmappe",
+      "defaultWorkdirHelper": "Arbejdsmappe for fjernstyringssessioner. Påkrævet, når standardagenten er ACP.",
       "openPairDialog": "Par",
       "manageBindings": "Administrer bindinger",
       "pairCode": "Parringskode",
@@ -1514,7 +2066,16 @@
       "clearBindings": "Ryd bindinger",
       "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
-      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:"
+      "pairDialogInstructionFeishu": "Send denne kommando til Feishu-botten i en direkte besked:",
+      "pairDialogInstructionDiscord": "Send denne kommando til Discord-botten i en DM eller målkanal:",
+      "pairDialogInstructionQQBot": "Send denne kommando i QQ-botchatten eller den autoriserede QQ-gruppe:",
+      "authorizedPrincipalsTitle": "Autoriserede identiteter",
+      "authorizedPrincipalsDescription": "Disse {channel}-konti er autoriseret til at parre og styre sessioner.",
+      "authorizedPrincipalsEmpty": "Der er endnu ingen autoriserede identiteter.",
+      "sessionBindingsTitle": "Sessionsbindinger",
+      "sessionBindingsDescription": "Hvert fjernendepunkt nedenfor er i øjeblikket bundet til en DeepChat-session.",
+      "acpDefaultWorkdirRequiredTitle": "Standardmappe påkrævet",
+      "acpDefaultWorkdirRequiredDescription": "ACP-agenter har brug for et lokalt arbejdsområde. Vælg en standardmappe, før du gemmer."
     },
     "hooks": {
       "title": "Telegram-hooks",
@@ -1535,43 +2096,62 @@
         "running": "Kører",
         "backoff": "Prøver igen efter fejl",
         "error": "Fejl"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Tilslut en Feishu-bot til direkte beskeder, gruppechats og emnetråde.",
-      "appId": "App-id",
-      "appIdPlaceholder": "Feishu app-id",
-      "appSecret": "App-hemmelighed",
-      "appSecretPlaceholder": "Feishu app-hemmelighed",
-      "verificationToken": "Bekræftelsestoken",
-      "verificationTokenPlaceholder": "Feishu bekræftelsestoken",
-      "encryptKey": "Krypteringsnøgle (valgfri)",
-      "encryptKeyPlaceholder": "Lad feltet stå tomt, medmindre hændelseskryptering er slået til",
-      "botUser": "Bot-bruger: {name} ({openId})",
-      "bindings": "Bindinger: {count}, parrede brugere: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID'er for parrede brugere",
-      "pairedUserOpenIdsPlaceholder": "f.eks. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Par først i en direkte besked. I grupper kan kun parrede brugere, der {'@'}-omtaler botten, styre en session.",
-      "accessRule1": "Par i en direkte besked med /pair [kode].",
-      "accessRule2": "I grupper og emner reagerer botten kun, når en parret bruger {'@'}-omtaler den."
-    },
-    "sections": {
-      "credentials": "Oplysninger",
-      "remoteControl": "Fjernstyring",
-      "notifications": "Notifikationer",
-      "accessRules": "Adgangsregler"
+      },
+      "bindingOnly": "Bindinger: {count}, parrede identiteter: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere, hooks {hooks}",
+      "telegram": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "feishu": "{bindingCount} bindinger, {pairedCount} parrede brugere",
       "hooksOn": "til",
-      "hooksOff": "fra"
+      "hooksOff": "fra",
+      "qqbot": "{bindingCount} bindinger, {pairedCount} parrede brugere",
+      "discord": "{bindingCount} bindinger, {pairedCount} parrede kanaler",
+      "weixinIlink": "{bindingCount} bindinger, {accountCount} konti, {connectedCount} tilsluttet"
     },
     "bindingKinds": {
       "dm": "Direkte besked",
       "group": "Gruppe",
       "topic": "Emne"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Forbind en officiel QQ Bot til C2C-chats og nævnebaseret botstyring i autoriserede grupper.",
+      "appId": "App-id",
+      "appIdPlaceholder": "QQ Bot app-id",
+      "clientSecret": "Klienthemmelighed",
+      "clientSecretPlaceholder": "QQ Bot klienthemmelighed",
+      "remoteControlDescription": "QQs officielle openid-identifikatorer er forskellige mellem C2C og grupper, så direkte beskeder parrer brugere, mens grupper skal autoriseres separat med /pair.",
+      "pairedUserIds": "Parrede bruger-OpenID'er",
+      "pairedUserIdsPlaceholder": "f.eks. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Tilslut en officiel WeChat iLink-bot via QR-login, og lad den indbyggede adapter håndtere fjernstyringssessioner.",
+      "loginDescription": "Klik på knappen nedenfor for at åbne det officielle WeChat-logindue. Fuldfør iLink Bot-godkendelsen dér, så bliver den tilsluttede konto automatisk føjet til listen nedenfor.",
+      "ownerOnlyNotice": "I første version kan kun ejeren, der logger ind via QR-koden, styre DeepChat.",
+      "connectButton": "Åbn loginvindue",
+      "refreshQrCode": "Genåbn loginvindue",
+      "loginDialogTitle": "Tilslut WeChat iLink",
+      "loginDialogDescription": "Den officielle WeChat-loginside åbnes i et separat vindue. Fuldfør QR-godkendelsen dér, og lad denne dialog være åben, indtil forbindelsen er færdig.",
+      "loginFailed": "WeChat iLink-login mislykkedes.",
+      "loginSuccessTitle": "WeChat iLink tilsluttet",
+      "loginSuccessDescription": "Kontoen {accountId} er klar.",
+      "accountsTitle": "Konti",
+      "accountsDescription": "Hver tilsluttet iLink-botkonto kører uafhængigt og bevarer sine egne bindinger og sin egen runtime-status.",
+      "noAccounts": "Der er endnu ikke tilsluttet nogen WeChat iLink-konti.",
+      "ownerUserId": "Ejerbruger-ID: {ownerUserId}",
+      "baseUrl": "Basis-URL: {baseUrl}",
+      "accountBindings": "Bindinger: {count}",
+      "remoteControlDescription": "Angiv den standardagent, som deles af WeChat iLink-konti, og administrer derefter bindingerne fra indgående sessioner.",
+      "removeAccount": "Fjern konto",
+      "restartAccount": "Genstart konto",
+      "statusSummary": "{accounts} konti, {connected} tilsluttet, {bindings} bindinger",
+      "qrcodeAlt": "WeChat iLink QR-kode",
+      "loginWindowOpened": "Det officielle WeChat-logindue er blevet åbnet. Fuldfør QR-godkendelsen dér.",
+      "loginSessionExpired": "Denne loginsession er udløbet. Genåbn loginvinduet, og prøv igen.",
+      "loginResponseIncomplete": "WeChat iLink-loginsvaret var ufuldstændigt. Prøv igen.",
+      "loginTimedOut": "Ventetiden på WeChat iLink-godkendelse udløb. Genåbn loginvinduet, og prøv igen.",
+      "loginConnected": "WeChat iLink-kontoen er forbundet."
     }
   },
   "deepchatAgents": {
@@ -1602,6 +2182,8 @@
     "modelsTitle": "Modelstandarder",
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
+    "visionModel": "Vision-model",
+    "imageGenerationModel": "Billedgenereringsmodel",
     "temperature": "Temperatur",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",
@@ -1622,6 +2204,121 @@
     "compactionDescription": "Disse standarder påvirker kun fremtidige DeepChat-sessioner.",
     "compactionThreshold": "Udløsningstærskel",
     "compactionRetainPairs": "Behold seneste par",
-    "deleteConfirm": "Slet agenten \"{name}\"? Dens historik falder tilbage til den indbyggede DeepChat-agent."
+    "deleteConfirm": "Slet agenten \"{name}\"? Dens historik falder tilbage til den indbyggede DeepChat-agent.",
+    "subagentsTitle": "Underagenter",
+    "subagentsDescription": "Konfigurer de genanvendelige slots til undersessioner, som `subagent_orchestrator` stiller til rådighed.",
+    "subagentsEnabled": "Aktivér underagenter",
+    "subagentTargetType": "Måltype",
+    "subagentTargetSelf": "Denne agent",
+    "subagentTargetAgent": "Agent",
+    "subagentDisplayName": "Visningsnavn",
+    "subagentDescription": "Slotbeskrivelse",
+    "subagentTargetAgentLabel": "Målagent",
+    "subagentLimit": "{count}/{max} pladser",
+    "addSubagentSlot": "+ Tilføj slot"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "Overview",
+      "setup": "Setup",
+      "models": "Agent Settings",
+      "tools": "Capability Extensions",
+      "knowledge": "Knowledge",
+      "system": "System"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "Data",
+      "enabledCount": "{count} enabled",
+      "runningCount": "{count} running",
+      "enabledAgentCount": "{count} agents enabled",
+      "providersDescription": "Provider connection status",
+      "deepchatAgentsDescription": "Agent configuration entry point",
+      "mcpOn": "MCP enabled",
+      "mcpOff": "MCP disabled",
+      "syncOn": "Sync enabled",
+      "syncOff": "Sync disabled",
+      "backupNever": "Backup: never"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "Configure provider access",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "Turn on a usable model",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "Start tool servers",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "Create a data backup"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "Nothing needs attention",
+      "noModels": "No model is enabled",
+      "privacyOff": "Privacy Mode is off",
+      "backupNever": "Backup has never run"
+    },
+    "activity": {
+      "title": "Recent changes",
+      "description": "Shows the newest 200 changes while retaining the newest 2000 records.",
+      "when": "Time",
+      "category": "Category",
+      "change": "Change",
+      "empty": "No recent changes",
+      "emptyDescription": "Successful settings changes will appear here.",
+      "settingUpdated": "Updated setting: {key}",
+      "providerUpdated": "Updated provider: {name}",
+      "providerCreated": "Added provider: {name}",
+      "providerRemoved": "Removed provider: {name}",
+      "providerModelsRefreshed": "Refreshed provider models: {name}",
+      "modelStatusChanged": "Updated model status: {model}",
+      "modelBatchUpdated": "Updated {count} models",
+      "mcpServerCreated": "Added MCP server: {name}",
+      "mcpServerUpdated": "Updated MCP server: {name}",
+      "mcpServerRemoved": "Removed MCP server: {name}",
+      "mcpServerStatusChanged": "Toggled MCP server: {name}",
+      "mcpGlobalStatusChanged": "Toggled MCP global status: {status}",
+      "mcpServerStarted": "Started MCP server: {name}",
+      "mcpServerStopped": "Stopped MCP server: {name}",
+      "mcpRegistryRefreshed": "Refreshed MCP NPM registry",
+      "backupCreated": "Created backup: {name}",
+      "backupImported": "Imported backup: {name}",
+      "databaseRepaired": "Database repair finished: {status}"
+    }
   }
 }

@@ -17,6 +17,7 @@
     "src/renderer/splash/**/*.vue",
     "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
+    "src/renderer/api/**/*",
     "src/shared/**/*",
     "src/shadcn/**/*",
     "src/renderer/settings/**/*",
@@ -24,6 +25,7 @@
   ],
   "compilerOptions": {
     "module": "esnext",
+    "moduleResolution": "bundler",
     "composite": false,
     "declaration": false,
     "emitDeclarationOnly": false,
@@ -31,6 +33,9 @@
     "paths": {
       "@/*": [
         "./src/renderer/src/*"
+      ],
+      "@api/*": [
+        "./src/renderer/api/*"
       ],
       "@browser/*": [
         "./src/renderer/browser/*"

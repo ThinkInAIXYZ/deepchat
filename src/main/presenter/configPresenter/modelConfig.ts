@@ -1,54 +1,39 @@
-import { ApiEndpointType, ModelType } from '@shared/model'
+import {
+  ApiEndpointType,
+  ModelType,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId
+} from '@shared/model'
 import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
 import {
+  DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
-  resolveModelFunctionCall,
-  resolveModelMaxTokens
+  resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
+import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/moonshotKimiPolicy'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import { providerDbLoader } from './providerDbLoader'
 import {
+  hasAnthropicReasoningToggle,
   isImageInputSupported,
+  normalizeAnthropicReasoningVisibilityValue,
+  normalizeReasoningEffortValue,
+  normalizeReasoningVisibilityValue,
   ProviderModel,
   ReasoningPortrait,
-  type ReasoningEffort,
+  isVerbosity,
   type Verbosity
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
 import { modelCapabilities } from './modelCapabilities'
+import type { StoreLike } from './storeLike'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
-
-const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is Verbosity =>
-  value === 'low' || value === 'medium' || value === 'high'
-
-const normalizeReasoningEffortValue = (
-  portrait: ReasoningPortrait | null,
-  value: unknown
-): ReasoningEffort | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (!options || options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null,
@@ -80,7 +65,7 @@ interface ModelConfigStoreMeta {
 type ModelConfigStoreSchema = Record<string, IModelConfig | ModelConfigStoreMeta>
 
 export class ModelConfigHelper {
-  private modelConfigStore: ElectronStore<ModelConfigStoreSchema>
+  private modelConfigStore: StoreLike<ModelConfigStoreSchema>
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
   private currentVersion: string
@@ -90,6 +75,13 @@ export class ModelConfigHelper {
       name: 'model-config'
     })
     this.currentVersion = appVersion
+    this.ensureStoreSynced()
+  }
+
+  setStore(store: StoreLike<ModelConfigStoreSchema>): void {
+    this.modelConfigStore = store
+    this.memoryCache.clear()
+    this.cacheInitialized = false
     this.ensureStoreSynced()
   }
 
@@ -114,6 +106,15 @@ export class ModelConfigHelper {
    * Priority: 1. modalities.output includes image 2. model.type (from provider.json) 3. default Chat
    */
   private inferModelType(model: ProviderModel): ModelType {
+    const videoGenerationType = resolveVideoGenerationCompatType({
+      modelId: model.id,
+      type: model.type,
+      modalities: model.modalities
+    })
+    if (videoGenerationType) {
+      return videoGenerationType
+    }
+
     // Priority 1: Output modality indicates image generation
     if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
       return ModelType.ImageGeneration
@@ -129,7 +130,11 @@ export class ModelConfigHelper {
         case 'rerank':
           return ModelType.Rerank
         case 'imageGeneration':
-          return ModelType.Chat
+          return ModelType.ImageGeneration
+        case 'videoGeneration':
+          return ModelType.VideoGeneration
+        case 'tts':
+          return ModelType.TTS
         default:
           // Invalid type, fall through to default
           break
@@ -140,8 +145,22 @@ export class ModelConfigHelper {
     return ModelType.Chat
   }
 
+  private applyProviderSpecificPolicies(
+    providerId: string | undefined,
+    modelId: string,
+    config: ModelConfig
+  ): ModelConfig {
+    if (!providerId) {
+      return config
+    }
+
+    return applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+  }
+
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
+    const modelType = this.inferModelType(model)
     const portrait = modelCapabilities.getReasoningPortrait(providerId, model.id)
+    const capabilityProviderId = resolveProviderCapabilityProviderId(providerId, null, model.id)
     const reasoningEnabled =
       portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
     const thinkingBudget =
@@ -151,22 +170,38 @@ export class ModelConfigHelper {
       portrait,
       portrait?.effort ?? model.reasoning?.effort
     )
+    const reasoningVisibility = hasAnthropicReasoningToggle(capabilityProviderId, portrait)
+      ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??
+        normalizeReasoningVisibilityValue(portrait?.visibility))
+      : normalizeReasoningVisibilityValue(portrait?.visibility)
     const verbosity = normalizeVerbosityValue(
       portrait,
       portrait?.verbosity ?? model.reasoning?.verbosity
     )
 
-    return {
-      maxTokens: resolveModelMaxTokens(model.limit?.output),
+    return this.applyProviderSpecificPolicies(providerId, model.id, {
+      maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
       contextLength: resolveModelContextLength(model.limit?.context),
+      timeout: DEFAULT_MODEL_TIMEOUT,
       temperature: 0.6,
+      topP: undefined,
       vision: isImageInputSupported(model),
+      speechRecognition: false,
       functionCall: resolveModelFunctionCall(model.tool_call),
       reasoning: Boolean(reasoningEnabled),
-      type: this.inferModelType(model),
+      type: modelType,
+      apiEndpoint:
+        modelType === ModelType.ImageGeneration
+          ? ApiEndpointType.Image
+          : modelType === ModelType.VideoGeneration
+            ? ApiEndpointType.Video
+            : modelType === ModelType.TTS
+              ? ApiEndpointType.AudioSpeech
+              : ApiEndpointType.Chat,
       thinkingBudget,
       forceInterleavedThinkingCompat,
       reasoningEffort,
+      reasoningVisibility,
       verbosity,
       enableSearch: Boolean(model.search?.supported ?? false),
       forcedSearch: Boolean(model.search?.forced_search ?? false),
@@ -175,7 +210,7 @@ export class ModelConfigHelper {
         | 'balanced'
         | 'precise',
       maxCompletionTokens: undefined
-    }
+    })
   }
 
   private initializeMetaFromLegacyStore(): void {
@@ -396,7 +431,9 @@ export class ModelConfigHelper {
     const isUserConfig = storedSource === 'user'
 
     if (storedConfig && isUserConfig) {
-      const finalUserConfig = { ...storedConfig }
+      const finalUserConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
+        ...storedConfig
+      })
       finalUserConfig.isUserDefined = true
       return finalUserConfig
     }
@@ -450,9 +487,12 @@ export class ModelConfigHelper {
     if (!finalConfig) {
       finalConfig = {
         ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+        timeout: DEFAULT_MODEL_TIMEOUT,
         temperature: 0.6,
+        topP: undefined,
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat,
+        endpointType: undefined,
         thinkingBudget: undefined,
         forceInterleavedThinkingCompat: undefined,
         reasoningEffort: undefined,
@@ -460,22 +500,33 @@ export class ModelConfigHelper {
         enableSearch: false,
         forcedSearch: false,
         searchStrategy: 'turbo',
-        maxCompletionTokens: undefined
+        maxCompletionTokens: undefined,
+        ownedBy: undefined
       }
     }
 
     if (storedConfig && storedSource && storedSource !== 'user') {
       finalConfig = {
         ...finalConfig,
-        maxTokens: storedConfig.maxTokens ?? finalConfig.maxTokens,
+        maxTokens:
+          storedConfig.maxTokens !== undefined
+            ? resolveDerivedModelMaxTokens(storedConfig.maxTokens)
+            : finalConfig.maxTokens,
         contextLength: storedConfig.contextLength ?? finalConfig.contextLength,
+        timeout: storedConfig.timeout ?? finalConfig.timeout,
         temperature: storedConfig.temperature ?? finalConfig.temperature,
+        topP: storedConfig.topP ?? finalConfig.topP,
         vision: storedConfig.vision ?? finalConfig.vision,
+        speechRecognition: storedConfig.speechRecognition ?? finalConfig.speechRecognition,
         functionCall: storedConfig.functionCall ?? finalConfig.functionCall,
         type: storedConfig.type ?? finalConfig.type,
         maxCompletionTokens: storedConfig.maxCompletionTokens ?? finalConfig.maxCompletionTokens,
         conversationId: storedConfig.conversationId ?? finalConfig.conversationId,
         apiEndpoint: storedConfig.apiEndpoint ?? finalConfig.apiEndpoint,
+        endpointType: isNewApiEndpointType(storedConfig.endpointType)
+          ? storedConfig.endpointType
+          : finalConfig.endpointType,
+        ownedBy: storedConfig.ownedBy ?? finalConfig.ownedBy,
         enableSearch: storedConfig.enableSearch ?? finalConfig.enableSearch,
         forcedSearch: storedConfig.forcedSearch ?? finalConfig.forcedSearch,
         searchStrategy: storedConfig.searchStrategy ?? finalConfig.searchStrategy,
@@ -487,8 +538,12 @@ export class ModelConfigHelper {
       }
     }
 
-    finalConfig!.isUserDefined = false
-    return finalConfig!
+    const normalizedFinalConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
+      ...finalConfig!,
+      isUserDefined: false
+    })
+    normalizedFinalConfig.isUserDefined = false
+    return normalizedFinalConfig
   }
 
   /**
@@ -505,10 +560,20 @@ export class ModelConfigHelper {
   ): ModelConfig {
     const cacheKey = this.generateCacheKey(providerId, modelId)
     const source: ModelConfigSource = options?.source ?? 'user'
-    const storedConfig: ModelConfig = {
+    const normalizedMaxTokens =
+      source === 'provider'
+        ? resolveDerivedModelMaxTokens(config.maxTokens)
+        : (config.maxTokens ?? undefined)
+    const normalizedTimeout =
+      typeof config.timeout === 'number' && Number.isFinite(config.timeout) && config.timeout > 0
+        ? Math.round(config.timeout)
+        : undefined
+    const storedConfig: ModelConfig = this.applyProviderSpecificPolicies(providerId, modelId, {
       ...config,
+      ...(normalizedMaxTokens !== undefined ? { maxTokens: normalizedMaxTokens } : {}),
+      ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
       isUserDefined: source === 'user'
-    }
+    })
     const configData: IModelConfig = {
       id: modelId,
       providerId: providerId,
@@ -617,7 +682,7 @@ export class ModelConfigHelper {
   importConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     if (overwrite) {
       // Clear existing configs from both store and cache
-      this.modelConfigStore.clear()
+      this.clearStore()
       this.memoryCache.clear()
       this.cacheInitialized = false
     }
@@ -628,7 +693,7 @@ export class ModelConfigHelper {
     Object.entries(configs).forEach(([key, value]) => {
       if (this.isMetaKey(key) || !value) return
 
-      if (!overwrite && this.modelConfigStore.has(key)) {
+      if (!overwrite && this.hasStoreEntry(key)) {
         return
       }
 
@@ -672,7 +737,7 @@ export class ModelConfigHelper {
    * Clear all configurations
    */
   clearAllConfigs(): void {
-    this.modelConfigStore.clear()
+    this.clearStore()
     this.memoryCache.clear()
     this.cacheInitialized = false
     this.updateStoreMeta({
@@ -686,7 +751,7 @@ export class ModelConfigHelper {
    * @returns Store file path
    */
   getStorePath(): string {
-    return this.modelConfigStore.path
+    return this.modelConfigStore.path ?? ''
   }
 
   /**
@@ -695,5 +760,23 @@ export class ModelConfigHelper {
   clearMemoryCache(): void {
     this.memoryCache.clear()
     this.cacheInitialized = false
+  }
+
+  private hasStoreEntry(key: string): boolean {
+    if (typeof this.modelConfigStore.has === 'function') {
+      return this.modelConfigStore.has(key)
+    }
+    return this.modelConfigStore.get(key) !== undefined
+  }
+
+  private clearStore(): void {
+    if (typeof this.modelConfigStore.clear === 'function') {
+      this.modelConfigStore.clear()
+      return
+    }
+
+    Object.keys(this.modelConfigStore.store).forEach((key) => {
+      this.modelConfigStore.delete(key)
+    })
   }
 }

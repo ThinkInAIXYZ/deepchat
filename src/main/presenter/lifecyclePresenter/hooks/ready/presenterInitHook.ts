@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Presenter lifecycle hook
  */
@@ -13,7 +14,7 @@ export const presenterInitHook: LifecycleHook = {
   critical: true, // Presenter initialization is critical for app functionality
   async execute(context: LifecycleContext): Promise<void> {
     // init presenter
-    console.log('presenterInitHook: Create Presenter Instance')
+    logger.info('presenterInitHook: Create Presenter Instance')
     const presenter = getInstance(context.manager)
     presenter.deeplinkPresenter.init()
     presenter.init()

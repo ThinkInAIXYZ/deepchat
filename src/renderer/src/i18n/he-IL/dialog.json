@@ -40,5 +40,50 @@
       "functionCall": "שים לב: הפעלת קריאה לפונקציות תשבית אוטומטית את החשיבה, שכן זו דרישה של מודלי DeepSeek-V3.1."
     },
     "confirmEnable": "אשר הפעלה"
+  },
+  "agentTransfer": {
+    "deleteTitle": "למחוק את {name}?",
+    "deleteDescription": "בחר מה יקרה לשיחות ששייכות כרגע לסוכן הזה.",
+    "moveTitle": "העברת שיחה",
+    "moveDescription": "העבר את השיחה שהושלמה לסוכן אחר בלי לשנות את ההודעות שלה.",
+    "loading": "בודק שיחות קשורות...",
+    "processing": "מעבד...",
+    "totalSessions": "קשורות",
+    "movableSessions": "ניתנות להעברה",
+    "emptyDrafts": "טיוטות ריקות",
+    "blockedSessions": "חסומות",
+    "moveBeforeDeleteTitle": "העבר שיחות לסוכן אחר",
+    "moveBeforeDeleteDescription": "שיחות שהושלמו ישמרו את ההודעות שלהן וישתמשו בסוכן היעד להמשך. טיוטות ריקות יוסרו.",
+    "deleteSessionsTitle": "מחק שיחות עם הסוכן הזה",
+    "deleteSessionsDescription": "כל השיחות וההודעות הקשורות יימחקו יחד עם הסוכן.",
+    "targetAgent": "סוכן יעד",
+    "selectTarget": "בחר סוכן",
+    "acpWorkdir": "תיקיית עבודה של ACP",
+    "acpWorkdirPlaceholder": "השאר ריק כדי לשמור את הפרויקט של כל שיחה",
+    "acpWorkdirHint": "סוכני ACP דורשים תיקיית עבודה. אם לשיחה אין פרויקט, ציין אחד כאן.",
+    "currentAgent": "הסוכן הנוכחי: {name}",
+    "relatedSessions": "שיחות קשורות",
+    "blockedWarning": "חלק מהשיחות עדיין פועלות או שיש להן קלט בתור. סיים אותן לפני העברה או מחיקה של הסוכן הזה.",
+    "agentDeleteBlocked": "לסוכן עדיין יש שיחות קשורות. העבר או מחק אותן קודם.",
+    "deleteAgentAndSessions": "מחק סוכן ושיחות",
+    "moveAndDeleteAgent": "העבר ומחק סוכן",
+    "moveConversation": "העבר שיחה",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "פועל",
+      "pending-input": "בתור",
+      "missing-target-workdir": "נדרשת תיקיית עבודה",
+      "missing-session": "חסרה",
+      "same-agent": "אותו סוכן"
+    },
+    "sampleState": {
+      "ready": "מוכנה",
+      "draft": "טיוטה",
+      "subagent": "תת-סוכן"
+    },
+    "deepChatTargetOnly": "ניתן לבחור רק סוכני DeepChat כיעדי העברה. אפשר להעביר שיחות ACP אל DeepChat, אך לא אל ACP."
   }
 }

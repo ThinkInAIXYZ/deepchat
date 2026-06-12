@@ -16,6 +16,29 @@ describe('SuggestionList', () => {
     HTMLElement.prototype.scrollIntoView = vi.fn()
   })
 
+  it('renders command suggestions with a command icon instead of a slash tag', () => {
+    const items: SuggestionListItem[] = [
+      {
+        id: 'command:plan',
+        label: '/plan',
+        category: 'command',
+        payload: { name: 'plan', description: '', input: null }
+      }
+    ]
+
+    const wrapper = mount(SuggestionList, {
+      props: {
+        items,
+        query: '',
+        command: vi.fn()
+      }
+    })
+
+    expect(wrapper.find('[data-icon="lucide:command"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('/plan')
+    expect(wrapper.text().match(/\//g) ?? []).toHaveLength(1)
+  })
+
   it('renders the full upstream item list without truncating', () => {
     const items = buildItems(25)
 

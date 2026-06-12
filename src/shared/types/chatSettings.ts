@@ -12,6 +12,14 @@ export type ChatLanguage =
   | 'pt-BR'
   | 'da-DK'
   | 'he-IL'
+  | 'es-ES'
+  | 'de-DE'
+  | 'tr-TR'
+  | 'id-ID'
+  | 'ms-MY'
+  | 'it-IT'
+  | 'pl-PL'
+  | 'vi-VN'
 
 export type ChatTheme = 'dark' | 'light' | 'system'
 

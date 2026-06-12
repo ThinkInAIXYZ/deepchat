@@ -37,7 +37,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     }
   })
 
-  it('recreates legacy conversation tables when schema version is already advanced', async () => {
+  it('repairs missing legacy conversation tables when schema version is already advanced', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -53,6 +53,12 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.kind === 'missing_table')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+
     const conversationList = await presenter.getConversationList(1, 20)
     expect(conversationList.total).toBe(0)
     expect(conversationList.list).toEqual([])
@@ -238,6 +244,100 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
+  it('repairs missing subagent columns when schema version is already 20', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (20, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS new_sessions (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        project_dir TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        active_skills TEXT NOT NULL DEFAULT '[]',
+        disabled_agent_tools TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        created_at,
+        updated_at
+      ) VALUES (
+        'session-1',
+        'deepchat',
+        'Recovered session',
+        NULL,
+        0,
+        0,
+        '[]',
+        '[]',
+        1000,
+        2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.name === 'subagent_enabled')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(newSessionColumns.map((column) => column.name))
+
+    expect(columnNames.has('subagent_enabled')).toBe(true)
+    expect(columnNames.has('session_kind')).toBe(true)
+    expect(columnNames.has('parent_session_id')).toBe(true)
+    expect(columnNames.has('subagent_meta_json')).toBe(true)
+
+    const row = checkDb
+      .prepare(
+        `SELECT subagent_enabled, session_kind, parent_session_id, subagent_meta_json
+         FROM new_sessions
+         WHERE id = ?`
+      )
+      .get('session-1') as
+      | {
+          subagent_enabled: number
+          session_kind: string
+          parent_session_id: string | null
+          subagent_meta_json: string | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      subagent_enabled: 0,
+      session_kind: 'regular',
+      parent_session_id: null,
+      subagent_meta_json: null
+    })
+
+    checkDb.close()
+  })
+
   it('migrates new_environments from existing session history when schema version is 16', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
@@ -418,10 +518,13 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('summary_text')).toBe(true)
     expect(columnNames.has('summary_cursor_order_seq')).toBe(true)
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
 
     const row = checkDb
       .prepare(
-        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?'
+        'SELECT system_prompt, summary_text, summary_cursor_order_seq, force_interleaved_thinking_compat, reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
       )
       .get('session-1') as
       | {
@@ -429,6 +532,9 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
           summary_text: string | null
           summary_cursor_order_seq: number
           force_interleaved_thinking_compat: number | null
+          reasoning_visibility: string | null
+          timeout_ms: number | null
+          image_generation_options_json: string | null
         }
       | undefined
 
@@ -436,7 +542,10 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
       system_prompt: null,
       summary_text: null,
       summary_cursor_order_seq: 1,
-      force_interleaved_thinking_compat: null
+      force_interleaved_thinking_compat: null,
+      reasoning_visibility: null,
+      timeout_ms: null,
+      image_generation_options_json: null
     })
     checkDb.close()
   })
@@ -502,6 +611,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const columnNames = new Set(deepchatColumns.map((column) => column.name))
 
     expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
 
     const row = checkDb
       .prepare('SELECT force_interleaved_thinking_compat FROM deepchat_sessions WHERE id = ?')
@@ -518,7 +628,367 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
-    expect(versions.map((entry) => entry.version)).toContain(19)
+    expect(versions.map((entry) => entry.version)).toContain(20)
+    expect(versions.map((entry) => entry.version)).toContain(24)
+    checkDb.close()
+  })
+
+  it('repairs missing deepchat_sessions columns when schema version is already 22', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (22, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_sessions (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        permission_mode TEXT NOT NULL DEFAULT 'full_access',
+        system_prompt TEXT,
+        temperature REAL,
+        context_length INTEGER,
+        max_tokens INTEGER,
+        thinking_budget INTEGER,
+        reasoning_effort TEXT,
+        verbosity TEXT,
+        summary_text TEXT,
+        summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
+        summary_updated_at INTEGER
+      );
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        system_prompt,
+        summary_text,
+        summary_cursor_order_seq
+      ) VALUES (
+        'session-1',
+        'anthropic',
+        'claude-sonnet-4',
+        'full_access',
+        NULL,
+        NULL,
+        1
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(
+      diagnosis.issues.some((issue) => issue.name === 'force_interleaved_thinking_compat')
+    ).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const deepchatColumns = checkDb.prepare('PRAGMA table_info(deepchat_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(deepchatColumns.map((column) => column.name))
+
+    expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
+
+    const row = checkDb
+      .prepare(
+        'SELECT force_interleaved_thinking_compat, reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
+      )
+      .get('session-1') as
+      | {
+          force_interleaved_thinking_compat: number | null
+          reasoning_visibility: string | null
+          timeout_ms: number | null
+          image_generation_options_json: string | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      force_interleaved_thinking_compat: null,
+      reasoning_visibility: null,
+      timeout_ms: null,
+      image_generation_options_json: null
+    })
+    checkDb.close()
+  })
+
+  it('repairs missing timeout_ms and image settings in deepchat_sessions when schema version is already 24', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (24, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_sessions (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        permission_mode TEXT NOT NULL DEFAULT 'full_access',
+        system_prompt TEXT,
+        temperature REAL,
+        context_length INTEGER,
+        max_tokens INTEGER,
+        thinking_budget INTEGER,
+        reasoning_effort TEXT,
+        verbosity TEXT,
+        summary_text TEXT,
+        summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
+        summary_updated_at INTEGER,
+        force_interleaved_thinking_compat INTEGER,
+        reasoning_visibility TEXT
+      );
+      INSERT INTO deepchat_sessions (
+        id,
+        provider_id,
+        model_id,
+        permission_mode,
+        reasoning_visibility
+      ) VALUES (
+        'session-1',
+        'anthropic',
+        'claude-sonnet-4',
+        'full_access',
+        'auto'
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues.some((issue) => issue.name === 'timeout_ms')).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const deepchatColumns = checkDb.prepare('PRAGMA table_info(deepchat_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(deepchatColumns.map((column) => column.name))
+
+    expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
+
+    const row = checkDb
+      .prepare(
+        'SELECT reasoning_visibility, timeout_ms, image_generation_options_json FROM deepchat_sessions WHERE id = ?'
+      )
+      .get('session-1') as
+      | {
+          reasoning_visibility: string | null
+          timeout_ms: number | null
+          image_generation_options_json: string | null
+        }
+      | undefined
+
+    expect(row).toEqual({
+      reasoning_visibility: 'auto',
+      timeout_ms: null,
+      image_generation_options_json: null
+    })
+    checkDb.close()
+  })
+
+  it('runs the v23, v24, and v27 recovery migrations for deepchat_sessions when schema version is 22', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (22, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_sessions (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        permission_mode TEXT NOT NULL DEFAULT 'full_access',
+        system_prompt TEXT,
+        temperature REAL,
+        context_length INTEGER,
+        max_tokens INTEGER,
+        thinking_budget INTEGER,
+        reasoning_effort TEXT,
+        verbosity TEXT,
+        summary_text TEXT,
+        summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1,
+        summary_updated_at INTEGER
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const deepchatColumns = checkDb.prepare('PRAGMA table_info(deepchat_sessions)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(deepchatColumns.map((column) => column.name))
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+
+    expect(columnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(columnNames.has('reasoning_visibility')).toBe(true)
+    expect(columnNames.has('timeout_ms')).toBe(true)
+    expect(columnNames.has('image_generation_options_json')).toBe(true)
+    expect(versions.map((entry) => entry.version)).toContain(23)
+    expect(versions.map((entry) => entry.version)).toContain(24)
+    expect(versions.map((entry) => entry.version)).toContain(27)
+    checkDb.close()
+  })
+
+  it('returns child sessions when filtering by parentSessionId without includeSubagents', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const presenter = new SQLitePresenterCtor(dbPath)
+
+    presenter.newSessionsTable.create(
+      'parent-session',
+      'deepchat',
+      'Parent session',
+      '/workspace',
+      {
+        sessionKind: 'regular'
+      }
+    )
+    presenter.newSessionsTable.create('child-session', 'deepchat', 'Child session', '/workspace', {
+      sessionKind: 'subagent',
+      parentSessionId: 'parent-session'
+    })
+
+    const childRows = presenter.newSessionsTable.list({
+      parentSessionId: 'parent-session'
+    })
+    const defaultRows = presenter.newSessionsTable.list()
+
+    expect(childRows.map((row) => row.id)).toEqual(['child-session'])
+    expect(defaultRows.map((row) => row.id)).toEqual(['parent-session'])
+
+    presenter.close()
+  })
+
+  it('migrates deepchat_usage_stats to include cache_write_input_tokens without losing rows', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = new DatabaseCtor(dbPath)
+    bootstrapDb.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      INSERT INTO schema_versions (version, applied_at) VALUES (21, ${Date.now()});
+      CREATE TABLE IF NOT EXISTS deepchat_usage_stats (
+        message_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        usage_date TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        estimated_cost_usd REAL,
+        source TEXT NOT NULL DEFAULT 'live',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO deepchat_usage_stats (
+        message_id,
+        session_id,
+        usage_date,
+        provider_id,
+        model_id,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        cached_input_tokens,
+        estimated_cost_usd,
+        source,
+        created_at,
+        updated_at
+      ) VALUES (
+        'message-1',
+        'session-1',
+        '2026-03-10',
+        'openai',
+        'gpt-4o',
+        120,
+        30,
+        150,
+        20,
+        0.01,
+        'live',
+        1000,
+        2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const usageColumns = checkDb.prepare('PRAGMA table_info(deepchat_usage_stats)').all() as Array<{
+      name: string
+    }>
+    const columnNames = new Set(usageColumns.map((column) => column.name))
+    const row = checkDb
+      .prepare(
+        `SELECT
+          message_id,
+          cached_input_tokens,
+          cache_write_input_tokens,
+          estimated_cost_usd
+         FROM deepchat_usage_stats
+         WHERE message_id = ?`
+      )
+      .get('message-1') as
+      | {
+          message_id: string
+          cached_input_tokens: number
+          cache_write_input_tokens: number
+          estimated_cost_usd: number | null
+        }
+      | undefined
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+
+    expect(columnNames.has('cache_write_input_tokens')).toBe(true)
+    expect(row).toEqual({
+      message_id: 'message-1',
+      cached_input_tokens: 20,
+      cache_write_input_tokens: 0,
+      estimated_cost_usd: 0.01
+    })
+    expect(versions.map((entry) => entry.version)).toContain(22)
     checkDb.close()
   })
 })

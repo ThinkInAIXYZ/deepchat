@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import { getActivePinia } from 'pinia'
 import type { UIAgent } from '@/stores/ui/agent'
 import { useThemeStore } from '@/stores/theme'
 import AcpAgentIcon from './AcpAgentIcon.vue'
@@ -11,6 +12,7 @@ const props = withDefaults(
     agent: Pick<UIAgent, 'id' | 'name' | 'type' | 'icon' | 'avatar'>
     className?: string
     fallbackClassName?: string
+    theme?: 'dark' | 'light'
   }>(),
   {
     className: 'h-4 w-4',
@@ -18,7 +20,16 @@ const props = withDefaults(
   }
 )
 
-const themeStore = useThemeStore()
+const activePinia = getActivePinia()
+const themeStore = activePinia ? useThemeStore(activePinia) : null
+
+const isDarkTheme = computed(() => {
+  if (props.theme) {
+    return props.theme === 'dark'
+  }
+
+  return Boolean(themeStore?.isDark)
+})
 
 const initials = computed(() => {
   const name = props.agent.name.trim()
@@ -42,7 +53,7 @@ const lucideColor = computed(() => {
   if (props.agent.avatar?.kind !== 'lucide') {
     return undefined
   }
-  return themeStore.isDark ? props.agent.avatar.darkColor : props.agent.avatar.lightColor
+  return isDarkTheme.value ? props.agent.avatar.darkColor : props.agent.avatar.lightColor
 })
 
 const showBuiltinDeepChatLogo = computed(

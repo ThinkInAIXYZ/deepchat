@@ -6,11 +6,8 @@ import { getSessionsRoot } from '@/lib/agentRuntime/sessionPaths'
 import { z } from 'zod'
 import { minimatch } from 'minimatch'
 import { diffLines } from 'diff'
-import logger from '@shared/logger'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
-import { spawn } from 'child_process'
-import { RuntimeHelper } from '../../../lib/runtimeHelper'
 import { glob } from 'glob'
 
 // Auto-truncate threshold for read to avoid triggering tool output offload
@@ -188,8 +185,12 @@ export class AgentFileSystemHandler {
   private readonly allowedDirectoryRoots: string[]
   private conversationId?: string
   private readonly sessionsRoot: string
+  private readonly allowExternalAccess: boolean
 
-  constructor(allowedDirectories: string[], options: { conversationId?: string } = {}) {
+  constructor(
+    allowedDirectories: string[],
+    options: { conversationId?: string; allowExternalAccess?: boolean } = {}
+  ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
     }
@@ -211,6 +212,7 @@ export class AgentFileSystemHandler {
     )
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
+    this.allowExternalAccess = options.allowExternalAccess === true
   }
 
   private normalizePath(p: string): string {
@@ -272,14 +274,14 @@ export class AgentFileSystemHandler {
     baseDirectory?: string,
     options: PathValidationOptions = {}
   ): Promise<string> {
-    const enforceAllowed = options.enforceAllowed ?? true
+    const enforceAllowed = options.enforceAllowed ?? !this.allowExternalAccess
     const normalizedRequested = this.resolvePath(requestedPath, baseDirectory)
+    const requestedPathAllowed = !enforceAllowed || this.isPathAllowed(normalizedRequested)
     if (options.accessType === 'read') {
       this.assertSessionReadAllowed(normalizedRequested)
     }
     if (enforceAllowed) {
-      const isAllowed = this.isPathAllowed(normalizedRequested)
-      if (!isAllowed) {
+      if (!requestedPathAllowed) {
         throw new Error(
           `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectoryRoots.join(', ')}`
         )
@@ -348,6 +350,10 @@ export class AgentFileSystemHandler {
     if (!candidatePath.startsWith(sessionWithSeparator)) {
       throw new Error('Access denied - session files outside current conversation')
     }
+  }
+
+  assertReadAllowedAbsolute(candidatePath: string): void {
+    this.assertSessionReadAllowed(this.normalizePath(path.resolve(candidatePath)))
   }
 
   private countLines(value: string): number {
@@ -500,33 +506,7 @@ export class AgentFileSystemHandler {
       maxResults = 100
     } = options
 
-    // Validate pattern for ReDoS safety
     validateRegexPattern(pattern)
-
-    // Try to use ripgrep if available
-    const runtimeHelper = RuntimeHelper.getInstance()
-    runtimeHelper.initializeRuntimes()
-    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
-
-    if (ripgrepPath) {
-      try {
-        return await this.runRipgrepSearch(rootPath, pattern, {
-          filePattern,
-          recursive,
-          caseSensitive,
-          includeLineNumbers,
-          contextLines,
-          maxResults
-        })
-      } catch (error) {
-        // Fall back to JavaScript implementation if ripgrep fails
-        logger.warn('[AgentFileSystemHandler] Ripgrep search failed, falling back to JS', {
-          error
-        })
-      }
-    }
-
-    // Fallback to JavaScript implementation
     return this.runJavaScriptGrepSearch(rootPath, pattern, {
       filePattern: filePattern || '*',
       recursive,
@@ -534,164 +514,6 @@ export class AgentFileSystemHandler {
       includeLineNumbers,
       contextLines,
       maxResults
-    })
-  }
-
-  private async runRipgrepSearch(
-    rootPath: string,
-    pattern: string,
-    options: {
-      filePattern?: string
-      recursive?: boolean
-      caseSensitive?: boolean
-      includeLineNumbers?: boolean
-      contextLines?: number
-      maxResults?: number
-    }
-  ): Promise<GrepResult> {
-    const {
-      filePattern,
-      recursive = true,
-      caseSensitive = false,
-      includeLineNumbers = true,
-      contextLines = 0,
-      maxResults = 100
-    } = options
-
-    const result: GrepResult = {
-      totalMatches: 0,
-      files: [],
-      matches: []
-    }
-
-    const runtimeHelper = RuntimeHelper.getInstance()
-    const ripgrepPath = runtimeHelper.getRipgrepRuntimePath()
-    if (!ripgrepPath) {
-      throw new Error('Ripgrep runtime path not found')
-    }
-
-    const rgExecutable =
-      process.platform === 'win32' ? path.join(ripgrepPath, 'rg.exe') : path.join(ripgrepPath, 'rg')
-
-    // Build ripgrep arguments
-    const args: string[] = []
-
-    // Search pattern
-    args.push('-e', pattern)
-
-    // Case sensitivity
-    if (caseSensitive) {
-      args.push('--case-sensitive')
-    } else {
-      args.push('-i')
-    }
-
-    // Context lines
-    if (contextLines > 0) {
-      args.push(`-C${contextLines}`)
-    }
-
-    // Max count
-    args.push('-m', String(maxResults))
-
-    // File pattern (glob)
-    if (filePattern) {
-      args.push('-g', filePattern)
-    }
-
-    // Recursive (default for rg, but add --no-recursive if not wanted)
-    if (!recursive) {
-      args.push('--no-recursive')
-    }
-
-    // Output format with line numbers
-    args.push('--with-filename')
-    args.push('--line-number')
-    args.push('--no-heading')
-
-    // Search path
-    const validatedPath = await this.validatePath(rootPath, undefined, {
-      enforceAllowed: false,
-      accessType: 'read'
-    })
-    args.push(validatedPath)
-
-    return new Promise((resolve, reject) => {
-      const ripgrep = spawn(rgExecutable, args, {
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-
-      let stdout = ''
-      let stderr = ''
-      let settled = false
-      const timeout = setTimeout(() => {
-        if (settled) return
-        settled = true
-        ripgrep.kill('SIGKILL')
-        reject(new Error('Ripgrep search timed out after 30000ms'))
-      }, 30_000)
-
-      ripgrep.stdout.on('data', (data) => {
-        stdout += data.toString()
-      })
-
-      ripgrep.stderr.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      ripgrep.on('close', (code) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        if (code === 0 || code === 1) {
-          // 0 = matches found, 1 = no matches (both are OK)
-          // Parse ripgrep output
-          const lines = stdout.split('\n').filter((line) => line.trim())
-          const currentFileMatches = new Map<string, GrepMatch[]>()
-          const uniqueFiles = new Set<string>()
-
-          for (const line of lines) {
-            // Parse ripgrep output format: file:line:content
-            const lastColonIndex = line.lastIndexOf(':')
-            const lineNumberSeparator = line.lastIndexOf(':', lastColonIndex - 1)
-            if (lineNumberSeparator !== -1 && lastColonIndex !== -1) {
-              const file = line.slice(0, lineNumberSeparator)
-              const lineNum = line.slice(lineNumberSeparator + 1, lastColonIndex)
-              const content = line.slice(lastColonIndex + 1)
-              if (!/^\d+$/.test(lineNum)) {
-                continue
-              }
-              uniqueFiles.add(file)
-
-              const grepMatch: GrepMatch = {
-                file,
-                line: includeLineNumbers ? parseInt(lineNum, 10) : 0,
-                content
-              }
-
-              if (!currentFileMatches.has(file)) {
-                currentFileMatches.set(file, [])
-              }
-              currentFileMatches.get(file)!.push(grepMatch)
-              result.totalMatches++
-            }
-          }
-
-          result.files = Array.from(uniqueFiles)
-          result.matches = Array.from(currentFileMatches.values()).flat()
-
-          resolve(result)
-        } else {
-          reject(new Error(`Ripgrep failed with code ${code}: ${stderr}`))
-        }
-      })
-
-      ripgrep.on('error', (error) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        reject(new Error(`Ripgrep spawn error: ${error.message}`))
-      })
     })
   }
 
@@ -953,7 +775,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     await fs.writeFile(validPath, parsed.data.content, 'utf-8')
     return `Successfully wrote to ${parsed.data.path}`
   }
@@ -982,7 +806,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     await fs.mkdir(validPath, { recursive: true })
     return `Successfully created directory ${parsed.data.path}`
   }
@@ -994,10 +820,15 @@ export class AgentFileSystemHandler {
     }
     const results = await Promise.all(
       parsed.data.sources.map(async (source) => {
-        const validSourcePath = await this.validatePath(source, baseDirectory)
+        const validSourcePath = await this.validatePath(source, baseDirectory, {
+          accessType: 'write'
+        })
         const validDestPath = await this.validatePath(
           path.join(parsed.data.destination, path.basename(source)),
-          baseDirectory
+          baseDirectory,
+          {
+            accessType: 'write'
+          }
         )
         try {
           await fs.rename(validSourcePath, validDestPath)
@@ -1015,7 +846,9 @@ export class AgentFileSystemHandler {
     if (!parsed.success) {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     const content = await fs.readFile(validPath, 'utf-8')
     let modifiedContent = content
 
@@ -1108,7 +941,9 @@ export class AgentFileSystemHandler {
       throw new Error(`Invalid arguments: ${parsed.error}`)
     }
 
-    const validPath = await this.validatePath(parsed.data.path, baseDirectory)
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
     const result = await this.replaceTextInFile(
       validPath,
       parsed.data.pattern,
@@ -1147,7 +982,9 @@ export class AgentFileSystemHandler {
     }
 
     const { path: filePath, oldText, newText } = parsed.data
-    const validPath = await this.validatePath(filePath, baseDirectory)
+    const validPath = await this.validatePath(filePath, baseDirectory, {
+      accessType: 'write'
+    })
 
     const content = await fs.readFile(validPath, 'utf-8')
     const normalizedOldText = this.normalizeLineEndings(oldText)

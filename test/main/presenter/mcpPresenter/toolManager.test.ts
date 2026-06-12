@@ -8,7 +8,7 @@ const eventBusMocks = vi.hoisted(() => ({
 }))
 
 const presenterMocks = vi.hoisted(() => ({
-  newAgentPresenter: {
+  agentSessionPresenter: {
     getSession: vi.fn()
   }
 }))
@@ -37,7 +37,7 @@ vi.mock('@/presenter', () => ({
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
 
-describe('ToolManager ACP MCP access control', () => {
+describe('ToolManager', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
@@ -49,23 +49,28 @@ describe('ToolManager ACP MCP access control', () => {
     warnSpy.mockRestore()
   })
 
-  function createClient(serverName: string) {
+  function createClient(
+    serverName: string,
+    tools = [
+      {
+        name: 'echo',
+        description: 'Echo tool',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ],
+    serverConfig: Record<string, unknown> = {}
+  ) {
     return {
       serverName,
       serverConfig: {
         icons: '',
-        descriptions: ''
+        descriptions: '',
+        ...serverConfig
       },
-      listTools: vi.fn().mockResolvedValue([
-        {
-          name: 'echo',
-          description: 'Echo tool',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ]),
+      listTools: vi.fn().mockResolvedValue(tools),
       callTool: vi.fn().mockResolvedValue({
         content: 'ok',
         isError: false
@@ -89,13 +94,100 @@ describe('ToolManager ACP MCP access control', () => {
     }
   }
 
+  function createServerManager(clients: unknown[]) {
+    return {
+      getRunningClients: vi.fn().mockResolvedValue(clients),
+      setServerLastError: vi.fn(),
+      clearServerLastError: vi.fn()
+    }
+  }
+
+  it('leaves plugin runtime tool descriptions unchanged', async () => {
+    const serverName = 'plugin-runtime'
+    const client = createClient(serverName, [
+      {
+        name: 'list_apps',
+        description: 'List apps original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Launch app original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'click',
+        description: 'Click original description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter(serverName)
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+    const listApps = definitions.find((tool) => tool.function.name === 'list_apps')
+    const launchApp = definitions.find((tool) => tool.function.name === 'launch_app')
+    const click = definitions.find((tool) => tool.function.name === 'click')
+
+    expect(listApps?.function.description).toBe('List apps original description')
+    expect(launchApp?.function.description).toBe('Launch app original description')
+    expect(click?.function.description).toBe('Click original description')
+  })
+
+  it('leaves regular tool descriptions unchanged', async () => {
+    const client = createClient('regular-server', [
+      {
+        name: 'list_apps',
+        description: 'Regular list apps description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'launch_app',
+        description: 'Regular launch app description',
+        inputSchema: {
+          properties: {},
+          required: []
+        }
+      }
+    ])
+    const configPresenter = createConfigPresenter('regular-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(
+      definitions.find((tool) => tool.function.name === 'list_apps')?.function.description
+    ).toBe('Regular list apps description')
+    expect(
+      definitions.find((tool) => tool.function.name === 'launch_app')?.function.description
+    ).toBe('Regular launch app description')
+  })
+
   it('uses new session ACP context instead of global chat mode', async () => {
     const client = createClient('blocked-server')
     const configPresenter = createConfigPresenter('blocked-server')
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configPresenter.getAgentMcpSelections.mockResolvedValue([])
 
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue({
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
       title: 'New Chat',
@@ -111,9 +203,7 @@ describe('ToolManager ACP MCP access control', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -134,16 +224,34 @@ describe('ToolManager ACP MCP access control', () => {
     expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
+  it('records plugin tool-list failures without showing a global toast', async () => {
+    const client = createClient('plugin-server', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.fixture'
+    })
+    client.listTools.mockRejectedValue(new Error('tool list failed'))
+    const configPresenter = createConfigPresenter('plugin-server')
+    const serverManager = createServerManager([client])
+    const manager = new ToolManager(configPresenter as never, serverManager as never)
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(definitions).toEqual([])
+    expect(serverManager.setServerLastError).toHaveBeenCalledWith(
+      'plugin-server',
+      'tool list failed'
+    )
+    expect(eventBusMocks.sendToRenderer).not.toHaveBeenCalled()
+  })
+
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -160,7 +268,7 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.newAgentPresenter.getSession).not.toHaveBeenCalled()
+    expect(presenterMocks.agentSessionPresenter.getSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
     expect(
       warnSpy.mock.calls.some((call) =>
@@ -173,7 +281,7 @@ describe('ToolManager ACP MCP access control', () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
 
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue({
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue({
       id: 'session-2',
       agentId: 'deepchat',
       title: 'Normal Chat',
@@ -189,9 +297,7 @@ describe('ToolManager ACP MCP access control', () => {
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -213,13 +319,11 @@ describe('ToolManager ACP MCP access control', () => {
   it('treats missing provider hint as a fallback to new session resolution', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.newAgentPresenter.getSession.mockResolvedValue(null)
+    presenterMocks.agentSessionPresenter.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
-      {
-        getRunningClients: vi.fn().mockResolvedValue([client])
-      } as never
+      createServerManager([client]) as never
     )
 
     const result = await manager.callTool({
@@ -235,7 +339,7 @@ describe('ToolManager ACP MCP access control', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.newAgentPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
+    expect(presenterMocks.agentSessionPresenter.getSession).toHaveBeenCalledWith('conv-fallback')
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

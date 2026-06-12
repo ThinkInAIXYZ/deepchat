@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Event listener setup hook for ready phase
  * Sets up application event listeners and browser window event handlers
@@ -11,6 +12,7 @@ import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS, SETTINGS_EVENTS } f
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
+import { activateAppOnMac } from '@/lib/activateApp'
 
 export const eventListenerSetupHook: LifecycleHook = {
   name: 'event-listener-setup',
@@ -18,7 +20,7 @@ export const eventListenerSetupHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('eventListenerSetupHook: Setting up application event listeners')
+    logger.info('eventListenerSetupHook: Setting up application event listeners')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -45,6 +47,7 @@ export const eventListenerSetupHook: LifecycleHook = {
         if (!targetWindow.isDestroyed()) {
           targetWindow.show()
           targetWindow.focus() // Ensure window gets focus
+          activateAppOnMac()
         } else {
           console.warn(
             'eventListenerSetupHook: App activated but target window is destroyed, creating new window.'
@@ -122,6 +125,6 @@ export const eventListenerSetupHook: LifecycleHook = {
       }, 50) // 50ms delay
     })
 
-    console.log('eventListenerSetupHook: Application event listeners set up successfully')
+    logger.info('eventListenerSetupHook: Application event listeners set up successfully')
   }
 }

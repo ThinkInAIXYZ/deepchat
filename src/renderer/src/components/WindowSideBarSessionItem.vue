@@ -7,6 +7,10 @@ import type { UISession } from '@/stores/ui/session'
 
 type PinFeedbackMode = 'pinning' | 'unpinning'
 type SessionItemRegion = 'pinned' | 'grouped'
+type SessionStatusIcon = {
+  className: string
+  icon: string
+} | null
 
 defineOptions({
   name: 'WindowSideBarSessionItem'
@@ -17,7 +21,12 @@ const props = defineProps<{
   active: boolean
   region: SessionItemRegion
   heroHidden?: boolean
+  heroPlaceholder?: boolean
+  forcePinDocked?: boolean
   pinFeedbackMode?: PinFeedbackMode | null
+  searchQuery?: string
+  shortcutBadgeLabel?: string | null
+  shortcutBadgeVisible?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -32,23 +41,111 @@ const { session, active } = toRefs(props)
 const pinActionLabel = computed(() =>
   session.value.isPinned ? t('thread.actions.unpin') : t('thread.actions.pin')
 )
+
+const deleteActionLabel = computed(() => t('thread.actions.delete'))
+
+const shortcutBadgeTitle = computed(() => {
+  const shortcut = props.shortcutBadgeLabel
+  if (!shortcut) {
+    return ''
+  }
+
+  return t('thread.actions.switchWithShortcut', { shortcut })
+})
+
+const isWorking = computed(() => session.value.status === 'working')
+
+const pinState = computed<'docked' | 'overlay'>(() => {
+  if (props.forcePinDocked) {
+    return 'docked'
+  }
+
+  if (session.value.isPinned || props.pinFeedbackMode === 'unpinning') {
+    return 'docked'
+  }
+
+  return 'overlay'
+})
+
+const statusIcon = computed<SessionStatusIcon>(() => {
+  if (session.value.status === 'completed') {
+    return {
+      icon: 'lucide:check',
+      className: 'text-green-500'
+    }
+  }
+
+  if (session.value.status === 'error') {
+    return {
+      icon: 'lucide:alert-circle',
+      className: 'text-destructive'
+    }
+  }
+
+  return null
+})
+
+const titleSegments = computed(() => {
+  const title = session.value.title
+  const query = props.searchQuery?.trim()
+  if (!query) {
+    return [{ text: title, match: false }]
+  }
+
+  const lowerTitle = title.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const segments: Array<{ text: string; match: boolean }> = []
+  let searchIndex = 0
+  let matchIndex = lowerTitle.indexOf(lowerQuery)
+
+  while (matchIndex !== -1) {
+    if (matchIndex > searchIndex) {
+      segments.push({
+        text: title.slice(searchIndex, matchIndex),
+        match: false
+      })
+    }
+
+    segments.push({
+      text: title.slice(matchIndex, matchIndex + query.length),
+      match: true
+    })
+
+    searchIndex = matchIndex + query.length
+    matchIndex = lowerTitle.indexOf(lowerQuery, searchIndex)
+  }
+
+  if (searchIndex < title.length) {
+    segments.push({
+      text: title.slice(searchIndex),
+      match: false
+    })
+  }
+
+  return segments.length > 0 ? segments : [{ text: title, match: false }]
+})
 </script>
 
 <template>
   <div
-    class="session-item select-none cursor-pointer no-drag flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left transition-colors duration-200"
-    :class="active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50'"
+    data-testid="sidebar-session-item"
+    class="session-item no-drag flex w-full select-none items-center rounded-lg px-2.5 text-left transition-colors duration-150"
+    :class="[
+      active ? 'bg-accent text-accent-foreground' : 'text-foreground/80 hover:bg-accent/50',
+      heroHidden && 'is-hero-hidden'
+    ]"
     :data-pin-fx="pinFeedbackMode ?? undefined"
-    :data-hero-hidden="heroHidden ? 'true' : undefined"
+    :data-pin-placeholder="heroPlaceholder ? 'true' : undefined"
+    :data-pin-state="pinState"
+    :data-active="String(active)"
     :data-session-region="region"
     :data-session-id="session.id"
     @click="emit('select', session)"
   >
     <button
       type="button"
-      class="pin-button flex h-6 w-6 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+      class="session-action-button pin-button flex h-7 w-7 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
       :class="session.isPinned ? 'pin-button--active' : 'pin-button--idle'"
-      :data-pin-fx="pinFeedbackMode ?? undefined"
       :title="pinActionLabel"
       :aria-label="pinActionLabel"
       :aria-pressed="session.isPinned"
@@ -57,31 +154,46 @@ const pinActionLabel = computed(() =>
       <Icon icon="lucide:pin" class="pin-button__icon h-4 w-4" />
     </button>
 
+    <div class="session-content flex min-w-0 flex-1 items-center gap-1.5">
+      <span
+        class="session-title min-w-0 flex-1 text-sm"
+        :class="{ 'session-title--loading': isWorking }"
+      >
+        <span class="session-title__label">
+          <template v-for="(segment, index) in titleSegments" :key="`${session.id}-${index}`">
+            <mark v-if="segment.match" class="session-title__highlight">{{ segment.text }}</mark>
+            <template v-else>{{ segment.text }}</template>
+          </template>
+        </span>
+        <span v-if="isWorking" aria-hidden="true" class="session-title__sheen">
+          {{ session.title }}
+        </span>
+      </span>
+
+      <span v-if="statusIcon" class="session-status shrink-0">
+        <Icon :icon="statusIcon.icon" class="h-3.5 w-3.5" :class="statusIcon.className" />
+      </span>
+    </div>
+
     <span
-      class="session-title min-w-0 flex-1 text-sm"
-      :class="{ 'session-title--loading': session.status === 'working' }"
+      class="right-button flex items-center"
+      :data-shortcut-badge-visible="shortcutBadgeVisible ? 'true' : undefined"
     >
-      <span class="session-title__label">
-        {{ session.title }}
+      <span
+        v-if="shortcutBadgeVisible && shortcutBadgeLabel"
+        data-testid="sidebar-session-shortcut-badge"
+        class="shortcut-badge"
+        :title="shortcutBadgeTitle"
+        :aria-label="shortcutBadgeTitle"
+      >
+        {{ shortcutBadgeLabel }}
       </span>
-      <span v-if="session.status === 'working'" aria-hidden="true" class="session-title__sheen">
-        {{ session.title }}
-      </span>
-    </span>
-
-    <span v-if="session.status === 'completed'" class="shrink-0">
-      <Icon icon="lucide:check" class="h-3.5 w-3.5 text-green-500" />
-    </span>
-    <span v-else-if="session.status === 'error'" class="shrink-0">
-      <Icon icon="lucide:alert-circle" class="h-3.5 w-3.5 text-destructive" />
-    </span>
-
-    <span class="right-button flex shrink-0 items-center gap-2 transition-all duration-200">
       <button
+        v-else
         type="button"
-        class="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/30"
-        :title="t('thread.actions.delete')"
-        :aria-label="t('thread.actions.delete')"
+        class="session-action-button right-button__action flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/30"
+        :title="deleteActionLabel"
+        :aria-label="deleteActionLabel"
         @click.stop="emit('delete', session)"
       >
         <Icon icon="lucide:trash-2" class="h-4 w-4" />
@@ -99,16 +211,25 @@ const pinActionLabel = computed(() =>
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  transform: translateZ(0);
+  min-height: 2.625rem;
+  --pin-inline-start: 0.45rem;
+  --pin-text-shift: 1.95rem;
+  --action-border: color-mix(in srgb, var(--border) 82%, transparent);
+  --action-surface: color-mix(in srgb, var(--background) 84%, var(--accent) 16%);
+  --action-shadow: 0 12px 30px -22px rgb(15 23 42 / 0.5);
 }
 
-.session-item[data-hero-hidden='true'] {
-  visibility: hidden;
+.session-item.is-hero-hidden {
+  visibility: hidden !important;
 }
 
-.session-item > * {
-  position: relative;
-  z-index: 1;
+.session-item.is-hero-hidden * {
+  visibility: hidden !important;
+}
+
+.sidebar-pin-flight,
+.sidebar-pin-flight * {
+  visibility: visible !important;
 }
 
 .session-item::after {
@@ -134,108 +255,167 @@ const pinActionLabel = computed(() =>
     );
 }
 
-.session-item[data-pin-fx='pinning'] {
-  animation: none;
-}
-
 .session-item[data-pin-fx='pinning']::after {
   animation: session-item-pin-glow 420ms cubic-bezier(0.24, 0.84, 0.24, 1);
-}
-
-.session-item[data-pin-fx='unpinning'] {
-  animation: none;
 }
 
 .session-item[data-pin-fx='unpinning']::after {
   animation: session-item-unpin-glow 360ms cubic-bezier(0.28, 0.11, 0.32, 1);
 }
 
-.pin-button {
+.session-content {
   position: relative;
-  overflow: hidden;
+  z-index: 1;
+  min-width: 0;
+  margin-left: 0;
+  transition: margin-left 280ms;
+}
+
+.session-item[data-pin-state='docked'] .session-content {
+  margin-left: var(--pin-text-shift);
+}
+
+.session-item[data-pin-fx] .session-content {
+  will-change: margin-left;
+}
+
+.session-action-button {
+  border: 1px solid var(--action-border);
+  background-color: var(--action-surface);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
+    var(--action-shadow);
   transition:
-    background-color 200ms ease,
-    color 200ms ease,
-    transform 200ms ease;
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 160ms ease;
+}
+
+.session-action-button:hover {
+  background-color: color-mix(in srgb, var(--accent) 80%, var(--background) 20%);
+  border-color: color-mix(in srgb, var(--border) 64%, var(--foreground) 8%);
+}
+
+.pin-button {
+  position: absolute;
+  top: 50%;
+  left: var(--pin-inline-start);
+  z-index: 3;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  color: var(--muted-foreground);
+  transform: translate3d(-0.16rem, -50%, 0) scale(0.94);
+  transition:
+    opacity 160ms ease,
+    visibility 0s linear 160ms,
+    transform 160ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 160ms ease;
 }
 
 .pin-button::before {
   content: '';
   position: absolute;
-  inset: 0.18rem;
-  border-radius: 0.45rem;
-  background: radial-gradient(circle at 50% 45%, var(--primary) 0%, transparent 72%);
+  inset: 0.2rem;
+  border-radius: 0.5rem;
+  background: radial-gradient(
+    circle at 50% 45%,
+    color-mix(in srgb, var(--primary) 78%, transparent) 0%,
+    transparent 72%
+  );
   opacity: 0;
   transform: scale(0.72);
   transition:
-    opacity 200ms ease,
-    transform 200ms ease;
+    opacity 180ms ease,
+    transform 180ms ease;
 }
 
-.pin-button:hover {
-  background: var(--accent);
-}
-
-.session-item:hover .pin-button--idle,
-.session-item:focus-within .pin-button--idle,
-.session-item[data-pin-fx] .pin-button--idle,
-.pin-button[data-pin-fx] {
+.session-item[data-pin-state='docked'] .pin-button,
+.session-item[data-pin-state='overlay']:hover .pin-button,
+.session-item[data-pin-state='overlay']:focus-within .pin-button,
+.session-item[data-pin-fx] .pin-button {
   visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition-delay: 0s;
 }
 
-.sidebar-pin-flight .pin-button--idle {
+.sidebar-pin-flight .pin-button {
   visibility: visible;
+  opacity: 1;
+  pointer-events: none;
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition: none;
 }
 
-.pin-button--idle {
-  color: var(--muted-foreground);
-  visibility: hidden;
+.pin-button--idle .pin-button__icon {
+  transform: rotate(-10deg) scale(0.92);
 }
 
 .pin-button--active {
   color: var(--primary);
 }
 
-.pin-button--active::before {
-  opacity: 0.22;
-  transform: scale(1);
+.session-item[data-pin-state='docked'] .pin-button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.session-item[data-pin-state='docked'] .pin-button:hover {
+  background: color-mix(in srgb, var(--accent) 78%, transparent);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.session-item[data-pin-state='docked'] .pin-button::before {
+  opacity: 0;
 }
 
 .pin-button__icon {
   position: relative;
   z-index: 1;
   transition:
-    transform 200ms ease,
-    color 200ms ease;
-}
-
-.pin-button--idle .pin-button__icon {
-  transform: rotate(-12deg) scale(0.92);
+    transform 180ms ease,
+    color 180ms ease;
 }
 
 .pin-button--active .pin-button__icon {
-  transform: translateY(-1px) scale(1);
+  transform: translateY(-1px);
 }
 
-.pin-button[data-pin-fx='pinning']::before {
+.session-item[data-pin-state='docked'] .pin-button:hover .pin-button__icon {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.session-item[data-pin-fx='pinning'] .pin-button::before {
   animation: pin-button-bloom 560ms cubic-bezier(0.18, 0.88, 0.24, 1);
 }
 
-.pin-button[data-pin-fx='pinning'] .pin-button__icon {
+.session-item[data-pin-fx='pinning'] .pin-button__icon {
   animation: pin-icon-twist-in 560ms cubic-bezier(0.18, 0.88, 0.24, 1);
 }
 
-.pin-button[data-pin-fx='unpinning']::before {
+.session-item[data-pin-fx='unpinning'] .pin-button::before {
   animation: pin-button-release 460ms cubic-bezier(0.3, 0.07, 0.34, 1);
 }
 
-.pin-button[data-pin-fx='unpinning'] .pin-button__icon {
+.session-item[data-pin-fx='unpinning'] .pin-button__icon {
   animation: pin-icon-twist-out 460ms cubic-bezier(0.3, 0.07, 0.34, 1);
 }
 
 .session-title {
   position: relative;
   display: block;
+  line-height: 1.35;
 }
 
 .session-title__label,
@@ -254,6 +434,18 @@ const pinActionLabel = computed(() =>
 
 .session-title--loading .session-title__label {
   color: var(--session-loading-base);
+}
+
+.session-title__highlight {
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: inherit;
+  padding: 0 0.08rem;
+}
+
+.session-status {
+  position: relative;
+  z-index: 1;
 }
 
 .session-title__sheen {
@@ -288,21 +480,63 @@ const pinActionLabel = computed(() =>
   mask-size: 42% 100%;
   -webkit-mask-position: -26% 0;
   mask-position: -26% 0;
-  will-change: mask-position;
-  animation: session-loading-sheen 2.5s cubic-bezier(0.4, 0.08, 0.22, 0.98) infinite;
+  animation: session-loading-sheen 2.5s linear infinite;
 }
 
 .right-button {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  z-index: 3;
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(4px);
+  transform: translate3d(0.18rem, -50%, 0) scale(0.96);
+  transition:
+    opacity 160ms ease,
+    visibility 0s linear 160ms,
+    transform 220ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.right-button__action:hover {
+  color: var(--destructive);
 }
 
 .session-item:hover .right-button,
 .session-item:focus-within .right-button {
+  visibility: visible;
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0);
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition-delay: 0s;
+}
+
+.right-button[data-shortcut-badge-visible='true'] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition-delay: 0s;
+}
+
+.shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--action-border);
+  border-radius: 999px;
+  background-color: var(--action-surface);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
+    var(--action-shadow);
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 @keyframes session-loading-sheen {
@@ -353,29 +587,29 @@ const pinActionLabel = computed(() =>
 
 @keyframes pin-button-bloom {
   0% {
-    opacity: 0.18;
+    opacity: 0.16;
     transform: scale(0.68);
   }
 
   42% {
-    opacity: 0.42;
-    transform: scale(1.14);
+    opacity: 0.38;
+    transform: scale(1.12);
   }
 
   100% {
-    opacity: 0.22;
+    opacity: 0.18;
     transform: scale(1);
   }
 }
 
 @keyframes pin-button-release {
   0% {
-    opacity: 0.18;
+    opacity: 0.16;
     transform: scale(1);
   }
 
   40% {
-    opacity: 0.12;
+    opacity: 0.1;
     transform: scale(0.84);
   }
 
@@ -391,7 +625,7 @@ const pinActionLabel = computed(() =>
   }
 
   52% {
-    transform: rotate(18deg) translateY(-1px) scale(1.12);
+    transform: rotate(18deg) translateY(-1px) scale(1.1);
   }
 
   100% {
@@ -409,13 +643,16 @@ const pinActionLabel = computed(() =>
   }
 
   100% {
-    transform: rotate(-12deg) scale(0.92);
+    transform: rotate(-10deg) scale(0.92);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .session-item,
   .session-item::after,
+  .session-content,
+  .session-action-button,
+  .shortcut-badge,
   .pin-button::before,
   .pin-button__icon,
   .right-button {

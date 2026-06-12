@@ -84,10 +84,11 @@ export class BraveSearchServer {
   }
 
   constructor(env?: Record<string, unknown>) {
-    if (!env?.apiKey) {
+    const apiKey = String(env?.apiKey ?? '')
+    if (!apiKey) {
       throw new Error('需要提供Brave API Key')
     }
-    this.apiKey = env.apiKey as string
+    this.apiKey = apiKey
 
     // 创建服务器实例
     this.server = new Server(

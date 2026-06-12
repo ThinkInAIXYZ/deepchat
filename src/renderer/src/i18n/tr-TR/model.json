@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Modelleri ara..."
+  },
+  "error": {
+    "loadFailed": "Modeller yüklenemedi"
+  },
+  "type": {
+    "custom": "Özel Model",
+    "official": "Resmi Model"
+  },
+  "add": {
+    "namePlaceholder": "Model Adı",
+    "idPlaceholder": "Model Kimliği",
+    "contextLengthPlaceholder": "Bağlam Uzunluğu",
+    "maxTokensPlaceholder": "Maksimum token"
+  },
+  "actions": {
+    "add": "Model Ekle",
+    "enableAll": "Tümünü Etkinleştir",
+    "disableAll": "Tümünü Devre Dışı Bırak"
+  },
+  "sort": {
+    "status": "Duruma Göre",
+    "name": "İsme Göre"
+  },
+  "filter": {
+    "label": "Filtre",
+    "clearAll": "Filtreleri Temizle",
+    "visibleCount": "{visible} / {total} gösteriliyor",
+    "capabilities": "Yetenekler",
+    "types": "Türler",
+    "capabilityOptions": {
+      "vision": "Görüş",
+      "functionCall": "İşlev Çağırma",
+      "reasoning": "muhakeme",
+      "search": "Web Araması"
+    },
+    "typeOptions": {
+      "chat": "Sohbet",
+      "embedding": "Gömme",
+      "rerank": "Yeniden Sırala",
+      "imageGeneration": "Görüntü Üretimi",
+      "videoGeneration": "Video Oluşturma"
+    }
+  },
+  "tags": {
+    "reasoning": "muhakeme",
+    "chat": "Sohbet",
+    "code": "Kod",
+    "writing": "Yazma",
+    "analysis": "Analiz"
+  }
+}

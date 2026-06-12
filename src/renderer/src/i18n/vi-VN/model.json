@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "Tìm kiếm mô hình..."
+  },
+  "error": {
+    "loadFailed": "Không tải được mô hình"
+  },
+  "type": {
+    "custom": "Mẫu tùy chỉnh",
+    "official": "Mẫu chính thức"
+  },
+  "add": {
+    "namePlaceholder": "Tên mẫu",
+    "idPlaceholder": "Mã mẫu",
+    "contextLengthPlaceholder": "Độ dài ngữ cảnh",
+    "maxTokensPlaceholder": "Tối đa Tokens"
+  },
+  "actions": {
+    "add": "Thêm mô hình",
+    "enableAll": "Bật tất cả",
+    "disableAll": "Vô hiệu hóa tất cả"
+  },
+  "sort": {
+    "status": "Theo trạng thái",
+    "name": "theo tên"
+  },
+  "filter": {
+    "label": "Lọc",
+    "clearAll": "Xóa bộ lọc",
+    "visibleCount": "Đang hiển thị {visible} / {total}",
+    "capabilities": "Khả năng",
+    "types": "Các loại",
+    "capabilityOptions": {
+      "vision": "Tầm nhìn",
+      "functionCall": "Gọi hàm",
+      "reasoning": "Lý luận",
+      "search": "Tìm kiếm trên web"
+    },
+    "typeOptions": {
+      "chat": "Trò chuyện",
+      "embedding": "Nhúng",
+      "rerank": "Xếp hạng lại",
+      "imageGeneration": "Tạo hình ảnh",
+      "videoGeneration": "Tạo video"
+    }
+  },
+  "tags": {
+    "reasoning": "Lý luận",
+    "chat": "Trò chuyện",
+    "code": "Mã",
+    "writing": "Viết",
+    "analysis": "Phân tích"
+  }
+}

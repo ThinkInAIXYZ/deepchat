@@ -1,9 +1,12 @@
+import logger from '@shared/logger'
 import Database from 'better-sqlite3-multiple-ciphers'
 import path from 'path'
 import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
 import {
+  DatabaseRepairReport,
+  DatabaseSchemaDiagnosis,
   ISQLitePresenter,
   SQLITE_MESSAGE,
   CONVERSATION,
@@ -13,17 +16,183 @@ import {
 } from '@shared/presenter'
 import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
+import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
 import { DeepChatMessagesTable } from './tables/deepchatMessages'
+import { DeepChatUserMessagesTable } from './tables/deepchatUserMessages'
+import { DeepChatUserMessageFilesTable } from './tables/deepchatUserMessageFiles'
+import { DeepChatUserMessageLinksTable } from './tables/deepchatUserMessageLinks'
+import { DeepChatAssistantBlocksTable } from './tables/deepchatAssistantBlocks'
 import { DeepChatMessageTracesTable } from './tables/deepchatMessageTraces'
 import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearchResults'
+import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
+import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { ConfigTables } from './tables/configTables'
+import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
+import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
+import { SettingsActivityTable } from './tables/settingsActivity'
+import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
+import { configureSQLiteConnection } from './connectionConfig'
+import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
+
+const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
+  /database disk image is malformed/i,
+  /file is not a database/i,
+  /SQLITE_CORRUPT/i,
+  /SQLITE_NOTADB/i
+]
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error && 'message' in error) {
+    return String((error as { message?: unknown }).message ?? '')
+  }
+
+  return String(error ?? '')
+}
+
+export function isDestructiveDatabaseError(error: unknown): boolean {
+  const message = getErrorMessage(error)
+  return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+}
+
+function ensureDatabaseDirectory(dbPath: string): void {
+  const dbDir = path.dirname(dbPath)
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
+}
+
+export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
+  ensureDatabaseDirectory(dbPath)
+  const db = new Database(dbPath)
+  configureSQLiteConnection(db, password)
+  return db
+}
+
+export function repairSQLiteDatabaseFile(dbPath: string, password?: string): DatabaseRepairReport {
+  const db = openSQLiteDatabase(dbPath, password)
+
+  try {
+    return new DatabaseRepairService(db, dbPath).repair()
+  } finally {
+    db.close()
+  }
+}
+
+function stripLeadingSqlComments(statement: string): string {
+  return statement.replace(/^\s*(--[^\n]*(?:\r?\n|$))+/g, '').trim()
+}
+
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = []
+  let current = ''
+  let inSingleQuote = false
+  let inDoubleQuote = false
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const char = sql[index]
+    const next = sql[index + 1]
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === '-' && next === '-') {
+        while (index + 1 < sql.length && sql[index + 1] !== '\n' && sql[index + 1] !== '\r') {
+          index += 1
+        }
+        continue
+      }
+
+      if (char === '/' && next === '*') {
+        if (current.length > 0 && !/\s$/.test(current)) {
+          current += ' '
+        }
+
+        index += 2
+        while (index < sql.length && !(sql[index] === '*' && sql[index + 1] === '/')) {
+          index += 1
+        }
+
+        if (index >= sql.length) {
+          break
+        }
+
+        index += 1
+        continue
+      }
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      current += char
+      if (inSingleQuote && next === "'") {
+        current += next
+        index += 1
+        continue
+      }
+      inSingleQuote = !inSingleQuote
+      continue
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote
+      current += char
+      continue
+    }
+
+    if (char === ';' && !inSingleQuote && !inDoubleQuote) {
+      const trimmed = current.trim()
+      if (trimmed) {
+        statements.push(trimmed)
+      }
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  const trailing = current.trim()
+  if (trailing) {
+    statements.push(trailing)
+  }
+
+  return statements
+}
+
+function shouldIgnoreMigrationStatementError(statement: string, error: unknown): boolean {
+  const normalizedStatement = stripLeadingSqlComments(statement).toUpperCase()
+  const message = getErrorMessage(error)
+
+  if (
+    /^ALTER TABLE\b[\s\S]*\bADD COLUMN\b/.test(normalizedStatement) &&
+    /duplicate column name/i.test(message)
+  ) {
+    return true
+  }
+
+  if (/^CREATE(?: UNIQUE)? INDEX\b/.test(normalizedStatement) && /already exists/i.test(message)) {
+    return true
+  }
+
+  if (
+    /^ALTER TABLE\b[\s\S]*\bDROP COLUMN\b/.test(normalizedStatement) &&
+    /no such column/i.test(message)
+  ) {
+    return true
+  }
+
+  return false
+}
 
 /**
  * 导入模式枚举
@@ -39,86 +208,137 @@ export class SQLitePresenter implements ISQLitePresenter {
   private messagesTable!: MessagesTable
   private messageAttachmentsTable!: MessageAttachmentsTable
   private acpSessionsTable!: AcpSessionsTable
+  private acpTurnsTable!: AcpTurnsTable
   public newEnvironmentsTable!: NewEnvironmentsTable
   public newSessionsTable!: NewSessionsTable
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
   public deepchatMessagesTable!: DeepChatMessagesTable
+  public deepchatUserMessagesTable!: DeepChatUserMessagesTable
+  public deepchatUserMessageFilesTable!: DeepChatUserMessageFilesTable
+  public deepchatUserMessageLinksTable!: DeepChatUserMessageLinksTable
+  public deepchatAssistantBlocksTable!: DeepChatAssistantBlocksTable
   public deepchatMessageTracesTable!: DeepChatMessageTracesTable
   public deepchatMessageSearchResultsTable!: DeepChatMessageSearchResultsTable
+  public deepchatSearchDocumentsTable!: DeepChatSearchDocumentsTable
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
+  public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
+  public configTables!: ConfigTables
+  public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
+  public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
+  public settingsActivityTable!: SettingsActivityTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
+  private destructiveInitializationRetryCount = 0
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
     this.password = password
     try {
-      // 确保数据库目录存在
-      const dbDir = path.dirname(dbPath)
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
-
-      // 初始化数据库连接
-      this.db = new Database(dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${password}'`)
-      }
-
-      // 尝试执行一个简单的查询来验证数据库是否正常
-      this.db.prepare('SELECT 1').get()
-
-      // 初始化所有表
-      this.initTables()
-
-      // 初始化版本表
-      this.initVersionTable()
-
-      // 执行迁移
-      this.migrate()
+      this.initializeDatabase()
     } catch (error) {
-      console.error('Database initialization failed:', error)
-
-      // 如果数据库已经打开，先关闭它
-      if (this.db) {
-        try {
-          this.db.close()
-        } catch (closeError) {
-          console.error('Error closing database:', closeError)
-        }
-      }
-
-      // 备份现有的损坏数据库
-      this.backupDatabase()
-
-      // 删除现有的数据库文件和相关的 WAL/SHM 文件
-      this.cleanupDatabaseFiles()
-
-      // 重新创建一个新的数据库
-      this.db = new Database(dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${password}'`)
-      }
-
-      // 重新初始化数据库
-      this.initTables()
-      this.initVersionTable()
-      this.migrate()
+      this.handleInitializationError(error)
     }
   }
+
   async deleteAllMessagesInConversation(conversationId: string): Promise<void> {
     return this.messagesTable.deleteAllInConversation(conversationId)
+  }
+
+  public getDatabase(): Database.Database {
+    return this.db
+  }
+
+  public openDatabaseConnection(dbPath = this.dbPath): Database.Database {
+    return openSQLiteDatabase(dbPath, this.password)
+  }
+
+  public getDatabasePath(): string {
+    return this.dbPath
+  }
+
+  public getDatabasePassword(): string | undefined {
+    return this.password
+  }
+
+  public reopenWithPassword(password?: string): void {
+    this.password = password
+    this.reopen()
+  }
+
+  public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
+    return new SchemaInspector(this.db).diagnose()
+  }
+
+  public async repairSchema(): Promise<DatabaseRepairReport> {
+    const report = new DatabaseRepairService(this.db, this.dbPath).repair()
+    try {
+      this.settingsActivityTable?.record({
+        category: 'data',
+        action: 'repaired',
+        targetType: 'database',
+        targetId: 'schema',
+        targetLabel: 'Database schema',
+        routeName: 'settings-database',
+        summaryKey: 'settings.controlCenter.activity.databaseRepaired',
+        summaryParams: {
+          status: report.status
+        }
+      })
+    } catch (error) {
+      console.warn('[SettingsActivity] Failed to record repair event:', error)
+    }
+    return report
+  }
+
+  private initializeDatabase(): void {
+    this.db = openSQLiteDatabase(this.dbPath, this.password)
+    this.db.prepare('SELECT 1').get()
+    this.initTables()
+    this.initVersionTable()
+    this.migrate()
+  }
+
+  private handleInitializationError(error: unknown): void {
+    console.error('Database initialization failed:', error)
+
+    if (isDestructiveDatabaseError(error)) {
+      if (this.destructiveInitializationRetryCount > 0) {
+        console.error('Destructive database recovery was already attempted once; aborting retry.')
+        this.closeDatabaseSilently()
+        throw error
+      }
+
+      this.destructiveInitializationRetryCount += 1
+      this.backupDatabase()
+      this.closeDatabaseSilently()
+      this.cleanupDatabaseFiles()
+      try {
+        this.initializeDatabase()
+      } catch (retryError) {
+        this.handleInitializationError(retryError)
+      }
+      return
+    }
+
+    this.closeDatabaseSilently()
+    throw error
+  }
+
+  private closeDatabaseSilently(): void {
+    if (!this.db) {
+      return
+    }
+
+    try {
+      this.db.close()
+    } catch (error) {
+      console.error('Error closing database:', error)
+    }
   }
 
   private backupDatabase(): void {
@@ -127,8 +347,11 @@ export class SQLitePresenter implements ISQLitePresenter {
 
     try {
       if (fs.existsSync(this.dbPath)) {
+        if (this.db?.open) {
+          this.db.pragma('wal_checkpoint(TRUNCATE)')
+        }
         fs.copyFileSync(this.dbPath, backupPath)
-        console.log(`Database backed up to: ${backupPath}`)
+        logger.info(`Database backed up to: ${backupPath}`)
       }
     } catch (error) {
       console.error('Error creating database backup:', error)
@@ -142,7 +365,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       try {
         if (fs.existsSync(file)) {
           fs.unlinkSync(file)
-          console.log(`Deleted file: ${file}`)
+          logger.info(`Deleted file: ${file}`)
         }
       } catch (error) {
         console.error(`Error deleting file ${file}:`, error)
@@ -160,31 +383,53 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.messagesTable = new MessagesTable(this.db)
     this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
     this.acpSessionsTable = new AcpSessionsTable(this.db)
+    this.acpTurnsTable = new AcpTurnsTable(this.db)
     this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
     this.newSessionsTable = new NewSessionsTable(this.db)
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
     this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
+    this.deepchatUserMessagesTable = new DeepChatUserMessagesTable(this.db)
+    this.deepchatUserMessageFilesTable = new DeepChatUserMessageFilesTable(this.db)
+    this.deepchatUserMessageLinksTable = new DeepChatUserMessageLinksTable(this.db)
+    this.deepchatAssistantBlocksTable = new DeepChatAssistantBlocksTable(this.db)
     this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
     this.deepchatMessageSearchResultsTable = new DeepChatMessageSearchResultsTable(this.db)
+    this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
+    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
+    this.configTables = new ConfigTables(this.db)
+    this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
+    this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
+    this.settingsActivityTable = new SettingsActivityTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
+    this.acpTurnsTable.createTable()
     this.newEnvironmentsTable.createTable()
     this.newSessionsTable.createTable()
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
     this.deepchatMessagesTable.createTable()
+    this.deepchatUserMessagesTable.createTable()
+    this.deepchatUserMessageFilesTable.createTable()
+    this.deepchatUserMessageLinksTable.createTable()
+    this.deepchatAssistantBlocksTable.createTable()
     this.deepchatMessageTracesTable.createTable()
     this.deepchatMessageSearchResultsTable.createTable()
+    this.deepchatSearchDocumentsTable.createTable()
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
+    this.deepchatTapeEntriesTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
+    this.configTables.createTable()
+    this.newSessionActiveSkillsTable.createTable()
+    this.newSessionDisabledAgentToolsTable.createTable()
+    this.settingsActivityTable.createTable()
   }
 
   private initVersionTable() {
@@ -212,12 +457,22 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newProjectsTable,
       this.deepchatSessionsTable,
       this.deepchatMessagesTable,
+      this.deepchatUserMessagesTable,
+      this.deepchatUserMessageFilesTable,
+      this.deepchatUserMessageLinksTable,
+      this.deepchatAssistantBlocksTable,
       this.deepchatMessageTracesTable,
       this.deepchatMessageSearchResultsTable,
+      this.deepchatSearchDocumentsTable,
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
+      this.deepchatTapeEntriesTable,
       this.legacyImportStatusTable,
-      this.agentsTable
+      this.agentsTable,
+      this.configTables,
+      this.newSessionActiveSkillsTable,
+      this.newSessionDisabledAgentToolsTable,
+      this.settingsActivityTable
     ]
 
     // 获取最新的迁移版本
@@ -245,11 +500,22 @@ export class SQLitePresenter implements ISQLitePresenter {
     for (const version of versions) {
       const migrationSQLs = migrations.get(version) || []
       if (migrationSQLs.length > 0) {
-        console.log(`Executing migration version ${version}`)
+        logger.info(`Executing migration version ${version}`)
         this.db.transaction(() => {
-          migrationSQLs.forEach((sql) => {
-            console.log(`Executing SQL: ${sql}`)
-            this.db.exec(sql)
+          migrationSQLs.forEach((sqlBlock) => {
+            for (const statement of splitSqlStatements(sqlBlock)) {
+              logger.info(`Executing SQL: ${statement}`)
+              try {
+                this.db.exec(statement)
+              } catch (error) {
+                if (shouldIgnoreMigrationStatementError(statement, error)) {
+                  console.warn(`Ignoring migration statement error for: ${statement}`, error)
+                  continue
+                }
+
+                throw error
+              }
+            }
           })
           this.db
             .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
@@ -271,25 +537,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public reopen() {
     try {
       this.close()
-
-      const dbDir = path.dirname(this.dbPath)
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true })
-      }
-
-      this.db = new Database(this.dbPath)
-      this.db.pragma('journal_mode = WAL')
-
-      if (this.password) {
-        this.db.pragma(`cipher='sqlcipher'`)
-        this.db.pragma(`key='${this.password}'`)
-      }
-
-      this.db.prepare('SELECT 1').get()
-
-      this.initTables()
-      this.initVersionTable()
-      this.migrate()
+      this.initializeDatabase()
     } catch (error) {
       console.error('Failed to reopen database:', error)
       throw error
@@ -301,14 +549,32 @@ export class SQLitePresenter implements ISQLitePresenter {
       // Keep project metadata and legacy import status; clear session/message domain data only.
       this.db.exec(`
         DELETE FROM deepchat_message_search_results;
+        DELETE FROM deepchat_search_documents;
+        DELETE FROM deepchat_assistant_blocks;
+        DELETE FROM deepchat_user_message_links;
+        DELETE FROM deepchat_user_message_files;
+        DELETE FROM deepchat_user_messages;
         DELETE FROM deepchat_message_traces;
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
+        DELETE FROM deepchat_tape_entries;
         DELETE FROM deepchat_sessions;
+        DELETE FROM new_session_active_skills;
+        DELETE FROM new_session_disabled_agent_tools;
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
     })
+  }
+
+  public async recordSettingsActivity(
+    input: SettingsActivityInput
+  ): Promise<SettingsActivityRecord> {
+    return this.settingsActivityTable.record(input)
+  }
+
+  public async listSettingsActivity(limit?: number): Promise<SettingsActivityRecord[]> {
+    return this.settingsActivityTable.list(limit)
   }
 
   public async importLegacyChatDb(
@@ -319,7 +585,6 @@ export class SQLitePresenter implements ISQLitePresenter {
     importedMessages: number
     importedSearchResults: number
   }> {
-    const { LegacyChatImportService } = await import('../newAgentPresenter/legacyImportService')
     const service = new LegacyChatImportService(this)
     return await service.importFromSourceDb(sourceDbPath, mode)
   }
@@ -506,6 +771,14 @@ export class SQLitePresenter implements ISQLitePresenter {
     return row ? (row as AcpSessionEntity) : null
   }
 
+  public async getAcpSessionByAgentAndSessionId(
+    agentId: string,
+    sessionId: string
+  ): Promise<AcpSessionEntity | null> {
+    const row = await this.acpSessionsTable.getByAgentAndSessionId(agentId, sessionId)
+    return row ? (row as AcpSessionEntity) : null
+  }
+
   public async upsertAcpSession(
     conversationId: string,
     agentId: string,
@@ -566,6 +839,25 @@ export class SQLitePresenter implements ISQLitePresenter {
     for (const path of affectedPaths) {
       this.newEnvironmentsTable.syncPath(path)
     }
+  }
+
+  public async startAcpTurn(input: {
+    id: string
+    acpSessionId: string
+    conversationId: string
+    userMessageId?: string | null
+    startedAt: number
+  }): Promise<void> {
+    this.acpTurnsTable.start(input)
+  }
+
+  public async finishAcpTurn(input: {
+    id: string
+    status: Exclude<AcpTurnStatus, 'active'>
+    stopReason?: string | null
+    completedAt: number
+  }): Promise<void> {
+    this.acpTurnsTable.finish(input)
   }
 
   private hasTable(tableName: string): boolean {

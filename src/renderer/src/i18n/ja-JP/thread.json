@@ -2,12 +2,14 @@
   "actions": {
     "rename": "名前を変更",
     "delete": "削除",
+    "switchWithShortcut": "{shortcut}でこのチャットに切り替え",
     "cleanMessages": "メッセージをクリア",
     "pin": "ピン留めする",
     "unpin": "ピン留めを外す",
     "export": "エクスポート",
     "exportText": "プレーンテキスト",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "会話を移動"
   },
   "toolbar": {
     "save": "保存",

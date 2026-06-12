@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Rinomina",
+    "delete": "Elimina",
+    "switchWithShortcut": "Passa a questa chat con {shortcut}",
+    "cleanMessages": "Cancella messaggi",
+    "pin": "Fissa",
+    "unpin": "Rimuovi fissaggio",
+    "export": "Esporta",
+    "exportText": "Testo semplice",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Sposta conversazione"
+  },
+  "export": {
+    "failed": "Esportazione non riuscita",
+    "failedDesc": "Si è verificato un errore durante l'esportazione. Riprova",
+    "nowledgeMemSubmitFailed": "Invio a Nowledge-mem non riuscito",
+    "nowledgeMemSubmitFailedDesc": "Invio della conversazione a nowledge-mem non riuscito",
+    "nowledgeMemSubmitPrompt": "Confermi di voler esportare la conversazione corrente in nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Invio a Nowledge-mem riuscito",
+    "nowledgeMemSubmitSuccessDesc": "Conversazione inviata correttamente a Nowledge-mem",
+    "nowledgeMemSuccessDesc": "Conversazione esportata correttamente in formato Nowledge-mem",
+    "success": "Esportazione riuscita",
+    "nowledgeMemSuccess": "Esportazione in Nowledge-mem riuscita",
+    "successDesc": "Conversazione esportata correttamente"
+  },
+  "message": {
+    "toolbar": {
+      "save": "Salva"
+    }
+  },
+  "toolbar": {
+    "save": "Salva",
+    "cancel": "Annulla",
+    "previousVariant": "Passa alla versione precedente",
+    "nextVariant": "Passa alla versione successiva",
+    "copy": "Copia risposta come Markdown",
+    "copyImage": "Copia come immagine",
+    "copyImageWithLongPress": "Copia come immagine (pressione lunga per acquisire dall'inizio)",
+    "copyFromTopSuccess": "Immagine completa della conversazione copiata",
+    "capturing": "Acquisizione screenshot...",
+    "retry": "Rigenera",
+    "fork": "Crea ramo in nuova chat",
+    "edit": "Modifica messaggio",
+    "delete": "Elimina messaggio",
+    "trace": "Visualizza parametri richiesta"
+  }
+}

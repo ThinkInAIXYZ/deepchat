@@ -37,6 +37,25 @@
   "page": {
     "title": "歡迎使用 DeepChat Agent",
     "description": "連接一個模型服務提供者即可開始使用",
+    "guide": {
+      "title": "引導進度",
+      "description": "目前步驟：{step}",
+      "or": "或者",
+      "coreProgress": "核心配置進度",
+      "optional": "可選的下一步",
+      "actions": {
+        "continueSetup": "繼續配置",
+        "goToChat": "前往聊天"
+      },
+      "steps": {
+        "provider": "服務商",
+        "first-chat": "首次聊天",
+        "switch-model": "切換模型",
+        "mcp": "MCP",
+        "skills": "技能",
+        "plugins": "插件"
+      }
+    },
     "browseProviders": "瀏覽所有服務提供者...",
     "connectAgent": "或連接一個 Agent",
     "acpTitle": "設定 ACP Agent",
@@ -48,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "從其他 Agent 匯入"
   },
   "agentPage": {
     "title": "選擇 Agent 開始創作",

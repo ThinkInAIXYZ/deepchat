@@ -1,6 +1,10 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div class="h-full w-full flex flex-col">
+    <div
+      ref="guideRootRef"
+      data-testid="new-thread-page"
+      class="relative h-full w-full flex flex-col"
+    >
       <!-- Main content area (centered) -->
       <div class="flex-1 flex flex-col items-center justify-center px-6">
         <!-- Logo -->
@@ -19,15 +23,33 @@
             <Button
               variant="ghost"
               size="sm"
+              data-testid="new-thread-project-trigger"
               class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
               <span>{{ selectedProjectName }}</span>
+              <Icon
+                v-if="selectedProjectDirectoryInvalid"
+                icon="lucide:circle-alert"
+                data-testid="new-thread-project-missing-warning"
+                class="w-3.5 h-3.5 text-amber-500"
+                :title="selectedProjectUnavailableTooltip"
+              />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" class="min-w-[200px]">
             <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
+            <DropdownMenuItem
+              data-testid="new-thread-clear-project"
+              class="gap-2 text-xs py-1.5 px-2"
+              :disabled="!canClearProjectSelection"
+              @click="clearSelectedProject"
+            >
+              <Icon icon="lucide:folder-x" class="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{{ t('common.project.none') }}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               v-for="project in projectStore.projects"
               :key="project.path"
@@ -35,12 +57,18 @@
               @click="projectStore.selectProject(project.path)"
             >
               <Icon icon="lucide:folder" class="w-3.5 h-3.5 text-muted-foreground" />
-              <div class="flex flex-col min-w-0">
+              <div class="flex flex-col min-w-0 flex-1">
                 <span class="truncate">{{ project.name }}</span>
                 <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
               </div>
+              <Icon
+                v-if="isSelectedInvalidProjectPath(project.path)"
+                icon="lucide:circle-alert"
+                data-testid="new-thread-project-menu-missing-warning"
+                class="w-3.5 h-3.5 text-amber-500 shrink-0"
+                :title="selectedProjectUnavailableTooltip"
+              />
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.openFolderPicker()"
@@ -52,38 +80,69 @@
         </DropdownMenu>
 
         <!-- Input area -->
-        <ChatInputBox
-          ref="chatInputRef"
-          v-model="message"
-          :files="attachedFiles"
-          :session-id="acpDraftSessionId"
-          :workspace-path="projectStore.selectedProject?.path ?? null"
-          :is-acp-session="isAcpSelectedAgent"
-          :submit-disabled="isAcpWorkdirMissing"
-          @update:files="onFilesChange"
-          @pending-skills-change="onPendingSkillsChange"
-          @command-submit="onCommandSubmit"
-          @submit="onSubmit"
-        >
-          <template #toolbar>
-            <ChatInputToolbar
-              :send-disabled="isAcpWorkdirMissing || !message.trim()"
-              @attach="onAttach"
-              @send="onSubmit"
-            />
-          </template>
-        </ChatInputBox>
+        <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
+          <ChatInputBox
+            ref="chatInputRef"
+            :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
+            v-model="message"
+            :files="attachedFiles"
+            :session-id="acpDraftSessionId"
+            :workspace-path="projectStore.selectedProject?.path ?? null"
+            :is-acp-session="isAcpSelectedAgent"
+            :submit-disabled="isAcpWorkdirUnavailable"
+            @update:files="onFilesChange"
+            @pending-skills-change="onPendingSkillsChange"
+            @command-submit="onCommandSubmit"
+            @submit="onSubmit"
+            @toggle-voice-input="onToggleVoiceInput"
+          >
+            <template #toolbar>
+              <ChatInputToolbar
+                :show-voice-input="isVoiceInputEnabled"
+                :is-voice-input-listening="isVoiceInputListening"
+                :is-voice-input-transcribing="isVoiceInputTranscribing"
+                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
+                @attach="onAttach"
+                @voice-input="onToggleVoiceInput"
+                @send="onSubmit"
+              />
+            </template>
+          </ChatInputBox>
+        </div>
 
         <!-- Status bar -->
         <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
       </div>
+
+      <GuidedOnboardingOverlay
+        :visible="Boolean(activeChatGuide?.targetEl)"
+        :container-el="guideRootRef"
+        :target-el="activeChatGuide?.targetEl ?? null"
+        :preferred-panel-placement="activeChatGuide?.preferredPanelPlacement ?? 'auto'"
+        :eyebrow="t('welcome.page.guide.title')"
+        :title="activeChatGuide?.title ?? ''"
+        :description="activeChatGuide?.description ?? ''"
+        :caption="activeChatGuide?.caption"
+        :step-index="activeChatGuide?.stepIndex ?? 1"
+        :total-steps="activeChatGuide?.totalSteps ?? 1"
+        :close-label="t('common.close')"
+        :back-label="activeChatGuide ? t('common.back') : undefined"
+        :expert-label="activeChatGuide ? t('settings.skills.sync.skipAll') : undefined"
+        :primary-label="activeChatGuidePrimaryLabel"
+        :primary-disabled="activeChatGuidePrimaryDisabled"
+        @close="activeChatGuide?.dismiss()"
+        @back="handleActiveChatGuideBack"
+        @expert="handleActiveChatGuideExpert"
+        @primary="handleActiveChatGuidePrimary"
+      />
     </div>
   </TooltipProvider>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
 import {
@@ -98,39 +157,135 @@ import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import { useToast } from '@/components/use-toast'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
-import { usePresenter } from '@/composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
+import { createFileClient } from '@api/FileClient'
+import { createModelClient } from '@api/ModelClient'
+import { createSessionClient } from '@api/SessionClient'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import type {
   DeepChatAgentConfig,
   MessageFile,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import {
+  resolveChatModelByQuery,
+  resolvePreferredChatModel,
+  type ChatModelSelection
+} from '@/lib/chatModelSelection'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
+import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
+import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
-const configPresenter = usePresenter('configPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const configClient = createConfigClient()
+const fileClient = createFileClient()
+const modelClient = createModelClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
+const { toast } = useToast()
+const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
+const switchModelGuide = useGuidedOnboardingStep('switch-model')
+const firstChatGuide = useGuidedOnboardingStep('first-chat')
+
+type SubmissionModelSelection = { providerId: string; modelId: string }
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const guideRootRef = ref<HTMLElement | null>(null)
+const agentGuideTargetRef = ref<HTMLElement | null>(null)
+const modelGuideTargetRef = ref<HTMLElement | null>(null)
+const firstChatGuideHostRef = ref<HTMLElement | null>(null)
+const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
+const isVoiceInputEnabled = ref(false)
 const chatInputRef = ref<{
   triggerAttach: () => void
+  insertRecognizedText?: (text: string) => void
   getPendingSkillsSnapshot?: () => string[]
+  focusInput?: () => void
 } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
+const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
+const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
+let cancelEnsureDraftTask: (() => void) | null = null
+let voiceInputConfigToken = 0
+let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+
+const resolveChatInputBoxElement = () =>
+  (firstChatGuideHostRef.value?.querySelector(
+    '[data-testid="chat-input-box"]'
+  ) as HTMLElement | null) ?? null
+
+const handleVoiceInputError = (code: string) => {
+  if (code === 'aborted') {
+    return
+  }
+
+  if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
+    toast({
+      title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
+      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  toast({
+    title: t('chat.input.voiceRecognitionErrorTitle'),
+    description: t('chat.input.voiceRecognitionErrorDescription'),
+    variant: 'destructive'
+  })
+}
+
+const voiceInput = useSpeechRecognition({
+  onTranscript: (text) => {
+    chatInputRef.value?.insertRecognizedText?.(text)
+  },
+  transcribe: async ({ audioBase64, mimeType, filename }) => {
+    const explicitSelection = resolveVoiceInputSelection()
+    const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+    if (!selection) {
+      throw new Error('transcription-target-unavailable')
+    }
+
+    return await modelClient.transcribeAudio(
+      selection.providerId,
+      selection.modelId,
+      audioBase64,
+      mimeType,
+      filename
+    )
+  },
+  onUnsupported: () => {
+    toast({
+      title: t('chat.input.voiceRecognitionUnsupportedTitle'),
+      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
+      variant: 'destructive'
+    })
+  },
+  onError: handleVoiceInputError
+})
+const isVoiceInputListening = computed(() => voiceInput.isListening.value)
+const isVoiceInputTranscribing = computed(() => voiceInput.isTranscribing.value)
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
   if (!agentId) {
     return 'deepchat'
@@ -162,68 +317,369 @@ const selectedAgent = computed(() => {
   return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
+const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
 const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const selectedProjectName = computed(
-  () => projectStore.selectedProject?.name ?? t('common.project.select')
+const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const hasExplicitNoProjectSelection = computed(
+  () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
+const selectedProjectName = computed(() => {
+  if (projectStore.selectedProject?.name) {
+    return projectStore.selectedProject.name
+  }
+  return hasExplicitNoProjectSelection.value ? t('common.project.none') : t('common.project.select')
+})
+const canClearProjectSelection = computed(() => Boolean(projectStore.selectedProject?.path?.trim()))
+type ProjectDirectoryStatus = 'none' | 'checking' | 'valid' | 'invalid'
+const selectedProjectDirectoryStatus = ref<ProjectDirectoryStatus>('none')
+const selectedProjectDirectoryCheckSeq = ref(0)
+const selectedProjectDirectoryInvalid = computed(
+  () => selectedProjectDirectoryStatus.value === 'invalid'
+)
+const selectedProjectUnavailableTooltip = computed(() =>
+  selectedProjectPath.value
+    ? t('chat.input.workspaceUnavailableTooltip', { path: selectedProjectPath.value })
+    : ''
+)
+const isSelectedInvalidProjectPath = (projectPath: string | null | undefined): boolean =>
+  selectedProjectDirectoryInvalid.value &&
+  normalizeProjectPath(projectPath) === selectedProjectPath.value
 const isAcpWorkdirMissing = computed(() => {
   if (!isAcpSelectedAgent.value) {
     return false
   }
-  return !projectStore.selectedProject?.path?.trim()
+  return !selectedProjectPath.value
 })
+const isAcpWorkdirInvalid = computed(
+  () =>
+    isAcpSelectedAgent.value &&
+    Boolean(selectedProjectPath.value) &&
+    selectedProjectDirectoryInvalid.value
+)
+const isAcpWorkdirChecking = computed(
+  () =>
+    isAcpSelectedAgent.value &&
+    Boolean(selectedProjectPath.value) &&
+    selectedProjectDirectoryStatus.value === 'checking'
+)
+const isAcpWorkdirUnavailable = computed(
+  () => isAcpWorkdirMissing.value || isAcpWorkdirInvalid.value || isAcpWorkdirChecking.value
+)
 
-const getEnabledModel = (
-  providerId?: string,
-  modelId?: string
-): { providerId: string; modelId: string } | null => {
-  if (!providerId || !modelId) return null
-  const matched = modelStore.enabledModels.some(
-    (group) => group.providerId === providerId && group.models.some((model) => model.id === modelId)
-  )
-  return matched ? { providerId, modelId } : null
+const syncGuideTargets = () => {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  agentGuideTargetRef.value =
+    (document.querySelector(
+      '[data-testid="sidebar-agent-button"][data-agent-id="deepchat"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector(
+      '[data-testid="sidebar-agent-button"][data-agent-type="deepchat"]'
+    ) as HTMLElement | null)
+  modelGuideTargetRef.value = document.querySelector(
+    '[data-testid="app-model-switcher"]'
+  ) as HTMLElement | null
+  firstChatGuideTargetRef.value =
+    (firstChatGuideHostRef.value?.querySelector(
+      '[data-testid="chat-input-box"]'
+    ) as HTMLElement | null) ?? firstChatGuideHostRef.value
 }
 
-async function resolveModel(): Promise<{ providerId: string; modelId: string } | null> {
-  // 0. model manually selected in current NewThread page
-  const draftModel = getEnabledModel(draftStore.providerId, draftStore.modelId)
-  if (draftModel) {
-    return draftModel
+const activeChatGuide = computed(() => {
+  if (
+    switchAgentGuide.showGuide.value &&
+    !isDeepChatSelectedAgent.value &&
+    agentGuideTargetRef.value
+  ) {
+    return {
+      key: 'switch-agent',
+      title: t('chat.onboarding.agentSwitch.title'),
+      description: t('chat.onboarding.agentSwitch.description'),
+      caption: t('chat.onboarding.agentSwitch.caption'),
+      targetEl: agentGuideTargetRef.value,
+      stepIndex: switchAgentGuide.stepIndex.value,
+      totalSteps: switchAgentGuide.totalSteps.value,
+      dismiss: switchAgentGuide.dismissGuide
+    }
   }
 
-  // 1. preferredModel (last user selection)
-  const preferredModel = (await configPresenter.getSetting('preferredModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  const resolvedPreferredModel = getEnabledModel(
-    preferredModel?.providerId,
-    preferredModel?.modelId
-  )
-  if (resolvedPreferredModel) {
-    return resolvedPreferredModel
+  if (switchModelGuide.showGuide.value && modelGuideTargetRef.value) {
+    return {
+      key: 'switch-model',
+      preferredPanelPlacement: 'above' as const,
+      title: t('welcome.page.guide.steps.switch-model'),
+      description: t('chat.onboarding.switchModel.description'),
+      caption: t('chat.onboarding.switchModel.caption'),
+      targetEl: modelGuideTargetRef.value,
+      stepIndex: switchModelGuide.stepIndex.value,
+      totalSteps: switchModelGuide.totalSteps.value,
+      dismiss: switchModelGuide.dismissGuide
+    }
   }
 
-  // 2. defaultModel from settings
-  const defaultModel = (await configPresenter.getSetting('defaultModel')) as
-    | { providerId: string; modelId: string }
-    | undefined
-  const resolvedDefaultModel = getEnabledModel(defaultModel?.providerId, defaultModel?.modelId)
-  if (resolvedDefaultModel) {
-    return resolvedDefaultModel
+  if (firstChatGuide.showGuide.value && firstChatGuideTargetRef.value) {
+    return {
+      key: 'first-chat',
+      title: t('welcome.complete.title'),
+      description: t('welcome.complete.description'),
+      caption: t('chat.onboarding.firstChat.caption'),
+      targetEl: firstChatGuideTargetRef.value,
+      stepIndex: firstChatGuide.stepIndex.value,
+      totalSteps: firstChatGuide.totalSteps.value,
+      dismiss: firstChatGuide.dismissGuide
+    }
   }
 
-  // 3. First available enabled model
-  for (const group of modelStore.enabledModels) {
-    if (group.models.length > 0) {
-      return { providerId: group.providerId, modelId: group.models[0].id }
+  return null
+})
+
+const activeChatGuidePrimaryLabel = computed(() => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+    case 'switch-model':
+      return t('common.next')
+    default:
+      return undefined
+  }
+})
+
+const activeChatGuidePrimaryDisabled = computed(() => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+      return !isDeepChatSelectedAgent.value
+    case 'switch-model':
+      return !modelGuideTargetRef.value
+    default:
+      return false
+  }
+})
+
+const continueChatGuide = async (
+  state: Awaited<ReturnType<typeof switchAgentGuide.completeStep>> | null | undefined
+) => {
+  const stepId = state?.status === 'completed' ? 'first-chat' : state?.currentStepId
+  const target = resolveGuidedOnboardingStepTarget(stepId)
+  if (target?.surface !== 'settings' || !target.routeName) {
+    return
+  }
+
+  persistGuidedOnboardingResumeIntent({
+    stepId: target.stepId,
+    trigger: 'window-focus'
+  })
+  await configClient.openSettings({ routeName: target.routeName })
+}
+
+const completeSwitchAgentStep = async () => {
+  if (
+    isCompletingSwitchAgentGuide.value ||
+    switchAgentGuide.currentStepId.value !== 'switch-agent'
+  ) {
+    return
+  }
+
+  const stepStatus = switchAgentGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  isCompletingSwitchAgentGuide.value = true
+  try {
+    const state = await switchAgentGuide.completeStep()
+    await continueChatGuide(state)
+  } finally {
+    isCompletingSwitchAgentGuide.value = false
+  }
+}
+
+const handleActiveChatGuideBack = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent': {
+      const state = await switchAgentGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+    case 'switch-model': {
+      const state = await switchModelGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+    case 'first-chat': {
+      const state = await firstChatGuide.activatePreviousStep()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
+
+const handleActiveChatGuideExpert = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent': {
+      const state = await switchAgentGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+    case 'switch-model': {
+      const state = await switchModelGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+    case 'first-chat': {
+      const state = await firstChatGuide.forceComplete()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
+
+const handleActiveChatGuidePrimary = async () => {
+  switch (activeChatGuide.value?.key) {
+    case 'switch-agent':
+      if (isDeepChatSelectedAgent.value) {
+        await completeSwitchAgentStep()
+      }
+      break
+    case 'switch-model': {
+      const state = await switchModelGuide.completeStep()
+      await continueChatGuide(state)
+      break
+    }
+  }
+}
+
+const ensureEnabledModelsReady = async (): Promise<boolean> => {
+  if (modelStore.initialized) {
+    return true
+  }
+
+  try {
+    await modelStore.initialize()
+    return true
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to initialize enabled models:', error)
+    return false
+  }
+}
+
+async function resolveModel(): Promise<SubmissionModelSelection | null> {
+  const ready = await ensureEnabledModelsReady()
+  if (!ready) {
+    return null
+  }
+
+  const [preferredModel, defaultModel] = await Promise.all([
+    configClient.getSetting('preferredModel') as Promise<ChatModelSelection | undefined>,
+    configClient.getSetting('defaultModel') as Promise<ChatModelSelection | undefined>
+  ])
+
+  const resolvedModel = resolvePreferredChatModel({
+    modelGroups: modelStore.chatSelectableModelGroups,
+    selections: [
+      draftStore.providerId && draftStore.modelId
+        ? { providerId: draftStore.providerId, modelId: draftStore.modelId }
+        : null,
+      preferredModel,
+      defaultModel
+    ]
+  })
+  if (resolvedModel) {
+    return { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
+  }
+
+  return null
+}
+
+function resolveVoiceInputSelection(): SubmissionModelSelection | null {
+  if (isAcpSelectedAgent.value) {
+    return null
+  }
+
+  if (draftStore.providerId && draftStore.modelId) {
+    return {
+      providerId: draftStore.providerId,
+      modelId: draftStore.modelId
     }
   }
 
   return null
 }
+
+function resolveAcpSubmissionSelection(): SubmissionModelSelection | null {
+  if (!isAcpSelectedAgent.value) {
+    return null
+  }
+
+  if (acpDraftModelSelection.value) {
+    return acpDraftModelSelection.value
+  }
+
+  const agentId = selectedAgent.value.id?.trim()
+  return agentId ? { providerId: 'acp', modelId: agentId } : null
+}
+
+async function resolveSubmissionModelSelection(): Promise<SubmissionModelSelection | null> {
+  if (isAcpSelectedAgent.value) {
+    return resolveAcpSubmissionSelection()
+  }
+
+  return await resolveModel()
+}
+
+async function refreshVoiceInputAvailability() {
+  const token = ++voiceInputConfigToken
+
+  if (isAcpSelectedAgent.value) {
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+    return
+  }
+
+  const explicitSelection = resolveVoiceInputSelection()
+  const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+
+  if (!selection) {
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+    return
+  }
+
+  try {
+    const modelConfig = await modelClient.getModelConfig(selection.modelId, selection.providerId)
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    isVoiceInputEnabled.value = modelConfig.speechRecognition === true
+    if (!isVoiceInputEnabled.value) {
+      voiceInput.stop()
+    }
+  } catch (error) {
+    if (token !== voiceInputConfigToken) {
+      return
+    }
+
+    console.warn('[NewThreadPage] Failed to resolve voice input setting:', error)
+    isVoiceInputEnabled.value = false
+    voiceInput.stop()
+  }
+}
+
+watch(
+  () => [selectedAgent.value.id, draftStore.providerId, draftStore.modelId, modelStore.initialized],
+  () => {
+    void refreshVoiceInputAvailability()
+  },
+  { immediate: true }
+)
+
+const removeModelConfigChangedListener = modelClient.onModelConfigChanged(() => {
+  void refreshVoiceInputAvailability()
+})
 
 const normalizeStartMention = (mention: string): string => {
   const normalized = mention.trim().replace(/^@+/, '')
@@ -238,26 +694,13 @@ const buildStartMessage = (payload: StartDeeplinkPayload): string => {
 const resolveStartModelSelection = (
   requestedModelId: string | null
 ): { providerId: string; modelId: string } | null => {
-  const normalizedModelId = requestedModelId?.trim().toLowerCase()
-  if (!normalizedModelId) {
-    return null
-  }
-
-  for (const group of modelStore.enabledModels) {
-    const matched = group.models.find((model) => model.id.toLowerCase() === normalizedModelId)
-    if (matched) {
-      return { providerId: group.providerId, modelId: matched.id }
-    }
-  }
-
-  for (const group of modelStore.enabledModels) {
-    const matched = group.models.find((model) => model.id.toLowerCase().includes(normalizedModelId))
-    if (matched) {
-      return { providerId: group.providerId, modelId: matched.id }
-    }
-  }
-
-  return null
+  const resolvedModel = resolveChatModelByQuery(
+    modelStore.chatSelectableModelGroups,
+    requestedModelId
+  )
+  return resolvedModel
+    ? { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
+    : null
 }
 
 const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
@@ -270,7 +713,8 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   message.value = buildStartMessage(payload)
   draftStore.systemPrompt = payload.systemPrompt
 
-  const matchedModel = resolveStartModelSelection(payload.modelId)
+  const modelsReady = await ensureEnabledModelsReady()
+  const matchedModel = modelsReady ? resolveStartModelSelection(payload.modelId) : null
   if (matchedModel) {
     draftStore.providerId = matchedModel.providerId
     draftStore.modelId = matchedModel.modelId
@@ -280,75 +724,105 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
-  if (isAcpWorkdirMissing.value) return
+  if (isAcpWorkdirUnavailable.value) return
 
   const text = message.value.trim()
   if (!text) return
-  const files = [...attachedFiles.value]
-  message.value = ''
-  attachedFiles.value = []
+  if (shouldIgnoreManualCompactionDraft(text)) return
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
 
-  await submitText(text, files)
+  try {
+    await submitText(text, files)
+    message.value = ''
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
 }
 
 async function onCommandSubmit(command: string) {
-  if (isAcpWorkdirMissing.value) return
+  if (isAcpWorkdirUnavailable.value) return
   const text = command.trim()
   if (!text) return
-  const files = [...attachedFiles.value]
-  attachedFiles.value = []
-  await submitText(text, files)
+  if (shouldIgnoreManualCompactionDraft(text)) return
+  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  try {
+    await submitText(text, files)
+    attachedFiles.value = []
+  } catch (e) {
+    console.error('[NewThreadPage] submit failed:', e)
+  }
+}
+
+function shouldIgnoreManualCompactionDraft(text: string): boolean {
+  return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
 async function submitText(text: string, files: MessageFile[]) {
   if (!text.trim()) return
+  if (isAcpWorkdirUnavailable.value) return
+
+  const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
   const agentId = selectedAgent.value.id
   const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
+  const draftSubagentEnabled = draftStore.subagentEnabled
   const draftGenerationSettings = draftStore.toGenerationSettings()
-  if (isAcp && acpDraftSessionId.value) {
-    await sessionStore.selectSession(acpDraftSessionId.value)
-    await sessionStore.sendMessage(acpDraftSessionId.value, {
-      text,
-      files
-    })
-    return
-  }
 
-  let providerId: string | undefined
-  let modelId: string | undefined
-
-  if (isAcp) {
-    providerId = 'acp'
-    modelId = agentId
-  } else {
-    const resolved = await resolveModel()
-    if (!resolved) {
-      console.error('No model available. Please configure a provider and model in settings.')
+  try {
+    if (isAcp && acpDraftSessionId.value) {
+      await sessionStore.selectSession(acpDraftSessionId.value)
+      await sessionStore.sendMessage(acpDraftSessionId.value, {
+        text,
+        files
+      })
       return
     }
-    providerId = resolved.providerId
-    modelId = resolved.modelId
+
+    let providerId: string | undefined
+    let modelId: string | undefined
+
+    if (isAcp) {
+      providerId = 'acp'
+      modelId = agentId
+    } else {
+      const resolved = await resolveModel()
+      if (!resolved) {
+        console.error('No model available. Please configure a provider and model in settings.')
+        if (preparedHeroFlight) {
+          cancelChatInputHeroFlight()
+        }
+        return
+      }
+      providerId = resolved.providerId
+      modelId = resolved.modelId
+    }
+
+    const pendingSkillsSnapshot =
+      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
+    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+
+    await sessionStore.createSession({
+      message: text,
+      files,
+      projectDir: projectStore.selectedProject?.path,
+      agentId,
+      providerId,
+      modelId,
+      permissionMode: draftPermissionMode,
+      disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
+      subagentEnabled: isAcp ? false : draftSubagentEnabled,
+      generationSettings: draftGenerationSettings,
+      activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
+    })
+  } catch (error) {
+    if (preparedHeroFlight) {
+      cancelChatInputHeroFlight()
+    }
+    throw error
   }
-
-  const pendingSkillsSnapshot =
-    chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-  const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-
-  await sessionStore.createSession({
-    message: text,
-    files,
-    projectDir: projectStore.selectedProject?.path,
-    agentId,
-    providerId,
-    modelId,
-    permissionMode: draftPermissionMode,
-    disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
-    generationSettings: draftGenerationSettings,
-    activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
-  })
 }
 
 const buildDraftGenerationSettings = (
@@ -360,18 +834,19 @@ const buildDraftGenerationSettings = (
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
-  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
-    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  const config = await configClient.resolveDeepChatAgentConfig(agentId)
+  if (config) {
+    return config
   }
 
-  const systemPrompt = await configPresenter.getSetting?.('default_system_prompt')
+  const systemPrompt = await configClient.getSetting('default_system_prompt')
 
-  return {
+  return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
     systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
     permissionMode: 'full_access',
     disabledAgentTools: []
-  }
+  })
 }
 
 const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
@@ -383,14 +858,20 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = []
+  draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
+  draftStore.topP = undefined
   draftStore.contextLength = undefined
   draftStore.maxTokens = undefined
+  draftStore.timeout = undefined
   draftStore.thinkingBudget = undefined
   draftStore.reasoningEffort = undefined
+  draftStore.reasoningVisibility = undefined
   draftStore.verbosity = undefined
   draftStore.forceInterleavedThinkingCompat = undefined
+  draftStore.imageGeneration = undefined
+  draftStore.videoGeneration = undefined
 
   if (selectedAgent.value.type === 'acp') {
     const resolvedProjectPath = currentProjectPath ?? globalDefaultProjectPath
@@ -402,6 +883,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
     draftStore.modelId = agentId
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
+    draftStore.subagentEnabled = false
     return
   }
 
@@ -422,6 +904,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? [])]
+  draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
 }
 
@@ -429,12 +912,72 @@ function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
 
-function onFilesChange(files: MessageFile[]) {
-  attachedFiles.value = files
+function onToggleVoiceInput() {
+  if (!isVoiceInputEnabled.value) {
+    return
+  }
+
+  void voiceInput.toggle()
+}
+
+function notifyUnsupportedAudioAttachments(
+  selection: { providerId: string; modelId: string },
+  rejectedAudioFiles: MessageFile[]
+) {
+  if (rejectedAudioFiles.length === 0) {
+    return
+  }
+
+  const modelLabel =
+    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
+    selection.modelId
+
+  toast({
+    title: t('chat.input.audioInputUnsupportedTitle'),
+    description: t('chat.input.audioInputUnsupportedDescription', {
+      count: rejectedAudioFiles.length,
+      model: modelLabel
+    })
+  })
+}
+
+async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
+  const selection = await resolveSubmissionModelSelection()
+  if (!selection || files.length === 0) {
+    return files
+  }
+
+  try {
+    const capabilities = await modelClient.getCapabilities(selection.providerId, selection.modelId)
+    if (capabilities.supportsAudioInput !== false) {
+      return files
+    }
+
+    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
+    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
+    return acceptedFiles
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to resolve audio input capability:', error)
+    return files
+  }
+}
+
+async function onFilesChange(files: MessageFile[]) {
+  const token = ++attachmentFilterToken
+  const filteredFiles = await prepareFilesForCurrentModel(files)
+  if (token !== attachmentFilterToken) {
+    return
+  }
+
+  attachedFiles.value = filteredFiles
 }
 
 function onPendingSkillsChange(skills: string[]) {
   pendingSkills.value = [...skills]
+}
+
+function clearSelectedProject() {
+  projectStore.selectProject(null, 'manual')
 }
 
 const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
@@ -447,13 +990,14 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   }
   if (lastAcpDraftKey.value !== draftKey) {
     acpDraftSessionId.value = null
+    acpDraftModelSelection.value = null
     lastAcpDraftKey.value = null
   }
 
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await newAgentPresenter.ensureAcpDraftSession({
+    const session = await sessionClient.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode
@@ -470,10 +1014,18 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     if (!sessionId) {
       console.warn('[NewThreadPage] ensureAcpDraftSession returned invalid session:', session)
       acpDraftSessionId.value = null
+      acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
       return
     }
     acpDraftSessionId.value = sessionId
+    acpDraftModelSelection.value =
+      typeof session.providerId === 'string' &&
+      session.providerId.trim() &&
+      typeof session.modelId === 'string' &&
+      session.modelId.trim()
+        ? { providerId: session.providerId.trim(), modelId: session.modelId.trim() }
+        : { providerId: 'acp', modelId: agentId }
     lastAcpDraftKey.value = draftKey
   } catch (error) {
     if (requestSeq !== acpDraftRequestSeq.value) {
@@ -481,20 +1033,63 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     }
     console.warn('[NewThreadPage] Failed to ensure ACP draft session:', error)
     acpDraftSessionId.value = null
+    acpDraftModelSelection.value = null
     lastAcpDraftKey.value = null
   }
 }
 
 watch(
-  () => [agentStore.selectedAgentId, projectStore.selectedProject?.path] as const,
-  ([selectedAgentId, projectPath]) => {
+  () => selectedProjectPath.value,
+  async (projectPath) => {
+    const requestSeq = ++selectedProjectDirectoryCheckSeq.value
+    if (!projectPath) {
+      selectedProjectDirectoryStatus.value = 'none'
+      return
+    }
+
+    selectedProjectDirectoryStatus.value = 'checking'
+    try {
+      const isDirectory = await fileClient.isDirectory(projectPath)
+      if (requestSeq !== selectedProjectDirectoryCheckSeq.value) {
+        return
+      }
+      selectedProjectDirectoryStatus.value = isDirectory ? 'valid' : 'invalid'
+    } catch (error) {
+      if (requestSeq !== selectedProjectDirectoryCheckSeq.value) {
+        return
+      }
+      console.warn('[NewThreadPage] Failed to validate selected project directory:', error)
+      selectedProjectDirectoryStatus.value = 'invalid'
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () =>
+    [
+      agentStore.selectedAgentId,
+      selectedProjectPath.value,
+      selectedProjectDirectoryStatus.value
+    ] as const,
+  ([selectedAgentId, projectPath, directoryStatus]) => {
     acpDraftRequestSeq.value += 1
-    if (!selectedAgentId || selectedAgent.value.type === 'deepchat' || !projectPath?.trim()) {
+    cancelEnsureDraftTask?.()
+    cancelEnsureDraftTask = null
+    if (
+      !selectedAgentId ||
+      selectedAgent.value.type === 'deepchat' ||
+      !projectPath ||
+      directoryStatus !== 'valid'
+    ) {
       acpDraftSessionId.value = null
+      acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
       return
     }
-    void ensureAcpDraftSession(selectedAgentId, projectPath)
+    cancelEnsureDraftTask = scheduleStartupDeferredTask(async () => {
+      await ensureAcpDraftSession(selectedAgentId, projectPath)
+    })
   },
   { immediate: true }
 )
@@ -534,5 +1129,38 @@ watch(
 
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
+  void nextTick(syncGuideTargets)
+  window.addEventListener('resize', syncGuideTargets)
 })
+
+onUnmounted(() => {
+  removeModelConfigChangedListener()
+  voiceInput.cleanup()
+  cancelEnsureDraftTask?.()
+  cancelEnsureDraftTask = null
+  window.removeEventListener('resize', syncGuideTargets)
+})
+
+watch(
+  [
+    () => switchAgentGuide.showGuide.value,
+    () => switchModelGuide.showGuide.value,
+    () => firstChatGuide.showGuide.value,
+    () => selectedAgent.value.type
+  ],
+  () => {
+    void nextTick(syncGuideTargets)
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  () => [switchAgentGuide.currentStepId.value, isDeepChatSelectedAgent.value] as const,
+  ([currentStepId, isDeepChatSelected]) => {
+    if (currentStepId === 'switch-agent' && isDeepChatSelected) {
+      void completeSwitchAgentStep()
+    }
+  },
+  { immediate: true }
+)
 </script>

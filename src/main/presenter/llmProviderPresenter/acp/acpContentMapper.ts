@@ -25,6 +25,19 @@ export interface MappedContent {
   }>
   /** Unified ACP session config state */
   configState?: AcpConfigState
+  /** ACP session metadata update */
+  sessionInfo?: {
+    title?: string | null
+    updatedAt?: string | null
+    meta?: Record<string, unknown> | null
+  }
+  /** ACP session usage/context update */
+  usage?: {
+    used: number
+    size: number
+    cost?: schema.Cost | null
+    meta?: Record<string, unknown> | null
+  }
 }
 
 interface ToolCallState {
@@ -76,8 +89,10 @@ export class AcpContentMapper {
         this.handleConfigOptionUpdate(update, payload)
         break
       case 'session_info_update':
+        this.handleSessionInfoUpdate(update, payload)
+        break
       case 'usage_update':
-        // These updates are useful for stateful clients but do not affect chat rendering.
+        this.handleUsageUpdate(update, payload)
         break
       case 'user_message_chunk':
         // ignore echo
@@ -289,6 +304,29 @@ export class AcpContentMapper {
     payload.configState = normalizeAcpConfigState({
       configOptions: update.configOptions
     })
+  }
+
+  private handleSessionInfoUpdate(
+    update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'session_info_update' }>,
+    payload: MappedContent
+  ) {
+    payload.sessionInfo = {
+      title: update.title,
+      updatedAt: update.updatedAt,
+      meta: update._meta ?? null
+    }
+  }
+
+  private handleUsageUpdate(
+    update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'usage_update' }>,
+    payload: MappedContent
+  ) {
+    payload.usage = {
+      used: update.used,
+      size: update.size,
+      cost: update.cost ?? null,
+      meta: update._meta ?? null
+    }
   }
 
   private formatToolCallContent(

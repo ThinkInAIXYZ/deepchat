@@ -19,10 +19,10 @@ async function ensureDir(dir) {
 
 const PROVIDER_ID_REGEX = /^[a-z0-9][a-z0-9-_]*$/
 const MODEL_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\-_.:/]*$/
-const REASONING_EFFORT_VALUES = ['minimal', 'low', 'medium', 'high']
+const REASONING_EFFORT_VALUES = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 const VERBOSITY_VALUES = ['low', 'medium', 'high']
 const REASONING_MODE_VALUES = ['budget', 'effort', 'level', 'fixed', 'mixed']
-const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed']
+const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed', 'omitted', 'summarized']
 const isValidLowercaseProviderId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
 const isValidModelId = (id) =>
@@ -145,7 +145,7 @@ function sanitizeAggregateJson(json) {
         }
         // effort / verbosity are nested under reasoning in upstream schema
         const effort = r.effort
-        if (typeof effort === 'string' && ['minimal', 'low', 'medium', 'high'].includes(effort)) {
+        if (typeof effort === 'string' && REASONING_EFFORT_VALUES.includes(effort)) {
           rs.effort = effort
         }
         const verbosity = r.verbosity

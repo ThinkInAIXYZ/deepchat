@@ -3,7 +3,7 @@
     class="text-xs leading-4 text-[rgba(37,37,37,0.5)] dark:text-white/50 flex flex-col gap-[6px]"
   >
     <div
-      class="inline-flex items-center gap-[10px] cursor-pointer select-none self-start"
+      class="inline-flex items-center gap-[10px] select-none self-start"
       @click="$emit('toggle')"
     >
       <span class="whitespace-nowrap">
@@ -105,6 +105,27 @@ setCustomComponents(customId, {
 
 <style scoped>
 @reference '../../assets/style.css';
+
+.think-prose {
+  --ms-text-body: calc(0.75rem * var(--dc-font-scale));
+  --ms-leading-body: calc(1rem * var(--dc-font-scale));
+  --ms-text-h1: var(--ms-text-body);
+  --ms-text-h2: var(--ms-text-body);
+  --ms-text-h3: var(--ms-text-body);
+  --ms-text-h4: var(--ms-text-body);
+  --ms-text-h5: var(--ms-text-body);
+  --ms-text-h6: var(--ms-text-body);
+  --ms-leading-h1: var(--ms-leading-body);
+  --ms-leading-h2: var(--ms-leading-body);
+  --ms-leading-h3: var(--ms-leading-body);
+  --ms-font-sans: var(--dc-font-family);
+}
+
+.think-prose :deep(:where(h1, h2, h3, h4, h5, h6, .heading-node)) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .think-prose :where(p, ul, li) {
   @apply mb-1 mt-0;
 }
@@ -115,8 +136,6 @@ setCustomComponents(customId, {
   @apply my-1.5;
 }
 .think-prose :where(p, li, ol, ul) {
-  font-size: inherit;
-  line-height: inherit;
   letter-spacing: 0;
 }
 .think-prose :where(ol, ul) {

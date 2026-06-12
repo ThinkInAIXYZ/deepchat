@@ -25,7 +25,7 @@
         <div
           v-if="!isEditing"
           @click="startEditing"
-          class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-accent rounded px-2"
+          class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold hover:bg-accent rounded px-2"
         >
           {{ fileMaxSize }}
         </div>
@@ -68,10 +68,10 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 
 const { t } = useI18n()
-const configPresenter = usePresenter('configPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 const minSize = 1
 const maxSize = 1024 // 1024MB

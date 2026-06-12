@@ -5,7 +5,16 @@
     "inputArea": "输入区域",
     "functionSwitch": "功能开关",
     "attach": "添加附件",
-    "voiceInput": "语音输入",
+    "voiceInput": "本地录音",
+    "voiceInputStop": "停止本地录音",
+    "voiceRecognitionUnsupportedTitle": "当前环境不支持本地录音",
+    "voiceRecognitionUnsupportedDescription": "请在支持麦克风录音的浏览器或桌面环境中使用该功能。",
+    "voiceRecognitionPermissionDeniedTitle": "无法访问麦克风",
+    "voiceRecognitionPermissionDeniedDescription": "请允许 DeepChat 使用麦克风后重试。",
+    "voiceRecognitionErrorTitle": "音频转写失败",
+    "voiceRecognitionErrorDescription": "未能完成音频转写，请稍后重试。",
+    "send": "发送",
+    "steer": "引导",
     "queue": "加入队列",
     "stop": "停止",
     "fileSelect": "选择文件",
@@ -30,6 +39,7 @@
     "agentWorkspaceTooltip": "设置 Agent 工作目录",
     "agentWorkspaceSelect": "选择工作目录",
     "agentWorkspaceCurrent": "当前工作目录：{path}",
+    "workspaceUnavailableTooltip": "目录不存在或无法访问：{path}",
     "mcp": {
       "badge": "MCP {count}",
       "title": "已启用 MCP",
@@ -40,16 +50,43 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "插件",
       "builtinSection": "内置工具",
       "loading": "正在加载工具...",
       "builtinEmpty": "暂无可用内置工具",
       "groups": {
         "agentFilesystem": "文件系统",
         "agentCore": "核心工具",
+        "agentImageGeneration": "图像生成",
         "agentSkills": "技能工具",
         "deepchatSettings": "DeepChat 设置",
         "yobrowser": "YoBrowser"
       }
+    },
+    "fileUploadFailed": "附件处理失败",
+    "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
+    "fileUploadFailedMore": " 等 {count} 个",
+    "unnamedFile": "未命名文件",
+    "audioInputUnsupportedTitle": "当前模型不支持音频附件",
+    "audioInputUnsupportedDescription": "模型 {model} 不支持音频输入，已忽略 {count} 个音频附件。"
+  },
+  "skillDraft": {
+    "confirmationTitle": "技能草稿",
+    "confirmationQuestion": "已生成技能草稿：{name}",
+    "previewTitle": "草稿内容预览",
+    "actions": {
+      "view": "查看内容",
+      "viewDescription": "预览草稿的 SKILL.md 内容",
+      "install": "安装为技能",
+      "installDescription": "导入到技能目录并启用管理",
+      "discard": "丢弃",
+      "discardDescription": "删除这个临时草稿"
+    },
+    "result": {
+      "viewed": "已打开草稿内容预览。请选择安装或丢弃。",
+      "installed": "已安装技能草稿：{name}",
+      "discarded": "已丢弃技能草稿。",
+      "failed": "处理技能草稿失败：{error}"
     }
   },
   "pendingInput": {
@@ -83,6 +120,7 @@
   "messages": {
     "thinking": "正在思考...",
     "rateLimitWaiting": "请求频率限制，正在排队等待...",
+    "rateLimitCompactLoading": "限速中（{seconds} 秒）",
     "rateLimitTitle": "请求频率限制",
     "rateLimitQueue": "队列位置",
     "rateLimitEstimated": "预计等待",
@@ -93,8 +131,12 @@
     "rateLimitMinutes": "分钟"
   },
   "compaction": {
-    "compacting": "正在自动压缩...",
-    "compacted": "上下文已自动压缩"
+    "compacting": "正在压缩上下文...",
+    "compacted": "上下文已压缩",
+    "commandDescription": "压缩会话上下文",
+    "noopTitle": "没有可压缩的上下文",
+    "noopDescription": "当前还没有新的对话历史需要压缩。",
+    "failedTitle": "压缩失败"
   },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
@@ -114,7 +156,24 @@
     "clickToView": "点击查看详情",
     "functionName": "函数名称",
     "params": "参数",
-    "responseData": "响应数据"
+    "responseData": "响应数据",
+    "subagents": {
+      "summary": "{mode} · {count} 个 subagent",
+      "unnamedTask": "未命名任务",
+      "mode": {
+        "parallel": "并行",
+        "chain": "串行"
+      },
+      "status": {
+        "queued": "排队中",
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "错误",
+        "cancelled": "已取消",
+        "waiting_permission": "等待权限批准",
+        "waiting_question": "等待补充输入"
+      }
+    }
   },
   "mode": {
     "current": "当前模式：{mode}",
@@ -122,8 +181,12 @@
     "acpAgent": "ACP Agent"
   },
   "topbar": {
+    "backToParent": "返回父会话",
     "share": "分享",
     "more": "更多"
+  },
+  "subagents": {
+    "label": "subagent"
   },
   "advancedSettings": {
     "button": "高级配置",
@@ -132,6 +195,9 @@
     "systemPrompt": "系统提示词",
     "systemPromptPlaceholder": "选择预设",
     "temperature": "温度",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在开启思考时固定为 {enabled}，关闭思考时固定为 {disabled}。",
+    "topP": "Top P（核采样）",
+    "topPDescription": "留空使用服务商默认值",
     "contextLength": "上下文长度",
     "maxTokens": "最大输出",
     "thinkingBudget": "思考预算",
@@ -148,11 +214,13 @@
       "finiteNumber": "必须是有限数字",
       "nonNegativeInteger": "必须是非负整数",
       "contextLengthAtLeastMaxTokens": "必须大于或等于最大输出",
-      "maxTokensWithinContextLength": "必须小于或等于上下文长度"
+      "maxTokensWithinContextLength": "必须小于或等于上下文长度",
+      "topPRange": "必须大于 0 且小于或等于 1"
     }
   },
   "modelPicker": {
-    "empty": "未找到模型"
+    "empty": "未找到模型",
+    "audioInputSupported": "支持音频输入"
   },
   "audio": {
     "play": "播放",
@@ -167,11 +235,11 @@
   },
   "skills": {
     "indicator": {
-      "active": "{count} 个技能已激活",
-      "none": "无激活技能"
+      "active": "{count} 个固定技能",
+      "none": "无固定技能"
     },
     "panel": {
-      "title": "技能",
+      "title": "固定技能",
       "manage": "管理",
       "empty": "暂无安装技能"
     }
@@ -179,14 +247,17 @@
   "workspace": {
     "title": "工作区",
     "collapse": "收起",
+    "expand": "展开",
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "subagent"
     },
     "plan": {
       "section": "计划",
       "empty": "暂无任务",
+      "itemAriaLabel": "{status}：{step}",
       "status": {
         "pending": "待处理",
         "in_progress": "进行中",
@@ -199,6 +270,11 @@
       "section": "文件",
       "empty": "暂无文件",
       "loading": "加载文件中...",
+      "noWorkspace": {
+        "title": "暂无工作区",
+        "description": "选择或拖拽文件夹来设置工作区",
+        "button": "选择文件夹"
+      },
       "contextMenu": {
         "openFile": "打开文件",
         "revealInFolder": "在文件管理器中打开",
@@ -210,6 +286,15 @@
       "clean": "工作区干净",
       "staged": "已暂存",
       "unstaged": "未暂存"
+    },
+    "subagents": {
+      "empty": "暂无 subagent 会话",
+      "self": "当前智能体",
+      "status": {
+        "working": "运行中",
+        "error": "错误",
+        "idle": "空闲"
+      }
     },
     "browser": {
       "section": "浏览器",
@@ -241,9 +326,9 @@
     "title": "构建与探索"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "任务总览",
     "collapse": "收起悬浮会话列表",
-    "empty": "当前还没有 DeepChat 会话",
+    "empty": "当前还没有 Agent 会话",
     "executing": "进行中",
     "sessionCount": "{count} 个会话",
     "untitled": "新会话",
@@ -261,6 +346,10 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",
+    "themeToggle": "切换主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",
@@ -274,6 +363,59 @@
     "groupByProject": "按项目分组",
     "pinned": "置顶会话",
     "emptyTitle": "还没有会话",
-    "emptyDescription": "开始一个新会话吧"
+    "emptyDescription": "开始一个新会话吧",
+    "searchPlaceholder": "搜索会话标题",
+    "searchAriaLabel": "搜索会话标题",
+    "searchEmptyTitle": "没有找到匹配的会话",
+    "searchEmptyDescription": "试试换一个标题关键词"
+  },
+  "spotlight": {
+    "placeholder": "搜索会话、Agent、设置与动作…",
+    "searching": "搜索中…",
+    "emptyTitle": "没有匹配结果",
+    "emptyDescription": "试试别的关键词，或直接打开最近会话。",
+    "hints": "↑↓ 选择 · Enter 打开 · Esc 关闭 · Home/End 跳转",
+    "kind": {
+      "session": "会话",
+      "message": "消息",
+      "agent": "Agent",
+      "setting": "设置",
+      "action": "动作"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "搜索当前会话",
+    "ariaLabel": "搜索当前会话",
+    "previous": "上一处匹配",
+    "next": "下一处匹配",
+    "close": "关闭搜索"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "切换到 DeepChat Agent",
+      "description": "开始聊天前，先从 ACP Agent 切回 DeepChat 对话流。",
+      "caption": "点击侧边栏里高亮的 Agent 按钮即可继续。"
+    },
+    "switchModel": {
+      "description": "为第一次 DeepChat 对话选择你想使用的模型。",
+      "caption": "使用高亮的模型切换器，选择任意可用模型即可。"
+    },
+    "firstChat": {
+      "description": "现在已经准备好了，在这里发送第一条消息即可完成引导。",
+      "caption": "聚光会一直停留在输入框，直到你真正发出第一条消息。"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "已经工作了 {duration}",
+    "reasoningCount": "{count} 段思考",
+    "toolCallCount": "{count} 次工具调用",
+    "expandLabel": "展开 {title}",
+    "collapseLabel": "收起 {title}",
+    "duration": {
+      "day": "天",
+      "hour": "小时",
+      "minute": "分钟",
+      "second": "秒"
+    }
   }
 }

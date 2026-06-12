@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "Pomyślnie zaimportowano konwersacje {count}.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
+  },
+  "error": {
+    "notEnabled": "Synchronizacja nie jest włączona",
+    "folderNotExists": "Folder synchronizacji nie istnieje",
+    "noValidBackup": "W folderze synchronizacji nie znaleziono prawidłowych plików kopii zapasowych.",
+    "unsupportedBackupVersion": "Ta kopia zapasowa została utworzona przez nowszą wersję DeepChat i nie można jej zaimportować.",
+    "dbNotExists": "Plik bazy danych nie istnieje",
+    "configNotExists": "Plik konfiguracyjny nie istnieje",
+    "tempDbFailed": "Nie udało się utworzyć tymczasowego pliku kopii zapasowej bazy danych",
+    "tempConfigFailed": "Nie udało się utworzyć tymczasowego pliku kopii zapasowej konfiguracji",
+    "importFailed": "Import nie powiódł się, oryginalne dane zostały przywrócone",
+    "importProcess": "Wystąpił błąd podczas procesu importowania",
+    "unknown": "Nieznany błąd",
+    "encryptedBackupPasswordMissing": "Ta kopia zapasowa jest zaszyfrowana, ale klucz lokalnej bazy danych nie jest dostępny. Najpierw odblokuj zaszyfrowaną bazę danych, a następnie zaimportuj ją ponownie.",
+    "overwriteEncryptionMismatch": "Import nadpisujący wymaga, aby kopia zapasowa i bieżąca baza danych korzystały z tego samego stanu szyfrowania.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Systemowy pęk kluczy jest niedostępny; nie można bezpiecznie zapisać klucza tajnego.",
+    "cloudUnauthorized": "Uwierzytelnianie w chmurze nie powiodło się. Sprawdź Endpoint, bucket, Access Key ID, Secret Access Key oraz uprawnienia tokenu R2."
+  }
+}

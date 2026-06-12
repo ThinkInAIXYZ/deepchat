@@ -1,7 +1,6 @@
 {
   "chat": "채팅",
   "welcome": "환영합니다",
-  "playground": "플레이그라운드",
   "settings": "설정",
   "settings-common": "일반 설정",
   "settings-provider": "제공자 설정",
@@ -16,8 +15,11 @@
   "settings-acp": "ACP 프록시",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "훅",
+  "settings-scheduled-tasks": "예약된 작업",
   "settings-dashboard": "Dashboard",
   "settings-environments": "환경",
   "settings-remote": "원격 제어",
-  "settings-deepchat-agents": "DeepChat 에이전트"
+  "settings-deepchat-agents": "DeepChat 에이전트",
+  "settings-plugins": "Plugins",
+  "settings-overview": "설정 개요"
 }

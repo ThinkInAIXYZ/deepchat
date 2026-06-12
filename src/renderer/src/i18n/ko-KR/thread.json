@@ -2,12 +2,14 @@
   "actions": {
     "rename": "이름 변경",
     "delete": "삭제",
+    "switchWithShortcut": "{shortcut}로 이 채팅으로 전환",
     "cleanMessages": "메시지 정리",
     "pin": "고정하기",
     "unpin": "고정 해제",
     "export": "내보내다",
     "exportText": "일반 텍스트",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "대화 이동"
   },
   "toolbar": {
     "save": "저장",

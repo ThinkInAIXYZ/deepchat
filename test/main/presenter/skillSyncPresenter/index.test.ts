@@ -15,6 +15,11 @@ import { ConflictStrategy } from '../../../../src/shared/types/skillSync'
 import type { ISkillPresenter } from '../../../../src/shared/presenter'
 import type { ImportPreview, ExportPreview } from '../../../../src/shared/types/skillSync'
 
+const scanWorkerMock = vi.hoisted(() => ({
+  scanExternalToolsInWorker: vi.fn(),
+  scanAndDetectDiscoveriesInWorker: vi.fn()
+}))
+
 // Mock electron app
 vi.mock('electron', () => ({
   app: {
@@ -109,6 +114,8 @@ vi.mock('../../../../src/main/presenter/skillSyncPresenter/formatConverter', () 
   }
 }))
 
+vi.mock('../../../../src/main/presenter/skillSyncPresenter/scanWorker', () => scanWorkerMock)
+
 describe('SkillSyncPresenter', () => {
   let presenter: SkillSyncPresenter
   let mockSkillPresenter: ISkillPresenter
@@ -119,6 +126,10 @@ describe('SkillSyncPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    scanWorkerMock.scanExternalToolsInWorker.mockRejectedValue(new Error('worker unavailable'))
+    scanWorkerMock.scanAndDetectDiscoveriesInWorker.mockRejectedValue(
+      new Error('worker unavailable')
+    )
 
     // Create mock skill presenter
     mockSkillPresenter = {
@@ -176,6 +187,72 @@ describe('SkillSyncPresenter', () => {
       expect(results).toHaveLength(1)
       expect(results[0].toolId).toBe('claude-code')
       expect(toolScanner.scanExternalTools).toHaveBeenCalled()
+    })
+
+    it('uses the worker scan when available', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      scanWorkerMock.scanExternalToolsInWorker.mockResolvedValue([
+        {
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: '/home/user/.codex/skills/',
+          skills: []
+        }
+      ])
+      vi.mocked(toolScanner.getAllTools).mockReturnValue([
+        {
+          id: 'codex',
+          name: 'OpenAI Codex',
+          skillsDir: '~/.codex/skills/',
+          filePattern: '*/SKILL.md',
+          format: 'codex',
+          capabilities: {
+            hasFrontmatter: true,
+            supportsName: true,
+            supportsDescription: true,
+            supportsTools: true,
+            supportsModel: true,
+            supportsSubfolders: true,
+            supportsReferences: true,
+            supportsScripts: true
+          }
+        }
+      ])
+
+      const results = await presenter.scanExternalTools()
+
+      expect(results).toHaveLength(1)
+      expect(results[0].toolId).toBe('codex')
+      expect(scanWorkerMock.scanExternalToolsInWorker).toHaveBeenCalled()
+      expect(toolScanner.scanExternalTools).not.toHaveBeenCalled()
+    })
+
+    it('falls back to main-thread scan when the worker fails', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      scanWorkerMock.scanExternalToolsInWorker.mockRejectedValue(new Error('worker failed'))
+      vi.mocked(toolScanner.scanExternalTools).mockResolvedValue([
+        {
+          toolId: 'claude-code',
+          toolName: 'Claude Code',
+          available: true,
+          skillsDir: '/home/user/.claude/skills/',
+          skills: []
+        }
+      ])
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const results = await presenter.scanExternalTools()
+
+      expect(results).toHaveLength(1)
+      expect(toolScanner.scanExternalTools).toHaveBeenCalled()
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        '[SkillSync] Worker scan failed, falling back to main thread:',
+        expect.any(Error)
+      )
+      consoleWarnSpy.mockRestore()
     })
   })
 

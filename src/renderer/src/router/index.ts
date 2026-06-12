@@ -24,20 +24,7 @@ const router = createRouter({
         titleKey: 'routes.welcome',
         icon: 'lucide:message-square'
       }
-    },
-    ...(import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
-      ? [
-          {
-            path: '/playground',
-            name: 'playground',
-            component: () => import('@/views/PlaygroundTabView.vue'),
-            meta: {
-              titleKey: 'routes.playground',
-              icon: 'lucide:flask-conical'
-            }
-          }
-        ]
-      : [])
+    }
   ]
 })
 

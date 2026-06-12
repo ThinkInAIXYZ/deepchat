@@ -18,6 +18,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve('src/renderer/src'),
+      '@api': resolve('src/renderer/api'),
       '@browser': resolve('src/renderer/browser'),
       '@shadcn': resolve('src/shadcn'),
       '@shared': resolve('src/shared'),

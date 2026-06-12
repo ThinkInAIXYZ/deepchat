@@ -6,6 +6,9 @@ const ShiftKey = 'Shift'
 // Below are regular shortcut key definitions
 export const rendererShortcutKey = {
   NewConversation: `${CommandKey}+N`,
+  QuickSearch: `${CommandKey}+P`,
+  ToggleSidebar: `${CommandKey}+B`,
+  ToggleWorkspace: `${CommandKey}+J`,
   NewWindow: `${CommandKey}+${ShiftKey}+N`,
   CloseWindow: `${CommandKey}+W`,
   ZoomIn: `${CommandKey}+=`,

@@ -2,12 +2,14 @@
   "actions": {
     "rename": "Renommer",
     "delete": "Supprimer",
+    "switchWithShortcut": "Passer à cette discussion avec {shortcut}",
     "cleanMessages": "Nettoyer les messages",
     "pin": "Épingler",
     "unpin": "Détacher",
     "export": "Exporter",
     "exportText": "Texte brut",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Déplacer la conversation"
   },
   "toolbar": {
     "save": "Enregistrer",

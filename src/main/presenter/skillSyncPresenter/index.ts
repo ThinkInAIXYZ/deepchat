@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * SkillSyncPresenter - Main presenter for skill synchronization
  *
@@ -31,6 +32,7 @@ import type { SyncContext } from './types'
 import { eventBus, SendTarget } from '@/eventbus'
 import { SKILL_SYNC_EVENTS } from '@/events'
 import { isValidToolId, isValidConflictStrategy, checkWritePermission } from './security'
+import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
 
 // ============================================================================
 // SkillSyncPresenter Implementation
@@ -53,15 +55,6 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
   async initialize(): Promise<void> {
     if (this.initialized) return
     this.initialized = true
-
-    // Scan in background after a short delay to not block startup
-    setTimeout(async () => {
-      try {
-        await this.scanAndDetectNewDiscoveries()
-      } catch (error) {
-        console.error('[SkillSync] Background scan failed:', error)
-      }
-    }, 3000) // 3 second delay after app starts
   }
 
   /**
@@ -110,20 +103,18 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * This is the main method called on app startup
    */
   async scanAndDetectNewDiscoveries(): Promise<NewDiscovery[]> {
-    console.log('[SkillSync] Starting background scan for new discoveries')
+    logger.info('[SkillSync] Starting background scan for new discoveries')
 
     // 1. Get cached scan results
     const cache = await this.getScanCache()
-
-    // 2. Scan all external tools
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
 
     // 3. Get current DeepChat skills
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
 
-    // 4. Compare and find new discoveries
-    const newDiscoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    // 2/4. Scan and compare off-main when possible
+    const { scanResults, discoveries: newDiscoveries } =
+      await this.scanAndDetectDiscoveriesWithFallback(cache, existingSkillNames)
 
     // 5. Save new cache
     await this.saveScanCache(scanResults)
@@ -131,14 +122,14 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     // 6. Emit event if there are new discoveries
     if (newDiscoveries.length > 0) {
       const totalNewSkills = newDiscoveries.reduce((sum, d) => sum + d.newSkills.length, 0)
-      console.log(
+      logger.info(
         `[SkillSync] Found ${totalNewSkills} new skills from ${newDiscoveries.length} tools`
       )
       eventBus.sendToRenderer(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, SendTarget.ALL_WINDOWS, {
         discoveries: newDiscoveries
       })
     } else {
-      console.log('[SkillSync] No new discoveries found')
+      logger.info('[SkillSync] No new discoveries found')
     }
 
     return newDiscoveries
@@ -201,11 +192,13 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getNewDiscoveries(): Promise<NewDiscovery[]> {
     const cache = await this.getScanCache()
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
-
-    return this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    const { discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
+      cache,
+      existingSkillNames
+    )
+    return discoveries
   }
 
   /**
@@ -214,11 +207,12 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getToolsAndDiscoveries(): Promise<{ tools: ScanResult[]; discoveries: NewDiscovery[] }> {
     const cache = await this.getScanCache()
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
     const existingSkills = await this.skillPresenter.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
-
-    const discoveries = this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+    const { scanResults, discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
+      cache,
+      existingSkillNames
+    )
     return { tools: scanResults, discoveries }
   }
 
@@ -226,7 +220,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * Mark discoveries as acknowledged (update cache without showing them again)
    */
   async acknowledgeDiscoveries(): Promise<void> {
-    const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const scanResults = await this.scanExternalToolsWithFallback()
     await this.saveScanCache(scanResults)
   }
 
@@ -239,7 +233,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async scanExternalTools(): Promise<ScanResult[]> {
     eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_STARTED, SendTarget.ALL_WINDOWS, {})
-    const results = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    const results = await this.scanExternalToolsWithFallback()
     eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_COMPLETED, SendTarget.ALL_WINDOWS, { results })
     return results
   }
@@ -249,6 +243,39 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async scanTool(toolId: string): Promise<ScanResult> {
     return toolScanner.scanTool(toolId, this.syncContext.projectRoot)
+  }
+
+  private async scanExternalToolsWithFallback(): Promise<ScanResult[]> {
+    try {
+      return await scanExternalToolsInWorker({
+        tools: toolScanner.getAllTools(),
+        projectRoot: this.syncContext.projectRoot
+      })
+    } catch (error) {
+      console.warn('[SkillSync] Worker scan failed, falling back to main thread:', error)
+      return await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+    }
+  }
+
+  private async scanAndDetectDiscoveriesWithFallback(
+    cache: ScanCache | null,
+    existingSkillNames: Set<string>
+  ): Promise<{ scanResults: ScanResult[]; discoveries: NewDiscovery[] }> {
+    try {
+      return await scanAndDetectDiscoveriesInWorker({
+        tools: toolScanner.getAllTools(),
+        projectRoot: this.syncContext.projectRoot,
+        cache,
+        existingSkillNames: [...existingSkillNames]
+      })
+    } catch (error) {
+      console.warn('[SkillSync] Worker discovery scan failed, falling back to main thread:', error)
+      const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
+      return {
+        scanResults,
+        discoveries: this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+      }
+    }
   }
 
   // ============================================================================
@@ -449,7 +476,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     targetToolId: string,
     options?: Record<string, unknown>
   ): Promise<ExportPreview[]> {
-    console.log(`[SkillSync] Preview export: skills=${skillNames.join(', ')}, tool=${targetToolId}`)
+    logger.info(`[SkillSync] Preview export: skills=${skillNames.join(', ')}, tool=${targetToolId}`)
     const previews: ExportPreview[] = []
 
     // Security: Validate tool ID
@@ -468,7 +495,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     let targetDir: string
     try {
       targetDir = resolveSkillsDir(tool, this.syncContext.projectRoot)
-      console.log(`[SkillSync] Target directory: ${targetDir}`)
+      logger.info(`[SkillSync] Target directory: ${targetDir}`)
     } catch (error) {
       console.error(`[SkillSync] Failed to resolve target directory:`, error)
       return []
@@ -479,7 +506,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
     // Process each skill
     for (const skillName of skillNames) {
-      console.log(`[SkillSync] Processing skill: ${skillName}`)
+      logger.info(`[SkillSync] Processing skill: ${skillName}`)
       try {
         // Load skill from DeepChat
         const skill = await this.loadDeepChatSkill(skillName)
@@ -495,17 +522,17 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
           })
           continue
         }
-        console.log(
+        logger.info(
           `[SkillSync] Loaded skill: ${skillName}, instructions length: ${skill.instructions?.length ?? 0}`
         )
 
         // Convert to target format with options
         const convertedContent = formatConverter.serializeToExternal(skill, targetToolId, options)
-        console.log(`[SkillSync] Converted content length: ${convertedContent.length}`)
+        logger.info(`[SkillSync] Converted content length: ${convertedContent.length}`)
 
         // Determine target path
         const targetPath = this.getExportTargetPath(skillName, targetDir, tool)
-        console.log(`[SkillSync] Target path: ${targetPath}`)
+        logger.info(`[SkillSync] Target path: ${targetPath}`)
 
         // Check for conflicts
         const hasConflict = existingFiles.has(path.basename(targetPath))
@@ -616,12 +643,12 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
       try {
         let targetPath = preview.targetPath
-        console.log(`[SkillSync] Exporting skill: ${preview.skillName} to ${targetPath}`)
+        logger.info(`[SkillSync] Exporting skill: ${preview.skillName} to ${targetPath}`)
 
         // Handle rename strategy
         if (preview.conflict && strategy === ConflictStrategy.RENAME) {
           targetPath = await this.generateUniqueFilePath(preview.targetPath)
-          console.log(`[SkillSync] Renamed to: ${targetPath}`)
+          logger.info(`[SkillSync] Renamed to: ${targetPath}`)
         }
 
         // Security: Check write permission
@@ -633,13 +660,13 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
         // Ensure target directory exists
         const targetDir = path.dirname(targetPath)
-        console.log(`[SkillSync] Creating directory: ${targetDir}`)
+        logger.info(`[SkillSync] Creating directory: ${targetDir}`)
         await fs.promises.mkdir(targetDir, { recursive: true })
 
         // Write the file
-        console.log(`[SkillSync] Writing file, content length: ${preview.convertedContent.length}`)
+        logger.info(`[SkillSync] Writing file, content length: ${preview.convertedContent.length}`)
         await fs.promises.writeFile(targetPath, preview.convertedContent, 'utf-8')
-        console.log(`[SkillSync] Successfully exported: ${preview.skillName}`)
+        logger.info(`[SkillSync] Successfully exported: ${preview.skillName}`)
 
         result.exported++
         processed++
@@ -667,7 +694,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     }
 
     result.success = result.failed.length === 0
-    console.log(
+    logger.info(
       `[SkillSync] Export completed: ${result.exported} exported, ${result.skipped} skipped, ${result.failed.length} failed`
     )
 
@@ -745,15 +772,15 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * Load a DeepChat skill for export
    */
   private async loadDeepChatSkill(skillName: string): Promise<CanonicalSkill | null> {
-    console.log(`[SkillSync] loadDeepChatSkill: ${skillName}`)
+    logger.info(`[SkillSync] loadDeepChatSkill: ${skillName}`)
     const metadata = await this.skillPresenter.getMetadataList()
-    console.log(`[SkillSync] Available skills: ${metadata.map((s) => s.name).join(', ')}`)
+    logger.info(`[SkillSync] Available skills: ${metadata.map((s) => s.name).join(', ')}`)
     const skillMeta = metadata.find((s) => s.name === skillName)
     if (!skillMeta) {
       console.warn(`[SkillSync] Skill metadata not found: ${skillName}`)
       return null
     }
-    console.log(
+    logger.info(
       `[SkillSync] Found skill metadata: path=${skillMeta.path}, root=${skillMeta.skillRoot}`
     )
 
@@ -762,7 +789,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       console.warn(`[SkillSync] Skill content not loaded: ${skillName}`)
       return null
     }
-    console.log(`[SkillSync] Loaded skill content, length: ${content.content.length}`)
+    logger.info(`[SkillSync] Loaded skill content, length: ${content.content.length}`)
 
     // Parse the DeepChat skill (Claude Code format)
     const skillFilePath = skillMeta.path
@@ -770,7 +797,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
     try {
       const fileContent = await fs.promises.readFile(skillFilePath, 'utf-8')
-      console.log(`[SkillSync] Read skill file, length: ${fileContent.length}`)
+      logger.info(`[SkillSync] Read skill file, length: ${fileContent.length}`)
       return formatConverter.parseExternal(
         fileContent,
         { toolId: 'claude-code', filePath: skillFilePath, folderPath },

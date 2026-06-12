@@ -17,6 +17,13 @@ import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
+import { normalizeToolInputSchema } from './aiSdk/toolMapper'
+
+export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
+
+export function isAudioTranscriptionNotSupportedError(error: unknown): boolean {
+  return error instanceof Error && error.message === AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR
+}
 
 /**
  * Base LLM Provider Abstract Class
@@ -75,6 +82,76 @@ export abstract class BaseLLMProvider {
    */
   protected getModelFetchTimeout(): number {
     return BaseLLMProvider.DEFAULT_MODEL_FETCH_TIMEOUT
+  }
+
+  protected resolveModelRequestTimeout(
+    modelConfig?: Pick<ModelConfig, 'timeout'> | null
+  ): number | undefined {
+    const timeout = modelConfig?.timeout
+    if (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0) {
+      return undefined
+    }
+
+    return Math.round(timeout)
+  }
+
+  protected createRequestAbortError(message: string): Error {
+    if (typeof DOMException !== 'undefined') {
+      return new DOMException(message, 'AbortError')
+    }
+
+    const error = new Error(message)
+    error.name = 'AbortError'
+    return error
+  }
+
+  protected createModelRequestTimeoutError(timeoutMs: number): Error {
+    return this.createRequestAbortError(`Request timed out after ${timeoutMs}ms`)
+  }
+
+  protected createAudioTranscriptionNotSupportedError(): Error {
+    return new Error(AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR)
+  }
+
+  public updateConfig(provider: LLM_PROVIDER): void {
+    this.provider = { ...provider }
+    this.loadCachedModels()
+  }
+
+  protected createModelRequestSignal(modelConfig?: Pick<ModelConfig, 'timeout'> | null): {
+    signal?: AbortSignal
+    timeoutMs?: number
+    dispose: () => void
+  } {
+    const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
+    if (!timeoutMs) {
+      return {
+        dispose: () => {}
+      }
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort(this.createModelRequestTimeoutError(timeoutMs))
+    }, timeoutMs)
+
+    return {
+      signal: controller.signal,
+      timeoutMs,
+      dispose: () => clearTimeout(timeoutId)
+    }
+  }
+
+  protected getCapabilityProviderId(): string {
+    return this.provider.capabilityProviderId || this.provider.id
+  }
+
+  private escapeXmlAttribute(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
   }
 
   /**
@@ -168,7 +245,8 @@ export abstract class BaseLLMProvider {
    * 获取提供商的模型列表
    * @returns 模型列表
    */
-  public async fetchModels(): Promise<MODEL_META[]> {
+  public async fetchModels(options?: { suppressErrors?: boolean }): Promise<MODEL_META[]> {
+    const suppressErrors = options?.suppressErrors ?? true
     try {
       return this.fetchProviderModels().then((models) => {
         logger.info(
@@ -193,6 +271,9 @@ export abstract class BaseLLMProvider {
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
         e
       )
+      if (!suppressErrors) {
+        throw e
+      }
       if (!this.models) {
         this.models = []
       }
@@ -209,16 +290,12 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: force refreshing models for provider "${this.provider.id}" (${this.provider.name})`
     )
-    await this.fetchModels()
+    await this.fetchModels({ suppressErrors: false })
     await this.autoEnableModelsIfNeeded()
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_LIST_CHANGED,
-      SendTarget.ALL_WINDOWS,
-      this.provider.id
-    )
+    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
   }
 
   /**
@@ -660,6 +737,16 @@ ${this.convertToolsToXml(tools)}
     throw new Error('embedding is not supported by this provider')
   }
 
+  public async transcribeAudio(
+    _modelId: string,
+    _audioBase64: string,
+    _mimeType: string,
+    _filename?: string,
+    _options?: { signal?: AbortSignal }
+  ): Promise<string> {
+    throw this.createAudioTranscriptionNotSupportedError()
+  }
+
   /**
    * 获取嵌入向量的维度
    * @param _modelId 模型ID
@@ -713,23 +800,81 @@ ${this.convertToolsToXml(tools)}
    * @returns XML 格式的工具定义字符串
    */
   protected convertToolsToXml(tools: MCPToolDefinition[]): string {
+    const resolveParameterType = (parameter: unknown): string | undefined => {
+      if (!parameter || typeof parameter !== 'object' || Array.isArray(parameter)) {
+        return undefined
+      }
+
+      if (typeof (parameter as { type?: unknown }).type === 'string') {
+        return (parameter as { type: string }).type
+      }
+
+      for (const branchKey of ['anyOf', 'oneOf', 'allOf'] as const) {
+        const branches = (parameter as Record<string, unknown>)[branchKey]
+        if (!Array.isArray(branches)) {
+          continue
+        }
+
+        const types = Array.from(
+          new Set(
+            branches
+              .filter(
+                (branch): branch is Record<string, unknown> =>
+                  Boolean(branch) && typeof branch === 'object' && !Array.isArray(branch)
+              )
+              .map((branch) => branch.type)
+              .filter((type): type is string => typeof type === 'string')
+          )
+        )
+
+        if (types.length === 1) {
+          return types[0]
+        }
+      }
+
+      return undefined
+    }
+
     const xmlTools = tools
       .map((tool) => {
         const { name, description, parameters } = tool.function
-        const { properties, required = [] } = parameters
+        const normalizedParameters = normalizeToolInputSchema(
+          (parameters as Record<string, unknown> | undefined) ?? {}
+        )
+        const properties =
+          normalizedParameters.properties &&
+          typeof normalizedParameters.properties === 'object' &&
+          !Array.isArray(normalizedParameters.properties)
+            ? (normalizedParameters.properties as Record<string, unknown>)
+            : {}
+        const required = Array.isArray(normalizedParameters.required)
+          ? normalizedParameters.required.filter(
+              (value): value is string => typeof value === 'string'
+            )
+          : []
 
         // 构建参数 XML
         const paramsXml = Object.entries(properties)
           .map(([paramName, paramDef]) => {
             const requiredAttr = required.includes(paramName) ? ' required="true"' : ''
-            const descriptionAttr = paramDef.description
-              ? ` description="${paramDef.description}"`
-              : ''
-            const typeAttr = paramDef.type ? ` type="${paramDef.type}"` : ''
+            const paramMeta =
+              paramDef && typeof paramDef === 'object' && !Array.isArray(paramDef)
+                ? (paramDef as Record<string, unknown>)
+                : {}
+            const descriptionAttr =
+              typeof paramMeta.description === 'string'
+                ? ` description="${this.escapeXmlAttribute(paramMeta.description)}"`
+                : ''
+            const paramType = resolveParameterType(paramMeta)
+            const typeAttr = paramType ? ` type="${paramType}"` : ''
 
             return `<parameter name="${paramName}"${requiredAttr}${descriptionAttr}${typeAttr}></parameter>`
           })
           .join('\n    ')
+
+        if (!paramsXml) {
+          return `<tool name="${name}" description="${description}"></tool>`
+        }
 
         // 构建工具 XML
         return `<tool name="${name}" description="${description}">

@@ -1,4 +1,6 @@
+import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type {
   AcpConfigState,
@@ -11,6 +13,8 @@ import type {
   AcpDebugEventEntry,
   AcpDebugRequest,
   AcpDebugRunResult,
+  AcpTurnFinishPayload,
+  AcpTurnStartPayload,
   LLM_PROVIDER,
   IConfigPresenter
 } from '@shared/presenter'
@@ -21,17 +25,15 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { eventBus, SendTarget } from '@/eventbus'
 import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
-import { app } from 'electron'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   AcpProcessManager,
   AcpSessionManager,
   AcpSessionPersistence,
   AcpContentMapper,
   AcpMessageFormatter,
-  buildClientCapabilities,
   getAcpConfigOption,
   getAcpConfigOptionByCategory,
   getLegacyModeState,
@@ -43,6 +45,7 @@ import {
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '../acp'
+import { AcpClientPresenter, AcpPromptController } from '@/presenter/acpClientPresenter'
 import { nanoid } from 'nanoid'
 import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
@@ -51,6 +54,10 @@ type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
   next: () => Promise<LLMCoreStreamEvent | null>
   done: () => void
+}
+
+type RunPromptOptions = {
+  onPromptSucceeded?: () => void
 }
 
 type PermissionRequestContext = {
@@ -97,6 +104,38 @@ type AcpConnectionWithModelSelection = {
   ) => Promise<schema.SetSessionModelResponse>
 }
 
+type AcpConnectionWithDebugLifecycle = ClientSideConnectionType &
+  AcpConnectionWithModelSelection & {
+    authenticate?: (params: schema.AuthenticateRequest) => Promise<schema.AuthenticateResponse>
+    listSessions?: (params: schema.ListSessionsRequest) => Promise<schema.ListSessionsResponse>
+    unstable_resumeSession?: (
+      params: schema.ResumeSessionRequest
+    ) => Promise<schema.ResumeSessionResponse>
+    unstable_closeSession?: (
+      params: schema.CloseSessionRequest
+    ) => Promise<schema.CloseSessionResponse>
+    unstable_forkSession?: (
+      params: schema.ForkSessionRequest
+    ) => Promise<schema.ForkSessionResponse>
+  }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const summarizePromptBlocks = (blocks: schema.ContentBlock[]) =>
+  blocks.map((block) => {
+    if (!isRecord(block)) {
+      return { type: 'unknown', keys: [] }
+    }
+    const record = block as unknown as Record<string, unknown>
+    const text = typeof record.text === 'string' ? record.text : undefined
+    return {
+      type: typeof record.type === 'string' ? record.type : 'unknown',
+      textLength: text?.length,
+      keys: Object.keys(record)
+    }
+  })
+
 async function setSessionModelCompat(
   connection: AcpConnectionWithModelSelection,
   params: schema.SetSessionModelRequest
@@ -112,6 +151,8 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly processManager: AcpProcessManager
   private readonly sessionManager: AcpSessionManager
   private readonly sessionPersistence: AcpSessionPersistence
+  private readonly acpRuntime: AcpClientPresenter
+  private readonly promptController: AcpPromptController
   private readonly contentMapper = new AcpContentMapper()
   private readonly messageFormatter = new AcpMessageFormatter()
   private readonly pendingPermissions = new Map<string, PendingPermissionState>()
@@ -124,28 +165,15 @@ export class AcpProvider extends BaseLLMProvider {
   ) {
     super(provider, configPresenter, mcpRuntime)
     this.sessionPersistence = sessionPersistence
-    this.processManager = new AcpProcessManager({
-      providerId: provider.id,
-      resolveLaunchSpec: (agentId, workdir) =>
-        this.configPresenter.resolveAcpLaunchSpec(agentId, workdir),
-      getAgentState: (agentId) => this.configPresenter.getAcpAgentState(agentId),
-      getNpmRegistry: async () => {
-        // Get npm registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return this.mcpRuntime?.getNpmRegistry?.() ?? null
-      },
-      getUvRegistry: async () => {
-        // Get uv registry from MCP presenter's server manager
-        // This will use the fastest registry from speed test
-        return this.mcpRuntime?.getUvRegistry?.() ?? null
-      }
+    this.acpRuntime = new AcpClientPresenter({
+      provider,
+      configPresenter,
+      sessionPersistence,
+      mcpRuntime
     })
-    this.sessionManager = new AcpSessionManager({
-      providerId: provider.id,
-      processManager: this.processManager,
-      sessionPersistence: this.sessionPersistence,
-      configPresenter
-    })
+    this.processManager = this.acpRuntime.processManager
+    this.sessionManager = this.acpRuntime.sessionManager
+    this.promptController = this.acpRuntime.promptController
 
     void this.initWhenEnabled()
   }
@@ -154,12 +182,12 @@ export class AcpProvider extends BaseLLMProvider {
     try {
       const acpEnabled = await this.configPresenter.getAcpEnabled()
       if (!acpEnabled) {
-        console.log('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
+        logger.info('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
         this.configPresenter.setProviderModels(this.provider.id, [])
         return []
       }
       const agents = await this.configPresenter.getAcpAgents()
-      console.log(
+      logger.info(
         `[ACP] fetchProviderModels: found ${agents.length} agents, creating models for provider "${this.provider.id}"`
       )
 
@@ -190,7 +218,7 @@ export class AcpProvider extends BaseLLMProvider {
         return model
       })
 
-      console.log(
+      logger.info(
         `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
       )
       this.configPresenter.setProviderModels(this.provider.id, models)
@@ -207,6 +235,10 @@ export class AcpProvider extends BaseLLMProvider {
     void this.initWhenEnabled()
   }
 
+  public override updateConfig(provider: LLM_PROVIDER): void {
+    super.updateConfig(provider)
+  }
+
   /**
    * Override init to send MODEL_LIST_CHANGED event after initialization
    * This ensures renderer is notified when ACP provider is initialized on startup
@@ -220,12 +252,8 @@ export class AcpProvider extends BaseLLMProvider {
       await this.fetchModels()
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      console.log(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      eventBus.sendToRenderer(
-        CONFIG_EVENTS.MODEL_LIST_CHANGED,
-        SendTarget.ALL_WINDOWS,
-        this.provider.id
-      )
+      logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
+      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -239,17 +267,13 @@ export class AcpProvider extends BaseLLMProvider {
   public async handleEnableStateChange(): Promise<void> {
     const acpEnabled = await this.configPresenter.getAcpEnabled()
     if (acpEnabled && this.provider.enable) {
-      console.log('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
+      logger.info('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
       await this.fetchModels()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      console.log(
+      logger.info(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
-      eventBus.sendToRenderer(
-        CONFIG_EVENTS.MODEL_LIST_CHANGED,
-        SendTarget.ALL_WINDOWS,
-        this.provider.id
-      )
+      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
     }
   }
 
@@ -399,8 +423,18 @@ export class AcpProvider extends BaseLLMProvider {
           )
           this.emitSessionCommandsReady(conversationKey, agent.id, session.availableCommands ?? [])
 
-          const promptBlocks = this.messageFormatter.format(messages, modelConfig)
-          void this.runPrompt(session, promptBlocks, queue, modelConfig)
+          const formattedPrompt = this.messageFormatter.format(messages, {
+            promptCapabilities: session.promptCapabilities,
+            includeSystemPrompt: !session.systemPromptSent
+          })
+          const activeSession = session
+          void this.runPrompt(activeSession, formattedPrompt.blocks, queue, modelConfig, {
+            onPromptSucceeded: formattedPrompt.includedSystemPrompt
+              ? () => {
+                  activeSession.systemPromptSent = true
+                }
+              : undefined
+          })
         }
       }
     } catch (error) {
@@ -437,7 +471,16 @@ export class AcpProvider extends BaseLLMProvider {
     agentId: string,
     workdir: string | null
   ): Promise<void> {
-    const trimmed = workdir?.trim() ? workdir : null
+    const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
+    const trimmed =
+      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    if (requestedWorkdir && !trimmed) {
+      console.warn(
+        `[ACP] Ignoring unavailable ACP workdir "${requestedWorkdir}" for conversation ${conversationId} (agent ${agentId}); using default workdir.`
+      )
+    }
     const existing = await this.sessionPersistence.getSessionData(conversationId, agentId)
     const previous = existing?.workdir ?? null
     await this.sessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
@@ -457,9 +500,16 @@ export class AcpProvider extends BaseLLMProvider {
     agentId: string,
     workdir: string
   ): Promise<void> {
-    const normalizedWorkdir = workdir?.trim()
-    if (!normalizedWorkdir) {
-      throw new Error('[ACP] Workdir is required to prepare ACP session.')
+    const requestedWorkdir = workdir?.trim()
+    const persistedWorkdir =
+      requestedWorkdir && this.sessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    const normalizedWorkdir = this.sessionPersistence.resolveWorkdir(persistedWorkdir)
+    if (requestedWorkdir && !persistedWorkdir) {
+      console.warn(
+        `[ACP] Prepare requested unavailable workdir "${requestedWorkdir}" for conversation ${conversationId}; using "${normalizedWorkdir}".`
+      )
     }
 
     const agent = await this.getAgentById(agentId)
@@ -467,7 +517,7 @@ export class AcpProvider extends BaseLLMProvider {
       throw new Error(`[ACP] ACP agent not found: ${agentId}`)
     }
 
-    await this.sessionPersistence.updateWorkdir(conversationId, agent.id, normalizedWorkdir)
+    await this.sessionPersistence.updateWorkdir(conversationId, agent.id, persistedWorkdir)
 
     const session = await this.sessionManager.getOrCreateSession(
       conversationId,
@@ -499,6 +549,14 @@ export class AcpProvider extends BaseLLMProvider {
   public async warmupProcess(agentId: string, workdir?: string): Promise<void> {
     const agent = await this.getAgentById(agentId)
     if (!agent) return
+
+    const requestedWorkdir = workdir?.trim()
+    if (requestedWorkdir && !this.sessionPersistence.isWorkdirUsable(requestedWorkdir)) {
+      console.info(
+        `[ACP] Skipping warmup for agent ${agentId}: selected workdir "${requestedWorkdir}" is unavailable.`
+      )
+      return
+    }
 
     try {
       await this.processManager.warmupProcess(agent, workdir)
@@ -560,8 +618,11 @@ export class AcpProvider extends BaseLLMProvider {
       }
       throw error
     }
-    const connection = handle.connection
-    const events: AcpDebugEventEntry[] = []
+    const connection = handle.connection as AcpConnectionWithDebugLifecycle
+    const events: AcpDebugEventEntry[] =
+      typeof this.processManager.getDebugEvents === 'function'
+        ? [...this.processManager.getDebugEvents(agent.id)]
+        : []
 
     const isPlainObject = (value: unknown): value is Record<string, unknown> =>
       Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -629,48 +690,120 @@ export class AcpProvider extends BaseLLMProvider {
       )
     }
 
-    const defaultInitPayload = (): schema.InitializeRequest => ({
-      protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: 'DeepChat', version: app.getVersion() },
-      clientCapabilities: buildClientCapabilities({ enableFs: true, enableTerminal: true })
-    })
+    const resolveHandleWorkdir = (): string => {
+      const handleWorkdir = handle.workdir?.trim()
+      if (
+        handleWorkdir &&
+        (!this.sessionPersistence ||
+          typeof this.sessionPersistence.isWorkdirUsable !== 'function' ||
+          this.sessionPersistence.isWorkdirUsable(handleWorkdir))
+      ) {
+        return handleWorkdir
+      }
+      const requestedWorkdir = request.workdir?.trim()
+      if (this.sessionPersistence && typeof this.sessionPersistence.resolveWorkdir === 'function') {
+        return this.sessionPersistence.resolveWorkdir(requestedWorkdir)
+      }
+      return requestedWorkdir || process.cwd()
+    }
 
-    const resolveWorkdir = (): string | undefined => {
-      const cwd = request.workdir ?? handle.workdir
-      return cwd?.trim() || undefined
+    const normalizeWorkdir = (workdir?: string | null): string => {
+      const fallback = resolveHandleWorkdir()
+      const trimmed = workdir?.trim()
+      if (!trimmed) {
+        return fallback
+      }
+      if (
+        this.sessionPersistence &&
+        typeof this.sessionPersistence.isWorkdirUsable === 'function' &&
+        !this.sessionPersistence.isWorkdirUsable(trimmed)
+      ) {
+        return fallback
+      }
+      if (this.sessionPersistence && typeof this.sessionPersistence.resolveWorkdir === 'function') {
+        return this.sessionPersistence.resolveWorkdir(trimmed)
+      }
+      return trimmed
+    }
+
+    const resolveWorkdir = (): string => {
+      return resolveHandleWorkdir()
+    }
+
+    const resolvePayloadWorkdir = (workdir: unknown): string | undefined => {
+      if (typeof workdir !== 'string' || !workdir.trim()) {
+        return undefined
+      }
+      return normalizeWorkdir(workdir)
+    }
+
+    const resolveMcpServers = async (): Promise<schema.McpServer[]> => {
+      if (typeof this.sessionManager?.resolveMcpServersForAgent !== 'function') {
+        return []
+      }
+      return this.sessionManager.resolveMcpServersForAgent(agent.id, handle.mcpCapabilities)
     }
 
     try {
       switch (request.action) {
         case 'initialize': {
-          const body = isPlainObject(request.payload)
-            ? { ...defaultInitPayload(), ...request.payload }
-            : defaultInitPayload()
-          pushEvent({ kind: 'request', action: 'initialize', payload: body })
-          const response = await connection.initialize(body)
-          const sessionIdFromInit = (response as unknown as { sessionId?: unknown }).sessionId
-          if (!activeSessionId && typeof sessionIdFromInit === 'string') {
-            activeSessionId = sessionIdFromInit
-          }
           pushEvent({
-            kind: 'response',
+            kind: 'lifecycle',
             action: 'initialize',
             sessionId: activeSessionId,
-            payload: response
+            message: 'Connection is already initialized by the ACP runtime.',
+            payload: this.acpRuntime.toConnectionRef(handle)
+          })
+          break
+        }
+        case 'authenticate': {
+          if (!connection.authenticate) {
+            throw new Error('authenticate is not supported by this SDK connection')
+          }
+          const methodId =
+            isPlainObject(request.payload) && typeof request.payload.methodId === 'string'
+              ? request.payload.methodId
+              : undefined
+          if (!methodId) {
+            throw new Error('methodId is required for authenticate')
+          }
+          const body: schema.AuthenticateRequest = { methodId }
+          if (isPlainObject(request.payload?._meta)) {
+            body._meta = request.payload._meta
+          }
+          pushEvent({ kind: 'request', action: 'authenticate', payload: body })
+          const response = await connection.authenticate(body)
+          pushEvent({
+            kind: 'response',
+            action: 'authenticate',
+            sessionId: activeSessionId,
+            payload: response ?? {}
           })
           break
         }
         case 'newSession': {
           const basePayload: schema.NewSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
-            mcpServers: []
+            cwd: resolveWorkdir(),
+            mcpServers: await resolveMcpServers()
           }
-          const body = isPlainObject(request.payload)
-            ? { ...basePayload, ...request.payload }
-            : basePayload
+          const body = { ...basePayload }
+          if (isPlainObject(request.payload)) {
+            const payloadWorkdir = resolvePayloadWorkdir(request.payload.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
+            }
+            if (Array.isArray(request.payload.mcpServers)) {
+              body.mcpServers = request.payload.mcpServers as schema.McpServer[]
+            }
+            if (isPlainObject(request.payload._meta)) {
+              body._meta = request.payload._meta
+            }
+          }
           pushEvent({ kind: 'request', action: 'newSession', payload: body })
           const response = await connection.newSession(body)
           activeSessionId = response.sessionId
+          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          attachSession(activeSessionId)
           pushEvent({
             kind: 'response',
             action: 'newSession',
@@ -690,13 +823,14 @@ export class AcpProvider extends BaseLLMProvider {
             throw new Error('Session ID is required for loadSession')
           }
           const body: schema.LoadSessionRequest = {
-            cwd: resolveWorkdir() ?? process.cwd(),
-            mcpServers: [],
+            cwd: resolveWorkdir(),
+            mcpServers: await resolveMcpServers(),
             sessionId: sessionToLoad
           }
           if (payloadOverrides) {
-            if (typeof payloadOverrides.cwd === 'string') {
-              body.cwd = payloadOverrides.cwd
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
             }
             if (Array.isArray(payloadOverrides.mcpServers)) {
               body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
@@ -711,12 +845,208 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId: sessionToLoad,
             payload: body
           })
+          this.processManager.registerSessionWorkdir(sessionToLoad, body.cwd)
           attachSession(sessionToLoad)
           const response = await connection.loadSession(body)
           activeSessionId = sessionToLoad
           pushEvent({
             kind: 'response',
             action: 'loadSession',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'sessionList': {
+          if (!connection.listSessions) {
+            throw new Error('session/list is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionList) {
+            throw new Error('Agent did not advertise sessionCapabilities.list')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const body: schema.ListSessionsRequest = {
+            cwd: resolveWorkdir()
+          }
+          if (payloadOverrides) {
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
+            }
+            if (typeof payloadOverrides.cursor === 'string') {
+              body.cursor = payloadOverrides.cursor
+            }
+            if (isPlainObject(payloadOverrides._meta)) {
+              body._meta = payloadOverrides._meta
+            }
+          }
+          const shouldSyncRemoteSessions = Boolean(payloadOverrides?.sync)
+          const allSessions: schema.SessionInfo[] = []
+          let cursor: string | null | undefined = body.cursor
+          do {
+            const pageBody = { ...body, cursor }
+            pushEvent({ kind: 'request', action: 'session/list', payload: pageBody })
+            const response = await connection.listSessions(pageBody)
+            allSessions.push(...response.sessions)
+            cursor = response.nextCursor
+            pushEvent({
+              kind: 'response',
+              action: 'session/list',
+              payload: response
+            })
+          } while (cursor)
+          pushEvent({
+            kind: 'lifecycle',
+            action: 'session/list.complete',
+            payload: { count: allSessions.length }
+          })
+          if (shouldSyncRemoteSessions) {
+            const syncResult = await this.sessionPersistence.syncRemoteSessions({
+              agentId: agent.id,
+              agentName: agent.name,
+              providerId: this.provider.id,
+              workdir: body.cwd ?? resolveWorkdir(),
+              sessions: allSessions
+            })
+            pushEvent({
+              kind: 'lifecycle',
+              action: 'session/list.sync',
+              payload: syncResult
+            })
+          }
+          break
+        }
+        case 'sessionResume': {
+          if (!connection.unstable_resumeSession) {
+            throw new Error('session/resume is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionResume) {
+            throw new Error('Agent did not advertise sessionCapabilities.resume')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToResume =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToResume) {
+            throw new Error('sessionId is required for sessionResume')
+          }
+          const body: schema.ResumeSessionRequest = {
+            cwd: resolveWorkdir(),
+            mcpServers: await resolveMcpServers(),
+            sessionId: sessionToResume
+          }
+          if (payloadOverrides) {
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
+            }
+            if (Array.isArray(payloadOverrides.mcpServers)) {
+              body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
+            }
+            if (isPlainObject(payloadOverrides._meta)) {
+              body._meta = payloadOverrides._meta
+            }
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/resume',
+            sessionId: sessionToResume,
+            payload: body
+          })
+          this.processManager.registerSessionWorkdir(sessionToResume, body.cwd)
+          attachSession(sessionToResume)
+          const response = await connection.unstable_resumeSession(body)
+          activeSessionId = sessionToResume
+          pushEvent({
+            kind: 'response',
+            action: 'session/resume',
+            sessionId: activeSessionId,
+            payload: response
+          })
+          break
+        }
+        case 'sessionClose': {
+          if (!connection.unstable_closeSession) {
+            throw new Error('session/close is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionClose) {
+            throw new Error('Agent did not advertise sessionCapabilities.close')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToClose =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToClose) {
+            throw new Error('sessionId is required for sessionClose')
+          }
+          const body: schema.CloseSessionRequest = { sessionId: sessionToClose }
+          if (payloadOverrides && isPlainObject(payloadOverrides._meta)) {
+            body._meta = payloadOverrides._meta
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/close',
+            sessionId: sessionToClose,
+            payload: body
+          })
+          const response = await connection.unstable_closeSession(body)
+          this.processManager.clearSession(sessionToClose)
+          activeSessionId = undefined
+          pushEvent({
+            kind: 'response',
+            action: 'session/close',
+            sessionId: sessionToClose,
+            payload: response
+          })
+          break
+        }
+        case 'sessionFork': {
+          if (!connection.unstable_forkSession) {
+            throw new Error('session/fork is not supported by this SDK connection')
+          }
+          if (!handle.supportsSessionFork) {
+            throw new Error('Agent did not advertise sessionCapabilities.fork')
+          }
+          const payloadOverrides = isPlainObject(request.payload) ? request.payload : undefined
+          const sessionToFork =
+            payloadOverrides && typeof payloadOverrides.sessionId === 'string'
+              ? payloadOverrides.sessionId
+              : activeSessionId
+          if (!sessionToFork) {
+            throw new Error('sessionId is required for sessionFork')
+          }
+          const body: schema.ForkSessionRequest = {
+            cwd: resolveWorkdir(),
+            mcpServers: await resolveMcpServers(),
+            sessionId: sessionToFork
+          }
+          if (payloadOverrides) {
+            const payloadWorkdir = resolvePayloadWorkdir(payloadOverrides.cwd)
+            if (payloadWorkdir) {
+              body.cwd = payloadWorkdir
+            }
+            if (Array.isArray(payloadOverrides.mcpServers)) {
+              body.mcpServers = payloadOverrides.mcpServers as schema.McpServer[]
+            }
+          }
+          if (payloadOverrides && isPlainObject(payloadOverrides._meta)) {
+            body._meta = payloadOverrides._meta
+          }
+          pushEvent({
+            kind: 'request',
+            action: 'session/fork',
+            sessionId: sessionToFork,
+            payload: body
+          })
+          const response = await connection.unstable_forkSession(body)
+          activeSessionId = response.sessionId
+          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          attachSession(activeSessionId)
+          pushEvent({
+            kind: 'response',
+            action: 'session/fork',
             sessionId: activeSessionId,
             payload: response
           })
@@ -880,34 +1210,157 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
+  private async persistTurnStart(input: AcpTurnStartPayload): Promise<void> {
+    try {
+      await this.sessionPersistence.startTurn(input)
+    } catch (error) {
+      console.warn('[ACP] Failed to persist turn start:', error)
+    }
+  }
+
+  private async persistTurnFinish(input: AcpTurnFinishPayload): Promise<void> {
+    try {
+      await this.sessionPersistence.finishTurn(input)
+    } catch (error) {
+      console.warn('[ACP] Failed to persist turn finish:', error)
+    }
+  }
+
   private async runPrompt(
     session: AcpSessionRecord,
     prompt: schema.ContentBlock[],
     queue: EventQueue,
-    modelConfig: ModelConfig
+    modelConfig: ModelConfig,
+    options: RunPromptOptions = {}
   ): Promise<void> {
+    const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
+    let timeoutId: NodeJS.Timeout | null = null
+    const conversationId = modelConfig.conversationId ?? session.conversationId
+    let turnStarted = false
+    let turnId: string | null = null
+
     try {
+      const turn = this.promptController.begin({
+        sessionId: session.sessionId,
+        conversationId
+      })
+      turnId = turn.id
+      turnStarted = true
+      await this.persistTurnStart({
+        id: turn.id,
+        acpSessionId: session.sessionId,
+        conversationId,
+        userMessageId: turn.userMessageId,
+        startedAt: turn.startedAt
+      })
       const requestBody = {
         sessionId: session.sessionId,
         prompt
       }
+      const promptSummary = {
+        sessionId: session.sessionId,
+        conversationId,
+        agentId: session.agentId,
+        turnId: turn.id,
+        blockCount: prompt.length,
+        blocks: summarizePromptBlocks(prompt),
+        timeoutMs
+      }
+      console.info(`[ACP] Sending prompt to ACP session ${session.sessionId}:`, promptSummary)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'request',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        payload: promptSummary
+      })
       await this.emitRequestTrace(modelConfig, {
         endpoint: 'acp://session/prompt',
         headers: {},
         body: requestBody
       })
 
-      const response = await session.connection.prompt({
+      const promptRequest = session.connection.prompt({
         sessionId: requestBody.sessionId,
         prompt: requestBody.prompt
       })
-      console.log('[ACP] runPrompt: response:', response)
+      const response = await (timeoutMs
+        ? Promise.race([
+            promptRequest,
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(this.createModelRequestTimeoutError(timeoutMs))
+              }, timeoutMs)
+            })
+          ])
+        : promptRequest)
+      options.onPromptSucceeded?.()
+      const responseSummary = {
+        sessionId: session.sessionId,
+        conversationId,
+        agentId: session.agentId,
+        turnId: turn.id,
+        stopReason: response.stopReason,
+        keys: Object.keys(response as Record<string, unknown>)
+      }
+      console.info(`[ACP] Prompt completed for ACP session ${session.sessionId}:`, responseSummary)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'response',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        payload: responseSummary
+      })
+      const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
+      if (completedTurn) {
+        await this.persistTurnFinish({
+          id: completedTurn.id,
+          status: 'completed',
+          stopReason: response.stopReason,
+          completedAt: completedTurn.completedAt ?? Date.now()
+        })
+      }
       queue.push(createStreamEvent.stop(this.mapStopReason(response.stopReason)))
     } catch (error) {
+      if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
+        try {
+          await session.connection.cancel({ sessionId: session.sessionId })
+        } catch (cancelError) {
+          console.warn('[ACP] cancel after timeout failed:', cancelError)
+        }
+      }
+
+      if (turnStarted) {
+        const failedTurn = this.promptController.fail(session.sessionId)
+        if (failedTurn) {
+          await this.persistTurnFinish({
+            id: failedTurn.id,
+            status: 'error',
+            stopReason: 'error',
+            completedAt: failedTurn.completedAt ?? Date.now()
+          })
+        } else if (turnId) {
+          await this.persistTurnFinish({
+            id: turnId,
+            status: 'error',
+            stopReason: 'error',
+            completedAt: Date.now()
+          })
+        }
+      }
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
+      console.error(`[ACP] Prompt failed for ACP session ${session.sessionId}:`, error)
+      this.processManager?.appendDebugEvent?.(session.agentId, {
+        kind: 'error',
+        action: 'session/prompt',
+        sessionId: session.sessionId,
+        message,
+        payload: error instanceof Error ? { name: error.name, stack: error.stack } : error
+      })
       queue.push(createStreamEvent.error(`ACP: ${message}`))
     } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       queue.done()
     }
   }
@@ -972,6 +1425,28 @@ export class AcpProvider extends BaseLLMProvider {
         mapped.configState
       )
     }
+
+    if ((mapped.sessionInfo || mapped.usage) && currentSession) {
+      const metadata = {
+        ...currentSession.metadata,
+        ...(mapped.sessionInfo
+          ? {
+              acpSessionInfo: mapped.sessionInfo
+            }
+          : {}),
+        ...(mapped.usage
+          ? {
+              acpUsage: mapped.usage
+            }
+          : {})
+      }
+      currentSession.metadata = metadata
+      void this.sessionPersistence
+        .mergeMetadata(conversationId, agentId, metadata)
+        .catch((error) => {
+          console.warn('[ACP] Failed to persist ACP session update metadata:', error)
+        })
+    }
   }
 
   private emitSessionModesReady(
@@ -1004,6 +1479,12 @@ export class AcpProvider extends BaseLLMProvider {
       agentId,
       commands
     })
+    publishDeepchatEvent('sessions.acp.commands.ready', {
+      conversationId,
+      agentId,
+      commands,
+      version: Date.now()
+    })
   }
 
   private emitSessionConfigOptionsReady(
@@ -1022,6 +1503,13 @@ export class AcpProvider extends BaseLLMProvider {
         configState: configState ?? normalizeAcpConfigState({})
       }
     )
+    publishDeepchatEvent('sessions.acp.configOptions.ready', {
+      conversationId,
+      agentId,
+      workdir,
+      configState: configState ?? normalizeAcpConfigState({}),
+      version: Date.now()
+    })
   }
 
   private async handlePermissionRequest(
@@ -1071,6 +1559,7 @@ export class AcpProvider extends BaseLLMProvider {
   ): PermissionRequestPayload {
     const permissionType = this.mapPermissionType(params.toolCall.kind)
     const toolName = params.toolCall.title?.trim() || params.toolCall.toolCallId
+    const command = this.extractCommand(params.toolCall)
     const options: PermissionRequestOption[] = params.options.map((option) => ({
       optionId: option.optionId,
       kind: option.kind,
@@ -1092,6 +1581,7 @@ export class AcpProvider extends BaseLLMProvider {
       permissionType,
       server_name: context.agent.name,
       server_description: context.agent.command,
+      ...(command ? { command } : {}),
       options,
       metadata: { rememberable: false }
     }
@@ -1112,7 +1602,23 @@ export class AcpProvider extends BaseLLMProvider {
     return toolCall.toolCallId
   }
 
-  private mapPermissionType(kind?: schema.ToolKind | null): 'read' | 'write' | 'all' {
+  private extractCommand(
+    toolCall: schema.RequestPermissionRequest['toolCall']
+  ): string | undefined {
+    const rawInput = toolCall.rawInput
+    if (!rawInput || typeof rawInput !== 'object') {
+      return undefined
+    }
+
+    const command = (rawInput as Record<string, unknown>).command
+    if (typeof command !== 'string' || !command.trim()) {
+      return undefined
+    }
+
+    return command.trim()
+  }
+
+  private mapPermissionType(kind?: schema.ToolKind | null): 'read' | 'write' | 'all' | 'command' {
     switch (kind) {
       case 'read':
       case 'fetch':
@@ -1121,8 +1627,9 @@ export class AcpProvider extends BaseLLMProvider {
       case 'edit':
       case 'delete':
       case 'move':
-      case 'execute':
         return 'write'
+      case 'execute':
+        return 'command'
       default:
         return 'all'
     }
@@ -1195,7 +1702,7 @@ export class AcpProvider extends BaseLLMProvider {
       maxTokens,
       []
     )) {
-      console.log('[ACP] collectFromStream: chunk:', chunk)
+      logger.info('[ACP] collectFromStream: chunk:', chunk)
       if (chunk.type === 'text' && chunk.content) {
         content += chunk.content
       } else if (chunk.type === 'reasoning' && chunk.reasoning_content) {
@@ -1501,7 +2008,7 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   async cleanup(): Promise<void> {
-    console.log('[ACP] Cleanup: shutting down ACP sessions and processes')
+    logger.info('[ACP] Cleanup: shutting down ACP sessions and processes')
     try {
       await this.sessionManager.clearAllSessions()
     } catch (error) {

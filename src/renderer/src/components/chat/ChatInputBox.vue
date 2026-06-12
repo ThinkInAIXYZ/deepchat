@@ -1,11 +1,12 @@
 <template>
   <div
+    data-testid="chat-input-box"
     :class="[
       'w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm backdrop-blur-lg',
       props.maxWidthClass
     ]"
-    @dragover.prevent
-    @drop.prevent="onDrop"
+    @dragover="onDragOver"
+    @drop="onDrop"
   >
     <input ref="fileInput" type="file" class="hidden" multiple @change="files.handleFileSelect" />
 
@@ -41,13 +42,14 @@
     </div>
 
     <div
+      data-testid="chat-input-editor"
       class="chat-input-editor px-4 pt-4 pb-2 text-sm"
       @keydown="handleKeydown"
       @paste.capture="onPaste"
     >
       <EditorContent
         :editor="editor"
-        class="min-h-[80px]"
+        class="min-h-[60px]"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
       />
@@ -83,6 +85,11 @@ import { TextSelection } from '@tiptap/pm/state'
 import { Icon } from '@iconify/vue'
 import type { MessageFile } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
+import {
+  buildChatInputWorkspaceReferenceText,
+  getChatInputWorkspaceItemDragData
+} from '@/lib/chatInputWorkspaceReference'
+import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
@@ -100,7 +107,10 @@ const props = withDefaults(
     sessionId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    isGenerating?: boolean
     submitDisabled?: boolean
+    queueSubmitEnabled?: boolean
+    queueSubmitDisabled?: boolean
     maxWidthClass?: string
     files?: MessageFile[]
   }>(),
@@ -110,7 +120,10 @@ const props = withDefaults(
     sessionId: null,
     workspacePath: null,
     isAcpSession: false,
+    isGenerating: false,
     submitDisabled: false,
+    queueSubmitEnabled: false,
+    queueSubmitDisabled: false,
     maxWidthClass: 'max-w-2xl',
     files: () => []
   }
@@ -119,9 +132,11 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   submit: []
+  'queue-submit': []
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
+  'toggle-voice-input': []
 }>()
 
 const isComposing = ref(false)
@@ -139,6 +154,8 @@ const mentions = useChatInputMentions({
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),
   isAcpSession: computed(() => props.isAcpSession),
+  isGenerating: computed(() => props.isGenerating),
+  compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
   onCommandSubmit: (command) => emit('command-submit', command),
   onActivateSkill: async (skillName) => {
     await skillsData.activateSkill(skillName)
@@ -188,7 +205,8 @@ const setCaretToEnd = (editor: Editor) => {
 const editor = new VueEditor({
   editorProps: {
     attributes: {
-      class: 'outline-none min-h-[80px]'
+      'data-testid': 'chat-input-contenteditable',
+      class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
     }
   },
   extensions: [
@@ -297,6 +315,23 @@ function onCompositionEnd() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
+  if (isVoiceShortcut) {
+    e.preventDefault()
+    emit('toggle-voice-input')
+    return
+  }
+
+  const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
+  if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
+    if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
+      return
+    }
+    e.preventDefault()
+    emit('queue-submit')
+    return
+  }
+
   if (e.key !== 'Enter' || e.shiftKey) {
     return
   }
@@ -327,9 +362,59 @@ function onDialogOpenChange(open: boolean) {
 
 function onPaste(event: ClipboardEvent) {
   void files.handlePaste(event, true)
+
+  if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+    return
+  }
+
+  const pastedUrl = extractPlainUrlFromClipboard(event.clipboardData)
+  if (!pastedUrl) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  editor.chain().focus().insertContent(pastedUrl).run()
+}
+
+function onDragOver(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function insertWorkspaceReference(targetPath: string) {
+  const referenceText = buildChatInputWorkspaceReferenceText(
+    targetPath,
+    props.workspacePath,
+    targetPath.split(/[/\\]/).pop()
+  )
+  if (!referenceText) {
+    return false
+  }
+
+  const { from, to } = editor.state.selection
+  const docSize = editor.state.doc.content.size
+  const before =
+    from > 0 ? editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '\n') : ''
+  const after =
+    to < docSize ? editor.state.doc.textBetween(to, Math.min(docSize, to + 1), '\n', '\n') : ''
+  const prefix = before && !/\s/.test(before) ? ' ' : ''
+  const suffix = after && /\s/.test(after) ? '' : ' '
+
+  editor.chain().focus().insertContent(`${prefix}${referenceText}${suffix}`).run()
+  return true
 }
 
 function onDrop(event: DragEvent) {
+  event.preventDefault()
+
+  const workspaceItem = getChatInputWorkspaceItemDragData(event.dataTransfer)
+  if (workspaceItem && insertWorkspaceReference(workspaceItem.path)) {
+    return
+  }
+
   if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) {
     return
   }
@@ -340,13 +425,30 @@ function triggerAttach() {
   files.openFilePicker()
 }
 
+function insertRecognizedText(text: string) {
+  const normalizedText = text.trim()
+  if (!normalizedText) {
+    return
+  }
+
+  editor.chain().focus().insertContent(normalizedText).run()
+}
+
 function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
 
+function focusInput() {
+  editor.chain().focus().scrollIntoView().run()
+  setCaretToEnd(editor)
+}
+
 defineExpose({
   triggerAttach,
-  getPendingSkillsSnapshot
+  insertRecognizedText,
+  insertWorkspaceReference,
+  getPendingSkillsSnapshot,
+  focusInput
 })
 </script>
 

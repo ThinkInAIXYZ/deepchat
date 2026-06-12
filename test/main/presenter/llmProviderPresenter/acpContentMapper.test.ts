@@ -324,3 +324,45 @@ describe('AcpContentMapper config options handling', () => {
     expect(result.events).toHaveLength(0)
   })
 })
+
+describe('AcpContentMapper session metadata updates', () => {
+  it('maps session_info_update into session metadata', () => {
+    const mapper = new AcpContentMapper()
+
+    const result = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'session_info_update',
+        title: 'Imported Session',
+        updatedAt: '2026-06-02T10:00:00.000Z',
+        _meta: { source: 'agent' }
+      })
+    )
+
+    expect(result.sessionInfo).toEqual({
+      title: 'Imported Session',
+      updatedAt: '2026-06-02T10:00:00.000Z',
+      meta: { source: 'agent' }
+    })
+  })
+
+  it('maps usage_update into ACP usage metadata without standard token usage', () => {
+    const mapper = new AcpContentMapper()
+
+    const result = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'usage_update',
+        used: 42,
+        size: 128,
+        cost: { amount: 0.01, currency: 'USD' }
+      })
+    )
+
+    expect(result.usage).toEqual({
+      used: 42,
+      size: 128,
+      cost: { amount: 0.01, currency: 'USD' },
+      meta: null
+    })
+    expect(result.events).toEqual([])
+  })
+})

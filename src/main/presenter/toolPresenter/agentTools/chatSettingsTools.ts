@@ -35,7 +35,15 @@ const SUPPORTED_LANGUAGES = [
   'fa-IR',
   'pt-BR',
   'da-DK',
-  'he-IL'
+  'he-IL',
+  'es-ES',
+  'de-DE',
+  'tr-TR',
+  'id-ID',
+  'ms-MY',
+  'it-IT',
+  'pl-PL',
+  'vi-VN'
 ] as const satisfies readonly ChatLanguage[]
 
 const SUPPORTED_THEMES = ['dark', 'light', 'system'] as const

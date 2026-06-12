@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { app, BrowserWindow } from 'electron'
 import { presenter } from '@/presenter'
 import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
@@ -51,7 +52,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   init(): void {
     const startupDeepLinkUrl = consumeStartupDeepLink()
     if (startupDeepLinkUrl) {
-      console.log('Found startup deeplink URL:', this.redactDeepLinkUrlForLog(startupDeepLinkUrl))
+      logger.info('Found startup deeplink URL:', this.redactDeepLinkUrlForLog(startupDeepLinkUrl))
       this.startupUrl = startupDeepLinkUrl
     }
 
@@ -68,9 +69,9 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
     // 监听窗口内容加载完成事件
     eventBus.once(WINDOW_EVENTS.FIRST_CONTENT_LOADED, () => {
-      console.log('Window content loaded. Processing DeepLink if exists.')
+      logger.info('Window content loaded. Processing DeepLink if exists.')
       if (this.startupUrl) {
-        console.log('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
+        logger.info('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
         void this.handleDeepLink(this.startupUrl)
         this.startupUrl = null
       }
@@ -78,9 +79,9 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
     // 监听MCP初始化完成事件
     eventBus.on(MCP_EVENTS.INITIALIZED, () => {
-      console.log('MCP initialized. Processing pending MCP install if exists.')
+      logger.info('MCP initialized. Processing pending MCP install if exists.')
       if (this.pendingMcpInstallUrl) {
-        console.log(
+        logger.info(
           'Processing pending MCP install URL:',
           this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
         )
@@ -93,7 +94,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   async handleDeepLink(url: string): Promise<void> {
     try {
       const urlObj = new URL(url)
-      console.log('Received DeepLink:', this.redactDeepLinkUrlForLog(url))
+      logger.info('Received DeepLink:', this.redactDeepLinkUrlForLog(url))
 
       if (urlObj.protocol !== 'deepchat:') {
         console.error('Unsupported protocol:', urlObj.protocol)
@@ -105,10 +106,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         .join('/')
       const [command = '', subCommand = ''] = rawPath.split('/')
 
-      console.log('Parsed deeplink - command:', command, 'subCommand:', subCommand)
+      logger.info('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
       if (command === 'mcp' && subCommand === 'install' && !presenter.mcpPresenter.isReady()) {
-        console.log('MCP not ready yet, saving MCP install URL for later')
+        logger.info('MCP not ready yet, saving MCP install URL for later')
         this.pendingMcpInstallUrl = url
         return
       }
@@ -138,7 +139,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleStart(params: URLSearchParams): Promise<void> {
-    console.log('Processing start command, parameters:', this.redactSearchParamsForLog(params))
+    logger.info('Processing start command, parameters:', this.redactSearchParamsForLog(params))
 
     let msg = params.get('msg')
     if (!msg) {
@@ -177,10 +178,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     // SECURITY: Disable auto-send functionality to prevent abuse
     // The yolo parameter has been removed for security reasons
     const autoSend = false
-    console.log('msg:', msg)
-    console.log('modelId:', modelId)
-    console.log('systemPrompt:', systemPrompt)
-    console.log('autoSend:', autoSend, '(disabled for security)')
+    logger.info('msg:', msg)
+    logger.info('modelId:', modelId)
+    logger.info('systemPrompt:', systemPrompt)
+    logger.info('autoSend:', autoSend, '(disabled for security)')
 
     const targetWindow = await this.resolveChatWindow()
     if (!targetWindow) {
@@ -252,7 +253,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   async handleMcpInstall(params: URLSearchParams): Promise<void> {
-    console.log(
+    logger.info(
       'Processing mcp/install command, parameters:',
       this.redactSearchParamsForLog(params)
     )
@@ -264,14 +265,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       return
     }
 
-    console.log('Found code parameter, processing MCP config')
+    logger.info('Found code parameter, processing MCP config')
 
     try {
       // 解码 Base64 并解析 JSON
       const jsonString = Buffer.from(jsonBase64, 'base64').toString('utf-8')
       const mcpConfig = JSON.parse(jsonString) as MCPInstallConfig
 
-      console.log('Parsed MCP config:', this.redactValueForLog(mcpConfig))
+      logger.info('Parsed MCP config:', this.redactValueForLog(mcpConfig))
 
       // 检查 MCP 配置是否有效
       if (!mcpConfig || !mcpConfig.mcpServers) {
@@ -375,7 +376,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         }
 
         // 添加服务器配置到完整配置中
-        console.log(
+        logger.info(
           `Preparing to install MCP server: ${serverName} (type: ${determinedType})`,
           this.redactValueForLog(finalConfig)
         )
@@ -397,14 +398,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         mcpConfig: JSON.stringify(completeMcpConfig)
       })
 
-      console.log('All MCP servers processing completed')
+      logger.info('All MCP servers processing completed')
     } catch (error) {
       console.error('Error parsing or processing MCP configuration:', error)
     }
   }
 
   async handleProviderInstall(params: URLSearchParams): Promise<void> {
-    console.log(
+    logger.info(
       'Processing provider/install command, parameters:',
       this.redactSearchParamsForLog(params)
     )

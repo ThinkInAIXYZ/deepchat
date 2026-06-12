@@ -3,6 +3,7 @@ import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const { syncArtifactMock, completeArtifactMock, getSearchResultsMock } = vi.hoisted(() => ({
   syncArtifactMock: vi.fn(),
@@ -17,8 +18,8 @@ vi.mock('@/stores/artifact', () => ({
   })
 }))
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/legacy/presenters', () => ({
+  useLegacyPresenter: () => ({
     getSearchResults: getSearchResultsMock
   })
 }))
@@ -57,9 +58,26 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
       content: {
         type: String,
         default: ''
+      },
+      messageId: {
+        type: String,
+        default: undefined
+      },
+      threadId: {
+        type: String,
+        default: undefined
+      },
+      smoothStreaming: {
+        type: Boolean,
+        default: false
+      },
+      linkContext: {
+        type: Object as () => MarkdownLinkContext | undefined,
+        default: undefined
       }
     },
-    template: '<div class="markdown-stub">{{ content }}</div>'
+    template:
+      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)">{{ content }}</div>'
   })
 }))
 
@@ -141,4 +159,63 @@ describe('MessageBlockContent', () => {
       's2'
     )
   })
+
+  it('passes message and thread ids to MarkdownRenderer for text parts', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'success',
+          content: 'plain markdown content'
+        }),
+        messageId: 'm3',
+        threadId: 's3'
+      }
+    })
+
+    await flushPromises()
+
+    const markdown = wrapper.get('.markdown-stub')
+    expect(markdown.attributes('data-message-id')).toBe('m3')
+    expect(markdown.attributes('data-thread-id')).toBe('s3')
+    expect(markdown.attributes('data-link-source')).toBe('chat')
+    expect(markdown.attributes('data-link-session-id')).toBe('s3')
+    expect(markdown.text()).toContain('plain markdown content')
+  })
+
+  it('disables smooth streaming for completed content blocks', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'success',
+          content: 'completed markdown content'
+        }),
+        messageId: 'm4',
+        threadId: 's4'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('false')
+  })
+
+  it.each(['pending', 'loading'] as const)(
+    'enables smooth streaming for %s content blocks',
+    async (status) => {
+      const wrapper = mount(MessageBlockContent, {
+        props: {
+          block: createBlock({
+            status,
+            content: `${status} markdown content`
+          }),
+          messageId: 'm5',
+          threadId: 's5'
+        }
+      })
+
+      await flushPromises()
+
+      expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('true')
+    }
+  )
 })

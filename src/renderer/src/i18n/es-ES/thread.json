@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Cambiar nombre",
+    "delete": "Eliminar",
+    "switchWithShortcut": "Cambiar a este chat con {shortcut}",
+    "cleanMessages": "Borrar mensajes",
+    "pin": "Alfiler",
+    "unpin": "Desanclar",
+    "export": "Exportar",
+    "exportText": "Texto sin formato",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Mover conversación"
+  },
+  "export": {
+    "failed": "Exportación fallida",
+    "failedDesc": "Se produjo un error durante el proceso de exportación, inténtelo nuevamente.",
+    "nowledgeMemSubmitFailed": "Nowledge-mem Error en el envío",
+    "nowledgeMemSubmitFailedDesc": "No se pudo enviar la conversación a nowledge-mem",
+    "nowledgeMemSubmitPrompt": "¿Quieres enviar esta conversación a nowledge-mem?",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem Envío exitoso",
+    "nowledgeMemSubmitSuccessDesc": "La conversación se ha enviado correctamente a nowledge-mem.",
+    "nowledgeMemSuccessDesc": "La conversación se ha exportado correctamente al formato de memoria de conocimiento.",
+    "success": "Exportación exitosa",
+    "nowledgeMemSuccess": "Nowledge-mem Exportación exitosa",
+    "successDesc": "La conversación se ha exportado correctamente."
+  },
+  "message": {
+    "toolbar": {
+      "save": "Guardar"
+    }
+  },
+  "toolbar": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "previousVariant": "Variante anterior",
+    "nextVariant": "Siguiente variante",
+    "copy": "Copiar como descuento",
+    "copyImage": "Copiar como imagen",
+    "copyImageWithLongPress": "Copiar como imagen (mantenga presionado para capturar desde arriba)",
+    "copyFromTopSuccess": "Imagen de conversación completa copiada",
+    "capturing": "Capturando...",
+    "retry": "regenerar",
+    "fork": "Rama a nuevo chat",
+    "edit": "Editar mensaje",
+    "delete": "Eliminar mensaje",
+    "trace": "Solicitud de seguimiento"
+  }
+}

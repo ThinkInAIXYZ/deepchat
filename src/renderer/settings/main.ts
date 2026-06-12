@@ -1,20 +1,45 @@
 import '@/assets/main.css'
-import { addCollection } from '@iconify/vue'
-import lucideIcons from '@iconify-json/lucide/icons.json'
-import vscodeIcons from '@iconify-json/vscode-icons/icons.json'
 import { createPinia } from 'pinia'
+import { PiniaColada } from '@pinia/colada'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 import { createI18n } from 'vue-i18n'
-import locales from '@/i18n'
+import locales, { pluralRules } from '@/i18n'
+import { getSettingsRouteItems } from '@shared/settingsNavigation'
+import { preloadIcons } from '../src/lib/iconLoader'
+
+const settingsRouteItems = getSettingsRouteItems(window.electron?.process?.platform)
+
+const settingsRouteComponents = {
+  'settings-overview': () => import('./components/SettingsOverview.vue'),
+  'settings-common': () => import('./components/CommonSettings.vue'),
+  'settings-display': () => import('./components/DisplaySettings.vue'),
+  'settings-environments': () => import('./components/EnvironmentsSettings.vue'),
+  'settings-provider': () => import('./components/ModelProviderSettings.vue'),
+  'settings-dashboard': () => import('./components/SettingsOverview.vue'),
+  'settings-mcp': () => import('./components/McpSettings.vue'),
+  'settings-deepchat-agents': () => import('./components/DeepChatAgentsSettings.vue'),
+  'settings-acp': () => import('./components/AcpSettings.vue'),
+  'settings-remote': () => import('./components/RemoteSettings.vue'),
+  'settings-notifications-hooks': () => import('./components/NotificationsHooksSettings.vue'),
+  'settings-scheduled-tasks': () => import('./components/ScheduledTasksSettings.vue'),
+  'settings-plugins': () => import('./components/PluginsSettings.vue'),
+  'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
+  'settings-prompt': () => import('./components/PromptSetting.vue'),
+  'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),
+  'settings-database': () => import('./components/DataSettings.vue'),
+  'settings-shortcut': () => import('./components/ShortcutSettings.vue'),
+  'settings-about': () => import('./components/AboutUsSettings.vue')
+} as const
 
 // Create i18n instance
 const i18n = createI18n({
   locale: 'zh-CN',
   fallbackLocale: 'en-US',
   legacy: false,
+  pluralRules,
   messages: locales
 })
 
@@ -22,181 +47,59 @@ const i18n = createI18n({
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
-    {
-      path: '/common',
-      name: 'settings-common',
-      component: () => import('./components/CommonSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-common',
-        icon: 'lucide:bolt',
-        position: 1
-      }
-    },
-    {
-      path: '/display',
-      name: 'settings-display',
-      component: () => import('./components/DisplaySettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-display',
-        icon: 'lucide:monitor',
-        position: 2
-      }
-    },
-    {
-      path: '/environments',
-      name: 'settings-environments',
-      component: () => import('./components/EnvironmentsSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-environments',
-        icon: 'lucide:folders',
-        position: 2.5
-      }
-    },
-    {
-      path: '/provider/:providerId?',
-      name: 'settings-provider',
-      component: () => import('./components/ModelProviderSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-provider',
-        icon: 'lucide:cloud-cog',
-        position: 3
-      }
-    },
-    {
-      path: '/dashboard',
-      name: 'settings-dashboard',
-      component: () => import('./components/DashboardSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-dashboard',
-        icon: 'lucide:layout-dashboard',
-        position: 4.5
-      }
-    },
-    {
-      path: '/mcp',
-      name: 'settings-mcp',
-      component: () => import('./components/McpSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-mcp',
-        icon: 'lucide:server',
-        position: 5
-      }
-    },
-    {
-      path: '/deepchat-agents',
-      name: 'settings-deepchat-agents',
-      component: () => import('./components/DeepChatAgentsSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-deepchat-agents',
-        icon: 'lucide:bot',
-        position: 3.5
-      }
-    },
-    {
-      path: '/acp',
-      name: 'settings-acp',
-      component: () => import('./components/AcpSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-acp',
-        icon: 'lucide:shield-check',
-        position: 4
-      }
-    },
-    {
-      path: '/remote',
-      name: 'settings-remote',
-      component: () => import('./components/RemoteSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-remote',
-        icon: 'lucide:smartphone',
-        position: 5.25
-      }
-    },
-    {
-      path: '/notifications-hooks',
-      name: 'settings-notifications-hooks',
-      component: () => import('./components/NotificationsHooksSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-notifications-hooks',
-        icon: 'lucide:bell',
-        position: 5.5
-      }
-    },
-    {
-      path: '/skills',
-      name: 'settings-skills',
-      component: () => import('./components/skills/SkillsSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-skills',
-        icon: 'lucide:wand-sparkles',
-        position: 6
-      }
-    },
-    {
-      path: '/prompt',
-      name: 'settings-prompt',
-      component: () => import('./components/PromptSetting.vue'),
-      meta: {
-        titleKey: 'routes.settings-prompt',
-        icon: 'lucide:book-open-text',
-        position: 7
-      }
-    },
-    {
-      path: '/knowledge-base',
-      name: 'settings-knowledge-base',
-      component: () => import('./components/KnowledgeBaseSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-knowledge-base',
-        icon: 'lucide:book-marked',
-        position: 8
-      }
-    },
-    {
-      path: '/database',
-      name: 'settings-database',
-      component: () => import('./components/DataSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-database',
-        icon: 'lucide:database',
-        position: 9
-      }
-    },
-    {
-      path: '/shortcut',
-      name: 'settings-shortcut',
-      component: () => import('./components/ShortcutSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-shortcut',
-        icon: 'lucide:keyboard',
-        position: 10
-      }
-    },
-    {
-      path: '/about',
-      name: 'settings-about',
-      component: () => import('./components/AboutUsSettings.vue'),
-      meta: {
-        titleKey: 'routes.settings-about',
-        icon: 'lucide:info',
-        position: 11
-      }
-    },
+    ...settingsRouteItems.map((item) =>
+      item.routeName === 'settings-dashboard'
+        ? {
+            path: item.path,
+            name: item.routeName,
+            redirect: {
+              name: 'settings-overview',
+              query: {
+                section: 'usage'
+              }
+            },
+            meta: {
+              titleKey: item.titleKey,
+              icon: item.icon,
+              position: item.position
+            }
+          }
+        : {
+            path: item.path,
+            name: item.routeName,
+            component: settingsRouteComponents[item.routeName],
+            meta: {
+              titleKey: item.titleKey,
+              icon: item.icon,
+              position: item.position
+            }
+          }
+    ),
     {
       path: '/',
-      redirect: '/common'
+      redirect: '/overview'
     }
   ]
 })
 
-// Add icon collections to local registry
-addCollection(lucideIcons)
-addCollection(vscodeIcons)
-
+// Icons will be loaded asynchronously to improve startup performance
 const pinia = createPinia()
 const app = createApp(App)
 
 app.use(pinia)
+app.use(PiniaColada, {
+  queryOptions: {
+    staleTime: 30_000,
+    gcTime: 300_000
+  }
+})
 app.use(i18n)
 app.use(router)
 app.mount('#app')
+
+// Preload icons asynchronously after app mount to improve perceived startup time
+setTimeout(() => {
+  preloadIcons().catch((error) => {
+    console.error('Failed to preload icons:', error)
+  })
+}, 0)

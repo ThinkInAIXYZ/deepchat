@@ -8,7 +8,16 @@
     "searchEngine": "موتور جستجو",
     "searchEngineSelect": "انتخاب موتور جستجو",
     "searchPreview": "پیش‌نمایش جستجو",
+    "launchAtLoginEnabled": "اجرای DeepChat هنگام ورود به سیستم",
     "autoScrollEnabled": "پیمایش خودکار هنگام تولید",
+    "privacyMode": "حالت حریم خصوصی",
+    "privacyModeDescription": "درخواست‌های خروجی خودکار متعلق به DeepChat را متوقف می‌کند:",
+    "privacyModeAutoUpdate": "بررسی به‌روزرسانی برنامه",
+    "privacyModeProviderDb": "به‌روزرسانی فرادادهٔ ارائه‌دهنده و مدل",
+    "privacyModeAcpRegistry": "به‌روزرسانی رجیستری ACP و همگام‌سازی آیکن‌ها",
+    "privacyModeNpmRegistry": "تشخیص خودکار رجیستری npm برای MCP",
+    "privacyModeManualActions": "بررسی‌های دستی و نوسازی‌های دستی همچنان در دسترس می‌مانند.",
+    "privacyModeIntegrations": "یکپارچه‌سازی‌های شخص ثالثِ پیکربندی‌شده همچنان در دسترس می‌مانند.",
     "searchAssistantModel": "مدل دستیار",
     "selectModel": "انتخاب مدل",
     "proxyMode": "حالت پراکسی",
@@ -78,7 +87,7 @@
   },
   "notificationsHooks": {
     "title": "هوک‌ها",
-    "description": "پیکربندی اعلان‌های وب‌هوک و هوک‌های چرخهٔ عمر.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "رویدادها",
       "SessionStart": "شروع نشست",
@@ -90,32 +99,45 @@
       "Stop": "توقف",
       "SessionEnd": "پایان نشست"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "ارسال اعلان‌ها از طریق ربات تلگرام.",
-      "botToken": "توکن ربات",
-      "botTokenPlaceholder": "توکن ربات تلگرام",
-      "chatId": "شناسهٔ گفتگو",
-      "chatIdPlaceholder": "مثلاً 123456789",
-      "threadId": "شناسهٔ رشته (اختیاری)",
-      "threadIdPlaceholder": "شناسهٔ رشتهٔ اختیاری"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "ارسال اعلان‌ها از طریق وب‌هوک دیسکورد.",
-      "webhookUrl": "نشانی وب‌هوک",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "ارسال اعلان‌ها از طریق هوک Confirmo (همهٔ رویدادها).",
-      "unavailable": "هوک Confirmo یافت نشد: {path}"
-    },
     "commands": {
-      "title": "فرمان‌های هوک",
-      "description": "برای هر رویداد یک فرمان اجرا شود.",
-      "hint": "محتوا به‌صورت JSON به stdin فرستاده می‌شود.",
-      "commandPlaceholder": "فرمان برای اجرا"
+      "title": "دستورهای Hook",
+      "description": "برای رویدادهای چرخهٔ حیات انتخاب‌شده، دستورهای سفارشی اجرا کنید.",
+      "hint": "کل payload به صورت JSON در stdin نوشته می‌شود.",
+      "commandPlaceholder": "دستوری که باید اجرا شود",
+      "commandLabel": "دستور",
+      "name": "نام",
+      "namePlaceholder": "نام Hook",
+      "newHook": "Hook جدید",
+      "empty": "هنوز Hookی وجود ندارد. برای شروع یکی اضافه کنید.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "راهنمای استفاده",
+      "guideDescription": "وقتی یکی از رویدادهای انتخاب‌شده رخ دهد، DeepChat این دستور را اجرا می‌کند. رویداد فعلی از طریق JSON در stdin، متغیرهای محیطی و جای‌نگهدارهای خط فرمان در دسترس است.",
+      "deliveryTitle": "نحوهٔ ارسال داده",
+      "deliveryStdin": "کل payload به صورت JSON در stdin نوشته می‌شود.",
+      "deliveryPlaceholder": "می‌توانید جای‌نگهدارهای خط فرمان را مستقیماً در خود دستور استفاده کنید.",
+      "deliveryEnv": "همان فراداده‌های اصلی در متغیرهای محیطی هم در دسترس هستند.",
+      "metadataOnly": "جای‌نگهدارهای خط فرمان برای فراداده‌های کوچک مناسب‌ترند. جزئیات prompt/tool، permission، usage، stop و error را از JSON در stdin بخوانید.",
+      "stdinPreviewLabel": "نمونهٔ stdin",
+      "placeholdersTitle": "جای‌نگهدارهای خط فرمان",
+      "placeholdersDescription": "جای‌نگهدارها پیش از اجرا گسترش می‌یابند و می‌توانند به‌صورت آرگومان دستور ارسال شوند.",
+      "envTitle": "متغیرهای محیطی",
+      "examplesTitle": "نمونه‌ها",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "نام رویداد فعلی",
+        "time": "زمان رویداد در قالب ISO-8601",
+        "isTest": "این‌که اجرا از دکمهٔ Test آمده است یا نه",
+        "conversationId": "شناسهٔ گفت‌وگو / نشست فعلی",
+        "workdir": "پوشهٔ کاری تشخیص‌داده‌شده برای نشست",
+        "agentId": "شناسهٔ Agent فعلی در صورت موجود بودن",
+        "providerId": "شناسهٔ Provider فعلی در صورت موجود بودن",
+        "modelId": "شناسهٔ Model فعلی در صورت موجود بودن",
+        "messageId": "شناسهٔ پیام فعلی کاربر در صورت موجود بودن",
+        "toolName": "نام ابزار فعلی در صورت موجود بودن",
+        "toolCallId": "شناسهٔ فراخوانی ابزار فعلی در صورت موجود بودن"
+      }
     },
     "test": {
       "button": "آزمون",
@@ -171,6 +193,23 @@
       "backupSuccessTitle": "پشتیبان گیری با موفقیت انجام شد",
       "backupSuccessMessage": "داده ها با موفقیت پشتیبان گیری شدند"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "modelConfigUpdate": {
+      "title": "به‌روزرسانی پیکربندی مدل",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
+      "button": "اکنون به‌روزرسانی کن",
+      "updating": "در حال به‌روزرسانی...",
+      "updatedTitle": "پیکربندی مدل به‌روز شد",
+      "updatedDescription": "آخرین فرادادهٔ ارائه‌دهنده دریافت شد.",
+      "upToDateTitle": "از قبل به‌روز است",
+      "upToDateDescription": "پیکربندی محلی مدل همین حالا هم از تازه‌ترین فرادادهٔ ارائه‌دهنده استفاده می‌کند.",
+      "failedTitle": "به‌روزرسانی ناموفق بود",
+      "failedDescription": "فعلاً امکان به‌روزرسانی پیکربندی مدل وجود ندارد. کمی بعد دوباره تلاش کنید."
+    },
     "yoBrowser": {
       "clearButton": "داده های YoBrowser را پاک کنید",
       "clearFailedDescription": "لطفاً دوباره امتحان کنید یا برای اطلاعات بیشتر گزارش‌ها را بررسی کنید.",
@@ -183,6 +222,210 @@
       "confirmTitle": "برای پاک کردن داده‌های YoBrowser تأیید می‌کنید؟",
       "description": "یک سندباکس مرورگر مستقل که کوکی‌ها و فضای ذخیره‌سازی محلی را با برنامه اصلی به اشتراک نمی‌گذارد. داده های YoBrowser را می توان با یک کلیک در اینجا پاک کرد.",
       "title": "YoBrowser Sandbox"
+    },
+    "databaseRepair": {
+      "title": "ترمیم پایگاه داده",
+      "description": "Detect and automatically repair the database",
+      "button": "بررسی و ترمیم پایگاه داده",
+      "running": "در حال بررسی و ترمیم...",
+      "lastResultLabel": "آخرین نتیجه: {result}",
+      "summaryHealthy": "سالم",
+      "summaryRepaired": "{count} مورد برطرف شد",
+      "summaryRepairedWithManual": "{repaired} مورد برطرف شد، {manual} مورد نیاز به رسیدگی دستی دارد",
+      "summaryManualOnly": "{manual} مورد نیاز به رسیدگی دارد",
+      "manualHint": "هنوز {count} مورد نیاز به رسیدگی دستی دارد.",
+      "toastSuggestedTitle": "ترمیم پایگاه داده پیشنهاد می‌شود",
+      "toastSuggestedDescription": "DeepChat یک مشکل ساختاری در پایگاه داده شناسایی کرد ({reason}). می‌توانید همین حالا ترمیم را اجرا کنید.",
+      "toastAction": "رفتن به ترمیم",
+      "toastHealthyTitle": "پایگاه داده سالم است",
+      "toastHealthyDescription": "هیچ مشکل ساختاری‌ای پیدا نشد.",
+      "toastCompletedTitle": "ترمیم پایگاه داده کامل شد",
+      "toastRepairedDescription": "{count} مورد برطرف شد.",
+      "toastManualDescription": "{repaired} مورد برطرف شد. هنوز {manual} مورد نیاز به رسیدگی دستی دارد.",
+      "toastFailedTitle": "ترمیم پایگاه داده ناموفق بود",
+      "toastFailedDescription": "در حال حاضر ترمیم پایگاه داده تکمیل نشد. لطفاً گزارش‌ها را بررسی کنید و دوباره تلاش کنید.",
+      "reasons": {
+        "missing-table": "جدول مفقود",
+        "missing-column": "ستون مفقود",
+        "column-count-mismatch": "ناهماهنگی تعداد ستون‌ها",
+        "type-mismatch": "ناهماهنگی نوع ستون"
+      }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "Manage backup, sync, privacy mode, maintenance, and dangerous operations.",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "وارد کردن تنظیمات ارائه‌دهنده",
+      "entryDescription": "CC Switch، Alma، Cherry Studio، Hermes و OpenClaw را برای اطلاعات ارائه‌دهنده و فهرست مدل‌ها اسکن می‌کند.",
+      "entryButton": "وارد کردن از عامل‌ها",
+      "dialogTitle": "وارد کردن از سایر عامل‌ها",
+      "dialogDescription": "ابتدا برنامه‌های شناسایی‌شده را انتخاب کنید، سپس ارائه‌دهنده‌هایی را که DeepChat می‌تواند وارد کند بررسی کنید.",
+      "toastTitle": "وارد کردن ارائه‌دهنده پایان یافت",
+      "toastDescription": "{count} ارائه‌دهنده وارد شد.",
+      "steps": {
+        "scan": "اسکن",
+        "providers": "ارائه‌دهنده‌ها",
+        "done": "انجام شد"
+      },
+      "scanningTitle": "در حال اسکن عامل‌های نصب‌شده",
+      "scanningDescription": "DeepChat فایل‌های پیکربندی محلی شناخته‌شده را بدون ارسال داده بررسی می‌کند.",
+      "scanFailedTitle": "اسکن ناموفق بود",
+      "sourcesTitle": "منابع شناسایی‌شده",
+      "sourcesDescription": "یک یا چند عامل را انتخاب کنید. عامل‌های انتخاب‌شده به ترتیب نمایش داده‌شده پردازش می‌شوند.",
+      "selectedSources": "{selected}/{total} انتخاب شده",
+      "noSourcesTitle": "پیکربندی قابل وارد کردن یافت نشد",
+      "noSourcesDescription": "ابتدا یکی از عامل‌های پشتیبانی‌شده را نصب کنید یا اطلاعات ارائه‌دهنده را در آن تنظیم کنید.",
+      "providersFound": "{count} ارائه‌دهنده",
+      "sourceProgress": "{current} از {total}",
+      "overwriteNote": "اگر چند ارائه‌دهنده انتخاب‌شده به یک ارائه‌دهنده DeepChat نگاشت شوند، منبع بعدی قبلی را بازنویسی می‌کند.",
+      "noProvidersTitle": "در این منبع داده ارائه‌دهنده وجود ندارد",
+      "noProvidersDescription": "این عامل انتخاب شده است، اما ورودی قابل وارد کردن پیدا نشد.",
+      "apiKey": "کلید {value}",
+      "noModels": "فهرست مدل وجود ندارد",
+      "modelsImported": "{count} مدل",
+      "importingTitle": "در حال وارد کردن ارائه‌دهنده‌ها",
+      "importingDescription": "DeepChat ارائه‌دهنده‌های انتخاب‌شده و مدل‌های سفارشی را می‌نویسد.",
+      "doneTitle": "خلاصه وارد کردن",
+      "doneDescription": "{count} ارائه‌دهنده وارد شد. نتیجه هر ارائه‌دهنده را در پایین بررسی کنید.",
+      "badges": {
+        "configured": "پیکربندی شده"
+      },
+      "sourceStatus": {
+        "found": "یافت شد",
+        "not_found": "یافت نشد",
+        "error": "خطا",
+        "unsupported_platform": "پلتفرم پشتیبانی‌نشده"
+      },
+      "targetKind": {
+        "builtin": "داخلی",
+        "custom": "سفارشی",
+        "unsupported": "پشتیبانی‌نشده"
+      },
+      "warnings": {
+        "already_configured": "قبلاً در DeepChat پیکربندی شده است، بنابراین به‌صورت پیش‌فرض انتخاب نمی‌شود.",
+        "missing_api_key": "کلید API یا endpoint لازم وجود ندارد.",
+        "unsupported_provider": "DeepChat نمی‌تواند این ارائه‌دهنده را خودکار وارد کند.",
+        "overwrites_previous_selection": "این انتخاب با یک منبع قبلی تداخل دارد.",
+        "credential_only_import": "فقط کلید API وارد می‌شود؛ DeepChat endpoint و runtime ارائه‌دهنده داخلی را حفظ می‌کند."
+      },
+      "conflicts": {
+        "overridesPrevious": "این انتخاب ارائه‌دهنده انتخاب‌شده قبلی را بازنویسی می‌کند.",
+        "overwrittenByLater": "یک منبع انتخاب‌شده بعدی این ارائه‌دهنده را بازنویسی می‌کند."
+      },
+      "summary": {
+        "imported": "وارد شده",
+        "created": "ایجاد شده",
+        "updated": "به‌روزرسانی شده",
+        "overwritten": "بازنویسی شده",
+        "models": "مدل‌ها",
+        "skipped": "رد شده"
+      },
+      "resultStatus": {
+        "created": "ایجاد شد",
+        "updated": "به‌روزرسانی شد",
+        "skipped": "رد شد",
+        "overwritten": "بازنویسی شد"
+      },
+      "actions": {
+        "rescan": "اسکن دوباره",
+        "selectAll": "انتخاب همه",
+        "clearSelected": "پاک کردن",
+        "import": "وارد کردن انتخاب‌ها"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "وارد کردن ناموفق بود: {message}"
+    },
+    "databaseEncryption": {
+      "title": "رمزگذاری پایگاه داده SQLite",
+      "description": "agent.db را با SQLCipher رمزگذاری کنید و وقتی باز کردن قفل سیستم قابل استفاده نیست، رمز SQLite را درخواست کنید.",
+      "enabled": "فعال",
+      "disabled": "غیرفعال",
+      "cipher": "رمزنگار",
+      "systemUnlock": "باز کردن قفل سیستم",
+      "startupUnlock": "باز کردن قفل هنگام شروع",
+      "lastMigration": "آخرین مهاجرت",
+      "loading": "در حال بارگذاری",
+      "never": "هرگز",
+      "notRequired": "لازم نیست",
+      "systemUnlockAvailable": "در دسترس",
+      "systemUnlockUnavailable": "در دسترس نیست",
+      "systemUnlockMode": "باز کردن قفل سیستم",
+      "manualUnlock": "رمز دستی",
+      "currentPassword": "رمز فعلی",
+      "newPassword": "رمز جدید SQLite",
+      "confirmPassword": "تأیید رمز",
+      "passwordMismatch": "رمزها یکسان نیستند",
+      "systemCredentialStore": "وقتی ذخیره‌سازی امن سیستم در دسترس باشد، DeepChat رمز SQLite را به صورت رمزگذاری‌شده در خزانه اعتبارنامه سیستم (مانند macOS Keychain، Windows Credential Vault یا یک Linux secret store) ذخیره می‌کند. پس از یک باز کردن قفل موفق، شروع‌های بعدی معمولاً خودکار باز می‌شوند؛ فقط پس از مهاجرت داده، نبودن یا غیرقابل رمزگشایی بودن اعتبارنامه سیستم، یا در دسترس نبودن ذخیره‌سازی امن باید دوباره کلید رمزگذاری را وارد کنید.",
+      "safeStorageUnavailable": "Electron safeStorage روی این سیستم در دسترس نیست. پس از فعال کردن رمزگذاری، باید در هر شروع رمز را وارد کنید.",
+      "enableButton": "فعال کردن رمزگذاری",
+      "changeButton": "تغییر رمز",
+      "disableButton": "غیرفعال کردن رمزگذاری",
+      "enabledTitle": "رمزگذاری پایگاه داده فعال شد",
+      "changedTitle": "رمز SQLite تغییر کرد",
+      "disabledTitle": "رمزگذاری پایگاه داده غیرفعال شد",
+      "failedTitle": "رمزگذاری پایگاه داده ناموفق بود",
+      "failedDescription": "رمز را بررسی کنید و دوباره تلاش کنید.",
+      "setPasswordButton": "تنظیم رمز",
+      "enableDialogTitle": "تنظیم رمز SQLite",
+      "changeDialogTitle": "تغییر رمز SQLite",
+      "disableDialogTitle": "غیرفعال کردن رمزگذاری پایگاه داده",
+      "enableDialogDescription": "یک پایگاه داده SQLite رمزگذاری‌شده ایجاد کنید و داده‌های محلی فعلی را به آن منتقل کنید.",
+      "changeDialogDescription": "پایگاه داده رمزگذاری‌شده فعلی را با رمز جدید به یک پایگاه داده رمزگذاری‌شده جدید منتقل کنید.",
+      "disableDialogDescription": "پایگاه داده رمزگذاری‌شده فعلی را به یک پایگاه داده محلی متن ساده برگردانید.",
+      "cancelButton": "لغو",
+      "unknown": "نامشخص"
+    },
+    "cloudSync": {
+      "title": "همگام‌سازی ابری (سازگار با S3)",
+      "description": "نسخه‌های پشتیبان را در فضای ذخیره‌سازی سازگار با S3 مانند Cloudflare R2 بارگذاری کنید و تازه‌ترین نسخه پشتیبان را در دستگاهی دیگر دریافت کنید.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "منطقه",
+      "prefix": "پیشوند مسیر",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "پیکربندی شده (برای حفظ مقدار فعلی خالی بگذارید)",
+      "safeStorageUnavailable": "Keychain سیستم در دسترس نیست؛ کلید محرمانه را نمی‌توان به‌صورت امن ذخیره کرد.",
+      "save": "ذخیره",
+      "test": "آزمایش اتصال",
+      "upload": "بارگذاری در ابر",
+      "pull": "دریافت تازه‌ترین نسخه از ابر",
+      "savedTitle": "پیکربندی ابر ذخیره شد",
+      "testSuccessTitle": "اتصال موفق بود",
+      "testFailedTitle": "اتصال ناموفق بود",
+      "uploadSuccessTitle": "بارگذاری موفق بود",
+      "uploadFailedTitle": "بارگذاری ناموفق بود",
+      "pullSuccessTitle": "دریافت موفق بود",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "سازگار با S3 سفارشی",
+      "r2GuideTitle": "اعتبارنامه‌های کلاینت S3 را از صفحه توکن API در Cloudflare R2 کپی کنید.",
+      "r2EndpointHint": "URL مربوط به Endpoint اختصاصی حوزه قضایی را برای کلاینت‌های S3 استفاده کنید",
+      "r2AccessKeyHint": "از Access Key ID استفاده کنید، نه Account ID",
+      "r2SecretHint": "از Secret Access Key استفاده کنید، نه مقدار توکنی که با cfat_ شروع می‌شود",
+      "r2DocsLink": "باز کردن مستندات Cloudflare R2 S3",
+      "endpointR2Description": "از https://<account_id>.r2.cloudflarestorage.com بدون نام bucket استفاده کنید.",
+      "endpointCustomDescription": "از Endpoint سرویس سازگار با S3 استفاده کنید.",
+      "r2AccessKeyAccountIdWarning": "این مقدار شبیه R2 Account ID است. Access Key ID از بخش اعتبارنامه‌های کلاینت S3 می‌آید.",
+      "r2SecretApiTokenError": "اینجا S3 Secret Access Key را وارد کنید، نه مقدار توکن API مربوط به Cloudflare که با cfat_ شروع می‌شود.",
+      "secretStoredDescription": "یک کلید محرمانه ذخیره شده است. برای حفظ آن خالی بگذارید یا برای جایگزینی مقدار جدید وارد کنید.",
+      "secretInputDescription": "Secret Access Key را از بخش اعتبارنامه‌های کلاینت S3 کپی کنید.",
+      "advancedTitle": "تنظیمات پیشرفته",
+      "r2RegionDescription": "Cloudflare R2 معمولاً باید روی auto باقی بماند.",
+      "prefixDescription": "نسخه‌های پشتیبان زیر این پیشوند مسیر نوشته می‌شوند.",
+      "saveAndTest": "ذخیره و آزمایش",
+      "saveOnly": "فقط ذخیره",
+      "saveAndTestFirst": "ابتدا پیکربندی ابر را ذخیره و آزمایش کنید."
     }
   },
   "dashboard": {
@@ -288,6 +531,9 @@
     },
     "unavailable": "ناموجود"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "قابلیت ضعیف Agent: فقط از تماس‌های ابزار fallback قدیمی پشتیبانی می‌کند"
+  },
   "model": {
     "title": "تنظیمات مدل",
     "systemPrompt": {
@@ -346,6 +592,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "تشخیص گفتار",
+        "description": "مشخص می‌کند آیا این مدل ورودی صوتی با تبدیل محلی گفتار به متن را مجاز می‌کند یا نه."
+      },
       "functionCall": {
         "description": "این که آیا مدل از عملکردهای عملکردی پشتیبانی می کند (DeepChat پس از خاموش کردن این گزینه ، به طور خودکار تماس های عملکردی را شبیه سازی می کند)",
         "label": "تماسهای عملکردی"
@@ -355,8 +605,12 @@
         "label": "حداکثر طول خروجی"
       },
       "reasoning": {
-        "description": "آیا مدل از توانایی استدلال پشتیبانی می کند؟",
+        "description": "این مدل از استدلال پشتیبانی می‌کند",
         "label": "توانایی استدلال"
+      },
+      "reasoningToggle": {
+        "description": "کنترل می‌کند که استدلال به‌صورت پیش‌فرض برای این مدل فعال باشد یا نه",
+        "label": "فعال‌سازی استدلال"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -383,10 +637,13 @@
         "description": "عمق استدلال مدل را کنترل می‌کند؛ تلاش بیشتر نتایج بهتری تولید می‌کند اما پاسخ‌های کندتری دارد",
         "placeholder": "انتخاب تلاش استدلال",
         "options": {
+          "none": "None - بدون استدلال",
           "minimal": "Minimal - سریع‌ترین پاسخ",
           "low": "Low - تلاش کم",
           "medium": "Medium - تلاش متوسط",
-          "high": "High - تلاش زیاد"
+          "high": "High - تلاش زیاد",
+          "xhigh": "XHigh - حداکثر تلاش",
+          "max": "Max - بیشترین میزان تلاش"
         }
       },
       "verbosity": {
@@ -405,7 +662,12 @@
       "currentUsingModelDefault": "در حال حاضر از پیکربندی پیش‌فرض مدل استفاده می‌کند",
       "temperature": {
         "description": "تصادفی بودن خروجی را کنترل کنید. بیشتر مدل ها 0-1 و برخی از پشتیبانی بین 0-2 هستند. هرچه تصادفی بالاتر باشد.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
         "label": "درجه حرارت"
+      },
+      "topP": {
+        "label": "Top P",
+        "description": "Controls nucleus sampling. Leave blank to use the model or provider default."
       },
       "title": "پارامترهای مدل سفارشی",
       "type": {
@@ -415,7 +677,8 @@
           "chat": "مدل زبان",
           "embedding": "مدل",
           "imageGeneration": "مدل تولید تصویر",
-          "rerank": "مدل را دوباره مرتب کنید"
+          "rerank": "مدل را دوباره مرتب کنید",
+          "videoGeneration": "مدل تولید ویدیو"
         }
       },
       "validation": {
@@ -427,7 +690,10 @@
         "maxTokensRequired": "حداکثر طول خروجی نمی تواند خالی باشد",
         "temperatureMax": "دما باید کمتر از یا برابر با 2 باشد",
         "temperatureMin": "دما باید بیشتر یا برابر با 0 باشد",
-        "temperatureRequired": "درجه حرارت نمی تواند خالی باشد"
+        "temperatureRequired": "درجه حرارت نمی تواند خالی باشد",
+        "timeoutMin": "تایم‌اوت باید حداقل 1000ms باشد",
+        "timeoutMax": "تایم‌اوت نمی‌تواند از 3600000ms بیشتر باشد",
+        "topPRange": "Top P must be greater than 0 and less than or equal to 1"
       },
       "vision": {
         "description": "آیا مدل از توانایی بصری پشتیبانی می کند؟",
@@ -438,7 +704,118 @@
         "label": "نقطه پایانی API",
         "options": {
           "chat": "تولید متن",
-          "image": "تولید تصویر"
+          "image": "تولید تصویر",
+          "video": "Video Generation"
+        }
+      },
+      "endpointType": {
+        "label": "نوع نقطه‌پایان",
+        "description": "پروتکل بالادستی که New API باید برای این مدل استفاده کند را انتخاب کنید.",
+        "placeholder": "نوع نقطه‌پایان را انتخاب کنید",
+        "required": "نوع نقطه‌پایان الزامی است",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "تولید تصویر",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "نمایش محتوای استدلال",
+        "description": "مشخص می‌کند هنگام فعال بودن استدلال، محتوای آن پنهان شود یا به‌صورت خلاصه نمایش داده شود",
+        "placeholder": "نحوه نمایش محتوای استدلال را انتخاب کنید",
+        "options": {
+          "omitted": "Omitted - محتوای استدلال را مخفی کن",
+          "summarized": "Summarized - خلاصه استدلال را نمایش بده"
+        }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "پیش‌فرض",
+        "size": {
+          "label": "اندازه تصویر",
+          "custom": "سفارشی",
+          "placeholder": "مثلاً 2048x2048",
+          "experimental": "اندازه‌های بزرگ‌تر از 2560x1440 توسط OpenAI به‌عنوان خروجی آزمایشی علامت‌گذاری شده‌اند.",
+          "validation": {
+            "invalid_format": "از قالب {width}x{height} استفاده کنید.",
+            "invalid_multiple": "عرض و ارتفاع باید مضربی از 16 باشند.",
+            "side_too_large": "عرض و ارتفاع باید 3840px یا کمتر باشند.",
+            "aspect_ratio_too_large": "ضلع بلند نمی‌تواند بیش از 3 برابر ضلع کوتاه باشد.",
+            "pixel_count_out_of_range": "مجموع پیکسل‌ها باید بین 655360 و 8294400 باشد."
+          }
+        },
+        "quality": {
+          "label": "کیفیت",
+          "options": {
+            "low": "کم",
+            "medium": "متوسط",
+            "high": "زیاد",
+            "auto": "خودکار"
+          }
+        },
+        "outputFormat": {
+          "label": "فرمت خروجی",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "فشرده‌سازی",
+          "placeholder": "پیش‌فرض: 100",
+          "validation": "فشرده‌سازی باید یک عدد صحیح از 0 تا 100 باشد."
+        },
+        "background": {
+          "label": "پس‌زمینه",
+          "options": {
+            "auto": "خودکار",
+            "opaque": "کدر"
+          }
+        },
+        "moderation": {
+          "label": "نظارت محتوا",
+          "options": {
+            "auto": "خودکار",
+            "low": "کم"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -450,6 +827,11 @@
     "disabled": "غیرفعال",
     "urlPlaceholder": "لطفاً نشانی API را وارد کنید",
     "keyPlaceholder": "لطفاً کلید API را وارد کنید",
+    "authMode": "روش احراز هویت",
+    "authModeAccessKeys": "کلیدهای دسترسی",
+    "authModeProfile": "پروفایل AWS",
+    "profileNameLabel": "نام پروفایل AWS",
+    "profilePlaceholder": "لطفاً نام پروفایل AWS را وارد کنید (مثلاً default)",
     "accessKeyIdPlaceholder": "لطفاً AWS Access Key ID را وارد کنید",
     "secretAccessKeyPlaceholder": "لطفاً AWS Secret Access Key را وارد کنید",
     "regionPlaceholder": "لطفاً منطقه AWS را وارد کنید",
@@ -472,6 +854,9 @@
     "urlFormat": "نمونه API: {defaultUrl}",
     "urlFormatFill": "قرار دادن در URL API",
     "openaiResponsesNotice": "OpenAI به صورت پیش‌فرض از Responses API استفاده می‌کند. اگر endpoint شخص ثالث فقط از Chat Completions پشتیبانی می‌کند، از ارائه‌دهنده OpenAI Completions استفاده کنید.",
+    "modifyBaseUrl": "ویرایش",
+    "baseUrlLockedHint": "این ارائه‌دهنده برای کاهش خطاهای پیکربندی روی آدرس پایه پیشنهادی قفل شده است.",
+    "refreshModelsWithMetadataHint": "نوسازی این ارائه‌دهنده ابتدا فرادادهٔ بالادستی را همگام می‌کند و سپس فهرست محلی مدل‌ها را بازسازی می‌کند.",
     "modelList": "فهرست مدل‌ها",
     "enableModels": "روشن کردن مدل‌ها",
     "disableAllModels": "خاموش کردن همه مدل‌ها",
@@ -487,8 +872,8 @@
     "stopModel": "ایست مدل",
     "pulling": "در حال دریافت...",
     "runModel": "اجرای مدل",
-    "voiceai": {
-      "title": "تبدیل متن به گفتار Voice.ai",
+    "tts": {
+      "title": "تبدیل متن به گفتار (TTS)",
       "description": "گفتار را از متن تولید کنید. صداها در فهرست مدل‌ها در پایین نمایش داده می‌شوند.",
       "audioFormat": {
         "label": "قالب صوتی",
@@ -566,6 +951,11 @@
         "overwriteWarning": "این درون‌ریزی پیکربندی فعلی فراهم‌کننده را بازنویسی می‌کند.",
         "confirming": "در حال درون‌ریزی..."
       },
+      "baseUrlUnlock": {
+        "title": "تأیید تغییر آدرس پایه",
+        "description": "تغییر آدرس پایه برای این ارائه‌دهنده توصیه نمی‌شود. یک نقطه‌پایان نادرست ممکن است باعث شکست درخواست‌ها یا رفتارهای غیرمنتظره دیگر شود. اگر از این ریسک آگاه هستید، می‌توانید ادامه دهید.",
+        "confirm": "ادامه"
+      },
       "deleteProvider": {
         "title": "پذیرش پاک کردن فراهم‌کننده",
         "content": "آیا مطمئن هستید که می‌خواهید فراهم‌کننده \"{name}\" را پاک کنید؟ این کنش بازگشت‌پذیر نیست.",
@@ -640,7 +1030,13 @@
       "backupSuccessTitle": "پشتیبان‌گیری کامل شد",
       "backupSuccessMessage": "فایل پشتیبان در {time} ذخیره شد (حجم: {size})",
       "importSuccessTitle": "درون‌ریزی با موفقیت انجام شد",
-      "importSuccessMessage": "{count} گفتگو با موفقیت درون‌ریزی شد"
+      "importSuccessMessage": "{count} گفتگو با موفقیت درون‌ریزی شد",
+      "refreshModelsSuccessTitle": "مدل‌ها نوسازی شدند",
+      "refreshModelsSuccessDescription": "جدیدترین فهرست مدل برای این ارائه‌دهنده همگام شد.",
+      "refreshModelsSuccessDescriptionWithMetadata": "فرادادهٔ بالادستی و جدیدترین فهرست مدل برای این ارائه‌دهنده همگام شد.",
+      "refreshModelsFailedTitle": "نوسازی ناموفق بود",
+      "refreshModelsFailedDescription": "در حال حاضر امکان نوسازی مدل‌های این ارائه‌دهنده وجود ندارد. لطفاً بعداً دوباره تلاش کنید.",
+      "refreshModelsFailedDescriptionWithMetadata": "در حال حاضر امکان همگام‌سازی فرادادهٔ بالادستی و مدل‌های این ارائه‌دهنده وجود ندارد. لطفاً بعداً دوباره تلاش کنید."
     },
     "apiKeyLabel": "کلید API",
     "apiUrlLabel": "آدرس API",
@@ -703,7 +1099,25 @@
     "operationSuccess": "عملیات موفقیت آمیز است",
     "settingsApplied": "تنظیمات اعمال شده",
     "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند",
-    "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت."
+    "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت.",
+    "center": {
+      "title": "Provider Center",
+      "description": "Manage provider connections, models, and advanced configuration.",
+      "noApiUrl": "No API URL configured",
+      "enabledModels": "{count} models enabled",
+      "noAdvancedConfig": "This provider has no extra advanced configuration.",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",
@@ -853,6 +1267,7 @@
     "stopServer": "ایست کارساز",
     "startServer": "راه‌اندازی کارساز",
     "noServersFound": "کارسازی یافت نشد",
+    "noServersDescription": "برای استفاده از ابزارها، دستورکارها و منابع، یک کارساز MCP اضافه کنید.",
     "addServerDialog": {
       "title": "افزودن کارساز",
       "description": "پیکربندی کارساز جدید MCP"
@@ -963,7 +1378,7 @@
     "removeDefaultFirst": "لطفاً ابتدا برخی کارسازهای پیش‌فرض را بردارید",
     "higressMarket": "رفتن به نصب MCP هایگرس",
     "npmRegistry": {
-      "title": "تنظیمات منابع NPM",
+      "title": "منبع NPM",
       "currentSource": "منبع فعلی",
       "cached": "ذخیره شده",
       "lastChecked": "آخرین بررسی",
@@ -1002,6 +1417,84 @@
       "redetectCompleteDesc": "منبع بهینه فعلی NPM تشخیص داده شد و پیکربندی شد",
       "redetectFailed": "تشخیص مجدد ناموفق بود",
       "redetectFailedDesc": "نمی‌توان منبع بهینه را مجدداً تشخیص داد، از پیکربندی پیش‌فرض استفاده خواهد شد"
+    },
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "Search MCP servers...",
+      "noResults": "No matching MCP servers",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "کارهای زمان‌بندی‌شده",
+    "description": "در زمان انتخاب‌شده یک اعلان سیستم نمایش دهید یا یک پرامپت آماده را به یک عامل ارسال کنید.",
+    "hint": "کارهای یک‌باره‌ای که هنگام بسته بودن برنامه از دست رفته‌اند در اجرای بعدی انجام می‌شوند؛ کارهای تکرارشونده به نوبت بعدی می‌روند.",
+    "newTask": "کار جدید",
+    "empty": "هنوز کاری وجود ندارد",
+    "namePlaceholder": "نام کار",
+    "fireNow": "اکنون اجرا کن",
+    "fireNowSuccess": "کار اجرا شد",
+    "defaults": {
+      "name": "کار جدید",
+      "title": "یادآوری",
+      "body": "زمانش رسیده است"
+    },
+    "trigger": {
+      "title": "محرک",
+      "kind": "نوع محرک",
+      "kindOnce": "یک‌بار",
+      "kindDaily": "روزانه",
+      "kindWeekly": "هفتگی",
+      "firesAt": "اجرا در",
+      "dayOfWeek": "روز هفته",
+      "time": "زمان",
+      "description": "زمان اجرای این کار را انتخاب کنید."
+    },
+    "action": {
+      "title": "عملیات",
+      "kind": "نوع عملیات",
+      "kindNotify": "اعلان",
+      "kindPrompt": "پرامپت گفتگو",
+      "titleField": "عنوان",
+      "titlePlaceholder": "عنوان اعلان",
+      "body": "متن",
+      "message": "پیام",
+      "agentId": "عامل",
+      "agentIdPlaceholder": "پیش‌فرض: deepchat",
+      "modelId": "مدل",
+      "modelIdPlaceholder": "برای پیش‌فرض خالی بگذارید",
+      "systemPrompt": "پرامپت سیستم",
+      "autoSend": "ارسال خودکار به عامل انتخاب‌شده",
+      "description": "یک اعلان یا پرامپت عامل را انتخاب کنید."
+    },
+    "weekday": {
+      "sun": "یکشنبه",
+      "mon": "دوشنبه",
+      "tue": "سه‌شنبه",
+      "wed": "چهارشنبه",
+      "thu": "پنجشنبه",
+      "fri": "جمعه",
+      "sat": "شنبه"
+    },
+    "listTitle": "فهرست کارها",
+    "listDescription": "زمان‌بندی‌ها، عملیات و وضعیت فعال بودن را در یکجا مدیریت کنید.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "هر روز ساعت {time}",
+      "weekly": "{day} ساعت {time}"
     }
   },
   "about": {
@@ -1044,12 +1537,15 @@
     "goSettings": "باز کردن تنظیمات",
     "hideWindow": "مخفی کردن پنجره",
     "quitApp": "خروج از برنامه",
+    "toggleSidebar": "نمایش/پنهان کردن نوار کناری",
+    "toggleWorkspace": "نمایش/پنهان کردن فضای کاری",
     "zoomIn": "بزرگ‌نمایی",
     "zoomOut": "کوچک‌نمایی",
     "zoomReset": "بازنشانی بزرگ‌نمایی",
     "newWindow": "باز کردن پنجره جدید",
     "showHideWindow": "نمایش/مخفی کردن پنجره",
     "newConversation": "گفت‌وگوی جدید",
+    "quickSearch": "جست‌وجوی Spotlight",
     "closeWindow": "بستن برگه کنونی"
   },
   "rateLimit": {
@@ -1183,14 +1679,21 @@
       "eventCount": "{count} مورد",
       "eventKinds": {
         "error": "اشتباه",
+        "lifecycle": "چرخه حیات",
         "notification": "اطلاع‌رسانی",
         "permission": "مجوزها",
         "request": "درخواست",
-        "response": "پاسخ"
+        "response": "پاسخ",
+        "stderr": "stderr"
       },
       "events": "رویداد",
       "format": "فرمت JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/cancel",
         "extMethod": "ext/method",
         "extNotification": "ext/notification",
@@ -1249,6 +1752,10 @@
     "installedEmptyDescription": "ابتدا یک عامل را از ACP Registry نصب کنید، سپس آن را اینجا پیکربندی کنید.",
     "registryOverlayEmpty": "هیچ عاملی با فیلترهای فعلی مطابقت ندارد.",
     "registryInstallAction": "نصب",
+    "registryUninstallAction": "حذف نصب",
+    "registryUninstallConfirm": "عامل «{name}» حذف نصب شود؟",
+    "registryUninstallDescription": "DeepChat این عامل را غیرفعال می‌کند و در صورت وجود، داده‌های نصبِ مدیریت‌شدهٔ محلی را پاک می‌کند. بعداً می‌توانید آن را دوباره از ACP Registry نصب کنید.",
+    "registryUninstallFailed": "حذف نصب عامل ناموفق بود",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "عامل‌های ACP را جست‌وجو، فیلتر و نصب کنید. پس از نصب برای پیکربندی به تنظیمات برگردید.",
     "registryLearnMore": "اطلاعات بیشتر",
@@ -1261,6 +1768,10 @@
   },
   "skills": {
     "addSkill": "افزودن مهارت",
+    "draftSuggestions": {
+      "title": "پیشنهاد پیش‌نویس مهارت",
+      "description": "پس از تکمیل یک کار، به Agent اجازه بده پیش‌نویس‌های موقت و قابل‌استفاده‌مجدد برای مهارت‌ها پیشنهاد کند. این پیش‌نویس‌ها تا زمانی که خودت تصمیم به درون‌ریزی دستی بگیری، در پوشهٔ موقت باقی می‌مانند."
+    },
     "conflict": {
       "description": "مهارت «{name}» از قبل وجود دارد. آیا می‌خواهید آن را جایگزین کنید؟",
       "overwrite": "پوشش",
@@ -1314,9 +1825,9 @@
     "emptyHint": "برای نصب skill جدید، روی دکمه «افزودن skill» کلیک کنید.",
     "install": {
       "description": "انتخاب روش نصب skill",
-      "dragNotSupported": "کشیدن و رها کردن فعلاً پشتیبانی نمی‌شود، لطفاً کلیک کنید تا انتخاب کنید",
+      "dragInvalid": "محتوای کشیده‌شده پشتیبانی نمی‌شود. یک پوشه skill یا یک فایل .zip را بکشید.",
       "failed": "نصب ناموفق",
-      "folderHint": "کلیک کنید تا پوشه skill را انتخاب کنید",
+      "folderHint": "برای انتخاب پوشه skill کلیک کنید یا آن را به اینجا بکشید",
       "folderTip": "پشتیبانی از وارد کردن مستقیم از ~/.claude/skills/ و سایر کلاینت‌ها",
       "fromFolder": "نصب از پوشه",
       "installButton": "نصب",
@@ -1330,7 +1841,7 @@
       "title": "نصب مهارت",
       "urlHint": "لینک دانلود بسته skill را وارد کنید",
       "urlPlaceholder": "آدرس دانلود ZIP skill را وارد کنید",
-      "zipHint": "برای انتخاب فایل ZIP کلیک کنید"
+      "zipHint": "برای انتخاب فایل ZIP کلیک کنید یا آن را به اینجا بکشید"
     },
     "noResults": "مهارت مطابقی یافت نشد",
     "openFolder": "باز کردن پوشه",
@@ -1479,12 +1990,50 @@
   },
   "remote": {
     "title": "کنترل از راه دور",
-    "description": "کنترل از راه دور Telegram و Feishu را در یک‌جا پیکربندی کنید.",
+    "description": "کنترل از راه دور Telegram، Feishu، QQBot و WeChat iLink را در یک‌جا پیکربندی کنید.",
     "telegram": {
       "title": "Telegram",
-      "description": "یک ربات تلگرام را برای کنترل از راه دور و ارسال هوک مدیریت کنید.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "توکن ربات",
-      "botTokenPlaceholder": "توکن ربات تلگرام"
+      "botTokenPlaceholder": "توکن ربات تلگرام",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
+      "brand": "برند",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه Feishu",
+      "appSecret": "رمز برنامه",
+      "appSecretPlaceholder": "رمز برنامه Feishu",
+      "verificationToken": "توکن تأیید",
+      "verificationTokenPlaceholder": "توکن تأیید Feishu",
+      "encryptKey": "کلید رمزنگاری (اختیاری)",
+      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
+      "botUser": "کاربر ربات: {name} ({openId})",
+      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
+      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
+      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
+      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
+      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "یک ربات Discord را برای پیام‌های مستقیم، منشن در کانال و کنترل از راه دور با اسلش‌کامند متصل کنید.",
+      "botToken": "توکن ربات",
+      "botTokenPlaceholder": "توکن ربات Discord",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "برای مجاز کردن نقطه‌پایانی فعلی Discord، /pair [code] را در پیام خصوصی یا کانال مقصد بفرستید.",
+      "accessRule2": "پیام‌های کانال فقط وقتی وارد نشست می‌شوند که ربات منشن شده باشد تا گفت‌وگوی عادی بی‌دلیل جذب نشود."
+    },
+    "sections": {
+      "credentials": "اعتبارنامه‌ها",
+      "remoteControl": "کنترل از راه دور",
+      "notifications": "اعلان‌ها",
+      "accessRules": "قوانین دسترسی"
     },
     "remoteControl": {
       "title": "کنترل از راه دور",
@@ -1496,6 +2045,9 @@
       "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
       "defaultAgent": "ایجنت پیش‌فرض DeepChat",
       "defaultAgentPlaceholder": "یک ایجنت را انتخاب کنید",
+      "defaultWorkdir": "پوشه پیش‌فرض",
+      "defaultWorkdirPlaceholder": "پوشه پیش‌فرض را انتخاب کنید",
+      "defaultWorkdirHelper": "پوشه کاری برای نشست‌های کنترل از راه دور. وقتی عامل پیش‌فرض ACP باشد الزامی است.",
       "openPairDialog": "جفت‌سازی",
       "manageBindings": "مدیریت اتصال‌ها",
       "pairCode": "کد جفت‌سازی",
@@ -1514,7 +2066,16 @@
       "clearBindings": "پاک کردن اتصال‌ها",
       "clearBindingsResult": "{count} اتصال پاک شد.",
       "pairDialogInstructionTelegram": "این فرمان را برای ربات Telegram بفرستید:",
-      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:"
+      "pairDialogInstructionFeishu": "این فرمان را در پیام خصوصی برای ربات Feishu بفرستید:",
+      "pairDialogInstructionDiscord": "این فرمان را در پیام خصوصی یا کانال مقصد برای ربات Discord بفرستید:",
+      "pairDialogInstructionQQBot": "این دستور را در گفت‌وگوی QQ Bot یا گروه مجاز QQ بفرستید:",
+      "authorizedPrincipalsTitle": "شناسه‌های مجاز",
+      "authorizedPrincipalsDescription": "این حساب‌های {channel} مجاز هستند و می‌توانند جفت‌سازی و کنترل نشست‌ها را انجام دهند.",
+      "authorizedPrincipalsEmpty": "هنوز هیچ شناسهٔ مجاز ثبت نشده است.",
+      "sessionBindingsTitle": "پیوندهای نشست",
+      "sessionBindingsDescription": "هر نقطهٔ ورودی راه‌دورِ زیر در حال حاضر به یک نشست DeepChat متصل است.",
+      "acpDefaultWorkdirRequiredTitle": "شاخه پیش‌فرض الزامی است",
+      "acpDefaultWorkdirRequiredDescription": "عامل‌های ACP به فضای کاری محلی نیاز دارند. پیش از ذخیره، یک شاخه پیش‌فرض انتخاب کنید."
     },
     "hooks": {
       "title": "هوک‌های تلگرام",
@@ -1535,43 +2096,62 @@
         "running": "در حال اجرا",
         "backoff": "در حال تلاش مجدد پس از خطا",
         "error": "خطا"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "یک ربات Feishu را برای پیام خصوصی، گفت‌وگوی گروهی و رشته‌های موضوعی متصل کنید.",
-      "appId": "شناسه برنامه",
-      "appIdPlaceholder": "شناسه برنامه Feishu",
-      "appSecret": "رمز برنامه",
-      "appSecretPlaceholder": "رمز برنامه Feishu",
-      "verificationToken": "توکن تأیید",
-      "verificationTokenPlaceholder": "توکن تأیید Feishu",
-      "encryptKey": "کلید رمزنگاری (اختیاری)",
-      "encryptKeyPlaceholder": "اگر رمزنگاری رویداد فعال نیست، خالی بگذارید",
-      "botUser": "کاربر ربات: {name} ({openId})",
-      "bindings": "اتصال‌ها: {count}، کاربران جفت‌شده: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID کاربران جفت‌شده",
-      "pairedUserOpenIdsPlaceholder": "مثلاً ou_xxx، ou_yyy",
-      "accessRulesDescription": "ابتدا در پیام خصوصی جفت‌سازی کنید. در گروه‌ها فقط کاربرانی که جفت شده‌اند و ربات را با {'@'} صدا می‌زنند می‌توانند یک نشست را کنترل کنند.",
-      "accessRule1": "در پیام خصوصی با /pair [کد] جفت‌سازی کنید.",
-      "accessRule2": "در گروه‌ها و موضوع‌ها، ربات فقط وقتی واکنش نشان می‌دهد که یک کاربر جفت‌شده آن را با {'@'} خطاب کند."
-    },
-    "sections": {
-      "credentials": "اعتبارنامه‌ها",
-      "remoteControl": "کنترل از راه دور",
-      "notifications": "اعلان‌ها",
-      "accessRules": "قوانین دسترسی"
+      },
+      "bindingOnly": "اتصال‌ها: {count}، شناسه‌های جفت‌شده: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده، hookها {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
       "hooksOn": "روشن",
-      "hooksOff": "خاموش"
+      "hooksOff": "خاموش",
+      "qqbot": "{bindingCount} اتصال، {pairedCount} کاربر جفت‌شده",
+      "discord": "{bindingCount} اتصال، {pairedCount} کانال جفت‌شده",
+      "weixinIlink": "{bindingCount} اتصال، {accountCount} حساب، {connectedCount} متصل"
     },
     "bindingKinds": {
       "dm": "پیام خصوصی",
       "group": "گروه",
       "topic": "موضوع"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "یک QQ Bot رسمی را برای گفت‌وگوهای C2C و کنترل ربات بر پایهٔ منشن در گروه‌های مجاز متصل کنید.",
+      "appId": "شناسه برنامه",
+      "appIdPlaceholder": "شناسه برنامه QQ Bot",
+      "clientSecret": "کلید محرمانه کلاینت",
+      "clientSecretPlaceholder": "کلید محرمانه کلاینت QQ Bot",
+      "remoteControlDescription": "شناسه‌های رسمی openid در QQ بین C2C و گروه‌ها متفاوت‌اند؛ بنابراین در پیام خصوصی کاربر جفت می‌شود و گروه باید جداگانه با /pair مجاز شود.",
+      "pairedUserIds": "OpenID کاربران جفت‌شده",
+      "pairedUserIdsPlaceholder": "مثلاً user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "یک ربات رسمی WeChat iLink را با ورود QR متصل کنید تا آداپتور داخلی نشست‌های کنترل از راه دور را مدیریت کند.",
+      "loginDescription": "برای باز کردن پنجرهٔ رسمی ورود WeChat روی دکمهٔ زیر کلیک کنید. احراز هویت iLink Bot را در همان پنجره کامل کنید تا حساب متصل‌شده به‌صورت خودکار به فهرست زیر افزوده شود.",
+      "ownerOnlyNotice": "در نسخهٔ اول فقط حساب مالک که با QR وارد شده می‌تواند DeepChat را کنترل کند.",
+      "connectButton": "باز کردن پنجرهٔ ورود",
+      "refreshQrCode": "باز کردن دوبارهٔ پنجرهٔ ورود",
+      "loginDialogTitle": "اتصال WeChat iLink",
+      "loginDialogDescription": "صفحهٔ رسمی ورود WeChat در یک پنجرهٔ جداگانه باز می‌شود. احراز هویت QR را در همان پنجره کامل کنید و این پنجرهٔ گفتگو را تا پایان اتصال باز نگه دارید.",
+      "loginFailed": "ورود به WeChat iLink ناموفق بود.",
+      "loginSuccessTitle": "WeChat iLink متصل شد",
+      "loginSuccessDescription": "حساب {accountId} آماده است.",
+      "accountsTitle": "حساب‌ها",
+      "accountsDescription": "هر حساب متصل iLink Bot به‌صورت مستقل اجرا می‌شود و اتصال‌ها و وضعیت اجرای خودش را نگه می‌دارد.",
+      "noAccounts": "هنوز هیچ حساب WeChat iLink متصل نشده است.",
+      "ownerUserId": "شناسهٔ کاربر مالک: {ownerUserId}",
+      "baseUrl": "نشانی پایه: {baseUrl}",
+      "accountBindings": "اتصال‌ها: {count}",
+      "remoteControlDescription": "عامل پیش‌فرض مشترک بین حساب‌های WeChat iLink را تنظیم کنید و سپس اتصال‌های ساخته‌شده توسط نشست‌های ورودی را مدیریت کنید.",
+      "removeAccount": "حذف حساب",
+      "restartAccount": "راه‌اندازی دوباره حساب",
+      "statusSummary": "{accounts} حساب، {connected} متصل، {bindings} اتصال",
+      "qrcodeAlt": "کد QR WeChat iLink",
+      "loginWindowOpened": "پنجرهٔ رسمی ورود WeChat باز شد. احراز هویت QR را در همان پنجره کامل کنید.",
+      "loginSessionExpired": "این نشست ورود منقضی شده است. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginResponseIncomplete": "پاسخ ورود WeChat iLink ناقص بود. لطفاً دوباره تلاش کنید.",
+      "loginTimedOut": "مهلت انتظار برای احراز هویت WeChat iLink به پایان رسید. پنجرهٔ ورود را دوباره باز کنید و دوباره تلاش کنید.",
+      "loginConnected": "حساب WeChat iLink متصل شد."
     }
   },
   "deepchatAgents": {
@@ -1602,6 +2182,8 @@
     "modelsTitle": "پیش‌فرض‌های مدل",
     "chatModel": "مدل پیش‌فرض گفتگو",
     "assistantModel": "مدل دستیار",
+    "visionModel": "مدل بصری",
+    "imageGenerationModel": "مدل تولید تصویر",
     "temperature": "دما",
     "contextLength": "طول کانتکست",
     "maxTokens": "حداکثر توکن",
@@ -1622,6 +2204,121 @@
     "compactionDescription": "این پیش‌فرض‌ها فقط بر نشست‌های جدید DeepChat اثر می‌گذارند.",
     "compactionThreshold": "آستانه فعال‌سازی",
     "compactionRetainPairs": "نگه‌داری جفت‌های اخیر",
-    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد."
+    "deleteConfirm": "ایجنت «{name}» حذف شود؟ تاریخچه آن به ایجنت داخلی DeepChat برمی‌گردد.",
+    "subagentsTitle": "زیرایجنت‌ها",
+    "subagentsDescription": "اسلات‌های قابل‌استفاده‌مجددِ نشست فرزند را که `subagent_orchestrator` در اختیار می‌گذارد پیکربندی کنید.",
+    "subagentsEnabled": "فعال‌کردن زیرایجنت‌ها",
+    "subagentTargetType": "نوع مقصد",
+    "subagentTargetSelf": "همین ایجنت",
+    "subagentTargetAgent": "ایجنت",
+    "subagentDisplayName": "نام نمایشی",
+    "subagentDescription": "توضیح اسلات",
+    "subagentTargetAgentLabel": "ایجنت مقصد",
+    "subagentLimit": "{count}/{max} اسلات",
+    "addSubagentSlot": "+ افزودن اسلات"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "Overview",
+      "setup": "Setup",
+      "models": "Agent Settings",
+      "tools": "Capability Extensions",
+      "knowledge": "Knowledge",
+      "system": "System"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "Data",
+      "enabledCount": "{count} enabled",
+      "runningCount": "{count} running",
+      "enabledAgentCount": "{count} agents enabled",
+      "providersDescription": "Provider connection status",
+      "deepchatAgentsDescription": "Agent configuration entry point",
+      "mcpOn": "MCP enabled",
+      "mcpOff": "MCP disabled",
+      "syncOn": "Sync enabled",
+      "syncOff": "Sync disabled",
+      "backupNever": "Backup: never"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "Configure provider access",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "Turn on a usable model",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "Start tool servers",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "Create a data backup"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "Nothing needs attention",
+      "noModels": "No model is enabled",
+      "privacyOff": "Privacy Mode is off",
+      "backupNever": "Backup has never run"
+    },
+    "activity": {
+      "title": "Recent changes",
+      "description": "Shows the newest 200 changes while retaining the newest 2000 records.",
+      "when": "Time",
+      "category": "Category",
+      "change": "Change",
+      "empty": "No recent changes",
+      "emptyDescription": "Successful settings changes will appear here.",
+      "settingUpdated": "Updated setting: {key}",
+      "providerUpdated": "Updated provider: {name}",
+      "providerCreated": "Added provider: {name}",
+      "providerRemoved": "Removed provider: {name}",
+      "providerModelsRefreshed": "Refreshed provider models: {name}",
+      "modelStatusChanged": "Updated model status: {model}",
+      "modelBatchUpdated": "Updated {count} models",
+      "mcpServerCreated": "Added MCP server: {name}",
+      "mcpServerUpdated": "Updated MCP server: {name}",
+      "mcpServerRemoved": "Removed MCP server: {name}",
+      "mcpServerStatusChanged": "Toggled MCP server: {name}",
+      "mcpGlobalStatusChanged": "Toggled MCP global status: {status}",
+      "mcpServerStarted": "Started MCP server: {name}",
+      "mcpServerStopped": "Stopped MCP server: {name}",
+      "mcpRegistryRefreshed": "Refreshed MCP NPM registry",
+      "backupCreated": "Created backup: {name}",
+      "backupImported": "Imported backup: {name}",
+      "databaseRepaired": "Database repair finished: {status}"
+    }
   }
 }

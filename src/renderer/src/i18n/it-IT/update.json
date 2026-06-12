@@ -1,0 +1,20 @@
+{
+  "newVersion": "Nuova versione disponibile",
+  "version": "Versione",
+  "releaseDate": "Data rilascio",
+  "releaseNotes": "Note di rilascio",
+  "later": "Più tardi",
+  "githubDownload": "Download da GitHub",
+  "officialDownload": "Download ufficiale",
+  "checkUpdate": "Controlla aggiornamenti",
+  "downloading": "Download in corso",
+  "installNow": "Installa ora",
+  "installUpdate": "Installa aggiornamento",
+  "versionAvailable": "{version} disponibile",
+  "autoUpdateFailed": "Aggiornamento automatico non riuscito. Usa i link di download manuale qui sotto.",
+  "topbarButton": "Aggiorna",
+  "autoUpdate": "Aggiornamento automatico",
+  "restarting": "Riavvio in corso",
+  "alreadyUpToDate": "Già aggiornato",
+  "alreadyUpToDateDesc": "DeepChat è già all'ultima versione, non serve aggiornare."
+}

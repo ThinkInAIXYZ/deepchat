@@ -42,6 +42,7 @@
   "noFiles": "بدون پرونده",
   "noFilesUploadDesc": "برای بارگذاری پرونده‌ها روی بالا بزنید",
   "uploadSuccess": "بارگذاری موفق",
+  "uploadFailed": "بارگذاری ناموفق بود",
   "uploadedCount": "{count} پرونده بارگذاری شد",
   "confirmDelete": "آیا مطمئن هستید که می‌خواهید دستورکار \"{name}\" را پاک کنید؟",
   "confirmDeleteDescription": "این عمل قابل بازگشت نیست. دستورکار به طور دائم پاک خواهد شد.",

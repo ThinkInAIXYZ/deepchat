@@ -1,7 +1,6 @@
 {
   "chat": "Discussion",
   "welcome": "Bienvenue",
-  "playground": "Terrain d'expérimentation",
   "settings": "Paramètres",
   "settings-common": "Paramètres généraux",
   "settings-provider": "Paramètres du fournisseur",
@@ -16,8 +15,11 @@
   "settings-acp": "Agent ACP",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
+  "settings-scheduled-tasks": "Tâches planifiées",
   "settings-dashboard": "Tableau de bord",
   "settings-environments": "Environnements",
   "settings-remote": "Accès distant",
-  "settings-deepchat-agents": "Agents DeepChat"
+  "settings-deepchat-agents": "Agents DeepChat",
+  "settings-plugins": "Plugins",
+  "settings-overview": "Aperçu des paramètres"
 }

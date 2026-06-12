@@ -1,17 +1,30 @@
 {
   "success": {
-    "importComplete": "成功導入 {count} 個對話"
+    "importComplete": "成功導入 {count} 個對話",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "同步功能未啟用",
     "folderNotExists": "同步資料夾不存在",
     "noValidBackup": "同步資料夾中沒有有效的備份文件",
+    "unsupportedBackupVersion": "此備份由較新版本的 DeepChat 建立，目前版本無法導入",
     "dbNotExists": "數據庫文件不存在",
     "configNotExists": "配置文件不存在",
     "tempDbFailed": "臨時數據庫備份文件創建失敗",
     "tempConfigFailed": "臨時配置備份文件創建失敗",
     "importFailed": "導入失敗，已恢復原始數據",
     "importProcess": "導入過程出錯",
-    "unknown": "未知錯誤"
+    "unknown": "未知錯誤",
+    "encryptedBackupPasswordMissing": "此備份已加密，但本機資料庫密鑰不可用。請先解鎖加密資料庫，然後重新匯入。",
+    "overwriteEncryptionMismatch": "覆蓋匯入要求備份和目前資料庫處於相同的加密狀態。",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "系統鑰匙圈不可用，無法安全儲存密鑰。",
+    "cloudUnauthorized": "雲端驗證失敗。請檢查 Endpoint、儲存桶、Access Key ID、Secret Access Key 以及 R2 權杖權限。"
   }
 }

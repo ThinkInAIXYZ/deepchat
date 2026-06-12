@@ -135,8 +135,8 @@ async function setup(overrides?: {
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => ({
+  vi.doMock('@api/legacy/presenters', () => ({
+    useLegacyPresenter: () => ({
       pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
     })
   }))

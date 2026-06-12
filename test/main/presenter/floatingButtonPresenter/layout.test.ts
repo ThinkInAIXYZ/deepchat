@@ -9,7 +9,7 @@ import {
 } from '@/presenter/floatingButtonPresenter/layout'
 
 describe('floating widget layout helpers', () => {
-  it('sorts deepchat sessions with in-progress sessions first', () => {
+  it('sorts all regular agent sessions with in-progress sessions first', () => {
     const snapshot = buildFloatingWidgetSnapshot(
       [
         {
@@ -41,7 +41,7 @@ describe('floating widget layout helpers', () => {
         {
           id: 'acp-1',
           agentId: 'acp-agent',
-          title: 'Ignore me',
+          title: 'ACP session',
           projectDir: null,
           isPinned: false,
           isDraft: false,
@@ -52,12 +52,40 @@ describe('floating widget layout helpers', () => {
           modelId: 'acp-agent'
         }
       ],
+      [
+        {
+          id: 'deepchat',
+          name: 'DeepChat',
+          type: 'deepchat',
+          enabled: true,
+          icon: undefined,
+          avatar: null
+        },
+        {
+          id: 'acp-agent',
+          name: 'ACP Agent',
+          type: 'acp',
+          enabled: true,
+          icon: 'https://example.com/acp-agent.svg',
+          avatar: null
+        }
+      ],
       false
     )
 
-    expect(snapshot.activeCount).toBe(1)
-    expect(snapshot.sessions.map((session) => session.id)).toEqual(['running-1', 'done-1'])
-    expect(snapshot.sessions.map((session) => session.status)).toEqual(['in_progress', 'done'])
+    expect(snapshot.activeCount).toBe(2)
+    expect(snapshot.sessions.map((session) => session.id)).toEqual(['acp-1', 'running-1', 'done-1'])
+    expect(snapshot.sessions.map((session) => session.status)).toEqual([
+      'in_progress',
+      'in_progress',
+      'done'
+    ])
+    expect(snapshot.sessions[0]?.agent).toMatchObject({
+      id: 'acp-agent',
+      name: 'ACP Agent',
+      type: 'acp',
+      icon: 'https://example.com/acp-agent.svg'
+    })
   })
 
   it('keeps the right edge fixed when resizing a right-docked widget', () => {
@@ -78,7 +106,7 @@ describe('floating widget layout helpers', () => {
       'right'
     )
 
-    expect(nextBounds.x + nextBounds.width).toBe(864)
+    expect(nextBounds.x + nextBounds.width).toBe(850)
     expect(nextBounds.y).toBe(120)
   })
 
@@ -99,7 +127,7 @@ describe('floating widget layout helpers', () => {
       'right'
     )
 
-    expect(peekedBounds.x).toBe(832)
+    expect(peekedBounds.x).toBe(839)
     expect(peekedBounds.y).toBe(120)
   })
 

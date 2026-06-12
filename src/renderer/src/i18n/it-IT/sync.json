@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "{count} conversazioni importate correttamente",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
+  },
+  "error": {
+    "notEnabled": "La sincronizzazione non è attiva",
+    "folderNotExists": "La cartella di sincronizzazione non esiste",
+    "noValidBackup": "Nessun file di backup valido nella cartella di sincronizzazione",
+    "unsupportedBackupVersion": "Questo backup è stato creato da una versione più recente di DeepChat e non può essere importato",
+    "dbNotExists": "Il file database non esiste",
+    "configNotExists": "Il file di configurazione non esiste",
+    "tempDbFailed": "Creazione del file temporaneo di backup database non riuscita",
+    "tempConfigFailed": "Creazione del file temporaneo di backup configurazione non riuscita",
+    "importFailed": "Importazione non riuscita, dati originali ripristinati",
+    "importProcess": "Errore durante l'importazione",
+    "unknown": "Errore sconosciuto",
+    "encryptedBackupPasswordMissing": "Questo backup è cifrato, ma la chiave del database locale non è disponibile. Sblocca prima il database cifrato, poi importa di nuovo.",
+    "overwriteEncryptionMismatch": "L'importazione con sovrascrittura richiede che backup e database corrente abbiano lo stesso stato di cifratura.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Il portachiavi di sistema non è disponibile; impossibile salvare la chiave segreta in modo sicuro.",
+    "cloudUnauthorized": "Autenticazione cloud non riuscita. Controlla Endpoint, bucket, Access Key ID, Secret Access Key e i permessi del token R2."
+  }
+}

@@ -2,12 +2,14 @@
   "actions": {
     "rename": "Renomear",
     "delete": "Excluir",
+    "switchWithShortcut": "Mudar para este chat com {shortcut}",
     "cleanMessages": "Limpar Mensagens",
     "pin": "Fixar",
     "unpin": "Desafixar",
     "export": "Exportar",
     "exportText": "Texto Simples",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Mover conversa"
   },
   "toolbar": {
     "save": "Salvar",

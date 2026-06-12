@@ -46,6 +46,8 @@ vi.mock('fs', () => ({
 }))
 
 describe('Security Module', () => {
+  const platformPath = process.platform === 'win32' ? path.win32 : path.posix
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -66,12 +68,14 @@ describe('Security Module', () => {
     })
 
     it('should return resolved path for safe paths when path exists', () => {
-      const basePath = '/base'
-      const targetPath = '/base/subdir/file.md'
+      const basePath = platformPath.resolve('/base')
+      const targetPath = platformPath.join(basePath, 'subdir', 'file.md')
 
       vi.mocked(fs.realpathSync).mockImplementation((p) => {
-        if (p === targetPath || p === path.normalize(targetPath)) return targetPath
-        if (p === basePath) return basePath
+        if (String(p) === targetPath || String(p) === platformPath.normalize(targetPath)) {
+          return targetPath
+        }
+        if (String(p) === basePath) return basePath
         throw new Error('ENOENT')
       })
 
@@ -79,12 +83,12 @@ describe('Security Module', () => {
     })
 
     it('should handle symlinks by resolving to real path', () => {
-      const basePath = '/base'
-      const symlinkPath = '/base/symlink'
-      const realTarget = '/other/directory' // Outside base
+      const basePath = platformPath.resolve('/base')
+      const symlinkPath = platformPath.join(basePath, 'symlink')
+      const realTarget = platformPath.resolve('/other/directory') // Outside base
 
       vi.mocked(fs.realpathSync).mockImplementation((p) => {
-        if (p === basePath) return basePath
+        if (String(p) === basePath) return basePath
         if (String(p).includes('symlink')) return realTarget
         throw new Error('ENOENT')
       })
@@ -94,12 +98,12 @@ describe('Security Module', () => {
     })
 
     it('should return path for non-existent file if parent is safe', () => {
-      const basePath = '/base'
-      const parentPath = '/base/subdir'
+      const basePath = platformPath.resolve('/base')
+      const parentPath = platformPath.join(basePath, 'subdir')
 
       vi.mocked(fs.realpathSync).mockImplementation((p) => {
-        if (p === basePath) return basePath
-        if (p === parentPath) return parentPath
+        if (String(p) === basePath) return basePath
+        if (String(p) === parentPath) return parentPath
         throw new Error('ENOENT')
       })
 
@@ -142,7 +146,8 @@ describe('Security Module', () => {
     it('should return true for paths within base', () => {
       vi.mocked(fs.realpathSync).mockImplementation((p) => String(p))
 
-      expect(isPathWithinBase('/base/subdir', '/base')).toBe(true)
+      const basePath = platformPath.resolve('/base')
+      expect(isPathWithinBase(platformPath.join(basePath, 'subdir'), basePath)).toBe(true)
     })
 
     it('should return false for paths outside base', () => {
@@ -271,11 +276,17 @@ describe('Security Module', () => {
     })
 
     it('should check parent directory if file does not exist', async () => {
+      const parentPath = platformPath.resolve('/parent')
+      const targetPath = platformPath.join(parentPath, 'newfile')
+
       vi.mocked(fs.promises.access)
         .mockRejectedValueOnce(new Error('ENOENT')) // file doesn't exist
         .mockResolvedValue(undefined) // parent is writable
+      vi.mocked(fs.promises.stat).mockResolvedValue({
+        isDirectory: () => true
+      } as fs.Stats)
 
-      const result = await checkWritePermission('/parent/newfile')
+      const result = await checkWritePermission(targetPath)
       expect(result).toBe(true)
     })
 
@@ -480,6 +491,9 @@ describe('Security Module', () => {
 
   describe('validateImportOperation', () => {
     it('should return valid for correct parameters', async () => {
+      const basePath = platformPath.resolve('/base')
+      const sourcePath = platformPath.join(basePath, 'skill.md')
+
       vi.mocked(fs.realpathSync).mockImplementation((p) => String(p))
       vi.mocked(fs.promises.access).mockResolvedValue(undefined)
       vi.mocked(fs.promises.stat).mockResolvedValue({
@@ -487,12 +501,7 @@ describe('Security Module', () => {
         size: 1024
       } as fs.Stats)
 
-      const result = await validateImportOperation(
-        '/base/skill.md',
-        'claude-code',
-        'my-skill',
-        '/base'
-      )
+      const result = await validateImportOperation(sourcePath, 'claude-code', 'my-skill', basePath)
 
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)
@@ -525,15 +534,13 @@ describe('Security Module', () => {
 
   describe('validateExportOperation', () => {
     it('should return valid for correct parameters', async () => {
+      const basePath = platformPath.resolve('/base')
+      const targetPath = platformPath.join(basePath, 'output', 'skill.md')
+
       vi.mocked(fs.realpathSync).mockImplementation((p) => String(p))
       vi.mocked(fs.promises.access).mockResolvedValue(undefined)
 
-      const result = await validateExportOperation(
-        '/base/output/skill.md',
-        'cursor',
-        'my-skill',
-        '/base'
-      )
+      const result = await validateExportOperation(targetPath, 'cursor', 'my-skill', basePath)
 
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
+import { configureSQLiteConnection } from './connectionConfig'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>
@@ -24,26 +25,18 @@ export class DataImporter {
     targetPassword?: string
   ) {
     this.sourceDb = new Database(sourcePath)
-    this.sourceDb.pragma('journal_mode = WAL')
-
-    if (sourcePassword) {
-      this.sourceDb.pragma("cipher='sqlcipher'")
-      const hex = Buffer.from(sourcePassword, 'utf8').toString('hex')
-      this.sourceDb.pragma(`key = "x'${hex}'"`)
-    }
+    this.configureConnection(this.sourceDb, sourcePassword)
 
     if (typeof targetDbOrPath === 'string') {
       this.targetDb = new Database(targetDbOrPath)
-      this.targetDb.pragma('journal_mode = WAL')
-
-      if (targetPassword) {
-        this.targetDb.pragma("cipher='sqlcipher'")
-        const hex = Buffer.from(targetPassword, 'utf8').toString('hex')
-        this.targetDb.pragma(`key = "x'${hex}'"`)
-      }
+      this.configureConnection(this.targetDb, targetPassword)
     } else {
       this.targetDb = targetDbOrPath
     }
+  }
+
+  private configureConnection(db: Database.Database, password?: string): void {
+    configureSQLiteConnection(db, password)
   }
 
   /**
@@ -81,9 +74,25 @@ export class DataImporter {
   }
 
   private getTablesInOrder(): string[] {
-    const tables = this.sourceDb
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-      .all() as { name: string }[]
+    const allTables = this.sourceDb
+      .prepare(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+      )
+      .all() as { name: string; sql: string | null }[]
+
+    // Virtual tables (e.g. FTS5) and their shadow tables cannot be written by a plain column-copy
+    // INSERT — SQLite raises "table X may not be modified". Note FTS5 shadow tables
+    // (<vtab>_data/_idx/_docsize/_config/_content) DO carry a real CREATE TABLE sql in
+    // sqlite_master, so they must be excluded by name prefix, not by inspecting their sql.
+    // For external-content FTS the index is rebuilt by triggers when the content table is imported.
+    const virtualTableNames = allTables
+      .filter((table) => typeof table.sql === 'string' && /^CREATE VIRTUAL TABLE/i.test(table.sql))
+      .map((table) => table.name)
+
+    const isVirtualOrShadow = (name: string): boolean =>
+      virtualTableNames.some((vtab) => name === vtab || name.startsWith(`${vtab}_`))
+
+    const tables = allTables.filter((table) => !isVirtualOrShadow(table.name))
 
     const preferredOrder = ['conversations', 'messages', 'attachments', 'message_attachments']
     const preferredSet = new Set(preferredOrder)

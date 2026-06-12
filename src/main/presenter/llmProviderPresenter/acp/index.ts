@@ -8,7 +8,12 @@ export {
 } from './acpProcessManager'
 export { AcpSessionManager, type AcpSessionRecord } from './acpSessionManager'
 export { AcpSessionPersistence } from './acpSessionPersistence'
-export { buildClientCapabilities, type AcpCapabilityOptions } from './acpCapabilities'
+export {
+  buildCapabilitySnapshot,
+  buildClientCapabilities,
+  type AcpCapabilityOptions,
+  type AcpCapabilitySnapshot
+} from './acpCapabilities'
 export { AcpMessageFormatter } from './acpMessageFormatter'
 export { AcpContentMapper } from './acpContentMapper'
 export {

@@ -157,7 +157,7 @@
 
             <div class="space-y-4">
               <div
-                class="group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all cursor-pointer"
+                class="group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all"
                 @click="uploadFile"
               >
                 <div class="flex items-center gap-3">
@@ -281,7 +281,7 @@ import {
   SheetTitle
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { FileItem } from '@shared/presenter'
@@ -317,7 +317,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const filePresenter = usePresenter('filePresenter')
+const filePresenter = useLegacyPresenter('filePresenter')
 
 const form = reactive<PromptForm>({
   id: '',

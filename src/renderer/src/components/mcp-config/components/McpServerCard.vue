@@ -30,11 +30,14 @@ interface ServerInfo {
   type?: string
   baseUrl?: string
   errorMessage?: string
+  source?: string
+  sourceId?: string
 }
 
 interface Props {
   server: ServerInfo
   isBuiltIn?: boolean
+  isManaged?: boolean
   isLoading?: boolean
   disabled?: boolean
   toolsCount?: number
@@ -114,6 +117,9 @@ const fullDescription = computed(() => {
     : props.server.descriptions
 })
 
+const canEdit = computed(() => !props.isManaged)
+const hasMenuActions = computed(() => canEdit.value || !props.isBuiltIn)
+
 // 检查文本是否溢出
 const checkTextOverflow = async () => {
   await nextTick()
@@ -154,27 +160,28 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu>
+        <DropdownMenu v-if="hasMenuActions">
           <DropdownMenuTrigger as-child>
             <Button
               variant="ghost"
               size="icon"
               class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              @click.stop
             >
               <Icon icon="lucide:more-horizontal" class="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem :disabled="disabled" @click="$emit('edit')">
+            <DropdownMenuItem v-if="canEdit" :disabled="disabled" @click.stop="$emit('edit')">
               <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
               {{ t('settings.mcp.editServer') }}
             </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="!isBuiltIn" />
+            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
             <DropdownMenuItem
               v-if="!isBuiltIn"
               :disabled="disabled"
               class="text-red-600 dark:text-red-400/90 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/40 dark:focus:text-red-300 [&_svg]:text-current"
-              @click="$emit('remove')"
+              @click.stop="$emit('remove')"
             >
               <Icon icon="lucide:trash-2" class="h-4 w-4 mr-2" />
               {{ t('settings.mcp.removeServer') }}
@@ -186,13 +193,13 @@ watch(watchDescription, () => {
       <!-- 描述 -->
       <p
         ref="descriptionRef"
-        class="text-xs text-secondary-foreground cursor-pointer overflow-hidden leading-5 break-all mb-2"
+        class="text-xs text-secondary-foreground overflow-hidden leading-5 break-all mb-2"
         :class="[
           !isDescriptionExpanded ? 'line-clamp-1' : '',
           needsExpansion ? 'hover:text-foreground transition-colors' : ''
         ]"
         style="min-height: 1rem"
-        @click="needsExpansion && (isDescriptionExpanded = !isDescriptionExpanded)"
+        @click.stop="needsExpansion && (isDescriptionExpanded = !isDescriptionExpanded)"
       >
         {{ fullDescription }}
       </p>
@@ -220,11 +227,13 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 开关 -->
-        <Switch
-          :model-value="server.enabled"
-          :disabled="disabled || isLoading"
-          @update:model-value="$emit('toggle')"
-        />
+        <div class="shrink-0" @click.stop @keydown.stop>
+          <Switch
+            :model-value="server.enabled"
+            :disabled="disabled || isLoading"
+            @update:model-value="$emit('toggle')"
+          />
+        </div>
       </div>
     </div>
     <div class="flex flex-row border-t h-9 items-center">
@@ -234,7 +243,7 @@ watch(watchDescription, () => {
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || toolsCount === 0"
-        @click="$emit('viewTools')"
+        @click.stop="$emit('viewTools')"
       >
         <Icon icon="lucide:wrench" class="h-3 w-3 mr-1" />
         {{ toolsCount }}
@@ -246,7 +255,7 @@ watch(watchDescription, () => {
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || promptsCount === 0"
-        @click="$emit('viewPrompts')"
+        @click.stop="$emit('viewPrompts')"
       >
         <Icon icon="lucide:message-square-quote" class="h-3 w-3 mr-1" />
         {{ promptsCount }}
@@ -258,7 +267,7 @@ watch(watchDescription, () => {
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || resourcesCount === 0"
-        @click="$emit('viewResources')"
+        @click.stop="$emit('viewResources')"
       >
         <Icon icon="lucide:folder" class="h-3 w-3 mr-1" />
         {{ resourcesCount }}

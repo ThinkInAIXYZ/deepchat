@@ -23,6 +23,51 @@
     "confirm": "创建分支",
     "tag": "分支"
   },
+  "agentTransfer": {
+    "deleteTitle": "删除 {name}？",
+    "deleteDescription": "请选择当前归属这个 Agent 的会话要如何处理。",
+    "moveTitle": "移动会话",
+    "moveDescription": "将这个已完成会话移动到其他 Agent，消息内容保持不变。",
+    "loading": "正在检查相关会话...",
+    "processing": "处理中...",
+    "totalSessions": "相关会话",
+    "movableSessions": "可移动",
+    "emptyDrafts": "空草稿",
+    "blockedSessions": "暂不可动",
+    "moveBeforeDeleteTitle": "先把会话移动到其他 Agent",
+    "moveBeforeDeleteDescription": "已完成会话会保留消息，后续对话使用目标 Agent。空草稿会被移除。",
+    "deleteSessionsTitle": "连同这个 Agent 的会话一起删除",
+    "deleteSessionsDescription": "所有相关会话和消息都会随 Agent 一起删除。",
+    "targetAgent": "目标 Agent",
+    "selectTarget": "选择一个 Agent",
+    "acpWorkdir": "ACP 工作目录",
+    "acpWorkdirPlaceholder": "留空则保留每个会话当前项目",
+    "acpWorkdirHint": "ACP Agent 需要工作目录。如果会话没有项目，请在这里填写一个。",
+    "currentAgent": "当前 Agent：{name}",
+    "relatedSessions": "相关会话",
+    "blockedWarning": "部分会话仍在运行或有排队输入，请结束后再移动或删除这个 Agent。",
+    "agentDeleteBlocked": "这个 Agent 仍有关联会话，请先移动或删除这些会话。",
+    "deleteAgentAndSessions": "删除 Agent 和会话",
+    "moveAndDeleteAgent": "移动并删除 Agent",
+    "moveConversation": "移动会话",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "运行中",
+      "pending-input": "有排队",
+      "missing-target-workdir": "需工作目录",
+      "missing-session": "已缺失",
+      "same-agent": "同一 Agent"
+    },
+    "sampleState": {
+      "ready": "可移动",
+      "draft": "草稿",
+      "subagent": "子会话"
+    },
+    "deepChatTargetOnly": "只能选择 DeepChat Agent 作为迁移目标。ACP 会话可以迁移到 DeepChat，但不能迁移到 ACP。"
+  },
   "error": {
     "title": "错误"
   },

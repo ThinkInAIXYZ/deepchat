@@ -13,6 +13,8 @@
   "response": "En cours d'exécution",
   "permission": "Demander une autorisation",
   "responseData": "réponse de la fonction",
+  "imagePreview": "Aperçu de l’image",
+  "imagePreviewCount": "Aucun aperçu d’image | Un aperçu d’image | {count} aperçus d’image",
   "success": "succès",
   "title": "Appel d'outil",
   "terminalOutput": "Sortie terminale",

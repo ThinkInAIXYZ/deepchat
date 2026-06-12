@@ -36,6 +36,20 @@ import type {
 } from '@/components/chat/messageListItems'
 import { useLanguageStore } from '@/stores/language'
 
+const MENTION_ICON_MAP: Record<string, string> = {
+  context: 'lucide:quote',
+  prompts: 'lucide:message-square-quote',
+  files: 'lucide:file-text',
+  tools: 'lucide:wrench',
+  skills: 'lucide:sparkles',
+  users: 'lucide:user',
+  channels: 'lucide:hash',
+  projects: 'lucide:folder',
+  documents: 'lucide:file-text',
+  resources: 'lucide:database',
+  default: 'lucide:at-sign'
+}
+
 type ContentBlock =
   | DisplayUserMessageTextBlock
   | DisplayUserMessageMentionBlock
@@ -61,21 +75,7 @@ const handleMentionClick = (block: DisplayUserMessageMentionBlock) => {
 
 // 根据 category 获取对应的图标
 const getMentionIcon = (category: string) => {
-  const iconMap: Record<string, string> = {
-    context: 'lucide:quote',
-    prompts: 'lucide:message-square-quote',
-    files: 'lucide:file-text',
-    tools: 'lucide:wrench',
-    skills: 'lucide:sparkles',
-    users: 'lucide:user',
-    channels: 'lucide:hash',
-    projects: 'lucide:folder',
-    documents: 'lucide:file-text',
-    resources: 'lucide:database',
-    default: 'lucide:at-sign'
-  }
-
-  return iconMap[category] || iconMap.default
+  return MENTION_ICON_MAP[category] || MENTION_ICON_MAP.default
 }
 
 const getMentionLabel = (block: DisplayUserMessageMentionBlock) => {

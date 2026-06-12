@@ -5,6 +5,19 @@ export interface RateLimitConfig {
   enabled: boolean
 }
 
+export interface RateLimitQueueSnapshot {
+  providerId: string
+  qpsLimit: number
+  currentQps: number
+  queueLength: number
+  estimatedWaitTime: number
+}
+
+export interface ExecuteWithRateLimitOptions {
+  signal?: AbortSignal
+  onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+}
+
 export interface QueueItem {
   id: string
   timestamp: number

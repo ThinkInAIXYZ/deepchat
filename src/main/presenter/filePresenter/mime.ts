@@ -8,12 +8,11 @@ import { DocFileAdapter } from './DocFileAdapter'
 import { PptFileAdapter } from './PptFileAdapter'
 import { CodeFileAdapter } from './CodeFileAdapter'
 import { AudioFileAdapter } from './AudioFileAdapter'
+import { OpenDocumentFileAdapter } from './OpenDocumentFileAdapter'
+import { RtfFileAdapter } from './RtfFileAdapter'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
-import fs from 'fs/promises'
-import path from 'path'
-import { lookup } from 'es-mime-types'
 
-const TYPESCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
+export { detectMimeType, isLikelyTextFile } from './mimeDetection'
 
 export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => {
   const map = new Map<string, FileAdapterConstructor>()
@@ -21,10 +20,15 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   // Text formats
   map.set('text/plain', TextFileAdapter)
   map.set('text/csv', CsvFileAdapter)
+  map.set('text/tab-separated-values', CsvFileAdapter)
   map.set('text/markdown', TextFileAdapter)
   map.set('application/json', TextFileAdapter)
   map.set('application/x-yaml', TextFileAdapter)
+  map.set('application/yaml', TextFileAdapter)
+  map.set('text/yaml', TextFileAdapter)
   map.set('application/xml', TextFileAdapter)
+  map.set('application/rtf', RtfFileAdapter)
+  map.set('text/rtf', RtfFileAdapter)
   map.set('text/*', TextFileAdapter)
 
   // Audio formats
@@ -69,8 +73,16 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   // Excel formats
   map.set('application/vnd.ms-excel', ExcelFileAdapter)
   map.set('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.sheet.macroenabled.12', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.sheet.macroEnabled.12', ExcelFileAdapter)
+  map.set('application/vnd.openxmlformats-officedocument.spreadsheetml.template', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.template.macroenabled.12', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.template.macroEnabled.12', ExcelFileAdapter)
   map.set('application/vnd.oasis.opendocument.spreadsheet', ExcelFileAdapter)
   map.set('application/vnd.ms-excel.sheet.binary.macroEnabled.12', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.sheet.binary.macroenabled.12', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.addin.macroenabled.12', ExcelFileAdapter)
+  map.set('application/vnd.ms-excel.addin.macroEnabled.12', ExcelFileAdapter)
   map.set('application/vnd.apple.numbers', ExcelFileAdapter)
 
   // Image formats
@@ -80,6 +92,10 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   map.set('image/gif', ImageFileAdapter)
   map.set('image/webp', ImageFileAdapter)
   map.set('image/bmp', ImageFileAdapter)
+  map.set('image/svg+xml', ImageFileAdapter)
+  map.set('image/heic', ImageFileAdapter)
+  map.set('image/heif', ImageFileAdapter)
+  map.set('image/tiff', ImageFileAdapter)
   map.set('image/*', ImageFileAdapter)
 
   // PDF format
@@ -88,6 +104,12 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   // Word document formats
   map.set('application/msword', DocFileAdapter)
   map.set('application/vnd.openxmlformats-officedocument.wordprocessingml.document', DocFileAdapter)
+  map.set('application/vnd.ms-word.document.macroenabled.12', DocFileAdapter)
+  map.set('application/vnd.ms-word.document.macroEnabled.12', DocFileAdapter)
+  map.set('application/vnd.openxmlformats-officedocument.wordprocessingml.template', DocFileAdapter)
+  map.set('application/vnd.ms-word.template.macroenabled.12', DocFileAdapter)
+  map.set('application/vnd.ms-word.template.macroEnabled.12', DocFileAdapter)
+  map.set('application/vnd.oasis.opendocument.text', OpenDocumentFileAdapter)
 
   // PowerPoint formats
   map.set('application/vnd.ms-powerpoint', PptFileAdapter)
@@ -95,6 +117,15 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     PptFileAdapter
   )
+  map.set('application/vnd.ms-powerpoint.presentation.macroenabled.12', PptFileAdapter)
+  map.set('application/vnd.ms-powerpoint.presentation.macroEnabled.12', PptFileAdapter)
+  map.set('application/vnd.openxmlformats-officedocument.presentationml.slideshow', PptFileAdapter)
+  map.set('application/vnd.ms-powerpoint.slideshow.macroenabled.12', PptFileAdapter)
+  map.set('application/vnd.ms-powerpoint.slideshow.macroEnabled.12', PptFileAdapter)
+  map.set('application/vnd.openxmlformats-officedocument.presentationml.template', PptFileAdapter)
+  map.set('application/vnd.ms-powerpoint.template.macroenabled.12', PptFileAdapter)
+  map.set('application/vnd.ms-powerpoint.template.macroEnabled.12', PptFileAdapter)
+  map.set('application/vnd.oasis.opendocument.presentation', OpenDocumentFileAdapter)
 
   // Additional C/C++ formats
   map.set('text/x-c-header', CodeFileAdapter)
@@ -107,76 +138,4 @@ export const getMimeTypeAdapterMap = (): Map<string, FileAdapterConstructor> => 
   map.set('', UnsupportFileAdapter)
 
   return map
-}
-
-export const detectMimeType = async (filePath: string): Promise<string> => {
-  try {
-    const mimeType = lookup(filePath)
-    const ext = path.extname(filePath).toLowerCase()
-
-    if (mimeType === 'video/mp2t' && TYPESCRIPT_EXTENSIONS.has(ext)) {
-      return (await isLikelyTextFile(filePath)) ? 'application/typescript' : mimeType
-    }
-
-    if (mimeType) {
-      return mimeType
-    }
-
-    const isText = await isLikelyTextFile(filePath)
-    return isText ? 'text/plain' : 'application/octet-stream'
-  } catch {
-    try {
-      const isText = await isLikelyTextFile(filePath)
-      return isText ? 'text/plain' : 'application/octet-stream'
-    } catch (textCheckError) {
-      console.error(`Error during text check for ${filePath}:`, textCheckError)
-      return 'application/octet-stream' // Final fallback on error
-    }
-  }
-}
-
-// Helper function to check if a file is likely text-based
-export const isLikelyTextFile = async (filePath: string, bytesToRead = 1024): Promise<boolean> => {
-  let fileHandle: fs.FileHandle | undefined
-  try {
-    fileHandle = await fs.open(filePath, 'r')
-    const buffer = Buffer.alloc(bytesToRead)
-    const { bytesRead } = await fileHandle.read(buffer, 0, bytesToRead, 0)
-    await fileHandle.close() // Close the file handle promptly
-
-    if (bytesRead === 0) {
-      return false
-    }
-
-    const content = buffer.slice(0, bytesRead)
-
-    const hasNullByte = content.includes(0)
-    if (hasNullByte) {
-      return false
-    }
-
-    let nonTextChars = 0
-    for (let i = 0; i < content.length; i++) {
-      const byte = content[i]
-      if (
-        !((byte >= 32 && byte <= 126) || byte === 9 || byte === 10 || byte === 13 || byte >= 128)
-      ) {
-        nonTextChars++
-      }
-    }
-
-    const nonTextRatio = bytesRead > 0 ? nonTextChars / bytesRead : 0
-
-    if (nonTextRatio > 0.1) {
-      return false
-    }
-
-    return true
-  } catch (error) {
-    console.error(`[isLikelyTextFile] Failed to read file ${path.basename(filePath)}:`, error)
-    if (fileHandle) {
-      await fileHandle.close() // Ensure closure even on error
-    }
-    return false // Default to not-text on error
-  }
 }

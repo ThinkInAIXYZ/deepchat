@@ -1,0 +1,25 @@
+{
+  "calling": "Đang gọi...",
+  "response": "Đang chạy...",
+  "end": "Xong",
+  "error": "Lỗi",
+  "title": "Cuộc gọi công cụ",
+  "clickToView": "Nhấn vào đây để xem chi tiết",
+  "functionName": "Tên chức năng",
+  "permission": "Đang yêu cầu sự cho phép...",
+  "params": "Thông số chức năng",
+  "responseData": "phản hồi",
+  "imagePreview": "Xem trước hình ảnh",
+  "imagePreviewCount": "Không có bản xem trước hình ảnh | Xem trước một hình ảnh | Xem trước hình ảnh {count}",
+  "terminalOutput": "Đầu ra thiết bị đầu cuối",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "Đã hoàn thành việc thay thế {count}",
+  "fileOperation": "Thao tác với tệp",
+  "fileRead": "Đọc tệp",
+  "fileWrite": "Viết tập tin",
+  "filePath": "Đường dẫn tệp",
+  "success": "thành công",
+  "failed": "thất bại"
+}

@@ -1,0 +1,89 @@
+{
+  "cancel": "Hủy bỏ",
+  "confirm": "Xác nhận",
+  "close": "Đóng",
+  "ok": "được rồi",
+  "delete": {
+    "title": "Bạn có chắc chắn muốn xóa cuộc trò chuyện này không?",
+    "description": "Không thể hoàn tác hành động này.",
+    "confirm": "Xóa"
+  },
+  "rename": {
+    "title": "Đổi tên cuộc trò chuyện",
+    "description": "Vui lòng nhập tên mới cho cuộc trò chuyện."
+  },
+  "cleanMessages": {
+    "title": "Xóa tất cả tin nhắn",
+    "description": "Thao tác này sẽ xóa tất cả tin nhắn và tập tin trong cuộc trò chuyện này. Bạn có chắc chắn muốn tiếp tục không?",
+    "confirm": "Xóa"
+  },
+  "fork": {
+    "title": "Tạo chi nhánh",
+    "description": "Thao tác này sẽ sao chép tất cả tin nhắn từ tin nhắn đầu tiên sang tin nhắn hiện tại vào một cuộc trò chuyện mới nơi bạn có thể tiếp tục cuộc đối thoại.",
+    "confirm": "Tạo chi nhánh",
+    "tag": "chi nhánh"
+  },
+  "error": {
+    "title": "Lỗi"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Xác nhận Kích hoạt lý luận",
+      "functionCall": "Xác nhận kích hoạt chức năng gọi"
+    },
+    "message": {
+      "reasoning": "Việc kích hoạt lý luận sẽ tự động vô hiệu hóa chức năng gọi hàm. Đây là hạn chế của mẫu DeepSeek-V3.1 và không thể sử dụng đồng thời cả hai tính năng. Tiếp tục?",
+      "functionCall": "Việc kích hoạt chức năng gọi sẽ tự động vô hiệu hóa lý luận. Đây là hạn chế của mẫu DeepSeek-V3.1 và không thể sử dụng đồng thời cả hai tính năng. Tiếp tục?"
+    },
+    "warningText": {
+      "reasoning": "Lưu ý: Việc bật lý luận sẽ tự động tắt chức năng gọi hàm, đây là yêu cầu của các mô hình DeepSeek-V3.1.",
+      "functionCall": "Lưu ý: Việc kích hoạt chức năng gọi hàm sẽ tự động vô hiệu hóa khả năng suy luận, đây là yêu cầu của các mô hình DeepSeek-V3.1."
+    },
+    "confirmEnable": "Xác nhận kích hoạt"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Xóa {name}?",
+    "deleteDescription": "Chọn cách xử lý các cuộc trò chuyện hiện thuộc về agent này.",
+    "moveTitle": "Chuyển cuộc trò chuyện",
+    "moveDescription": "Chuyển cuộc trò chuyện đã hoàn tất này sang agent khác mà không thay đổi tin nhắn.",
+    "loading": "Đang kiểm tra các cuộc trò chuyện liên quan...",
+    "processing": "Đang xử lý...",
+    "totalSessions": "Liên quan",
+    "movableSessions": "Có thể chuyển",
+    "emptyDrafts": "Bản nháp trống",
+    "blockedSessions": "Bị chặn",
+    "moveBeforeDeleteTitle": "Chuyển cuộc trò chuyện sang agent khác",
+    "moveBeforeDeleteDescription": "Các cuộc trò chuyện đã hoàn tất sẽ giữ tin nhắn và dùng agent đích cho các lượt trả lời sau. Bản nháp trống sẽ bị xóa.",
+    "deleteSessionsTitle": "Xóa cuộc trò chuyện với agent này",
+    "deleteSessionsDescription": "Tất cả cuộc trò chuyện và tin nhắn liên quan sẽ bị xóa cùng với agent.",
+    "targetAgent": "Agent đích",
+    "selectTarget": "Chọn agent",
+    "acpWorkdir": "Thư mục làm việc ACP",
+    "acpWorkdirPlaceholder": "Để trống để giữ dự án của từng cuộc trò chuyện",
+    "acpWorkdirHint": "Agent ACP yêu cầu thư mục làm việc. Nếu cuộc trò chuyện không có dự án, hãy nhập một thư mục tại đây.",
+    "currentAgent": "Agent hiện tại: {name}",
+    "relatedSessions": "Cuộc trò chuyện liên quan",
+    "blockedWarning": "Một số cuộc trò chuyện vẫn đang chạy hoặc có đầu vào trong hàng đợi. Hãy hoàn tất trước khi chuyển hoặc xóa agent này.",
+    "agentDeleteBlocked": "Agent vẫn có cuộc trò chuyện liên quan. Hãy chuyển hoặc xóa chúng trước.",
+    "deleteAgentAndSessions": "Xóa agent và cuộc trò chuyện",
+    "moveAndDeleteAgent": "Chuyển và xóa agent",
+    "moveConversation": "Chuyển cuộc trò chuyện",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Đang chạy",
+      "pending-input": "Đang xếp hàng",
+      "missing-target-workdir": "Cần thư mục làm việc",
+      "missing-session": "Thiếu",
+      "same-agent": "Cùng agent"
+    },
+    "sampleState": {
+      "ready": "Sẵn sàng",
+      "draft": "Bản nháp",
+      "subagent": "Agent con"
+    },
+    "deepChatTargetOnly": "Chỉ có thể chọn agent DeepChat làm đích chuyển. Cuộc trò chuyện ACP có thể chuyển sang DeepChat, nhưng không thể chuyển vào ACP."
+  }
+}

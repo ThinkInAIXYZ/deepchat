@@ -1,58 +1,38 @@
 import { useMutation, useQueryCache, type EntryKey } from '@pinia/colada'
-import type { IPresenter } from '@shared/presenter'
-import { usePresenter } from './usePresenter'
 
-type PresenterName = keyof IPresenter
-type PresenterMethod<TName extends PresenterName> = keyof IPresenter[TName]
-type PresenterMethodFn<
-  TName extends PresenterName,
-  TMethod extends PresenterMethod<TName>
-> = IPresenter[TName][TMethod] extends (...args: infer TArgs) => infer TResult
-  ? (...args: TArgs) => TResult
-  : never
+type MutationFunction<TArgs extends unknown[], TResult> = (
+  ...args: TArgs
+) => Promise<TResult> | TResult
 
-export interface UseIpcMutationOptions<
-  TName extends PresenterName,
-  TMethod extends PresenterMethod<TName>
-> {
-  presenter: TName
-  method: TMethod
+export interface UseIpcMutationOptions<TArgs extends unknown[], TResult> {
+  mutation: MutationFunction<TArgs, TResult>
   invalidateQueries?: (
-    result: Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>,
-    variables: Parameters<PresenterMethodFn<TName, TMethod>>
+    result: Awaited<TResult> | undefined,
+    variables: TArgs
   ) => EntryKey[] | EntryKey[][]
-  onSuccess?: (
-    result: Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>,
-    variables: Parameters<PresenterMethodFn<TName, TMethod>>
-  ) => void | Promise<void>
-  onError?: (
-    error: Error,
-    variables: Parameters<PresenterMethodFn<TName, TMethod>>
-  ) => void | Promise<void>
+  onSuccess?: (result: Awaited<TResult> | undefined, variables: TArgs) => void | Promise<void>
+  onError?: (error: Error, variables: TArgs) => void | Promise<void>
   onSettled?: (
-    result: Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>> | undefined,
+    result: Awaited<TResult> | undefined,
     error: Error | null,
-    variables: Parameters<PresenterMethodFn<TName, TMethod>>,
+    variables: TArgs,
     context: any
   ) => void | Promise<void>
 }
 
-export function useIpcMutation<TName extends PresenterName, TMethod extends PresenterMethod<TName>>(
-  options: UseIpcMutationOptions<TName, TMethod>
+export function useIpcMutation<TArgs extends unknown[], TResult>(
+  options: UseIpcMutationOptions<TArgs, TResult>
 ) {
-  const presenter = usePresenter(options.presenter)
-  const invoke = presenter[options.method] as PresenterMethodFn<TName, TMethod>
   const queryCache = useQueryCache()
 
   return useMutation({
-    mutation: async (vars: Parameters<PresenterMethodFn<TName, TMethod>>) => {
-      return await invoke(...vars)
+    mutation: async (vars: TArgs) => {
+      return await options.mutation(...vars)
     },
     async onSettled(result, error, variables, context) {
-      // Call user-provided onSettled if exists
       if (options.onSettled) {
         await options.onSettled(
-          result as Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>> | undefined,
+          result as Awaited<TResult> | undefined,
           error || null,
           variables,
           context
@@ -60,12 +40,10 @@ export function useIpcMutation<TName extends PresenterName, TMethod extends Pres
       }
     },
     async onSuccess(result, variables, _context) {
-      // Invalidate queries if specified (only on success)
-      if (options.invalidateQueries && result !== undefined) {
-        const keys = options.invalidateQueries(
-          result as Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>,
-          variables
-        )
+      const resolvedResult = result as Awaited<TResult> | undefined
+
+      if (options.invalidateQueries) {
+        const keys = options.invalidateQueries(resolvedResult, variables)
         const keysArray = Array.isArray(keys[0]) ? keys : ([keys] as EntryKey[][])
 
         for (const key of keysArray) {
@@ -73,11 +51,8 @@ export function useIpcMutation<TName extends PresenterName, TMethod extends Pres
         }
       }
 
-      if (options.onSuccess && result !== undefined) {
-        await options.onSuccess(
-          result as Awaited<ReturnType<PresenterMethodFn<TName, TMethod>>>,
-          variables
-        )
+      if (options.onSuccess) {
+        await options.onSuccess(resolvedResult, variables)
       }
     },
     async onError(error, variables, _context) {

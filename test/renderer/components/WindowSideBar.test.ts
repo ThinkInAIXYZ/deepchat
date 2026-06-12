@@ -4,8 +4,13 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
   groupMode?: 'time' | 'project'
+  selectedAgentId?: string | null
+  enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
+  activeSession?: { id: string; agentId: string } | null
+  hasActiveSession?: boolean
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
+    id: string
     label: string
     labelKey?: string
     sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
@@ -14,11 +19,83 @@ type SetupOptions = {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
   }
+  collapsed?: boolean
+  platform?: 'darwin' | 'win32' | 'linux'
+}
+
+const TEST_TIMEOUT_MS = 20000
+
+const createDomRect = (left: number, top: number, width: number, height: number): DOMRect =>
+  ({
+    x: left,
+    y: top,
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    toJSON: () => ({})
+  }) as DOMRect
+
+const dispatchWindowKeydown = (
+  key: string,
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
+) =>
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers
+    })
+  )
+
+const dispatchWindowKeyup = (
+  key: string,
+  modifiers: Partial<
+    Pick<KeyboardEventInit, 'altKey' | 'ctrlKey' | 'metaKey' | 'repeat' | 'shiftKey'>
+  > = {}
+) =>
+  window.dispatchEvent(
+    new KeyboardEvent('keyup', {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers
+    })
+  )
+
+const mountedWrappers: Array<{ unmount: () => void }> = []
+
+const trackMountedWrapper = <T extends { unmount: () => void }>(wrapper: T): T => {
+  let mounted = true
+  const originalUnmount = wrapper.unmount.bind(wrapper)
+
+  wrapper.unmount = () => {
+    if (!mounted) {
+      return
+    }
+
+    mounted = false
+    const wrapperIndex = mountedWrappers.indexOf(wrapper)
+    if (wrapperIndex !== -1) {
+      mountedWrappers.splice(wrapperIndex, 1)
+    }
+    originalUnmount()
+  }
+
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
 
 afterEach(() => {
+  mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   vi.clearAllTimers()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 const setup = async (options: SetupOptions = {}) => {
@@ -31,9 +108,11 @@ const setup = async (options: SetupOptions = {}) => {
     state: 'disabled' as const
   }
   const agentStore = reactive({
-    selectedAgentId: 'deepchat' as string | null,
+    selectedAgentId: (options.selectedAgentId ?? 'deepchat') as string | null,
     selectedAgentName: 'DeepChat',
-    enabledAgents: [{ id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }],
+    enabledAgents: (options.enabledAgents ?? [
+      { id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }
+    ]) as Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled: boolean }>,
     setSelectedAgent: vi.fn((id: string | null) => {
       operations.push(`set:${id ?? 'all'}`)
       agentStore.selectedAgentId = id
@@ -42,8 +121,10 @@ const setup = async (options: SetupOptions = {}) => {
 
   const sessionStore = reactive({
     groupMode: (options.groupMode ?? 'time') as 'time' | 'project',
-    activeSessionId: 'session-1' as string | null,
-    hasActiveSession: true,
+    activeSessionId: (options.activeSession?.id ?? 'session-1') as string | null,
+    activeSession: options.activeSession ?? null,
+    hasActiveSession: options.hasActiveSession ?? true,
+    startNewConversation: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(async (id: string) => {
       operations.push(`select:${id}`)
       sessionStore.activeSessionId = id
@@ -73,35 +154,95 @@ const setup = async (options: SetupOptions = {}) => {
   const themeStore = reactive({
     isDark: false
   })
-  const windowPresenter = {
-    openOrFocusSettingsWindow: vi.fn(),
-    createSettingsWindow: vi.fn().mockResolvedValue(99),
-    getSettingsWindowId: vi.fn().mockReturnValue(99),
-    sendToWindow: vi.fn(),
-    show: vi.fn()
+  const sidebarStore = reactive({
+    collapsed: options.collapsed ?? false,
+    toggleSidebar: vi.fn(() => {
+      sidebarStore.collapsed = !sidebarStore.collapsed
+    }),
+    setCollapsed: vi.fn((value: boolean) => {
+      sidebarStore.collapsed = value
+    })
+  })
+  const pageRouterStore = reactive({
+    goToNewThread: vi.fn()
+  })
+  const spotlightStore = reactive({
+    open: false,
+    toggleSpotlight: vi.fn(() => {
+      spotlightStore.open = !spotlightStore.open
+    })
+  })
+  const settingsClient = {
+    openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
   }
-  const remoteControlPresenter = {
-    getChannelStatus: vi.fn(async (channel: 'telegram' | 'feishu') =>
-      channel === 'telegram'
-        ? {
-            channel: 'telegram' as const,
-            enabled: remoteStatus.enabled,
-            state: remoteStatus.state,
-            pollOffset: 0,
-            bindingCount: 0,
-            allowedUserCount: 0,
-            lastError: null,
-            botUser: null
-          }
-        : {
-            channel: 'feishu' as const,
-            enabled: false,
-            state: 'disabled' as const,
-            bindingCount: 0,
-            pairedUserCount: 0,
-            lastError: null,
-            botUser: null
-          }
+  const deviceClient = {
+    getDeviceInfo: vi.fn().mockResolvedValue({
+      platform: options.platform ?? 'darwin',
+      osVersion: '',
+      osVersionMetadata: []
+    })
+  }
+  const remoteControlRuntime = {
+    listRemoteChannels: vi.fn(async () => [
+      { id: 'telegram', implemented: true },
+      { id: 'feishu', implemented: true },
+      { id: 'qqbot', implemented: true },
+      { id: 'discord', implemented: true },
+      { id: 'weixin-ilink', implemented: true }
+    ]),
+    getChannelStatus: vi.fn(
+      async (channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink') =>
+        channel === 'telegram'
+          ? {
+              channel: 'telegram' as const,
+              enabled: remoteStatus.enabled,
+              state: remoteStatus.state,
+              pollOffset: 0,
+              bindingCount: 0,
+              allowedUserCount: 0,
+              lastError: null,
+              botUser: null
+            }
+          : {
+              channel:
+                channel === 'weixin-ilink'
+                  ? ('weixin-ilink' as const)
+                  : channel === 'discord'
+                    ? ('discord' as const)
+                    : channel === 'qqbot'
+                      ? ('qqbot' as const)
+                      : ('feishu' as const),
+              enabled: false,
+              state: 'disabled' as const,
+              ...(channel === 'discord'
+                ? {
+                    bindingCount: 0,
+                    pairedChannelCount: 0,
+                    lastError: null,
+                    botUser: null
+                  }
+                : channel === 'qqbot'
+                  ? {
+                      bindingCount: 0,
+                      pairedUserCount: 0,
+                      lastError: null,
+                      botUser: null
+                    }
+                  : channel === 'weixin-ilink'
+                    ? {
+                        bindingCount: 0,
+                        accountCount: 0,
+                        connectedAccountCount: 0,
+                        lastError: null,
+                        accounts: []
+                      }
+                    : {
+                        bindingCount: 0,
+                        pairedUserCount: 0,
+                        lastError: null,
+                        botUser: null
+                      })
+            }
     ),
     getTelegramStatus: vi.fn().mockResolvedValue({
       enabled: remoteStatus.enabled,
@@ -120,12 +261,26 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
+  vi.doMock('@/stores/ui/sidebar', () => ({
+    useSidebarStore: () => sidebarStore
+  }))
   vi.doMock('@/stores/theme', () => ({
     useThemeStore: () => themeStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => windowPresenter,
-    useRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@/stores/ui/pageRouter', () => ({
+    usePageRouterStore: () => pageRouterStore
+  }))
+  vi.doMock('@/stores/ui/spotlight', () => ({
+    useSpotlightStore: () => spotlightStore
+  }))
+  vi.doMock('@api/SettingsClient', () => ({
+    createSettingsClient: vi.fn(() => settingsClient)
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: vi.fn(() => deviceClient)
+  }))
+  vi.doMock('@api/RemoteControlRuntime', () => ({
+    createRemoteControlRuntime: vi.fn(() => remoteControlRuntime)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -170,223 +325,882 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const WindowSideBar = (await import('@/components/WindowSideBar.vue')).default
-  const wrapper = mount(WindowSideBar, {
-    global: {
-      stubs: {
-        TooltipProvider: passthrough,
-        Tooltip: passthrough,
-        TooltipContent: passthrough,
-        TooltipTrigger: passthrough,
-        ContextMenu: passthrough,
-        ContextMenuTrigger: passthrough,
-        ContextMenuContent: passthrough,
-        ContextMenuSeparator: passthrough,
-        ContextMenuItem: contextMenuItemStub,
-        Dialog: dialogStub,
-        DialogContent: passthrough,
-        DialogDescription: passthrough,
-        DialogFooter: passthrough,
-        DialogHeader: passthrough,
-        DialogTitle: passthrough,
-        Button: buttonStub,
-        Input: inputStub,
-        Icon: true,
-        ModelIcon: true
+  const wrapper = trackMountedWrapper(
+    mount(WindowSideBar, {
+      global: {
+        stubs: {
+          TooltipProvider: passthrough,
+          Tooltip: passthrough,
+          TooltipContent: passthrough,
+          TooltipTrigger: passthrough,
+          ContextMenu: passthrough,
+          ContextMenuTrigger: passthrough,
+          ContextMenuContent: passthrough,
+          ContextMenuSeparator: passthrough,
+          ContextMenuItem: contextMenuItemStub,
+          Dialog: dialogStub,
+          DialogContent: passthrough,
+          DialogDescription: passthrough,
+          DialogFooter: passthrough,
+          DialogHeader: passthrough,
+          DialogTitle: passthrough,
+          Button: buttonStub,
+          Input: inputStub,
+          AgentAvatar: true,
+          Icon: true,
+          ModelIcon: true
+        }
       }
-    }
-  })
+    })
+  )
 
   await flushPromises()
 
-  return { wrapper, operations, agentStore, sessionStore, windowPresenter, remoteControlPresenter }
+  return {
+    wrapper,
+    operations,
+    agentStore,
+    sessionStore,
+    settingsClient,
+    deviceClient,
+    remoteControlRuntime,
+    spotlightStore,
+    pageRouterStore,
+    sidebarStore
+  }
 }
 
 describe('WindowSideBar agent switch', () => {
-  it('closes active session before applying selected agent', async () => {
-    const { wrapper, operations, agentStore, sessionStore } = await setup()
+  it(
+    'closes active session before applying selected agent',
+    async () => {
+      const { wrapper, operations, agentStore, sessionStore } = await setup()
 
-    await (wrapper.vm as any).handleAgentSelect('acp-a')
+      await (wrapper.vm as any).handleAgentSelect('acp-a')
 
-    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
-    expect(operations).toEqual(['close', 'set:acp-a'])
-  }, 10000)
+      expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+      expect(operations).toEqual(['close', 'set:acp-a'])
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('renders pinned sessions outside grouped sections', async () => {
-    const { wrapper } = await setup({
-      pinnedSessions: [
-        {
-          id: 'pinned-1',
-          title: 'Pinned Session',
-          status: 'none'
-        }
-      ],
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [
-            {
-              id: 'normal-1',
-              title: 'Normal Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'expands the collapsed sidebar before applying selected agent',
+    async () => {
+      const { wrapper, operations, agentStore, sidebarStore } = await setup({
+        collapsed: true,
+        activeSession: {
+          id: 'session-deepchat',
+          agentId: 'deepchat'
+        },
+        enabledAgents: [
+          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-12')
 
-    expect(wrapper.text()).toContain('Pinned Session')
-    expect(wrapper.text()).toContain('chat.sidebar.pinned')
-    expect(wrapper.text()).toContain('common.time.today')
-    expect(wrapper.text()).toContain('Normal Session')
-  }, 10000)
+      await wrapper
+        .get('[data-testid="sidebar-agent-button"][data-agent-id="acp-a"]')
+        .trigger('click')
+      await flushPromises()
 
-  it('collapses and expands pinned sessions from the pinned folder header', async () => {
-    const { wrapper } = await setup({
-      pinnedSessions: [
-        {
-          id: 'pinned-1',
-          title: 'Pinned Session',
-          status: 'none'
-        }
-      ]
-    })
+      expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[288px]')
+      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
+      expect(operations).toEqual(['close', 'set:acp-a'])
+    },
+    TEST_TIMEOUT_MS
+  )
 
-    await wrapper.vm.$nextTick()
+  it('delegates sidebar new chat clicks to the unified session action', async () => {
+    const { wrapper, sessionStore } = await setup()
 
-    expect(wrapper.text()).toContain('chat.sidebar.pinned')
-    expect(wrapper.text()).toContain('Pinned Session')
+    await (wrapper.vm as any).handleNewChat()
 
-    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
-    await wrapper.vm.$nextTick()
+    expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+  })
 
-    expect(wrapper.text()).not.toContain('Pinned Session')
+  it(
+    'prefers the active session agent for selection state and filtering',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        selectedAgentId: 'deepchat',
+        activeSession: {
+          id: 'session-acp',
+          agentId: 'acp-a'
+        },
+        enabledAgents: [
+          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
+        ]
+      })
 
-    await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Pinned Session')
-  }, 10000)
+      expect(wrapper.text()).toContain('ACP A')
+      expect(sessionStore.getPinnedSessions).toHaveBeenCalledWith('acp-a')
+      expect(sessionStore.getFilteredGroups).toHaveBeenCalledWith('acp-a')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('toggles pinned state from a session item action', async () => {
-    const session = {
-      id: 'normal-1',
-      title: 'Normal Session',
-      status: 'none',
-      isPinned: false
-    }
-    const { wrapper, sessionStore } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [session]
-        }
-      ]
-    })
+  it(
+    'renders pinned sessions outside grouped sections',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'normal-1',
+                title: 'Normal Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
-    item.vm.$emit('toggle-pin', session)
-    await flushPromises()
+      await wrapper.vm.$nextTick()
 
-    expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
-  }, 10000)
+      expect(wrapper.text()).toContain('Pinned Session')
+      expect(wrapper.text()).toContain('chat.sidebar.pinned')
+      expect(wrapper.text()).toContain('common.time.today')
+      expect(wrapper.text()).toContain('Normal Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('collapses and expands time groups from the folder header', async () => {
-    const { wrapper } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [
-            {
-              id: 'time-1',
-              title: 'Today Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'collapses and expands pinned sessions from the pinned folder header',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('common.time.today')
-    expect(wrapper.text()).toContain('Today Session')
+      expect(wrapper.text()).toContain('chat.sidebar.pinned')
+      expect(wrapper.text()).toContain('Pinned Session')
 
-    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).not.toContain('Today Session')
+      expect(wrapper.get('[data-group-id="__pinned__"]').attributes('aria-expanded')).toBe('false')
 
-    await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Today Session')
-  }, 10000)
+      expect(wrapper.get('[data-group-id="__pinned__"]').attributes('aria-expanded')).toBe('true')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('collapses and expands project groups from the folder header', async () => {
-    const { wrapper } = await setup({
-      groupMode: 'project',
-      groups: [
-        {
-          label: 'DeepChat',
-          sessions: [
-            {
-              id: 'project-1',
-              title: 'Project Session',
-              status: 'none'
-            }
-          ]
-        }
-      ]
-    })
+  it(
+    'toggles pinned state from a session item action',
+    async () => {
+      const session = {
+        id: 'normal-1',
+        title: 'Normal Session',
+        status: 'none',
+        isPinned: false
+      }
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [session]
+          }
+        ]
+      })
 
-    await wrapper.vm.$nextTick()
+      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+      item.vm.$emit('toggle-pin', session)
+      await flushPromises()
 
-    expect(wrapper.text()).toContain('DeepChat')
-    expect(wrapper.text()).toContain('Project Session')
+      expect(sessionStore.toggleSessionPinned).toHaveBeenCalledWith('normal-1', true)
+    },
+    TEST_TIMEOUT_MS
+  )
 
-    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
-    await wrapper.vm.$nextTick()
+  it(
+    'filters pinned and grouped sessions by the sidebar search input',
+    async () => {
+      const { wrapper } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Beta Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
 
-    expect(wrapper.text()).not.toContain('Project Session')
+      await wrapper.find('input').setValue('alpha')
+      await flushPromises()
 
-    await wrapper.find('[data-group-id="DeepChat"]').trigger('click')
-    await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain('Alpha Session')
+      expect(wrapper.text()).not.toContain('Beta Session')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-    expect(wrapper.text()).toContain('Project Session')
-  }, 10000)
+  it(
+    'selects visible sidebar sessions with macOS number shortcuts',
+    async () => {
+      const groupedSessions = Array.from({ length: 9 }, (_, index) => ({
+        id: `group-${index + 1}`,
+        title: `Group Session ${index + 1}`,
+        status: 'none'
+      }))
+      const { sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: groupedSessions
+          }
+        ]
+      })
 
-  it('opens the delete dialog and dispatches delete actions', async () => {
-    const session = {
-      id: 'normal-1',
-      title: 'Normal Session',
-      status: 'none',
-      isPinned: false
-    }
-    const { wrapper, sessionStore } = await setup({
-      groups: [
-        {
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [session]
-        }
-      ]
-    })
+      dispatchWindowKeydown('2', { metaKey: true })
+      await flushPromises()
 
-    const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
 
-    item.vm.$emit('delete', session)
-    await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('dialog.delete.title')
+      dispatchWindowKeydown('0', { metaKey: true })
+      await flushPromises()
 
-    await (wrapper.vm as any).handleDeleteConfirm()
-    expect(sessionStore.deleteSession).toHaveBeenCalledWith('normal-1')
-  }, 10000)
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-9')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'uses Alt as the sidebar number shortcut modifier on Windows and Linux',
+    async () => {
+      const { sessionStore } = await setup({
+        platform: 'win32',
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              },
+              {
+                id: 'group-2',
+                title: 'Group Session 2',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('2', { altKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-2')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'ignores repeated sidebar number shortcut keydown events',
+    async () => {
+      const { sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('1', { metaKey: true, repeat: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'excludes collapsed groups from sidebar shortcut mapping',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
+      sessionStore.selectSession.mockClear()
+
+      dispatchWindowKeydown('2', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('pinned-1')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'excludes collapsed pinned sessions from sidebar shortcut mapping',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        pinnedSessions: [
+          {
+            id: 'pinned-1',
+            title: 'Pinned Session',
+            status: 'none'
+          }
+        ],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.find('[data-group-id="__pinned__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+      sessionStore.selectSession.mockClear()
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'disables sidebar number shortcuts while the sidebar is collapsed',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        collapsed: true,
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'suppresses sidebar number shortcuts for editable targets',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+      const event = new KeyboardEvent('keydown', {
+        key: '1',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true
+      })
+
+      Object.defineProperty(event, 'target', {
+        value: wrapper.find('input').element
+      })
+
+      ;(wrapper.vm as any).handleWindowShortcutKeydown(event)
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'suppresses sidebar number shortcuts while keyboard-owning overlays are open',
+    async () => {
+      const { wrapper, sessionStore, spotlightStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      spotlightStore.open = true
+
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'shows shortcut badges only after a modifier long press and hides them on release',
+    async () => {
+      const { wrapper } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              },
+              {
+                id: 'group-2',
+                title: 'Group Session 2',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      vi.advanceTimersByTime(499)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+
+      vi.advanceTimersByTime(1)
+      await wrapper.vm.$nextTick()
+
+      const badges = wrapper.findAll('[data-testid="sidebar-session-shortcut-badge"]')
+      expect(badges.map((badge) => badge.text())).toEqual(['⌘1', '⌘2'])
+      expect(wrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(false)
+
+      dispatchWindowKeyup('Meta')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not show shortcut badges after a number shortcut cancels the pending hold',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      dispatchWindowKeydown('Meta', { metaKey: true })
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).toHaveBeenLastCalledWith('group-1')
+
+      vi.advanceTimersByTime(500)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'removes sidebar shortcut listeners when the component unmounts',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'group-1',
+                title: 'Group Session 1',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      wrapper.unmount()
+      dispatchWindowKeydown('1', { metaKey: true })
+      await flushPromises()
+
+      expect(sessionStore.selectSession).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps the sidebar search region interactive outside the drag area',
+    async () => {
+      const { wrapper } = await setup()
+
+      expect(wrapper.get('[data-testid="window-sidebar-session-column"]').classes()).toContain(
+        'window-no-drag-region'
+      )
+      expect(wrapper.get('[data-testid="window-sidebar-search"]').classes()).toContain(
+        'window-no-drag-region'
+      )
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'toggles spotlight from the rail search button',
+    async () => {
+      const { wrapper, spotlightStore } = await setup()
+
+      const buttons = wrapper.findAll('button')
+      const spotlightButton = buttons.find((button) =>
+        button.attributes('title')?.includes('chat.spotlight.placeholder')
+      )
+
+      expect(spotlightButton).toBeTruthy()
+
+      await spotlightButton!.trigger('click')
+
+      expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'toggles the shared sidebar store from the collapse button',
+    async () => {
+      const { wrapper, sidebarStore } = await setup()
+
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
+
+      await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
+      await flushPromises()
+
+      expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-12')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'collapses and expands time groups from the folder header',
+    async () => {
+      const { wrapper } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'time-1',
+                title: 'Today Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('common.time.today')
+      expect(wrapper.text()).toContain('Today Session')
+
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="common.time.today"]').attributes('aria-expanded')).toBe(
+        'false'
+      )
+
+      await wrapper.find('[data-group-id="common.time.today"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="common.time.today"]').attributes('aria-expanded')).toBe(
+        'true'
+      )
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'collapses and expands project groups from the folder header',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: 'project:/tmp/deepchat',
+            label: 'DeepChat',
+            sessions: [
+              {
+                id: 'project-1',
+                title: 'Project Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('DeepChat')
+      expect(wrapper.text()).toContain('Project Session')
+
+      await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.get('[data-group-id="project:/tmp/deepchat"]').attributes('aria-expanded')
+      ).toBe('false')
+
+      await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.get('[data-group-id="project:/tmp/deepchat"]').attributes('aria-expanded')
+      ).toBe('true')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'tracks same-named project groups independently by id',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: '/tmp/workspaces/company-a/deepchat',
+            label: 'deepchat',
+            sessions: [
+              {
+                id: 'project-a',
+                title: 'Company A Session',
+                status: 'none'
+              }
+            ]
+          },
+          {
+            id: '/tmp/workspaces/company-b/deepchat',
+            label: 'deepchat',
+            sessions: [
+              {
+                id: 'project-b',
+                title: 'Company B Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('Company A Session')
+      expect(wrapper.text()).toContain('Company B Session')
+
+      await wrapper.find('[data-group-id="/tmp/workspaces/company-a/deepchat"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper
+          .get('[data-group-id="/tmp/workspaces/company-a/deepchat"]')
+          .attributes('aria-expanded')
+      ).toBe('false')
+      expect(
+        wrapper
+          .get('[data-group-id="/tmp/workspaces/company-b/deepchat"]')
+          .attributes('aria-expanded')
+      ).toBe('true')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'opens the delete dialog and dispatches delete actions',
+    async () => {
+      const session = {
+        id: 'normal-1',
+        title: 'Normal Session',
+        status: 'none',
+        isPinned: false
+      }
+      const { wrapper, sessionStore } = await setup({
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [session]
+          }
+        ]
+      })
+
+      const item = wrapper.findComponent({ name: 'WindowSideBarSessionItem' })
+
+      item.vm.$emit('delete', session)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain('dialog.delete.title')
+
+      await (wrapper.vm as any).handleDeleteConfirm()
+      expect(sessionStore.deleteSession).toHaveBeenCalledWith('normal-1')
+    },
+    TEST_TIMEOUT_MS
+  )
 
   it('shows the remote control button only when remote control is enabled', async () => {
     const enabledSetup = await setup({
@@ -420,7 +1234,7 @@ describe('WindowSideBar agent switch', () => {
   })
 
   it('opens settings and navigates to remote settings when remote button is clicked', async () => {
-    const { wrapper, windowPresenter } = await setup({
+    const { wrapper, settingsClient } = await setup({
       remoteStatus: {
         enabled: true,
         state: 'running'
@@ -429,13 +1243,8 @@ describe('WindowSideBar agent switch', () => {
 
     await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(250)
-
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
-    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(1, 99, 'settings:navigate', {
-      routeName: 'settings-remote'
-    })
-    expect(windowPresenter.sendToWindow).toHaveBeenNthCalledWith(2, 99, 'settings:navigate', {
+    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
+    expect(settingsClient.openSettings).toHaveBeenCalledWith({
       routeName: 'settings-remote'
     })
 

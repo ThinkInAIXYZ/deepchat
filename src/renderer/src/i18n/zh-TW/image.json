@@ -1,0 +1,9 @@
+{
+  "loadError": "圖片載入失敗",
+  "loading": "圖片載入中...",
+  "preview": "預覽圖片",
+  "save": "儲存圖片",
+  "saveAs": "圖片另存為...",
+  "saveSuccess": "圖片已儲存",
+  "saveFailed": "圖片儲存失敗"
+}

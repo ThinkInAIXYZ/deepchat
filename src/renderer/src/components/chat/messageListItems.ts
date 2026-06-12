@@ -1,4 +1,6 @@
 import type { MessageFile } from '@shared/types/agent-interface'
+import type { AgentPlanDisplayItem } from '@shared/types/agent-plan'
+import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
   context_usage: number
@@ -70,6 +72,19 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
+  subagentProgress?: string
+  subagentFinal?: string
 }
 
 export type DisplayAssistantMessageBlock = {
@@ -82,6 +97,7 @@ export type DisplayAssistantMessageBlock = {
     | 'tool_call'
     | 'action'
     | 'image'
+    | 'video'
     | 'audio'
     | 'artifact-thinking'
   id?: string
@@ -118,6 +134,7 @@ export type DisplayAssistantMessageBlock = {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string
     server_description?: string
@@ -143,6 +160,7 @@ type DisplayMessageBase = {
   id: string
   role: 'user' | 'assistant'
   timestamp: number
+  updatedAt: number
   avatar: string
   name: string
   model_name: string

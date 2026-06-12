@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
 import {
@@ -6,10 +7,11 @@ import {
   getWidgetSizeForSnapshot,
   repositionWidgetForResize,
   snapWidgetBoundsToEdge,
+  type FloatingWidgetDockSide,
   type WidgetRect
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
-import type { SessionWithState } from '@shared/types/agent-interface'
+import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
 import { presenter } from '../index'
@@ -59,7 +61,7 @@ export class FloatingButtonPresenter {
   public async initialize(config?: Partial<FloatingButtonConfig>): Promise<void> {
     if (!FLOATING_BUTTON_AVAILABLE) {
       this.destroy()
-      console.log('FloatingButton is temporarily unavailable, skipping initialization')
+      logger.info('FloatingButton is temporarily unavailable, skipping initialization')
       return
     }
 
@@ -72,7 +74,7 @@ export class FloatingButtonPresenter {
       }
 
       if (!this.config.enabled) {
-        console.log('FloatingButton is disabled, skipping window creation')
+        logger.info('FloatingButton is disabled, skipping window creation')
         return
       }
 
@@ -95,6 +97,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+    ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
@@ -114,7 +117,7 @@ export class FloatingButtonPresenter {
   public async enable(): Promise<void> {
     if (!FLOATING_BUTTON_AVAILABLE) {
       this.destroy()
-      console.log('FloatingButton is temporarily unavailable, skipping enable')
+      logger.info('FloatingButton is temporarily unavailable, skipping enable')
       return
     }
 
@@ -154,8 +157,8 @@ export class FloatingButtonPresenter {
 
   public async refreshWidgetState(): Promise<void> {
     try {
-      const sessions = await this.loadDeepChatSessions()
-      this.snapshot = buildFloatingWidgetSnapshot(sessions, this.snapshot.expanded)
+      const [sessions, agents] = await Promise.all([this.loadSessions(), this.loadAgents()])
+      this.snapshot = buildFloatingWidgetSnapshot(sessions, agents, this.snapshot.expanded)
       this.applyWindowLayout()
       this.pushSnapshotToRenderer()
     } catch (error) {
@@ -196,7 +199,8 @@ export class FloatingButtonPresenter {
     this.registerIpcHandlers()
 
     if (!this.floatingWindow) {
-      this.floatingWindow = new FloatingButtonWindow(this.config)
+      const persistedBounds = this.configPresenter.getFloatingButtonBounds()
+      this.floatingWindow = new FloatingButtonWindow(this.config, persistedBounds)
       await this.floatingWindow.create()
     }
 
@@ -210,6 +214,7 @@ export class FloatingButtonPresenter {
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST)
     ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.THEME_REQUEST)
+    ipcMain.removeHandler(FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED)
     ipcMain.removeAllListeners(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED)
@@ -236,6 +241,25 @@ export class FloatingButtonPresenter {
     ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async () => {
       return await this.resolveTheme()
     })
+
+    ipcMain.handle(
+      FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST,
+      async (_event, payload: { agentId?: string; iconUrl?: string }) => {
+        const agentId = payload?.agentId?.trim()
+        const iconUrl = payload?.iconUrl?.trim()
+
+        if (!agentId || !iconUrl) {
+          return ''
+        }
+
+        try {
+          return (await this.configPresenter.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
+        } catch (error) {
+          console.warn('Failed to resolve floating ACP registry icon markup:', error)
+          return ''
+        }
+      }
+    )
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, () => {
       this.toggleExpanded()
@@ -328,6 +352,7 @@ export class FloatingButtonPresenter {
       const snapped = snapWidgetBoundsToEdge(stableBounds, currentDisplay.workArea)
       this.floatingWindow.setDockSide(snapped.dockSide)
       this.floatingWindow.setBounds(snapped)
+      this.persistFloatingBounds(snapped)
       this.isDragging = false
       dragState = null
       this.floatingWindow.setOpacity(this.resolveWindowOpacity())
@@ -490,6 +515,18 @@ export class FloatingButtonPresenter {
     this.applyWindowLayout()
   }
 
+  private persistFloatingBounds(snapped: WidgetRect & { dockSide: FloatingWidgetDockSide }): void {
+    try {
+      this.configPresenter.setFloatingButtonBounds({
+        x: snapped.x,
+        y: snapped.y,
+        dockSide: snapped.dockSide
+      })
+    } catch (error) {
+      console.error('Failed to persist floating button bounds:', error)
+    }
+  }
+
   private getSnapshotBounds(bounds: WidgetRect): WidgetRect {
     if (!this.floatingWindow) {
       return bounds
@@ -544,29 +581,43 @@ export class FloatingButtonPresenter {
     return isDark ? 'dark' : 'light'
   }
 
-  private async loadDeepChatSessions(): Promise<SessionWithState[]> {
-    const newAgentPresenter = presenter.newAgentPresenter as
+  private async loadSessions(): Promise<SessionWithState[]> {
+    const agentSessionPresenter = presenter.agentSessionPresenter as
       | {
           getSessionList?: (filters?: { agentId?: string }) => Promise<SessionWithState[]>
         }
       | undefined
 
-    if (!newAgentPresenter?.getSessionList) {
+    if (!agentSessionPresenter?.getSessionList) {
       return []
     }
 
-    return await newAgentPresenter.getSessionList({ agentId: 'deepchat' })
+    return await agentSessionPresenter.getSessionList()
+  }
+
+  private async loadAgents(): Promise<Agent[]> {
+    const agentSessionPresenter = presenter.agentSessionPresenter as
+      | {
+          getAgents?: () => Promise<Agent[]>
+        }
+      | undefined
+
+    if (!agentSessionPresenter?.getAgents) {
+      return []
+    }
+
+    return await agentSessionPresenter.getAgents()
   }
 
   private async openSession(sessionId: string): Promise<void> {
     try {
-      const newAgentPresenter = presenter.newAgentPresenter as
+      const agentSessionPresenter = presenter.agentSessionPresenter as
         | {
             activateSession?: (webContentsId: number, sessionId: string) => Promise<void>
           }
         | undefined
 
-      if (!newAgentPresenter?.activateSession) {
+      if (!agentSessionPresenter?.activateSession) {
         return
       }
 
@@ -575,7 +626,7 @@ export class FloatingButtonPresenter {
         return
       }
 
-      await newAgentPresenter.activateSession(targetWindow.webContents.id, sessionId)
+      await agentSessionPresenter.activateSession(targetWindow.webContents.id, sessionId)
       presenter.windowPresenter.show(targetWindow.id, true)
       this.setExpanded(false)
     } catch (error) {
@@ -665,7 +716,7 @@ export class FloatingButtonPresenter {
 
   private exitApplication(): void {
     try {
-      console.log('Exiting application from floating button context menu')
+      logger.info('Exiting application from floating button context menu')
       app.quit()
     } catch (error) {
       console.error('Failed to exit application from floating button:', error)

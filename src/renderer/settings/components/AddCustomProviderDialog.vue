@@ -37,8 +37,8 @@
                 <SelectItem value="gemini">Gemini</SelectItem>
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="ollama">Ollama</SelectItem>
-                <!-- <SelectItem value="groq">Groq</SelectItem>
                 <SelectItem value="mistral">Mistral AI</SelectItem>
+                <!-- <SelectItem value="groq">Groq</SelectItem>
                 <SelectItem value="cohere">Cohere</SelectItem>
                 <SelectItem value="zhinao">智脑</SelectItem>
                 <SelectItem value="custom">自定义</SelectItem> -->

@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "Hoş geldin",
+      "description": "DeepChat kurulumuna başlayalım"
+    },
+    "provider": {
+      "title": "sağlayıcı",
+      "description": "Tercih ettiğiniz model sağlayıcınızı seçin"
+    },
+    "configuration": {
+      "title": "Yapılandırma",
+      "description": "Kullanmak istediğiniz modelleri yapılandırın"
+    },
+    "complete": {
+      "title": "Tamamlamak",
+      "description": "Her şey hazır ve yola çıkmaya hazır!"
+    }
+  },
+  "title": "DeepChat'a hoş geldiniz",
+  "description": "Kurulum boyunca size yol gösterelim.",
+  "provider": {
+    "select": "Bir Sağlayıcı Seçin",
+    "apiUrl": "API URL",
+    "apiKey": "API Key",
+    "verifyLink": "Bağlantıyı Doğrula"
+  },
+  "complete": {
+    "title": "Hepsi Bitti!",
+    "description": "Artık hazırsınız. Hadi başlayalım!"
+  },
+  "buttons": {
+    "getStarted": "Başlayın",
+    "next": "Sonraki",
+    "back": "Geri"
+  },
+  "page": {
+    "title": "DeepChat Agent'a hoş geldiniz",
+    "description": "Başlamak için bir model sağlayıcıya bağlanın",
+    "guide": {
+      "title": "Kurulum kılavuzu",
+      "description": "Geçerli adım: {step}",
+      "or": "veya",
+      "coreProgress": "Çekirdek kurulum ilerlemesi",
+      "optional": "İsteğe bağlı sonraki adımlar",
+      "actions": {
+        "continueSetup": "Kuruluma devam et",
+        "goToChat": "Sohbete git"
+      },
+      "steps": {
+        "provider": "sağlayıcı",
+        "first-chat": "İlk sohbet",
+        "switch-model": "Modeli değiştir",
+        "mcp": "MCP",
+        "skills": "Skills",
+        "plugins": "Eklentiler"
+      }
+    },
+    "browseProviders": "Tüm sağlayıcılara göz atın...",
+    "connectAgent": "veya bir agent bağlayın",
+    "acpTitle": "Bir ACP agent kurun",
+    "acpDescription": "Claude Kod, Kodeks, Kimi veya kendinize ait",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    },
+    "importProviders": "Diğer agents'dan içe aktar"
+  },
+  "agentPage": {
+    "title": "Oluşturmaya Başlamak için bir Agent seçin",
+    "deepchatType": "DeepChat Agent",
+    "acpType": "ACP Agent",
+    "manageAgents": "DeepChat Agent'yi yönet"
+  }
+}

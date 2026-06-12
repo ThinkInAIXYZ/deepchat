@@ -1,0 +1,421 @@
+{
+  "input": {
+    "placeholder": "Kirim pesan ke DeepChat, {'@'} bisa referensi filenya, / bisa pakai perintah",
+    "fileArea": "wilayah berkas",
+    "inputArea": "daerah masukan",
+    "functionSwitch": "Sakelar fungsi",
+    "attach": "Tambahkan lampiran",
+    "voiceInput": "rekaman lokal",
+    "voiceInputStop": "Hentikan rekaman lokal",
+    "voiceRecognitionUnsupportedTitle": "Lingkungan saat ini tidak mendukung perekaman lokal",
+    "voiceRecognitionUnsupportedDescription": "Silakan gunakan fitur ini di browser atau lingkungan desktop yang mendukung perekaman mikrofon.",
+    "voiceRecognitionPermissionDeniedTitle": "Tidak dapat mengakses mikrofon",
+    "voiceRecognitionPermissionDeniedDescription": "Izinkan DeepChat menggunakan mikrofon dan coba lagi.",
+    "voiceRecognitionErrorTitle": "Transkripsi audio gagal",
+    "voiceRecognitionErrorDescription": "Gagal menyelesaikan transkripsi audio, coba lagi nanti.",
+    "send": "kirim",
+    "steer": "panduan",
+    "queue": "bergabung dalam antrian",
+    "stop": "berhenti",
+    "fileSelect": "Pilih berkas",
+    "pasteFiles": "Mendukung salin dan tempel file",
+    "dropFiles": "Seret dan letakkan file di sini",
+    "promptFilesAdded": "File Prompt ditambahkan",
+    "promptFilesAddedDesc": "Berhasil menambahkan file {count}",
+    "promptFilesError": "Kesalahan pemrosesan file",
+    "promptFilesErrorDesc": "Pemrosesan file {count} gagal",
+    "historyPlaceholder": "(Tekan Tab untuk mengisi)",
+    "rateLimitQueue": "Antrian {count}",
+    "rateLimitWait": "Menunggu {seconds}s",
+    "rateLimitQueueTooltip": "Ada {count} permintaan dalam antrean, dengan selang waktu {interval} detik",
+    "rateLimitReadyTooltip": "Permintaan dapat dikirim setiap {interval} detik",
+    "rateLimitWaitingTooltip": "Perlu menunggu {seconds} detik, interval {interval} detik",
+    "acpWorkdir": "direktori kerja",
+    "acpWorkdirTooltip": "Atur direktori kerja ACP",
+    "acpWorkdirSelect": "Pilih direktori kerja",
+    "acpWorkdirCurrent": "Direktori kerja saat ini: {path}",
+    "acpMode": "modus",
+    "acpModeTooltip": "Modus saat ini: {mode}",
+    "agentWorkspaceTooltip": "Setel direktori kerja Agent",
+    "agentWorkspaceSelect": "Pilih direktori kerja",
+    "agentWorkspaceCurrent": "Direktori kerja saat ini: {path}",
+    "workspaceUnavailableTooltip": "Direktori tidak ada atau tidak dapat diakses: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Diaktifkan MCP",
+      "empty": "Belum ada layanan yang diaktifkan",
+      "openSettings": "Buka pengaturan MCP"
+    },
+    "tools": {
+      "badge": "Tools",
+      "title": "Tools",
+      "mcpSection": "MCP",
+      "pluginSection": "plugin",
+      "builtinSection": "Alat bawaan",
+      "loading": "Memuat alat...",
+      "builtinEmpty": "Belum ada alat bawaan yang tersedia",
+      "groups": {
+        "agentFilesystem": "sistem file",
+        "agentCore": "alat inti",
+        "agentImageGeneration": "generasi gambar",
+        "agentSkills": "Alat Skills",
+        "deepchatSettings": "DeepChat Pengaturan",
+        "yobrowser": "YoBrowser"
+      }
+    },
+    "fileUploadFailed": "Pemrosesan lampiran gagal",
+    "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
+    "fileUploadFailedMore": " Tunggu {count}",
+    "unnamedFile": "file tanpa nama",
+    "audioInputUnsupportedTitle": "Model saat ini tidak mendukung lampiran audio",
+    "audioInputUnsupportedDescription": "Model {model} tidak mendukung input audio, lampiran audio {count} telah diabaikan."
+  },
+  "pendingInput": {
+    "steer": "panduan",
+    "queueCount": "Siap dikirim {count}/{max}",
+    "resumeQueue": "terus mengirim",
+    "toSteer": "giliran untuk boot",
+    "locked": "terkunci",
+    "reorder": "Sesuaikan pesanan",
+    "files": "{count} file",
+    "attachmentsOnly": "{count} lampiran",
+    "empty": "pesan kosong",
+    "limitReached": "Ruang tunggu penuh (maks {max} entri)."
+  },
+  "features": {
+    "webSearch": "Pencarian internet",
+    "thoughtForSeconds": "Berpikir selama {seconds} detik",
+    "thoughtForSecondsLoading": "Berpikir (kedua {seconds})",
+    "artifactThinking": "pemikiran artefak",
+    "modeChanged": "Mode dialihkan ke: {mode}"
+  },
+  "search": {
+    "results": "{0} halaman web telah dicari",
+    "searching": "Mencari...",
+    "title": "Hasil pencarian",
+    "description": "Ditemukan total {0} hasil terkait",
+    "optimizing": "Mengekstrak maksud pencarian...",
+    "reading": "Mencari dan membaca halaman web...",
+    "error": "Pencarian gagal"
+  },
+  "messages": {
+    "thinking": "Berpikir...",
+    "rateLimitWaiting": "Minta batas frekuensi, menunggu dalam antrian...",
+    "rateLimitCompactLoading": "Batas kecepatan ({seconds} detik)",
+    "rateLimitTitle": "Batas frekuensi permintaan",
+    "rateLimitQueue": "posisi antrian",
+    "rateLimitEstimated": "Berharap untuk menunggu",
+    "rateLimitQuickSettings": "Sesuaikan batas",
+    "rateLimitSwitchProvider": "Ganti penyedia layanan",
+    "rateLimitImmediately": "segera",
+    "rateLimitSeconds": "detik",
+    "rateLimitMinutes": "menit"
+  },
+  "compaction": {
+    "compacting": "Mengompresi konteks...",
+    "compacted": "Konteks dikompresi",
+    "commandDescription": "Kompres konteks sesi",
+    "noopTitle": "Tidak ada konteks yang dapat dikompres",
+    "noopDescription": "Saat ini tidak ada riwayat percakapan baru untuk dikompres.",
+    "failedTitle": "Kompresi gagal"
+  },
+  "rateLimit": {
+    "queueTooltip": "Ada {count} permintaan dalam antrean, dengan selang waktu {interval} detik",
+    "readyTooltip": "Permintaan dapat dikirim setiap {interval} detik",
+    "waitingTooltip": "Perlu menunggu {seconds} detik, interval {interval} detik"
+  },
+  "notify": {
+    "generationComplete": "Generasi selesai",
+    "generationError": "Pembuatan gagal"
+  },
+  "toolCall": {
+    "title": "Panggilan alat",
+    "calling": "Panggilan alat",
+    "response": "respon alat",
+    "end": "Panggilan alat selesai",
+    "error": "Kesalahan panggilan alat",
+    "clickToView": "Klik untuk melihat detailnya",
+    "functionName": "nama fungsi",
+    "params": "parameter",
+    "responseData": "data respons",
+    "subagents": {
+      "summary": "{mode} · {count} subagent",
+      "unnamedTask": "Tugas tanpa nama",
+      "mode": {
+        "parallel": "Paralel",
+        "chain": "serial"
+      },
+      "status": {
+        "queued": "Mengantri",
+        "running": "Berlari",
+        "completed": "Selesai",
+        "error": "Kesalahan",
+        "cancelled": "Dibatalkan",
+        "waiting_permission": "Menunggu persetujuan izin",
+        "waiting_question": "Menunggu masukan tambahan"
+      }
+    }
+  },
+  "mode": {
+    "current": "Modus saat ini: {mode}",
+    "agent": "Agent",
+    "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "backToParent": "Kembali ke sesi orang tua",
+    "share": "Bagikan",
+    "more": "Lebih lanjut"
+  },
+  "subagents": {
+    "label": "subagent"
+  },
+  "advancedSettings": {
+    "button": "Konfigurasi lanjutan",
+    "title": "Konfigurasi lanjutan",
+    "closeHint": "Tekan Esc untuk menutup",
+    "systemPrompt": "system prompt",
+    "systemPromptPlaceholder": "Pilih preset",
+    "temperature": "suhu",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan ke {enabled} saat pemikiran diaktifkan, dan ditetapkan ke {disabled} saat pemikiran dimatikan.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
+    "contextLength": "panjang konteks",
+    "maxTokens": "keluaran maksimal",
+    "thinkingBudget": "Pikirkan tentang anggaran",
+    "verbosity": "Jawab secara detail",
+    "forceInterleavedThinkingCompat": "Pemikiran Disisipkan",
+    "forceInterleavedThinkingCompatDescription": "Mengontrol apakah sesi saat ini menangani pesan penalaran dan panggilan alat dalam mode Berpikir Interleaved.",
+    "verbosityPlaceholder": "Pilih tingkat verbositas",
+    "currentCustomPrompt": "Kustomisasi saat ini",
+    "useDefault": "Gunakan nilai default",
+    "decreaseValue": "Kurangi {label}",
+    "increaseValue": "Ditambahkan {label}",
+    "toggleValue": "Beralih {label}",
+    "validation": {
+      "finiteNumber": "Harus berupa angka yang terbatas",
+      "nonNegativeInteger": "Harus berupa bilangan bulat non-negatif",
+      "contextLengthAtLeastMaxTokens": "Harus lebih besar atau sama dengan output maksimum",
+      "maxTokensWithinContextLength": "Harus kurang dari atau sama dengan panjang konteks",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
+    }
+  },
+  "modelPicker": {
+    "empty": "Model tidak ditemukan",
+    "audioInputSupported": "Mendukung masukan audio"
+  },
+  "audio": {
+    "play": "bermain",
+    "pause": "jeda"
+  },
+  "call": {
+    "title": "Panggilan suara.ai",
+    "description": "Klik untuk terhubung ke Agent suara Voice.ai, lalu bicara setelah panggilan dijawab.",
+    "start": "Mulai panggilan suara",
+    "stop": "mengakhiri panggilan",
+    "end": "Tutup telepon"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} Skills yang dipin",
+      "none": "Tidak ada Skills yang dipin"
+    },
+    "panel": {
+      "title": "Skills yang dipin",
+      "manage": "manajemen",
+      "empty": "Belum ada Skills yang dipasang"
+    }
+  },
+  "workspace": {
+    "title": "ruang kerja",
+    "collapse": "dekat",
+    "expand": "Perluas",
+    "sections": {
+      "files": "Mengajukan",
+      "git": "Git",
+      "artifacts": "Artifacts",
+      "subagents": "subagent"
+    },
+    "plan": {
+      "section": "rencana",
+      "empty": "Belum ada tugas",
+      "itemAriaLabel": "{status}: {step}",
+      "status": {
+        "pending": "Tertunda",
+        "in_progress": "Sedang berlangsung",
+        "completed": "Selesai",
+        "failed": "gagal",
+        "skipped": "dilewati"
+      }
+    },
+    "files": {
+      "section": "Mengajukan",
+      "empty": "Belum ada file",
+      "loading": "Memuat file...",
+      "noWorkspace": {
+        "title": "Belum ada ruang kerja",
+        "description": "Pilih atau seret folder untuk menyiapkan ruang kerja Anda",
+        "button": "Pilih map"
+      },
+      "contextMenu": {
+        "openFile": "membuka berkas",
+        "revealInFolder": "Buka di pengelola file",
+        "insertPath": "Masukkan ke dalam kotak masukan"
+      }
+    },
+    "git": {
+      "empty": "Belum ada perbedaan untuk ditampilkan",
+      "clean": "Bersihkan area kerja",
+      "staged": "Disimpan sementara",
+      "unstaged": "Tidak dipentaskan"
+    },
+    "subagents": {
+      "empty": "Belum ada sesi subagent",
+      "self": "Agent saat ini",
+      "status": {
+        "working": "Berlari",
+        "error": "Kesalahan",
+        "idle": "gratis"
+      }
+    },
+    "browser": {
+      "section": "Peramban",
+      "empty": "Belum ada halaman tab"
+    },
+    "terminal": {
+      "section": "terminal",
+      "empty": "Belum ada keluaran",
+      "contextMenu": {
+        "terminate": "Hentikan perintah",
+        "delete": "menghapus catatan",
+        "expand": "Perluas untuk melihat",
+        "collapse": "lipat"
+      },
+      "output": {
+        "truncated": "[dipotong]"
+      },
+      "noOutput": "Tidak ada keluaran",
+      "status": {
+        "running": "Berlari",
+        "completed": "sukses",
+        "failed": "gagal",
+        "timed_out": "Waktu habis",
+        "aborted": "dibatalkan"
+      }
+    }
+  },
+  "newThread": {
+    "title": "Bangun dan jelajahi"
+  },
+  "floatingWidget": {
+    "title": "Ikhtisar tugas",
+    "collapse": "Tutup daftar percakapan mengambang",
+    "empty": "Saat ini tidak ada sesi Agent",
+    "executing": "Sedang berlangsung",
+    "sessionCount": "{count} sesi",
+    "untitled": "sesi baru",
+    "status": {
+      "inProgress": "Sedang berlangsung",
+      "done": "Selesai",
+      "error": "Kesalahan"
+    }
+  },
+  "permissionMode": {
+    "default": "Izin bawaan",
+    "fullAccess": "akses penuh"
+  },
+  "sidebar": {
+    "allAgents": "Semua Agent",
+    "expandSidebar": "Luaskan bilah sisi",
+    "collapseSidebar": "Ciutkan bilah sisi",
+    "themeToggle": "Ganti tema",
+    "themeLight": "Terang",
+    "themeDark": "Gelap",
+    "themeSystem": "Sistem",
+    "remoteControlDisabled": "Tidak diaktifkan",
+    "remoteControlStatus": {
+      "disabled": "Kendali jarak jauh dinonaktifkan",
+      "stopped": "Kendali jarak jauh telah berhenti",
+      "starting": "Kendali jarak jauh dimulai",
+      "running": "Kendali jarak jauh berjalan",
+      "backoff": "Mencoba kembali kendali jarak jauh",
+      "error": "kesalahan kendali jarak jauh"
+    },
+    "groupByDate": "Kelompokkan berdasarkan waktu",
+    "groupByProject": "Kelompokkan berdasarkan proyek",
+    "pinned": "Sematkan percakapan",
+    "emptyTitle": "Belum ada sesi",
+    "emptyDescription": "Mulai sesi baru",
+    "searchPlaceholder": "Judul sesi pencarian",
+    "searchAriaLabel": "Judul sesi pencarian",
+    "searchEmptyTitle": "Tidak ditemukan sesi yang cocok",
+    "searchEmptyDescription": "Coba ubah kata kunci judul"
+  },
+  "spotlight": {
+    "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",
+    "searching": "Mencari…",
+    "emptyTitle": "Tidak ada hasil yang cocok",
+    "emptyDescription": "Coba kata kunci lain, atau buka percakapan terkini secara langsung.",
+    "hints": "↑↓ Pilih · Enter untuk membuka · Esc untuk menutup · Home/End Lompat",
+    "kind": {
+      "session": "sesi",
+      "message": "berita",
+      "agent": "Agent",
+      "setting": "pengaturan",
+      "action": "tindakan"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Cari sesi saat ini",
+    "ariaLabel": "Cari sesi saat ini",
+    "previous": "Pertandingan sebelumnya",
+    "next": "pertandingan berikutnya",
+    "close": "Tutup pencarian"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Beralih ke DeepChat Agent",
+      "description": "Sebelum memulai obrolan, beralih kembali ke alur percakapan DeepChat dari ACP Agent.",
+      "caption": "Klik tombol Agent yang disorot di sidebar untuk melanjutkan."
+    },
+    "switchModel": {
+      "description": "Pilih model yang ingin Anda gunakan untuk percakapan DeepChat pertama Anda.",
+      "caption": "Gunakan pengalih model yang disorot untuk memilih model apa pun yang tersedia."
+    },
+    "firstChat": {
+      "description": "Sekarang Anda siap, kirim pesan pertama Anda ke sini untuk menyelesaikan boot.",
+      "caption": "Sorotan akan tetap berada di kotak masukan hingga Anda benar-benar mengirim pesan pertama."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Draf skill",
+    "confirmationQuestion": "Draf skill telah dibuat: {name}",
+    "previewTitle": "Pratinjau konten draf",
+    "actions": {
+      "view": "Lihat konten",
+      "viewDescription": "Pratinjau konten SKILL.md draf",
+      "install": "Instal sebagai skill",
+      "installDescription": "Impor ke folder skills untuk dikelola",
+      "discard": "Buang",
+      "discardDescription": "Hapus draf sementara ini"
+    },
+    "result": {
+      "viewed": "Pratinjau konten draf terbuka. Pilih instal atau buang.",
+      "installed": "Draf skill terinstal: {name}",
+      "discarded": "Draf skill dibuang.",
+      "failed": "Gagal menangani draf skill: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Bekerja selama {duration}",
+    "reasoningCount": "{count} pemikiran",
+    "toolCallCount": "{count} panggilan alat",
+    "expandLabel": "Perluas {title}",
+    "collapseLabel": "Ciutkan {title}",
+    "duration": {
+      "day": "h ",
+      "hour": "j ",
+      "minute": "m ",
+      "second": "d"
+    }
+  }
+}

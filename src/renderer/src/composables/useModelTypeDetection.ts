@@ -8,13 +8,15 @@ import { useModelConfigStore } from '@/stores/modelConfigStore'
 export interface UseModelTypeDetectionOptions {
   modelId: Ref<string | undefined>
   providerId: Ref<string | undefined>
-  modelType: Ref<'chat' | 'imageGeneration' | 'embedding' | 'rerank' | undefined>
+  modelType: Ref<
+    'chat' | 'imageGeneration' | 'videoGeneration' | 'tts' | 'embedding' | 'rerank' | undefined
+  >
 }
 
 export interface UseModelTypeDetectionReturn {
   isImageGenerationModel: ComputedRef<boolean>
-  isGPT5Model: ComputedRef<boolean>
-  isGeminiProvider: ComputedRef<boolean>
+  isVideoGenerationModel: ComputedRef<boolean>
+  isTtsModel: ComputedRef<boolean>
   modelReasoning: Ref<boolean>
 }
 
@@ -30,6 +32,7 @@ export function useModelTypeDetection(
 
   // === Local State ===
   const modelReasoning = ref(false)
+  let requestId = 0
 
   // === Computed Properties ===
 
@@ -41,31 +44,38 @@ export function useModelTypeDetection(
   })
 
   /**
-   * Checks if current model is GPT-5 series
-   * GPT-5 models have special UI requirements (no temperature slider)
+   * Checks if current model is a video generation model
    */
-  const isGPT5Model = computed(() => {
-    const id = modelId.value?.toLowerCase() || ''
-    return id.includes('gpt-5')
+  const isVideoGenerationModel = computed(() => {
+    return modelType.value === 'videoGeneration'
   })
 
   /**
-   * Checks if current provider is Gemini
-   * Gemini has special thinking budget rules (-1 for unlimited)
+   * Checks if current model is a TTS model
    */
-  const isGeminiProvider = computed(() => providerId.value?.toLowerCase() === 'gemini')
+  const isTtsModel = computed(() => {
+    return modelType.value === 'tts'
+  })
 
   // === Internal Methods ===
   const fetchModelReasoning = async () => {
-    if (!modelId.value || !providerId.value) {
+    const currentRequestId = ++requestId
+    const currentModelId = modelId.value
+    const currentProviderId = providerId.value
+
+    if (!currentModelId || !currentProviderId) {
       modelReasoning.value = false
       return
     }
 
     try {
-      const modelConfig = await modelConfigStore.getModelConfig(modelId.value, providerId.value)
+      const modelConfig = await modelConfigStore.getModelConfig(currentModelId, currentProviderId)
+      if (currentRequestId !== requestId) return
+
       modelReasoning.value = modelConfig.reasoning || false
     } catch (error) {
+      if (currentRequestId !== requestId) return
+
       modelReasoning.value = false
       console.error(error)
     }
@@ -77,8 +87,8 @@ export function useModelTypeDetection(
   // === Return Public API ===
   return {
     isImageGenerationModel,
-    isGPT5Model,
-    isGeminiProvider,
+    isVideoGenerationModel,
+    isTtsModel,
     modelReasoning
   }
 }

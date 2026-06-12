@@ -6,6 +6,7 @@
     >
       <div
         ref="rootRef"
+        data-testid="chat-message-assistant"
         :data-message-id="message.id"
         class="flex flex-row pl-4 pt-5 pr-11 group gap-2 w-full justify-start assistant-message-item"
         @contextmenu.capture="handleContextMenuOpen"
@@ -36,52 +37,76 @@
             class="size-3 text-muted-foreground"
           />
           <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
-            <template v-for="(block, idx) in currentContent" :key="`${message.id}-${idx}`">
+            <template v-for="item in currentRenderItems" :key="item.key">
+              <MessageBlockActivityGroup
+                v-if="item.kind === 'activity-group'"
+                :blocks="item.blocks"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                :usage="currentMessage.usage"
+                :duration-ms="item.durationMs"
+                :reasoning-count="item.reasoningCount"
+                :tool-call-count="item.toolCallCount"
+                @toggle-collapse="handleCollapseToggle"
+              />
               <MessageBlockContent
-                v-if="block.type === 'content'"
-                :block="block"
+                v-else-if="item.block.type === 'content'"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
               />
               <MessageBlockThink
-                v-else-if="block.type === 'reasoning_content' && block.content"
-                :block="block"
-                :usage="message.usage"
+                v-else-if="
+                  (item.block.type === 'reasoning_content' ||
+                    item.block.type === 'artifact-thinking') &&
+                  item.block.content
+                "
+                :block="item.block"
+                :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
               />
-              <MessageBlockPlan v-else-if="block.type === 'plan'" :block="block" />
+              <MessageBlockPlan v-else-if="item.block.type === 'plan'" :block="item.block" />
               <MessageBlockToolCall
-                v-else-if="block.type === 'tool_call'"
-                :block="block"
+                v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
               <MessageBlockQuestionRequest
-                v-else-if="block.type === 'action' && block.action_type === 'question_request'"
-                :block="block"
+                v-else-if="
+                  item.block.type === 'action' && item.block.action_type === 'question_request'
+                "
+                :block="item.block"
               />
               <MessageBlockAction
-                v-else-if="block.type === 'action'"
+                v-else-if="item.block.type === 'action'"
                 :message-id="currentMessage.id"
                 :conversation-id="currentThreadId"
-                :block="block"
+                :block="item.block"
+                :is-read-only="isReadOnly"
                 @continue="handleBlockContinue"
                 @switch-provider="handleBlockSwitchProvider"
               />
               <MessageBlockAudio
-                v-else-if="isAudioBlock(block)"
-                :block="block"
+                v-else-if="isAudioBlock(item.block)"
+                :block="item.block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+              />
+              <MessageBlockVideo
+                v-else-if="isVideoBlock(item.block)"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
               <MessageBlockImage
-                v-else-if="block.type === 'image'"
-                :block="block"
+                v-else-if="item.block.type === 'image'"
+                :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
               />
-              <MessageBlockError v-else-if="block.type === 'error'" :block="block" />
+              <MessageBlockError v-else-if="item.block.type === 'error'" :block="item.block" />
             </template>
           </div>
           <MessageToolbar
@@ -93,6 +118,7 @@
             :is-in-generating-thread="resolvedIsInGeneratingThread"
             :is-capturing-image="isCapturingImage"
             :show-trace="showTrace"
+            :is-read-only="isReadOnly"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
             @copy="handleAction('copy')"
@@ -115,7 +141,7 @@
         <ContextMenuItem @select="handleSelectionTranslate">
           {{ t('contextMenu.translate.title') }}
         </ContextMenuItem>
-        <ContextMenuItem @select="handleSelectionAskAI">
+        <ContextMenuItem v-if="!isReadOnly" @select="handleSelectionAskAI">
           {{ t('contextMenu.askAI.title') }}
         </ContextMenuItem>
       </template>
@@ -123,17 +149,18 @@
         <ContextMenuItem @select="handleAction('copy')">
           {{ t('thread.toolbar.copy') }}
         </ContextMenuItem>
-        <ContextMenuItem @select="handleAction('retry')">
+        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('retry')">
           {{ t('thread.toolbar.retry') }}
         </ContextMenuItem>
         <ContextMenuItem
+          v-if="!isReadOnly"
           :disabled="message.status === 'pending' || resolvedIsInGeneratingThread"
           @select="handleAction('fork')"
         >
           {{ t('thread.toolbar.fork') }}
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem @select="handleAction('delete')">
+        <ContextMenuSeparator v-if="!isReadOnly" />
+        <ContextMenuItem v-if="!isReadOnly" @select="handleAction('delete')">
           {{ t('thread.toolbar.delete') }}
         </ContextMenuItem>
       </template>
@@ -181,7 +208,10 @@ import MessageBlockAction from './MessageBlockAction.vue'
 import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
+import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockPlan from './MessageBlockPlan.vue'
+import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
+import { buildAssistantRenderItems } from './messageActivityGroups'
 
 import {
   Dialog,
@@ -199,6 +229,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@shadcn/components/ui/context-menu'
+import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
 const props = defineProps<{
   message: DisplayAssistantMessage
@@ -206,13 +237,16 @@ const props = defineProps<{
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
   showTrace?: boolean
+  isReadOnly?: boolean
 }>()
 
 const themeStore = useThemeStore()
+const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
 
-const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus', '.webm']
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv']
 
 const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (block.type === 'audio') return true
@@ -224,6 +258,49 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
   if (data.startsWith('imgcache://') || data.startsWith('http://') || data.startsWith('https://')) {
     const lower = data.toLowerCase()
     return AUDIO_EXTENSIONS.some((ext) => lower.includes(ext))
+  }
+  return false
+}
+
+const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
+  return block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true
+}
+
+const isVideoUrl = (value: string): boolean => {
+  if (!value) return false
+
+  try {
+    const normalizedUrl = value.startsWith('imgcache://')
+      ? new URL(value.replace('imgcache://', 'https://imgcache.local/'))
+      : new URL(value)
+    const pathname = normalizedUrl.pathname.toLowerCase()
+    return VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
+  } catch {
+    const lower = value.toLowerCase()
+    return VIDEO_EXTENSIONS.some(
+      (ext) => lower.endsWith(ext) || lower.includes(`${ext}?`) || lower.includes(`${ext}#`)
+    )
+  }
+}
+
+const getLegacyBlockData = (block: DisplayAssistantMessageBlock): string => {
+  const content = block.content
+  if (content && typeof content === 'object' && 'data' in content) {
+    return String((content as { data?: unknown }).data ?? '')
+  }
+
+  return typeof content === 'string' ? content : ''
+}
+
+const isVideoBlock = (block: DisplayAssistantMessageBlock): boolean => {
+  if (block.type === 'video') return true
+  if (block.type !== 'image') return false
+  const mimeType = block.image_data?.mimeType?.toLowerCase() || ''
+  if (mimeType.startsWith('video/')) return true
+  const data = block.image_data?.data || getLegacyBlockData(block)
+  if (data.startsWith('data:video/')) return true
+  if (data.startsWith('imgcache://') || data.startsWith('http://') || data.startsWith('https://')) {
+    return isVideoUrl(data)
   }
   return false
 }
@@ -250,6 +327,7 @@ const currentThreadId = computed(() => props.message.conversationId || '')
 const useLegacyActions = computed(() => props.useLegacyActions !== false)
 const resolvedIsInGeneratingThread = computed(() => props.isInGeneratingThread ?? false)
 const showTrace = computed(() => props.showTrace ?? false)
+const isReadOnly = computed(() => props.isReadOnly === true)
 const rootRef = ref<HTMLElement | null>(null)
 const showSelectionMenu = ref(false)
 const lastSelectionText = ref('')
@@ -303,6 +381,21 @@ const currentContent = computed(() => {
   const variant = allVariants.value[currentVariantIndex.value - 1]
   return (variant?.content || props.message.content) as DisplayAssistantMessageBlock[]
 })
+
+const shouldGroupActivity = computed(() => {
+  if (resolvedIsInGeneratingThread.value) return false
+  return currentMessage.value.status !== 'pending'
+})
+
+const currentRenderItems = computed(() =>
+  buildAssistantRenderItems({
+    blocks: currentContent.value,
+    messageId: currentMessage.value.id,
+    messageUpdatedAt: currentMessage.value.updatedAt,
+    shouldGroup: shouldGroupActivity.value,
+    isInternalToolCall
+  })
+)
 
 // 监听 allVariants 长度变化，用于新变体生成时的自动切换和持久化
 watch(
@@ -418,7 +511,7 @@ const handleSelectionCopy = () => {
   if (!text) {
     return
   }
-  window.api.copyText(text)
+  deviceClient.copyText(text)
 }
 
 const handleSelectionTranslate = () => {
@@ -439,6 +532,10 @@ const handleSelectionTranslate = () => {
 }
 
 const handleSelectionAskAI = () => {
+  if (isReadOnly.value) {
+    return
+  }
+
   const text = resolveSelectionText()
   if (!text) {
     return
@@ -447,20 +544,30 @@ const handleSelectionAskAI = () => {
 }
 
 const handleBlockContinue = (conversationId: string, messageId: string) => {
+  if (isReadOnly.value) {
+    return
+  }
   emit('continue', conversationId, messageId)
 }
 
 const handleBlockSwitchProvider = () => {
+  if (isReadOnly.value) {
+    return
+  }
   emit('switchProvider')
 }
 
 const handleAction = (action: HandleActionType) => {
+  if (isReadOnly.value && (action === 'retry' || action === 'delete' || action === 'fork')) {
+    return
+  }
+
   if (action === 'retry') {
     emit('retry', currentMessage.value.id)
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    window.api.copyText(
+    deviceClient.copyText(
       currentContent.value
         .filter((block) => {
           if (

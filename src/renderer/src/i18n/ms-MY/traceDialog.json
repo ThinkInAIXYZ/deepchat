@@ -1,0 +1,17 @@
+{
+  "title": "Minta pratonton parameter",
+  "provider": "pembekal",
+  "model": "Model",
+  "endpoint": "API Endpoint",
+  "headers": "Pengepala permintaan",
+  "body": "Badan permintaan",
+  "copyJson": "Salin JSON",
+  "copySuccess": "Disalin ke papan keratan",
+  "close": "penutupan",
+  "loading": "memuatkan...",
+  "error": "Gagal memuatkan",
+  "errorDesc": "Tidak dapat mendapatkan maklumat pratonton permintaan, sila cuba lagi",
+  "notImplemented": "Belum disokong lagi",
+  "notImplementedDesc": "Pembekal ini belum tersedia untuk pratonton",
+  "mayNotMatch": "Nota: Pratonton ini dibina semula berdasarkan tetapan sesi semasa dan mungkin tidak sama persis dengan parameter yang sebenarnya dihantar."
+}

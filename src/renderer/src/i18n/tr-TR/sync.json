@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "{count} konuşma(lar)ı başarıyla içe aktarıldı.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
+  },
+  "error": {
+    "notEnabled": "Senkronizasyon etkin değil",
+    "folderNotExists": "Senkronizasyon klasörü mevcut değil",
+    "noValidBackup": "Senkronizasyon klasöründe geçerli bir yedekleme dosyası bulunamadı.",
+    "unsupportedBackupVersion": "Bu yedekleme, DeepChat'nin daha yeni bir sürümü tarafından oluşturuldu ve içe aktarılamaz.",
+    "dbNotExists": "Veritabanı dosyası mevcut değil",
+    "configNotExists": "Yapılandırma dosyası mevcut değil",
+    "tempDbFailed": "Geçici veritabanı yedekleme dosyası oluşturulamadı",
+    "tempConfigFailed": "Geçici yapılandırma yedekleme dosyası oluşturulamadı",
+    "importFailed": "İçe aktarma başarısız oldu, orijinal veriler geri yüklendi",
+    "importProcess": "İçe aktarma işlemi sırasında bir hata oluştu",
+    "unknown": "Bilinmeyen hata",
+    "encryptedBackupPasswordMissing": "Bu yedekleme şifrelenmiştir ancak yerel veritabanı anahtarı mevcut değildir. Önce şifrelenmiş veritabanının kilidini açın, ardından tekrar içe aktarın.",
+    "overwriteEncryptionMismatch": "Üzerine yazma içe aktarma, yedek ve geçerli veritabanının aynı şifreleme durumunu kullanmasını gerektirir.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Sistem anahtarlığı kullanılamıyor; gizli anahtar güvenli şekilde saklanamıyor.",
+    "cloudUnauthorized": "Bulut kimlik doğrulaması başarısız. Endpoint, bucket, Access Key ID, Secret Access Key ve R2 token izinlerini kontrol edin."
+  }
+}

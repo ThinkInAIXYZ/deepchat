@@ -1,33 +1,29 @@
+import logger from '@shared/logger'
 import {
   IConfigPresenter,
   MCPServerConfig,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
 } from '@shared/presenter'
-import { BaseLLMProvider } from '../baseProvider'
-import { ModelscopeProvider, ModelScopeMcpServer } from '../providers/modelscopeProvider'
+import {
+  convertModelScopeMcpServerToConfig,
+  fetchModelScopeMcpServers,
+  ModelScopeMcpServer
+} from '../modelScopeMcp'
 
 interface ModelScopeSyncManagerOptions {
   configPresenter: IConfigPresenter
-  getProviderInstance: (providerId: string) => BaseLLMProvider
 }
 
 export class ModelScopeSyncManager {
   constructor(private readonly options: ModelScopeSyncManagerOptions) {}
 
-  private isModelscopeProvider(provider: BaseLLMProvider): provider is ModelscopeProvider {
-    return (
-      typeof (provider as Partial<ModelscopeProvider>).syncMcpServers === 'function' &&
-      typeof (provider as Partial<ModelscopeProvider>).convertMcpServerToConfig === 'function'
-    )
-  }
-
   async syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions
   ): Promise<ModelScopeMcpSyncResult> {
-    console.log(`[ModelScope MCP Sync] Starting sync for provider: ${providerId}`)
-    console.log(`[ModelScope MCP Sync] Sync options:`, syncOptions)
+    logger.info(`[ModelScope MCP Sync] Starting sync for provider: ${providerId}`)
+    logger.info(`[ModelScope MCP Sync] Sync options:`, syncOptions)
 
     if (providerId !== 'modelscope') {
       const error = 'MCP sync is only supported for ModelScope provider'
@@ -35,10 +31,10 @@ export class ModelScopeSyncManager {
       throw new Error(error)
     }
 
-    const provider = this.options.getProviderInstance(providerId)
+    const provider = this.options.configPresenter.getProviderById(providerId)
 
-    if (!this.isModelscopeProvider(provider)) {
-      const error = 'Provider is not a ModelScope provider instance'
+    if (!provider) {
+      const error = 'Provider is not configured'
       console.error(`[ModelScope MCP Sync] Error: ${error}`)
       throw new Error(error)
     }
@@ -54,9 +50,9 @@ export class ModelScopeSyncManager {
 
     try {
       const syncTask = async () => {
-        console.log(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
+        logger.info(`[ModelScope MCP Sync] Fetching MCP servers from ModelScope API...`)
 
-        const mcpResponse = await provider.syncMcpServers(syncOptions)
+        const mcpResponse = await fetchModelScopeMcpServers(provider, syncOptions)
 
         if (!mcpResponse || !mcpResponse.success || !mcpResponse.data?.mcp_server_list) {
           const errorMsg = 'Invalid response from ModelScope MCP API'
@@ -66,7 +62,7 @@ export class ModelScopeSyncManager {
         }
 
         const mcpServers = mcpResponse.data.mcp_server_list as ModelScopeMcpServer[]
-        console.log(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
+        logger.info(`[ModelScope MCP Sync] Fetched ${mcpServers.length} MCP servers from API`)
 
         interface ConvertedServer {
           name: string
@@ -84,12 +80,12 @@ export class ModelScopeSyncManager {
                 return null
               }
 
-              const config = provider.convertMcpServerToConfig(server)
+              const config = convertModelScopeMcpServerToConfig(server)
 
               const name = server.name || server.id
               const displayName = server.chinese_name || server.name || server.id
 
-              console.log(
+              logger.info(
                 `[ModelScope MCP Sync] Converted operational server: ${displayName} (${name})`
               )
               return { name, displayName, config }
@@ -102,7 +98,7 @@ export class ModelScopeSyncManager {
           })
           .filter((entry): entry is ConvertedServer => entry !== null)
 
-        console.log(
+        logger.info(
           `[ModelScope MCP Sync] Successfully converted ${convertedServers.length} servers`
         )
 
@@ -112,7 +108,7 @@ export class ModelScopeSyncManager {
             const serverName = serverEntry.name
 
             if (existingServers[serverName]) {
-              console.log(`[ModelScope MCP Sync] Server ${serverName} already exists, skipping`)
+              logger.info(`[ModelScope MCP Sync] Server ${serverName} already exists, skipping`)
               result.skipped++
               continue
             }
@@ -122,7 +118,7 @@ export class ModelScopeSyncManager {
               serverEntry.config
             )
             if (success) {
-              console.log(
+              logger.info(
                 `[ModelScope MCP Sync] Successfully imported server: ${serverEntry.displayName}`
               )
               result.imported++
@@ -138,7 +134,7 @@ export class ModelScopeSyncManager {
           }
         }
 
-        console.log(
+        logger.info(
           `[ModelScope MCP Sync] Sync completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
         )
         result.synced = result.imported + result.skipped

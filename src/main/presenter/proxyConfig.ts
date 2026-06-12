@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { session } from 'electron'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 import { eventBus } from '@/eventbus'
@@ -16,7 +17,7 @@ export const NO_PROXY =
 // 合并系统和自定义的 no_proxy 设置
 function mergeNoProxy(defaultNoProxy: string): string {
   const systemNoProxy = process.env.no_proxy || process.env.NO_PROXY || ''
-  console.log('systemNoProxy', systemNoProxy)
+  logger.info('systemNoProxy', systemNoProxy)
   if (!systemNoProxy) {
     return defaultNoProxy
   }
@@ -59,10 +60,10 @@ export class ProxyConfig {
       // 根据不同的代理模式设置
       if (this.mode === ProxyMode.NONE) {
         this.clearProxy()
-        console.log('clear proxy')
+        logger.info('clear proxy')
         return
       } else if (this.mode === ProxyMode.CUSTOM && this.customProxyUrl) {
-        console.log('proxy url', this.customProxyUrl)
+        logger.info('proxy url', this.customProxyUrl)
         this.setCustomProxy(this.customProxyUrl)
         return
       }
@@ -71,7 +72,7 @@ export class ProxyConfig {
       session.defaultSession.setProxy({ mode: 'system' })
       const proxyString = await session.defaultSession.resolveProxy('https://www.google.com')
       const [protocol, address] = proxyString.split(';')[0].split(' ')
-      console.log('proxy url', protocol, address)
+      logger.info('proxy url', protocol, address)
       this.proxyUrl = protocol === 'PROXY' ? `http://${address}` : null
 
       if (this.proxyUrl) {

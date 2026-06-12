@@ -4,6 +4,9 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { createLegacyIpcSubscriptionScope } from '@api/legacy/runtime'
+
+const contextMenuEventScope = createLegacyIpcSubscriptionScope()
 
 // 处理翻译事件
 const handleTranslate = (text: string, x?: number, y?: number) => {
@@ -20,19 +23,18 @@ const handleAskAI = (text: string) => {
 }
 
 onMounted(() => {
-  window.electron.ipcRenderer.on(
+  contextMenuEventScope.on(
     'context-menu-translate',
     (_: unknown, text: string, x?: number, y?: number) => {
       handleTranslate(text, x, y)
     }
   )
-  window.electron.ipcRenderer.on('context-menu-ask-ai', (_: unknown, text: string) => {
+  contextMenuEventScope.on('context-menu-ask-ai', (_: unknown, text: string) => {
     handleAskAI(text)
   })
 })
 
 onUnmounted(() => {
-  window.electron.ipcRenderer.removeAllListeners('context-menu-translate')
-  window.electron.ipcRenderer.removeAllListeners('context-menu-ask-ai')
+  contextMenuEventScope.cleanup()
 })
 </script>

@@ -1,11 +1,10 @@
+import { spawn } from 'child_process'
 import { app } from 'electron'
 import log from 'electron-log'
-import { spawn } from 'child_process'
 import fs from 'fs'
-import path from 'path'
 import type { IConfigPresenter } from '@shared/presenter'
-import { RuntimeHelper } from '@/lib/runtimeHelper'
-import {
+import type {
+  HookCommandItem,
   HookCommandResult,
   HookEventName,
   HookEventPayload,
@@ -18,8 +17,19 @@ const COMMAND_TIMEOUT_MS = 30_000
 const PREVIEW_TEXT_LIMIT = 1200
 const DIAGNOSTIC_TEXT_LIMIT = 2000
 const TRUNCATION_SUFFIX = ' ...(truncated)'
-const MAX_RETRIES = 2
-const CONFIRMO_HOOK_RELATIVE_PATH = path.join('.confirmo', 'hooks', 'confirmo-hook.js')
+const HOOK_COMMAND_PLACEHOLDER_ENV_MAP = {
+  event: 'DEEPCHAT_HOOK_EVENT',
+  time: 'DEEPCHAT_HOOK_TIME',
+  isTest: 'DEEPCHAT_HOOK_IS_TEST',
+  conversationId: 'DEEPCHAT_CONVERSATION_ID',
+  workdir: 'DEEPCHAT_WORKDIR',
+  agentId: 'DEEPCHAT_AGENT_ID',
+  providerId: 'DEEPCHAT_PROVIDER_ID',
+  modelId: 'DEEPCHAT_MODEL_ID',
+  messageId: 'DEEPCHAT_MESSAGE_ID',
+  toolName: 'DEEPCHAT_TOOL_NAME',
+  toolCallId: 'DEEPCHAT_TOOL_CALL_ID'
+} as const
 
 export type HookDispatchContext = {
   conversationId?: string
@@ -64,77 +74,57 @@ type HooksNotificationsDeps = {
   getMessage?: (messageId: string) => Promise<HookMessageLookup | null>
 }
 
-class SerialQueue {
-  private chain: Promise<unknown> = Promise.resolve()
-
-  enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const next = this.chain.then(task, task)
-    this.chain = next.catch(() => {})
-    return next
-  }
-}
-
 export const truncateText = (value: string, limit: number): string => {
-  if (!value || limit <= 0) return ''
-  if (value.length <= limit) return value
-  const suffix = TRUNCATION_SUFFIX
-  const sliceLength = Math.max(0, limit - suffix.length)
-  return value.slice(0, sliceLength) + suffix
-}
-
-export const parseRetryAfterMs = (response: Response, body?: unknown): number | undefined => {
-  const header = response.headers.get('retry-after')
-  if (header) {
-    const parsed = Number(header)
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      return parsed < 1000 ? Math.ceil(parsed * 1000) : Math.ceil(parsed)
-    }
+  if (!value || limit <= 0) {
+    return ''
+  }
+  if (value.length <= limit) {
+    return value
   }
 
-  if (body && typeof body === 'object') {
-    const retryAfter =
-      typeof (body as { retry_after?: number }).retry_after === 'number'
-        ? (body as { retry_after: number }).retry_after
-        : typeof (body as { parameters?: { retry_after?: number } }).parameters?.retry_after ===
-            'number'
-          ? (body as { parameters: { retry_after: number } }).parameters.retry_after
-          : undefined
-    if (retryAfter && retryAfter > 0) {
-      return retryAfter < 1000 ? Math.ceil(retryAfter * 1000) : Math.ceil(retryAfter)
-    }
-  }
-
-  return undefined
+  const sliceLength = Math.max(0, limit - TRUNCATION_SUFFIX.length)
+  return value.slice(0, sliceLength) + TRUNCATION_SUFFIX
 }
+
+export const expandHookCommandPlaceholders = (
+  command: string,
+  platform: NodeJS.Platform = process.platform
+): string =>
+  command.replace(/{{\s*([a-zA-Z][a-zA-Z0-9]*)\s*}}/g, (match, key: string) => {
+    const envName =
+      HOOK_COMMAND_PLACEHOLDER_ENV_MAP[key as keyof typeof HOOK_COMMAND_PLACEHOLDER_ENV_MAP]
+    if (!envName) {
+      return match
+    }
+
+    return platform === 'win32' ? `"%${envName}%"` : `"\${${envName}}"`
+  })
 
 const extractPromptPreview = (content: unknown): string => {
-  // Handle string content (JSON serialized from new agent system)
   if (typeof content === 'string') {
     try {
-      const parsed = JSON.parse(content) as unknown
-      return extractFromParsed(parsed)
+      return extractPromptPreview(JSON.parse(content) as unknown)
     } catch {
-      // Not valid JSON, return as-is
       return content
     }
   }
-  // Handle object content (already parsed)
-  return extractFromParsed(content)
-}
 
-const extractFromParsed = (content: unknown): string => {
-  if (!content || typeof content !== 'object') return ''
+  if (!content || typeof content !== 'object') {
+    return ''
+  }
 
-  // Handle UserMessageContent format: { text: string, files: [], ... }
   const userCandidate = content as { text?: string }
-  if (typeof userCandidate.text === 'string') return userCandidate.text
+  if (typeof userCandidate.text === 'string') {
+    return userCandidate.text
+  }
 
-  // Handle AssistantMessageBlock[] format: array of blocks
   if (Array.isArray(content)) {
-    const blocks = content as Array<{ type?: string; content?: string }>
-    return blocks
-      .filter((block) => block.type === 'content')
-      .map((block) => block.content || '')
+    return content
+      .filter((block) => typeof block === 'object' && block && 'type' in block)
+      .map((block) => {
+        const contentBlock = block as { type?: string; content?: string }
+        return contentBlock.type === 'content' ? contentBlock.content || '' : ''
+      })
       .join('')
   }
 
@@ -142,12 +132,18 @@ const extractFromParsed = (content: unknown): string => {
 }
 
 const redactSensitiveText = (text: string, secrets: string[]): string => {
-  if (!text) return ''
+  if (!text) {
+    return ''
+  }
+
   let output = text
   for (const secret of secrets) {
-    if (!secret) continue
+    if (!secret) {
+      continue
+    }
     output = output.split(secret).join('***REDACTED***')
   }
+
   output = output.replace(
     /https?:\/\/(discord(?:app)?\.com)\/api\/webhooks\/\S+/gi,
     '***REDACTED***'
@@ -158,10 +154,6 @@ const redactSensitiveText = (text: string, secrets: string[]): string => {
 }
 
 export class HooksNotificationsService {
-  private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly telegramQueue = new SerialQueue()
-  private readonly discordQueue = new SerialQueue()
-
   constructor(
     private readonly configPresenter: IConfigPresenter,
     private readonly deps: HooksNotificationsDeps
@@ -179,53 +171,31 @@ export class HooksNotificationsService {
     })
   }
 
-  async testTelegram(): Promise<HookTestResult> {
-    const payload = await this.buildPayload('SessionStart', {
-      isTest: true,
-      promptPreview: 'Test message'
-    })
-    return await this.sendTelegram(payload, true)
-  }
+  async testHookCommand(hookId: string): Promise<HookTestResult> {
+    const hook = this.getConfigSnapshot().hooks.find((item) => item.id === hookId)
+    if (!hook) {
+      return {
+        success: false,
+        durationMs: 0,
+        error: 'Hook is not configured'
+      }
+    }
 
-  async testDiscord(): Promise<HookTestResult> {
-    const payload = await this.buildPayload('SessionStart', {
-      isTest: true,
-      promptPreview: 'Test message'
-    })
-    return await this.sendDiscord(payload, true)
-  }
-
-  async testConfirmo(): Promise<HookTestResult> {
-    const payload = await this.buildPayload('SessionStart', {
-      isTest: true,
-      promptPreview: 'Test message'
-    })
-    return await this.sendConfirmo(payload)
-  }
-
-  async testHookCommand(event: HookEventName): Promise<HookTestResult> {
-    const payload = await this.buildPayload(event, {
-      isTest: true,
-      promptPreview: 'Test message'
-    })
-    const config = this.getConfigSnapshot()
-    const commandConfig = config.commands.events[event]
-    if (!commandConfig?.command?.trim()) {
+    if (!hook.command.trim()) {
       return {
         success: false,
         durationMs: 0,
         error: 'Command is not configured'
       }
     }
-    const result = await this.executeHookCommand(commandConfig.command, payload)
-    return {
-      success: result.success,
-      durationMs: result.durationMs,
-      exitCode: result.exitCode ?? undefined,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      error: result.error
-    }
+
+    const event = hook.events[0] ?? 'SessionStart'
+    const payload = await this.buildPayload(event, {
+      isTest: true,
+      promptPreview: 'Test message'
+    })
+
+    return await this.runHookCommand(hook, payload)
   }
 
   private async dispatchEventAsync(
@@ -235,37 +205,19 @@ export class HooksNotificationsService {
     const config = this.getConfigSnapshot()
     const payload = await this.buildPayload(event, context)
 
-    if (config.commands.enabled) {
-      const commandConfig = config.commands.events[event]
-      if (commandConfig?.enabled && commandConfig.command?.trim()) {
-        void this.executeHookCommand(commandConfig.command, payload).catch((error) => {
-          log.warn('[HooksNotifications] Command hook failed:', error)
-        })
+    for (const hook of config.hooks) {
+      if (!this.shouldDispatchHook(hook, event)) {
+        continue
       }
-    }
 
-    if (config.telegram.enabled && config.telegram.events.includes(event)) {
-      void this.sendTelegram(payload, false).catch((error) => {
-        log.warn('[HooksNotifications] Telegram hook failed:', error)
-      })
-    }
-
-    if (config.discord.enabled && config.discord.events.includes(event)) {
-      void this.sendDiscord(payload, false).catch((error) => {
-        log.warn('[HooksNotifications] Discord hook failed:', error)
-      })
-    }
-
-    if (config.confirmo.enabled && config.confirmo.events.includes(event)) {
-      void this.sendConfirmo(payload).catch((error) => {
-        log.warn('[HooksNotifications] Confirmo hook failed:', error)
+      void this.runHookCommand(hook, payload).catch((error) => {
+        log.warn(`[HooksNotifications] Hook "${hook.name}" failed:`, error)
       })
     }
   }
 
-  getConfirmoHookStatus(): { available: boolean; path: string } {
-    const hookPath = this.getConfirmoHookPath()
-    return { available: this.isConfirmoHookAvailable(hookPath), path: hookPath }
+  private shouldDispatchHook(hook: HookCommandItem, event: HookEventName): boolean {
+    return Boolean(hook.enabled && hook.command.trim() && hook.events.includes(event))
   }
 
   private async buildPayload(
@@ -280,17 +232,14 @@ export class HooksNotificationsService {
     let workdir = context.workdir
 
     if (conversationId && (!providerId || !modelId || !workdir)) {
-      const getSession = this.deps.getSession
       try {
-        if (getSession) {
-          const session = await getSession(conversationId)
-          if (session) {
-            providerId = providerId ?? session.providerId
-            modelId = modelId ?? session.modelId
-            workdir = workdir ?? session.projectDir
-            if (!agentId && session.providerId === 'acp') {
-              agentId = session.modelId
-            }
+        const session = this.deps.getSession ? await this.deps.getSession(conversationId) : null
+        if (session) {
+          providerId = providerId ?? session.providerId
+          modelId = modelId ?? session.modelId
+          workdir = workdir ?? session.projectDir
+          if (!agentId && session.providerId === 'acp') {
+            agentId = session.modelId
           }
         }
       } catch (error) {
@@ -300,13 +249,10 @@ export class HooksNotificationsService {
 
     let promptPreview = context.promptPreview
     if (!promptPreview && context.messageId) {
-      const getMessage = this.deps.getMessage
       try {
-        if (getMessage) {
-          const message = await getMessage(context.messageId)
-          if (message) {
-            promptPreview = extractPromptPreview(message.content)
-          }
+        const message = this.deps.getMessage ? await this.deps.getMessage(context.messageId) : null
+        if (message) {
+          promptPreview = extractPromptPreview(message.content)
         }
       } catch (error) {
         log.warn('[HooksNotifications] Failed to read message for preview:', error)
@@ -314,7 +260,7 @@ export class HooksNotificationsService {
     }
 
     const hasUser = Boolean(promptPreview || context.messageId)
-    const payload: HookEventPayload = {
+    return {
       payloadVersion: HOOK_PAYLOAD_VERSION,
       event,
       time: now,
@@ -356,41 +302,14 @@ export class HooksNotificationsService {
       usage: context.usage ?? null,
       error: context.error ?? null
     }
-
-    return payload
-  }
-
-  private escapeTelegramHtml(value: string): string {
-    return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  }
-
-  private formatNotificationText(payload: HookEventPayload): string {
-    const lines: string[] = []
-    const title = `DeepChat${payload.isTest ? ' Test' : ''}`
-    const pushLine = (label: string, value: string) => {
-      lines.push(`<b>${this.escapeTelegramHtml(label)}</b>: ${this.escapeTelegramHtml(value)}`)
-    }
-
-    lines.push(`<b>${this.escapeTelegramHtml(title)}</b>`)
-    pushLine('Event', payload.event)
-    if (payload.tool?.name) {
-      pushLine('Tool', payload.tool.name)
-    }
-    if (payload.stop?.reason) {
-      pushLine('Stop', payload.stop.reason)
-    }
-    if (payload.error?.message) {
-      pushLine('Error', truncateText(payload.error.message, 160))
-    }
-    pushLine('Time', payload.time)
-
-    return lines.join('\n')
   }
 
   private resolveCommandCwd(workdir?: string | null): string {
     if (workdir && fs.existsSync(workdir)) {
       try {
-        if (fs.statSync(workdir).isDirectory()) return workdir
+        if (fs.statSync(workdir).isDirectory()) {
+          return workdir
+        }
       } catch {
         return process.cwd()
       }
@@ -398,20 +317,41 @@ export class HooksNotificationsService {
     return process.cwd()
   }
 
+  private async runHookCommand(
+    hook: HookCommandItem,
+    payload: HookEventPayload
+  ): Promise<HookTestResult> {
+    const result = await this.executeHookCommand(hook.command, payload)
+    return {
+      success: result.success,
+      durationMs: result.durationMs,
+      exitCode: result.exitCode ?? undefined,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      error: result.error
+    }
+  }
+
   private async executeHookCommand(
     command: string,
-    payload: HookEventPayload,
-    options?: { args?: string[]; shell?: boolean; stdinPayload?: unknown }
+    payload: HookEventPayload
   ): Promise<HookCommandResult> {
     const start = Date.now()
     const cwd = this.resolveCommandCwd(payload.session.workdir)
+    const expandedCommand = expandHookCommandPlaceholders(command)
     const env: Record<string, string> = {
       ...process.env,
       DEEPCHAT_HOOK_EVENT: payload.event,
-      ...(payload.session.conversationId
-        ? { DEEPCHAT_CONVERSATION_ID: payload.session.conversationId }
-        : {}),
-      ...(payload.session.workdir ? { DEEPCHAT_WORKDIR: payload.session.workdir } : {})
+      DEEPCHAT_HOOK_TIME: payload.time,
+      DEEPCHAT_HOOK_IS_TEST: payload.isTest ? 'true' : 'false',
+      DEEPCHAT_CONVERSATION_ID: payload.session.conversationId ?? '',
+      DEEPCHAT_WORKDIR: payload.session.workdir ?? '',
+      DEEPCHAT_AGENT_ID: payload.session.agentId ?? '',
+      DEEPCHAT_PROVIDER_ID: payload.session.providerId ?? '',
+      DEEPCHAT_MODEL_ID: payload.session.modelId ?? '',
+      DEEPCHAT_MESSAGE_ID: payload.user?.messageId ?? '',
+      DEEPCHAT_TOOL_NAME: payload.tool?.name ?? '',
+      DEEPCHAT_TOOL_CALL_ID: payload.tool?.callId ?? ''
     }
 
     return await new Promise<HookCommandResult>((resolve) => {
@@ -420,15 +360,17 @@ export class HooksNotificationsService {
       let finished = false
       let timedOut = false
 
-      const child = spawn(command, options?.args ?? [], {
-        shell: options?.shell ?? true,
+      const child = spawn(expandedCommand, [], {
+        shell: true,
         cwd,
         env,
         windowsHide: true
       })
 
       const finalize = (result: HookCommandResult) => {
-        if (finished) return
+        if (finished) {
+          return
+        }
         finished = true
         resolve(result)
       }
@@ -464,27 +406,18 @@ export class HooksNotificationsService {
       child.on('close', (code) => {
         clearTimeout(timeout)
         const secrets = [payload.session.conversationId ?? '', payload.session.workdir ?? '']
-        const redactedStdout = redactSensitiveText(
-          truncateText(stdout, DIAGNOSTIC_TEXT_LIMIT),
-          secrets
-        )
-        const redactedStderr = redactSensitiveText(
-          truncateText(stderr, DIAGNOSTIC_TEXT_LIMIT),
-          secrets
-        )
         finalize({
           success: !timedOut && code === 0,
           durationMs: Date.now() - start,
           exitCode: code ?? null,
-          stdout: redactedStdout,
-          stderr: redactedStderr,
+          stdout: redactSensitiveText(truncateText(stdout, DIAGNOSTIC_TEXT_LIMIT), secrets),
+          stderr: redactSensitiveText(truncateText(stderr, DIAGNOSTIC_TEXT_LIMIT), secrets),
           error: timedOut ? 'Command timed out' : code === 0 ? undefined : 'Command failed'
         })
       })
 
       try {
-        const inputPayload = options?.stdinPayload ?? payload
-        child.stdin?.write(JSON.stringify(inputPayload))
+        child.stdin?.write(JSON.stringify(payload))
         child.stdin?.end()
       } catch (error) {
         try {
@@ -508,257 +441,5 @@ export class HooksNotificationsService {
         })
       }
     })
-  }
-
-  private async sendTelegram(payload: HookEventPayload, isTest: boolean): Promise<HookTestResult> {
-    const config = this.getConfigSnapshot().telegram
-    const start = Date.now()
-    if (!config.botToken || !config.chatId) {
-      return { success: false, durationMs: 0, error: 'Missing Telegram config' }
-    }
-
-    const text = this.formatNotificationText(payload)
-    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`
-    const body: Record<string, unknown> = {
-      chat_id: config.chatId,
-      text,
-      parse_mode: 'HTML'
-    }
-    if (config.threadId) {
-      const threadValue = Number(config.threadId)
-      if (!Number.isNaN(threadValue)) {
-        body.message_thread_id = threadValue
-      }
-    }
-
-    const task = async (): Promise<HookTestResult> => {
-      let lastError: string | undefined
-      let statusCode: number | undefined
-      let retryAfterMs: number | undefined
-
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(15_000)
-          })
-          statusCode = response.status
-          const json = (await response.json().catch(() => ({}))) as Record<string, unknown>
-          if (response.ok) {
-            return { success: true, durationMs: Date.now() - start, statusCode }
-          }
-          if (response.status === 429) {
-            retryAfterMs = parseRetryAfterMs(response, json)
-            if (retryAfterMs && attempt < MAX_RETRIES) {
-              await new Promise((r) => setTimeout(r, retryAfterMs))
-              continue
-            }
-          }
-          lastError = JSON.stringify(json)
-          break
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : String(error)
-          break
-        }
-      }
-
-      return {
-        success: false,
-        durationMs: Date.now() - start,
-        statusCode,
-        retryAfterMs,
-        error: lastError || 'Telegram request failed'
-      }
-    }
-
-    const result = isTest ? await task() : await this.telegramQueue.enqueue(task)
-    return result
-  }
-
-  private async sendDiscord(payload: HookEventPayload, isTest: boolean): Promise<HookTestResult> {
-    const config = this.getConfigSnapshot().discord
-    const start = Date.now()
-    if (!config.webhookUrl) {
-      return { success: false, durationMs: 0, error: 'Missing Discord webhookUrl' }
-    }
-
-    const embed = this.buildDiscordEmbed(payload)
-    let url: URL
-    try {
-      url = new URL(config.webhookUrl)
-    } catch {
-      throw new Error('Invalid Discord webhook URL')
-    }
-    const body = {
-      embeds: [embed],
-      allowed_mentions: { parse: [] as string[] }
-    }
-
-    const task = async (): Promise<HookTestResult> => {
-      let lastError: string | undefined
-      let statusCode: number | undefined
-      let retryAfterMs: number | undefined
-
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-        try {
-          const response = await fetch(url.toString(), {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(15_000)
-          })
-          statusCode = response.status
-          const json = (await response.json().catch(() => ({}))) as Record<string, unknown>
-          if (response.ok) {
-            return { success: true, durationMs: Date.now() - start, statusCode }
-          }
-          if (response.status === 429) {
-            retryAfterMs = parseRetryAfterMs(response, json)
-            if (retryAfterMs && attempt < MAX_RETRIES) {
-              await new Promise((r) => setTimeout(r, retryAfterMs))
-              continue
-            }
-          }
-          lastError = JSON.stringify(json)
-          break
-        } catch (error) {
-          lastError = error instanceof Error ? error.message : String(error)
-          break
-        }
-      }
-
-      return {
-        success: false,
-        durationMs: Date.now() - start,
-        statusCode,
-        retryAfterMs,
-        error: lastError || 'Discord request failed'
-      }
-    }
-
-    const result = isTest ? await task() : await this.discordQueue.enqueue(task)
-    return result
-  }
-
-  private buildDiscordEmbed(payload: HookEventPayload): {
-    title: string
-    fields: Array<{ name: string; value: string; inline?: boolean }>
-    timestamp: string
-  } {
-    const fields: Array<{ name: string; value: string; inline?: boolean }> = [
-      { name: 'Event', value: payload.event, inline: true }
-    ]
-
-    if (payload.session.conversationId) {
-      fields.push({
-        name: 'Conversation',
-        value: truncateText(payload.session.conversationId, 256)
-      })
-    }
-    if (payload.tool?.name) {
-      fields.push({
-        name: 'Tool',
-        value: truncateText(payload.tool.name, 128),
-        inline: true
-      })
-    }
-    if (payload.stop?.reason) {
-      fields.push({
-        name: 'Stop',
-        value: truncateText(payload.stop.reason, 128),
-        inline: true
-      })
-    }
-    if (payload.error?.message) {
-      fields.push({
-        name: 'Error',
-        value: truncateText(payload.error.message, 512)
-      })
-    }
-
-    return {
-      title: `DeepChat${payload.isTest ? ' Test' : ''}`,
-      fields,
-      timestamp: payload.time
-    }
-  }
-
-  private getConfirmoHookPath(): string {
-    return path.join(app.getPath('home'), CONFIRMO_HOOK_RELATIVE_PATH)
-  }
-
-  private isConfirmoHookAvailable(hookPath?: string): boolean {
-    const targetPath = hookPath ?? this.getConfirmoHookPath()
-    try {
-      return fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()
-    } catch {
-      return false
-    }
-  }
-
-  private resolveConfirmoNodeCommand(): string {
-    this.runtimeHelper.initializeRuntimes()
-    return this.runtimeHelper.replaceWithRuntimeCommand('node', true)
-  }
-
-  private async sendConfirmo(payload: HookEventPayload): Promise<HookTestResult> {
-    const { available, path: hookPath } = this.getConfirmoHookStatus()
-    if (!available) {
-      return { success: false, durationMs: 0, error: 'Confirmo hook not found' }
-    }
-
-    const nodeCommand = this.resolveConfirmoNodeCommand()
-    const result = await this.executeHookCommand(nodeCommand, payload, {
-      args: [hookPath],
-      shell: false,
-      stdinPayload: this.buildConfirmoInput(payload)
-    })
-
-    return {
-      success: result.success,
-      durationMs: result.durationMs,
-      exitCode: result.exitCode ?? undefined,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      error: result.error
-    }
-  }
-
-  private buildConfirmoInput(payload: HookEventPayload): Record<string, unknown> {
-    const sessionId =
-      payload.session.conversationId ??
-      (payload.isTest ? 'test' : undefined) ??
-      payload.user?.messageId ??
-      payload.tool?.callId ??
-      'unknown'
-
-    const toolInput = this.resolveConfirmoToolInput(payload.tool?.paramsPreview)
-    const reason = payload.stop?.reason ?? payload.error?.message
-
-    return {
-      session_id: sessionId,
-      cwd: payload.session.workdir ?? undefined,
-      hook_event_name: payload.event,
-      tool_name: payload.tool?.name,
-      tool_input: toolInput,
-      prompt: payload.user?.promptPreview,
-      source: 'deepchat',
-      reason
-    }
-  }
-
-  private resolveConfirmoToolInput(paramsPreview?: string): Record<string, unknown> | undefined {
-    if (!paramsPreview) return undefined
-    try {
-      const parsed = JSON.parse(paramsPreview) as Record<string, unknown>
-      if (parsed && typeof parsed === 'object') {
-        return parsed
-      }
-    } catch {
-      // ignore
-    }
-    return { preview: truncateText(paramsPreview, 400) }
   }
 }

@@ -1,0 +1,25 @@
+{
+  "calling": "Llamando...",
+  "response": "Corriendo...",
+  "end": "hecho",
+  "error": "error",
+  "title": "Llamada de herramienta",
+  "clickToView": "Haga clic para ver detalles",
+  "functionName": "Nombre de la función",
+  "permission": "Solicitando permiso...",
+  "params": "Parámetros de función",
+  "responseData": "Respuesta",
+  "imagePreview": "Vista previa de imagen",
+  "imagePreviewCount": "No hay vistas previas de imágenes | Vista previa de una imagen | {count} vistas previas de imágenes",
+  "terminalOutput": "Salida terminal",
+  "badge": {
+    "rtk": "RTK"
+  },
+  "replacementsCount": "Reemplazos {count} completados",
+  "fileOperation": "Operación de archivos",
+  "fileRead": "Leer archivo",
+  "fileWrite": "Escribir archivo",
+  "filePath": "Ruta del archivo",
+  "success": "Éxito",
+  "failed": "Fallido"
+}

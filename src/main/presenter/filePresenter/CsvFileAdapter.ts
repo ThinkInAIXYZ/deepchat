@@ -16,10 +16,11 @@ export class CsvFileAdapter extends BaseFileAdapter {
     return 'CSV File'
   }
 
-  private parseCsvContent(content: string): string[][] {
+  private parseDelimitedContent(content: string): string[][] {
+    const delimiter = path.extname(this.filePath).toLowerCase() === '.tsv' ? '\t' : ','
     const rows = content
       .split('\n')
-      .map((row) => row.split(',').map((cell) => cell.trim().replace(/^["'](.*)["']$/, '$1')))
+      .map((row) => row.split(delimiter).map((cell) => cell.trim().replace(/^["'](.*)["']$/, '$1')))
     return rows.filter((row) => row.some((cell) => cell.length > 0))
   }
 
@@ -47,7 +48,7 @@ export class CsvFileAdapter extends BaseFileAdapter {
 
     if (!content) return undefined
 
-    const csvRows = this.parseCsvContent(content)
+    const csvRows = this.parseDelimitedContent(content)
     const headers = csvRows[0] || []
 
     const fileDescription = `

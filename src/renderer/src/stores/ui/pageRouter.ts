@@ -1,25 +1,40 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { createSessionClient } from '../../../api/SessionClient'
 
 export type PageRoute = { name: 'newThread' } | { name: 'chat'; sessionId: string }
+type GoToNewThreadOptions = {
+  refresh?: boolean
+}
+type InitializePageRouterOptions = {
+  activeSessionId?: string | null
+}
 
 export const usePageRouterStore = defineStore('pageRouter', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const sessionClient = createSessionClient()
 
   // --- State ---
   const route = ref<PageRoute>({ name: 'newThread' })
+  const newThreadRefreshKey = ref(0)
   const error = ref<string | null>(null)
 
   // --- Actions ---
 
-  async function initialize(): Promise<void> {
+  async function initialize(options: InitializePageRouterOptions = {}): Promise<void> {
     try {
-      // 1. Check for active new-agent session on this window content first
-      const webContentsId = window.api.getWebContentsId()
-      const activeNewSession = await newAgentPresenter.getActiveSession(webContentsId)
-      if (activeNewSession) {
-        route.value = { name: 'chat', sessionId: activeNewSession.id }
+      error.value = null
+
+      if (options.activeSessionId !== undefined) {
+        route.value = options.activeSessionId
+          ? { name: 'chat', sessionId: options.activeSessionId }
+          : { name: 'newThread' }
+        return
+      }
+
+      // 1. Check for the active agent session bound to this renderer first.
+      const { session: activeAgentSession } = await sessionClient.getActive()
+      if (activeAgentSession) {
+        route.value = { name: 'chat', sessionId: activeAgentSession.id }
         return
       }
 
@@ -31,8 +46,11 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
     }
   }
 
-  function goToNewThread(): void {
+  function goToNewThread(options: GoToNewThreadOptions = {}): void {
     route.value = { name: 'newThread' }
+    if (options.refresh) {
+      newThreadRefreshKey.value += 1
+    }
   }
 
   function goToChat(sessionId: string): void {
@@ -46,6 +64,7 @@ export const usePageRouterStore = defineStore('pageRouter', () => {
 
   return {
     route,
+    newThreadRefreshKey,
     error,
     initialize,
     goToNewThread,

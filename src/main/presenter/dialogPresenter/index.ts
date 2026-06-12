@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Message dialog implemented via the renderer process
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
@@ -12,6 +13,7 @@ import {
 } from '@shared/presenter'
 import { eventBus, SendTarget } from '@/eventbus'
 import { DIALOG_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { nanoid } from 'nanoid'
 
 export class DialogPresenter implements IDialogPresenter {
@@ -50,6 +52,10 @@ export class DialogPresenter implements IDialogPresenter {
         try {
           // send dialog request to renderer
           eventBus.sendToRenderer(DIALOG_EVENTS.REQUEST, SendTarget.DEFAULT_WINDOW, finalRequest)
+          publishDeepchatEvent('dialog.requested', {
+            ...finalRequest,
+            version: Date.now()
+          })
         } catch (error) {
           // Clean up the pending dialog entry
           this.pendingDialogs.delete(finalRequest.id)
@@ -68,7 +74,7 @@ export class DialogPresenter implements IDialogPresenter {
    */
   async handleDialogResponse(response: DialogResponse): Promise<void> {
     if (this.pendingDialogs.has(response.id)) {
-      console.log('[Dialog] response received:', response)
+      logger.info('[Dialog] response received:', response)
       const pendingDialog = this.pendingDialogs.get(response.id)
       this.pendingDialogs.delete(response.id)
       pendingDialog?.resolve(response.button)

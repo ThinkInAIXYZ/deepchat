@@ -1,4 +1,5 @@
 import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { z } from 'zod'
 import fs from 'fs'
@@ -6,9 +7,19 @@ import path from 'path'
 import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
+import {
+  AgentFffSearchHandler,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  FffGlobArgsSchema,
+  FffGrepArgsSchema
+} from './agentFffSearchHandler'
+import { FffSearchService, type FffSearchMetadata } from '@/lib/agentRuntime/fffSearchService'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
@@ -21,13 +32,25 @@ import {
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../../browser/YoBrowserToolDefinitions'
 import { resolveSessionVisionTarget } from '../../vision/sessionVisionResolver'
+import {
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
+  SubagentOrchestratorTool
+} from './subagentOrchestratorTool'
+import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
+import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
+import { AgentTapeToolHandler } from './agentTapeTools'
+import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
+import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
 } from '../../permission/commandPermissionService'
-import { FilePermissionRequiredError } from '../../permission/filePermissionService'
+import {
+  FilePermissionRequiredError,
+  type FilePermissionLevel
+} from '../../permission/filePermissionService'
 
 export interface AgentToolCallResult {
   content: string
@@ -38,6 +61,8 @@ export interface AgentToolCallResult {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    fffSearch?: FffSearchMetadata
+    imagePreviews?: ToolCallImagePreview[]
     requiresPermission?: boolean
     permissionRequest?: {
       toolName: string
@@ -67,6 +92,36 @@ interface AgentToolManagerOptions {
   runtimePort: AgentToolRuntimePort
 }
 
+interface AgentToolExecutionOptions {
+  toolCallId?: string
+  onProgress?: (update: AgentToolProgressUpdate) => void
+  signal?: AbortSignal
+  allowExternalFileAccess?: boolean
+}
+
+interface AgentToolPermissionCheckOptions {
+  allowExternalFileAccess?: boolean
+}
+
+const createAbortError = (): Error => {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Aborted', 'AbortError')
+  }
+
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+const throwIfAbortRequested = (signal?: AbortSignal): void => {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
+
 export class AgentToolManager {
   private static readonly YO_BROWSER_TOOL_NAME_SET = new Set<string>(YO_BROWSER_TOOL_NAMES)
   private agentWorkspacePath: string | null
@@ -78,6 +133,11 @@ export class AgentToolManager {
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
+  private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
+  private imageGenerationTool: AgentImageGenerationTool | null = null
+  private planTool: AgentPlanTool | null = null
+  private tapeToolHandler: AgentTapeToolHandler | null = null
+  private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
   private readonly fileSystemSchemas = {
@@ -107,11 +167,6 @@ export class AgentToolManager {
           'Base directory for resolving relative paths. Required when using skills with relative paths.'
         )
     }),
-    ls: z.object({
-      path: z.string(),
-      depth: z.number().int().min(0).max(3).default(1),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
     edit: z.object({
       path: z.string(),
       oldText: z
@@ -122,35 +177,8 @@ export class AgentToolManager {
       replaceAll: z.boolean().default(true),
       base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
     }),
-    find: z.object({
-      pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
-      path: z
-        .string()
-        .optional()
-        .describe('Root directory for search (defaults to workspace root)'),
-      exclude: z
-        .array(z.string())
-        .optional()
-        .default([])
-        .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
-      maxResults: z.number().default(1000).describe('Maximum number of results to return'),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
-    grep: z.object({
-      pattern: z
-        .string()
-        .max(1000)
-        .describe(
-          'Regular expression pattern (max 1000 characters, must be safe and not cause ReDoS)'
-        ),
-      path: z.string().optional().default('.'),
-      filePattern: z.string().optional(),
-      recursive: z.boolean().default(true),
-      caseSensitive: z.boolean().default(false),
-      contextLines: z.number().default(0),
-      maxResults: z.number().default(100),
-      base_directory: z.string().optional().describe('Base directory for resolving relative paths.')
-    }),
+    [GLOB_TOOL_NAME]: FffGlobArgsSchema,
+    [GREP_TOOL_NAME]: FffGrepArgsSchema,
     exec: z.object({
       command: z.string().min(1).describe('The shell command to execute'),
       timeoutMs: z
@@ -206,6 +234,14 @@ export class AgentToolManager {
 
   private readonly skillSchemas = {
     skill_list: z.object({}),
+    skill_view: z.object({
+      name: z.string().min(1).describe('Skill name to inspect'),
+      file_path: z
+        .string()
+        .min(1)
+        .optional()
+        .describe('Optional file path under the skill root to inspect')
+    }),
     skill_run: z.object({
       skill: z.string().min(1).describe('Active skill name that owns the script'),
       script: z
@@ -226,19 +262,36 @@ export class AgentToolManager {
         .optional()
         .describe('Optional timeout in milliseconds for the script run')
     }),
-    skill_control: z
-      .object({
-        action: z.enum(['activate', 'deactivate']).describe('The action to perform'),
-        skill_name: z.string().min(1).optional().describe('Skill name to activate or deactivate'),
-        skills: z
-          .array(z.string())
-          .min(1)
-          .optional()
-          .describe('List of skill names to activate or deactivate')
+    skill_manage: z.discriminatedUnion('action', [
+      z.object({
+        action: z.literal('create').describe('Draft-only skill management action'),
+        content: z.string().describe('Complete SKILL.md document including frontmatter and body')
+      }),
+      z.object({
+        action: z.literal('edit').describe('Draft-only skill management action'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
+        content: z.string().describe('Complete SKILL.md document including frontmatter and body')
+      }),
+      z.object({
+        action: z.literal('write_file').describe('Draft-only skill management action'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
+        filePath: z
+          .string()
+          .describe('Relative file path under references/, templates/, scripts/, or assets/'),
+        fileContent: z.string().describe('Text content for write_file')
+      }),
+      z.object({
+        action: z.literal('remove_file').describe('Draft-only skill management action'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create'),
+        filePath: z
+          .string()
+          .describe('Relative file path under references/, templates/, scripts/, or assets/')
+      }),
+      z.object({
+        action: z.literal('delete').describe('Draft-only skill management action'),
+        draftId: z.string().describe('Opaque draft ID returned by skill_manage create')
       })
-      .refine((data) => Boolean(data.skill_name || (data.skills && data.skills.length > 0)), {
-        message: 'Either skill_name or skills must be provided'
-      })
+    ])
   }
 
   constructor(options: AgentToolManagerOptions) {
@@ -246,6 +299,13 @@ export class AgentToolManager {
     this.configPresenter = options.configPresenter
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
+    this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
+    this.imageGenerationTool = new AgentImageGenerationTool({
+      configPresenter: this.configPresenter,
+      runtimePort: this.runtimePort
+    })
+    this.planTool = new AgentPlanTool()
+    this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -254,6 +314,34 @@ export class AgentToolManager {
         this.configPresenter
       )
     }
+  }
+
+  public syncContext(context: {
+    chatMode: 'agent' | 'acp agent'
+    agentWorkspacePath: string | null
+  }): void {
+    const isAgentMode = context.chatMode === 'agent'
+    const effectiveWorkspacePath = isAgentMode
+      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
+      : null
+
+    if (effectiveWorkspacePath === this.agentWorkspacePath) {
+      return
+    }
+
+    if (effectiveWorkspacePath) {
+      this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
+      this.bashHandler = new AgentBashHandler(
+        [effectiveWorkspacePath],
+        this.commandPermissionHandler,
+        this.configPresenter
+      )
+    } else {
+      this.fileSystemHandler = null
+      this.bashHandler = null
+    }
+
+    this.agentWorkspacePath = effectiveWorkspacePath
   }
 
   /**
@@ -267,25 +355,7 @@ export class AgentToolManager {
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
-    const effectiveWorkspacePath = isAgentMode
-      ? context.agentWorkspacePath?.trim() || this.getDefaultAgentWorkspacePath()
-      : null
-
-    // Update filesystem handler if workspace path changed
-    if (effectiveWorkspacePath !== this.agentWorkspacePath) {
-      if (effectiveWorkspacePath) {
-        this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
-        this.bashHandler = new AgentBashHandler(
-          [effectiveWorkspacePath],
-          this.commandPermissionHandler,
-          this.configPresenter
-        )
-      } else {
-        this.fileSystemHandler = null
-        this.bashHandler = null
-      }
-      this.agentWorkspacePath = effectiveWorkspacePath
-    }
+    this.syncContext(context)
 
     // 1. FileSystem tools (agent mode only)
     if (isAgentMode && this.fileSystemHandler) {
@@ -295,6 +365,49 @@ export class AgentToolManager {
 
     // 2. Built-in question tool (all modes)
     defs.push(...this.getQuestionToolDefinitions())
+
+    // 2.1. Progress checklist tool (deepchat regular sessions only)
+    if (isAgentMode && this.planTool) {
+      defs.push(this.planTool.getToolDefinition())
+    }
+
+    // 2.15. Session tape tools (DeepChat sessions only)
+    if (isAgentMode && this.tapeToolHandler) {
+      try {
+        if (await this.tapeToolHandler.canUse(context.conversationId)) {
+          defs.push(...this.tapeToolHandler.getToolDefinitions())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve tape tool availability', { error })
+      }
+    }
+
+    // 2.25. Image generation tool (deepchat agent sessions with an image model)
+    if (isAgentMode && this.imageGenerationTool) {
+      try {
+        if (await this.imageGenerationTool.canUse(context.conversationId)) {
+          defs.push(this.imageGenerationTool.getToolDefinition())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve image generation tool availability', {
+          error
+        })
+      }
+    }
+
+    // 2.5. Subagent orchestration tool (deepchat regular sessions only)
+    if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
+      try {
+        const subagentToolDefinition = await this.subagentOrchestratorTool.getToolDefinition(
+          context.conversationId
+        )
+        if (subagentToolDefinition) {
+          defs.push(subagentToolDefinition)
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })
+      }
+    }
 
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
@@ -351,12 +464,26 @@ export class AgentToolManager {
   async callTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult | string> {
+    if (toolName === UPDATE_PLAN_TOOL_NAME) {
+      if (!this.planTool) {
+        throw new Error('Progress tool is not available.')
+      }
+
+      return this.planTool.call(args, conversationId, {
+        toolCallId: options?.toolCallId,
+        onProgress: options?.onProgress
+      })
+    }
+
     if (toolName === QUESTION_TOOL_NAME) {
       const validationResult = questionToolSchema.safeParse(args)
       if (!validationResult.success) {
-        throw new Error(`Invalid arguments for question: ${validationResult.error.message}`)
+        throw new Error(
+          `Invalid arguments for ${QUESTION_TOOL_NAME}. Use a single object with \`header?\`, \`question\`, \`options\`, \`multiple?\`, and \`custom?\`. Ask exactly one question per tool call. Do not use \`questions\` or \`allowOther\`, and do not pass stringified \`options\` JSON. Validation details: ${validationResult.error.message}`
+        )
       }
       return {
         content: 'question_requested',
@@ -366,6 +493,26 @@ export class AgentToolManager {
           toolResult: validationResult.data
         }
       }
+    }
+
+    if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
+      if (!this.subagentOrchestratorTool) {
+        throw new Error('Subagent orchestrator is not available.')
+      }
+
+      return await this.subagentOrchestratorTool.call(args, conversationId, options)
+    }
+
+    if (toolName === IMAGE_GENERATE_TOOL_NAME) {
+      if (!this.imageGenerationTool) {
+        throw new Error('Image generation tool is not available.')
+      }
+
+      return await this.imageGenerationTool.call(args, conversationId, options)
+    }
+
+    if (this.tapeToolHandler?.isTapeTool(toolName)) {
+      return await this.tapeToolHandler.call(toolName, args, conversationId)
     }
 
     // Route to process tool
@@ -378,7 +525,7 @@ export class AgentToolManager {
       if (!this.fileSystemHandler) {
         throw new Error(`FileSystem handler not initialized for tool: ${toolName}`)
       }
-      return await this.callFileSystemTool(toolName, args, conversationId)
+      return await this.callFileSystemTool(toolName, args, conversationId, options)
     }
 
     // Route to Skill tools
@@ -397,9 +544,34 @@ export class AgentToolManager {
 
     // Route to YoBrowser CDP tools
     if (AgentToolManager.YO_BROWSER_TOOL_NAME_SET.has(toolName)) {
-      const response = await this.getYoBrowserToolHandler().callTool(toolName, args, conversationId)
-      return {
-        content: response
+      try {
+        const response = await this.getYoBrowserToolHandler().callTool(
+          toolName,
+          args,
+          conversationId
+        )
+        return {
+          content: response
+        }
+      } catch (error) {
+        if (!isYoBrowserUnavailableError(error)) {
+          throw error
+        }
+
+        const payload = error.payload
+        const content = JSON.stringify(payload)
+        return {
+          content,
+          rawData: {
+            content,
+            isError: true,
+            toolResult: createAgentToolErrorResult(toolName, payload.error.message, {
+              code: payload.error.code,
+              recoverable: payload.error.recoverable,
+              data: payload
+            })
+          }
+        }
       }
     }
 
@@ -486,9 +658,45 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
+          name: GLOB_TOOL_NAME,
+          description:
+            'Search file paths in the workspace. Use this before content search. Returns JSON Array<{path, score}>.',
+          parameters: zodToJsonSchema(schemas[GLOB_TOOL_NAME]) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '🔎',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: GREP_TOOL_NAME,
+          description:
+            'Search file contents in the workspace. Prefer passing pathScope from glob. Use mode=regex for regular expressions. Returns JSON Array<{path, lineNumber, snippet, score}>.',
+          parameters: zodToJsonSchema(schemas[GREP_TOOL_NAME]) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '🔎',
+          description: 'Agent FileSystem tools'
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'exec',
           description:
-            'Execute a shell command in the workspace directory. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',
+            'Execute a shell command in the current working directory or an explicit cwd. External cwd paths are allowed in Full Access mode; default mode asks for approval. Use background: true when you know the command should detach immediately. Otherwise foreground exec waits briefly, and long-running commands may auto-background and return a session ID for use with the process tool.',
           parameters: zodToJsonSchema(schemas.exec) as {
             type: string
             properties: Record<string, unknown>
@@ -530,7 +738,7 @@ export class AgentToolManager {
         function: {
           name: QUESTION_TOOL_NAME,
           description:
-            'Ask the user a structured question and pause the agent loop until the user responds.',
+            'Pause the agent loop and ask the user one structured clarification question when missing user preferences, implementation direction, output shape, or risk decisions would materially change the result. Do not use this for casual conversation or for facts you can discover from the repo, tools, or existing context. The loop resumes only after the user responds.',
           parameters: zodToJsonSchema(questionToolSchema) as {
             type: string
             properties: Record<string, unknown>
@@ -547,12 +755,26 @@ export class AgentToolManager {
   }
 
   private isFileSystemTool(toolName: string): boolean {
-    const filesystemTools = ['read', 'write', 'ls', 'edit', 'find', 'grep', 'exec', 'process']
+    const filesystemTools = [
+      'read',
+      'write',
+      'edit',
+      GLOB_TOOL_NAME,
+      GREP_TOOL_NAME,
+      'exec',
+      'process'
+    ]
     return filesystemTools.includes(toolName)
   }
 
   private isProcessTool(toolName: string): boolean {
     return toolName === 'process'
+  }
+
+  private getRequiredFilePermission(toolName: string): FilePermissionLevel {
+    if (toolName === 'exec') return 'all'
+    if (toolName === 'write' || toolName === 'edit') return 'write'
+    return 'read'
   }
 
   private async callProcessTool(
@@ -576,7 +798,7 @@ export class AgentToolManager {
 
     switch (action) {
       case 'list': {
-        const sessions = backgroundExecSessionManager.list(conversationId)
+        const sessions = await backgroundExecSessionManager.list(conversationId)
         return {
           content: JSON.stringify({ status: 'ok', sessions }, null, 2)
         }
@@ -611,7 +833,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for write action')
         }
-        backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
+        await backgroundExecSessionManager.write(conversationId, sessionId, data ?? '', eof)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -631,7 +853,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for clear action')
         }
-        backgroundExecSessionManager.clear(conversationId, sessionId)
+        await backgroundExecSessionManager.clear(conversationId, sessionId)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -655,15 +877,12 @@ export class AgentToolManager {
   private async callFileSystemTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     // Handle process tool separately
     if (this.isProcessTool(toolName)) {
       return this.callProcessTool(toolName, args, conversationId)
-    }
-
-    if (!this.fileSystemHandler) {
-      throw new Error('FileSystem handler not initialized')
     }
 
     const schema = this.fileSystemSchemas[toolName as keyof typeof this.fileSystemSchemas]
@@ -677,6 +896,7 @@ export class AgentToolManager {
     }
 
     const parsedArgs = validationResult.data
+    const allowExternalFileAccess = options?.allowExternalFileAccess === true
 
     // Get dynamic workdir from conversation settings
     let dynamicWorkdir: string | null = null
@@ -691,17 +911,84 @@ export class AgentToolManager {
       }
     }
 
+    const workspaceRoot =
+      dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+    const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
+      includeSkillRoots: toolName !== 'exec',
+      includeRuntimeRoots: toolName !== 'exec',
+      requiredPermission: this.getRequiredFilePermission(toolName)
+    })
+
+    if (toolName === 'exec') {
+      if (!this.bashHandler) {
+        throw new Error('Bash handler not initialized for exec tool')
+      }
+      const bashHandler = new AgentBashHandler(
+        allowedDirectories,
+        this.commandPermissionHandler,
+        this.configPresenter
+      )
+      const execArgs = parsedArgs as {
+        command: string
+        timeoutMs?: number
+        description?: string
+        cwd?: string
+        background?: boolean
+        yieldMs?: number
+      }
+      const commandResult = await bashHandler.executeCommand(
+        {
+          command: execArgs.command,
+          timeout: execArgs.timeoutMs,
+          description: execArgs.description ?? 'Execute command',
+          cwd: execArgs.cwd,
+          background: execArgs.background,
+          yieldMs: execArgs.yieldMs
+        },
+        {
+          conversationId,
+          allowExternalCwd: allowExternalFileAccess
+        }
+      )
+      const content =
+        typeof commandResult.output === 'string'
+          ? commandResult.output
+          : JSON.stringify(commandResult.output)
+      return {
+        content,
+        rawData: {
+          content,
+          rtkApplied: commandResult.rtkApplied,
+          rtkMode: commandResult.rtkMode,
+          rtkFallbackReason: commandResult.rtkFallbackReason
+        }
+      }
+    }
+
+    if (!this.fileSystemHandler) {
+      throw new Error('FileSystem handler not initialized')
+    }
+
     // Priority: explicit base_directory → conversation workdir → default
     const explicitBaseDirectory = (parsedArgs as any).base_directory
     const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
-    const workspaceRoot =
-      dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
-    const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
-    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
+    const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+      conversationId,
+      allowExternalAccess: allowExternalFileAccess
+    })
 
     try {
       switch (toolName) {
         case 'read': {
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'read',
+            allowExternalFileAccess
+          )
           const readArgs = parsedArgs as {
             path: string
             offset?: number
@@ -710,7 +997,8 @@ export class AgentToolManager {
           const validPath = await this.resolveValidatedReadPath(
             fileSystemHandler,
             readArgs.path,
-            baseDirectory
+            baseDirectory,
+            allowExternalFileAccess
           )
           const mimeType = await this.getFilePresenter().getMimeType(validPath)
 
@@ -721,8 +1009,18 @@ export class AgentToolManager {
           }
 
           if (this.isImageMimeType(mimeType)) {
+            const imageResult = await this.readImageWithVisionFallback(
+              validPath,
+              mimeType,
+              conversationId,
+              options?.signal
+            )
             return {
-              content: await this.readImageWithVisionFallback(validPath, mimeType, conversationId)
+              content: imageResult.content,
+              rawData: {
+                content: imageResult.content,
+                imagePreviews: imageResult.imagePreviews
+              }
             }
           }
 
@@ -754,41 +1052,25 @@ export class AgentToolManager {
           }
         }
         case 'write':
-          this.assertWritePermission(
+          await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
             baseDirectory,
             fileSystemHandler,
-            conversationId
+            conversationId,
+            'write',
+            allowExternalFileAccess
           )
           return { content: await fileSystemHandler.writeFile(parsedArgs, baseDirectory) }
-        case 'ls': {
-          const lsArgs = parsedArgs as {
-            path: string
-            depth?: number
-          }
-          if ((lsArgs.depth ?? 1) > 1) {
-            return {
-              content: await fileSystemHandler.directoryTree(
-                { path: lsArgs.path, depth: lsArgs.depth },
-                baseDirectory
-              )
-            }
-          }
-          return {
-            content: await fileSystemHandler.listDirectory(
-              { path: lsArgs.path, showDetails: false, sortBy: 'name' },
-              baseDirectory
-            )
-          }
-        }
         case 'edit': {
-          this.assertWritePermission(
+          await this.assertFileAccessPermission(
             toolName,
             parsedArgs,
             baseDirectory,
             fileSystemHandler,
-            conversationId
+            conversationId,
+            'write',
+            allowExternalFileAccess
           )
           const editArgs = parsedArgs as {
             path: string
@@ -820,88 +1102,59 @@ export class AgentToolManager {
             )
           }
         }
-        case 'find': {
-          const findArgs = parsedArgs as {
-            pattern: string
-            path?: string
-            exclude?: string[]
-            maxResults?: number
-          }
-          return {
-            content: await fileSystemHandler.globSearch(
-              {
-                pattern: findArgs.pattern,
-                root: findArgs.path,
-                excludePatterns: findArgs.exclude,
-                maxResults: findArgs.maxResults,
-                sortBy: 'name'
-              },
-              baseDirectory
-            )
-          }
-        }
-        case 'grep': {
-          const grepArgs = parsedArgs as {
-            pattern: string
-            path?: string
-            filePattern?: string
-            recursive?: boolean
-            caseSensitive?: boolean
-            contextLines?: number
-            maxResults?: number
-          }
-          return {
-            content: await fileSystemHandler.grepSearch(
-              {
-                path: grepArgs.path ?? '.',
-                pattern: grepArgs.pattern,
-                filePattern: grepArgs.filePattern,
-                recursive: grepArgs.recursive ?? true,
-                caseSensitive: grepArgs.caseSensitive ?? false,
-                includeLineNumbers: true,
-                contextLines: grepArgs.contextLines ?? 0,
-                maxResults: grepArgs.maxResults ?? 100
-              },
-              baseDirectory
-            )
-          }
-        }
-        case 'exec': {
-          if (!this.bashHandler) {
-            throw new Error('Bash handler not initialized for exec tool')
-          }
-          const execArgs = parsedArgs as {
-            command: string
-            timeoutMs?: number
-            description?: string
-            cwd?: string
-            background?: boolean
-            yieldMs?: number
-          }
-          const commandResult = await this.bashHandler.executeCommand(
-            {
-              command: execArgs.command,
-              timeout: execArgs.timeoutMs,
-              description: execArgs.description ?? 'Execute command',
-              cwd: execArgs.cwd,
-              background: execArgs.background,
-              yieldMs: execArgs.yieldMs
-            },
-            {
-              conversationId
-            }
+        case GLOB_TOOL_NAME: {
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'read',
+            allowExternalFileAccess
           )
-          const content =
-            typeof commandResult.output === 'string'
-              ? commandResult.output
-              : JSON.stringify(commandResult.output)
+          const fffHandler = new AgentFffSearchHandler({
+            workspaceRoot,
+            allowedDirectories,
+            baseDirectory,
+            conversationId,
+            allowExternalFileAccess,
+            signal: options?.signal,
+            service: this.fffSearchService
+          })
+          const result = await fffHandler.glob(parsedArgs)
           return {
-            content,
+            content: result.content,
             rawData: {
-              content,
-              rtkApplied: commandResult.rtkApplied,
-              rtkMode: commandResult.rtkMode,
-              rtkFallbackReason: commandResult.rtkFallbackReason
+              content: result.content,
+              fffSearch: result.metadata
+            }
+          }
+        }
+        case GREP_TOOL_NAME: {
+          await this.assertFileAccessPermission(
+            toolName,
+            parsedArgs,
+            baseDirectory,
+            fileSystemHandler,
+            conversationId,
+            'read',
+            allowExternalFileAccess
+          )
+          const fffHandler = new AgentFffSearchHandler({
+            workspaceRoot,
+            allowedDirectories,
+            baseDirectory,
+            conversationId,
+            allowExternalFileAccess,
+            signal: options?.signal,
+            service: this.fffSearchService
+          })
+          const result = await fffHandler.grep(parsedArgs)
+          return {
+            content: result.content,
+            rawData: {
+              content: result.content,
+              fffSearch: result.metadata
             }
           }
         }
@@ -935,7 +1188,17 @@ export class AgentToolManager {
     }
   }
 
-  private buildAllowedDirectories(workspacePath: string, conversationId?: string): string[] {
+  private async buildAllowedDirectories(
+    workspacePath: string,
+    conversationId?: string,
+    options: {
+      includeSkillRoots?: boolean
+      includeRuntimeRoots?: boolean
+      requiredPermission?: FilePermissionLevel
+    } = {}
+  ): Promise<string[]> {
+    const includeSkillRoots = options.includeSkillRoots !== false
+    const includeRuntimeRoots = options.includeRuntimeRoots !== false
     const ordered: string[] = []
     const seen = new Set<string>()
     const addPath = (value?: string | null) => {
@@ -949,12 +1212,25 @@ export class AgentToolManager {
 
     addPath(workspacePath)
     addPath(this.agentWorkspacePath)
-    addPath(this.configPresenter.getSkillsPath())
-    addPath(path.join(app.getPath('home'), '.deepchat'))
-    addPath(app.getPath('temp'))
+
+    if (conversationId && includeSkillRoots) {
+      const activeSkillRoots = await this.resolveActiveSkillRoots(conversationId)
+      for (const skillRoot of activeSkillRoots) {
+        addPath(skillRoot)
+      }
+    }
+
+    if (includeRuntimeRoots) {
+      addPath(path.join(app.getPath('home'), '.deepchat'))
+      addPath(app.getPath('temp'))
+      addPath(path.join(app.getPath('userData'), 'temp'))
+    }
 
     if (conversationId) {
-      const approved = this.runtimePort.getApprovedFilePaths(conversationId)
+      const approved = this.runtimePort.getApprovedFilePaths(
+        conversationId,
+        options.requiredPermission ?? 'read'
+      )
       for (const approvedPath of approved) {
         addPath(approvedPath)
       }
@@ -963,22 +1239,120 @@ export class AgentToolManager {
     return ordered
   }
 
+  private async resolveActiveSkillRoots(conversationId: string): Promise<string[]> {
+    const skillPresenter = this.getSkillPresenter()
+    if (!skillPresenter?.getActiveSkills || !skillPresenter?.getMetadataList) {
+      return []
+    }
+
+    let activeSkillNames: string[]
+    let metadataList: Awaited<ReturnType<typeof skillPresenter.getMetadataList>>
+
+    try {
+      ;[activeSkillNames, metadataList] = await Promise.all([
+        skillPresenter.getActiveSkills(conversationId),
+        skillPresenter.getMetadataList()
+      ])
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to resolve active skill roots', {
+        conversationId,
+        error
+      })
+      return []
+    }
+
+    const metadataByName = new Map(
+      metadataList
+        .filter((metadata) => metadata?.name?.trim())
+        .map((metadata) => [metadata.name.trim(), metadata])
+    )
+    const roots: string[] = []
+
+    for (const skillName of activeSkillNames) {
+      const normalizedSkillName = skillName?.trim()
+      if (!normalizedSkillName) {
+        continue
+      }
+
+      const metadata = metadataByName.get(normalizedSkillName)
+      if (!metadata) {
+        logger.warn(
+          '[AgentToolManager] Active skill metadata missing during file allowlist build',
+          {
+            conversationId,
+            skillName: normalizedSkillName
+          }
+        )
+        continue
+      }
+
+      const skillRoot = metadata.skillRoot?.trim()
+      if (!skillRoot) {
+        logger.warn('[AgentToolManager] Active skill root missing during file allowlist build', {
+          conversationId,
+          skillName: normalizedSkillName
+        })
+        continue
+      }
+
+      try {
+        const resolvedRoot = path.resolve(skillRoot)
+        if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+          logger.warn('[AgentToolManager] Active skill root is not a directory', {
+            conversationId,
+            skillName: normalizedSkillName,
+            skillRoot: resolvedRoot
+          })
+          continue
+        }
+        roots.push(resolvedRoot)
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to normalize active skill root', {
+          conversationId,
+          skillName: normalizedSkillName,
+          skillRoot,
+          error
+        })
+      }
+    }
+
+    return roots
+  }
+
   private async resolveValidatedReadPath(
     fileSystemHandler: AgentFileSystemHandler,
     requestedPath: string,
-    baseDirectory?: string
+    baseDirectory?: string,
+    allowExternalFileAccess = false
   ): Promise<string> {
     const resolvedPath = fileSystemHandler.resolvePath(requestedPath, baseDirectory)
-    if (!fileSystemHandler.isPathAllowedAbsolute(resolvedPath)) {
+    fileSystemHandler.assertReadAllowedAbsolute(resolvedPath)
+    if (!allowExternalFileAccess && !fileSystemHandler.isPathAllowedAbsolute(resolvedPath)) {
       throw new Error(`Access denied - path outside allowed directories: ${requestedPath}`)
     }
 
-    const stats = await fs.promises.stat(resolvedPath)
+    let pathForRead = resolvedPath
+    try {
+      const realPath = await fs.promises.realpath(resolvedPath)
+      fileSystemHandler.assertReadAllowedAbsolute(realPath)
+      if (!allowExternalFileAccess && !fileSystemHandler.isPathAllowedAbsolute(realPath)) {
+        throw new Error(
+          `Access denied - symlink target outside allowed directories: ${requestedPath}`
+        )
+      }
+      pathForRead = realPath
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Access denied')) {
+        throw error
+      }
+    }
+
+    const stats = await fs.promises.stat(pathForRead)
     if (!stats.isFile()) {
       throw new Error(`Path is not a file: ${requestedPath}`)
     }
 
-    return resolvedPath
+    return pathForRead
   }
 
   private isImageMimeType(mimeType: string): boolean {
@@ -1067,14 +1441,38 @@ export class AgentToolManager {
   private async readImageWithVisionFallback(
     filePath: string,
     mimeType: string,
-    conversationId?: string
-  ): Promise<string> {
+    conversationId?: string,
+    signal?: AbortSignal
+  ): Promise<{ content: string; imagePreviews: ToolCallImagePreview[] }> {
+    throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
+    throwIfAbortRequested(signal)
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+    let previewData: string | undefined
+    if (this.runtimePort.cacheImage) {
+      try {
+        const cachedPreviewData = await this.runtimePort.cacheImage(dataUrl)
+        if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
+          previewData = cachedPreviewData
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
+      }
+    }
+    const imagePreviews: ToolCallImagePreview[] = [
+      {
+        id: 'file_read-1',
+        ...(previewData ? { data: previewData } : {}),
+        mimeType,
+        title: path.basename(filePath),
+        source: 'file_read'
+      }
+    ]
     let visionTarget: Awaited<ReturnType<typeof this.resolveVisionTargetForConversation>>
 
     try {
-      visionTarget = await this.resolveVisionTargetForConversation(conversationId)
+      visionTarget = await this.resolveVisionTargetForConversation(conversationId, signal)
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve vision target for image read:', {
         conversationId,
@@ -1085,11 +1483,14 @@ export class AgentToolManager {
     }
 
     if (!visionTarget) {
-      return `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`
+      return {
+        content: `${metadata}\n\nImage analysis unavailable because neither the current session model nor the agent vision model can analyze images.`,
+        imagePreviews
+      }
     }
 
     try {
-      const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+      throwIfAbortRequested(signal)
       const messages: ChatMessage[] = [
         {
           role: 'user',
@@ -1110,26 +1511,51 @@ export class AgentToolManager {
         visionTarget.modelId,
         visionTarget.providerId
       )
-      const response = await this.getLlmProviderPresenter().generateCompletionStandalone(
-        visionTarget.providerId,
-        messages,
-        visionTarget.modelId,
-        modelConfig?.temperature ?? 0.2,
-        modelConfig?.maxTokens ?? 1200
-      )
+      const llmProviderPresenter = this.getLlmProviderPresenter()
+      if (signal) {
+        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId, { signal })
+      } else {
+        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId)
+      }
+      throwIfAbortRequested(signal)
+      const response = signal
+        ? await llmProviderPresenter.generateCompletionStandalone(
+            visionTarget.providerId,
+            messages,
+            visionTarget.modelId,
+            modelConfig?.temperature ?? 0.2,
+            modelConfig?.maxTokens ?? 1200,
+            { signal }
+          )
+        : await llmProviderPresenter.generateCompletionStandalone(
+            visionTarget.providerId,
+            messages,
+            visionTarget.modelId,
+            modelConfig?.temperature ?? 0.2,
+            modelConfig?.maxTokens ?? 1200
+          )
 
       const normalized = (response || '').trim()
       if (!normalized) {
-        return `${metadata}\n\nImage analysis returned no usable description.`
+        return {
+          content: `${metadata}\n\nImage analysis returned no usable description.`,
+          imagePreviews
+        }
       }
-      return normalized
+      return { content: normalized, imagePreviews }
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error
+      }
       const message = error instanceof Error ? error.message : String(error)
-      return `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`
+      return {
+        content: `${metadata}\n\nVision analysis failed, downgraded to metadata.\nerror: ${message}`,
+        imagePreviews
+      }
     }
   }
 
-  private async resolveVisionTargetForConversation(conversationId?: string) {
+  private async resolveVisionTargetForConversation(conversationId?: string, signal?: AbortSignal) {
     if (!conversationId) {
       return null
     }
@@ -1141,6 +1567,7 @@ export class AgentToolManager {
         modelId: sessionInfo?.modelId,
         agentId: sessionInfo?.agentId,
         configPresenter: this.configPresenter,
+        signal,
         logLabel: `read:${conversationId}`
       })
     } catch (error) {
@@ -1162,35 +1589,76 @@ export class AgentToolManager {
     ].join('\n')
   }
 
-  private assertWritePermission(
+  private async assertFileAccessPermission(
     toolName: string,
     args: Record<string, unknown>,
     baseDirectory: string | undefined,
     fileSystemHandler: AgentFileSystemHandler,
-    conversationId?: string
-  ): void {
+    conversationId: string | undefined,
+    permissionType: 'read' | 'write',
+    allowExternalFileAccess = false
+  ): Promise<void> {
     if (!conversationId) return
-    const targets = this.collectWriteTargets(toolName, args)
+    if (allowExternalFileAccess) return
+
+    const targets =
+      permissionType === 'write'
+        ? this.collectWriteTargets(toolName, args)
+        : this.collectReadTargets(toolName, args)
     if (targets.length === 0) return
 
-    const denied = targets.filter((target) => {
-      const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
-      return !fileSystemHandler.isPathAllowedAbsolute(resolved)
-    })
+    const denied = await this.collectDeniedFileTargets(targets, baseDirectory, fileSystemHandler)
 
     if (denied.length === 0) return
 
     throw new FilePermissionRequiredError(
-      'components.messageBlockPermissionRequest.description.write',
+      `components.messageBlockPermissionRequest.description.${permissionType}`,
       {
         toolName,
         serverName: 'agent-filesystem',
-        permissionType: 'write',
-        description: 'Write access requires approval.',
+        permissionType,
+        description: `${permissionType === 'write' ? 'Write' : 'Read'} access requires approval for: ${denied.join(', ')}`,
         paths: denied,
         conversationId
       }
     )
+  }
+
+  private async collectDeniedFileTargets(
+    targets: string[],
+    baseDirectory: string | undefined,
+    fileSystemHandler: AgentFileSystemHandler
+  ): Promise<string[]> {
+    const denied: string[] = []
+    for (const target of targets) {
+      const resolved = fileSystemHandler.resolvePath(target, baseDirectory)
+      const permissionTarget = await this.resolvePermissionTarget(resolved)
+      const containmentTarget = await this.resolveContainmentTarget(resolved)
+      if (!fileSystemHandler.isPathAllowedAbsolute(containmentTarget)) {
+        denied.push(permissionTarget)
+      }
+    }
+    return denied
+  }
+
+  private async resolvePermissionTarget(resolvedPath: string): Promise<string> {
+    try {
+      return await fs.promises.realpath(resolvedPath)
+    } catch {
+      return resolvedPath
+    }
+  }
+
+  private async resolveContainmentTarget(resolvedPath: string): Promise<string> {
+    try {
+      return await fs.promises.realpath(resolvedPath)
+    } catch {
+      try {
+        return await fs.promises.realpath(path.dirname(resolvedPath))
+      } catch {
+        return resolvedPath
+      }
+    }
   }
 
   private collectWriteTargets(toolName: string, args: Record<string, unknown>): string[] {
@@ -1203,6 +1671,45 @@ export class AgentToolManager {
       default:
         return []
     }
+  }
+
+  private collectReadTargets(toolName: string, args: Record<string, unknown>): string[] {
+    switch (toolName) {
+      case 'read':
+      case 'ls': {
+        const pathArg = args.path
+        return typeof pathArg === 'string' ? [pathArg] : []
+      }
+      case 'find': {
+        const pathArg = args.path
+        return typeof pathArg === 'string' && pathArg.trim().length > 0 ? [pathArg] : []
+      }
+      case GLOB_TOOL_NAME: {
+        const options = args.options
+        if (!options || typeof options !== 'object' || Array.isArray(options)) {
+          return []
+        }
+        return this.collectPathScopeReadTargets((options as Record<string, unknown>).pathScope)
+      }
+      case GREP_TOOL_NAME:
+        return this.collectPathScopeReadTargets(args.pathScope)
+      default:
+        return []
+    }
+  }
+
+  private collectPathScopeReadTargets(pathScope: unknown): string[] {
+    if (!Array.isArray(pathScope)) {
+      return []
+    }
+
+    return pathScope.filter(
+      (scope): scope is string =>
+        typeof scope === 'string' &&
+        scope.trim().length > 0 &&
+        !/[*?[{]/.test(scope) &&
+        !scope.includes('..')
+    )
   }
 
   private getDefaultAgentWorkspacePath(): string {
@@ -1307,10 +1814,28 @@ export class AgentToolManager {
       {
         type: 'function',
         function: {
-          name: 'skill_control',
+          name: 'skill_view',
           description:
-            'Activate or deactivate skills. Activated skills inject their expertise into the conversation context.',
-          parameters: zodToJsonSchema(schemas.skill_control) as {
+            'Inspect a specific skill before relying on it. Returns the rendered SKILL.md body or a requested supporting file under the skill root.',
+          parameters: zodToJsonSchema(schemas.skill_view) as {
+            type: string
+            properties: Record<string, unknown>
+            required?: string[]
+          }
+        },
+        server: {
+          name: 'agent-skills',
+          icons: '🎯',
+          description: 'Agent Skills management'
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'skill_manage',
+          description:
+            'Create or edit temporary draft skills in the conversation draft area. Use the returned draftId for follow-up draft operations. This cannot modify installed skills.',
+          parameters: zodToJsonSchema(schemas.skill_manage) as {
             type: string
             properties: Record<string, unknown>
             required?: string[]
@@ -1331,7 +1856,7 @@ export class AgentToolManager {
       function: {
         name: 'skill_run',
         description:
-          'Run a bundled script from an active skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
+          'Run a bundled script from a pinned skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
         parameters: zodToJsonSchema(this.skillSchemas.skill_run) as {
           type: string
           properties: Record<string, unknown>
@@ -1347,7 +1872,7 @@ export class AgentToolManager {
   }
 
   private isSkillTool(toolName: string): boolean {
-    return toolName === 'skill_list' || toolName === 'skill_control'
+    return toolName === 'skill_list' || toolName === 'skill_view' || toolName === 'skill_manage'
   }
 
   private isSkillExecutionTool(toolName: string): boolean {
@@ -1380,7 +1905,8 @@ export class AgentToolManager {
   async preCheckToolPermission(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options: AgentToolPermissionCheckOptions = {}
   ): Promise<{
     needsPermission: true
     toolName: string
@@ -1399,17 +1925,44 @@ export class AgentToolManager {
     }
     conversationId?: string
   } | null> {
-    // Only file system write operations and command execution need pre-check
     const writeTools = ['write', 'edit']
-    const readTools = ['read', 'ls', 'find', 'grep']
+    const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
+    const allowExternalFileAccess = options.allowExternalFileAccess === true
 
-    // Check for file system write operations
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {
         throw new Error('FileSystem handler not initialized')
       }
 
-      // Handle command tools separately (they use command permission service)
+      let dynamicWorkdir: string | null = null
+      if (conversationId) {
+        try {
+          dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+        } catch (error) {
+          logger.warn('[AgentToolManager] Failed to get workdir for permission check:', {
+            conversationId,
+            error
+          })
+        }
+      }
+
+      const workspaceRoot =
+        dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
+      const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
+        includeSkillRoots: toolName !== 'exec',
+        includeRuntimeRoots: toolName !== 'exec',
+        requiredPermission: this.getRequiredFilePermission(toolName)
+      })
+      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
+        conversationId,
+        allowExternalAccess: allowExternalFileAccess
+      })
+      const explicitBaseDirectory =
+        typeof args.base_directory === 'string' && args.base_directory.trim().length > 0
+          ? args.base_directory
+          : undefined
+      const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
+
       if (toolName === 'exec') {
         if (!this.bashHandler) {
           return null
@@ -1420,7 +1973,23 @@ export class AgentToolManager {
           return null
         }
 
-        // Use bash handler's checkCommandPermission if available
+        const requestedCwd = typeof args.cwd === 'string' ? args.cwd.trim() : ''
+        if (!allowExternalFileAccess && requestedCwd) {
+          const defaultCwd = workspaceRoot
+          const resolvedCwd = fileSystemHandler.resolvePath(requestedCwd, defaultCwd)
+          if (!fileSystemHandler.isPathAllowedAbsolute(resolvedCwd)) {
+            return {
+              needsPermission: true,
+              toolName,
+              serverName: 'agent-filesystem',
+              permissionType: 'all',
+              description: `Working directory access requires approval for: ${resolvedCwd}`,
+              paths: [resolvedCwd],
+              conversationId
+            }
+          }
+        }
+
         if (this.bashHandler.checkCommandPermission) {
           const result = await this.bashHandler.checkCommandPermission(command, conversationId)
           if (result.needsPermission) {
@@ -1445,7 +2014,6 @@ export class AgentToolManager {
         return null
       }
 
-      // For file system operations, check if write permission is needed
       const isWriteOperation = writeTools.includes(toolName)
       const isReadOperation = readTools.includes(toolName)
 
@@ -1453,48 +2021,23 @@ export class AgentToolManager {
         return null
       }
 
-      // Get workdir and allowed directories
-      let dynamicWorkdir: string | null = null
-      if (conversationId) {
-        try {
-          dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
-        } catch (error) {
-          logger.warn('[AgentToolManager] Failed to get workdir for permission check:', {
-            conversationId,
-            error
-          })
-        }
+      if (allowExternalFileAccess) {
+        return null
       }
 
-      const workspaceRoot =
-        dynamicWorkdir ?? this.agentWorkspacePath ?? this.getDefaultAgentWorkspacePath()
-      const allowedDirectories = this.buildAllowedDirectories(workspaceRoot, conversationId)
-      const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, { conversationId })
+      const targets = isWriteOperation
+        ? this.collectWriteTargets(toolName, args)
+        : this.collectReadTargets(toolName, args)
 
-      // Collect target paths
-      const targets = this.collectWriteTargets(toolName, args)
-      if (targets.length === 0 && isWriteOperation) {
-        const pathArg = args.path as string | undefined
-        if (pathArg) {
-          targets.push(pathArg)
-        }
-      }
-
-      // Check each path
-      const denied: string[] = []
-      for (const target of targets) {
-        const resolved = fileSystemHandler.resolvePath(target, undefined)
-        if (!fileSystemHandler.isPathAllowedAbsolute(resolved)) {
-          denied.push(target)
-        }
-      }
+      const permissionType = isWriteOperation ? 'write' : 'read'
+      const denied = await this.collectDeniedFileTargets(targets, baseDirectory, fileSystemHandler)
 
       if (denied.length > 0) {
         return {
           needsPermission: true,
           toolName,
           serverName: 'agent-filesystem',
-          permissionType: isWriteOperation ? 'write' : 'read',
+          permissionType,
           description: `${isWriteOperation ? 'Write' : 'Read'} access requires approval for: ${denied.join(', ')}`,
           paths: denied,
           conversationId
@@ -1536,20 +2079,91 @@ export class AgentToolManager {
       return { content: JSON.stringify(result) }
     }
 
-    if (toolName === 'skill_control') {
-      const schema = this.skillSchemas.skill_control
+    if (toolName === 'skill_view') {
+      const schema = this.skillSchemas.skill_view
       const validationResult = schema.safeParse(args)
       if (!validationResult.success) {
-        throw new Error(`Invalid arguments for skill_control: ${validationResult.error.message}`)
+        throw new Error(`Invalid arguments for skill_view: ${validationResult.error.message}`)
       }
+      const normalizedFilePath =
+        typeof validationResult.data.file_path === 'string'
+          ? validationResult.data.file_path.trim()
+          : ''
+      const isLinkedFileView = normalizedFilePath.length > 0
+      const previousActiveSkills =
+        conversationId && !isLinkedFileView
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : []
+      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const nextActiveSkills =
+        conversationId && !isLinkedFileView
+          ? await this.getSkillPresenter().getActiveSkills(conversationId)
+          : previousActiveSkills
+      const activationApplied =
+        Boolean(conversationId) &&
+        !isLinkedFileView &&
+        !previousActiveSkills.includes(validationResult.data.name) &&
+        nextActiveSkills.includes(validationResult.data.name)
+      const activationSource =
+        !conversationId || result.success !== true
+          ? 'none'
+          : activationApplied
+            ? 'skill_md'
+            : isLinkedFileView
+              ? 'file'
+              : 'none'
+      const content = JSON.stringify(result)
 
-      const { action, skill_name: skillName, skills } = validationResult.data
-      const skillNames = skillName ? [skillName] : (skills ?? [])
-      const result = await skillTools.handleSkillControl(conversationId, action, skillNames)
-      return { content: JSON.stringify(result) }
+      return {
+        content,
+        rawData: {
+          content,
+          toolResult: {
+            activationApplied,
+            activationSource,
+            ...(activationApplied ? { activatedSkill: validationResult.data.name } : {})
+          }
+        }
+      }
+    }
+
+    if (toolName === 'skill_manage') {
+      const schema = this.skillSchemas.skill_manage
+      const validationResult = schema.safeParse(args)
+      if (!validationResult.success) {
+        throw new Error(`Invalid arguments for skill_manage: ${validationResult.error.message}`)
+      }
+      const result = await skillTools.handleSkillManage(conversationId, validationResult.data)
+      return {
+        content: JSON.stringify(result),
+        rawData: {
+          content: JSON.stringify(result),
+          isError: result.success !== true,
+          toolResult: this.buildSkillManageToolResult(result)
+        }
+      }
     }
 
     throw new Error(`Unknown skill tool: ${toolName}`)
+  }
+
+  private buildSkillManageToolResult(result: SkillManageResult): Record<string, unknown> {
+    return {
+      toolName: 'skill_manage',
+      ...result,
+      ...(result.success === true &&
+      result.action === 'create' &&
+      result.draftId &&
+      result.skillName
+        ? {
+            skillDraft: {
+              status: 'created',
+              draftId: result.draftId,
+              skillName: result.skillName
+            }
+          }
+        : {})
+    }
   }
 
   private async callSkillExecutionTool(

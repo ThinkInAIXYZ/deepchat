@@ -4,7 +4,7 @@
 
 <h1 align="center">DeepChat - 強力なオープンソースマルチモデルAIエージェントプラットフォーム</h1>
 
-<p align="center">DeepChatは、モデル・ツール・エージェントを統合する機能豊富なオープンソースAIエージェントプラットフォームです。マルチLLMチャット、MCPツール呼び出し、そしてACPエージェント連携を提供します。</p>
+<p align="center">DeepChatは、モデル・ツール・エージェントを統合する機能豊富なオープンソースAIエージェントプラットフォームです。マルチLLMチャット、MCPツール呼び出し、Skills、ACPエージェント連携、リモートコントロールを提供します。</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,7 +30,9 @@
 - [🚀 プロジェクト紹介](#-プロジェクト紹介)
 - [💡 なぜDeepChatを選ぶのか](#-なぜdeepchatを選ぶのか)
 - [🔥 主な機能](#-主な機能)
+- [🧠 Skills サポート](#-skills-サポート)
 - [🧩 ACP 連携（Agent Client Protocol）](#-acp-連携agent-client-protocol)
+- [📡 リモートコントロール](#-リモートコントロール)
 - [🤖 サポートされているモデルプロバイダー](#-サポートされているモデルプロバイダー)
   - [OpenAI/Gemini/Anthropic API形式の任意のモデルプロバイダーと互換性あり](#openaigeminianthropic-api形式の任意のモデルプロバイダーと互換性あり)
 - [🔍 ユースケース](#-ユースケース)
@@ -51,7 +53,7 @@
 
 DeepChatは、モデル・ツール・エージェントランタイムを1つのデスクトップアプリに統合する、強力なオープンソースAIエージェントプラットフォームです。OpenAI、Gemini、AnthropicなどのクラウドAPIや、ローカルにデプロイされたOllamaモデルを使用する場合でも、DeepChatはスムーズなユーザー体験を提供します。
 
-チャットに加えて、DeepChatはよりエージェント指向のワークフローをサポートします。MCP（Model Context Protocol）によるツール呼び出しに加え、ACP（Agent Client Protocol）を内蔵し、ACP互換エージェントを「モデル」として取り込み、専用のWorkspace UIで扱えます。
+チャットに加えて、DeepChatはよりエージェント指向のワークフローをサポートします。MCP（Model Context Protocol）によるツール呼び出し、専門タスク向けにインストールできるSkills、ACP（Agent Client Protocol）互換エージェントを「モデル」として扱える専用Workspace UI、そしてメッセージアプリからのリモートコントロールを利用できます。
 
 <table align="center">
   <tr>
@@ -72,14 +74,15 @@ DeepChatは、モデル・ツール・エージェントランタイムを1つ�
 
 - **統一されたマルチモデル管理**: 1つのアプリケーションでほぼすべての主要なLLMをサポートし、複数のアプリを切り替える必要がありません
 - **シームレスなローカルモデル統合**: 組み込みのOllamaサポートにより、コマンドライン操作なしでローカルモデルを管理・使用できます
-- **エージェントプロトコルのエコシステム**: MCPによるツール呼び出し（コード実行、ウェブアクセス等）に加え、ACPを内蔵して外部エージェントをDeepChatに統合し、ネイティブなWorkspace体験を提供します
+- **エージェントプロトコルのエコシステム**: MCPによるツール呼び出し（コード実行、ウェブアクセス等）、再利用できるタスク専門知識としてのSkills、外部エージェントをDeepChatに統合するACPを提供します
 - **強力な検索強化**: 複数の検索エンジンをサポートし、AIの応答をより正確でタイムリーにします。非標準のウェブ検索パラダイムを提供し、迅速なカスタマイズが可能です
+- **リモート対応ワークフロー**: Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink からDeepChatセッションを操作できます
 - **プライバシー重視**: ローカルデータストレージとネットワークプロキシのサポートにより、情報漏洩のリスクを軽減します
 - **ビジネスフレンドリー**: Apache License 2.0の下でオープンソース化され、商用・個人利用の両方に適しています
 
 ## 🔥 主な機能
 
-- 🌐 **複数のクラウドLLMプロバイダーサポート**: DeepSeek、OpenAI、Kimi、Grok、Gemini、Anthropicなど
+- 🌐 **複数のクラウドLLMプロバイダーサポート**: DeepSeek、OpenAI、Moonshot/Kimi、Grok、Gemini、Anthropicなど
 - 🏠 **ローカルモデルデプロイメントサポート**:
   - 包括的な管理機能を備えた統合Ollama
   - コマンドライン操作なしでOllamaモデルのダウンロード、デプロイメント、実行を制御・管理
@@ -104,9 +107,18 @@ DeepChatは、モデル・ツール・エージェントランタイムを1つ�
   - StreamableHTTP/SSE/Stdioプロトコル トランスポートをサポート
   - コード実行、ウェブ情報取得、ファイル操作などの組み込みユーティリティを備えたinMemoryサービスをサポート。二次インストールなしで一般的なユースケースに対応
   - 組み込みMCPサービスを通じて、視覚モデル機能を任意のモデルで使用可能な普遍的な機能に変換
+- 🧠 **Skills**
+  - フォルダー、ZIPファイル、URLからSkillsをインストール可能
+  - 会話ごとにSkillsを有効化し、タスク専用の手順、参考資料、任意のスクリプトを読み込み可能
+  - 他のAIコーディングアシスタントとのSkillsインポート/エクスポートに対応
+  - 組み込みSkillsはコードレビュー、ドキュメント共同作成、Office/PDF処理、フロントエンド設計、MCP開発などをカバー
 - 🤝 **ACP（Agent Client Protocol）エージェント連携**
   - ACP互換エージェント（内蔵/カスタムコマンド）を「モデル」として選択可能
   - エージェントが提供する場合、ACP Workspace UI で構造化プラン、ツール呼び出し、ターミナル出力を表示
+- 📡 **リモートコントロール**
+  - Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink からDeepChatセッションを操作可能
+  - リモートエンドポイントをセッションに紐づけ、メッセージアプリから会話を管理
+  - セッションの作成/切り替え、生成停止、デスクトップでのセッション表示、保留中の操作対応、モデル切り替え、状態確認に対応
 - 💻 **マルチプラットフォームサポート**: Windows、macOS、Linux
 - 🎨 **美しく使いやすいインターフェース**、ユーザー志向の設計、丁寧なライト/ダークモードテーマ
 - 🔗 **豊富なDeepLinkサポート**: リンクを通じて会話を開始し、他のアプリケーションとシームレスに統合。MCPサービスのワンクリックインストールもサポートし、シンプルさとスピードを実現
@@ -118,6 +130,19 @@ DeepChatは、モデル・ツール・エージェントランタイムを1つ�
   - コード構造が明確で、モデルプロバイダーもMCPサービスも高度に分離されており、最小コストで自由にカスタマイズ可能
   - 合理的なアーキテクチャ、データ相互作用とUI動作の分離により、Electronの機能を十分に活用し、単純なウェブラッパーを拒否、優れたパフォーマンス
 
+## 🧠 Skills サポート
+
+DeepChat Skills は標準の Agent Skills 仕様と互換性のある設計です。Skillにはタスク手順、参考資料、アセット、任意のスクリプトを含めることができ、有効化するとDeepChatがその分野の専門アシスタントのように振る舞えます。
+
+Skillsはフォルダー、ZIPファイル、URLからインストールできます。Claude Code、Codex、Cursor、Windsurf、GitHub Copilot、Kiro、Antigravity、OpenCode、Goose、Kilo Code などの互換ツールとのインポート/エクスポートにも対応します。
+
+組み込みSkillsは、生成アート、コードレビュー、DeepChat設定、ドキュメント共同作成、DOCX、フロントエンド設計、git commitメッセージ、インフォグラフィック構文、MCP構築、PDF、PPTX、Skill作成、Web Artifacts、XLSXワークフローをカバーします。
+
+クイックスタート：
+
+1. **設定 → Skills** を開く
+2. Skillをインストールまたはインポートする
+3. 必要な会話でそのSkillを有効化する
 ## 🧩 ACP 連携（Agent Client Protocol）
 
 DeepChatは [Agent Client Protocol（ACP）](https://agentclientprotocol.com) を内蔵しており、外部のエージェントランタイムをDeepChatにネイティブに統合できます。有効化すると、ACPエージェントはモデルセレクターに「モデル」として表示され、DeepChat内でコーディング/タスク系エージェントをWorkspace UIと一緒に利用できます。
@@ -129,6 +154,14 @@ DeepChatは [Agent Client Protocol（ACP）](https://agentclientprotocol.com) �
 3. モデルセレクターでACPエージェントを選択してセッションを開始
 
 ACP互換のエージェント/クライアント一覧：https://agentclientprotocol.com/overview/clients
+
+## 📡 リモートコントロール
+
+DeepChatはメッセージアプリからリモート操作できるため、デスクトップから離れていても同じセッションを継続できます。設定は **設定 → Remote** から行います。
+
+対応チャンネルは Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink です。リモートエンドポイントは1つのDeepChatセッションに紐づけられ、リモートチャットから新規セッション作成、最近のセッション一覧と切り替え、生成停止、現在のセッションをデスクトップで開く、保留中の質問や権限リクエストへの回答、モデル切り替え、実行状態の確認ができます。
+
+主なコマンドは `/start`、`/help`、`/pair`、`/new`、`/sessions`、`/use`、`/stop`、`/open`、`/pending`、`/model`、`/status` です。
 
 ## 🤖 サポートされているモデルプロバイダー
 
@@ -161,15 +194,19 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <a href="https://www.qiniu.com">Qiniu</a>
     </td>
     <td>
+      <img src="./src/renderer/src/assets/llm-icons/newapi.svg" width="50" height="50" alt="New API Icon"><br/>
+      <a href="https://www.newapi.ai/">New API</a>
+    </td>
+    <td>
       <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok Icon"><br/>
       <a href="https://x.ai/">Grok</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="Zhipu Icon"><br/>
       <a href="https://open.bigmodel.cn/">Zhipu</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
       <a href="https://ppinfra.com/">PPIO</a>
@@ -182,12 +219,12 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/fireworks-color.svg" width="50" height="50" alt="Fireworks Icon"><br/>
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix Icon"><br/>
       <a href="https://aihubmix.com/">AIHubMix</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao Icon"><br/>
       <a href="https://console.volcengine.com/ark/">Doubao</a>
@@ -200,12 +237,12 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
       <a href="https://groq.com/">Groq</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/jiekou-color.svg" width="50" height="50" alt="JieKou.AI Icon"><br/>
       <a href="https://jiekou.ai?utm_source=github_deepchat">JieKou.AI</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zenmux-color.svg" width="50" height="50" alt="ZenMux Icon"><br/>
       <a href="https://zenmux.ai/">ZenMux</a>
@@ -218,12 +255,12 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
       <a href="https://lmstudio.ai/docs/app">LM Studio</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="Hunyuan Icon"><br/>
       <a href="https://cloud.tencent.com/product/hunyuan">Hunyuan</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
       <a href="https://302.ai">302.AI</a>
@@ -236,12 +273,12 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/poe-color.svg" width="50" height="50" alt="Poe Icon"><br/>
       <a href="https://poe.com/">Poe</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/vercel.svg" width="50" height="50" alt="Vercel AI Gateway Icon"><br/>
       <a href="https://vercel.com/ai">Vercel AI Gateway</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openrouter.svg" width="50" height="50" alt="OpenRouter Icon"><br/>
       <a href="https://openrouter.ai/">OpenRouter</a>
@@ -254,12 +291,12 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/tokenflux-color.svg" width="50" height="50" alt="TokenFlux Icon"><br/>
       <a href="https://tokenflux.ai/">TokenFlux</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/burncloud-color.svg" width="50" height="50" alt="BurnCloud Icon"><br/>
       <a href="https://www.burncloud.com/">BurnCloud</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Responses Icon"><br/>
       <a href="https://openai.com/">OpenAI Responses</a>
@@ -272,22 +309,52 @@ ACP互換のエージェント/クライアント一覧：https://agentclientpro
       <img src="./src/renderer/src/assets/llm-icons/modelscope-color.svg" width="50" height="50" alt="ModelScope Icon"><br/>
       <a href="https://modelscope.cn/">ModelScope</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aws-bedrock.svg" width="50" height="50" alt="AWS Bedrock Icon"><br/>
       <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/voiceai.svg" width="50" height="50" alt="Voice.ai Icon"><br/>
+      <a href="https://voice.ai/">Voice.ai</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/vertexai-color.svg" width="50" height="50" alt="Vertex AI Icon"><br/>
+      <a href="https://cloud.google.com/vertex-ai">Vertex AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/githubcopilot.svg" width="50" height="50" alt="GitHub Copilot Icon"><br/>
+      <a href="https://github.com/features/copilot">GitHub Copilot</a>
+    </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
-      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+      <img src="./src/renderer/src/assets/llm-icons/xiaomi.png" width="50" height="50" alt="Xiaomi Icon"><br/>
+      <a href="https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call">Xiaomi</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/o3-fan.png" width="50" height="50" alt="o3.fan Icon"><br/>
+      <a href="https://o3.fan">o3.fan</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/novitaai.svg" width="50" height="50" alt="Novita AI Icon"><br/>
+      <a href="https://novita.ai/">Novita AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow Icon"><br/>
+      <a href="https://astraflow.ucloud.cn/">Astraflow</a>
+    </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic Icon"><br/>
       <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
-    <td></td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+    </td>
   </tr>
 
 </table>
@@ -414,12 +481,13 @@ deepchatへの貢献をご検討いただきありがとうございます！貢
 
 ## 🙏🏻 謝辞
 
-このプロジェクトは、以下の素晴らしいライブラリの支援により構築されています：
+このプロジェクトは、以下の素晴らしいライブラリとプロジェクトの支援により構築されています：
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
 - [oxlint](https://github.com/oxc-project/oxc)
+- [Bub](https://github.com/bubbuild/bub)。その tape model は DeepChat の session tape 設計に着想を与えました。基盤となる tape アーキテクチャに関心がある方は [tape.systems](https://tape.systems/) をご覧ください。
 
 ## 📃 ライセンス
 

@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Yeniden isimlendirmek",
+    "delete": "Silmek",
+    "switchWithShortcut": "{shortcut} ile bu sohbete geç",
+    "cleanMessages": "Mesajları Temizle",
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
+    "export": "İhracat",
+    "exportText": "Düz Metin",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Konuşmayı Taşı"
+  },
+  "export": {
+    "failed": "Dışa aktarma başarısız oldu",
+    "failedDesc": "Dışa aktarma işlemi sırasında bir hata oluştu, lütfen tekrar deneyin",
+    "nowledgeMemSubmitFailed": "Nowledge-mem Gönderimi Başarısız",
+    "nowledgeMemSubmitFailedDesc": "Konuşma nowledge-mem'e gönderilemedi",
+    "nowledgeMemSubmitPrompt": "Bu konuşmayı nowledge-mem'e göndermek ister misiniz?",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem Gönderimi Başarılı",
+    "nowledgeMemSubmitSuccessDesc": "Görüşme başarıyla nowledge-mem'e gönderildi",
+    "nowledgeMemSuccessDesc": "Konuşma başarıyla noledge-mem formatına aktarıldı",
+    "success": "Dışa aktarma başarılı",
+    "nowledgeMemSuccess": "Nowledge-mem Dışa Aktarma Başarılı",
+    "successDesc": "Görüşme başarıyla dışa aktarıldı"
+  },
+  "message": {
+    "toolbar": {
+      "save": "Kaydetmek"
+    }
+  },
+  "toolbar": {
+    "save": "Kaydetmek",
+    "cancel": "İptal etmek",
+    "previousVariant": "Önceki Varyant",
+    "nextVariant": "Sonraki Varyant",
+    "copy": "Markdown olarak kopyala",
+    "copyImage": "Resim Olarak Kopyala",
+    "copyImageWithLongPress": "Görüntü Olarak Kopyala (üstten yakalamak için uzun basın)",
+    "copyFromTopSuccess": "Tam görüşme resmi kopyalandı",
+    "capturing": "Yakalanıyor...",
+    "retry": "Yenile",
+    "fork": "Yeni Sohbete Dallanma",
+    "edit": "Mesajı düzenle",
+    "delete": "Mesajı sil",
+    "trace": "İzleme İsteği"
+  }
+}

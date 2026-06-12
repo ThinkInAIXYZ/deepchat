@@ -24,10 +24,20 @@
     "acpMode": "모드",
     "acpModeTooltip": "현재 모드: {mode}",
     "agentWorkspaceCurrent": "현재 작업 디렉터리: {path}",
+    "workspaceUnavailableTooltip": "디렉터리가 없거나 접근할 수 없습니다: {path}",
     "agentWorkspaceSelect": "작업 디렉터리 선택",
     "agentWorkspaceTooltip": "에이전트 작업 디렉터리 설정",
     "attach": "첨부",
     "voiceInput": "음성 입력",
+    "voiceInputStop": "음성 입력 중지",
+    "voiceRecognitionUnsupportedTitle": "현재 환경은 음성 인식을 지원하지 않습니다",
+    "voiceRecognitionUnsupportedDescription": "음성 인식을 지원하는 브라우저 또는 데스크톱 환경에서 이 기능을 사용하세요.",
+    "voiceRecognitionPermissionDeniedTitle": "마이크에 접근할 수 없습니다",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat이 마이크를 사용할 수 있도록 허용한 뒤 다시 시도하세요.",
+    "voiceRecognitionErrorTitle": "음성 인식 실패",
+    "voiceRecognitionErrorDescription": "음성 인식을 완료하지 못했습니다. 잠시 후 다시 시도하세요.",
+    "send": "보내기",
+    "steer": "유도",
     "queue": "대기열에 추가",
     "stop": "중지",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "내장 도구",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "이미지 생성",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "첨부 파일 처리 실패",
+    "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
+    "fileUploadFailedMore": " 외 {count}개",
+    "unnamedFile": "이름 없는 파일",
+    "audioInputUnsupportedTitle": "현재 모델은 오디오 첨부를 지원하지 않습니다",
+    "audioInputUnsupportedDescription": "모델 {model}은 오디오 입력을 지원하지 않습니다. 오디오 첨부 {count}개를 무시했습니다."
   },
   "pendingInput": {
     "steer": "유도",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "생각...",
     "rateLimitWaiting": "속도 제한으로 대기열에서 대기 중...",
+    "rateLimitCompactLoading": "속도 제한 중 ({seconds}초)",
     "rateLimitTitle": "요청 속도 제한",
     "rateLimitQueue": "대기열 위치",
     "rateLimitEstimated": "예상 대기 시간",
@@ -110,7 +129,24 @@
     "clickToView": "자세히 보려면 클릭하세요",
     "functionName": "함수 이름",
     "params": "매개변수",
-    "responseData": "응답 데이터"
+    "responseData": "응답 데이터",
+    "subagents": {
+      "summary": "{mode} · 하위 에이전트 {count}개",
+      "unnamedTask": "이름 없는 작업",
+      "mode": {
+        "parallel": "병렬",
+        "chain": "순차"
+      },
+      "status": {
+        "queued": "대기열",
+        "running": "실행 중",
+        "completed": "완료됨",
+        "error": "오류",
+        "cancelled": "취소됨",
+        "waiting_permission": "권한 대기",
+        "waiting_question": "입력 대기"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP 에이전트",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "공유",
-    "more": "더보기"
+    "more": "더보기",
+    "backToParent": "상위 세션으로 돌아가기"
   },
   "advancedSettings": {
     "button": "고급 설정",
@@ -128,6 +165,9 @@
     "systemPrompt": "시스템 프롬프트",
     "systemPromptPlaceholder": "프리셋 선택",
     "temperature": "온도",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6은 생각이 활성화되면 온도를 {enabled}로, 비활성화되면 {disabled}로 고정합니다.",
+    "topP": "Top P",
+    "topPDescription": "핵 샘플링입니다. 비워 두면 제공업체 기본값을 사용합니다",
     "contextLength": "컨텍스트 길이",
     "maxTokens": "최대 토큰",
     "thinkingBudget": "사고 예산",
@@ -144,15 +184,18 @@
       "finiteNumber": "유한한 숫자여야 합니다",
       "nonNegativeInteger": "0 이상의 정수여야 합니다",
       "contextLengthAtLeastMaxTokens": "최대 출력 이상이어야 합니다",
-      "maxTokensWithinContextLength": "컨텍스트 길이 이하여야 합니다"
+      "maxTokensWithinContextLength": "컨텍스트 길이 이하여야 합니다",
+      "topPRange": "0보다 크고 1 이하여야 합니다"
     }
   },
   "workspace": {
     "collapse": "닫다",
+    "expand": "펼치기",
     "sections": {
       "files": "파일",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "하위 에이전트"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "아직 파일이 없습니다",
       "loading": "파일 로드 중...",
-      "section": "문서"
+      "section": "문서",
+      "noWorkspace": {
+        "title": "워크스페이스 없음",
+        "description": "폴더를 선택하거나 드래그하여 워크스페이스 설정",
+        "button": "폴더 선택"
+      }
     },
     "git": {
       "empty": "표시할 diff가 없습니다",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "아직 할 일이 없습니다.",
       "section": "계획",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "완전한",
         "failed": "실패하다",
@@ -206,10 +255,20 @@
         "truncated": "[잘림]"
       }
     },
-    "title": "작업 공간"
+    "title": "작업 공간",
+    "subagents": {
+      "empty": "아직 하위 세션이 없습니다",
+      "self": "현재 에이전트",
+      "status": {
+        "working": "실행 중",
+        "error": "오류",
+        "idle": "대기 중"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "모델을 찾을 수 없습니다"
+    "empty": "모델을 찾을 수 없습니다",
+    "audioInputSupported": "오디오 입력 지원"
   },
   "audio": {
     "play": "재생",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "컨텍스트를 자동 압축하는 중...",
-    "compacted": "컨텍스트가 자동으로 압축되었습니다"
+    "compacting": "컨텍스트를 압축하는 중...",
+    "compacted": "컨텍스트가 압축되었습니다",
+    "commandDescription": "대화 컨텍스트 압축",
+    "noopTitle": "압축할 컨텍스트가 없습니다",
+    "noopDescription": "아직 압축할 새 대화 기록이 없습니다.",
+    "failedTitle": "압축 실패"
   },
   "newThread": {
     "title": "만들고 탐색하기"
@@ -248,6 +311,10 @@
     "allAgents": "모든 에이전트",
     "expandSidebar": "사이드바 펼치기",
     "collapseSidebar": "사이드바 접기",
+    "themeToggle": "테마 전환",
+    "themeLight": "라이트",
+    "themeDark": "다크",
+    "themeSystem": "시스템",
     "remoteControlStatus": {
       "disabled": "원격 제어가 비활성화됨",
       "stopped": "원격 제어가 중지됨",
@@ -261,12 +328,16 @@
     "pinned": "고정됨",
     "emptyTitle": "아직 대화가 없습니다",
     "emptyDescription": "새 대화를 시작해 보세요",
-    "remoteControlDisabled": "사용 안 함"
+    "remoteControlDisabled": "사용 안 함",
+    "searchPlaceholder": "채팅 제목 검색",
+    "searchAriaLabel": "채팅 제목 검색",
+    "searchEmptyTitle": "일치하는 대화가 없습니다",
+    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "작업 개요",
     "collapse": "플로팅 세션 접기",
-    "empty": "아직 DeepChat 세션이 없습니다",
+    "empty": "아직 Agent 세션이 없습니다",
     "executing": "활성",
     "sessionCount": "{count}개 세션",
     "untitled": "새 채팅",
@@ -274,6 +345,77 @@
       "inProgress": "진행 중",
       "done": "완료",
       "error": "오류"
+    }
+  },
+  "subagents": {
+    "label": "하위 에이전트"
+  },
+  "spotlight": {
+    "placeholder": "대화, Agent, 설정, 동작 검색…",
+    "searching": "검색 중…",
+    "emptyTitle": "일치하는 결과가 없습니다",
+    "emptyDescription": "다른 키워드를 시도하거나 최근 세션을 열어 보세요.",
+    "hints": "↑↓ 이동 · Enter 열기 · Esc 닫기 · Home/End 이동",
+    "kind": {
+      "session": "세션",
+      "message": "메시지",
+      "agent": "Agent",
+      "setting": "설정",
+      "action": "동작"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "현재 대화 검색",
+    "ariaLabel": "현재 대화 검색",
+    "previous": "이전 일치",
+    "next": "다음 일치",
+    "close": "검색 닫기"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "DeepChat 에이전트로 전환",
+      "description": "채팅을 시작하기 전에 ACP에서 전환하여 내장된 DeepChat 흐름으로 돌아가세요.",
+      "caption": "계속하려면 사이드바에서 강조된 에이전트 버튼을 클릭하세요."
+    },
+    "switchModel": {
+      "description": "첫 번째 DeepChat 대화에 사용할 모델을 선택하세요.",
+      "caption": "강조된 모델 전환기를 사용해 사용 가능한 모델을 선택하세요."
+    },
+    "firstChat": {
+      "description": "모든 준비가 완료되었습니다. 첫 메시지를 입력해 온보딩을 완료하세요.",
+      "caption": "첫 메시지를 보낼 때까지 스포트라이트가 입력창에 유지됩니다."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "스킬 초안",
+    "confirmationQuestion": "스킬 초안이 생성되었습니다: {name}",
+    "previewTitle": "초안 내용 미리보기",
+    "actions": {
+      "view": "내용 보기",
+      "viewDescription": "초안의 SKILL.md 내용을 미리 봅니다",
+      "install": "스킬로 설치",
+      "installDescription": "관리를 위해 Skills 폴더로 가져옵니다",
+      "discard": "버리기",
+      "discardDescription": "이 임시 초안을 삭제합니다"
+    },
+    "result": {
+      "viewed": "초안 내용 미리보기가 열려 있습니다. 설치하거나 버리기를 선택하세요.",
+      "installed": "스킬 초안이 설치되었습니다: {name}",
+      "discarded": "스킬 초안을 버렸습니다.",
+      "failed": "스킬 초안 처리에 실패했습니다: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "{duration} 동안 작업함",
+    "reasoningCount": "{count}개 사고",
+    "toolCallCount": "{count}개 도구 호출",
+    "expandLabel": "{title} 펼치기",
+    "collapseLabel": "{title} 접기",
+    "duration": {
+      "day": "일",
+      "hour": "시간",
+      "minute": "분",
+      "second": "초"
     }
   }
 }

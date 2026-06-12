@@ -1,6 +1,7 @@
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '../../../../../src/main/lib/agentRuntime/backgroundExecSessionManager'
+import * as shellEnvHelper from '../../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { AgentBashHandler } from '../../../../../src/main/presenter/toolPresenter/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {
@@ -73,8 +74,8 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(['/workspace'])
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'rg -n "todo" src',
-      command: 'rtk run -- rg -n "todo" src',
+      originalCommand: 'node scripts/check.js',
+      command: 'rtk run -- node scripts/check.js',
       env: { PATH: '/bin' },
       rewritten: true,
       rtkApplied: true,
@@ -92,8 +93,8 @@ describe('AgentBashHandler', () => {
       })
 
     const result = await handler.executeCommand({
-      command: 'rg -n "todo" src',
-      description: 'Search todo lines'
+      command: 'node scripts/check.js',
+      description: 'Run project check'
     })
 
     expect(runShellProcess).toHaveBeenCalledTimes(1)
@@ -136,6 +137,28 @@ describe('AgentBashHandler', () => {
     expect(result.rtkApplied).toBe(true)
     expect(result.rtkMode).toBe('rewrite')
     expect(result.output).toContain('Timed out')
+  })
+
+  it('builds fallback shell env when RTK settings are unavailable', async () => {
+    const handler = new AgentBashHandler(['/workspace'])
+
+    vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
+      PATH: '/shell/bin:/usr/local/bin'
+    })
+
+    const prepared = await (handler as never).prepareCommand('which node', {
+      PATH: '/custom/bin',
+      CUSTOM_FLAG: '1'
+    })
+
+    expect(prepared.rtkApplied).toBe(false)
+    expect(prepared.rtkMode).toBe('bypass')
+    expect(prepared.env.CUSTOM_FLAG).toBe('1')
+    const pathValue = prepared.env.PATH || prepared.env.Path || ''
+    expect(pathValue).toContain('/custom/bin')
+    expect(pathValue).toContain('/shell/bin')
+    expect(pathValue).toContain('/usr/local/bin')
+    expect(pathValue.indexOf('/custom/bin')).toBeLessThan(pathValue.indexOf('/shell/bin'))
   })
 
   it('keeps background execution on the bypass path without foreground retry', async () => {
@@ -184,6 +207,64 @@ describe('AgentBashHandler', () => {
     expect(result.rtkFallbackReason).toBe(
       'Bypassed RTK rewrite: unsupported find compound predicates or actions'
     )
+  })
+
+  it('allows an external cwd when explicitly enabled', async () => {
+    const externalCwd = path.resolve('/external/project')
+    const handler = new AgentBashHandler(['/workspace'])
+
+    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
+      originalCommand: 'pwd',
+      command: 'pwd',
+      env: { PATH: '/bin' },
+      rewritten: false,
+      rtkApplied: false,
+      rtkMode: 'bypass'
+    })
+
+    const runShellProcess = vi
+      .spyOn(handler as never, 'runShellProcess' as never)
+      .mockResolvedValue({
+        kind: 'completed',
+        output: externalCwd,
+        exitCode: 0,
+        timedOut: false,
+        offloaded: false
+      })
+
+    await handler.executeCommand(
+      {
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: externalCwd
+      },
+      {
+        allowExternalCwd: true
+      }
+    )
+
+    expect(runShellProcess).toHaveBeenCalledWith(
+      'pwd',
+      externalCwd,
+      120000,
+      expect.objectContaining({ env: { PATH: '/bin' } })
+    )
+  })
+
+  it('rejects an external cwd when external access is not enabled', async () => {
+    const externalCwd = path.resolve('/external/project')
+    const handler = new AgentBashHandler(['/workspace'])
+    const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
+
+    await expect(
+      handler.executeCommand({
+        command: 'pwd',
+        description: 'Print cwd',
+        cwd: externalCwd
+      })
+    ).rejects.toThrow('Working directory is not allowed')
+
+    expect(runShellProcess).not.toHaveBeenCalled()
   })
 
   it('returns a running session when foreground exec exceeds yieldMs', async () => {

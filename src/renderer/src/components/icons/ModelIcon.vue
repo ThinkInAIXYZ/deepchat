@@ -4,6 +4,7 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from '@/stores/ui/agent'
 import AcpAgentIcon from './AcpAgentIcon.vue'
 import cherryinColorIcon from '@/assets/llm-icons/cherryin-color.png?url'
+import newApiColorIcon from '@/assets/llm-icons/newapi.svg?url'
 import adobeColorIcon from '@/assets/llm-icons/adobe-color.svg?url'
 import zeaburColorIcon from '@/assets/llm-icons/zeabur-color.svg?url'
 import zhipuColorIcon from '@/assets/llm-icons/zhipu-color.svg?url'
@@ -36,6 +37,7 @@ import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
 import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
 import minimaxColorIcon from '@/assets/llm-icons/minimax-color.svg?url'
+import mistralColorIcon from '@/assets/llm-icons/mistral-color.svg?url'
 import fireworksColorIcon from '@/assets/llm-icons/fireworks-color.svg?url'
 import zerooneColorIcon from '@/assets/llm-icons/zeroone.svg?url'
 import xaiColorIcon from '@/assets/llm-icons/xai.svg?url'
@@ -73,6 +75,7 @@ import xiaomiColorIcon from '@/assets/llm-icons/xiaomi.png?url'
 import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
+import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
 
 // 导入所有图标
 const icons = {
@@ -85,6 +88,7 @@ const icons = {
   'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
   cherryin: cherryinColorIcon,
+  'new-api': newApiColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
   aihubmix: aihubmixColorIcon,
@@ -103,6 +107,7 @@ const icons = {
   ollama: ollamaColorIcon,
   doubao: doubaoColorIcon,
   minimax: minimaxColorIcon,
+  mistral: mistralColorIcon,
   fireworks: fireworksColorIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
@@ -161,6 +166,8 @@ const icons = {
   novita: novitaAiIcon,
   novitaai: novitaAiIcon,
   'novita.ai': novitaAiIcon,
+  astraflow: astraflowIcon,
+  'astraflow-cn': astraflowIcon,
   default: defaultIcon
 }
 

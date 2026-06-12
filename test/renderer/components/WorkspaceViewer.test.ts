@@ -58,8 +58,15 @@ describe('WorkspaceViewer', () => {
       useSidepanelStore: () => sidepanelStore
     }))
 
-    vi.doMock('@/composables/usePresenter', () => ({
-      usePresenter: () => ({
+    vi.doMock('@iconify/vue', () => ({
+      Icon: defineComponent({
+        name: 'Icon',
+        template: '<span data-testid="icon" />'
+      })
+    }))
+
+    vi.doMock('@api/WorkspaceClient', () => ({
+      createWorkspaceClient: () => ({
         openFile: openFileMock
       })
     }))
@@ -81,12 +88,17 @@ describe('WorkspaceViewer', () => {
       default: defineComponent({
         name: 'WorkspacePreviewPane',
         props: {
+          sessionId: {
+            type: String,
+            default: undefined
+          },
           previewKind: {
             type: String,
             required: true
           }
         },
-        template: '<div data-testid="preview-pane">{{ previewKind }}</div>'
+        template:
+          '<div data-testid="preview-pane" :data-session-id="sessionId">{{ previewKind }}</div>'
       })
     }))
 
@@ -112,6 +124,7 @@ describe('WorkspaceViewer', () => {
         gitDiff: null,
         loadingFilePreview: false,
         loadingGitDiff: false,
+        isFullscreen: false,
         ...options?.props
       },
       global: {
@@ -128,9 +141,37 @@ describe('WorkspaceViewer', () => {
     return { wrapper, sidepanelStore, openFileMock }
   }
 
+  it('shows a maximize button and emits toggle-fullscreen', async () => {
+    const { wrapper } = await setup()
+
+    const fullscreenButton = wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]')
+    expect(fullscreenButton.attributes('title')).toBe('common.maximize')
+
+    await fullscreenButton.trigger('click')
+    expect(wrapper.emitted('toggle-fullscreen')).toEqual([[]])
+  })
+
+  it('shows restore label while fullscreen is active', async () => {
+    const { wrapper } = await setup({
+      props: {
+        isFullscreen: true
+      }
+    })
+
+    expect(
+      wrapper.get('[data-testid="workspace-viewer-fullscreen-toggle"]').attributes('title')
+    ).toBe('common.restore')
+  })
+
   it('shows raw artifact preview through preview pane fallback', async () => {
     const { wrapper } = await setup()
 
+    expect(wrapper.get('[data-testid="workspace-viewer-body"]').classes()).toEqual(
+      expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-hidden'])
+    )
+    expect(wrapper.get('[data-testid="preview-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('raw')
     expect(wrapper.text()).toContain('artifacts.preview')
     expect(wrapper.text()).toContain('artifacts.code')
@@ -170,6 +211,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="code-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('artifacts.preview')
     expect(wrapper.text()).not.toContain('artifacts.code')
@@ -209,6 +253,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('markdown')
+    expect(wrapper.get('[data-testid="preview-pane"]').attributes('data-session-id')).toBe(
+      'thread-1'
+    )
 
     const codeButton = wrapper
       .findAll('button')
@@ -336,6 +383,9 @@ describe('WorkspaceViewer', () => {
     })
 
     expect(wrapper.find('[data-testid="info-pane"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="info-pane"]').classes()).toEqual(
+      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
+    )
     expect(wrapper.find('[data-testid="preview-pane"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="code-pane"]').exists()).toBe(false)
   })

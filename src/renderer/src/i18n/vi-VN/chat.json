@@ -1,0 +1,421 @@
+{
+  "input": {
+    "placeholder": "Hỏi DeepChat bất cứ điều gì, {'@'} đề cập đến các tập tin, / cho các lệnh",
+    "fileArea": "Vùng tệp",
+    "inputArea": "Khu vực đầu vào",
+    "functionSwitch": "Chuyển đổi chức năng",
+    "attach": "Đính kèm",
+    "voiceInput": "Ghi âm cục bộ",
+    "voiceInputStop": "Dừng ghi cục bộ",
+    "voiceRecognitionUnsupportedTitle": "Ghi âm cục bộ không có sẵn ở đây",
+    "voiceRecognitionUnsupportedDescription": "Sử dụng tính năng này trong môi trường trình duyệt hoặc máy tính để bàn có hỗ trợ ghi âm micrô.",
+    "voiceRecognitionPermissionDeniedTitle": "Truy cập micrô không khả dụng",
+    "voiceRecognitionPermissionDeniedDescription": "Cho phép DeepChat sử dụng micrô và thử lại.",
+    "voiceRecognitionErrorTitle": "Phiên âm âm thanh không thành công",
+    "voiceRecognitionErrorDescription": "Không thể hoàn tất việc chép âm thanh. Vui lòng thử lại sau.",
+    "send": "Gửi",
+    "steer": "Chỉ đạo",
+    "queue": "Hàng đợi",
+    "stop": "Dừng lại",
+    "fileSelect": "Chọn tệp",
+    "pasteFiles": "Dán tập tin từ clipboard",
+    "dropFiles": "Thả tập tin vào đây",
+    "promptFilesAdded": "Đã thêm tệp Prompt",
+    "promptFilesAddedDesc": "Đã thêm thành công tệp {count}",
+    "promptFilesError": "Lỗi xử lý tệp",
+    "promptFilesErrorDesc": "Không thể xử lý tệp {count}",
+    "historyPlaceholder": "(Nhấn Tab để tự động hoàn thành)",
+    "rateLimitQueue": "Hàng đợi {count}",
+    "rateLimitWait": "Đợi {seconds}",
+    "rateLimitQueueTooltip": "Yêu cầu {count} trong hàng đợi, khoảng thời gian {interval}",
+    "rateLimitReadyTooltip": "Sẵn sàng gửi, khoảng thời gian {interval}",
+    "rateLimitWaitingTooltip": "Đợi thêm {seconds}, khoảng {interval}",
+    "acpWorkdir": "Công việc ACP",
+    "acpWorkdirTooltip": "Đặt thư mục làm việc ACP",
+    "acpWorkdirSelect": "Chọn thư mục để sử dụng làm thư mục công việc ACP",
+    "acpWorkdirCurrent": "Công việc hiện tại: {path}",
+    "acpMode": "Chế độ",
+    "acpModeTooltip": "Chế độ hiện tại: {mode}",
+    "agentWorkspaceTooltip": "Đặt thư mục không gian làm việc Agent",
+    "agentWorkspaceSelect": "Chọn thư mục để sử dụng làm không gian làm việc",
+    "agentWorkspaceCurrent": "Không gian làm việc hiện tại: {path}",
+    "workspaceUnavailableTooltip": "Thư mục không tồn tại hoặc không thể truy cập: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Đã bật MCP",
+      "empty": "Không có dịch vụ nào được kích hoạt",
+      "openSettings": "Mở cài đặt MCP"
+    },
+    "tools": {
+      "badge": "Công cụ",
+      "title": "Công cụ",
+      "mcpSection": "MCP",
+      "pluginSection": "Plugin",
+      "builtinSection": "Công cụ tích hợp",
+      "loading": "Đang tải công cụ...",
+      "builtinEmpty": "Không có công cụ tích hợp sẵn",
+      "groups": {
+        "agentFilesystem": "Hệ thống tập tin Agent",
+        "agentCore": "Lõi Agent",
+        "agentImageGeneration": "Tạo hình ảnh",
+        "agentSkills": "Agent Skills",
+        "deepchatSettings": "Cài đặt DeepChat",
+        "yobrowser": "Trình duyệt Yo"
+      }
+    },
+    "fileUploadFailed": "Tệp đính kèm không thành công",
+    "fileUploadFailedDesc": "Không thể xử lý tệp {count}: {names}",
+    "fileUploadFailedMore": " và {count} khác",
+    "unnamedFile": "tập tin không tên",
+    "audioInputUnsupportedTitle": "Model hiện tại không hỗ trợ tệp đính kèm âm thanh",
+    "audioInputUnsupportedDescription": "Model {model} không hỗ trợ đầu vào âm thanh. Đã bỏ qua (các) tệp đính kèm âm thanh {count}."
+  },
+  "pendingInput": {
+    "steer": "Chỉ đạo",
+    "queueCount": "Đang chờ gửi {count}/{max}",
+    "resumeQueue": "Tiếp tục gửi",
+    "toSteer": "Chỉ đạo",
+    "locked": "Đã khóa",
+    "reorder": "Sắp xếp lại",
+    "files": "Các tập tin {count}",
+    "attachmentsOnly": "Tệp đính kèm {count}",
+    "empty": "Tin nhắn trống",
+    "limitReached": "Làn chờ đã đầy (tối đa {max})."
+  },
+  "features": {
+    "webSearch": "Tìm kiếm trên web",
+    "thoughtForSeconds": "Suy nghĩ cho {seconds}",
+    "thoughtForSecondsLoading": "Đang suy nghĩ về {seconds}...",
+    "artifactThinking": "Tư duy tạo tác",
+    "modeChanged": "Chế độ đã thay đổi thành: {mode}"
+  },
+  "search": {
+    "results": "Đã tìm thấy trang web {0}",
+    "searching": "Đang tìm kiếm...",
+    "title": "Kết quả tìm kiếm",
+    "description": "Đã tìm thấy kết quả liên quan đến {0}",
+    "optimizing": "Tối ưu hóa truy vấn tìm kiếm...",
+    "reading": "Tìm kiếm và đọc các trang web...",
+    "error": "Tìm kiếm không thành công"
+  },
+  "messages": {
+    "thinking": "Đang suy nghĩ...",
+    "rateLimitWaiting": "Đã đạt đến giới hạn tốc độ, đang chờ xếp hàng...",
+    "rateLimitCompactLoading": "Tỷ lệ giới hạn cho {seconds}...",
+    "rateLimitTitle": "Giới hạn tỷ lệ đang hoạt động",
+    "rateLimitQueue": "Vị trí xếp hàng",
+    "rateLimitEstimated": "Thời gian chờ ước tính",
+    "rateLimitQuickSettings": "Điều chỉnh giới hạn",
+    "rateLimitSwitchProvider": "Chuyển đổi nhà cung cấp",
+    "rateLimitImmediately": "bây giờ",
+    "rateLimitSeconds": "s",
+    "rateLimitMinutes": "tôi"
+  },
+  "compaction": {
+    "compacting": "Nén bối cảnh...",
+    "compacted": "Bối cảnh đã được nén",
+    "commandDescription": "Bối cảnh hội thoại nhỏ gọn",
+    "noopTitle": "Không có ngữ cảnh để thu gọn",
+    "noopDescription": "Chưa có lịch sử hội thoại mới nào được thu gọn.",
+    "failedTitle": "Nén không thành công"
+  },
+  "rateLimit": {
+    "queueTooltip": "Yêu cầu {count} trong hàng đợi, khoảng thời gian {interval}",
+    "readyTooltip": "Sẵn sàng gửi, khoảng thời gian {interval}",
+    "waitingTooltip": "Đợi thêm {seconds}, khoảng {interval}"
+  },
+  "notify": {
+    "generationComplete": "Thế hệ đã hoàn tất",
+    "generationError": "Thế hệ không thành công"
+  },
+  "toolCall": {
+    "title": "Cuộc gọi công cụ",
+    "calling": "Cuộc gọi công cụ đang diễn ra",
+    "response": "Phản hồi của công cụ",
+    "end": "Cuộc gọi công cụ đã kết thúc",
+    "error": "Lỗi gọi công cụ",
+    "clickToView": "Nhấn vào đây để xem chi tiết",
+    "functionName": "chức năng",
+    "params": "Thông số",
+    "responseData": "Dữ liệu phản hồi",
+    "subagents": {
+      "summary": "{mode} · {count} subagent",
+      "unnamedTask": "Nhiệm vụ không tên",
+      "mode": {
+        "parallel": "Song song",
+        "chain": "chuỗi"
+      },
+      "status": {
+        "queued": "Đã xếp hàng",
+        "running": "Đang chạy",
+        "completed": "Đã hoàn thành",
+        "error": "Lỗi",
+        "cancelled": "Đã hủy",
+        "waiting_permission": "Đang chờ sự cho phép",
+        "waiting_question": "Đang chờ đầu vào"
+      }
+    }
+  },
+  "mode": {
+    "current": "Chế độ hiện tại: {mode}",
+    "agent": "Agent",
+    "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "backToParent": "Quay lại trang gốc",
+    "share": "Chia sẻ",
+    "more": "Thêm"
+  },
+  "subagents": {
+    "label": "Chất phụ"
+  },
+  "advancedSettings": {
+    "button": "Nâng cao",
+    "title": "Cài đặt nâng cao",
+    "closeHint": "Esc để đóng",
+    "systemPrompt": "System Prompt",
+    "systemPromptPlaceholder": "Chọn một cài đặt trước",
+    "temperature": "Nhiệt độ",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 sửa nhiệt độ thành {enabled} khi tính năng suy nghĩ được bật và {disabled} khi tính năng này bị tắt.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
+    "contextLength": "Độ dài ngữ cảnh",
+    "maxTokens": "Tối đa Tokens",
+    "thinkingBudget": "Suy nghĩ về ngân sách",
+    "verbosity": "Độ dài",
+    "forceInterleavedThinkingCompat": "Suy nghĩ xen kẽ",
+    "forceInterleavedThinkingCompatDescription": "Kiểm soát xem phiên này có xử lý các thông báo lý luận và lệnh gọi công cụ bằng Tư duy xen kẽ hay không.",
+    "verbosityPlaceholder": "Chọn mức độ chi tiết",
+    "currentCustomPrompt": "tùy chỉnh hiện tại",
+    "useDefault": "Sử dụng mặc định",
+    "decreaseValue": "Giảm {label}",
+    "increaseValue": "Tăng {label}",
+    "toggleValue": "Chuyển đổi {label}",
+    "validation": {
+      "finiteNumber": "Phải là số hữu hạn",
+      "nonNegativeInteger": "Phải là số nguyên không âm",
+      "contextLengthAtLeastMaxTokens": "Phải lớn hơn hoặc bằng Max Tokens",
+      "maxTokensWithinContextLength": "Phải nhỏ hơn hoặc bằng Độ dài ngữ cảnh",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
+    }
+  },
+  "modelPicker": {
+    "empty": "Không tìm thấy mô hình nào",
+    "audioInputSupported": "Hỗ trợ đầu vào âm thanh"
+  },
+  "audio": {
+    "play": "Chơi",
+    "pause": "Tạm dừng"
+  },
+  "call": {
+    "title": "Cuộc gọi Voice.ai",
+    "description": "Nhấp để kết nối với nhân viên thoại Voice.ai, nói sau khi cuộc gọi được kết nối.",
+    "start": "Bắt đầu cuộc gọi thoại",
+    "stop": "Kết thúc cuộc gọi",
+    "end": "Cúp máy"
+  },
+  "skills": {
+    "indicator": {
+      "active": "Kỹ năng được ghim {count}",
+      "none": "Không có kỹ năng được ghim"
+    },
+    "panel": {
+      "title": "Đã ghim Skills",
+      "manage": "Quản lý",
+      "empty": "Không có kỹ năng nào được cài đặt"
+    }
+  },
+  "workspace": {
+    "title": "Không gian làm việc",
+    "collapse": "Thu gọn",
+    "expand": "Mở rộng",
+    "sections": {
+      "files": "Tập tin",
+      "git": "Git",
+      "artifacts": "Hiện vật",
+      "subagents": "Chất phụ"
+    },
+    "plan": {
+      "section": "kế hoạch",
+      "empty": "Chưa có nhiệm vụ nào",
+      "itemAriaLabel": "{status}: {step}",
+      "status": {
+        "pending": "Đang chờ xử lý",
+        "in_progress": "Đang tiến hành",
+        "completed": "Đã hoàn thành",
+        "failed": "thất bại",
+        "skipped": "Đã bỏ qua"
+      }
+    },
+    "files": {
+      "section": "Tập tin",
+      "empty": "Không có tập tin",
+      "loading": "Đang tải tập tin...",
+      "noWorkspace": {
+        "title": "Không có không gian làm việc",
+        "description": "Chọn hoặc kéo thư mục để đặt không gian làm việc",
+        "button": "Chọn thư mục"
+      },
+      "contextMenu": {
+        "openFile": "Mở tập tin",
+        "revealInFolder": "Hiển thị trong trình quản lý tập tin",
+        "insertPath": "Chèn vào đầu vào"
+      }
+    },
+    "git": {
+      "empty": "Không có sự khác biệt",
+      "clean": "Làm sạch cây làm việc",
+      "staged": "Đã dàn dựng",
+      "unstaged": "Chưa được dàn dựng"
+    },
+    "subagents": {
+      "empty": "Chưa có phiên con nào",
+      "self": "bản thân",
+      "status": {
+        "working": "Đang chạy",
+        "error": "Lỗi",
+        "idle": "Nhàn rỗi"
+      }
+    },
+    "browser": {
+      "section": "Trình duyệt",
+      "empty": "Chưa có tab nào"
+    },
+    "terminal": {
+      "section": "thiết bị đầu cuối",
+      "empty": "Chưa có đầu ra",
+      "contextMenu": {
+        "terminate": "Chấm dứt",
+        "delete": "Xóa bản ghi",
+        "expand": "Mở rộng",
+        "collapse": "Thu gọn"
+      },
+      "output": {
+        "truncated": "[cắt ngắn]"
+      },
+      "noOutput": "Không có đầu ra",
+      "status": {
+        "running": "Đang chạy",
+        "completed": "thành công",
+        "failed": "thất bại",
+        "timed_out": "Đã hết thời gian",
+        "aborted": "Đã hủy bỏ"
+      }
+    }
+  },
+  "newThread": {
+    "title": "Xây dựng và khám phá"
+  },
+  "floatingWidget": {
+    "title": "Tổng quan về nhiệm vụ",
+    "collapse": "Thu gọn các phiên nổi",
+    "empty": "Chưa có phiên đại lý nào",
+    "executing": "hoạt động",
+    "sessionCount": "Phiên {count}",
+    "untitled": "Trò chuyện mới",
+    "status": {
+      "inProgress": "Đang tiến hành",
+      "done": "Xong",
+      "error": "Lỗi"
+    }
+  },
+  "permissionMode": {
+    "default": "Quyền mặc định",
+    "fullAccess": "Toàn quyền truy cập"
+  },
+  "sidebar": {
+    "allAgents": "Tất cả Agents",
+    "expandSidebar": "Mở rộng thanh bên",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "themeToggle": "Đổi giao diện",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Hệ thống",
+    "remoteControlDisabled": "Đã tắt",
+    "remoteControlStatus": {
+      "disabled": "Điều khiển từ xa bị vô hiệu hóa",
+      "stopped": "Điều khiển từ xa đã dừng",
+      "starting": "Khởi động điều khiển từ xa",
+      "running": "Điều khiển từ xa đang chạy",
+      "backoff": "Đang thử lại điều khiển từ xa",
+      "error": "Lỗi điều khiển từ xa"
+    },
+    "groupByDate": "Nhóm theo ngày",
+    "groupByProject": "Nhóm theo dự án",
+    "pinned": "Đã ghim",
+    "emptyTitle": "Chưa có cuộc trò chuyện nào",
+    "emptyDescription": "Bắt đầu một cuộc trò chuyện mới để bắt đầu",
+    "searchPlaceholder": "Tìm kiếm cuộc trò chuyện",
+    "searchAriaLabel": "Tìm kiếm cuộc trò chuyện",
+    "searchEmptyTitle": "Không có cuộc trò chuyện phù hợp",
+    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác"
+  },
+  "spotlight": {
+    "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",
+    "searching": "Đang tìm kiếm…",
+    "emptyTitle": "Không có kết quả phù hợp",
+    "emptyDescription": "Hãy thử từ khóa khác hoặc mở một phiên gần đây.",
+    "hints": "↑↓ di chuyển · Vào mở · Esc đóng · Home/End nhảy",
+    "kind": {
+      "session": "Phiên",
+      "message": "Tin nhắn",
+      "agent": "Agent",
+      "setting": "Cài đặt",
+      "action": "hành động"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Tìm kiếm trong cuộc trò chuyện",
+    "ariaLabel": "Tìm kiếm trong cuộc trò chuyện hiện tại",
+    "previous": "Trận đấu trước",
+    "next": "Trận đấu tiếp theo",
+    "close": "Đóng tìm kiếm"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Chuyển sang DeepChat Agent",
+      "description": "Trước khi trò chuyện, hãy thoát khỏi ACP và quay lại luồng DeepChat tích hợp sẵn.",
+      "caption": "Nhấp vào nút tác nhân được đánh dấu ở thanh bên để tiếp tục."
+    },
+    "switchModel": {
+      "description": "Chọn mô hình bạn muốn sử dụng cho cuộc trò chuyện DeepChat đầu tiên của mình.",
+      "caption": "Sử dụng trình chuyển đổi mô hình được đánh dấu và chọn bất kỳ mô hình nào có sẵn."
+    },
+    "firstChat": {
+      "description": "Mọi thứ đã sẵn sàng. Nhập tin nhắn đầu tiên của bạn vào đây để hoàn tất quy trình giới thiệu.",
+      "caption": "Đèn chiếu vẫn ở trên hộp nhập cho đến khi bạn gửi tin nhắn đầu tiên."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Bản nháp kỹ năng",
+    "confirmationQuestion": "Đã tạo bản nháp kỹ năng: {name}",
+    "previewTitle": "Xem trước nội dung bản nháp",
+    "actions": {
+      "view": "Xem nội dung",
+      "viewDescription": "Xem trước nội dung SKILL.md của bản nháp",
+      "install": "Cài đặt làm kỹ năng",
+      "installDescription": "Nhập vào thư mục kỹ năng để quản lý",
+      "discard": "Loại bỏ",
+      "discardDescription": "Xóa bản nháp tạm thời này"
+    },
+    "result": {
+      "viewed": "Bản xem trước nội dung bản nháp đang mở. Hãy chọn cài đặt hoặc loại bỏ.",
+      "installed": "Đã cài đặt bản nháp kỹ năng: {name}",
+      "discarded": "Đã loại bỏ bản nháp kỹ năng.",
+      "failed": "Không thể xử lý bản nháp kỹ năng: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Hoạt động trong {duration}",
+    "reasoningCount": "{count} suy nghĩ",
+    "toolCallCount": "{count} lần gọi công cụ",
+    "expandLabel": "Mở rộng {title}",
+    "collapseLabel": "Thu gọn {title}",
+    "duration": {
+      "day": "ng ",
+      "hour": "g ",
+      "minute": "p ",
+      "second": "gi"
+    }
+  }
+}

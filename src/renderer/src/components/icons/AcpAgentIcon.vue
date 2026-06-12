@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
 
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 
@@ -28,7 +28,6 @@ const props = withDefaults(
 const svgMarkup = ref('')
 const imageLoadFailed = ref(false)
 const requestSeq = ref(0)
-const configPresenter = usePresenter('configPresenter')
 
 const isThemeableRegistryIcon = computed(() => {
   const icon = props.icon.trim()
@@ -60,6 +59,22 @@ const normalizeSvgMarkup = (markup: string): string => {
   return trimmed
 }
 
+const resolveIconMarkup = async (agentId: string, iconUrl: string): Promise<string> => {
+  const floatingButtonApi = (
+    window as Window & {
+      floatingButtonAPI?: {
+        getAcpRegistryIconMarkup?: (agentId: string, iconUrl: string) => Promise<string>
+      }
+    }
+  ).floatingButtonAPI
+
+  if (typeof floatingButtonApi?.getAcpRegistryIconMarkup === 'function') {
+    return await floatingButtonApi.getAcpRegistryIconMarkup(agentId, iconUrl)
+  }
+
+  return await createConfigClient().getAcpRegistryIconMarkup(agentId, iconUrl)
+}
+
 const loadSvgMarkup = async () => {
   const icon = props.icon.trim()
   const agentId = props.agentId.trim()
@@ -83,8 +98,7 @@ const loadSvgMarkup = async () => {
 
     let pending = cached
     if (!pending) {
-      pending = configPresenter
-        .getAcpRegistryIconMarkup(agentId, icon)
+      pending = resolveIconMarkup(agentId, icon)
         .then((markup) => {
           const normalized = markup ? normalizeSvgMarkup(markup) : ''
           if (normalized) {

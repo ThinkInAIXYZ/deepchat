@@ -8,7 +8,10 @@ describe('toolNameMapping', () => {
   it('maps Claude Code tool names to canonical names', () => {
     expect(normalizeSkillToolName('Read')).toEqual({ canonical: 'read', mapped: true })
     expect(normalizeSkillToolName('MultiEdit')).toEqual({ canonical: 'edit', mapped: true })
-    expect(normalizeSkillToolName('Glob')).toEqual({ canonical: 'find', mapped: true })
+    expect(normalizeSkillToolName('Glob')).toEqual({
+      canonical: 'glob',
+      mapped: true
+    })
     expect(normalizeSkillToolName('Bash')).toEqual({ canonical: 'exec', mapped: true })
   })
 
@@ -17,6 +20,10 @@ describe('toolNameMapping', () => {
     expect(normalizeSkillToolName('write_file')).toEqual({ canonical: 'write', mapped: true })
     expect(normalizeSkillToolName('execute_command')).toEqual({
       canonical: 'exec',
+      mapped: true
+    })
+    expect(normalizeSkillToolName('grep_search')).toEqual({
+      canonical: 'grep',
       mapped: true
     })
   })

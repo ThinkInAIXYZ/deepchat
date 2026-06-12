@@ -3,23 +3,27 @@ import { BrowserWindow } from 'electron'
 import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+import type { NewApiEndpointType } from '@shared/model'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
-import type {
-  HookEventName,
-  HookTestResult,
-  HooksNotificationsSettings
-} from '../../hooksNotifications'
+import type { ImageGenerationOptions } from '../../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../../videoGenerationSettings'
+import type { TtsSettings } from '../../ttsSettings'
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
+import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
+import type { ScheduledTasksSettings } from '../../scheduledTasks'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import type { AcpConfigState } from './llmprovider.presenter'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
+import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { ISessionPresenter } from './session.presenter'
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { IToolPresenter } from './tool.presenter'
 import type { ISkillPresenter } from '../skill'
 import type { ISkillSyncPresenter } from '../skillSync'
-import type { INewAgentPresenter } from './new-agent.presenter'
+import type { IAgentSessionPresenter } from './agent-session.presenter'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type {
@@ -156,8 +160,11 @@ export type ModelConfigSource = 'user' | 'provider' | 'system'
 export interface ModelConfig {
   maxTokens: number
   contextLength: number
+  timeout?: number
   temperature?: number
+  topP?: number
   vision: boolean
+  speechRecognition?: boolean
   functionCall: boolean
   reasoning: boolean
   type: ModelType
@@ -166,15 +173,21 @@ export interface ModelConfig {
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   // New parameters for GPT-5 series
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
+  verbosity?: Verbosity
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
   conversationId?: string
   apiEndpoint?: ApiEndpointType
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
   // Search-related parameters
   enableSearch?: boolean
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'balanced' | 'precise'
+  imageGeneration?: ImageGenerationOptions
+  videoGeneration?: VideoGenerationOptions
+  tts?: TtsSettings
 }
 
 export interface IModelConfig {
@@ -200,7 +213,12 @@ export interface TabData {
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
-  loadUrl(sessionId: string, url: string, timeoutMs?: number): Promise<YoBrowserStatus>
+  loadUrl(
+    sessionId: string,
+    url: string,
+    timeoutMs?: number,
+    hostWindowId?: number
+  ): Promise<YoBrowserStatus>
   attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
   updateSessionBrowserBounds(
     sessionId: string,
@@ -261,9 +279,12 @@ export interface IWindowPresenter {
   minimize(windowId: number): void
   maximize(windowId: number): void
   close(windowId: number): void
-  createSettingsWindow(): Promise<number | null>
+  createSettingsWindow(
+    navigation?: import('@shared/settingsNavigation').SettingsNavigationPayload
+  ): Promise<number | null>
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
+  focusMainWindow(): boolean
   setPendingSettingsProviderInstall(
     preview: import('@shared/providerDeeplink').ProviderInstallPreview
   ): void
@@ -360,6 +381,14 @@ export interface IShortcutPresenter {
 export interface ISQLitePresenter {
   close(): void
   reopen(): void
+  recordSettingsActivity(
+    input: import('@shared/contracts/routes').SettingsActivityInput
+  ): Promise<import('@shared/contracts/routes').SettingsActivityRecord>
+  listSettingsActivity(
+    limit?: number
+  ): Promise<import('@shared/contracts/routes').SettingsActivityRecord[]>
+  diagnoseSchema(): Promise<DatabaseSchemaDiagnosis>
+  repairSchema(): Promise<DatabaseRepairReport>
   clearNewAgentData(): Promise<void>
   importLegacyChatDb(
     sourceDbPath: string,
@@ -397,6 +426,7 @@ export interface ISQLitePresenter {
   queryMessageIds(conversationId: string): Promise<string[]>
   deleteAllMessages(): Promise<void>
   runTransaction(operations: () => void): Promise<void>
+  getDatabase(): any
 
   // Added message management methods
   getMessage(messageId: string): Promise<SQLITE_MESSAGE | null>
@@ -426,6 +456,10 @@ export interface ISQLitePresenter {
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<SQLITE_MESSAGE | null>
   deleteAllMessagesInConversation(conversationId: string): Promise<void>
   getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null>
+  getAcpSessionByAgentAndSessionId(
+    agentId: string,
+    sessionId: string
+  ): Promise<AcpSessionEntity | null>
   upsertAcpSession(
     conversationId: string,
     agentId: string,
@@ -444,6 +478,8 @@ export interface ISQLitePresenter {
   ): Promise<void>
   deleteAcpSessions(conversationId: string): Promise<void>
   deleteAcpSession(conversationId: string, agentId: string): Promise<void>
+  startAcpTurn(input: AcpTurnStartPayload): Promise<void>
+  finishAcpTurn(input: AcpTurnFinishPayload): Promise<void>
   migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void>
 }
 
@@ -485,7 +521,7 @@ export interface IPresenter {
   toolPresenter: IToolPresenter
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  newAgentPresenter: INewAgentPresenter
+  agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
   init(): void
   destroy(): Promise<void>
@@ -499,33 +535,42 @@ export interface INotificationPresenter {
 
 import type { ReasoningPortrait } from '../model-db'
 
+export type ProviderDbRefreshResult = {
+  status: 'updated' | 'not-modified' | 'skipped' | 'error'
+  lastUpdated: number | null
+  providersCount: number
+  message?: string
+}
+
 export interface IConfigPresenter {
   getSetting<T>(key: string): T | undefined
   setSetting<T>(key: string, value: T): void
   getProviders(): LLM_PROVIDER[]
   setProviders(providers: LLM_PROVIDER[]): void
+  cleanupLegacyProviderJsonForDatabaseEncryption?(): number
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
+  getCapabilityProviderId?(providerId: string, modelId: string): string
   supportsReasoningCapability?(providerId: string, modelId: string): boolean
   getReasoningPortrait?(providerId: string, modelId: string): ReasoningPortrait | null
   getThinkingBudgetRange?(
     providerId: string,
     modelId: string
   ): { min?: number; max?: number; default?: number }
+  getTemperatureCapability?(providerId: string, modelId: string): boolean | undefined
+  supportsTemperatureControl?(providerId: string, modelId: string): boolean
   supportsSearchCapability?(providerId: string, modelId: string): boolean
   getSearchDefaults?(
     providerId: string,
     modelId: string
   ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
+  supportsAudioInputCapability?(providerId: string, modelId: string): boolean
   supportsReasoningEffortCapability?(providerId: string, modelId: string): boolean
-  getReasoningEffortDefault?(
-    providerId: string,
-    modelId: string
-  ): 'minimal' | 'low' | 'medium' | 'high' | undefined
+  getReasoningEffortDefault?(providerId: string, modelId: string): ReasoningEffort | undefined
   supportsVerbosityCapability?(providerId: string, modelId: string): boolean
-  getVerbosityDefault?(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined
+  getVerbosityDefault?(providerId: string, modelId: string): Verbosity | undefined
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
@@ -543,6 +588,8 @@ export interface IConfigPresenter {
   // Floating button settings
   getFloatingButtonEnabled(): boolean
   setFloatingButtonEnabled(enabled: boolean): void
+  getFloatingButtonBounds(): FloatingButtonBounds | null
+  setFloatingButtonBounds(bounds: FloatingButtonBounds): void
   // Update channel settings
   getUpdateChannel(): string
   setUpdateChannel(channel: string): void
@@ -550,6 +597,9 @@ export interface IConfigPresenter {
   getLoggingEnabled(): boolean
   setLoggingEnabled(enabled: boolean): void
   openLoggingFolder(): void
+  // Launch at login settings
+  getLaunchAtLoginEnabled(): boolean
+  setLaunchAtLoginEnabled(enabled: boolean): void
   // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void
@@ -561,6 +611,9 @@ export interface IConfigPresenter {
   setCloseToQuit(value: boolean): void
   getModelStatus(providerId: string, modelId: string): boolean
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void
   // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
   // Language settings
@@ -590,6 +643,8 @@ export interface IConfigPresenter {
   // Screen sharing protection settings
   getContentProtectionEnabled(): boolean
   setContentProtectionEnabled(enabled: boolean): void
+  getPrivacyModeEnabled(): boolean
+  setPrivacyModeEnabled(enabled: boolean): void
   // Sync settings
   getSyncEnabled(): boolean
   setSyncEnabled(enabled: boolean): void
@@ -597,20 +652,29 @@ export interface IConfigPresenter {
   setSyncFolderPath(folderPath: string): void
   getLastSyncTime(): number
   setLastSyncTime(time: number): void
+  // Cloud sync (S3-compatible) settings
+  getCloudSyncConfig(): CloudSyncConfigView
+  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView
+  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null
+  isCloudSafeStorageAvailable(): boolean
   // Hooks & notifications settings
   getHooksNotificationsConfig(): HooksNotificationsSettings
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings
-  getConfirmoHookStatus(): { available: boolean; path: string }
-  testTelegramNotification(): Promise<HookTestResult>
-  testDiscordNotification(): Promise<HookTestResult>
-  testConfirmoNotification(): Promise<HookTestResult>
-  testHookCommand(eventName: HookEventName): Promise<HookTestResult>
+  testHookCommand(hookId: string): Promise<HookTestResult>
+  getScheduledTasksConfig(): ScheduledTasksSettings
+  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings
   // Skills settings
   getSkillsEnabled(): boolean
   setSkillsEnabled(enabled: boolean): void
+  getSkillDraftSuggestionsEnabled(): boolean
+  setSkillDraftSuggestionsEnabled(enabled: boolean): void
   getSkillsPath(): string
   setSkillsPath(skillsPath: string): void
-  getSkillSettings(): { skillsPath: string; enableSkills: boolean }
+  getSkillSettings(): {
+    skillsPath: string
+    enableSkills: boolean
+    skillDraftSuggestionsEnabled: boolean
+  }
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
@@ -632,6 +696,7 @@ export interface IConfigPresenter {
   setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void>
   ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState>
   repairAcpAgent(agentId: string): Promise<AcpAgentInstallState>
+  uninstallAcpRegistryAgent(agentId: string): Promise<void>
   getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null>
   listManualAcpAgents(): Promise<AcpManualAgent[]>
   addManualAcpAgent(
@@ -733,6 +798,7 @@ export interface IConfigPresenter {
   setAutoDetectNpmRegistry?(enabled: boolean): void
   clearNpmRegistryCache?(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
+  refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 
   // Default model settings
   getDefaultModel(): { providerId: string; modelId: string } | undefined
@@ -757,11 +823,15 @@ export type RENDERER_MODEL_META = {
   isCustom?: boolean
   vision?: boolean
   functionCall?: boolean
+  explicitFunctionCall?: boolean
   reasoning?: boolean
   type?: ModelType
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 export type MODEL_META = {
   id: string
@@ -777,9 +847,13 @@ export type MODEL_META = {
   contextLength?: number
   maxTokens?: number
   description?: string
+  supportedEndpointTypes?: NewApiEndpointType[]
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
 }
 export type LLM_PROVIDER = {
   id: string
+  capabilityProviderId?: string
   name: string
   apiType: string
   apiKey: string
@@ -835,10 +909,29 @@ export type LLM_EMBEDDING_ATTRS = {
   normalized: boolean
 }
 
+export type StandaloneImageGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: ImageGenerationOptions
+  images: Array<{ data: string; mimeType: string }>
+}
+
+export type StandaloneVideoGenerationResult = {
+  providerId: string
+  modelId: string
+  options?: VideoGenerationOptions
+  videos: Array<{ data: string; mimeType: string }>
+}
+
 export type AcpDebugActionType =
   | 'initialize'
+  | 'authenticate'
   | 'newSession'
   | 'loadSession'
+  | 'sessionList'
+  | 'sessionResume'
+  | 'sessionClose'
+  | 'sessionFork'
   | 'prompt'
   | 'cancel'
   | 'setSessionMode'
@@ -846,7 +939,14 @@ export type AcpDebugActionType =
   | 'extMethod'
   | 'extNotification'
 
-export type AcpDebugEventKind = 'request' | 'response' | 'notification' | 'permission' | 'error'
+export type AcpDebugEventKind =
+  | 'request'
+  | 'response'
+  | 'notification'
+  | 'permission'
+  | 'lifecycle'
+  | 'stderr'
+  | 'error'
 
 export interface AcpDebugRequest {
   agentId: string
@@ -1041,6 +1141,23 @@ export interface AcpSessionUpsertPayload {
   metadata?: Record<string, unknown> | null
 }
 
+export type AcpTurnStatus = 'active' | 'completed' | 'cancelled' | 'error'
+
+export interface AcpTurnStartPayload {
+  id: string
+  acpSessionId: string
+  conversationId: string
+  userMessageId?: string | null
+  startedAt: number
+}
+
+export interface AcpTurnFinishPayload {
+  id: string
+  status: Exclude<AcpTurnStatus, 'active'>
+  stopReason?: string | null
+  completedAt: number
+}
+
 export interface AcpWorkdirInfo {
   path: string
   isCustom: boolean
@@ -1078,9 +1195,11 @@ export type VERTEX_PROVIDER = LLM_PROVIDER & {
 }
 
 export interface AwsBedrockCredential {
+  authMode?: 'accessKeys' | 'profile'
   accessKeyId: string
   secretAccessKey: string
   region?: string
+  profile?: string
 }
 
 export interface ILlmProviderPresenter {
@@ -1149,6 +1268,19 @@ export interface ILlmProviderPresenter {
       lastRequestTime: number
     }
   >
+  executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: {
+        providerId: string
+        qpsLimit: number
+        currentQps: number
+        queueLength: number
+        estimatedWaitTime: number
+      }) => void
+    }
+  ): Promise<void>
   syncModelScopeMcpServers(
     providerId: string,
     syncOptions?: ModelScopeMcpSyncOptions
@@ -1160,8 +1292,30 @@ export interface ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
+  ): Promise<string>
+  transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
     options?: { signal?: AbortSignal }
   ): Promise<string>
+  generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult>
+  generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult>
   getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo>
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
@@ -1212,8 +1366,8 @@ export type CONVERSATION_SETTINGS = {
   artifacts: 0 | 1
   enabledMcpTools?: string[]
   thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   selectedVariantsMap?: Record<string, string>
   acpWorkdirMap?: Record<string, string | null>
   chatMode?: 'agent' | 'acp agent'
@@ -1474,7 +1628,7 @@ export type LLMResponseStream = {
   }
 }
 export interface IUpgradePresenter {
-  checkUpdate(): Promise<void>
+  checkUpdate(type?: string): Promise<void>
   getUpdateStatus(): {
     status: UpdateStatus | null
     progress: UpdateProgress | null
@@ -1485,10 +1639,13 @@ export interface IUpgradePresenter {
       releaseNotes: any
       githubUrl: string | undefined
       downloadUrl: string | undefined
+      isMock?: boolean
     } | null
   }
   goDownloadUpgrade(type: 'github' | 'official'): Promise<void>
   startDownloadUpdate(): boolean
+  mockDownloadedUpdate(): boolean
+  clearMockUpdate(): boolean
   restartToUpdate(): boolean
   restartApp(): void
   isUpdatingInProgress(): boolean
@@ -1530,6 +1687,16 @@ export interface IFilePresenter {
   isDirectory(absPath: string): Promise<boolean>
   getMimeType(filePath: string): Promise<string>
   writeImageBase64(file: { name: string; content: string }): Promise<string>
+  saveImage(file: {
+    source: string
+    mimeType?: string
+    suggestedName?: string
+  }): Promise<{ canceled: boolean; path?: string }>
+  copyImage(file: {
+    source: string
+    mimeType?: string
+    suggestedName?: string
+  }): Promise<{ copied: boolean }>
   validateFileForKnowledgeBase(filePath: string): Promise<FileValidationResult>
   getSupportedExtensions(): string[]
 }
@@ -1591,6 +1758,7 @@ export interface MCPServerConfig {
   type: 'sse' | 'stdio' | 'inmemory' | 'http'
   source?: string // Source identifier: "mcprouter" | "modelscope" | undefined(for manual)
   sourceId?: string // Source ID: mcprouter uuid or modelscope mcpServer.id
+  ownerPluginId?: string // Plugin owner id for managed plugin MCP servers
 }
 
 export interface MCPConfig {
@@ -1659,6 +1827,9 @@ export interface MCPToolResponse {
   /** When using compatibility mode, may directly return tool results */
   toolResult?: unknown
 
+  /** Image previews extracted from tool output for renderer display */
+  imagePreviews?: import('../core/mcp').ToolCallImagePreview[]
+
   /** Whether permission is required */
   requiresPermission?: boolean
 
@@ -1716,6 +1887,7 @@ export interface MCPResourceContent {
 }
 
 export interface IMCPPresenter {
+  initialize(): Promise<void>
   isReady(): boolean
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   getMcpClients(): Promise<McpClient[]>
@@ -1727,12 +1899,24 @@ export interface IMCPPresenter {
   isServerRunning(serverName: string): Promise<boolean>
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
+  getServerLastError?(serverName: string): string | undefined
   getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]>
   getAllPrompts(): Promise<Array<PromptListEntry & { client: { name: string; icon: string } }>>
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
   readResource(resource: ResourceListEntry): Promise<Resource>
-  callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }>
+  callTool(
+    request: MCPToolCall,
+    options?: {
+      onProgress?: (update: {
+        kind: 'subagent_orchestrator'
+        toolCallId: string
+        responseMarkdown: string
+        progressJson: string
+      }) => void
+      signal?: AbortSignal
+    }
+  ): Promise<{ content: string; rawData: MCPToolResponse }>
   preCheckToolPermission?(request: MCPToolCall): Promise<{
     needsPermission: true
     toolName: string
@@ -1802,20 +1986,6 @@ export interface IMCPPresenter {
   setMcpRouterApiKey?(key: string): Promise<void>
   isServerInstalled?(source: string, sourceId: string): Promise<boolean>
   updateMcpRouterServersAuth?(apiKey: string): Promise<void>
-
-  mcpToolsToAnthropicTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<AnthropicTool[]>
-  mcpToolsToGeminiTools(
-    mcpTools: MCPToolDefinition[] | undefined,
-    serverName: string
-  ): Promise<ToolListUnion>
-  mcpToolsToOpenAITools(mcpTools: MCPToolDefinition[], serverName: string): Promise<OpenAITool[]>
-  mcpToolsToOpenAIResponsesTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<OpenAI.Responses.Tool[]>
 }
 
 export interface IDeeplinkPresenter {
@@ -1864,9 +2034,54 @@ export interface ISyncPresenter {
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 
+  // Cloud sync (S3-compatible) operations
+  testCloudConnection(config?: CloudSyncConfigInput): Promise<CloudSyncResult>
+  uploadLatestBackupToCloud(): Promise<CloudSyncResult>
+  pullLatestBackupFromCloud(importMode?: ImportMode): Promise<CloudSyncResult>
+
   // Initialization and destruction
   init(): void
   destroy(): void
+}
+
+/** Non-sensitive cloud sync config persisted in app settings (secret stored separately). */
+export interface CloudSyncConfigBase {
+  enabled: boolean
+  endpoint: string
+  bucket: string
+  region: string
+  prefix: string
+  accessKeyId: string
+}
+
+/** Config view sent to the renderer — never includes the secret in plaintext. */
+export interface CloudSyncConfigView extends CloudSyncConfigBase {
+  hasSecret: boolean
+  safeStorageAvailable: boolean
+}
+
+/** Config written from the renderer. `secretAccessKey` omitted = keep existing secret. */
+export interface CloudSyncConfigInput extends Partial<CloudSyncConfigBase> {
+  secretAccessKey?: string
+}
+
+/** Fully resolved runtime config; `enabled` is UI-only and omitted from S3 operations. */
+export interface ResolvedCloudSyncConfig {
+  endpoint: string
+  bucket: string
+  region: string
+  prefix: string
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+export interface CloudSyncResult {
+  success: boolean
+  message: string
+  fileName?: string
+  count?: number
+  sourceDbType?: 'agent' | 'chat'
+  importedSessions?: number
 }
 
 export interface SyncBackupInfo {
@@ -1904,8 +2119,8 @@ export interface DefaultModelSetting {
   forcedSearch?: boolean
   searchStrategy?: 'turbo' | 'max'
   // New parameters for GPT-5 series
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   maxCompletionTokens?: number // GPT-5 series uses this parameter to replace maxTokens
 }
 
@@ -2418,6 +2633,14 @@ export interface ILifecycleManager {
 export interface ISplashWindowManager {
   create(): Promise<void>
   updateProgress(phase: LifecyclePhase, progress: number): void
+  showDatabaseUnlockProgress?(
+    payload: { active: boolean; safeStorageAvailable: boolean },
+    options?: { skipDelay?: boolean }
+  ): void
+  requestDatabaseUnlock?(payload: {
+    reason: 'manual-required' | 'safe-storage-unavailable' | 'system-key-missing' | 'invalid'
+    safeStorageAvailable: boolean
+  }): Promise<string | null>
   close(): Promise<void>
   isVisible(): boolean
 }

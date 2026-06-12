@@ -1,5 +1,9 @@
 // Core chat types (strong-typed UI blocks)
 
+import type { ToolCallImagePreview } from './mcp'
+import type { AgentPlanDisplayItem } from '../agent-plan'
+import type { QuestionOption } from './question'
+
 export type Message = {
   id: string
   content: UserMessageContent | AssistantMessageBlock[]
@@ -58,7 +62,7 @@ export type AssistantMessageBlock = {
     | 'audio'
     | 'artifact-thinking'
   content?: string
-  extra?: Record<string, string | number | object[] | boolean>
+  extra?: AssistantMessageExtra
   status:
     | 'success'
     | 'loading'
@@ -90,6 +94,7 @@ export type AssistantMessageBlock = {
     rtkApplied?: boolean
     rtkMode?: 'rewrite' | 'direct' | 'bypass'
     rtkFallbackReason?: string
+    imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string
     server_description?: string
@@ -103,9 +108,42 @@ export type AssistantMessageBlock = {
   reasoning_time?: { start: number; end: number }
 }
 
+export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
+  needsUserAction?: boolean
+  permissionType?: 'read' | 'write' | 'all' | 'command'
+  grantedPermissions?: 'read' | 'write' | 'all' | 'command'
+  toolName?: string
+  serverName?: string
+  providerId?: string
+  permissionRequestId?: string
+  permissionRequest?: string
+  commandInfo?: string
+  rememberable?: boolean
+  questionHeader?: string
+  questionText?: string
+  questionOptions?: QuestionOption[] | string
+  questionMultiple?: boolean
+  questionCustom?: boolean
+  questionResolution?: 'asked' | 'replied' | 'rejected'
+  answerText?: string
+  answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
+}
+
 export type {
   ChatMessage,
   ChatMessageContent,
+  ChatMessageProviderOptions,
   ChatMessageRole,
   ChatMessageToolCall
 } from './chat-message'

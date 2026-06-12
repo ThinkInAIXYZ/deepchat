@@ -1,6 +1,6 @@
 <template>
-  <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
-    <div class="flex h-11 items-center justify-between border-b px-3">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
+    <div class="flex h-11 shrink-0 items-center justify-between border-b px-3">
       <div class="min-w-0">
         <h3 class="truncate text-sm font-medium">{{ viewerTitle }}</h3>
         <p v-if="viewerSubtitle" class="truncate text-xs text-muted-foreground">
@@ -34,6 +34,21 @@
         </div>
 
         <Button
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7"
+          data-testid="workspace-viewer-fullscreen-toggle"
+          :title="fullscreenToggleLabel"
+          :aria-label="fullscreenToggleLabel"
+          @click="emit('toggle-fullscreen')"
+        >
+          <Icon
+            :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
+            class="h-4 w-4"
+          />
+        </Button>
+
+        <Button
           v-if="openFilePath"
           variant="outline"
           size="sm"
@@ -45,7 +60,7 @@
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-hidden">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="workspace-viewer-body">
       <div
         v-if="paneKind === 'empty' && !(activeSource === 'file' && props.loadingFilePreview)"
         class="flex h-full items-center justify-center px-6"
@@ -64,44 +79,50 @@
 
       <div
         v-else-if="paneKind === 'git-diff'"
-        class="h-full overflow-auto bg-background px-4 py-3 font-mono text-xs leading-6"
+        class="h-full overflow-auto bg-background py-3 text-xs leading-6"
       >
         <template v-if="props.loadingGitDiff">
-          <div class="text-muted-foreground">{{ t('chat.workspace.files.loading') }}</div>
+          <div class="px-4 text-muted-foreground">{{ t('chat.workspace.files.loading') }}</div>
         </template>
         <template v-else-if="props.gitDiff">
           <section v-if="props.gitDiff.staged" class="mb-4">
             <h4
-              class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              class="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {{ t('chat.workspace.git.staged') }}
             </h4>
-            <pre class="whitespace-pre-wrap break-words">{{ props.gitDiff.staged }}</pre>
+            <WorkspaceDiffView :diff="props.gitDiff.staged" />
           </section>
           <section v-if="props.gitDiff.unstaged">
             <h4
-              class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              class="mb-2 px-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {{ t('chat.workspace.git.unstaged') }}
             </h4>
-            <pre class="whitespace-pre-wrap break-words">{{ props.gitDiff.unstaged }}</pre>
+            <WorkspaceDiffView :diff="props.gitDiff.unstaged" />
           </section>
           <div
             v-if="!props.gitDiff.staged && !props.gitDiff.unstaged"
-            class="text-muted-foreground"
+            class="px-4 text-muted-foreground"
           >
             {{ t('chat.workspace.git.empty') }}
           </div>
         </template>
         <template v-else>
-          <div class="text-muted-foreground">{{ t('chat.workspace.git.empty') }}</div>
+          <div class="px-4 text-muted-foreground">{{ t('chat.workspace.git.empty') }}</div>
         </template>
       </div>
 
-      <WorkspaceCodePane v-else-if="paneKind === 'code' && codeSource" :source="codeSource" />
+      <WorkspaceCodePane
+        v-else-if="paneKind === 'code' && codeSource"
+        class="h-full min-h-0 w-full"
+        :source="codeSource"
+      />
 
       <WorkspacePreviewPane
         v-else-if="paneKind === 'preview' && previewKind"
+        class="h-full min-h-0 w-full"
+        :session-id="props.sessionId"
         :preview-kind="previewKind"
         :artifact="previewArtifact"
         :file-preview="previewFilePreview"
@@ -109,6 +130,7 @@
 
       <WorkspaceInfoPane
         v-else-if="paneKind === 'info' && props.filePreview"
+        class="h-full min-h-0 w-full"
         :file-preview="props.filePreview"
       />
 
@@ -124,9 +146,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
-import { usePresenter } from '@/composables/usePresenter'
+import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview, WorkspaceGitDiff } from '@shared/presenter'
@@ -134,6 +157,7 @@ import { useWorkspaceViewerModel } from './composables/useWorkspaceViewerModel'
 import WorkspaceCodePane from './viewer/WorkspaceCodePane.vue'
 import WorkspacePreviewPane from './viewer/WorkspacePreviewPane.vue'
 import WorkspaceInfoPane from './viewer/WorkspaceInfoPane.vue'
+import WorkspaceDiffView from './viewer/WorkspaceDiffView.vue'
 
 const props = defineProps<{
   sessionId: string
@@ -142,11 +166,16 @@ const props = defineProps<{
   gitDiff: WorkspaceGitDiff | null
   loadingFilePreview: boolean
   loadingGitDiff: boolean
+  isFullscreen?: boolean
+}>()
+
+const emit = defineEmits<{
+  'toggle-fullscreen': []
 }>()
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const workspacePresenter = usePresenter('workspacePresenter')
+const workspaceClient = createWorkspaceClient()
 
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const { activeSource, effectiveViewMode, paneKind, previewKind, shouldShowTabs } =
@@ -244,11 +273,15 @@ const emptyMessage = computed(() => {
   return t('chat.workspace.title')
 })
 
+const fullscreenToggleLabel = computed(() => {
+  return props.isFullscreen ? t('common.restore') : t('common.maximize')
+})
+
 const handleOpenFile = async () => {
   if (!openFilePath.value) {
     return
   }
 
-  await workspacePresenter.openFile(openFilePath.value)
+  await workspaceClient.openFile(openFilePath.value)
 }
 </script>

@@ -31,10 +31,20 @@
     "rateLimitWaitingTooltip": "Vent {seconds} sekunder, interval {interval} sekunder",
     "fileArea": "fil område",
     "agentWorkspaceCurrent": "Nuværende arbejdsmappe: {path}",
+    "workspaceUnavailableTooltip": "Mappen findes ikke eller kan ikke tilgås: {path}",
     "agentWorkspaceSelect": "Vælg arbejdsmappe",
     "agentWorkspaceTooltip": "Indstil agentens arbejdsmappe",
     "attach": "Vedhæft",
     "voiceInput": "Stemmeinput",
+    "voiceInputStop": "Stop stemmeinput",
+    "voiceRecognitionUnsupportedTitle": "Det aktuelle miljø understøtter ikke stemmegenkendelse",
+    "voiceRecognitionUnsupportedDescription": "Brug denne funktion i en browser eller skrivebordsmiljø, der understøtter stemmegenkendelse.",
+    "voiceRecognitionPermissionDeniedTitle": "Kan ikke få adgang til mikrofonen",
+    "voiceRecognitionPermissionDeniedDescription": "Giv DeepChat adgang til mikrofonen, og prøv igen.",
+    "voiceRecognitionErrorTitle": "Stemmegenkendelse mislykkedes",
+    "voiceRecognitionErrorDescription": "Stemmegenkendelsen kunne ikke fuldføres. Prøv igen senere.",
+    "send": "Send",
+    "steer": "Styr",
     "queue": "Læg i kø",
     "stop": "Stop",
     "mcp": {
@@ -47,17 +57,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "Indbyggede værktøjer",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "Billedgenerering",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Vedhæftning mislykkedes",
+    "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",
+    "fileUploadFailedMore": " og {count} flere",
+    "unnamedFile": "unavngiven fil",
+    "audioInputUnsupportedTitle": "Den aktuelle model understøtter ikke lydvedhæftninger",
+    "audioInputUnsupportedDescription": "Modellen {model} understøtter ikke lydinput. {count} lydvedhæftning(er) blev ignoreret."
   },
   "pendingInput": {
     "steer": "Styring",
@@ -81,6 +99,7 @@
     "rateLimitSwitchProvider": "Skift tjenesteudbyder",
     "rateLimitTitle": "Anmodningsfrekvensbegrænsning",
     "rateLimitWaiting": "Anmodningsfrekvensbegrænsning, venter i kø...",
+    "rateLimitCompactLoading": "Hastighedsbegrænset ({seconds}s)",
     "thinking": "Tænker..."
   },
   "notify": {
@@ -110,6 +129,23 @@
     "params": "parameter",
     "response": "Værktøjsrespons",
     "responseData": "Svardata",
+    "subagents": {
+      "summary": "{mode} · {count} underagenter",
+      "unnamedTask": "Unavngiven opgave",
+      "mode": {
+        "parallel": "Parallel",
+        "chain": "Kæde"
+      },
+      "status": {
+        "queued": "I kø",
+        "running": "Kører",
+        "completed": "Fuldført",
+        "error": "Fejl",
+        "cancelled": "Annulleret",
+        "waiting_permission": "Afventer tilladelse",
+        "waiting_question": "Afventer input"
+      }
+    },
     "title": "Værktøjsopkald"
   },
   "mode": {
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "Del",
-    "more": "Mere"
+    "more": "Mere",
+    "backToParent": "Tilbage til forælder"
   },
   "advancedSettings": {
     "button": "Avanceret",
@@ -128,6 +165,9 @@
     "systemPrompt": "Systemprompt",
     "systemPromptPlaceholder": "Vælg en forudindstilling",
     "temperature": "Temperatur",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus-sampling; lad feltet stå tomt for at bruge udbyderens standard",
     "contextLength": "Kontekstlængde",
     "maxTokens": "Maks. tokens",
     "thinkingBudget": "Tænkebudget",
@@ -144,15 +184,18 @@
       "finiteNumber": "Skal være et endeligt tal",
       "nonNegativeInteger": "Skal være et ikke-negativt heltal",
       "contextLengthAtLeastMaxTokens": "Skal være større end eller lig med maksimumtokens",
-      "maxTokensWithinContextLength": "Skal være mindre end eller lig med kontekstlængden"
+      "maxTokensWithinContextLength": "Skal være mindre end eller lig med kontekstlængden",
+      "topPRange": "Skal være større end 0 og mindre end eller lig med 1"
     }
   },
   "workspace": {
     "collapse": "tæt",
+    "expand": "Udvid",
     "sections": {
       "files": "Filer",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Underagenter"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "Ingen filer endnu",
       "loading": "Indlæser filer...",
-      "section": "dokument"
+      "section": "dokument",
+      "noWorkspace": {
+        "title": "Ingen arbejdsområde",
+        "description": "Vælg eller træk en mappe for at definere arbejdsområdet",
+        "button": "Vælg mappe"
+      }
     },
     "git": {
       "empty": "Ingen diff tilgængelig",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "Ingen opgaver endnu",
       "section": "plan",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Afsluttet",
         "failed": "Mislykket",
@@ -206,10 +255,20 @@
         "truncated": "[afkortet]"
       }
     },
-    "title": "arbejdsrum"
+    "title": "arbejdsrum",
+    "subagents": {
+      "empty": "Ingen undersessioner endnu",
+      "self": "Denne agent",
+      "status": {
+        "working": "Kører",
+        "error": "Fejl",
+        "idle": "Inaktiv"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "Ingen modeller fundet"
+    "empty": "Ingen modeller fundet",
+    "audioInputSupported": "Understøtter lydinput"
   },
   "audio": {
     "play": "Afspil",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "Komprimerer automatisk kontekst...",
-    "compacted": "Konteksten blev automatisk komprimeret"
+    "compacting": "Komprimerer kontekst...",
+    "compacted": "Konteksten blev komprimeret",
+    "commandDescription": "Komprimer samtalekontekst",
+    "noopTitle": "Ingen kontekst at komprimere",
+    "noopDescription": "Der er endnu ingen ny samtalehistorik at komprimere.",
+    "failedTitle": "Komprimering mislykkedes"
   },
   "newThread": {
     "title": "Byg og udforsk"
@@ -248,6 +311,10 @@
     "allAgents": "Alle agenter",
     "expandSidebar": "Udvid sidepanelet",
     "collapseSidebar": "Skjul sidepanelet",
+    "themeToggle": "Skift tema",
+    "themeLight": "Lys",
+    "themeDark": "Mørk",
+    "themeSystem": "System",
     "remoteControlStatus": {
       "disabled": "Fjernstyring er deaktiveret",
       "stopped": "Fjernstyring er stoppet",
@@ -261,12 +328,16 @@
     "pinned": "Fastgjorte",
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang",
-    "remoteControlDisabled": "Deaktiveret"
+    "remoteControlDisabled": "Deaktiveret",
+    "searchPlaceholder": "Søg i chats",
+    "searchAriaLabel": "Søg i chats",
+    "searchEmptyTitle": "Ingen matchende samtaler",
+    "searchEmptyDescription": "Prøv et andet nøgleord i titlen"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Opgaveoversigt",
     "collapse": "Skjul flydende sessioner",
-    "empty": "Ingen DeepChat-sessioner endnu",
+    "empty": "Ingen agentsessioner endnu",
     "executing": "aktiv",
     "sessionCount": "{count} sessioner",
     "untitled": "Ny chat",
@@ -274,6 +345,77 @@
       "inProgress": "I gang",
       "done": "Færdig",
       "error": "Fejl"
+    }
+  },
+  "subagents": {
+    "label": "Underagenter"
+  },
+  "spotlight": {
+    "placeholder": "Søg i samtaler, agenter, indstillinger og handlinger…",
+    "searching": "Søger…",
+    "emptyTitle": "Ingen matchende resultater",
+    "emptyDescription": "Prøv et andet søgeord, eller åbn en nylig session.",
+    "hints": "↑↓ flyt · Enter åbn · Esc luk · Home/End hop",
+    "kind": {
+      "session": "Session",
+      "message": "Besked",
+      "agent": "Agent",
+      "setting": "Indstilling",
+      "action": "Handling"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Søg i samtalen",
+    "ariaLabel": "Søg i den aktuelle samtale",
+    "previous": "Forrige match",
+    "next": "Næste match",
+    "close": "Luk søgning"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Switch to DeepChat Agent",
+      "description": "Before chatting, switch away from ACP and return to the built-in DeepChat flow.",
+      "caption": "Click the highlighted agent button in the sidebar to continue."
+    },
+    "switchModel": {
+      "description": "Pick the model you want to use for your first DeepChat conversation.",
+      "caption": "Use the highlighted model switcher and choose any available model."
+    },
+    "firstChat": {
+      "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
+      "caption": "The spotlight stays on the input box until you send your first message."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill-kladde",
+    "confirmationQuestion": "Der er oprettet en skill-kladde: {name}",
+    "previewTitle": "Forhåndsvisning af kladdeindhold",
+    "actions": {
+      "view": "Vis indhold",
+      "viewDescription": "Forhåndsvis kladdens SKILL.md-indhold",
+      "install": "Installér som skill",
+      "installDescription": "Importér den til skills-mappen til administration",
+      "discard": "Kassér",
+      "discardDescription": "Slet denne midlertidige kladde"
+    },
+    "result": {
+      "viewed": "Forhåndsvisningen af kladdeindholdet er åben. Vælg installér eller kassér.",
+      "installed": "Skill-kladden er installeret: {name}",
+      "discarded": "Skill-kladden er kasseret.",
+      "failed": "Kunne ikke håndtere skill-kladden: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Arbejdet i {duration}",
+    "reasoningCount": "{count} tanke(r)",
+    "toolCallCount": "{count} værktøjskald",
+    "expandLabel": "Udvid {title}",
+    "collapseLabel": "Skjul {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "t ",
+      "minute": "min ",
+      "second": "s"
     }
   }
 }

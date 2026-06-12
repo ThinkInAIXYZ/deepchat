@@ -1,0 +1,421 @@
+{
+  "input": {
+    "placeholder": "DeepChat'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",
+    "fileArea": "Dosya Alanı",
+    "inputArea": "Giriş Alanı",
+    "functionSwitch": "Fonksiyon Anahtarı",
+    "attach": "Eklemek",
+    "voiceInput": "Yerel kayıt",
+    "voiceInputStop": "Yerel kaydı durdur",
+    "voiceRecognitionUnsupportedTitle": "Yerel kayıt burada mevcut değil",
+    "voiceRecognitionUnsupportedDescription": "Bu özelliği, mikrofon kaydını destekleyen bir tarayıcı veya masaüstü ortamında kullanın.",
+    "voiceRecognitionPermissionDeniedTitle": "Mikrofon erişimi kullanılamıyor",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat'nin mikrofonu kullanmasına izin verin ve tekrar deneyin.",
+    "voiceRecognitionErrorTitle": "Sesin transkripsiyonu başarısız oldu",
+    "voiceRecognitionErrorDescription": "Ses transkripsiyonu tamamlanamadı. Lütfen daha sonra tekrar deneyin.",
+    "send": "Göndermek",
+    "steer": "Yönlendir",
+    "queue": "Sıra",
+    "stop": "Durmak",
+    "fileSelect": "Dosya Seç",
+    "pasteFiles": "Dosyaları panodan yapıştır",
+    "dropFiles": "Dosyaları buraya bırakın",
+    "promptFilesAdded": "prompt Dosyalar Eklendi",
+    "promptFilesAddedDesc": "{count} dosyaları başarıyla eklendi",
+    "promptFilesError": "Dosya İşleme Hatası",
+    "promptFilesErrorDesc": "{count} dosyaları işlenemedi",
+    "historyPlaceholder": "(Otomatik tamamlamak için Sekme tuşuna basın)",
+    "rateLimitQueue": "Sıra {count}",
+    "rateLimitWait": "{seconds}s bekleyin",
+    "rateLimitQueueTooltip": "Kuyruktaki {count} istekleri, {interval}s aralığı",
+    "rateLimitReadyTooltip": "Gönderilmeye hazır, {interval}s aralıklarla",
+    "rateLimitWaitingTooltip": "{seconds}s daha bekleyin, {interval}s aralıklarla",
+    "acpWorkdir": "ACP Çalışma dizini",
+    "acpWorkdirTooltip": "ACP çalışma dizinini ayarlayın",
+    "acpWorkdirSelect": "ACP çalışma dizini olarak kullanılacak bir klasör seçin",
+    "acpWorkdirCurrent": "Mevcut çalışma dizini: {path}",
+    "acpMode": "Mod",
+    "acpModeTooltip": "Geçerli mod: {mode}",
+    "agentWorkspaceTooltip": "Agent çalışma alanı dizinini ayarlayın",
+    "agentWorkspaceSelect": "Çalışma alanı olarak kullanılacak bir klasör seçin",
+    "agentWorkspaceCurrent": "Mevcut çalışma alanı: {path}",
+    "workspaceUnavailableTooltip": "Dizin mevcut değil veya erişilemiyor: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Etkin MCP",
+      "empty": "Etkin hizmet yok",
+      "openSettings": "MCP ayarlarını aç"
+    },
+    "tools": {
+      "badge": "Aletler",
+      "title": "Aletler",
+      "mcpSection": "MCP",
+      "pluginSection": "Eklentiler",
+      "builtinSection": "Yerleşik Araçlar",
+      "loading": "Araçlar yükleniyor...",
+      "builtinEmpty": "Yerleşik araç yok",
+      "groups": {
+        "agentFilesystem": "Agent Dosya Sistemi",
+        "agentCore": "Agent Çekirdek",
+        "agentImageGeneration": "Görüntü Üretimi",
+        "agentSkills": "Agent Skills",
+        "deepchatSettings": "DeepChat Ayarlar",
+        "yobrowser": "YoBrowser"
+      }
+    },
+    "fileUploadFailed": "Ek başarısız oldu",
+    "fileUploadFailedDesc": "{count} dosyaları işlenemedi: {names}",
+    "fileUploadFailedMore": "ve {count} daha",
+    "unnamedFile": "adsız dosya",
+    "audioInputUnsupportedTitle": "Mevcut model ses eklerini desteklemiyor",
+    "audioInputUnsupportedDescription": "{model} modeli ses girişini desteklemez. {count} ses ekleri yoksayıldı."
+  },
+  "pendingInput": {
+    "steer": "Yönlendir",
+    "queueCount": "Sıraya alındı ​​{count}/{max}",
+    "resumeQueue": "Göndermeye devam et",
+    "toSteer": "Yönlendir",
+    "locked": "Kilitli",
+    "reorder": "Yeniden sırala",
+    "files": "{count} dosyaları",
+    "attachmentsOnly": "{count} ekler",
+    "empty": "Boş mesaj",
+    "limitReached": "Bekleme şeridi dolu (maks. {max})."
+  },
+  "features": {
+    "webSearch": "Web Araması",
+    "thoughtForSeconds": "{seconds}s için düşünceler",
+    "thoughtForSecondsLoading": "{seconds}s için düşünüyorum...",
+    "artifactThinking": "Yapay Düşünce",
+    "modeChanged": "Mod şu şekilde değiştirildi: {mode}"
+  },
+  "search": {
+    "results": "{0} web sayfası bulundu",
+    "searching": "Arama...",
+    "title": "Arama Sonuçları",
+    "description": "{0} ile ilgili sonuçlar bulundu",
+    "optimizing": "Arama sorgusu optimize ediliyor...",
+    "reading": "Web sayfalarını arama ve okuma...",
+    "error": "Arama başarısız oldu"
+  },
+  "messages": {
+    "thinking": "Düşünüyorum...",
+    "rateLimitWaiting": "Oran sınırına ulaşıldı, kuyrukta bekleniyor...",
+    "rateLimitCompactLoading": "{seconds}s için oran sınırlı...",
+    "rateLimitTitle": "Hız Sınırı Etkin",
+    "rateLimitQueue": "Kuyruk Konumu",
+    "rateLimitEstimated": "Tahmini Bekleme",
+    "rateLimitQuickSettings": "Sınırı Ayarla",
+    "rateLimitSwitchProvider": "Sağlayıcıyı Değiştir",
+    "rateLimitImmediately": "Şimdi",
+    "rateLimitSeconds": "S",
+    "rateLimitMinutes": "M"
+  },
+  "compaction": {
+    "compacting": "Bağlam sıkıştırılıyor...",
+    "compacted": "Bağlam sıkıştırıldı",
+    "commandDescription": "Kompakt konuşma bağlamı",
+    "noopTitle": "Sıkıştırılacak bağlam yok",
+    "noopDescription": "Henüz sıkıştırılacak yeni bir konuşma geçmişi yok.",
+    "failedTitle": "Sıkıştırma başarısız oldu"
+  },
+  "rateLimit": {
+    "queueTooltip": "Kuyruktaki {count} istekleri, {interval}s aralığı",
+    "readyTooltip": "Gönderilmeye hazır, {interval}s aralıklarla",
+    "waitingTooltip": "{seconds}s daha bekleyin, {interval}s aralıklarla"
+  },
+  "notify": {
+    "generationComplete": "Nesil tamamlandı",
+    "generationError": "Oluşturma başarısız oldu"
+  },
+  "toolCall": {
+    "title": "Araç Çağrısı",
+    "calling": "Araç çağrısı devam ediyor",
+    "response": "Araç yanıtı",
+    "end": "Araç çağrısı tamamlandı",
+    "error": "Araç çağırma hatası",
+    "clickToView": "Ayrıntıları görüntülemek için tıklayın",
+    "functionName": "İşlev",
+    "params": "Parametreler",
+    "responseData": "Yanıt verileri",
+    "subagents": {
+      "summary": "{mode} · {count} subagents",
+      "unnamedTask": "Adsız görev",
+      "mode": {
+        "parallel": "Paralel",
+        "chain": "Zincir"
+      },
+      "status": {
+        "queued": "Sıraya alındı",
+        "running": "Koşma",
+        "completed": "Tamamlanmış",
+        "error": "Hata",
+        "cancelled": "İptal edildi",
+        "waiting_permission": "İzin bekleniyor",
+        "waiting_question": "Giriş bekleniyor"
+      }
+    }
+  },
+  "mode": {
+    "current": "Geçerli mod: {mode}",
+    "agent": "Agent",
+    "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "backToParent": "Ebeveyne Geri Dön",
+    "share": "Paylaşmak",
+    "more": "Daha"
+  },
+  "subagents": {
+    "label": "Alt temsilciler"
+  },
+  "advancedSettings": {
+    "button": "Gelişmiş",
+    "title": "Gelişmiş Ayarlar",
+    "closeHint": "Kapatmak için Esc",
+    "systemPrompt": "Sistem prompt",
+    "systemPromptPlaceholder": "Bir ön ayar seçin",
+    "temperature": "Sıcaklık",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6, düşünme etkinleştirildiğinde sıcaklığı {enabled}'ye ve devre dışı bırakıldığında {disabled}'ye sabitler.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus örnekleme; sağlayıcı varsayılanını kullanmak için boş bırakın",
+    "contextLength": "Bağlam Uzunluğu",
+    "maxTokens": "Maksimum token",
+    "thinkingBudget": "Thinking Budget",
+    "verbosity": "ayrıntı",
+    "forceInterleavedThinkingCompat": "Interleaved Thinking",
+    "forceInterleavedThinkingCompatDescription": "Bu oturumun Interleaved Thinking ile akıl yürütme ve araç çağrısı mesajlarını işleyip işlemediğini kontrol eder.",
+    "verbosityPlaceholder": "Ayrıntı seç",
+    "currentCustomPrompt": "Mevcut özel",
+    "useDefault": "Varsayılanı kullan",
+    "decreaseValue": "{label} değerini azalt",
+    "increaseValue": "{label} değerini artırın",
+    "toggleValue": "{label}'yi değiştir",
+    "validation": {
+      "finiteNumber": "Sonlu bir sayı olmalı",
+      "nonNegativeInteger": "Negatif olmayan bir tam sayı olmalıdır",
+      "contextLengthAtLeastMaxTokens": "Maksimum token değerinden büyük veya ona eşit olmalıdır",
+      "maxTokensWithinContextLength": "Bağlam Uzunluğundan küçük veya ona eşit olmalıdır",
+      "topPRange": "0’dan büyük ve 1’e eşit ya da küçük olmalıdır"
+    }
+  },
+  "modelPicker": {
+    "empty": "Hiçbir model bulunamadı",
+    "audioInputSupported": "Ses girişi destekleniyor"
+  },
+  "audio": {
+    "play": "Oynamak",
+    "pause": "Duraklat"
+  },
+  "call": {
+    "title": "Voice.ai Çağrı",
+    "description": "Voice.ai sesine agent bağlanmak için tıklayın, çağrı bağlandıktan sonra konuşun.",
+    "start": "Sesli Aramayı Başlat",
+    "stop": "Aramayı Bitir",
+    "end": "Telefonu kapatmak"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} sabitlendi skills",
+      "none": "Sabitlenmemiş skills"
+    },
+    "panel": {
+      "title": "Sabitlendi Skills",
+      "manage": "Üstesinden gelmek",
+      "empty": "skills kurulu değil"
+    }
+  },
+  "workspace": {
+    "title": "Çalışma alanı",
+    "collapse": "Yıkılmak",
+    "expand": "Genişlet",
+    "sections": {
+      "files": "Dosyalar",
+      "git": "Git",
+      "artifacts": "Artifacts",
+      "subagents": "Alt temsilciler"
+    },
+    "plan": {
+      "section": "Planı",
+      "empty": "Henüz görev yok",
+      "itemAriaLabel": "{status}: {step}",
+      "status": {
+        "pending": "Askıda olması",
+        "in_progress": "Devam etmekte",
+        "completed": "Tamamlanmış",
+        "failed": "Arızalı",
+        "skipped": "Atlandı"
+      }
+    },
+    "files": {
+      "section": "Dosyalar",
+      "empty": "Dosya yok",
+      "loading": "Dosyalar yükleniyor...",
+      "noWorkspace": {
+        "title": "Çalışma alanı yok",
+        "description": "Çalışma alanını ayarlamak için bir klasör seçin veya sürükleyin",
+        "button": "Klasör seç"
+      },
+      "contextMenu": {
+        "openFile": "Dosyayı aç",
+        "revealInFolder": "Dosya yöneticisinde göster",
+        "insertPath": "Girişe ekle"
+      }
+    },
+    "git": {
+      "empty": "Fark mevcut değil",
+      "clean": "Temiz çalışan ağaç",
+      "staged": "Aşamalı",
+      "unstaged": "Sahnelenmemiş"
+    },
+    "subagents": {
+      "empty": "Henüz çocuk oturumu yok",
+      "self": "öz",
+      "status": {
+        "working": "Koşma",
+        "error": "Hata",
+        "idle": "Boşta"
+      }
+    },
+    "browser": {
+      "section": "Tarayıcı",
+      "empty": "Henüz sekme yok"
+    },
+    "terminal": {
+      "section": "terminal",
+      "empty": "Henüz çıktı yok",
+      "contextMenu": {
+        "terminate": "Sonlandır",
+        "delete": "Kaydı sil",
+        "expand": "Genişletmek",
+        "collapse": "Yıkılmak"
+      },
+      "output": {
+        "truncated": "[kesildi]"
+      },
+      "noOutput": "Çıkış yok",
+      "status": {
+        "running": "Koşma",
+        "completed": "Başarı",
+        "failed": "Arızalı",
+        "timed_out": "Zaman aşımına uğradı",
+        "aborted": "İptal edildi"
+      }
+    }
+  },
+  "newThread": {
+    "title": "İnşa edin ve keşfedin"
+  },
+  "floatingWidget": {
+    "title": "Göreve Genel Bakış",
+    "collapse": "Kayan oturumları daralt",
+    "empty": "Henüz agent oturumu yok",
+    "executing": "aktif",
+    "sessionCount": "{count} oturumları",
+    "untitled": "Yeni Sohbet",
+    "status": {
+      "inProgress": "Devam etmekte",
+      "done": "Tamamlamak",
+      "error": "Hata"
+    }
+  },
+  "permissionMode": {
+    "default": "Varsayılan izinler",
+    "fullAccess": "Tam erişim"
+  },
+  "sidebar": {
+    "allAgents": "Hepsi Agent",
+    "expandSidebar": "Kenar çubuğunu genişlet",
+    "collapseSidebar": "Kenar çubuğunu daralt",
+    "themeToggle": "Temayı değiştir",
+    "themeLight": "Açık",
+    "themeDark": "Koyu",
+    "themeSystem": "Sistem",
+    "remoteControlDisabled": "Engelli",
+    "remoteControlStatus": {
+      "disabled": "Uzaktan kumanda devre dışı",
+      "stopped": "Uzaktan kumanda durduruldu",
+      "starting": "Uzaktan kumandanın başlatılması",
+      "running": "Uzaktan kumanda çalışıyor",
+      "backoff": "Uzaktan kumanda yeniden deneniyor",
+      "error": "Uzaktan kumanda hatası"
+    },
+    "groupByDate": "Tarihe göre gruplandır",
+    "groupByProject": "Projeye göre gruplandır",
+    "pinned": "Sabitlendi",
+    "emptyTitle": "Henüz görüşme yok",
+    "emptyDescription": "Başlamak için yeni bir sohbet başlatın",
+    "searchPlaceholder": "Sohbetlerde ara",
+    "searchAriaLabel": "Sohbetlerde ara",
+    "searchEmptyTitle": "Eşleşen görüşme yok",
+    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin"
+  },
+  "spotlight": {
+    "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",
+    "searching": "Arama…",
+    "emptyTitle": "Eşleşen sonuç yok",
+    "emptyDescription": "Başka bir anahtar kelime deneyin veya yakın zamanda gerçekleşen bir oturumu açın.",
+    "hints": "↑↓ taşı · Giriş aç · Esc kapat · Ana sayfa/End atla",
+    "kind": {
+      "session": "Oturum",
+      "message": "Mesaj",
+      "agent": "Agent",
+      "setting": "Ayar",
+      "action": "Aksiyon"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Görüşmede ara",
+    "ariaLabel": "Mevcut görüşmede ara",
+    "previous": "Önceki maç",
+    "next": "Sonraki maç",
+    "close": "Aramayı kapat"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "DeepChat Agent'a geç",
+      "description": "Sohbet etmeden önce ACP'den uzaklaşın ve yerleşik DeepChat akışına dönün.",
+      "caption": "Devam etmek için kenar çubuğunda vurgulanan agent düğmesini tıklayın."
+    },
+    "switchModel": {
+      "description": "İlk DeepChat görüşmeniz için kullanmak istediğiniz modeli seçin.",
+      "caption": "Vurgulanan model değiştiriciyi kullanın ve mevcut herhangi bir modeli seçin."
+    },
+    "firstChat": {
+      "description": "Her şey hazır. İlk katılım akışını tamamlamak için ilk mesajınızı buraya yazın.",
+      "caption": "Siz ilk mesajınızı gönderene kadar spot ışığı giriş kutusunun üzerinde kalır."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill taslağı",
+    "confirmationQuestion": "Bir skill taslağı oluşturuldu: {name}",
+    "previewTitle": "Taslak içeriği önizlemesi",
+    "actions": {
+      "view": "İçeriği görüntüle",
+      "viewDescription": "Taslağın SKILL.md içeriğini önizle",
+      "install": "Skill olarak yükle",
+      "installDescription": "Yönetim için Skills klasörüne içe aktar",
+      "discard": "Vazgeç",
+      "discardDescription": "Bu geçici taslağı sil"
+    },
+    "result": {
+      "viewed": "Taslak içerik önizlemesi açık. Yüklemeyi veya vazgeçmeyi seçin.",
+      "installed": "Skill taslağı yüklendi: {name}",
+      "discarded": "Skill taslağından vazgeçildi.",
+      "failed": "Skill taslağı işlenemedi: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "{duration} boyunca çalıştı",
+    "reasoningCount": "{count} düşünce",
+    "toolCallCount": "{count} araç çağrısı",
+    "expandLabel": "{title} öğesini genişlet",
+    "collapseLabel": "{title} öğesini daralt",
+    "duration": {
+      "day": "g ",
+      "hour": "sa ",
+      "minute": "dk ",
+      "second": "sn"
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "selamat datang",
+      "description": "Mari mulakan menyediakan DeepChat"
+    },
+    "provider": {
+      "title": "Pembekal perkhidmatan model",
+      "description": "Pilih pembekal perkhidmatan model pilihan anda"
+    },
+    "configuration": {
+      "title": "Konfigurasi model",
+      "description": "Konfigurasikan model yang anda mahu gunakan"
+    },
+    "complete": {
+      "title": "Selesai",
+      "description": "Semuanya sedia untuk mula digunakan!"
+    }
+  },
+  "title": "Selamat datang ke DeepChat",
+  "description": "Mari kita lalui proses persediaan bersama-sama",
+  "provider": {
+    "select": "Pilih pembekal perkhidmatan",
+    "apiUrl": "Alamat API",
+    "apiKey": "Kunci API",
+    "verifyLink": "Pautan pengesahan"
+  },
+  "complete": {
+    "title": "Semua selesai!",
+    "description": "Anda telah menyelesaikan proses persediaan, mari mulakan!"
+  },
+  "buttons": {
+    "getStarted": "Mulakan",
+    "next": "Langkah seterusnya",
+    "back": "kembali"
+  },
+  "page": {
+    "title": "Selamat datang ke DeepChat Agent",
+    "description": "Sambung kepada pembekal perkhidmatan model untuk bermula",
+    "guide": {
+      "title": "kemajuan but",
+      "description": "Langkah semasa: {step}",
+      "or": "atau",
+      "coreProgress": "Kemajuan konfigurasi teras",
+      "optional": "Langkah seterusnya pilihan",
+      "actions": {
+        "continueSetup": "Teruskan konfigurasi",
+        "goToChat": "Pergi ke sembang"
+      },
+      "steps": {
+        "provider": "pembekal perkhidmatan",
+        "first-chat": "sembang pertama",
+        "switch-model": "Tukar model",
+        "mcp": "MCP",
+        "skills": "Kemahiran",
+        "plugins": "pemalam"
+      }
+    },
+    "browseProviders": "Semak imbas semua pembekal...",
+    "connectAgent": "Atau sambungkan Agent",
+    "acpTitle": "Menyediakan ACP Agent",
+    "acpDescription": "Claude Code, Codex, Kimi atau Agent anda sendiri",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    },
+    "importProviders": "Import dari Agent lain"
+  },
+  "agentPage": {
+    "title": "Pilih Agent untuk mula mencipta",
+    "deepchatType": "DeepChat Agent",
+    "acpType": "ACP Agent",
+    "manageAgents": "Pengurusan DeepChat Agent"
+  }
+}

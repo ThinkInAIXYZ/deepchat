@@ -8,7 +8,16 @@
     "searchEngine": "Moteur de recherche",
     "searchEngineSelect": "Sélectionner le moteur de recherche",
     "searchPreview": "Aperçu de la recherche",
+    "launchAtLoginEnabled": "Lancer DeepChat à la connexion",
     "autoScrollEnabled": "Défilement automatique pendant la génération",
+    "privacyMode": "Mode confidentialité",
+    "privacyModeDescription": "Interrompt les requêtes sortantes automatiques gérées par DeepChat :",
+    "privacyModeAutoUpdate": "Vérification des mises à jour de l'application",
+    "privacyModeProviderDb": "Actualisation des métadonnées des fournisseurs et des modèles",
+    "privacyModeAcpRegistry": "Actualisation du registre ACP et synchronisation des icônes",
+    "privacyModeNpmRegistry": "Détection automatique du registre npm de MCP",
+    "privacyModeManualActions": "Les vérifications manuelles et les actualisations manuelles restent disponibles.",
+    "privacyModeIntegrations": "Les intégrations tierces configurées restent disponibles.",
     "searchAssistantModel": "Modèle adjoint",
     "selectModel": "Sélectionner le modèle",
     "proxyMode": "Mode proxy",
@@ -78,7 +87,7 @@
   },
   "notificationsHooks": {
     "title": "Hooks",
-    "description": "Configurer les notifications webhook et les hooks du cycle de vie.",
+    "description": "Configure lifecycle hook commands.",
     "events": {
       "title": "Événements",
       "SessionStart": "Début de session",
@@ -90,32 +99,45 @@
       "Stop": "Arrêt",
       "SessionEnd": "Fin de session"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Envoyer des notifications via un bot Telegram.",
-      "botToken": "Jeton du bot",
-      "botTokenPlaceholder": "Jeton du bot Telegram",
-      "chatId": "ID du chat",
-      "chatIdPlaceholder": "ex. 123456789",
-      "threadId": "ID du fil (optionnel)",
-      "threadIdPlaceholder": "ID du fil optionnel"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Envoyer des notifications via un webhook Discord.",
-      "webhookUrl": "URL du webhook",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Envoyer des notifications via le hook Confirmo (tous les événements).",
-      "unavailable": "Hook Confirmo introuvable : {path}"
-    },
     "commands": {
-      "title": "Commandes de hooks",
-      "description": "Exécuter une commande pour chaque événement.",
-      "hint": "La charge utile est envoyée sur stdin au format JSON.",
-      "commandPlaceholder": "Commande à exécuter"
+      "title": "Commandes de hook",
+      "description": "Exécutez des commandes personnalisées pour les événements de cycle de vie sélectionnés.",
+      "hint": "Le payload complet est écrit dans stdin au format JSON.",
+      "commandPlaceholder": "Commande à exécuter",
+      "commandLabel": "Commande",
+      "name": "Nom",
+      "namePlaceholder": "Nom du hook",
+      "newHook": "Nouveau hook",
+      "empty": "Aucun hook pour le moment. Ajoutez-en un pour commencer.",
+      "defaultName": "Hook {index}",
+      "guideTitle": "Mode d’emploi",
+      "guideDescription": "Quand un événement coché se déclenche, DeepChat exécute la commande. L’événement courant est accessible via le JSON sur stdin, les variables d’environnement et les placeholders de ligne de commande.",
+      "deliveryTitle": "Transmission des données",
+      "deliveryStdin": "Le payload complet est écrit dans stdin au format JSON.",
+      "deliveryPlaceholder": "Vous pouvez utiliser directement les placeholders de ligne de commande dans la commande.",
+      "deliveryEnv": "Les mêmes métadonnées de base sont aussi exposées via des variables d’environnement.",
+      "metadataOnly": "Les placeholders de ligne de commande conviennent surtout aux petites métadonnées. Lisez les détails du prompt/tool, permission, usage, stop et error depuis le JSON sur stdin.",
+      "stdinPreviewLabel": "Exemple stdin",
+      "placeholdersTitle": "Placeholders de ligne de commande",
+      "placeholdersDescription": "Les placeholders sont développés avant l’exécution et peuvent être passés comme arguments de commande.",
+      "envTitle": "Variables d’environnement",
+      "examplesTitle": "Exemples",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Nom de l’événement courant",
+        "time": "Heure de l’événement au format ISO-8601",
+        "isTest": "Indique si cette exécution vient du bouton de test",
+        "conversationId": "ID de la conversation / session courante",
+        "workdir": "Répertoire de travail résolu pour la session",
+        "agentId": "ID de l’agent courant si disponible",
+        "providerId": "ID du provider courant si disponible",
+        "modelId": "ID du modèle courant si disponible",
+        "messageId": "ID du message utilisateur courant si disponible",
+        "toolName": "Nom de l’outil courant si disponible",
+        "toolCallId": "ID de l’appel d’outil courant si disponible"
+      }
     },
     "test": {
       "button": "Tester",
@@ -171,6 +193,23 @@
       "backupSuccessTitle": "Sauvegarde réussie",
       "backupSuccessMessage": "Données sauvegardées avec succès"
     },
+    "syncSectionTitle": "Backup & Sync",
+    "operationsSectionTitle": "Data Operations",
+    "resetDataDescription": "Reset chat, knowledge, config, or all data by type.",
+    "modelConfigUpdate": {
+      "title": "Mettre à jour la config des modèles",
+      "descriptionPrefix": "Sync model data from ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
+      "button": "Mettre à jour",
+      "updating": "Mise à jour...",
+      "updatedTitle": "Configuration des modèles mise à jour",
+      "updatedDescription": "Les dernières métadonnées des fournisseurs ont bien été récupérées.",
+      "upToDateTitle": "Déjà à jour",
+      "upToDateDescription": "La configuration locale utilise déjà les métadonnées fournisseur les plus récentes.",
+      "failedTitle": "Mise à jour impossible",
+      "failedDescription": "Impossible d’actualiser la configuration des modèles pour le moment. Réessayez plus tard."
+    },
     "yoBrowser": {
       "clearButton": "Effacer les données de YoBrowser",
       "clearFailedDescription": "Veuillez réessayer ou consulter les journaux pour plus d'informations.",
@@ -183,6 +222,210 @@
       "confirmTitle": "Confirmer pour effacer les données de YoBrowser ?",
       "description": "Un bac à sable de navigateur indépendant qui ne partage pas de cookies ni de stockage local avec l'application principale. Les données YoBrowser peuvent être effacées en un seul clic ici.",
       "title": "Bac à sable YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "Réparation de la base de données",
+      "description": "Detect and automatically repair the database",
+      "button": "Vérifier et réparer la base",
+      "running": "Vérification et réparation...",
+      "lastResultLabel": "Dernier résultat : {result}",
+      "summaryHealthy": "Saine",
+      "summaryRepaired": "{count} problème(s) réparé(s)",
+      "summaryRepairedWithManual": "{repaired} problème(s) réparé(s), {manual} à traiter manuellement",
+      "summaryManualOnly": "{manual} problème(s) nécessitent une intervention",
+      "manualHint": "{count} problème(s) nécessitent encore un traitement manuel.",
+      "toastSuggestedTitle": "Réparation de la base recommandée",
+      "toastSuggestedDescription": "DeepChat a détecté un problème de schéma ({reason}). Vous pouvez lancer la réparation maintenant.",
+      "toastAction": "Aller réparer",
+      "toastHealthyTitle": "La base de données est saine",
+      "toastHealthyDescription": "Aucun problème de schéma n'a été détecté.",
+      "toastCompletedTitle": "Réparation de la base terminée",
+      "toastRepairedDescription": "{count} problème(s) réparé(s).",
+      "toastManualDescription": "{repaired} problème(s) réparé(s). {manual} problème(s) nécessitent encore une intervention manuelle.",
+      "toastFailedTitle": "Échec de la réparation",
+      "toastFailedDescription": "Impossible de terminer la réparation de la base pour le moment. Vérifiez les journaux puis réessayez.",
+      "reasons": {
+        "missing-table": "table manquante",
+        "missing-column": "colonne manquante",
+        "column-count-mismatch": "nombre de colonnes incompatible",
+        "type-mismatch": "type de colonne incompatible"
+      }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "Manage backup, sync, privacy mode, maintenance, and dangerous operations.",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Importer les paramètres de provider",
+      "entryDescription": "Analyse CC Switch, Alma, Cherry Studio, Hermes et OpenClaw pour récupérer les identifiants de provider et les listes de modèles.",
+      "entryButton": "Importer depuis des agents",
+      "dialogTitle": "Importer depuis d’autres agents",
+      "dialogDescription": "Sélectionnez d’abord les apps détectées, puis vérifiez les providers que DeepChat peut importer.",
+      "toastTitle": "Import des providers terminé",
+      "toastDescription": "{count} provider(s) importé(s).",
+      "steps": {
+        "scan": "Analyse",
+        "providers": "Providers",
+        "done": "Terminé"
+      },
+      "scanningTitle": "Analyse des agents installés",
+      "scanningDescription": "DeepChat vérifie les fichiers de configuration locaux connus sans envoyer de données.",
+      "scanFailedTitle": "Échec de l’analyse",
+      "sourcesTitle": "Sources détectées",
+      "sourcesDescription": "Choisissez un ou plusieurs agents. Les agents sélectionnés sont traités dans l’ordre affiché.",
+      "selectedSources": "{selected}/{total} sélectionné(s)",
+      "noSourcesTitle": "Aucune configuration de provider importable trouvée",
+      "noSourcesDescription": "Installez l’un des agents pris en charge ou configurez d’abord les identifiants du provider.",
+      "providersFound": "{count} provider(s)",
+      "sourceProgress": "{current} sur {total}",
+      "overwriteNote": "Si plusieurs providers sélectionnés correspondent au même provider DeepChat, la source la plus récente remplace la précédente.",
+      "noProvidersTitle": "Aucune donnée de provider dans cette source",
+      "noProvidersDescription": "Cet agent a été sélectionné, mais aucune entrée de provider importable n’a été trouvée.",
+      "apiKey": "Clé {value}",
+      "noModels": "Aucune liste de modèles",
+      "modelsImported": "{count} modèle(s)",
+      "importingTitle": "Import des providers",
+      "importingDescription": "DeepChat écrit les providers sélectionnés et les modèles personnalisés.",
+      "doneTitle": "Résumé de l’import",
+      "doneDescription": "{count} provider(s) importé(s). Consultez le résultat par provider ci-dessous.",
+      "badges": {
+        "configured": "Configuré"
+      },
+      "sourceStatus": {
+        "found": "Trouvé",
+        "not_found": "Introuvable",
+        "error": "Erreur",
+        "unsupported_platform": "Plateforme non prise en charge"
+      },
+      "targetKind": {
+        "builtin": "Intégré",
+        "custom": "Personnalisé",
+        "unsupported": "Non pris en charge"
+      },
+      "warnings": {
+        "already_configured": "Déjà configuré dans DeepChat, il n’est donc pas sélectionné par défaut.",
+        "missing_api_key": "Clé API ou endpoint requis manquant.",
+        "unsupported_provider": "DeepChat ne peut pas importer ce provider automatiquement.",
+        "overwrites_previous_selection": "Cette sélection entre en conflit avec une source précédente.",
+        "credential_only_import": "Seule la clé API sera importée ; DeepChat conserve l’endpoint et le runtime de son provider intégré."
+      },
+      "conflicts": {
+        "overridesPrevious": "Cette sélection remplacera un provider sélectionné précédemment.",
+        "overwrittenByLater": "Une source sélectionnée plus tard remplacera ce provider."
+      },
+      "summary": {
+        "imported": "Importés",
+        "created": "Créés",
+        "updated": "Mis à jour",
+        "overwritten": "Remplacés",
+        "models": "Modèles",
+        "skipped": "Ignorés"
+      },
+      "resultStatus": {
+        "created": "Créé",
+        "updated": "Mis à jour",
+        "skipped": "Ignoré",
+        "overwritten": "Remplacé"
+      },
+      "actions": {
+        "rescan": "Analyser à nouveau",
+        "selectAll": "Tout sélectionner",
+        "clearSelected": "Effacer",
+        "import": "Importer la sélection"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Échec de l’import : {message}"
+    },
+    "databaseEncryption": {
+      "title": "Chiffrement de la base SQLite",
+      "description": "Chiffre agent.db avec SQLCipher et demande un mot de passe SQLite quand le déverrouillage système ne peut pas être utilisé.",
+      "enabled": "Activé",
+      "disabled": "Désactivé",
+      "cipher": "Chiffrement",
+      "systemUnlock": "Déverrouillage système",
+      "startupUnlock": "Déverrouillage au démarrage",
+      "lastMigration": "Dernière migration",
+      "loading": "Chargement",
+      "never": "Jamais",
+      "notRequired": "Non requis",
+      "systemUnlockAvailable": "Disponible",
+      "systemUnlockUnavailable": "Indisponible",
+      "systemUnlockMode": "Déverrouillage système",
+      "manualUnlock": "Mot de passe manuel",
+      "currentPassword": "Mot de passe actuel",
+      "newPassword": "Nouveau mot de passe SQLite",
+      "confirmPassword": "Confirmer le mot de passe",
+      "passwordMismatch": "Les mots de passe ne correspondent pas",
+      "systemCredentialStore": "Quand le stockage sécurisé du système est disponible, DeepChat enregistre le mot de passe SQLite chiffré dans le coffre d’identifiants du système (macOS Keychain, Windows Credential Vault ou un Linux secret store). Après un premier déverrouillage réussi, les démarrages suivants s’ouvrent généralement automatiquement ; vous ne devez ressaisir la clé de chiffrement qu’après une migration de données, si l’identifiant système manque ou ne peut pas être déchiffré, ou si le stockage sécurisé est indisponible.",
+      "safeStorageUnavailable": "Electron safeStorage n’est pas disponible sur ce système. Après activation du chiffrement, vous devrez saisir le mot de passe à chaque démarrage.",
+      "enableButton": "Activer le chiffrement",
+      "changeButton": "Changer le mot de passe",
+      "disableButton": "Désactiver le chiffrement",
+      "enabledTitle": "Chiffrement de la base activé",
+      "changedTitle": "Mot de passe SQLite modifié",
+      "disabledTitle": "Chiffrement de la base désactivé",
+      "failedTitle": "Échec du chiffrement de la base",
+      "failedDescription": "Vérifiez le mot de passe et réessayez.",
+      "setPasswordButton": "Définir le mot de passe",
+      "enableDialogTitle": "Définir le mot de passe SQLite",
+      "changeDialogTitle": "Changer le mot de passe SQLite",
+      "disableDialogTitle": "Désactiver le chiffrement de la base",
+      "enableDialogDescription": "Crée une base SQLite chiffrée et y migre les données locales actuelles.",
+      "changeDialogDescription": "Migre la base chiffrée actuelle vers une nouvelle base chiffrée avec le nouveau mot de passe.",
+      "disableDialogDescription": "Migre la base chiffrée actuelle vers une base locale en clair.",
+      "cancelButton": "Annuler",
+      "unknown": "Inconnu"
+    },
+    "cloudSync": {
+      "title": "Synchronisation cloud (compatible S3)",
+      "description": "Téléversez les sauvegardes vers un stockage compatible S3 comme Cloudflare R2, puis récupérez la sauvegarde la plus récente sur un autre appareil.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "Région",
+      "prefix": "Préfixe du chemin",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "Configurée (laisser vide pour conserver)",
+      "safeStorageUnavailable": "Le trousseau système est indisponible ; impossible de stocker la clé secrète en toute sécurité.",
+      "save": "Enregistrer",
+      "test": "Tester la connexion",
+      "upload": "Téléverser vers le cloud",
+      "pull": "Récupérer la dernière sauvegarde du cloud",
+      "savedTitle": "Configuration cloud enregistrée",
+      "testSuccessTitle": "Connexion réussie",
+      "testFailedTitle": "Échec de la connexion",
+      "uploadSuccessTitle": "Téléversement réussi",
+      "uploadFailedTitle": "Échec du téléversement",
+      "pullSuccessTitle": "Récupération réussie",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "Compatible S3 personnalisé",
+      "r2GuideTitle": "Copiez les identifiants client S3 depuis la page de jeton API Cloudflare R2.",
+      "r2EndpointHint": "Utilisez l’URL Endpoint propre à la juridiction pour les clients S3",
+      "r2AccessKeyHint": "Utilisez Access Key ID, pas Account ID",
+      "r2SecretHint": "Utilisez Secret Access Key, pas la valeur de jeton commençant par cfat_",
+      "r2DocsLink": "Ouvrir la documentation Cloudflare R2 S3",
+      "endpointR2Description": "Utilisez https://<account_id>.r2.cloudflarestorage.com sans nom de bucket.",
+      "endpointCustomDescription": "Utilisez l’Endpoint d’un service compatible S3.",
+      "r2AccessKeyAccountIdWarning": "Cette valeur ressemble à l’Account ID R2. Access Key ID provient de la section des identifiants client S3.",
+      "r2SecretApiTokenError": "Utilisez ici le S3 Secret Access Key, pas une valeur de jeton API Cloudflare qui commence par cfat_.",
+      "secretStoredDescription": "Une clé secrète est enregistrée. Laissez vide pour la conserver ou saisissez une nouvelle valeur pour la remplacer.",
+      "secretInputDescription": "Copiez le Secret Access Key depuis la section des identifiants client S3.",
+      "advancedTitle": "Paramètres avancés",
+      "r2RegionDescription": "Cloudflare R2 doit généralement rester sur auto.",
+      "prefixDescription": "Les sauvegardes sont écrites sous ce préfixe de chemin.",
+      "saveAndTest": "Enregistrer et tester",
+      "saveOnly": "Enregistrer uniquement",
+      "saveAndTestFirst": "Enregistrez et testez d’abord la configuration cloud."
     }
   },
   "dashboard": {
@@ -288,6 +531,9 @@
     },
     "unavailable": "Indisponible"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Capacité Agent faible : prend uniquement en charge les appels d'outils de secours hérités"
+  },
   "model": {
     "title": "Paramètres du modèle",
     "systemPrompt": {
@@ -346,6 +592,10 @@
       },
       "createTitle": "Add Custom Model",
       "editTitle": "Edit Model Configuration - {name}",
+      "speechRecognition": {
+        "label": "Reconnaissance vocale",
+        "description": "Contrôle si ce modèle autorise la saisie vocale avec transcription locale en texte."
+      },
       "functionCall": {
         "description": "Si le modèle prend en charge les appels de fonction nativement (Deepchat simulera automatiquement les appels de fonction après avoir désactivé cette option)",
         "label": "Appels de fonction"
@@ -355,8 +605,12 @@
         "label": "Longueur de sortie maximale"
       },
       "reasoning": {
-        "description": "Le modèle prend-il en charge la capacité de raisonnement?",
+        "description": "Ce modèle prend en charge le raisonnement",
         "label": "Capacité de raisonnement"
+      },
+      "reasoningToggle": {
+        "description": "Contrôle si le raisonnement est activé par défaut pour ce modèle",
+        "label": "Activer le raisonnement"
       },
       "interleavedThinking": {
         "label": "Pensée entrelacée",
@@ -383,10 +637,13 @@
         "description": "Contrôle la profondeur du raisonnement du modèle ; un effort plus élevé produit de meilleurs résultats mais des réponses plus lentes",
         "placeholder": "Sélectionner l'effort de raisonnement",
         "options": {
+          "none": "None - Sans raisonnement",
           "minimal": "Minimal - Réponse la plus rapide",
           "low": "Low - Faible effort",
           "medium": "Medium - Effort modéré",
-          "high": "High - Effort élevé"
+          "high": "High - Effort élevé",
+          "xhigh": "XHigh - Effort maximal",
+          "max": "Max - Effort le plus élevé"
         }
       },
       "verbosity": {
@@ -405,7 +662,12 @@
       "currentUsingModelDefault": "Utilise actuellement la configuration par défaut du modèle",
       "temperature": {
         "description": "Contrôle l’aléatoire de la sortie. Valeur plus élevée = plus aléatoire.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
         "label": "Température"
+      },
+      "topP": {
+        "label": "Top P",
+        "description": "Contrôle l’échantillonnage nucleus. Laissez vide pour utiliser la valeur par défaut du modèle ou du fournisseur."
       },
       "title": "Paramètres du modèle personnalisé",
       "type": {
@@ -415,7 +677,8 @@
           "chat": "Modèle de langue",
           "embedding": "Modèle d'intégration",
           "imageGeneration": "Modèle de génération d'images",
-          "rerank": "Modèle de rerank"
+          "rerank": "Modèle de rerank",
+          "videoGeneration": "Modèle de génération vidéo"
         }
       },
       "validation": {
@@ -427,7 +690,10 @@
         "maxTokensRequired": "La longueur de sortie maximale ne peut pas être vide",
         "temperatureMax": "La température doit être inférieure ou égale à 2",
         "temperatureMin": "La température doit être supérieure ou égale à 0",
-        "temperatureRequired": "La température ne peut pas être vide"
+        "temperatureRequired": "La température ne peut pas être vide",
+        "timeoutMin": "Le délai d'attente doit être d'au moins 1000ms",
+        "timeoutMax": "Le délai d'attente ne peut pas dépasser 3600000ms",
+        "topPRange": "Top P doit être supérieur à 0 et inférieur ou égal à 1"
       },
       "vision": {
         "description": "Le modèle soutient-il la capacité visuelle?",
@@ -438,7 +704,118 @@
         "label": "Point de terminaison API",
         "options": {
           "chat": "Génération de texte",
-          "image": "Génération d'images"
+          "image": "Génération d'images",
+          "video": "Video Generation"
+        }
+      },
+      "endpointType": {
+        "label": "Type de point de terminaison",
+        "description": "Sélectionnez le protocole amont que New API doit utiliser pour ce modèle.",
+        "placeholder": "Sélectionner le type de point de terminaison",
+        "required": "Le type de point de terminaison est requis",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Génération d'images",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Visibilité du raisonnement",
+        "description": "Détermine si le contenu du raisonnement est masqué ou affiché sous forme de résumé lorsque le raisonnement est activé",
+        "placeholder": "Sélectionner la visibilité du raisonnement",
+        "options": {
+          "omitted": "Omitted - Cacher le contenu du raisonnement",
+          "summarized": "Summarized - Afficher un résumé du raisonnement"
+        }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "Par défaut",
+        "size": {
+          "label": "Taille de l'image",
+          "custom": "Personnalisée",
+          "placeholder": "p. ex. 2048x2048",
+          "experimental": "Les tailles supérieures à 2560x1440 sont marquées comme expérimentales par OpenAI.",
+          "validation": {
+            "invalid_format": "Utilisez le format {width}x{height}.",
+            "invalid_multiple": "La largeur et la hauteur doivent être des multiples de 16.",
+            "side_too_large": "La largeur et la hauteur doivent être inférieures ou égales à 3840px.",
+            "aspect_ratio_too_large": "Le côté long ne peut pas dépasser 3x le côté court.",
+            "pixel_count_out_of_range": "Le nombre total de pixels doit être compris entre 655360 et 8294400."
+          }
+        },
+        "quality": {
+          "label": "Qualité",
+          "options": {
+            "low": "Faible",
+            "medium": "Moyenne",
+            "high": "Élevée",
+            "auto": "Automatique"
+          }
+        },
+        "outputFormat": {
+          "label": "Format de sortie",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Compression",
+          "placeholder": "Par défaut : 100",
+          "validation": "La compression doit être un entier compris entre 0 et 100."
+        },
+        "background": {
+          "label": "Arrière-plan",
+          "options": {
+            "auto": "Automatique",
+            "opaque": "Opaque"
+          }
+        },
+        "moderation": {
+          "label": "Modération",
+          "options": {
+            "auto": "Automatique",
+            "low": "Faible"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -450,6 +827,11 @@
     "disabled": "Désactivé",
     "urlPlaceholder": "Veuillez entrer l'URL de l'API",
     "keyPlaceholder": "Veuillez entrer la clé API",
+    "authMode": "Mode d'authentification",
+    "authModeAccessKeys": "Clés d'accès",
+    "authModeProfile": "Profil AWS",
+    "profileNameLabel": "Nom du profil AWS",
+    "profilePlaceholder": "Veuillez entrer le nom du profil AWS (ex. default)",
     "accessKeyIdPlaceholder": "Veuillez entrer l'AWS Access Key ID",
     "secretAccessKeyPlaceholder": "Veuillez entrer l'AWS Secret Access Key",
     "regionPlaceholder": "Veuillez entrer la région AWS",
@@ -472,6 +854,9 @@
     "urlFormat": "Exemple d'API : {defaultUrl}",
     "urlFormatFill": "Renseigner l'URL de l'API",
     "openaiResponsesNotice": "OpenAI utilise par défaut l'API Responses. Si un endpoint tiers ne prend en charge que Chat Completions, utilisez le fournisseur OpenAI Completions.",
+    "modifyBaseUrl": "Modifier",
+    "baseUrlLockedHint": "Ce fournisseur est verrouillé sur l’URL de base recommandée afin de réduire les erreurs de configuration.",
+    "refreshModelsWithMetadataHint": "L’actualisation de ce fournisseur synchronise d’abord les métadonnées en amont, puis reconstruit la liste locale des modèles.",
     "modelList": "Liste des modèles",
     "enableModels": "Activer les modèles",
     "disableAllModels": "Désactiver tous les modèles",
@@ -487,8 +872,8 @@
     "stopModel": "Arrêter le modèle",
     "pulling": "Récupération...",
     "runModel": "Exécuter le modèle",
-    "voiceai": {
-      "title": "Synthèse vocale Voice.ai",
+    "tts": {
+      "title": "Synthese vocale (TTS)",
       "description": "Générez de la parole à partir du texte. Les voix apparaissent dans la liste des modèles ci-dessous.",
       "audioFormat": {
         "label": "Format audio",
@@ -566,6 +951,11 @@
         "overwriteWarning": "Cette importation écrasera la configuration actuelle du fournisseur.",
         "confirming": "Importation..."
       },
+      "baseUrlUnlock": {
+        "title": "Confirmer la modification de l’URL de base",
+        "description": "Il n’est pas recommandé de modifier l’URL de base de ce fournisseur. Un point de terminaison incorrect peut provoquer des échecs de requête ou d’autres comportements inattendus. Vous pouvez tout de même continuer si vous comprenez le risque.",
+        "confirm": "Continuer"
+      },
       "deleteProvider": {
         "title": "Confirmer la suppression du fournisseur",
         "content": "Êtes-vous sûr de vouloir supprimer le fournisseur \"{name}\" ? Cette action ne peut pas être annulée.",
@@ -640,7 +1030,13 @@
       "backupSuccessTitle": "Sauvegarde terminée",
       "backupSuccessMessage": "Sauvegarde enregistrée à {time} ({size})",
       "importSuccessTitle": "Importation terminée",
-      "importSuccessMessage": "{count} conversations importées avec succès"
+      "importSuccessMessage": "{count} conversations importées avec succès",
+      "refreshModelsSuccessTitle": "Modèles actualisés",
+      "refreshModelsSuccessDescription": "La dernière liste de modèles a été synchronisée pour ce fournisseur.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Les métadonnées en amont et la dernière liste de modèles ont été synchronisées pour ce fournisseur.",
+      "refreshModelsFailedTitle": "Actualisation échouée",
+      "refreshModelsFailedDescription": "Impossible d’actualiser les modèles de ce fournisseur pour le moment. Veuillez réessayer plus tard.",
+      "refreshModelsFailedDescriptionWithMetadata": "Impossible de synchroniser les métadonnées en amont et les modèles de ce fournisseur pour le moment. Veuillez réessayer plus tard."
     },
     "apiKeyLabel": "Clé API",
     "apiUrlLabel": "URL API",
@@ -703,7 +1099,25 @@
     "operationSuccess": "L'opération est réussie",
     "settingsApplied": "Paramètres appliqués",
     "bedrockLimitTip": "* Prend uniquement en charge Anthropic Claude (y compris les modèles Opus, Sonnet, Haiku)",
-    "bedrockVerifyTip": "DeepChat utilise Claude 3.5 Sonnet pour la vérification. Si vous n'avez pas l'autorisation de l'invoquer, la vérification échouera. Cela n'affectera pas l'utilisation des autres modèles."
+    "bedrockVerifyTip": "DeepChat utilise Claude 3.5 Sonnet pour la vérification. Si vous n'avez pas l'autorisation de l'invoquer, la vérification échouera. Cela n'affectera pas l'utilisation des autres modèles.",
+    "center": {
+      "title": "Provider Center",
+      "description": "Manage provider connections, models, and advanced configuration.",
+      "noApiUrl": "No API URL configured",
+      "enabledModels": "{count} models enabled",
+      "noAdvancedConfig": "This provider has no extra advanced configuration.",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "Paramètres de la base de connaissances",
@@ -842,6 +1256,7 @@
     "stopServer": "Arrêter le serveur",
     "startServer": "Démarrer le serveur",
     "noServersFound": "Aucun serveur trouvé",
+    "noServersDescription": "Ajoutez un serveur MCP pour utiliser les outils, prompts et ressources.",
     "addServerDialog": {
       "title": "Ajouter un serveur",
       "description": "Configurer un nouveau serveur MCP"
@@ -956,7 +1371,7 @@
     "removeDefaultFirst": "Veuillez supprimer d'abord certains serveurs par défaut",
     "higressMarket": "Aller à l'installation de Higress MCP",
     "npmRegistry": {
-      "title": "Configuration des sources NPM",
+      "title": "Source NPM",
       "currentSource": "Source actuelle",
       "cached": "En cache",
       "lastChecked": "Dernière vérification",
@@ -1002,7 +1417,85 @@
     "restartServer": "Redémarrer le serveur",
     "viewLogs": "Voir les journaux",
     "starting": "Démarrage",
-    "error": "Erreur"
+    "error": "Erreur",
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "Search MCP servers...",
+      "noResults": "No matching MCP servers",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "Tâches planifiées",
+    "description": "Déclenchez une notification système ou envoyez une invite prédéfinie à un agent à l’heure choisie.",
+    "hint": "Les tâches ponctuelles manquées lorsque l’application était fermée s’exécutent au prochain lancement ; les tâches récurrentes passent au prochain créneau.",
+    "newTask": "Nouvelle tâche",
+    "empty": "Aucune tâche pour le moment",
+    "namePlaceholder": "Nom de la tâche",
+    "fireNow": "Exécuter maintenant",
+    "fireNowSuccess": "Tâche déclenchée",
+    "defaults": {
+      "name": "Nouvelle tâche",
+      "title": "Rappel",
+      "body": "C’est l’heure"
+    },
+    "trigger": {
+      "title": "Déclencheur",
+      "kind": "Type de déclencheur",
+      "kindOnce": "Une fois",
+      "kindDaily": "Tous les jours",
+      "kindWeekly": "Toutes les semaines",
+      "firesAt": "Déclencher à",
+      "dayOfWeek": "Jour de la semaine",
+      "time": "Heure",
+      "description": "Choisissez quand cette tâche s’exécute."
+    },
+    "action": {
+      "title": "Action",
+      "kind": "Type d’action",
+      "kindNotify": "Notification",
+      "kindPrompt": "Invite de chat",
+      "titleField": "Titre",
+      "titlePlaceholder": "Titre de la notification",
+      "body": "Corps",
+      "message": "Message",
+      "agentId": "Agent",
+      "agentIdPlaceholder": "par défaut : deepchat",
+      "modelId": "Modèle",
+      "modelIdPlaceholder": "laisser vide pour la valeur par défaut",
+      "systemPrompt": "Invite système",
+      "autoSend": "Envoyer automatiquement à l’agent sélectionné",
+      "description": "Choisissez une notification ou une invite d’agent."
+    },
+    "weekday": {
+      "sun": "Dim",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam"
+    },
+    "listTitle": "Liste des tâches",
+    "listDescription": "Gérez les planifications, les actions et l’état d’activation au même endroit.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Tous les jours à {time}",
+      "weekly": "{day} à {time}"
+    }
   },
   "about": {
     "checkUpdate": "Vérifier les mises à jour",
@@ -1044,12 +1537,15 @@
     "goSettings": "Paramètres ouvrir",
     "hideWindow": "Cache-fenêtre",
     "quitApp": "Quitter l'application",
+    "toggleSidebar": "Afficher/masquer la barre latérale",
+    "toggleWorkspace": "Afficher/masquer l’espace de travail",
     "zoomIn": "Zoomer",
     "zoomOut": "Zoom out",
     "zoomReset": "Réinitialiser le zoom",
     "newWindow": "Ouvrez une nouvelle fenêtre",
     "showHideWindow": "Afficher/Masquer la fenêtre",
     "newConversation": "Nouvelle conversation",
+    "quickSearch": "Recherche Spotlight",
     "closeWindow": "Fermez la page d'onglet actuelle"
   },
   "rateLimit": {
@@ -1183,14 +1679,21 @@
       "eventCount": "{count} articles",
       "eventKinds": {
         "error": "erreur",
+        "lifecycle": "Cycle de vie",
         "notification": "notifier",
         "permission": "Autorisations",
         "request": "demander",
-        "response": "réponse"
+        "response": "réponse",
+        "stderr": "stderr"
       },
       "events": "événement",
       "format": "Formater JSON",
       "methods": {
+        "authenticate": "authenticate",
+        "sessionClose": "session/close",
+        "sessionFork": "session/fork",
+        "sessionList": "session/list",
+        "sessionResume": "session/resume",
         "cancel": "session/annuler",
         "extMethod": "poste/méthode",
         "extNotification": "poste/notification",
@@ -1249,6 +1752,10 @@
     "installedEmptyDescription": "Installez d’abord un agent depuis l’ACP Registry, puis configurez-le ici.",
     "registryOverlayEmpty": "Aucun agent ne correspond aux filtres actuels.",
     "registryInstallAction": "Installer",
+    "registryUninstallAction": "Désinstaller",
+    "registryUninstallConfirm": "Désinstaller l’agent « {name} » ?",
+    "registryUninstallDescription": "DeepChat désactivera cet agent et supprimera, le cas échéant, les données d’installation gérées localement. Vous pourrez le réinstaller plus tard depuis l’ACP Registry.",
+    "registryUninstallFailed": "Échec de la désinstallation de l’agent",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Recherchez, filtrez et installez des agents ACP. Revenez ensuite dans les réglages pour les configurer.",
     "registryLearnMore": "En savoir plus",
@@ -1261,6 +1768,10 @@
   },
   "skills": {
     "addSkill": "Ajouter une compétence",
+    "draftSuggestions": {
+      "title": "Suggérer des brouillons de compétences",
+      "description": "Une fois une tâche terminée, autorisez l'agent à suggérer des brouillons temporaires de compétences réutilisables. Les brouillons restent dans un dossier temporaire jusqu'à ce que vous choisissiez de les importer manuellement."
+    },
     "conflict": {
       "description": "La compétence nommée « {name} » existe déjà. Voulez-vous la remplacer ?",
       "overwrite": "couverture",
@@ -1314,9 +1825,9 @@
     "emptyHint": "Cliquez sur le bouton « Ajouter une compétence » pour installer une nouvelle compétence",
     "install": {
       "description": "Choisir le mode d’installation de la skill",
-      "dragNotSupported": "Le glisser-déposer n’est pas pris en charge pour le moment. Veuillez cliquer pour sélectionner.",
+      "dragInvalid": "Contenu non pris en charge. Glissez un dossier skill ou un seul fichier .zip.",
       "failed": "Installation échouée",
-      "folderHint": "Cliquez pour sélectionner le dossier skill",
+      "folderHint": "Cliquez ou glissez un dossier skill ici",
       "folderTip": "Supporte l’importation directe depuis ~/.claude/skills/ et autres clients",
       "fromFolder": "Installer depuis le dossier",
       "installButton": "Installation",
@@ -1330,7 +1841,7 @@
       "title": "Installer skill",
       "urlHint": "Entrez le lien de téléchargement du package skill",
       "urlPlaceholder": "Saisir l'adresse de téléchargement du fichier ZIP skill",
-      "zipHint": "Cliquez pour sélectionner le fichier ZIP"
+      "zipHint": "Cliquez ou glissez un fichier ZIP ici"
     },
     "noResults": "Aucune compétence correspondante trouvée",
     "openFolder": "Ouvrir le dossier",
@@ -1479,12 +1990,50 @@
   },
   "remote": {
     "title": "Accès distant",
-    "description": "Configurez la télécommande Telegram et Feishu au même endroit.",
+    "description": "Configurez au même endroit le contrôle à distance de Telegram, Feishu, QQBot et WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Gérez un seul bot Telegram pour le contrôle à distance et l’envoi des hooks.",
+      "description": "Connect a Telegram bot for direct messages, groups, and topic-thread remote control.",
       "botToken": "Jeton du bot",
-      "botTokenPlaceholder": "Jeton du bot Telegram"
+      "botTokenPlaceholder": "Jeton du bot Telegram",
+      "botTokenDescription": "Enter the Telegram bot token used for Telegram remote control."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
+      "brand": "Marque",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application Feishu",
+      "appSecret": "Secret de l’application",
+      "appSecretPlaceholder": "Secret d’application Feishu",
+      "verificationToken": "Jeton de vérification",
+      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
+      "encryptKey": "Clé de chiffrement (optionnelle)",
+      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
+      "botUser": "Utilisateur du bot : {name} ({openId})",
+      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID des utilisateurs associés",
+      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
+      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
+      "accessRule1": "Associez dans un message privé avec /pair [code].",
+      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Connectez un bot Discord pour les messages privés, les mentions de salon et le contrôle à distance par slash commands.",
+      "botToken": "Jeton du bot",
+      "botTokenPlaceholder": "Jeton du bot Discord",
+      "remoteControlDescription": "Discord remote control uses its own bot token, gateway, and REST flow.",
+      "accessRule1": "Envoyez /pair [code] dans un message privé ou le salon cible pour autoriser l’endpoint Discord actuel.",
+      "accessRule2": "Les messages de salon n’entrent dans la session que lorsque le bot est mentionné, afin d’éviter d’absorber les conversations ordinaires."
+    },
+    "sections": {
+      "credentials": "Identifiants",
+      "remoteControl": "Contrôle à distance",
+      "notifications": "Notifications",
+      "accessRules": "Règles d’accès"
     },
     "remoteControl": {
       "title": "Contrôle à distance",
@@ -1496,6 +2045,9 @@
       "allowedUserIdsPlaceholder": "ex. 123456789, 987654321",
       "defaultAgent": "Agent DeepChat par défaut",
       "defaultAgentPlaceholder": "Sélectionner un agent",
+      "defaultWorkdir": "Répertoire par défaut",
+      "defaultWorkdirPlaceholder": "Sélectionner le répertoire par défaut",
+      "defaultWorkdirHelper": "Répertoire de travail des sessions de contrôle à distance. Obligatoire lorsque l’agent par défaut est ACP.",
       "openPairDialog": "Associer",
       "manageBindings": "Gérer les liaisons",
       "pairCode": "Code d’association",
@@ -1514,7 +2066,16 @@
       "clearBindings": "Effacer les liaisons",
       "clearBindingsResult": "{count} liaison(s) effacée(s).",
       "pairDialogInstructionTelegram": "Envoyez cette commande au bot Telegram :",
-      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :"
+      "pairDialogInstructionFeishu": "Envoyez cette commande au bot Feishu dans un message privé :",
+      "pairDialogInstructionDiscord": "Envoyez cette commande au bot Discord dans un message privé ou le salon cible :",
+      "pairDialogInstructionQQBot": "Envoyez cette commande dans la discussion QQ Bot ou le groupe QQ autorisé :",
+      "authorizedPrincipalsTitle": "Identités autorisées",
+      "authorizedPrincipalsDescription": "Ces comptes {channel} sont autorisés à s’associer et à piloter des sessions.",
+      "authorizedPrincipalsEmpty": "Aucune identité autorisée pour le moment.",
+      "sessionBindingsTitle": "Liaisons de session",
+      "sessionBindingsDescription": "Chaque point d’accès distant ci-dessous est actuellement lié à une session DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Répertoire par défaut requis",
+      "acpDefaultWorkdirRequiredDescription": "Les agents ACP ont besoin d’un espace de travail local. Choisissez un répertoire par défaut avant d’enregistrer."
     },
     "hooks": {
       "title": "Hooks Telegram",
@@ -1535,43 +2096,62 @@
         "running": "En cours",
         "backoff": "Nouvel essai après échec",
         "error": "Erreur"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Connectez un bot Feishu pour les messages privés, les discussions de groupe et les fils de sujet.",
-      "appId": "ID de l’application",
-      "appIdPlaceholder": "ID d’application Feishu",
-      "appSecret": "Secret de l’application",
-      "appSecretPlaceholder": "Secret d’application Feishu",
-      "verificationToken": "Jeton de vérification",
-      "verificationTokenPlaceholder": "Jeton de vérification Feishu",
-      "encryptKey": "Clé de chiffrement (optionnelle)",
-      "encryptKeyPlaceholder": "Laissez vide si le chiffrement des événements n’est pas activé",
-      "botUser": "Utilisateur du bot : {name} ({openId})",
-      "bindings": "Liaisons : {count}, utilisateurs associés : {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID des utilisateurs associés",
-      "pairedUserOpenIdsPlaceholder": "ex. ou_xxx, ou_yyy",
-      "accessRulesDescription": "Associez d’abord dans un message privé. Dans les groupes, seuls les utilisateurs associés qui mentionnent le bot avec {'@'} peuvent piloter une session.",
-      "accessRule1": "Associez dans un message privé avec /pair [code].",
-      "accessRule2": "Dans les groupes et les sujets, le bot ne réagit que lorsqu’un utilisateur associé le mentionne avec {'@'}."
-    },
-    "sections": {
-      "credentials": "Identifiants",
-      "remoteControl": "Contrôle à distance",
-      "notifications": "Notifications",
-      "accessRules": "Règles d’accès"
+      },
+      "bindingOnly": "Liaisons : {count}, principaux associés : {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} liaisons, {pairedCount} utilisateurs associés, hooks {hooks}",
+      "telegram": "{bindingCount} bindings, {pairedCount} paired users",
       "feishu": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
       "hooksOn": "activés",
-      "hooksOff": "désactivés"
+      "hooksOff": "désactivés",
+      "qqbot": "{bindingCount} liaisons, {pairedCount} utilisateurs associés",
+      "discord": "{bindingCount} liaisons, {pairedCount} salons appairés",
+      "weixinIlink": "{bindingCount} liaisons, {accountCount} comptes, {connectedCount} connectés"
     },
     "bindingKinds": {
       "dm": "Message privé",
       "group": "Groupe",
       "topic": "Sujet"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Connectez un QQ Bot officiel pour les conversations C2C et le contrôle du bot par mention dans les groupes autorisés.",
+      "appId": "ID de l’application",
+      "appIdPlaceholder": "ID d’application du QQ Bot",
+      "clientSecret": "Secret client",
+      "clientSecretPlaceholder": "Secret client du QQ Bot",
+      "remoteControlDescription": "Les identifiants openid officiels de QQ sont différents entre les conversations C2C et les groupes. Les messages privés associent donc les utilisateurs, tandis que les groupes doivent être autorisés séparément avec /pair.",
+      "pairedUserIds": "OpenID des utilisateurs associés",
+      "pairedUserIdsPlaceholder": "ex. user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Connectez un bot WeChat iLink officiel par connexion QR, puis laissez l’adaptateur intégré gérer les sessions de contrôle à distance.",
+      "loginDescription": "Cliquez sur le bouton ci-dessous pour ouvrir la fenêtre de connexion officielle WeChat. Terminez-y l'autorisation iLink Bot et le compte connecté sera ajouté automatiquement à la liste ci-dessous.",
+      "ownerOnlyNotice": "Dans cette première version, seul le propriétaire connecté via QR peut contrôler DeepChat.",
+      "connectButton": "Ouvrir la fenêtre de connexion",
+      "refreshQrCode": "Rouvrir la fenêtre de connexion",
+      "loginDialogTitle": "Connecter WeChat iLink",
+      "loginDialogDescription": "La page de connexion officielle WeChat s'ouvre dans une fenêtre séparée. Terminez-y l'autorisation par QR code et laissez cette boîte de dialogue ouverte jusqu'à la fin de la connexion.",
+      "loginFailed": "La connexion WeChat iLink a échoué.",
+      "loginSuccessTitle": "WeChat iLink connecté",
+      "loginSuccessDescription": "Le compte {accountId} est prêt.",
+      "accountsTitle": "Comptes",
+      "accountsDescription": "Chaque compte bot iLink connecté s’exécute séparément et conserve ses propres liaisons et son propre état.",
+      "noAccounts": "Aucun compte WeChat iLink n’est encore connecté.",
+      "ownerUserId": "ID utilisateur propriétaire : {ownerUserId}",
+      "baseUrl": "URL de base : {baseUrl}",
+      "accountBindings": "Liaisons : {count}",
+      "remoteControlDescription": "Définissez l’agent par défaut partagé par les comptes WeChat iLink, puis gérez les liaisons créées par les sessions entrantes.",
+      "removeAccount": "Supprimer le compte",
+      "restartAccount": "Redémarrer le compte",
+      "statusSummary": "{accounts} comptes, {connected} connectés, {bindings} liaisons",
+      "qrcodeAlt": "QR code WeChat iLink",
+      "loginWindowOpened": "La fenêtre de connexion officielle WeChat a été ouverte. Terminez-y l'autorisation par QR code.",
+      "loginSessionExpired": "Cette session de connexion a expiré. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginResponseIncomplete": "La réponse de connexion WeChat iLink était incomplète. Veuillez réessayer.",
+      "loginTimedOut": "Le délai d'attente pour l'autorisation WeChat iLink est dépassé. Rouvrez la fenêtre de connexion puis réessayez.",
+      "loginConnected": "Le compte WeChat iLink est connecté."
     }
   },
   "deepchatAgents": {
@@ -1602,6 +2182,8 @@
     "modelsTitle": "Valeurs par défaut du modèle",
     "chatModel": "Modèle de chat par défaut",
     "assistantModel": "Modèle d'assistant",
+    "visionModel": "Modèle visuel",
+    "imageGenerationModel": "Modèle de génération d'images",
     "temperature": "Température",
     "contextLength": "Longueur du contexte",
     "maxTokens": "Nombre max. de tokens",
@@ -1622,6 +2204,121 @@
     "compactionDescription": "Ces valeurs ne s'appliquent qu'aux futures sessions DeepChat.",
     "compactionThreshold": "Seuil de déclenchement",
     "compactionRetainPairs": "Conserver les dernières paires",
-    "deleteConfirm": "Supprimer l'agent « {name} » ? Son historique sera rattaché à l'agent DeepChat intégré."
+    "deleteConfirm": "Supprimer l'agent « {name} » ? Son historique sera rattaché à l'agent DeepChat intégré.",
+    "subagentsTitle": "Sous-agents",
+    "subagentsDescription": "Configurez les emplacements de sessions enfants réutilisables exposés par `subagent_orchestrator`.",
+    "subagentsEnabled": "Activer les sous-agents",
+    "subagentTargetType": "Type de cible",
+    "subagentTargetSelf": "Cet agent",
+    "subagentTargetAgent": "Agent",
+    "subagentDisplayName": "Nom d'affichage",
+    "subagentDescription": "Description de l'emplacement",
+    "subagentTargetAgentLabel": "Agent cible",
+    "subagentLimit": "{count}/{max} emplacements",
+    "addSubagentSlot": "+ Ajouter un emplacement"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "Overview",
+      "setup": "Setup",
+      "models": "Agent Settings",
+      "tools": "Capability Extensions",
+      "knowledge": "Knowledge",
+      "system": "System"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "Data",
+      "enabledCount": "{count} enabled",
+      "runningCount": "{count} running",
+      "enabledAgentCount": "{count} agents enabled",
+      "providersDescription": "Provider connection status",
+      "deepchatAgentsDescription": "Agent configuration entry point",
+      "mcpOn": "MCP enabled",
+      "mcpOff": "MCP disabled",
+      "syncOn": "Sync enabled",
+      "syncOff": "Sync disabled",
+      "backupNever": "Backup: never"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "Configure provider access",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "Turn on a usable model",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "Start tool servers",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "Create a data backup"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "Nothing needs attention",
+      "noModels": "No model is enabled",
+      "privacyOff": "Privacy Mode is off",
+      "backupNever": "Backup has never run"
+    },
+    "activity": {
+      "title": "Recent changes",
+      "description": "Shows the newest 200 changes while retaining the newest 2000 records.",
+      "when": "Time",
+      "category": "Category",
+      "change": "Change",
+      "empty": "No recent changes",
+      "emptyDescription": "Successful settings changes will appear here.",
+      "settingUpdated": "Updated setting: {key}",
+      "providerUpdated": "Updated provider: {name}",
+      "providerCreated": "Added provider: {name}",
+      "providerRemoved": "Removed provider: {name}",
+      "providerModelsRefreshed": "Refreshed provider models: {name}",
+      "modelStatusChanged": "Updated model status: {model}",
+      "modelBatchUpdated": "Updated {count} models",
+      "mcpServerCreated": "Added MCP server: {name}",
+      "mcpServerUpdated": "Updated MCP server: {name}",
+      "mcpServerRemoved": "Removed MCP server: {name}",
+      "mcpServerStatusChanged": "Toggled MCP server: {name}",
+      "mcpGlobalStatusChanged": "Toggled MCP global status: {status}",
+      "mcpServerStarted": "Started MCP server: {name}",
+      "mcpServerStopped": "Stopped MCP server: {name}",
+      "mcpRegistryRefreshed": "Refreshed MCP NPM registry",
+      "backupCreated": "Created backup: {name}",
+      "backupImported": "Imported backup: {name}",
+      "databaseRepaired": "Database repair finished: {status}"
+    }
   }
 }

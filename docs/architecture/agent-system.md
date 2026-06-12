@@ -1,15 +1,15 @@
 # Agent 系统架构详解
 
-本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节已归档到
-[../archives/legacy-agentpresenter-architecture.md](../archives/legacy-agentpresenter-architecture.md)。
+本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节不再作为仓库内
+长期文档保留；需要对照时用 `git log` / `git show` 查看历史提交。
 
 ## 当前运行时所有权
 
 ```mermaid
 flowchart TD
-    UI["Renderer / IPC"] --> NewAgent["NewAgentPresenter"]
+    UI["Renderer / IPC"] --> NewAgent["AgentSessionPresenter"]
     NewAgent --> Registry["AgentRegistry"]
-    Registry --> DeepChat["DeepChatAgentPresenter"]
+    Registry --> DeepChat["AgentRuntimePresenter"]
     DeepChat --> Context["contextBuilder"]
     DeepChat --> Process["process.ts"]
     DeepChat --> Dispatch["dispatch.ts"]
@@ -21,16 +21,16 @@ flowchart TD
 
 主原则：
 
-- renderer 只面向 `newAgentPresenter`
-- `newAgentPresenter` 只做 session orchestration，不执行聊天 loop
-- `deepchatAgentPresenter` 独占聊天 runtime
+- renderer 只面向 `agentSessionPresenter`
+- `agentSessionPresenter` 只做 session orchestration，不执行聊天 loop
+- `agentRuntimePresenter` 独占聊天 runtime
 
 ## 模块布局
 
-### `newAgentPresenter/`
+### `agentSessionPresenter/`
 
 ```text
-newAgentPresenter/
+agentSessionPresenter/
 ├── index.ts
 ├── agentRegistry.ts
 ├── sessionManager.ts
@@ -46,10 +46,10 @@ newAgentPresenter/
 - 暴露 renderer IPC 方法
 - 保留 legacy import 流程
 
-### `deepchatAgentPresenter/`
+### `agentRuntimePresenter/`
 
 ```text
-deepchatAgentPresenter/
+agentRuntimePresenter/
 ├── index.ts
 ├── process.ts
 ├── dispatch.ts
@@ -75,12 +75,41 @@ deepchatAgentPresenter/
 
 | 层 | 主文件 | 责任 |
 | --- | --- | --- |
-| Session orchestration | `src/main/presenter/newAgentPresenter/index.ts` | session 生命周期与 IPC |
-| Agent runtime | `src/main/presenter/deepchatAgentPresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
-| Stream loop | `src/main/presenter/deepchatAgentPresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
-| Tool dispatch | `src/main/presenter/deepchatAgentPresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
-| Context build | `src/main/presenter/deepchatAgentPresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
-| Persistence | `src/main/presenter/deepchatAgentPresenter/messageStore.ts` | 消息持久化与故障恢复 |
+| Session orchestration | `src/main/presenter/agentSessionPresenter/index.ts` | session 生命周期与 IPC |
+| Agent runtime | `src/main/presenter/agentRuntimePresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
+| Stream loop | `src/main/presenter/agentRuntimePresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
+| Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
+| Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
+| Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
+| Compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 手动/自动上下文压缩与压缩状态消息 |
+| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | queued input、steer、重排与恢复 |
+
+## 持久化热路径
+
+`DeepChatMessageStore` 现在采用“头表 + 结构化子表”的主链路模型：
+
+- `deepchat_messages` 作为消息头表
+- `deepchat_user_messages` / `files` / `links` 存 user 热字段
+- `deepchat_assistant_blocks` 存 assistant blocks
+- `deepchat_search_documents` / `_fts` 存历史搜索索引
+
+关键语义：
+
+- streaming 期间只增量更新 `deepchat_assistant_blocks`
+- 最终进入 `sent/error` 时才写回稳定的 `deepchat_messages.content`
+- 读路径优先从结构化表重组 `ChatMessageRecord.content`，缺行时再回退旧 JSON
+- `sessions.restore` 默认只恢复最近一页消息，历史继续通过 `sessions.listMessagesPage` 翻页
+- `deepchat_search_documents` / `_fts` 提供历史搜索索引，FTS 不可用时回退 `LIKE`
+
+## 运行时能力
+
+- Session generation settings 随 session 创建和更新持久化，覆盖 system prompt、temperature、
+  topP、max tokens、reasoning effort、verbosity 等设置。
+- Message trace 独立落库，供消息工具栏查看运行时 trace。
+- Subagent 会话以 `sessionKind='subagent'` 进入同一套 session/message store，父会话通过
+  tape merge/discard 吸收或丢弃子会话结果。
+- 本地录音转写、TTS、image generation、video generation 都复用 provider/model capability 判定，
+  不再绕开 provider runtime。
 
 ## 兼容边界
 
@@ -101,10 +130,10 @@ deepchatAgentPresenter/
 
 如果要追一条真实消息链路，推荐顺序：
 
-1. `src/main/presenter/newAgentPresenter/index.ts`
-2. `src/main/presenter/deepchatAgentPresenter/index.ts`
-3. `src/main/presenter/deepchatAgentPresenter/process.ts`
-4. `src/main/presenter/deepchatAgentPresenter/dispatch.ts`
+1. `src/main/presenter/agentSessionPresenter/index.ts`
+2. `src/main/presenter/agentRuntimePresenter/index.ts`
+3. `src/main/presenter/agentRuntimePresenter/process.ts`
+4. `src/main/presenter/agentRuntimePresenter/dispatch.ts`
 5. `src/main/presenter/toolPresenter/index.ts`
 
 ## 历史说明
@@ -117,4 +146,4 @@ deepchatAgentPresenter/
 - `permissionHandler`
 - `startStreamCompletion`
 
-需要对照旧实现时，只看归档文档和 `archives/code/legacy-agentpresenter-retirement/`。
+需要对照旧实现时，从历史提交中查看旧源码快照，不再把已经删除的历史设计当作活跃导航入口。

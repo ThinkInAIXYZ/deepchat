@@ -1,0 +1,9 @@
+{
+  "loadError": "Gagal memuat gambar",
+  "loading": "Gambar sedang dimuat...",
+  "preview": "Pratinjau gambar",
+  "save": "simpan gambar",
+  "saveAs": "Simpan gambar sebagai...",
+  "saveSuccess": "Gambar disimpan",
+  "saveFailed": "Penyimpanan gambar gagal"
+}

@@ -6,7 +6,7 @@
           <!-- 图片文件在消息中使用特殊布局 -->
           <div
             v-if="isImageFile && thumbnail && context === 'message'"
-            class="flex flex-col gap-2 bg-card border items-center shadow-sm justify-start rounded-md text-xs cursor-pointer select-none hover:bg-accent relative p-2"
+            class="flex flex-col gap-2 bg-card border items-center shadow-sm justify-start rounded-md text-xs select-none hover:bg-accent relative p-2"
             @click="$emit('click', fileName)"
           >
             <img :src="thumbnail" class="w-20 h-20 rounded-md border object-cover" />
@@ -31,7 +31,7 @@
           <!-- 非图片文件或输入框中的图片使用原有布局 -->
           <div
             v-else
-            class="flex py-1.5 pl-1.5 pr-3 gap-2 flex-row bg-card border items-center shadow-sm justify-start rounded-md text-xs cursor-pointer select-none hover:bg-accent relative"
+            class="flex py-1.5 pl-1.5 pr-3 gap-2 flex-row bg-card border items-center shadow-sm justify-start rounded-md text-xs select-none hover:bg-accent relative"
             @click="$emit('click', fileName)"
           >
             <img v-if="thumbnail" :src="thumbnail" class="w-8 h-8 rounded-md border" />

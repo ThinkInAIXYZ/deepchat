@@ -1,4 +1,5 @@
-import { IConfigPresenter } from '@shared/presenter'
+import logger from '@shared/logger'
+import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
 import { McpClient } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
@@ -15,6 +16,7 @@ const NPM_REGISTRY_LIST = [
 
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
+  private serverLastErrors: Map<string, string> = new Map()
   private configPresenter: IConfigPresenter
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
@@ -23,6 +25,28 @@ export class ServerManager {
     this.configPresenter = configPresenter
     this.loadRegistryFromCache()
   }
+
+  private isPrivacyModeEnabled(): boolean {
+    return Boolean(this.configPresenter.getPrivacyModeEnabled())
+  }
+
+  private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {
+    return Boolean(config?.ownerPluginId || config?.source === 'plugin')
+  }
+
+  getServerLastError(serverName: string): string | undefined {
+    return this.serverLastErrors.get(serverName)
+  }
+
+  setServerLastError(serverName: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error || 'Unknown error')
+    this.serverLastErrors.set(serverName, message)
+  }
+
+  clearServerLastError(serverName: string): void {
+    this.serverLastErrors.delete(serverName)
+  }
+
   loadRegistryFromCache(): void {
     const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry?.()
     if (effectiveRegistry) {
@@ -32,11 +56,11 @@ export class ServerManager {
       } else {
         this.uvRegistry = null
       }
-      console.log(`[NPM Registry] Loaded effective registry: ${effectiveRegistry}`)
+      logger.info(`[NPM Registry] Loaded effective registry: ${effectiveRegistry}`)
     } else {
       this.npmRegistry = null
       this.uvRegistry = null
-      console.log('[NPM Registry] No effective registry, will use default or detect')
+      logger.info('[NPM Registry] No effective registry, will use default or detect')
     }
   }
 
@@ -50,7 +74,7 @@ export class ServerManager {
       } else {
         this.uvRegistry = null
       }
-      console.log(`[NPM Registry] Using custom registry: ${customRegistry}`)
+      logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
     if (useCache && this.configPresenter.isNpmRegistryCacheValid?.()) {
@@ -62,12 +86,12 @@ export class ServerManager {
         } else {
           this.uvRegistry = null
         }
-        console.log(`[NPM Registry] Using cached registry: ${cache.registry}`)
+        logger.info(`[NPM Registry] Using cached registry: ${cache.registry}`)
         return cache.registry
       }
     }
 
-    console.log('[NPM Registry] Testing registry speed...')
+    logger.info('[NPM Registry] Testing registry speed...')
     const timeout = 10000
     const testPackage = 'tiny-runtime-injector'
 
@@ -120,14 +144,14 @@ export class ServerManager {
     const successfulResults = results
       .filter((result) => result.success)
       .sort((a, b) => a.time - b.time)
-    console.log('[NPM Registry] Test results:', successfulResults)
+    logger.info('[NPM Registry] Test results:', successfulResults)
     let bestRegistry: string
     if (successfulResults.length === 0) {
-      console.log('[NPM Registry] All tests failed, using default registry')
+      logger.info('[NPM Registry] All tests failed, using default registry')
       bestRegistry = NPM_REGISTRY_LIST[0]
     } else {
       bestRegistry = successfulResults[0].registry
-      console.log(`[NPM Registry] Best registry: ${bestRegistry} (${successfulResults[0].time}ms)`)
+      logger.info(`[NPM Registry] Best registry: ${bestRegistry} (${successfulResults[0].time}ms)`)
     }
     this.npmRegistry = bestRegistry
     if (bestRegistry === 'https://registry.npmmirror.com/') {
@@ -152,20 +176,25 @@ export class ServerManager {
   }
 
   async refreshNpmRegistry(): Promise<string> {
-    console.log('[NPM Registry] Manual refresh triggered')
+    logger.info('[NPM Registry] Manual refresh triggered')
     return await this.testNpmRegistrySpeed(false) // Don't use cache
   }
 
   async updateNpmRegistryInBackground(): Promise<void> {
     try {
-      // Check if update is needed
-      if (this.configPresenter.isNpmRegistryCacheValid?.()) {
-        console.log('[NPM Registry] Cache is still valid, skipping background update')
+      if (this.isPrivacyModeEnabled()) {
+        logger.info('[NPM Registry] Privacy mode enabled, skipping background update')
         return
       }
-      console.log('[NPM Registry] Starting background registry update')
+
+      // Check if update is needed
+      if (this.configPresenter.isNpmRegistryCacheValid?.()) {
+        logger.info('[NPM Registry] Cache is still valid, skipping background update')
+        return
+      }
+      logger.info('[NPM Registry] Starting background registry update')
       await this.testNpmRegistrySpeed(false)
-      console.log('[NPM Registry] Background registry update completed')
+      logger.info('[NPM Registry] Background registry update completed')
     } catch (error) {
       console.error('[NPM Registry] Background update failed:', error)
     }
@@ -219,14 +248,18 @@ export class ServerManager {
 
       // Connect to server, this will start the service
       await client.connect()
+      this.clearServerLastError(name)
     } catch (error) {
       console.error(`Failed to start MCP server ${name}:`, error)
 
       // Remove client reference
       this.clients.delete(name)
+      this.setServerLastError(name, error)
 
-      // Send global error notification
-      this.sendMcpConnectionError(name, error)
+      if (!this.isPluginOwnedServerConfig(serverConfig)) {
+        // Send global error notification only for normal MCP servers.
+        this.sendMcpConnectionError(name, error)
+      }
 
       throw error
     } finally {
@@ -272,6 +305,7 @@ export class ServerManager {
 
       // Remove from client list
       this.clients.delete(name)
+      this.clearServerLastError(name)
 
       console.info(`MCP server ${name} has been stopped`)
       eventBus.send(MCP_EVENTS.CLIENT_LIST_UPDATED, SendTarget.ALL_WINDOWS)

@@ -10,8 +10,22 @@ export interface NewSessionRow {
   is_draft: number
   active_skills: string
   disabled_agent_tools: string
+  subagent_enabled: number
+  session_kind: 'regular' | 'subagent'
+  parent_session_id: string | null
+  subagent_meta_json: string | null
   created_at: number
   updated_at: number
+}
+
+export type SessionListPageCursor = {
+  updatedAt: number
+  id: string
+}
+
+export type SessionListPageResult = {
+  rows: NewSessionRow[]
+  hasMore: boolean
 }
 
 export class NewSessionsTable extends BaseTable {
@@ -20,7 +34,7 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
-    return this.getCreateTableSQLForVersion(0)
+    return this.getCreateTableSQLForVersion(this.getLatestVersion())
   }
 
   override createTable(): void {
@@ -49,6 +63,14 @@ export class NewSessionsTable extends BaseTable {
     if (version >= 16) {
       columns.push("disabled_agent_tools TEXT NOT NULL DEFAULT '[]'")
     }
+    if (version >= 20) {
+      columns.push(
+        'subagent_enabled INTEGER NOT NULL DEFAULT 0',
+        "session_kind TEXT NOT NULL DEFAULT 'regular'",
+        'parent_session_id TEXT',
+        'subagent_meta_json TEXT'
+      )
+    }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
 
@@ -71,11 +93,19 @@ export class NewSessionsTable extends BaseTable {
     if (version === 16) {
       return `ALTER TABLE new_sessions ADD COLUMN disabled_agent_tools TEXT NOT NULL DEFAULT '[]';`
     }
+    if (version === 20) {
+      return `
+        ALTER TABLE new_sessions ADD COLUMN subagent_enabled INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';
+        ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;
+        ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 16
+    return 20
   }
 
   create(
@@ -88,6 +118,10 @@ export class NewSessionsTable extends BaseTable {
       isPinned?: boolean
       activeSkills?: string[]
       disabledAgentTools?: string[]
+      subagentEnabled?: boolean
+      sessionKind?: 'regular' | 'subagent'
+      parentSessionId?: string | null
+      subagentMetaJson?: string | null
       createdAt?: number
       updatedAt?: number
     }
@@ -106,9 +140,13 @@ export class NewSessionsTable extends BaseTable {
           is_draft,
           active_skills,
           disabled_agent_tools,
+          subagent_enabled,
+          session_kind,
+          parent_session_id,
+          subagent_meta_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -119,9 +157,16 @@ export class NewSessionsTable extends BaseTable {
         options?.isDraft ? 1 : 0,
         JSON.stringify(options?.activeSkills ?? []),
         JSON.stringify(options?.disabledAgentTools ?? []),
+        options?.subagentEnabled ? 1 : 0,
+        options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
+        options?.parentSessionId ?? null,
+        options?.subagentMetaJson ?? null,
         createdAt,
         updatedAt
       )
+
+    this.replaceActiveSkillsRows(id, options?.activeSkills ?? [])
+    this.replaceDisabledAgentToolRows(id, options?.disabledAgentTools ?? [])
   }
 
   get(id: string): NewSessionRow | undefined {
@@ -130,7 +175,23 @@ export class NewSessionsTable extends BaseTable {
       | undefined
   }
 
-  list(filters?: { agentId?: string; projectDir?: string }): NewSessionRow[] {
+  getMany(ids: string[]): NewSessionRow[] {
+    if (ids.length === 0) {
+      return []
+    }
+
+    const placeholders = ids.map(() => '?').join(', ')
+    return this.db
+      .prepare(`SELECT * FROM new_sessions WHERE id IN (${placeholders})`)
+      .all(...ids) as NewSessionRow[]
+  }
+
+  list(filters?: {
+    agentId?: string
+    projectDir?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): NewSessionRow[] {
     let sql = 'SELECT * FROM new_sessions'
     const conditions: string[] = []
     const params: unknown[] = []
@@ -143,6 +204,13 @@ export class NewSessionsTable extends BaseTable {
       conditions.push('project_dir = ?')
       params.push(filters.projectDir)
     }
+    if (filters?.includeSubagents !== true && filters?.parentSessionId === undefined) {
+      conditions.push("session_kind = 'regular'")
+    }
+    if (filters?.parentSessionId !== undefined) {
+      conditions.push('parent_session_id = ?')
+      params.push(filters.parentSessionId)
+    }
 
     if (conditions.length > 0) {
       sql += ' WHERE ' + conditions.join(' AND ')
@@ -150,6 +218,53 @@ export class NewSessionsTable extends BaseTable {
     sql += ' ORDER BY updated_at DESC'
 
     return this.db.prepare(sql).all(...params) as NewSessionRow[]
+  }
+
+  listPage(options?: {
+    limit?: number
+    cursor?: SessionListPageCursor | null
+    agentId?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }): SessionListPageResult {
+    const requestedLimit = Math.max(1, Math.min(options?.limit ?? 30, 100))
+    let sql = 'SELECT * FROM new_sessions'
+    const conditions: string[] = []
+    const params: unknown[] = []
+
+    if (options?.agentId) {
+      conditions.push('agent_id = ?')
+      params.push(options.agentId)
+    }
+
+    if (options?.includeSubagents !== true && options?.parentSessionId === undefined) {
+      conditions.push("session_kind = 'regular'")
+    }
+
+    if (options?.parentSessionId !== undefined) {
+      conditions.push('parent_session_id = ?')
+      params.push(options.parentSessionId)
+    }
+
+    if (options?.cursor) {
+      conditions.push('(updated_at < ? OR (updated_at = ? AND id < ?))')
+      params.push(options.cursor.updatedAt, options.cursor.updatedAt, options.cursor.id)
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ')
+    }
+
+    sql += ' ORDER BY updated_at DESC, id DESC LIMIT ?'
+    params.push(requestedLimit + 1)
+
+    const rows = this.db.prepare(sql).all(...params) as NewSessionRow[]
+    const hasMore = rows.length > requestedLimit
+
+    return {
+      rows: hasMore ? rows.slice(0, requestedLimit) : rows,
+      hasMore
+    }
   }
 
   update(
@@ -163,6 +278,10 @@ export class NewSessionsTable extends BaseTable {
         | 'is_draft'
         | 'active_skills'
         | 'disabled_agent_tools'
+        | 'subagent_enabled'
+        | 'session_kind'
+        | 'parent_session_id'
+        | 'subagent_meta_json'
       >
     >
   ): void {
@@ -193,6 +312,22 @@ export class NewSessionsTable extends BaseTable {
       setClauses.push('disabled_agent_tools = ?')
       params.push(fields.disabled_agent_tools)
     }
+    if (fields.subagent_enabled !== undefined) {
+      setClauses.push('subagent_enabled = ?')
+      params.push(fields.subagent_enabled)
+    }
+    if (fields.session_kind !== undefined) {
+      setClauses.push('session_kind = ?')
+      params.push(fields.session_kind)
+    }
+    if (fields.parent_session_id !== undefined) {
+      setClauses.push('parent_session_id = ?')
+      params.push(fields.parent_session_id)
+    }
+    if (fields.subagent_meta_json !== undefined) {
+      setClauses.push('subagent_meta_json = ?')
+      params.push(fields.subagent_meta_json)
+    }
 
     if (setClauses.length === 0) return
 
@@ -201,17 +336,37 @@ export class NewSessionsTable extends BaseTable {
     params.push(id)
 
     this.db.prepare(`UPDATE new_sessions SET ${setClauses.join(', ')} WHERE id = ?`).run(...params)
+
+    if (fields.active_skills !== undefined) {
+      this.replaceActiveSkillsRows(id, this.parseActiveSkills(fields.active_skills))
+    }
+    if (fields.disabled_agent_tools !== undefined) {
+      this.replaceDisabledAgentToolRows(id, this.parseStringArray(fields.disabled_agent_tools))
+    }
   }
 
   delete(id: string): void {
+    this.db.prepare('DELETE FROM new_session_active_skills WHERE session_id = ?').run(id)
+    this.db.prepare('DELETE FROM new_session_disabled_agent_tools WHERE session_id = ?').run(id)
     this.db.prepare('DELETE FROM new_sessions WHERE id = ?').run(id)
   }
 
   getActiveSkills(id: string): string[] {
+    const normalizedRows = this.db
+      .prepare(
+        `SELECT skill_name
+         FROM new_session_active_skills
+         WHERE session_id = ?
+         ORDER BY ordinal`
+      )
+      .all(id) as Array<{ skill_name: string }>
+    if (normalizedRows.length > 0) {
+      return normalizedRows.map((row) => row.skill_name)
+    }
+
     const row = this.db.prepare('SELECT active_skills FROM new_sessions WHERE id = ?').get(id) as
       | { active_skills?: string | null }
       | undefined
-
     return this.parseActiveSkills(row?.active_skills)
   }
 
@@ -220,6 +375,18 @@ export class NewSessionsTable extends BaseTable {
   }
 
   getDisabledAgentTools(id: string): string[] {
+    const normalizedRows = this.db
+      .prepare(
+        `SELECT tool_name
+         FROM new_session_disabled_agent_tools
+         WHERE session_id = ?
+         ORDER BY ordinal`
+      )
+      .all(id) as Array<{ tool_name: string }>
+    if (normalizedRows.length > 0) {
+      return normalizedRows.map((row) => row.tool_name)
+    }
+
     const row = this.db
       .prepare('SELECT disabled_agent_tools FROM new_sessions WHERE id = ?')
       .get(id) as { disabled_agent_tools?: string | null } | undefined
@@ -231,6 +398,12 @@ export class NewSessionsTable extends BaseTable {
     this.update(id, { disabled_agent_tools: JSON.stringify(disabledAgentTools) })
   }
 
+  updateAgentId(id: string, agentId: string): void {
+    this.db
+      .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE id = ?')
+      .run(agentId, Date.now(), id)
+  }
+
   reassignAgentId(fromAgentId: string, toAgentId: string): void {
     this.db
       .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE agent_id = ?')
@@ -239,6 +412,42 @@ export class NewSessionsTable extends BaseTable {
 
   private parseActiveSkills(raw: string | null | undefined): string[] {
     return this.parseStringArray(raw)
+  }
+
+  private replaceActiveSkillsRows(sessionId: string, activeSkills: string[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO new_session_active_skills (
+        session_id,
+        ordinal,
+        skill_name
+      ) VALUES (?, ?, ?)`
+    )
+
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM new_session_active_skills WHERE session_id = ?').run(sessionId)
+      activeSkills.forEach((skillName, index) => {
+        insert.run(sessionId, index, skillName)
+      })
+    })()
+  }
+
+  private replaceDisabledAgentToolRows(sessionId: string, toolNames: string[]): void {
+    const insert = this.db.prepare(
+      `INSERT INTO new_session_disabled_agent_tools (
+        session_id,
+        ordinal,
+        tool_name
+      ) VALUES (?, ?, ?)`
+    )
+
+    this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM new_session_disabled_agent_tools WHERE session_id = ?')
+        .run(sessionId)
+      toolNames.forEach((toolName, index) => {
+        insert.run(sessionId, index, toolName)
+      })
+    })()
   }
 
   private parseStringArray(raw: string | null | undefined): string[] {

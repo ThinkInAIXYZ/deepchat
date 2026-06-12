@@ -14,22 +14,8 @@ const BuiltinKnowledgeSearchArgsSchema = z.object({
 
 export class BuiltinKnowledgeServer {
   private server: Server
-  private configs: Array<BuiltinKnowledgeConfig> = []
 
-  constructor(env?: { configs: BuiltinKnowledgeConfig[] }) {
-    if (!env) {
-      throw new Error('需要提供Builtin知识库配置')
-    }
-    const configs = env.configs
-    if (!Array.isArray(configs) || configs.length === 0) {
-      throw new Error('需要提供至少一个Builtin知识库配置')
-    }
-    for (const config of configs) {
-      if (!config.description) {
-        throw new Error('需要提供对这个知识库的描述，以方便ai决定是否检索此知识库')
-      }
-      this.configs.push(config)
-    }
+  constructor() {
     this.server = new Server(
       {
         name: 'deepchat-inmemory/builtin-knowledge-server',
@@ -50,27 +36,26 @@ export class BuiltinKnowledgeServer {
 
   private setupRequestHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const tools = this.configs
-        .filter((conf) => conf.enabled)
-        .map((config, index) => {
-          const suffix = this.configs.length > 1 ? `_${index + 1}` : ''
-          return {
-            name: `builtin_knowledge_search${suffix}`,
-            description: config.description,
-            inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema),
-            annotations: {
-              title: 'Builtin Knowledge Search',
-              readOnlyHint: true
-            }
+      const enabledConfigs = this.getEnabledConfigs()
+      const tools = enabledConfigs.map((config, index) => {
+        const suffix = enabledConfigs.length > 1 ? `_${index + 1}` : ''
+        return {
+          name: `builtin_knowledge_search${suffix}`,
+          description: config.description,
+          inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema),
+          annotations: {
+            title: 'Builtin Knowledge Search',
+            readOnlyHint: true
           }
-        })
+        }
+      })
       return { tools }
     })
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: parameters } = request.params
       if (name.startsWith('builtin_knowledge_search')) {
         try {
-          const enabledConfigs = this.configs.filter((config) => config.enabled)
+          const enabledConfigs = this.getEnabledConfigs()
           let configIndex = 0
           const match = name.match(/_([0-9]+)$/)
           if (match) {
@@ -79,7 +64,7 @@ export class BuiltinKnowledgeServer {
           if (configIndex < 0 || configIndex >= enabledConfigs.length) {
             throw new Error(`无效的知识库索引: ${configIndex}`)
           }
-          return await this.performBuiltinKnowledgeSearch(parameters, configIndex)
+          return await this.performBuiltinKnowledgeSearch(parameters, enabledConfigs[configIndex])
         } catch (error) {
           return {
             content: [
@@ -102,17 +87,19 @@ export class BuiltinKnowledgeServer {
     })
   }
 
+  private getEnabledConfigs(): BuiltinKnowledgeConfig[] {
+    return presenter.configPresenter.getKnowledgeConfigs().filter((config) => config.enabled)
+  }
+
   private async performBuiltinKnowledgeSearch(
     parameters: Record<string, unknown> | undefined,
-    configIndex: number = 0
+    config: BuiltinKnowledgeConfig
   ): Promise<{ content: MCPTextContent[] }> {
     const { query } = parameters as { query: string; topK?: number }
     if (!query) {
       throw new Error('查询内容不能为空')
     }
     try {
-      // 获取知识库 id（用 index 作为 id）
-      const config = this.configs[configIndex]
       const id = config.id
       // similarityQuery(id, key)
       const results = await presenter.knowledgePresenter.similarityQuery(id, query)

@@ -10,6 +10,36 @@ import type {
   SelectOption,
   FieldConfig
 } from '@/components/ChatConfig/types'
+import type { ThinkingBudgetRange } from '@/composables/useThinkingBudget'
+import {
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  isReasoningEffort,
+  type ReasoningEffort,
+  type Verbosity
+} from '@shared/types/model-db'
+
+const getThinkingBudgetInputBounds = (
+  budgetRange: ThinkingBudgetRange | null
+): { min?: number; max?: number } => {
+  const bounds: { min?: number; max?: number } = {
+    min: budgetRange?.min,
+    max: budgetRange?.max
+  }
+  const sentinels = [budgetRange?.auto, budgetRange?.off].filter(
+    (value): value is number => typeof value === 'number'
+  )
+
+  for (const sentinel of sentinels) {
+    if (typeof bounds.min === 'number' && sentinel < bounds.min) {
+      bounds.min = sentinel
+    }
+    if (typeof bounds.max === 'number' && sentinel > bounds.max) {
+      bounds.max = sentinel
+    }
+  }
+
+  return bounds
+}
 
 // === Interfaces ===
 export interface UseChatConfigFieldsOptions {
@@ -20,16 +50,15 @@ export interface UseChatConfigFieldsOptions {
   contextLengthLimit: Ref<number | undefined>
   maxTokensLimit: Ref<number | undefined>
   thinkingBudget: Ref<number | undefined>
-  reasoningEffort: Ref<'minimal' | 'low' | 'medium' | 'high' | undefined>
-  verbosity: Ref<'low' | 'medium' | 'high' | undefined>
+  reasoningEffort: Ref<ReasoningEffort | undefined>
+  verbosity: Ref<Verbosity | undefined>
   providerId: Ref<string | undefined>
 
   // Composables
-  isGPT5Model: ComputedRef<boolean>
-  isImageGenerationModel: ComputedRef<boolean>
+  supportsTemperatureControl: Ref<boolean | null>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
-  budgetRange: Ref<{ min?: number; max?: number; default?: number } | null>
+  budgetRange: Ref<ThinkingBudgetRange | null>
 
   // Utils
   formatSize: (size: number) => string
@@ -40,8 +69,8 @@ export interface UseChatConfigFieldsOptions {
     (e: 'update:contextLength', value: number): void
     (e: 'update:maxTokens', value: number): void
     (e: 'update:thinkingBudget', value: number | undefined): void
-    (e: 'update:reasoningEffort', value: 'minimal' | 'low' | 'medium' | 'high'): void
-    (e: 'update:verbosity', value: 'low' | 'medium' | 'high'): void
+    (e: 'update:reasoningEffort', value: ReasoningEffort): void
+    (e: 'update:verbosity', value: Verbosity): void
   }
 }
 
@@ -56,8 +85,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
   const sliderFields = computed<SliderFieldConfig[]>(() => {
     const fields: SliderFieldConfig[] = []
 
-    // Temperature (hidden for GPT-5)
-    if (!options.isGPT5Model.value) {
+    // Temperature is hidden only when model capabilities explicitly disable it.
+    if (options.supportsTemperatureControl.value !== false) {
       fields.push({
         key: 'temperature',
         type: 'slider',
@@ -114,6 +143,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
 
     // Thinking Budget
     if (options.showThinkingBudget.value) {
+      const thinkingBudgetInputBounds = getThinkingBudgetInputBounds(options.budgetRange.value)
+
       fields.push({
         key: 'thinkingBudget',
         type: 'input',
@@ -121,8 +152,8 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         label: t('settings.model.modelConfig.thinkingBudget.label'),
         description: t('settings.model.modelConfig.thinkingBudget.description'),
         inputType: 'number',
-        min: options.budgetRange.value?.min,
-        max: options.budgetRange.value?.max,
+        min: thinkingBudgetInputBounds.min,
+        max: thinkingBudgetInputBounds.max,
         step: 128,
         placeholder: t('settings.model.modelConfig.thinkingBudget.placeholder'),
         getValue: () => options.thinkingBudget.value,
@@ -150,6 +181,20 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
     // Reasoning Effort
     if (options.reasoningEffort.value !== undefined) {
       const getReasoningEffortOptions = (): SelectOption[] => {
+        if (
+          isReasoningEffort(options.reasoningEffort.value) &&
+          !FALLBACK_REASONING_EFFORT_OPTIONS.includes(options.reasoningEffort.value)
+        ) {
+          return [
+            {
+              value: options.reasoningEffort.value,
+              label: t(
+                `settings.model.modelConfig.reasoningEffort.options.${options.reasoningEffort.value}`
+              )
+            }
+          ]
+        }
+
         // Grok only supports low and high
         if (options.providerId.value === 'grok') {
           return [
@@ -165,24 +210,10 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         }
 
         // Other models support all four
-        return [
-          {
-            value: 'minimal',
-            label: t('settings.model.modelConfig.reasoningEffort.options.minimal')
-          },
-          {
-            value: 'low',
-            label: t('settings.model.modelConfig.reasoningEffort.options.low')
-          },
-          {
-            value: 'medium',
-            label: t('settings.model.modelConfig.reasoningEffort.options.medium')
-          },
-          {
-            value: 'high',
-            label: t('settings.model.modelConfig.reasoningEffort.options.high')
-          }
-        ]
+        return FALLBACK_REASONING_EFFORT_OPTIONS.map((value) => ({
+          value,
+          label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
+        }))
       }
 
       fields.push({
@@ -194,8 +225,7 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
         options: getReasoningEffortOptions,
         placeholder: t('settings.model.modelConfig.reasoningEffort.placeholder'),
         getValue: () => options.reasoningEffort.value,
-        setValue: (val) =>
-          options.emit('update:reasoningEffort', val as 'minimal' | 'low' | 'medium' | 'high')
+        setValue: (val) => options.emit('update:reasoningEffort', val as ReasoningEffort)
       })
     }
 

@@ -81,9 +81,9 @@ export async function searchWorkspaceFiles(
 
   const hasSeparator = trimmed.includes('/') || trimmed.includes('\\')
   const escaped = escapeGlob(trimmed)
-  // For ripgrep, use simpler glob patterns
-  // If has separator, use the path as-is with wildcards
-  // Otherwise, use *query* to match anywhere in filename
+  // Use simple glob patterns for the FFF-backed workspace file picker.
+  // If has separator, use the path as-is with wildcards.
+  // Otherwise, use *query* to match anywhere in filename.
   const globPattern = hasSeparator
     ? `**/${escaped}*` // Path-based: **/path/to/file*
     : `*${escaped}*` // Filename-based: *query* (matches anywhere in filename)

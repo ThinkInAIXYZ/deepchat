@@ -1,10 +1,24 @@
+import { EventEmitter } from 'events'
 import type { ChildProcess } from 'child_process'
+import { spawn } from 'child_process'
 import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockUtilityProcessFork } = vi.hoisted(() => ({
+  mockUtilityProcessFork: vi.fn()
+}))
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn()
+}))
+
 vi.mock('electron', () => ({
   app: {
+    getAppPath: vi.fn(() => '/mock/app'),
     getPath: vi.fn((name: string) => (name === 'userData' ? '/mock/userData' : '/mock/home'))
+  },
+  utilityProcess: {
+    fork: mockUtilityProcessFork
   }
 }))
 
@@ -22,20 +36,74 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
-import { BackgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
+import {
+  BackgroundExecSessionManager,
+  backgroundExecSessionManager
+} from '@/lib/agentRuntime/backgroundExecSessionManager'
+
+class MockStream extends EventEmitter {}
+
+class MockChildProcess extends EventEmitter {
+  stdout = new MockStream()
+  stderr = new MockStream()
+  stdin = {
+    write: vi.fn(),
+    end: vi.fn(),
+    destroyed: false
+  }
+  pid = 321
+}
+
+class MockUtilityProcess extends EventEmitter {
+  postMessage = vi.fn()
+  kill = vi.fn()
+}
+
+function mockStats(kind: 'file' | 'directory'): fs.Stats {
+  return {
+    isFile: () => kind === 'file',
+    isDirectory: () => kind === 'directory'
+  } as fs.Stats
+}
+
+function normalizedPath(candidate: unknown): string {
+  return String(candidate).replace(/\\/g, '/')
+}
 
 describe('BackgroundExecSessionManager', () => {
   let manager: BackgroundExecSessionManager
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+  const originalPsModulePath = process.env.PSModulePath
+  const originalShell = process.env.SHELL
 
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
+    mockUtilityProcessFork.mockReset()
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
+      String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
+    )
+    vi.spyOn(fs, 'accessSync').mockReturnValue(undefined)
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     ;(manager as never).sessions.clear()
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+    if (originalPsModulePath === undefined) {
+      delete process.env.PSModulePath
+    } else {
+      process.env.PSModulePath = originalPsModulePath
+    }
+    if (originalShell === undefined) {
+      delete process.env.SHELL
+    } else {
+      process.env.SHELL = originalShell
+    }
   })
 
   const createSession = (overrides: Record<string, unknown> = {}) => ({
@@ -213,5 +281,233 @@ describe('BackgroundExecSessionManager', () => {
     expect(log.timedOut).toBe(true)
     expect(poll.output).toBe('timeout tail')
     expect(log.output).toBe('timeout tail')
+  })
+
+  it('merges the prepared env on top of process env when starting a session', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    process.env.BASELINE_FLAG = 'baseline'
+
+    try {
+      const result = await manager.start('conv-1', 'echo test', '/workspace', {
+        timeout: 0,
+        env: {
+          PATH: '/prepared/bin:/usr/local/bin',
+          CUSTOM_FLAG: '1'
+        }
+      })
+
+      expect(result).toEqual({
+        sessionId: expect.stringMatching(/^bg_/),
+        status: 'running'
+      })
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          cwd: expect.stringMatching(/[\\/]workspace$/),
+          env: expect.objectContaining({
+            BASELINE_FLAG: 'baseline',
+            PATH: '/prepared/bin:/usr/local/bin',
+            CUSTOM_FLAG: '1'
+          })
+        })
+      )
+    } finally {
+      delete process.env.BASELINE_FLAG
+    }
+  })
+
+  it('wraps Windows PowerShell commands before starting a session', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+    process.env.PSModulePath = 'C:\\PowerShell\\Modules'
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    await manager.start('conv-1', 'dir', '/workspace', { timeout: 0 })
+
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
+      expect.objectContaining({
+        detached: false
+      })
+    )
+  })
+
+  it('falls back to an available shell when the configured POSIX shell is missing', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/missing/zsh'
+    vi.spyOn(fs, 'existsSync').mockImplementation((candidate) =>
+      normalizedPath(candidate).endsWith('/workspace')
+    )
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) => {
+      const value = normalizedPath(candidate)
+      if (value.endsWith('/workspace')) {
+        return mockStats('directory')
+      }
+      if (value === '/bin/sh') {
+        return mockStats('file')
+      }
+      throw new Error('missing')
+    })
+    vi.spyOn(fs, 'accessSync').mockImplementation((candidate) => {
+      if (String(candidate) === '/bin/sh') {
+        return undefined
+      }
+      throw new Error('not executable')
+    })
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+
+    expect(spawn).toHaveBeenCalledWith(
+      '/bin/sh',
+      ['-c', 'echo test'],
+      expect.objectContaining({
+        cwd: expect.stringMatching(/[\\/]workspace$/)
+      })
+    )
+  })
+
+  it('rejects missing working directories before spawn can report a misleading shell ENOENT', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+    process.env.SHELL = '/bin/zsh'
+    vi.spyOn(fs, 'existsSync').mockImplementation(
+      (candidate) => !normalizedPath(candidate).endsWith('/missing/workspace')
+    )
+    vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
+      String(candidate) === '/bin/zsh' ? mockStats('file') : mockStats('directory')
+    )
+
+    await expect(
+      manager.start('conv-1', 'echo test', '/missing/workspace', { timeout: 0 })
+    ).rejects.toThrow('Working directory does not exist or is not accessible')
+
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('decodes split UTF-8 output from running sessions', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const result = await manager.start('conv-1', 'echo test', '/workspace', { timeout: 0 })
+    const bytes = Buffer.from('中文.txt\n', 'utf8')
+
+    child.stdout.emit('data', bytes.subarray(0, 2))
+    child.stdout.emit('data', bytes.subarray(2))
+    child.stdout.emit('end')
+    child.stderr.emit('end')
+    child.emit('close', 0, null)
+
+    await expect(
+      manager.waitForCompletionOrYield('conv-1', result.sessionId, 100)
+    ).resolves.toMatchObject({
+      kind: 'completed',
+      result: {
+        status: 'done',
+        output: '中文.txt\n',
+        exitCode: 0,
+        offloaded: false,
+        timedOut: false
+      }
+    })
+  })
+})
+
+describe('backgroundExecSessionManager utility proxy', () => {
+  const resetProxyState = () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.host = null
+    proxy.hostReady = null
+    proxy.shuttingDown = false
+    proxy.activeSessions.clear()
+    proxy.crashedSessions.clear()
+    proxy.pendingRequests.clear()
+  }
+
+  beforeEach(() => {
+    mockUtilityProcessFork.mockReset()
+    resetProxyState()
+  })
+
+  afterEach(() => {
+    resetProxyState()
+  })
+
+  it('forks the dedicated entrypoint for the utility host', async () => {
+    const host = new MockUtilityProcess()
+    mockUtilityProcessFork.mockReturnValue(host)
+
+    const startPromise = (backgroundExecSessionManager as any).startHost()
+    await vi.waitFor(() => {
+      expect(mockUtilityProcessFork).toHaveBeenCalled()
+    })
+    host.emit('spawn')
+
+    await expect(startPromise).resolves.toBe(host)
+    expect(mockUtilityProcessFork).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /[\\/]mock[\\/]app[\\/]out[\\/]main[\\/]backgroundExecUtilityHost\.js$/
+      ),
+      ['--deepchat-exec-utility-host'],
+      expect.objectContaining({
+        serviceName: 'DeepChat Exec Utility',
+        env: expect.objectContaining({
+          DEEPCHAT_EXEC_UTILITY_HOST: '1'
+        })
+      })
+    )
+  })
+
+  it('returns crashed completion results without starting a fresh utility host', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.crashedSessions.set('bg_crashed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_crashed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+
+    await expect(
+      backgroundExecSessionManager.waitForCompletionOrYield('conv-1', 'bg_crashed', 10)
+    ).resolves.toEqual({
+      kind: 'completed',
+      result: {
+        status: 'error',
+        output: expect.stringContaining('pnpm test'),
+        exitCode: null,
+        offloaded: false,
+        timedOut: false
+      }
+    })
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+  })
+
+  it('removes crashed sessions locally without RPC', async () => {
+    const proxy = backgroundExecSessionManager as any
+    proxy.crashedSessions.set('bg_crashed', {
+      conversationId: 'conv-1',
+      sessionId: 'bg_crashed',
+      command: 'pnpm test',
+      createdAt: 1,
+      lastAccessedAt: 1
+    })
+
+    await backgroundExecSessionManager.remove('conv-1', 'bg_crashed')
+
+    expect(proxy.crashedSessions.has('bg_crashed')).toBe(false)
+    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
   })
 })

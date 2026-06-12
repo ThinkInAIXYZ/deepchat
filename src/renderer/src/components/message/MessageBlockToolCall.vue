@@ -2,7 +2,7 @@
   <div class="flex flex-col w-full">
     <div
       data-testid="tool-call-trigger"
-      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-150 select-none cursor-pointer overflow-hidden bg-accent hover:bg-accent/40"
+      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40"
       @click="toggleExpanded"
     >
       <span
@@ -19,12 +19,8 @@
         <span
           v-if="summaryText"
           data-testid="tool-call-summary"
-          ref="summaryElement"
-          :class="[
-            'tool-call-summary text-[11px]',
-            { 'tool-call-summary--overflowing': isSummaryOverflowing }
-          ]"
-          :title="isSummaryOverflowing ? summaryText : undefined"
+          class="tool-call-summary text-[11px]"
+          :title="summaryText"
         >
           {{ summaryText }}
         </span>
@@ -36,14 +32,23 @@
       >
         {{ t('toolCall.badge.rtk') }}
       </span>
+      <span
+        v-if="hasImagePreviews"
+        data-testid="tool-call-image-badge"
+        class="inline-flex shrink-0 items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300"
+        :title="t('toolCall.imagePreviewCount', { count: imagePreviews.length })"
+      >
+        <Icon icon="lucide:image" class="h-3 w-3" />
+        {{ imagePreviews.length }}
+      </span>
     </div>
 
     <!-- 详细内容区域 -->
     <transition
-      enter-active-class="transition-all duration-200"
+      enter-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       enter-from-class="opacity-0 -translate-y-4 scale-95"
       enter-to-class="opacity-100 translate-y-0 scale-100"
-      leave-active-class="transition-all duration-200"
+      leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       leave-from-class="opacity-100 translate-y-0 scale-100"
       leave-to-class="opacity-0 -translate-y-4 scale-95"
     >
@@ -52,7 +57,43 @@
         data-testid="tool-call-details"
         class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full"
       >
-        <div class="flex flex-col gap-4">
+        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
+          <button
+            v-for="task in subagentTasks"
+            :key="task.normalizedId"
+            data-testid="subagent-task-trigger"
+            type="button"
+            :disabled="!task.sessionId"
+            :class="[
+              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
+              task.sessionId
+                ? 'bg-background hover:bg-accent/60'
+                : 'cursor-default bg-background/80 opacity-70'
+            ]"
+            @click.stop="handleSubagentSessionOpen(task)"
+          >
+            <span
+              :class="getSubagentStatusClass(task.status)"
+              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+            >
+              {{ getSubagentStatusLabel(task.status) }}
+            </span>
+            <span class="shrink-0 font-semibold text-foreground">
+              {{ task.targetAgentName }}
+            </span>
+            <span class="text-muted-foreground">·</span>
+            <span class="min-w-0 flex-1 truncate text-muted-foreground">
+              {{ task.title || task.label }}
+            </span>
+            <Icon
+              v-if="task.sessionId"
+              icon="lucide:chevron-right"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            />
+          </button>
+        </div>
+
+        <div v-else class="flex flex-col gap-4">
           <div
             v-if="expandedToolTitle"
             data-testid="tool-call-expanded-title"
@@ -71,7 +112,7 @@
                 {{ t('toolCall.params') }}
               </h5>
               <button
-                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
                 @click.stop="copyParams"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
@@ -101,7 +142,7 @@
                 {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
               </h5>
               <button
-                class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
                 @click.stop="copyResponse"
               >
                 <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
@@ -135,6 +176,8 @@
               >{{ responseText }}</pre
             >
           </div>
+
+          <MessageBlockToolCallImagePreview v-if="hasImagePreviews" :previews="imagePreviews" />
         </div>
       </div>
     </transition>
@@ -144,15 +187,21 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
+import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
+import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import { createDeviceClient } from '@api/DeviceClient'
+import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
+const sessionStore = useSessionStore()
+const deviceClient = createDeviceClient()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -164,39 +213,6 @@ type ExpansionSource = 'auto' | 'manual' | null
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-const normalizeInlineText = (value: string): string => value.replace(/\s+/g, ' ').trim()
-
-const extractFirstSummaryValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.length > 0 ? value[0] : ''
-  }
-  if (isRecord(value)) {
-    const entries = Object.entries(value)
-    return entries.length > 0 ? entries[0][1] : ''
-  }
-  return value
-}
-
-const formatSummaryValue = (value: unknown): string => {
-  if (typeof value === 'string') {
-    return normalizeInlineText(value)
-  }
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-    return String(value)
-  }
-  if (value === null) {
-    return 'null'
-  }
-  if (value === undefined) {
-    return ''
-  }
-  try {
-    return normalizeInlineText(JSON.stringify(value))
-  } catch {
-    return normalizeInlineText(String(value))
-  }
-}
 
 const coerceNumericParam = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -212,9 +228,6 @@ const coerceNumericParam = (value: unknown): number | null => {
 const isExpanded = ref(false)
 const expansionSource = ref<ExpansionSource>(null)
 const autoExpandDismissed = ref(false)
-const summaryElement = ref<HTMLElement | null>(null)
-const isSummaryOverflowing = ref(false)
-let summaryResizeObserver: ResizeObserver | null = null
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
@@ -252,6 +265,16 @@ const paramsText = computed(() => props.block.tool_call?.params ?? '')
 const responseText = computed(() => props.block.tool_call?.response ?? '')
 const hasParams = computed(() => paramsText.value.trim().length > 0)
 const hasResponse = computed(() => responseText.value.trim().length > 0)
+const imagePreviews = computed(() =>
+  (props.block.tool_call?.imagePreviews ?? []).filter(
+    (preview) =>
+      typeof preview.data === 'string' &&
+      preview.data.trim().length > 0 &&
+      typeof preview.mimeType === 'string' &&
+      preview.mimeType.trim().length > 0
+  )
+)
+const hasImagePreviews = computed(() => imagePreviews.value.length > 0)
 
 const parsedParams = computed(() => {
   const raw = paramsText.value.trim()
@@ -279,28 +302,101 @@ const parsedParamsRecord = computed(() =>
 )
 
 const rawToolName = computed(() => props.block.tool_call?.name?.trim().toLowerCase() ?? '')
+const isSubagentOrchestrator = computed(() => rawToolName.value === 'subagent_orchestrator')
+
+type SubagentProgressTask = {
+  normalizedId: string
+  taskId: string
+  title: string
+  label: string
+  slotId: string
+  sessionId?: string | null
+  targetAgentId?: string | null
+  targetAgentName: string
+  status: string
+  previewMarkdown?: string
+  updatedAt?: number
+  resultSummary?: string
+}
+
+type RawSubagentProgressTask = Partial<SubagentProgressTask> & {
+  displayName?: string
+}
+
+type SubagentProgressPayload = {
+  runId: string
+  mode: 'parallel' | 'chain'
+  tasks: RawSubagentProgressTask[]
+}
+
+const parseSubagentProgress = (value: unknown): SubagentProgressPayload | null => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(value) as SubagentProgressPayload
+    return Array.isArray(parsed?.tasks) ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 const matchesToolContractName = (toolName: string, expectedName: string): boolean =>
   toolName === expectedName || toolName.endsWith(`_${expectedName}`)
 
+const normalizeOptionalText = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : ''
+
 const summaryText = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    const progress =
+      parseSubagentProgress(props.block.extra?.subagentProgress) ??
+      parseSubagentProgress(props.block.extra?.subagentFinal)
+    if (progress) {
+      return t('chat.toolCall.subagents.summary', {
+        mode: getSubagentModeLabel(progress.mode),
+        count: progress.tasks.length
+      })
+    }
+  }
+
   const raw = paramsText.value.trim()
   if (!raw) return ''
-  if (!parsedParams.value.isJson) {
-    return normalizeInlineText(raw)
-  }
-  return formatSummaryValue(extractFirstSummaryValue(parsedParams.value.value))
+  return summarizeToolCallPreview(raw, { toolName: functionLabel.value })
 })
 
-const updateSummaryOverflow = () => {
-  const element = summaryElement.value
-  if (!element || !summaryText.value) {
-    isSummaryOverflowing.value = false
-    return
-  }
+const subagentTasks = computed<SubagentProgressTask[]>(() => {
+  const progress =
+    parseSubagentProgress(props.block.extra?.subagentProgress) ??
+    parseSubagentProgress(props.block.extra?.subagentFinal)
+  const unnamedAgentLabel = t('settings.deepchatAgents.unnamed')
+  const unnamedTaskLabel = t('chat.toolCall.subagents.unnamedTask')
 
-  isSummaryOverflowing.value = element.scrollWidth - element.clientWidth > 1
-}
+  return (progress?.tasks ?? []).map((task, index) => {
+    const slotId = normalizeOptionalText(task.slotId)
+    const displayName = normalizeOptionalText(task.displayName)
+    const normalizedId =
+      normalizeOptionalText(task.taskId) || slotId || `subagent-task-${index + 1}`
+    const label = displayName || slotId || unnamedTaskLabel
+    const title = normalizeOptionalText(task.title)
+
+    return {
+      ...task,
+      normalizedId,
+      taskId: normalizedId,
+      title,
+      label,
+      slotId: slotId || normalizedId,
+      sessionId: typeof task.sessionId === 'string' ? task.sessionId : (task.sessionId ?? null),
+      targetAgentId:
+        typeof task.targetAgentId === 'string' ? task.targetAgentId : (task.targetAgentId ?? null),
+      targetAgentName:
+        normalizeOptionalText(task.targetAgentName) || displayName || unnamedAgentLabel,
+      status: normalizeOptionalText(task.status) || 'running'
+    }
+  })
+})
 
 const isExecTool = computed(() => {
   const toolName = rawToolName.value
@@ -310,6 +406,9 @@ const isExecTool = computed(() => {
 const isProcessTool = computed(() => matchesToolContractName(rawToolName.value, 'process'))
 
 const shouldAutoExpand = computed(() => {
+  if (isSubagentOrchestrator.value) {
+    return props.block.status === 'loading'
+  }
   if (props.block.status !== 'loading') return false
   if (isProcessTool.value) return true
   if (!isExecTool.value || !parsedParamsRecord.value) return false
@@ -474,20 +573,6 @@ watch(toolCallIdentity, (nextIdentity, previousIdentity) => {
   }
 })
 
-watch(summaryElement, (nextElement, previousElement) => {
-  if (summaryResizeObserver && previousElement) {
-    summaryResizeObserver.unobserve(previousElement)
-  }
-  if (summaryResizeObserver && nextElement) {
-    summaryResizeObserver.observe(nextElement)
-  }
-  void nextTick(updateSummaryOverflow)
-})
-
-watch(summaryText, () => {
-  void nextTick(updateSummaryOverflow)
-})
-
 watch(
   [() => props.block.status, shouldAutoExpand],
   ([status, autoExpandable], previousValue) => {
@@ -496,39 +581,22 @@ watch(
   { immediate: true }
 )
 
-onMounted(() => {
-  if (typeof ResizeObserver !== 'undefined') {
-    summaryResizeObserver = new ResizeObserver(() => {
-      updateSummaryOverflow()
-    })
-
-    if (summaryElement.value) {
-      summaryResizeObserver.observe(summaryElement.value)
-    }
-  }
-
-  void nextTick(updateSummaryOverflow)
-})
-
-onBeforeUnmount(() => {
-  summaryResizeObserver?.disconnect()
-  summaryResizeObserver = null
-})
-
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))
+let paramsCopyResetTimer: number | null = null
+let responseCopyResetTimer: number | null = null
 
 const copyParams = async () => {
   if (!hasParams.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(paramsText.value)
-    } else {
-      await navigator.clipboard.writeText(paramsText.value)
-    }
+    deviceClient.copyText(paramsText.value)
     paramsCopyText.value = t('common.copySuccess')
-    setTimeout(() => {
+    if (paramsCopyResetTimer !== null) {
+      window.clearTimeout(paramsCopyResetTimer)
+    }
+    paramsCopyResetTimer = window.setTimeout(() => {
       paramsCopyText.value = t('common.copy')
+      paramsCopyResetTimer = null
     }, 2000)
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy params:', error)
@@ -538,17 +606,82 @@ const copyParams = async () => {
 const copyResponse = async () => {
   if (!hasResponse.value) return
   try {
-    if (window.api?.copyText) {
-      window.api.copyText(responseText.value)
-    } else {
-      await navigator.clipboard.writeText(responseText.value)
-    }
+    deviceClient.copyText(responseText.value)
     responseCopyText.value = t('common.copySuccess')
-    setTimeout(() => {
+    if (responseCopyResetTimer !== null) {
+      window.clearTimeout(responseCopyResetTimer)
+    }
+    responseCopyResetTimer = window.setTimeout(() => {
       responseCopyText.value = t('common.copy')
+      responseCopyResetTimer = null
     }, 2000)
   } catch (error) {
     console.error('[MessageBlockToolCall] Failed to copy response:', error)
+  }
+}
+
+const getSubagentStatusClass = (status: string): string => {
+  if (status === 'completed') {
+    return 'bg-emerald-500/10 text-emerald-600'
+  }
+  if (status === 'error' || status === 'cancelled') {
+    return 'bg-destructive/10 text-destructive'
+  }
+  if (status.startsWith('waiting')) {
+    return 'bg-amber-500/10 text-amber-600'
+  }
+  return 'bg-muted text-muted-foreground'
+}
+
+const handleSubagentSessionOpen = (task: SubagentProgressTask) => {
+  if (!task.sessionId) {
+    return
+  }
+
+  void sessionStore.selectSession(task.sessionId)
+}
+
+function getSubagentModeLabel(mode: string): string {
+  switch (mode) {
+    case 'parallel':
+      return t('chat.toolCall.subagents.mode.parallel')
+    case 'chain':
+      return t('chat.toolCall.subagents.mode.chain')
+    default:
+      return mode
+  }
+}
+
+onBeforeUnmount(() => {
+  if (paramsCopyResetTimer !== null) {
+    window.clearTimeout(paramsCopyResetTimer)
+    paramsCopyResetTimer = null
+  }
+
+  if (responseCopyResetTimer !== null) {
+    window.clearTimeout(responseCopyResetTimer)
+    responseCopyResetTimer = null
+  }
+})
+
+function getSubagentStatusLabel(status: string): string {
+  switch (status) {
+    case 'completed':
+      return t('chat.toolCall.subagents.status.completed')
+    case 'error':
+      return t('chat.toolCall.subagents.status.error')
+    case 'cancelled':
+      return t('chat.toolCall.subagents.status.cancelled')
+    case 'waiting_permission':
+      return t('chat.toolCall.subagents.status.waiting_permission')
+    case 'waiting_question':
+      return t('chat.toolCall.subagents.status.waiting_question')
+    case 'running':
+      return t('chat.toolCall.subagents.status.running')
+    case 'queued':
+      return t('chat.toolCall.subagents.status.queued')
+    default:
+      return status
   }
 }
 </script>
@@ -567,16 +700,12 @@ const copyResponse = async () => {
   min-width: 0;
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.2;
   padding-block: 1px;
   color: hsl(var(--muted-foreground) / 0.9);
   font-weight: 400;
-}
-
-.tool-call-summary--overflowing {
-  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
 }
 
 .tool-call-status-ring {

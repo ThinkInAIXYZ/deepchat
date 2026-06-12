@@ -2,7 +2,7 @@ import '../src/assets/main.css'
 import { createApp, defineComponent, h, ref } from 'vue'
 import { createI18n } from 'vue-i18n'
 import FloatingButton from './FloatingButton.vue'
-import locales from '../src/i18n'
+import locales, { pluralRules } from '../src/i18n'
 
 const RTL_LANGUAGES = new Set(['fa-IR', 'he-IL'])
 type FloatingLocale = keyof typeof locales
@@ -11,6 +11,7 @@ const i18n = createI18n({
   locale: 'zh-CN',
   fallbackLocale: 'en-US',
   legacy: false,
+  pluralRules,
   messages: locales
 })
 

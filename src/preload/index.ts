@@ -9,27 +9,19 @@ import {
   shell
 } from 'electron'
 import { exposeElectronAPI } from '@electron-toolkit/preload'
+import { normalizeExternalUrl } from '@shared/externalUrl'
+import { createBridge } from './createBridge'
 
-const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:', 'deepchat:']
 const isDevHiddenApiEnabled =
   process.env.NODE_ENV === 'development' || Boolean(process.env.ELECTRON_RENDERER_URL)
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
-
-const isValidExternalUrl = (url: string): boolean => {
-  try {
-    const parsed = new URL(url)
-    return ALLOWED_PROTOCOLS.includes(parsed.protocol.toLowerCase())
-  } catch {
-    return false
-  }
-}
 
 // Cache variables
 let cachedWindowId: number | undefined = undefined
 let cachedWebContentsId: number | undefined = undefined
 
 // Custom APIs for renderer
-const api = {
+const api = Object.freeze({
   copyText: (text: string) => {
     clipboard.writeText(text)
   },
@@ -58,11 +50,12 @@ const api = {
     return cachedWebContentsId
   },
   openExternal: (url: string) => {
-    if (!isValidExternalUrl(url)) {
+    const externalUrl = normalizeExternalUrl(url)
+    if (!externalUrl) {
       console.warn('Preload: Blocked openExternal for disallowed URL:', url)
       return Promise.reject(new Error('URL protocol not allowed'))
     }
-    return shell.openExternal(url)
+    return shell.openExternal(externalUrl)
   },
   toRelativePath: (filePath: string, baseDir?: string) => {
     if (!baseDir) return filePath
@@ -103,7 +96,7 @@ const api = {
     // Fallback: no spaces but contains single quotes
     return `'${filePath.replace(/'/g, `'\\''`)}'`
   }
-}
+})
 
 const setDevWelcomeOverride = (enabled: boolean) => {
   try {
@@ -118,7 +111,7 @@ const setDevWelcomeOverride = (enabled: boolean) => {
 }
 
 const deepchatDevApi = isDevHiddenApiEnabled
-  ? {
+  ? Object.freeze({
       goToWelcome: () => {
         setDevWelcomeOverride(true)
         window.location.hash = '/welcome'
@@ -128,8 +121,9 @@ const deepchatDevApi = isDevHiddenApiEnabled
         setDevWelcomeOverride(false)
         return true
       }
-    }
+    })
   : undefined
+const deepchatBridge = Object.freeze(createBridge(ipcRenderer))
 
 exposeElectronAPI()
 
@@ -139,6 +133,7 @@ exposeElectronAPI()
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('deepchat', deepchatBridge)
     if (deepchatDevApi) {
       contextBridge.exposeInMainWorld('__deepchatDev', deepchatDevApi)
     }
@@ -148,6 +143,8 @@ if (process.contextIsolated) {
 } else {
   // @ts-ignore (define in dts)
   window.api = api
+  // @ts-ignore (define in dts)
+  window.deepchat = deepchatBridge
   if (deepchatDevApi) {
     // @ts-ignore (define in dts)
     window.__deepchatDev = deepchatDevApi

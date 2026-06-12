@@ -23,6 +23,9 @@ const mountComponent = async (options?: {
   status?: 'none' | 'working' | 'completed' | 'error'
   heroHidden?: boolean
   pinFeedbackMode?: 'pinning' | 'unpinning' | null
+  searchQuery?: string
+  shortcutBadgeLabel?: string | null
+  shortcutBadgeVisible?: boolean
 }) => {
   vi.resetModules()
 
@@ -41,7 +44,10 @@ const mountComponent = async (options?: {
       active: false,
       region: options?.isPinned ? 'pinned' : 'grouped',
       heroHidden: options?.heroHidden ?? false,
-      pinFeedbackMode: options?.pinFeedbackMode ?? null
+      pinFeedbackMode: options?.pinFeedbackMode ?? null,
+      searchQuery: options?.searchQuery ?? '',
+      shortcutBadgeLabel: options?.shortcutBadgeLabel ?? null,
+      shortcutBadgeVisible: options?.shortcutBadgeVisible ?? false
     },
     global: {
       stubs: {
@@ -101,7 +107,7 @@ describe('WindowSideBarSessionItem', () => {
     expect(wrapper.find('[aria-label="thread.actions.pin"]').exists()).toBe(true)
   }, 10000)
 
-  it('exposes hero transition and pin feedback state on the rendered item', async () => {
+  it('exposes hero transition class and pin feedback state on the rendered item', async () => {
     const wrapper = await mountComponent({
       isPinned: true,
       heroHidden: true,
@@ -109,11 +115,59 @@ describe('WindowSideBarSessionItem', () => {
     })
 
     const item = wrapper.find('.session-item')
-    const pinButton = wrapper.find('.pin-button')
 
     expect(item.attributes('data-pin-fx')).toBe('pinning')
     expect(item.attributes('data-session-id')).toBe('session-1')
-    expect(item.attributes('data-hero-hidden')).toBe('true')
-    expect(pinButton.attributes('data-pin-fx')).toBe('pinning')
+    expect(item.classes()).toContain('is-hero-hidden')
+    expect(item.attributes('data-pin-state')).toBe('docked')
+  }, 10000)
+
+  it('keeps the pin layout docked while unpinning feedback is active', async () => {
+    const wrapper = await mountComponent({
+      isPinned: false,
+      pinFeedbackMode: 'unpinning'
+    })
+
+    expect(wrapper.find('.session-item').attributes('data-pin-state')).toBe('docked')
+  }, 10000)
+
+  it('highlights matching title fragments when filtering the sidebar', async () => {
+    const wrapper = await mountComponent({
+      searchQuery: 'Title'
+    })
+
+    const highlight = wrapper.find('.session-title__highlight')
+    expect(highlight.exists()).toBe(true)
+    expect(highlight.text()).toBe('Title')
+  }, 10000)
+
+  it('renders shortcut badges independently from the delete action', async () => {
+    const badgeWrapper = await mountComponent({
+      shortcutBadgeLabel: '⌘2',
+      shortcutBadgeVisible: true
+    })
+
+    const badge = badgeWrapper.find('[data-testid="sidebar-session-shortcut-badge"]')
+
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('⌘2')
+    expect(badge.attributes('aria-label')).toBe('thread.actions.switchWithShortcut')
+    expect(badgeWrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(false)
+    expect(badgeWrapper.find('.right-button').attributes('data-shortcut-badge-visible')).toBe(
+      'true'
+    )
+
+    const normalWrapper = await mountComponent({
+      shortcutBadgeLabel: '⌘2',
+      shortcutBadgeVisible: false
+    })
+
+    expect(normalWrapper.find('[data-testid="sidebar-session-shortcut-badge"]').exists()).toBe(
+      false
+    )
+    expect(normalWrapper.find('[aria-label="thread.actions.delete"]').exists()).toBe(true)
+    expect(
+      normalWrapper.find('.right-button').attributes('data-shortcut-badge-visible')
+    ).toBeUndefined()
   }, 10000)
 })

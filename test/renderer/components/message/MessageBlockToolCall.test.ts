@@ -4,29 +4,42 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
-const originalResizeObserver = globalThis.ResizeObserver
-let resizeObserverCallback: ResizeObserverCallback | null = null
-
-class MockResizeObserver {
-  constructor(callback: ResizeObserverCallback) {
-    resizeObserverCallback = callback
-  }
-
-  observe() {}
-
-  unobserve() {}
-
-  disconnect() {}
-}
+const { selectSessionMock } = vi.hoisted(() => ({
+  selectSessionMock: vi.fn()
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { count?: number }) => {
+    t: (key: string, params?: { count?: number; mode?: string }) => {
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
       if (key === 'toolCall.badge.rtk') {
         return 'RTK'
+      }
+      if (key === 'chat.toolCall.subagents.summary') {
+        return `${params?.mode ?? 'mode'} · ${params?.count ?? 0} localized subagents`
+      }
+      if (key === 'chat.toolCall.subagents.mode.parallel') {
+        return 'localized parallel'
+      }
+      if (key === 'chat.toolCall.subagents.mode.chain') {
+        return 'localized chain'
+      }
+      if (key === 'chat.toolCall.subagents.status.running') {
+        return 'localized running'
+      }
+      if (key === 'chat.toolCall.subagents.status.waiting_permission') {
+        return 'localized waiting permission'
+      }
+      if (key === 'chat.toolCall.subagents.status.completed') {
+        return 'localized completed'
+      }
+      if (key === 'chat.toolCall.subagents.unnamedTask') {
+        return 'Unnamed Task'
+      }
+      if (key === 'settings.deepchatAgents.unnamed') {
+        return 'Unnamed Agent'
       }
       return key
     }
@@ -36,6 +49,12 @@ vi.mock('vue-i18n', () => ({
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => ({
     isDark: false
+  })
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    selectSession: selectSessionMock
   })
 }))
 
@@ -75,18 +94,11 @@ const createBlock = (
 })
 
 beforeEach(() => {
-  resizeObserverCallback = null
-  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+  selectSessionMock.mockReset()
 })
 
 afterEach(() => {
-  if (originalResizeObserver) {
-    globalThis.ResizeObserver = originalResizeObserver
-    return
-  }
-
-  delete (globalThis as typeof globalThis & { ResizeObserver?: typeof ResizeObserver })
-    .ResizeObserver
+  selectSessionMock.mockReset()
 })
 
 describe('MessageBlockToolCall', () => {
@@ -133,6 +145,74 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.find('pre').text()).toContain('plain output')
   })
 
+  it('renders image previews below params and response only after expansion', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"path":"/tmp/screenshot.png"}',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'file_read-1',
+                data: 'imgcache://screenshot.png',
+                mimeType: 'image/png',
+                title: 'screenshot.png',
+                source: 'file_read'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-image-badge"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="tool-call-image-preview"]').exists()).toBe(false)
+
+    await wrapper.find('div.inline-flex').trigger('click')
+
+    const params = wrapper.get('[data-testid="tool-call-params"]')
+    const response = wrapper.get('pre')
+    const preview = wrapper.get('[data-testid="tool-call-image-preview"]')
+    const paramsBeforeResponse = Boolean(
+      params.element.compareDocumentPosition(response.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    const responseBeforePreview = Boolean(
+      response.element.compareDocumentPosition(preview.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+    expect(paramsBeforeResponse).toBe(true)
+    expect(responseBeforePreview).toBe(true)
+    expect(preview.get('img').attributes('src')).toBe('imgcache://screenshot.png')
+  })
+
+  it('sanitizes unsafe deepchat image URLs', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'unsafe-url-1',
+                data: 'javascript:alert(1)',
+                mimeType: 'deepchat/image-url',
+                title: 'unsafe.png',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    await wrapper.find('div.inline-flex').trigger('click')
+
+    expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
+  })
+
   it('shows the first string parameter value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -146,6 +226,51 @@ describe('MessageBlockToolCall', () => {
     })
 
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
+  })
+
+  it('prefers path over offset in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"offset":5000,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over limit in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"limit":200,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over content in write summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'write',
+            params: '{"content":"hello world","path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
   })
 
   it('uses the first query value as summary text', () => {
@@ -200,7 +325,7 @@ describe('MessageBlockToolCall', () => {
     )
   })
 
-  it('only adds the summary fade when the text actually overflows', async () => {
+  it('always exposes the full summary in the title attribute', () => {
     const summaryValue = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -217,21 +342,6 @@ describe('MessageBlockToolCall', () => {
 
     const summary = wrapper.get('[data-testid="tool-call-summary"]')
 
-    expect(summary.classes()).not.toContain('tool-call-summary--overflowing')
-
-    Object.defineProperty(summary.element, 'clientWidth', {
-      configurable: true,
-      value: 80
-    })
-    Object.defineProperty(summary.element, 'scrollWidth', {
-      configurable: true,
-      value: 160
-    })
-
-    resizeObserverCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver)
-    await nextTick()
-
-    expect(summary.classes()).toContain('tool-call-summary--overflowing')
     expect(summary.attributes('title')).toBe(summaryValue)
   })
 
@@ -307,6 +417,21 @@ describe('MessageBlockToolCall', () => {
 
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
     expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('prefers command over earlier boolean fields in exec summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"background":true,"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
   })
 
   it('renders raw params in the expanded panel', async () => {
@@ -615,5 +740,114 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('localizes subagent orchestrator summary and statuses', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-1',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-1',
+              mode: 'parallel',
+              tasks: [
+                {
+                  taskId: 'task-1',
+                  title: 'Inspect repo',
+                  slotId: 'slot-1',
+                  sessionId: 'child-1',
+                  targetAgentName: 'ACP Coder',
+                  status: 'running',
+                  previewMarkdown: 'line 1'
+                },
+                {
+                  taskId: 'task-2',
+                  title: 'Request approval',
+                  slotId: 'slot-2',
+                  sessionId: 'child-2',
+                  targetAgentName: 'Self Clone',
+                  status: 'waiting_permission',
+                  previewMarkdown: 'line 2'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.text()).toContain('localized parallel · 2 localized subagents')
+    expect(wrapper.text()).toContain('localized running')
+    expect(wrapper.text()).toContain('localized waiting permission')
+    expect(wrapper.findAll('[data-testid="subagent-task-trigger"]')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('line 1')
+    expect(wrapper.text()).not.toContain('line 2')
+    expect(wrapper.text()).not.toContain('common.open')
+
+    await wrapper.get('[data-testid="subagent-task-trigger"]').trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+  })
+
+  it('normalizes subagent task identifiers and fallback labels', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-2',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-2',
+              mode: 'parallel',
+              tasks: [
+                {
+                  slotId: 'slot-alpha',
+                  displayName: 'Planner',
+                  sessionId: 'child-alpha',
+                  status: 'running'
+                },
+                {
+                  slotId: 'slot-beta',
+                  sessionId: null,
+                  status: 'completed'
+                },
+                {
+                  sessionId: null,
+                  status: 'completed'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    const tasks = wrapper.findAll('[data-testid="subagent-task-trigger"]')
+    expect(tasks).toHaveLength(3)
+    expect(tasks[0].text()).toContain('Planner')
+    expect(tasks[1].text()).toContain('Unnamed Agent')
+    expect(tasks[1].text()).toContain('slot-beta')
+    expect(tasks[2].text()).toContain('Unnamed Agent')
+    expect(tasks[2].text()).toContain('Unnamed Task')
+
+    await tasks[0].trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
   })
 })

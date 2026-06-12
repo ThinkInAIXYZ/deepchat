@@ -24,10 +24,20 @@
     "acpMode": "Mode",
     "acpModeTooltip": "Mode actuel : {mode}",
     "agentWorkspaceCurrent": "Répertoire de travail actuel : {path}",
+    "workspaceUnavailableTooltip": "Le répertoire n’existe pas ou est inaccessible : {path}",
     "agentWorkspaceSelect": "Sélectionnez le répertoire de travail",
     "agentWorkspaceTooltip": "Définir le répertoire de travail de l'agent",
     "attach": "Joindre",
     "voiceInput": "Saisie vocale",
+    "voiceInputStop": "Arrêter la saisie vocale",
+    "voiceRecognitionUnsupportedTitle": "L'environnement actuel ne prend pas en charge la reconnaissance vocale",
+    "voiceRecognitionUnsupportedDescription": "Utilisez cette fonctionnalité dans un navigateur ou un environnement de bureau compatible avec la reconnaissance vocale.",
+    "voiceRecognitionPermissionDeniedTitle": "Impossible d'accéder au microphone",
+    "voiceRecognitionPermissionDeniedDescription": "Autorisez DeepChat à utiliser le microphone puis réessayez.",
+    "voiceRecognitionErrorTitle": "Échec de la reconnaissance vocale",
+    "voiceRecognitionErrorDescription": "La reconnaissance vocale n'a pas pu être terminée. Réessayez plus tard.",
+    "send": "Envoyer",
+    "steer": "Guider",
     "queue": "Ajouter à la file",
     "stop": "Arrêter",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "Outils intégrés",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "Génération d'images",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Échec du traitement de la pièce jointe",
+    "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
+    "fileUploadFailedMore": " et {count} de plus",
+    "unnamedFile": "fichier sans nom",
+    "audioInputUnsupportedTitle": "Le modèle actuel ne prend pas en charge les pièces jointes audio",
+    "audioInputUnsupportedDescription": "Le modèle {model} ne prend pas en charge l'entrée audio. {count} pièce(s) jointe(s) audio ont été ignorées."
   },
   "pendingInput": {
     "steer": "Guidage",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "Pensée...",
     "rateLimitWaiting": "Limitation de débit, en attente dans la file...",
+    "rateLimitCompactLoading": "Limité par le débit ({seconds}s)",
     "rateLimitTitle": "Limitation de débit des requêtes",
     "rateLimitQueue": "Position dans la file",
     "rateLimitEstimated": "Temps d'attente estimé",
@@ -110,7 +129,24 @@
     "clickToView": "Cliquer pour voir les détails",
     "functionName": "Nom de la fonction",
     "params": "Paramètres",
-    "responseData": "Données de réponse"
+    "responseData": "Données de réponse",
+    "subagents": {
+      "summary": "{mode} · {count} sous-agents",
+      "unnamedTask": "Tâche sans nom",
+      "mode": {
+        "parallel": "Parallèle",
+        "chain": "En chaîne"
+      },
+      "status": {
+        "queued": "En attente",
+        "running": "En cours",
+        "completed": "Terminé",
+        "error": "Erreur",
+        "cancelled": "Annulé",
+        "waiting_permission": "En attente d'autorisation",
+        "waiting_question": "En attente d'entrée"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Agent ACP",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "Partager",
-    "more": "Plus"
+    "more": "Plus",
+    "backToParent": "Retour à la session parente"
   },
   "advancedSettings": {
     "button": "Avancé",
@@ -128,6 +165,9 @@
     "systemPrompt": "Prompt système",
     "systemPromptPlaceholder": "Sélectionner un préréglage",
     "temperature": "Température",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
+    "topP": "Top P",
+    "topPDescription": "Échantillonnage nucleus ; laissez vide pour utiliser la valeur par défaut du fournisseur",
     "contextLength": "Longueur du contexte",
     "maxTokens": "Jetons max",
     "thinkingBudget": "Budget de réflexion",
@@ -144,15 +184,18 @@
       "finiteNumber": "Doit être un nombre fini",
       "nonNegativeInteger": "Doit être un entier positif ou nul",
       "contextLengthAtLeastMaxTokens": "Doit être supérieur ou égal au nombre maximal de tokens",
-      "maxTokensWithinContextLength": "Doit être inférieur ou égal à la longueur de contexte"
+      "maxTokensWithinContextLength": "Doit être inférieur ou égal à la longueur de contexte",
+      "topPRange": "Doit être supérieur à 0 et inférieur ou égal à 1"
     }
   },
   "workspace": {
     "collapse": "fermer",
+    "expand": "Développer",
     "sections": {
       "files": "Fichiers",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Sous-agents"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "Aucun fichier pour l'instant",
       "loading": "Chargement des fichiers...",
-      "section": "document"
+      "section": "document",
+      "noWorkspace": {
+        "title": "Aucun espace de travail",
+        "description": "Sélectionnez ou faites glisser un dossier pour définir l'espace de travail",
+        "button": "Sélectionner un dossier"
+      }
     },
     "git": {
       "empty": "Aucun diff disponible",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "Aucune tâche pour l'instant",
       "section": "plan",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Complété",
         "failed": "échouer",
@@ -206,10 +255,20 @@
         "truncated": "[Tronqué]"
       }
     },
-    "title": "espace de travail"
+    "title": "espace de travail",
+    "subagents": {
+      "empty": "Aucune session enfant pour le moment",
+      "self": "Cet agent",
+      "status": {
+        "working": "En cours",
+        "error": "Erreur",
+        "idle": "Inactif"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "Aucun modèle trouvé"
+    "empty": "Aucun modèle trouvé",
+    "audioInputSupported": "Entrée audio prise en charge"
   },
   "audio": {
     "play": "Lire",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "Compactage automatique du contexte...",
-    "compacted": "Le contexte a été compacté automatiquement"
+    "compacting": "Compactage du contexte...",
+    "compacted": "Le contexte a été compacté",
+    "commandDescription": "Compacter le contexte de conversation",
+    "noopTitle": "Aucun contexte à compacter",
+    "noopDescription": "Il n'y a pas encore de nouvel historique de conversation à compacter.",
+    "failedTitle": "Échec de la compaction"
   },
   "newThread": {
     "title": "Créer et explorer"
@@ -248,6 +311,10 @@
     "allAgents": "Tous les agents",
     "expandSidebar": "Développer la barre latérale",
     "collapseSidebar": "Réduire la barre latérale",
+    "themeToggle": "Changer de thème",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "themeSystem": "Système",
     "remoteControlStatus": {
       "disabled": "Contrôle à distance désactivé",
       "stopped": "Contrôle à distance arrêté",
@@ -261,12 +328,16 @@
     "pinned": "Épinglés",
     "emptyTitle": "Aucune conversation pour le moment",
     "emptyDescription": "Commencez une nouvelle discussion pour démarrer",
-    "remoteControlDisabled": "Désactivé"
+    "remoteControlDisabled": "Désactivé",
+    "searchPlaceholder": "Rechercher des chats",
+    "searchAriaLabel": "Rechercher des chats",
+    "searchEmptyTitle": "Aucune conversation correspondante",
+    "searchEmptyDescription": "Essayez un autre mot-clé de titre"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Aperçu des tâches",
     "collapse": "Réduire les sessions flottantes",
-    "empty": "Aucune session DeepChat pour le moment",
+    "empty": "Aucune session d'agent pour le moment",
     "executing": "actif",
     "sessionCount": "{count} sessions",
     "untitled": "Nouvelle discussion",
@@ -274,6 +345,77 @@
       "inProgress": "En cours",
       "done": "Terminée",
       "error": "Erreur"
+    }
+  },
+  "subagents": {
+    "label": "Sous-agents"
+  },
+  "spotlight": {
+    "placeholder": "Rechercher des discussions, agents, paramètres et actions…",
+    "searching": "Recherche…",
+    "emptyTitle": "Aucun résultat correspondant",
+    "emptyDescription": "Essayez un autre mot-clé ou ouvrez une session récente.",
+    "hints": "↑↓ déplacer · Entrée ouvrir · Échap fermer · Home/End aller",
+    "kind": {
+      "session": "Session",
+      "message": "Message",
+      "agent": "Agent",
+      "setting": "Paramètre",
+      "action": "Action"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Rechercher dans la conversation",
+    "ariaLabel": "Rechercher dans la conversation actuelle",
+    "previous": "Résultat précédent",
+    "next": "Résultat suivant",
+    "close": "Fermer la recherche"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Passer à l’agent DeepChat",
+      "description": "Avant de discuter, quittez ACP et revenez au flux intégré de DeepChat.",
+      "caption": "Cliquez sur le bouton d’agent mis en évidence dans la barre latérale pour continuer."
+    },
+    "switchModel": {
+      "description": "Choisissez le modèle à utiliser pour votre première conversation DeepChat.",
+      "caption": "Utilisez le sélecteur de modèle mis en évidence et choisissez n’importe quel modèle disponible."
+    },
+    "firstChat": {
+      "description": "Tout est prêt. Saisissez ici votre premier message pour terminer l’onboarding.",
+      "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Brouillon de compétence",
+    "confirmationQuestion": "Un brouillon de compétence a été généré : {name}",
+    "previewTitle": "Aperçu du contenu du brouillon",
+    "actions": {
+      "view": "Afficher le contenu",
+      "viewDescription": "Prévisualiser le contenu SKILL.md du brouillon",
+      "install": "Installer comme compétence",
+      "installDescription": "L’importer dans le dossier des compétences pour gestion",
+      "discard": "Ignorer",
+      "discardDescription": "Supprimer ce brouillon temporaire"
+    },
+    "result": {
+      "viewed": "L’aperçu du contenu du brouillon est ouvert. Choisissez de l’installer ou de l’ignorer.",
+      "installed": "Brouillon de compétence installé : {name}",
+      "discarded": "Brouillon de compétence ignoré.",
+      "failed": "Impossible de traiter le brouillon de compétence : {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "A travaillé pendant {duration}",
+    "reasoningCount": "{count} réflexion(s)",
+    "toolCallCount": "{count} appel(s) d'outil",
+    "expandLabel": "Développer {title}",
+    "collapseLabel": "Réduire {title}",
+    "duration": {
+      "day": "j ",
+      "hour": "h ",
+      "minute": "min ",
+      "second": "s"
     }
   }
 }

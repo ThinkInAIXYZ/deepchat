@@ -428,4 +428,31 @@ describe('BrowserTab', () => {
     await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
     expect(tab.status).toBe(BrowserPageStatus.Ready)
   })
+
+  it('does not touch debugger state after webContents is already destroyed', () => {
+    const { tab, webContents } = createTab()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    webContents.destroyed = true
+    Object.defineProperty(webContents, 'debugger', {
+      get: () => {
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+
+    expect(() => tab.destroy()).not.toThrow()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('suppresses debugger detach races caused by destroyed Electron objects', () => {
+    const { tab, webContents } = createTab()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    Object.defineProperty(webContents, 'debugger', {
+      get: () => {
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+
+    expect(() => tab.destroy()).not.toThrow()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
 })

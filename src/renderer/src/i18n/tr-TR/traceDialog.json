@@ -1,0 +1,17 @@
+{
+  "title": "Önizleme İste",
+  "provider": "sağlayıcı",
+  "model": "Modeli",
+  "endpoint": "API Uç nokta",
+  "headers": "Başlıklar",
+  "body": "Talep Gövdesi",
+  "copyJson": "JSON kopyala",
+  "copySuccess": "Panoya kopyalandı",
+  "close": "Kapalı",
+  "loading": "Yükleniyor...",
+  "error": "Yüklenemedi",
+  "errorDesc": "İstek önizlemesi getirilemiyor, lütfen tekrar deneyin",
+  "notImplemented": "Desteklenmiyor",
+  "notImplementedDesc": "Bu sağlayıcı henüz istek önizlemesini uygulamadı",
+  "mayNotMatch": "Not: Bu önizleme mevcut görüşme ayarlarından yeniden oluşturulmuştur ve gerçek istek parametreleriyle tam olarak eşleşmeyebilir"
+}

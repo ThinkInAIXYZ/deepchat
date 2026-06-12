@@ -113,6 +113,14 @@ export class DeepChatMessagesTable extends BaseTable {
       .run(status, Date.now(), messageId)
   }
 
+  incrementOrderSeqFrom(sessionId: string, fromOrderSeq: number): void {
+    this.db
+      .prepare(
+        'UPDATE deepchat_messages SET order_seq = order_seq + 1, updated_at = ? WHERE session_id = ? AND order_seq >= ?'
+      )
+      .run(Date.now(), sessionId, fromOrderSeq)
+  }
+
   updateContentAndStatus(
     messageId: string,
     content: string,
@@ -148,6 +156,60 @@ export class DeepChatMessagesTable extends BaseTable {
          ORDER BY m.order_seq`
       )
       .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  listPageBySession(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: {
+        orderSeq: number
+        id: string
+      } | null
+    }
+  ): DeepChatMessageRow[] {
+    // Allow the internal helper to fetch one extra row for hasMore detection while
+    // keeping the public page size contract capped at 500.
+    const limit = Math.min(Math.max(Math.floor(options?.limit ?? 100), 1), 501)
+    const cursor = options?.cursor ?? null
+
+    if (!cursor) {
+      return this.db
+        .prepare(
+          `SELECT
+             m.*,
+             COALESCE((
+               SELECT COUNT(*)
+               FROM deepchat_message_traces t
+               WHERE t.message_id = m.id
+             ), 0) AS trace_count
+           FROM deepchat_messages m
+           WHERE m.session_id = ?
+           ORDER BY m.order_seq DESC, m.id DESC
+           LIMIT ?`
+        )
+        .all(sessionId, limit) as DeepChatMessageRow[]
+    }
+
+    return this.db
+      .prepare(
+        `SELECT
+           m.*,
+           COALESCE((
+             SELECT COUNT(*)
+             FROM deepchat_message_traces t
+             WHERE t.message_id = m.id
+           ), 0) AS trace_count
+         FROM deepchat_messages m
+         WHERE m.session_id = ?
+           AND (
+             m.order_seq < ?
+             OR (m.order_seq = ? AND m.id < ?)
+           )
+         ORDER BY m.order_seq DESC, m.id DESC
+         LIMIT ?`
+      )
+      .all(sessionId, cursor.orderSeq, cursor.orderSeq, cursor.id, limit) as DeepChatMessageRow[]
   }
 
   getBySessionUpToOrderSeq(sessionId: string, maxOrderSeq: number): DeepChatMessageRow[] {

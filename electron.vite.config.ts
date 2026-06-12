@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import svgLoader from 'vite-svg-loader'
@@ -9,14 +9,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 const isCustomElement = (tag: string) =>
   tag === 'voice-agent-widget' || tag.startsWith('ui-resource-renderer')
+const isVueDevToolsOverlayEnabled = process.env.DEEPCHAT_VUE_DEVTOOLS_OVERLAY !== '0'
 
 export default defineConfig({
   main: {
-    plugins: [
-      externalizeDepsPlugin({
-        exclude: ['mermaid']
-      }),
-    ],
     resolve: {
       alias: {
         '@': resolve('src/main/'),
@@ -24,17 +20,24 @@ export default defineConfig({
       }
     },
     build: {
+      externalizeDeps: {
+        exclude: ['mermaid']
+      },
       rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts')
+        },
         external: ['sharp', '@duckdb/node-api'],
         output: {
-          inlineDynamicImports: true,
-          manualChunks: undefined,  // Disable automatic chunk splitting
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
+          manualChunks: undefined
         }
       }
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
@@ -44,17 +47,15 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          floating: resolve('src/preload/floating-preload.ts')
+          splash: resolve('src/preload/splash-preload.ts'),
+          floating: resolve('src/preload/floating-preload.ts'),
+          browserOverlay: resolve('src/preload/browser-overlay-preload.ts'),
+          pluginSettings: resolve('src/preload/plugin-settings-preload.ts')
         }
       }
     }
   },
   renderer: {
-    define: {
-      'import.meta.env.VITE_ENABLE_PLAYGROUND': JSON.stringify(
-        process.env.VITE_ENABLE_PLAYGROUND ?? 'false'
-      )
-    },
     optimizeDeps: {
       exclude: ['markstream-vue', 'stream-monaco'],
       include: [
@@ -66,6 +67,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
+        '@api': resolve('src/renderer/api'),
         '@shared': resolve('src/shared'),
         "@shadcn": resolve('src/shadcn'),
         vue: 'vue/dist/vue.esm-bundler.js'
@@ -77,7 +79,29 @@ export default defineConfig({
     plugins: [
       tailwindcss(),
       monacoEditorPlugin({
-        languageWorkers: ['editorWorkerService', 'typescript', 'css', 'html', 'json'],
+        languageWorkers: [],
+        customWorkers: [
+          {
+            label: 'editorWorkerService',
+            entry: 'monaco-editor/esm/vs/editor/editor.worker.js',
+          },
+          {
+            label: 'typescript',
+            entry: 'monaco-editor/esm/vs/language/typescript/ts.worker.js',
+          },
+          {
+            label: 'css',
+            entry: 'monaco-editor/esm/vs/language/css/css.worker.js',
+          },
+          {
+            label: 'html',
+            entry: 'monaco-editor/esm/vs/language/html/html.worker.js',
+          },
+          {
+            label: 'json',
+            entry: 'monaco-editor/esm/vs/language/json/json.worker.js',
+          },
+        ],
         customDistPath(_root, buildOutDir, _base) {
           return path.resolve(buildOutDir, 'monacoeditorwork')
         },
@@ -90,12 +114,14 @@ export default defineConfig({
         }
       }),
       svgLoader(),
-      vueDevTools(
-        {
-          appendTo:'src/renderer/src/main.ts'
-          // appendTo:'src/renderer/browser/main.ts'
-        }
-      )
+      ...(isVueDevToolsOverlayEnabled
+        ? [
+            vueDevTools({
+              appendTo: 'src/renderer/src/main.ts'
+              // appendTo:'src/renderer/browser/main.ts'
+            })
+          ]
+        : [])
     ],
     worker: {
       format: 'es'
@@ -109,6 +135,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
+          browserOverlay: resolve('src/renderer/browser-overlay/index.html'),
           floating: resolve('src/renderer/floating/index.html'),
           splash: resolve('src/renderer/splash/index.html'),
           settings: resolve('src/renderer/settings/index.html')

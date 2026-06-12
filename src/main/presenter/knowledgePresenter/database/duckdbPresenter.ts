@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * DuckDB 数据库 Presenter
  */
@@ -44,7 +45,7 @@ const MIGRATIONS: DatabaseMigration[] = [
     description: 'Initial database schema',
     up: async (_presenter: DuckDBPresenter) => {
       // 初始版本的迁移在 initialize 方法中已经处理
-      console.log('[DuckDB Migration] Applied initial schema (v1)')
+      logger.info('[DuckDB Migration] Applied initial schema (v1)')
     }
   }
   // 未来的迁移示例：
@@ -80,28 +81,28 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
 
   async initialize(dimensions: number, opts?: IndexOptions): Promise<void> {
     try {
-      console.log(`[DuckDB] Initializing DuckDB database at ${this.dbPath}`)
+      logger.info(`[DuckDB] Initializing DuckDB database at ${this.dbPath}`)
       if (fs.existsSync(this.dbPath)) {
         console.error(`[DuckDB] Database ${this.dbPath} already exists`)
         throw new Error('Database already exists, cannot initialize again.')
       }
-      console.log(`[DuckDB] connect to db`)
+      logger.info(`[DuckDB] connect to db`)
       await this.create()
-      console.log(`[DuckDB] load vss extension`)
+      logger.info(`[DuckDB] load vss extension`)
       await this.installAndLoadExtension('vss', async () => {
         await this.safeRun(`SET hnsw_enable_experimental_persistence = true;`)
       })
-      console.log(`[DuckDB] create metadata table`)
+      logger.info(`[DuckDB] create metadata table`)
       await this.initMetadataTable()
-      console.log(`[DuckDB] create file table`)
+      logger.info(`[DuckDB] create file table`)
       await this.initFileTable()
-      console.log(`[DuckDB] create chunk table`)
+      logger.info(`[DuckDB] create chunk table`)
       await this.initChunkTable()
-      console.log(`[DuckDB] create vector table`)
+      logger.info(`[DuckDB] create vector table`)
       await this.initVectorTable(dimensions)
-      console.log(`[DuckDB] create vector index`)
+      logger.info(`[DuckDB] create vector index`)
       await this.initTableIndex(opts)
-      console.log(`[DuckDB] set initial database version`)
+      logger.info(`[DuckDB] set initial database version`)
       await this.setDatabaseVersion(CURRENT_DB_VERSION)
     } catch (error) {
       console.error('[DuckDB] initialization failed:', error)
@@ -130,17 +131,17 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
       this.transactionQueue = []
     }
 
-    console.log(`[DuckDB] connect to db`)
+    logger.info(`[DuckDB] connect to db`)
     await this.connect()
-    console.log(`[DuckDB] load vss extension`)
+    logger.info(`[DuckDB] load vss extension`)
     await this.installAndLoadExtension('vss', async () => {
       await this.safeRun(`SET hnsw_enable_experimental_persistence = true;`)
     })
-    console.log(`[DuckDB] check and run database migrations`)
+    logger.info(`[DuckDB] check and run database migrations`)
     await this.runMigrations()
-    console.log(`[DuckDB] clear dirty data`)
+    logger.info(`[DuckDB] clear dirty data`)
     await this.clearDirtyData()
-    console.log(`[DuckDB] paused all running tasks`)
+    logger.info(`[DuckDB] paused all running tasks`)
     await this.pauseAllRunningTasks()
   }
 
@@ -174,7 +175,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
       if (this.dbInstance) {
         this.dbInstance.closeSync()
       }
-      console.log('[DuckDB] DuckDB connection closed')
+      logger.info('[DuckDB] DuckDB connection closed')
     } catch (err) {
       console.error('[DuckDB] close error', err)
     }
@@ -190,7 +191,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
       if (fs.existsSync(this.dbPath + '.wal')) {
         fs.rmSync(this.dbPath + '.wal', { recursive: true })
       }
-      console.log(`[DuckDB] Database at ${this.dbPath} destroyed.`)
+      logger.info(`[DuckDB] Database at ${this.dbPath} destroyed.`)
     } catch (err) {
       console.error(`[DuckDB] Error destroying database at ${this.dbPath}:`, err)
     }
@@ -654,13 +655,13 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
   private async create() {
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
     this.connection = await this.dbInstance.connect()
-    console.log(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
+    logger.info(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
   }
 
   private async connect() {
     this.dbInstance = await DuckDBInstance.create(this.dbPath)
     this.connection = await this.dbInstance.connect()
-    console.log(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
+    logger.info(`[DuckDB] Connected to DuckDB at ${this.dbPath}`)
   }
 
   /**
@@ -678,10 +679,10 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     const extensionPath = path.join(extensionDir, `vss${extensionSuffix}`)
     if (fs.existsSync(extensionPath)) {
       const escapedPath = extensionPath.replace(/\\/g, '\\\\')
-      console.log(`[DuckDB] LOAD VSS extension from ${escapedPath}`)
+      logger.info(`[DuckDB] LOAD VSS extension from ${escapedPath}`)
       await conn.run(`LOAD '${escapedPath}';`)
     } else {
-      console.log('[DuckDB] LOAD VSS extension online')
+      logger.info('[DuckDB] LOAD VSS extension online')
       await conn.run(`INSTALL vss;`)
       await conn.run(`LOAD vss;`)
     }
@@ -704,10 +705,10 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     const extensionPath = path.join(extensionDir, `${name}${extensionSuffix}`)
     if (fs.existsSync(extensionPath)) {
       const escapedPath = extensionPath.replace(/\\/g, '\\\\')
-      console.log(`[DuckDB] LOAD ${name} extension from ${escapedPath}`)
+      logger.info(`[DuckDB] LOAD ${name} extension from ${escapedPath}`)
       await this.safeRun(`LOAD '${escapedPath}';`)
     } else {
-      console.log(`[DuckDB] LOAD ${name} extension online`)
+      logger.info(`[DuckDB] LOAD ${name} extension online`)
       await this.safeRun(`INSTALL ${name};`)
       await this.safeRun(`LOAD ${name};`)
     }
@@ -846,11 +847,11 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     await this.initMetadataTable()
 
     const currentVersion = await this.getDatabaseVersion()
-    console.log(`[DuckDB] Current database version: ${currentVersion}`)
-    console.log(`[DuckDB] Target database version: ${CURRENT_DB_VERSION}`)
+    logger.info(`[DuckDB] Current database version: ${currentVersion}`)
+    logger.info(`[DuckDB] Target database version: ${CURRENT_DB_VERSION}`)
 
     if (currentVersion === CURRENT_DB_VERSION) {
-      console.log('[DuckDB] Database is up to date, no migrations needed')
+      logger.info('[DuckDB] Database is up to date, no migrations needed')
       return
     }
 
@@ -867,17 +868,17 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     )
 
     if (migrationsToRun.length === 0) {
-      console.log('[DuckDB] No migrations found to run')
+      logger.info('[DuckDB] No migrations found to run')
       return
     }
 
-    console.log(`[DuckDB] Running ${migrationsToRun.length} migrations...`)
+    logger.info(`[DuckDB] Running ${migrationsToRun.length} migrations...`)
 
     // 按版本号排序执行迁移
     migrationsToRun.sort((a, b) => a.version - b.version)
 
     for (const migration of migrationsToRun) {
-      console.log(`[DuckDB] Running migration v${migration.version}: ${migration.description}`)
+      logger.info(`[DuckDB] Running migration v${migration.version}: ${migration.description}`)
 
       try {
         await this.executeInTransaction(async () => {
@@ -885,14 +886,14 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
         })
         await this.setDatabaseVersion(migration.version)
 
-        console.log(`[DuckDB] Migration v${migration.version} completed successfully`)
+        logger.info(`[DuckDB] Migration v${migration.version} completed successfully`)
       } catch (error) {
         console.error(`[DuckDB] Migration v${migration.version} failed:`, error)
         throw new Error(`Database migration v${migration.version} failed: ${error}`)
       }
     }
 
-    console.log(
+    logger.info(
       `[DuckDB] All migrations completed successfully. Database updated to version ${CURRENT_DB_VERSION}`
     )
   }

@@ -43,6 +43,7 @@
   "noFiles": "Ingen filer",
   "noFilesUploadDesc": "Klik ovenfor for at uploade filer",
   "uploadSuccess": "Upload lykkedes",
+  "uploadFailed": "Upload mislykkedes",
   "uploadedCount": "Der er uploadet {count} filer",
   "confirmDelete": "Er du sikker på, at du vil slette prompten \"{name}\"?",
   "confirmDeleteDescription": "Handlingen kan ikke fortrydes. Prompten slettes permanent.",

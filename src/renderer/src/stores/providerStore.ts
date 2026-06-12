@@ -1,8 +1,8 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import { createProviderClient } from '../../api/ProviderClient'
+import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
-import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
 import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
 
 type VoiceAIConfig = {
@@ -18,20 +18,18 @@ const PROVIDER_ORDER_KEY = 'providerOrder'
 const PROVIDER_TIMESTAMP_KEY = 'providerTimestamps'
 
 export const useProviderStore = defineStore('provider', () => {
-  const configP = usePresenter('configPresenter')
-  const llmP = usePresenter('llmproviderPresenter')
+  const configClient = createConfigClient()
+  const providerClient = createProviderClient()
 
   const providersQuery = useIpcQuery({
-    presenter: 'configPresenter',
-    method: 'getProviders',
     key: () => ['providers'],
+    query: () => providerClient.getProviderSummaries(),
     staleTime: 30_000
   })
 
   const defaultProvidersQuery = useIpcQuery({
-    presenter: 'configPresenter',
-    method: 'getDefaultProviders',
     key: () => ['providers', 'defaults'],
+    query: () => providerClient.getDefaultProviders(),
     staleTime: 60_000,
     gcTime: 300_000
   })
@@ -40,6 +38,8 @@ export const useProviderStore = defineStore('provider', () => {
   const providerTimestamps = ref<Record<string, number>>({})
   const listenersRegistered = ref(false)
   const voiceAIConfig = ref<VoiceAIConfig | null>(null)
+  const initialized = ref(false)
+  const initializationPromise = ref<Promise<void> | null>(null)
 
   const providers = computed<LLM_PROVIDER[]>(() => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
@@ -100,7 +100,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const loadProviderOrder = async () => {
     try {
-      const savedOrder = await configP.getSetting<string[]>(PROVIDER_ORDER_KEY)
+      const savedOrder = await configClient.getSetting(PROVIDER_ORDER_KEY)
       // Only use ensureOrderIncludesProviders if we have a valid savedOrder or if providerOrder is empty
       if (savedOrder && savedOrder.length > 0) {
         // If we have a saved order, valid or not, we trust it as the base and append missing ones
@@ -121,7 +121,7 @@ export const useProviderStore = defineStore('provider', () => {
   const saveProviderOrder = async () => {
     try {
       if (providerOrder.value.length > 0) {
-        await configP.setSetting(PROVIDER_ORDER_KEY, providerOrder.value)
+        await configClient.setSetting(PROVIDER_ORDER_KEY, [...providerOrder.value])
       }
     } catch (error) {
       console.error('Failed to save provider order:', error)
@@ -130,8 +130,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const loadProviderTimestamps = async () => {
     try {
-      const savedTimestamps =
-        await configP.getSetting<Record<string, number>>(PROVIDER_TIMESTAMP_KEY)
+      const savedTimestamps = await configClient.getSetting(PROVIDER_TIMESTAMP_KEY)
       providerTimestamps.value = savedTimestamps ?? {}
     } catch (error) {
       console.error('Failed to load provider timestamps:', error)
@@ -141,7 +140,7 @@ export const useProviderStore = defineStore('provider', () => {
 
   const saveProviderTimestamps = async () => {
     try {
-      await configP.setSetting(PROVIDER_TIMESTAMP_KEY, providerTimestamps.value)
+      await configClient.setSetting(PROVIDER_TIMESTAMP_KEY, { ...providerTimestamps.value })
     } catch (error) {
       console.error('Failed to save provider timestamps:', error)
     }
@@ -151,6 +150,13 @@ export const useProviderStore = defineStore('provider', () => {
     // Load order first to ensure we have the latest saved order before processing provider list updates
     await loadProviderOrder()
     await providersQuery.refetch()
+  }
+
+  const ensureDefaultProvidersReady = async () => {
+    if (defaultProvidersQuery.data.value) {
+      return
+    }
+
     await defaultProvidersQuery.refetch()
   }
 
@@ -158,23 +164,7 @@ export const useProviderStore = defineStore('provider', () => {
     if (listenersRegistered.value) return
     listenersRegistered.value = true
 
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_CHANGED, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.UPDATED, async () => {
-      await refreshProviders()
-    })
-
-    window.electron.ipcRenderer.on(PROVIDER_DB_EVENTS.LOADED, async () => {
+    providerClient.onProvidersChanged(async () => {
       await refreshProviders()
     })
   }
@@ -184,7 +174,7 @@ export const useProviderStore = defineStore('provider', () => {
     const previousEnable = current?.enable
     const next = { ...provider }
     delete (next as any).websites
-    await configP.setProviderById(id, next)
+    await providerClient.setProviderById(id, next)
     await refreshProviders()
     return { previousEnable, next }
   }
@@ -195,7 +185,7 @@ export const useProviderStore = defineStore('provider', () => {
       throw new Error(`Provider ${providerId} not found`)
     }
 
-    const requiresRebuild = await configP.updateProviderAtomic(providerId, updates)
+    const requiresRebuild = await providerClient.updateProviderAtomic(providerId, updates)
     await refreshProviders()
     return { requiresRebuild, updated: { ...currentProvider, ...updates } }
   }
@@ -216,7 +206,7 @@ export const useProviderStore = defineStore('provider', () => {
       const missingIds = allIds.filter((id) => !newOrder.includes(id))
       providerOrder.value = [...newOrder, ...missingIds]
       await saveProviderOrder()
-      await configP.reorderProvidersAtomic(newProviders)
+      await providerClient.reorderProvidersAtomic(newProviders)
       await refreshProviders()
     } catch (error) {
       console.error('Failed to update provider order:', error)
@@ -275,12 +265,12 @@ export const useProviderStore = defineStore('provider', () => {
   const addCustomProvider = async (provider: LLM_PROVIDER) => {
     const newProvider = { ...provider, custom: true }
     delete (newProvider as any).websites
-    await configP.addProviderAtomic(newProvider)
+    await providerClient.addProviderAtomic(newProvider)
     await refreshProviders()
   }
 
   const removeProvider = async (providerId: string) => {
-    await configP.removeProviderAtomic(providerId)
+    await providerClient.removeProviderAtomic(providerId)
     providerOrder.value = providerOrder.value.filter((id) => id !== providerId)
     await saveProviderOrder()
     await refreshProviders()
@@ -301,15 +291,15 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const checkProvider = async (providerId: string, modelId?: string) => {
-    return llmP.check(providerId, modelId)
+    return await providerClient.testConnection({ providerId, modelId })
   }
 
   const setAzureApiVersion = async (version: string) => {
-    await configP.setSetting('azureApiVersion', version)
+    await configClient.setAzureApiVersion(version)
   }
 
   const getAzureApiVersion = async (): Promise<string> => {
-    return (await configP.getSetting<string>('azureApiVersion')) || '2024-02-01'
+    return await configClient.getAzureApiVersion()
   }
 
   const setGeminiSafety = async (
@@ -321,56 +311,29 @@ export const useProviderStore = defineStore('provider', () => {
       | 'BLOCK_LOW_AND_ABOVE'
       | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
   ) => {
-    await configP.setSetting(`geminiSafety_${key}`, value)
+    await configClient.setGeminiSafety(key, value)
   }
 
   const getGeminiSafety = async (key: string): Promise<string> => {
-    return (
-      (await configP.getSetting<string>(`geminiSafety_${key}`)) ||
-      'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-    )
+    return await configClient.getGeminiSafety(key)
   }
 
   const setAwsBedrockCredential = async (credential: unknown) => {
-    await configP.setSetting('awsBedrockCredential', JSON.stringify({ credential }))
+    await configClient.setAwsBedrockCredential(credential)
   }
 
   const getAwsBedrockCredential = async () => {
-    return await configP.getSetting('awsBedrockCredential')
+    return await configClient.getAwsBedrockCredential()
   }
 
   const getVoiceAIConfig = async (): Promise<VoiceAIConfig> => {
-    const config = {
-      audioFormat: (await configP.getSetting<string>('voiceAI_audioFormat')) || 'mp3',
-      model: (await configP.getSetting<string>('voiceAI_model')) || 'voiceai-tts-v1-latest',
-      language: (await configP.getSetting<string>('voiceAI_language')) || 'en',
-      temperature: (await configP.getSetting<number>('voiceAI_temperature')) ?? 1,
-      topP: (await configP.getSetting<number>('voiceAI_topP')) ?? 0.8,
-      agentId: (await configP.getSetting<string>('voiceAI_agentId')) || ''
-    }
+    const config = await configClient.getVoiceAIConfig()
     voiceAIConfig.value = config
     return config
   }
 
   const updateVoiceAIConfig = async (updates: Partial<VoiceAIConfig>) => {
-    if (updates.audioFormat !== undefined) {
-      await configP.setSetting('voiceAI_audioFormat', updates.audioFormat)
-    }
-    if (updates.model !== undefined) {
-      await configP.setSetting('voiceAI_model', updates.model)
-    }
-    if (updates.language !== undefined) {
-      await configP.setSetting('voiceAI_language', updates.language)
-    }
-    if (updates.temperature !== undefined) {
-      await configP.setSetting('voiceAI_temperature', updates.temperature)
-    }
-    if (updates.topP !== undefined) {
-      await configP.setSetting('voiceAI_topP', updates.topP)
-    }
-    if (updates.agentId !== undefined) {
-      await configP.setSetting('voiceAI_agentId', updates.agentId)
-    }
+    await configClient.updateVoiceAIConfig(updates)
     await getVoiceAIConfig()
   }
 
@@ -380,11 +343,41 @@ export const useProviderStore = defineStore('provider', () => {
   }
 
   const initialize = async () => {
-    await loadProviderTimestamps()
-    await loadProviderOrder()
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationPromise.value = (async () => {
+      await loadProviderTimestamps()
+      await loadProviderOrder()
+      setupProviderListeners()
+      await refreshProviders()
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } finally {
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
+  }
+
+  const ensureInitialized = async () => {
+    await initialize()
+  }
+
+  const primeProviders = async () => {
     setupProviderListeners()
-    await refreshProviders()
-    await defaultProvidersQuery.refetch()
+    await providersQuery.refetch()
+    await loadProviderOrder()
+    await loadProviderTimestamps()
   }
 
   let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
@@ -426,8 +419,12 @@ export const useProviderStore = defineStore('provider', () => {
     sortedProviders,
     providerOrder,
     providerTimestamps,
+    initialized,
     initialize,
+    ensureInitialized,
+    primeProviders,
     refreshProviders,
+    ensureDefaultProvidersReady,
     updateProvider,
     updateProviderConfig,
     updateProviderApi,

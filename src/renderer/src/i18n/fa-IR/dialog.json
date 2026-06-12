@@ -40,5 +40,50 @@
       "functionCall": "توجه: فعال‌سازی فراخوانی تابع به طور خودکار قابلیت استدلال را غیرفعال می‌کند، که این الزام مدل‌های DeepSeek-V3.1 است."
     },
     "confirmEnable": "تأیید فعال‌سازی"
+  },
+  "agentTransfer": {
+    "deleteTitle": "آیا {name} حذف شود؟",
+    "deleteDescription": "انتخاب کنید گفتگوهایی که اکنون به این عامل تعلق دارند چه وضعیتی داشته باشند.",
+    "moveTitle": "انتقال گفتگو",
+    "moveDescription": "این گفتگوی تکمیل‌شده را بدون تغییر پیام‌هایش به عامل دیگری منتقل کنید.",
+    "loading": "در حال بررسی گفتگوهای مرتبط...",
+    "processing": "در حال پردازش...",
+    "totalSessions": "مرتبط",
+    "movableSessions": "قابل انتقال",
+    "emptyDrafts": "پیش‌نویس‌های خالی",
+    "blockedSessions": "مسدود",
+    "moveBeforeDeleteTitle": "انتقال گفتگوها به عامل دیگر",
+    "moveBeforeDeleteDescription": "گفتگوهای تکمیل‌شده پیام‌های خود را حفظ می‌کنند و پاسخ‌های بعدی با عامل مقصد انجام می‌شود. پیش‌نویس‌های خالی حذف می‌شوند.",
+    "deleteSessionsTitle": "حذف گفتگوها همراه با این عامل",
+    "deleteSessionsDescription": "همه گفتگوها و پیام‌های مرتبط همراه با عامل حذف می‌شوند.",
+    "targetAgent": "عامل مقصد",
+    "selectTarget": "یک عامل انتخاب کنید",
+    "acpWorkdir": "پوشه کاری ACP",
+    "acpWorkdirPlaceholder": "برای حفظ پروژه هر گفتگو خالی بگذارید",
+    "acpWorkdirHint": "عامل‌های ACP به پوشه کاری نیاز دارند. اگر گفتگویی پروژه ندارد، اینجا یکی وارد کنید.",
+    "currentAgent": "عامل فعلی: {name}",
+    "relatedSessions": "گفتگوهای مرتبط",
+    "blockedWarning": "برخی گفتگوها هنوز در حال اجرا هستند یا ورودی در صف دارند. پیش از انتقال یا حذف این عامل، آن‌ها را تمام کنید.",
+    "agentDeleteBlocked": "این عامل هنوز گفتگوهای مرتبط دارد. ابتدا آن‌ها را منتقل یا حذف کنید.",
+    "deleteAgentAndSessions": "حذف عامل و گفتگوها",
+    "moveAndDeleteAgent": "انتقال و حذف عامل",
+    "moveConversation": "انتقال گفتگو",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "در حال اجرا",
+      "pending-input": "در صف",
+      "missing-target-workdir": "نیازمند پوشه کاری",
+      "missing-session": "موجود نیست",
+      "same-agent": "همان عامل"
+    },
+    "sampleState": {
+      "ready": "آماده",
+      "draft": "پیش‌نویس",
+      "subagent": "زیرعامل"
+    },
+    "deepChatTargetOnly": "فقط عامل‌های DeepChat می‌توانند به عنوان مقصد انتقال انتخاب شوند. گفتگوهای ACP می‌توانند به DeepChat منتقل شوند، اما نمی‌توانند به ACP منتقل شوند."
   }
 }

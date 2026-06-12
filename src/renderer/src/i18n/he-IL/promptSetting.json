@@ -43,6 +43,7 @@
   "noFiles": "אין קבצים",
   "noFilesUploadDesc": "לחץ למעלה להעלאת קבצים",
   "uploadSuccess": "ההעלאה הושלמה",
+  "uploadFailed": "ההעלאה נכשלה",
   "uploadedCount": "הועלו {count} קבצים",
   "confirmDelete": "האם אתה בטוח שברצונך למחוק את ההנחיה \"{name}\"?",
   "confirmDeleteDescription": "לא ניתן לבטל פעולה זו. ההנחיה תימחק לצמיתות.",

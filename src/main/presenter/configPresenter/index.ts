@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import {
   IConfigPresenter,
@@ -16,24 +17,42 @@ import {
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent,
-  AcpResolvedLaunchSpec
+  AcpResolvedLaunchSpec,
+  ProviderDbRefreshResult
+} from '@shared/presenter'
+import type {
+  CloudSyncConfigView,
+  CloudSyncConfigInput,
+  ResolvedCloudSyncConfig
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
-import { ModelType } from '@shared/model'
+import {
+  ModelType,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId,
+  type NewApiEndpointType
+} from '@shared/model'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import {
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+  resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
-  resolveModelMaxTokens,
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
-import { app, nativeTheme, shell } from 'electron'
+import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, SYSTEM_EVENTS, FLOATING_BUTTON_EVENTS, SESSION_EVENTS } from '@/events'
+import {
+  CONFIG_EVENTS,
+  SYSTEM_EVENTS,
+  FLOATING_BUTTON_EVENTS,
+  SESSION_EVENTS,
+  MCP_EVENTS
+} from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
@@ -41,7 +60,13 @@ import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
-import { ProviderAggregate, ReasoningPortrait } from '@shared/types/model-db'
+import {
+  ProviderAggregate,
+  ReasoningPortrait,
+  type ProviderModel,
+  type ReasoningEffort,
+  type Verbosity
+} from '@shared/types/model-db'
 import { modelCapabilities } from './modelCapabilities'
 import { ProviderHelper } from './providerHelper'
 import { ModelStatusHelper } from './modelStatusHelper'
@@ -54,11 +79,11 @@ import { AcpLaunchSpecService } from './acpLaunchSpecService'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from './acpRegistryConstants'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
-import type {
-  HookEventName,
-  HookTestResult,
-  HooksNotificationsSettings
-} from '@shared/hooksNotifications'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
   AgentType,
@@ -66,10 +91,25 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
+import { normalizeScheduledTasksConfig } from '../scheduledTasks/normalize'
+import {
+  createDefaultScheduledTasksSettings,
+  type ScheduledTasksSettings
+} from '@shared/scheduledTasks'
+import {
+  AcpDbStore,
+  AppSettingsDbBackedStore,
+  McpDbStore,
+  ModelConfigDbStore,
+  ProviderModelDbStore,
+  SENSITIVE_APP_SETTING_KEYS
+} from './configDbStores'
+import type { StoreLike } from './storeLike'
 
 // Define application settings interface
 interface IAppSettings {
@@ -84,6 +124,7 @@ interface IAppSettings {
   artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
   searchPreviewEnabled?: boolean // Whether search preview is enabled
   contentProtectionEnabled?: boolean // Whether content protection is enabled
+  privacyModeEnabled?: boolean // Whether privacy mode is enabled
   syncEnabled?: boolean // Whether sync functionality is enabled
   syncFolderPath?: string // Sync folder path
   lastSyncTime?: number // Last sync time
@@ -100,7 +141,9 @@ interface IAppSettings {
   codeFontFamily?: string // Custom code font
   skillsPath?: string // Skills directory path
   enableSkills?: boolean // Skills system global toggle
+  skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
+  scheduledTasks?: ScheduledTasksSettings // User-defined scheduled tasks
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
@@ -126,14 +169,26 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 const PROVIDERS_STORE_KEY = 'providers'
 const UNIFIED_AGENTS_MIGRATION_VERSION = 1
+const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
+type ProviderModelSettingKey =
+  | 'defaultModel'
+  | 'assistantModel'
+  | 'defaultVisionModel'
+  | 'preferredModel'
 type AnthropicModelSettingKey = 'defaultModel' | 'assistantModel' | 'defaultVisionModel'
 
 const ANTHROPIC_MODEL_SETTING_KEYS: AnthropicModelSettingKey[] = [
   'defaultModel',
   'assistantModel',
   'defaultVisionModel'
+]
+const DEPRECATED_PROVIDER_MODEL_SETTING_KEYS: ProviderModelSettingKey[] = [
+  'defaultModel',
+  'assistantModel',
+  'defaultVisionModel',
+  'preferredModel'
 ]
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
@@ -162,6 +217,121 @@ const normalizeKnownProviderId = (providerId: string): string =>
   modelCapabilities.resolveProviderId(providerId.trim().toLowerCase()) ||
   providerId.trim().toLowerCase()
 
+const normalizeModelSelection = (value: unknown): ModelSelection | null => {
+  if (!isModelSelection(value)) {
+    return null
+  }
+
+  const providerId = normalizeKnownProviderId(value.providerId)
+  const modelId = value.modelId.trim()
+
+  if (!providerId || !modelId) {
+    return null
+  }
+
+  return {
+    providerId,
+    modelId
+  }
+}
+
+const isDeprecatedBuiltinProviderId = (
+  providerId: string,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean => deprecatedProviderIds.includes(normalizeKnownProviderId(providerId))
+
+const isDeprecatedBuiltinModelSelection = (
+  selection: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean => {
+  const normalizedSelection = normalizeModelSelection(selection)
+  return Boolean(
+    normalizedSelection &&
+    isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
+  )
+}
+
+const shouldReplaceBuiltinModelSelection = (
+  builtinSelection: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): boolean =>
+  normalizeModelSelection(builtinSelection) === null ||
+  isDeprecatedBuiltinModelSelection(builtinSelection, deprecatedProviderIds)
+
+const getLiveLegacyModelSelection = (
+  value: unknown,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): ModelSelection | null => {
+  const normalizedSelection = normalizeModelSelection(value)
+  if (!normalizedSelection) {
+    return null
+  }
+
+  return isDeprecatedBuiltinProviderId(normalizedSelection.providerId, deprecatedProviderIds)
+    ? null
+    : normalizedSelection
+}
+
+const toTrackedSettingsChangePayload = (
+  key: string,
+  value: unknown
+): { changedKey: SettingsKey; value: SettingsSnapshotValues[SettingsKey] } | null => {
+  switch (key) {
+    case 'fontSizeLevel':
+      return {
+        changedKey: 'fontSizeLevel',
+        value: typeof value === 'number' ? value : 1
+      }
+    case 'fontFamily':
+      return {
+        changedKey: 'fontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
+    case 'codeFontFamily':
+      return {
+        changedKey: 'codeFontFamily',
+        value: typeof value === 'string' ? value : ''
+      }
+    case 'artifactsEffectEnabled':
+      return {
+        changedKey: 'artifactsEffectEnabled',
+        value: Boolean(value)
+      }
+    case 'autoScrollEnabled':
+      return {
+        changedKey: 'autoScrollEnabled',
+        value: Boolean(value)
+      }
+    case 'contentProtectionEnabled':
+      return {
+        changedKey: 'contentProtectionEnabled',
+        value: Boolean(value)
+      }
+    case 'privacyModeEnabled':
+      return {
+        changedKey: 'privacyModeEnabled',
+        value: Boolean(value)
+      }
+    case 'notificationsEnabled':
+      return {
+        changedKey: 'notificationsEnabled',
+        value: Boolean(value)
+      }
+    case 'traceDebugEnabled':
+      return {
+        changedKey: 'traceDebugEnabled',
+        value: Boolean(value)
+      }
+    case 'copyWithCotEnabled':
+      return {
+        changedKey: 'copyWithCotEnabled',
+        value: Boolean(value)
+      }
+    default:
+      return null
+  }
+}
+
 export const getAnthropicModelSelectionKeysToClear = (
   settings: Partial<
     Record<
@@ -174,6 +344,28 @@ export const getAnthropicModelSelectionKeysToClear = (
     const selection = settings[key]
     return isModelSelection(selection) && selection.providerId === 'anthropic'
   })
+
+export const removeDeprecatedBuiltinProviders = (
+  providers: LLM_PROVIDER[],
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): LLM_PROVIDER[] => {
+  const deprecatedProviderIdSet = new Set(deprecatedProviderIds)
+  return providers.filter((provider) => !deprecatedProviderIdSet.has(provider.id))
+}
+
+export const getDeprecatedProviderModelSelectionKeysToClear = (
+  settings: Partial<
+    Record<ProviderModelSettingKey, { providerId: string; modelId: string } | undefined>
+  >,
+  deprecatedProviderIds: readonly string[] = DEPRECATED_BUILTIN_PROVIDER_IDS
+): ProviderModelSettingKey[] => {
+  const deprecatedProviderIdSet = new Set(deprecatedProviderIds)
+
+  return DEPRECATED_PROVIDER_MODEL_SETTING_KEYS.filter((key) => {
+    const selection = settings[key]
+    return isModelSelection(selection) && deprecatedProviderIdSet.has(selection.providerId)
+  })
+}
 
 export const normalizeAnthropicProviderForApiOnly = (
   provider: AnthropicLegacyProvider,
@@ -217,6 +409,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
+  private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
 
@@ -236,6 +429,7 @@ export class ConfigPresenter implements IConfigPresenter {
         artifactsEffectEnabled: true,
         searchPreviewEnabled: true,
         contentProtectionEnabled: false,
+        privacyModeEnabled: false,
         syncEnabled: false,
         syncFolderPath: path.join(this.userDataPath, 'sync'),
         lastSyncTime: 0,
@@ -250,9 +444,11 @@ export class ConfigPresenter implements IConfigPresenter {
         default_system_prompt: '',
         skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
-        updateChannel: 'stable', // Default to stable version
+        skillDraftSuggestionsEnabled: false,
+        // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
         appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig()
+        hooksNotifications: createDefaultHooksNotificationsConfig(),
+        scheduledTasks: createDefaultScheduledTasksSettings()
       }
     })
 
@@ -308,7 +504,9 @@ export class ConfigPresenter implements IConfigPresenter {
     this.mcpConfHelper = new McpConfHelper()
 
     this.acpConfHelper = new AcpConfHelper({ mcpConfHelper: this.mcpConfHelper })
-    this.acpRegistryService = new AcpRegistryService()
+    this.acpRegistryService = new AcpRegistryService({
+      isPrivacyModeEnabled: () => this.getPrivacyModeEnabled()
+    })
     this.acpLaunchSpecService = new AcpLaunchSpecService(
       path.join(this.userDataPath, 'acp-registry')
     )
@@ -336,13 +534,24 @@ export class ConfigPresenter implements IConfigPresenter {
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
+    this.providerHelper.setCleanupHooks({
+      deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
+        this.modelStatusHelper
+      ),
+      clearProviderModelStore: this.providerModelHelper.clearProviderModelStore.bind(
+        this.providerModelHelper
+      )
+    })
 
     // Initialize built-in ACP agents on first run or version upgrade
     // Initialize provider models directory
     this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
-    providerDbLoader.initialize().catch(() => {})
+    providerDbLoader.setPrivacyModeResolver(() => this.getPrivacyModeEnabled())
+    providerDbLoader.initialize().catch((error) => {
+      console.warn('[ConfigPresenter] Failed to initialize provider DB:', error)
+    })
 
     // If application version is updated, update appVersion
     if (this.store.get('appVersion') !== this.currentAppVersion) {
@@ -356,6 +565,7 @@ export class ConfigPresenter implements IConfigPresenter {
     // Migrate minimax provider from OpenAI format to Anthropic format
     this.migrateMinimaxProvider()
     this.migrateAnthropicProviderToApiOnly()
+    this.cleanupDeprecatedBuiltinProviders()
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
     const newProviders = defaultProviders.filter(
@@ -371,7 +581,224 @@ export class ConfigPresenter implements IConfigPresenter {
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
     this.initializeUnifiedAgents()
-    this.migrateLegacyDefaultVisionModelToBuiltinAgent()
+    this.reconcileLegacyBuiltinAgentSelections()
+    this.cleanupDeprecatedBuiltinAgentSelections()
+  }
+
+  setSQLitePresenter(sqlitePresenter: SQLitePresenter): void {
+    try {
+      this.migrateConfigStoresToSqlite(sqlitePresenter)
+      this.migrateSensitiveConfigStoresToSqlite(sqlitePresenter)
+      this.attachDbBackedConfigStores(sqlitePresenter)
+    } catch (error) {
+      console.error('[Config] Failed to attach sqlite-backed config storage:', error)
+      throw error
+    }
+  }
+
+  cleanupLegacyProviderJsonForDatabaseEncryption(): number {
+    if (!this.dbBackedSettingsStore) {
+      return 0
+    }
+
+    const legacyProviders = this.store.get(PROVIDERS_STORE_KEY)
+    if (!Array.isArray(legacyProviders) || legacyProviders.length === 0) {
+      return 0
+    }
+
+    this.store.delete(PROVIDERS_STORE_KEY)
+    console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
+    return legacyProviders.length
+  }
+
+  private migrateConfigStoresToSqlite(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    if (configTables.hasConfigMigration()) {
+      return
+    }
+
+    const providers = this.providerHelper.getProviders()
+    const providerIds = providers.map((provider) => provider.id)
+    const providerOrder = this.readLegacyStringArray('providerOrder') ?? providerIds
+    const providerTimestamps = this.readLegacyNumberRecord('providerTimestamps')
+
+    configTables.replaceProviders(providers, providerOrder, providerTimestamps)
+
+    for (const provider of providers) {
+      const store = this.providerModelHelper.getProviderModelStore(provider.id)
+      const models = store.get<MODEL_META[]>('models', [])
+      const customModels = store.get<MODEL_META[]>('custom_models', [])
+      if (Array.isArray(models)) {
+        configTables.replaceProviderModels(provider.id, 'provider', models)
+      }
+      if (Array.isArray(customModels)) {
+        configTables.replaceProviderModels(provider.id, 'custom', customModels)
+      }
+    }
+
+    for (const [statusKey, enabled] of this.readLegacyModelStatuses()) {
+      const parsed = this.parseLegacyModelStatusKey(statusKey, providerIds)
+      configTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
+    }
+
+    const modelConfigs = this.modelConfigHelper.exportConfigs()
+    for (const [cacheKey, config] of Object.entries(modelConfigs)) {
+      configTables.setModelConfigStoreEntry(cacheKey, config)
+    }
+
+    const mcpStore = this.mcpConfHelper.getStoreForMigration()
+    const mcpServers = mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
+    if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
+      configTables.replaceMcpServers(mcpServers)
+    }
+
+    for (const [key, value] of Object.entries(mcpStore.store)) {
+      if (key === 'mcpServers') {
+        continue
+      }
+      if (value !== undefined) {
+        configTables.setMcpSetting(key, value)
+      }
+    }
+
+    configTables.setAgentSetting('enabled', this.acpConfHelper.getGlobalEnabled())
+    configTables.setAgentSetting('version', '4')
+    configTables.setAgentMcpSelections(this.acpConfHelper.getSharedMcpSelections())
+    configTables.markConfigMigrationApplied()
+  }
+
+  private migrateSensitiveConfigStoresToSqlite(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    const migrationId = 'sensitive-config-sqlite-v1'
+    if (configTables.hasConfigMigration(migrationId)) {
+      return
+    }
+
+    for (const key of SENSITIVE_APP_SETTING_KEYS) {
+      if (key === 'customPrompts' || key === 'systemPrompts' || key === 'knowledgeConfigs') {
+        continue
+      }
+      const value = this.store.get(key)
+      if (value !== undefined) {
+        configTables.setAppSetting(key, value, true)
+        this.store.delete(key)
+      }
+    }
+
+    const customPrompts = this.customPromptsStore.get('prompts') || []
+    configTables.setAppSetting('customPrompts', customPrompts, true)
+    this.customPromptsStore.set('prompts', [])
+    this.customPromptsCache = null
+
+    const systemPrompts = this.systemPromptsStore.get('prompts') || []
+    configTables.setAppSetting('systemPrompts', systemPrompts, true)
+    this.systemPromptsStore.set('prompts', [])
+
+    const knowledgeConfigs = this.knowledgeConfHelper.getKnowledgeConfigs()
+    configTables.setAppSetting('knowledgeConfigs', knowledgeConfigs, true)
+    this.knowledgeConfHelper.setKnowledgeConfigs([])
+
+    configTables.markConfigMigrationApplied(migrationId)
+  }
+
+  private attachDbBackedConfigStores(sqlitePresenter: SQLitePresenter): void {
+    const configTables = sqlitePresenter.configTables
+    const legacyAppStore = this.store as unknown as StoreLike<Record<string, unknown>>
+    const appSettingsStore = new AppSettingsDbBackedStore(legacyAppStore, configTables)
+    const legacyMcpStore = this.mcpConfHelper.getStoreForMigration()
+    const legacyAcpStore = this.acpConfHelper.getStoreForMigration()
+
+    this.providerHelper.setStore(appSettingsStore)
+    this.modelStatusHelper.setStore(appSettingsStore)
+    this.providerModelHelper.setStoreFactory(
+      (providerId) => new ProviderModelDbStore(providerId, configTables)
+    )
+    this.modelConfigHelper.setStore(
+      new ModelConfigDbStore(configTables) as unknown as StoreLike<any>
+    )
+    this.mcpConfHelper.setStore(
+      new McpDbStore(legacyMcpStore, configTables) as unknown as StoreLike<any>
+    )
+    this.acpConfHelper.setStore(
+      new AcpDbStore(legacyAcpStore, configTables) as unknown as StoreLike<any>
+    )
+    this.dbBackedSettingsStore = appSettingsStore
+
+    this.providerHelper.getProviders()
+    this.syncAcpProviderEnabled(this.acpConfHelper.getGlobalEnabled())
+  }
+
+  private getSettingsStoreForKey(key: string): StoreLike<Record<string, unknown>> {
+    if (this.dbBackedSettingsStore && this.isDbBackedAppSettingKey(key)) {
+      return this.dbBackedSettingsStore
+    }
+    return this.store as unknown as StoreLike<Record<string, unknown>>
+  }
+
+  private isDbBackedAppSettingKey(key: string): boolean {
+    return (
+      key === 'providers' ||
+      key === 'providerOrder' ||
+      key === 'providerTimestamps' ||
+      key.startsWith('model_status_') ||
+      SENSITIVE_APP_SETTING_KEYS.includes(key as (typeof SENSITIVE_APP_SETTING_KEYS)[number])
+    )
+  }
+
+  private readLegacyStringArray(key: string): string[] | null {
+    const value = this.store.get(key)
+    if (!Array.isArray(value)) {
+      return null
+    }
+    return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  }
+
+  private readLegacyNumberRecord(key: string): Record<string, number> {
+    const value = this.store.get(key)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {}
+    }
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === 'number' && Number.isFinite(entry[1])
+      )
+    )
+  }
+
+  private readLegacyModelStatuses(): Array<[string, boolean]> {
+    const rawStore = this.store.store as Record<string, unknown>
+    return Object.entries(rawStore).filter(
+      (entry): entry is [string, boolean] =>
+        entry[0].startsWith('model_status_') && typeof entry[1] === 'boolean'
+    )
+  }
+
+  private parseLegacyModelStatusKey(
+    statusKey: string,
+    providerIds: string[]
+  ): { providerId: string; modelId: string } {
+    const suffix = statusKey.slice('model_status_'.length)
+    const matchedProvider = [...providerIds]
+      .sort((a, b) => b.length - a.length)
+      .find((providerId) => suffix.startsWith(`${providerId}_`))
+
+    if (matchedProvider) {
+      return {
+        providerId: matchedProvider,
+        modelId: suffix.slice(matchedProvider.length + 1)
+      }
+    }
+
+    const separatorIndex = suffix.indexOf('_')
+    if (separatorIndex === -1) {
+      return { providerId: '', modelId: suffix }
+    }
+
+    return {
+      providerId: suffix.slice(0, separatorIndex),
+      modelId: suffix.slice(separatorIndex + 1)
+    }
   }
 
   private getAgentRepositoryOrThrow(): AgentRepository {
@@ -406,33 +833,38 @@ export class ConfigPresenter implements IConfigPresenter {
     this.syncRegistryAgentsToRepository()
   }
 
-  private migrateLegacyDefaultVisionModelToBuiltinAgent(): void {
-    const legacySelection = this.store.get('defaultVisionModel') as unknown
-    if (legacySelection === undefined) {
-      return
+  private reconcileLegacyBuiltinAgentSelections(): void {
+    const config = this.getBuiltinDeepChatConfig()
+    const updates: Partial<DeepChatAgentConfig> = {}
+
+    const legacyDefaultModel = getLiveLegacyModelSelection(
+      this.store.get('defaultModel') as unknown
+    )
+    if (legacyDefaultModel && shouldReplaceBuiltinModelSelection(config.defaultModelPreset)) {
+      updates.defaultModelPreset = legacyDefaultModel
     }
 
-    const builtinVisionModel = this.getBuiltinDeepChatConfig().visionModel
-
-    if (
-      isModelSelection(legacySelection) &&
-      (!builtinVisionModel?.providerId || !builtinVisionModel?.modelId)
-    ) {
-      const providerId = legacySelection.providerId.trim()
-      const modelId = legacySelection.modelId.trim()
-
-      if (providerId && modelId) {
-        this.updateBuiltinDeepChatConfig({
-          visionModel: {
-            providerId,
-            modelId
-          }
-        })
-      }
+    const legacyAssistantModel = getLiveLegacyModelSelection(
+      this.store.get('assistantModel') as unknown
+    )
+    if (legacyAssistantModel && shouldReplaceBuiltinModelSelection(config.assistantModel)) {
+      updates.assistantModel = legacyAssistantModel
     }
 
-    this.store.delete('defaultVisionModel')
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
+    const legacyVisionSelection = this.store.get('defaultVisionModel') as unknown
+    const legacyVisionModel = getLiveLegacyModelSelection(legacyVisionSelection)
+    if (legacyVisionModel && shouldReplaceBuiltinModelSelection(config.visionModel)) {
+      updates.visionModel = legacyVisionModel
+    }
+
+    if (Object.keys(updates).length > 0) {
+      this.updateBuiltinDeepChatConfig(updates)
+    }
+
+    if (legacyVisionSelection !== undefined) {
+      this.store.delete('defaultVisionModel')
+      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
+    }
   }
 
   private buildLegacyBuiltinDeepChatConfig(): DeepChatAgentConfig {
@@ -443,7 +875,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const autoCompactionTriggerThreshold = this.store.get('autoCompactionTriggerThreshold')
     const autoCompactionRetainRecentPairs = this.store.get('autoCompactionRetainRecentPairs')
 
-    return {
+    return normalizeDeepChatSubagentConfig({
       defaultModelPreset:
         defaultModel?.providerId && defaultModel?.modelId
           ? {
@@ -474,7 +906,7 @@ export class ConfigPresenter implements IConfigPresenter {
         typeof autoCompactionTriggerThreshold === 'number' ? autoCompactionTriggerThreshold : 80,
       autoCompactionRetainRecentPairs:
         typeof autoCompactionRetainRecentPairs === 'number' ? autoCompactionRetainRecentPairs : 2
-    }
+    })
   }
 
   private syncRegistryAgentsToRepository(
@@ -511,6 +943,31 @@ export class ConfigPresenter implements IConfigPresenter {
     this.notifyAcpAgentsChanged()
   }
 
+  private cleanupDeprecatedBuiltinAgentSelections(): void {
+    const config = this.getBuiltinDeepChatConfig()
+    const updates: Partial<DeepChatAgentConfig> = {}
+
+    if (isDeprecatedBuiltinModelSelection(config.defaultModelPreset)) {
+      updates.defaultModelPreset = null
+    }
+
+    if (isDeprecatedBuiltinModelSelection(config.assistantModel)) {
+      updates.assistantModel = null
+    }
+
+    if (isDeprecatedBuiltinModelSelection(config.visionModel)) {
+      updates.visionModel = null
+    }
+
+    if (isDeprecatedBuiltinModelSelection(config.imageGenerationModel)) {
+      updates.imageGenerationModel = null
+    }
+
+    if (Object.keys(updates).length > 0) {
+      this.updateBuiltinDeepChatConfig(updates)
+    }
+  }
+
   private initProviderModelsDir(): void {
     const modelsDir = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
     if (!fs.existsSync(modelsDir)) {
@@ -523,23 +980,132 @@ export class ConfigPresenter implements IConfigPresenter {
     return providerDbLoader.getDb()
   }
 
+  async refreshProviderDb(force = false): Promise<ProviderDbRefreshResult> {
+    return providerDbLoader.refreshIfNeeded(force)
+  }
+
+  private resolveCapabilityRoute(
+    providerId: string,
+    modelId: string
+  ): {
+    endpointType?: NewApiEndpointType
+    supportedEndpointTypes?: NewApiEndpointType[]
+    type?: ModelType
+    providerApiType?: string
+    ownedBy?: string
+  } | null {
+    const providerApiType = this.providerHelper?.getProviderById?.(providerId)?.apiType
+    const modelConfig = this.getModelConfig(modelId, providerId)
+    if (isNewApiEndpointType(modelConfig.endpointType)) {
+      return {
+        endpointType: modelConfig.endpointType,
+        providerApiType,
+        ownedBy: modelConfig.ownedBy
+      }
+    }
+
+    const storedModel =
+      this.providerModelHelper
+        .getProviderModels(providerId)
+        .find((model) => model.id === modelId) ??
+      this.getCustomModels(providerId).find((model) => model.id === modelId)
+
+    if (storedModel) {
+      return {
+        endpointType: storedModel.endpointType,
+        supportedEndpointTypes: storedModel.supportedEndpointTypes,
+        type: storedModel.type,
+        providerApiType,
+        ownedBy: storedModel.ownedBy ?? modelConfig.ownedBy
+      }
+    }
+
+    return providerApiType
+      ? {
+          providerApiType
+        }
+      : null
+  }
+
+  getCapabilityProviderId(providerId: string, modelId: string): string {
+    return resolveProviderCapabilityProviderId(
+      providerId,
+      this.resolveCapabilityRoute(providerId, modelId),
+      modelId
+    )
+  }
+
   supportsReasoningCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsReasoning(providerId, modelId)
+    return modelCapabilities.supportsReasoning(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
+  private inferProviderDbModelType(model: ProviderModel): ModelType {
+    const videoGenerationType = resolveVideoGenerationCompatType({
+      modelId: model.id,
+      type: model.type,
+      modalities: model.modalities
+    })
+    if (videoGenerationType) {
+      return videoGenerationType
+    }
+
+    if (Array.isArray(model.modalities?.output) && model.modalities.output.includes('image')) {
+      return ModelType.ImageGeneration
+    }
+
+    switch (model.type) {
+      case 'embedding':
+        return ModelType.Embedding
+      case 'rerank':
+        return ModelType.Rerank
+      case 'imageGeneration':
+        return ModelType.ImageGeneration
+      case 'videoGeneration':
+        return ModelType.VideoGeneration
+      case 'tts':
+        return ModelType.TTS
+      case 'chat':
+      default:
+        return ModelType.Chat
+    }
   }
 
   getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null {
-    return modelCapabilities.getReasoningPortrait(providerId, modelId)
+    return modelCapabilities.getReasoningPortrait(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getThinkingBudgetRange(
     providerId: string,
     modelId: string
   ): { min?: number; max?: number; default?: number } {
-    return modelCapabilities.getThinkingBudgetRange(providerId, modelId)
+    return modelCapabilities.getThinkingBudgetRange(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   supportsSearchCapability(providerId: string, modelId: string): boolean {
     return modelCapabilities.supportsSearch(providerId, modelId)
+  }
+
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined {
+    return modelCapabilities.getTemperatureCapability(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
+  supportsTemperatureControl(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsTemperatureControl(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   getSearchDefaults(
@@ -549,23 +1115,39 @@ export class ConfigPresenter implements IConfigPresenter {
     return modelCapabilities.getSearchDefaults(providerId, modelId)
   }
 
-  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsReasoningEffort(providerId, modelId)
+  supportsAudioInputCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsAudioInput(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
-  getReasoningEffortDefault(
-    providerId: string,
-    modelId: string
-  ): 'minimal' | 'low' | 'medium' | 'high' | undefined {
-    return modelCapabilities.getReasoningEffortDefault(providerId, modelId)
+  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean {
+    return modelCapabilities.supportsReasoningEffort(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
+  }
+
+  getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined {
+    return modelCapabilities.getReasoningEffortDefault(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   supportsVerbosityCapability(providerId: string, modelId: string): boolean {
-    return modelCapabilities.supportsVerbosity(providerId, modelId)
+    return modelCapabilities.supportsVerbosity(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
-  getVerbosityDefault(providerId: string, modelId: string): 'low' | 'medium' | 'high' | undefined {
-    return modelCapabilities.getVerbosityDefault(providerId, modelId)
+  getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined {
+    return modelCapabilities.getVerbosityDefault(
+      this.getCapabilityProviderId(providerId, modelId),
+      modelId
+    )
   }
 
   private migrateConfigData(oldVersion: string | undefined): void {
@@ -812,6 +1394,27 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
+  private cleanupDeprecatedBuiltinProviders(): void {
+    const providers = this.getProviders()
+    const filteredProviders = removeDeprecatedBuiltinProviders(providers)
+
+    if (filteredProviders.length !== providers.length) {
+      this.setProviders(filteredProviders)
+    }
+
+    const keysToClear = getDeprecatedProviderModelSelectionKeysToClear({
+      defaultModel: this.store.get('defaultModel') as ModelSelection | undefined,
+      assistantModel: this.store.get('assistantModel') as ModelSelection | undefined,
+      defaultVisionModel: this.store.get('defaultVisionModel') as ModelSelection | undefined,
+      preferredModel: this.store.get('preferredModel') as ModelSelection | undefined
+    })
+
+    for (const key of keysToClear) {
+      this.store.delete(key)
+      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
+    }
+  }
+
   getSetting<T>(key: string): T | undefined {
     try {
       if (this.agentRepository) {
@@ -825,7 +1428,7 @@ export class ConfigPresenter implements IConfigPresenter {
           return this.getBuiltinDeepChatConfig().systemPrompt as T | undefined
         }
       }
-      return this.store.get(key) as T
+      return this.getSettingsStoreForKey(key).get<T>(key)
     } catch (error) {
       console.error(`[Config] Failed to get setting ${key}:`, error)
       return undefined
@@ -855,13 +1458,24 @@ export class ConfigPresenter implements IConfigPresenter {
         }
       }
 
-      this.store.set(key, value)
+      this.getSettingsStoreForKey(key).set(key, value)
       // Trigger setting change event (main process internal use only)
       eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
 
       // Special handling: font size settings need to notify all tabs
       if (key === 'fontSizeLevel') {
         eventBus.sendToRenderer(CONFIG_EVENTS.FONT_SIZE_CHANGED, SendTarget.ALL_WINDOWS, value)
+      }
+
+      const trackedChange = toTrackedSettingsChangePayload(key, value)
+      if (trackedChange) {
+        publishDeepchatEvent('settings.changed', {
+          changedKeys: [trackedChange.changedKey],
+          version: Date.now(),
+          values: {
+            [trackedChange.changedKey]: trackedChange.value
+          } as Partial<SettingsSnapshotValues>
+        })
       }
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
@@ -938,6 +1552,10 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusHelper.setModelStatus(providerId, modelId, enabled)
   }
 
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void {
+    this.modelStatusHelper.ensureModelStatus(providerId, modelId, enabled)
+  }
+
   enableModel(providerId: string, modelId: string): void {
     this.modelStatusHelper.enableModel(providerId, modelId)
   }
@@ -958,8 +1576,36 @@ export class ConfigPresenter implements IConfigPresenter {
     this.modelStatusHelper.batchSetModelStatus(providerId, modelStatusMap)
   }
 
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void {
+    this.modelStatusHelper.batchSetModelStatusQuiet(providerId, modelStatusMap)
+  }
+
   getProviderModels(providerId: string): MODEL_META[] {
-    return this.providerModelHelper.getProviderModels(providerId)
+    const models = this.providerModelHelper.getProviderModels(providerId)
+    return models.map((model) => {
+      const capabilityProviderId = resolveProviderCapabilityProviderId(
+        providerId,
+        {
+          endpointType: model.endpointType,
+          supportedEndpointTypes: model.supportedEndpointTypes,
+          type: model.type,
+          providerApiType: this.providerHelper?.getProviderById?.(providerId)?.apiType,
+          ownedBy: model.ownedBy
+        },
+        model.id
+      )
+
+      if (capabilityProviderId === providerId) {
+        return model
+      }
+
+      return {
+        ...model,
+        reasoning:
+          model.reasoning === true ||
+          modelCapabilities.supportsReasoning(capabilityProviderId, model.id)
+      }
+    })
   }
 
   // 基于聚合 Provider DB 的标准模型（只读映射，不落库）
@@ -973,7 +1619,7 @@ export class ConfigPresenter implements IConfigPresenter {
       id: m.id,
       name: m.display_name || m.name || m.id,
       contextLength: resolveModelContextLength(m.limit?.context),
-      maxTokens: resolveModelMaxTokens(m.limit?.output),
+      maxTokens: resolveDerivedModelMaxTokens(m.limit?.output),
       provider: providerId,
       providerId,
       group: 'default',
@@ -983,11 +1629,8 @@ export class ConfigPresenter implements IConfigPresenter {
         Array.isArray(m?.modalities?.input) ? m.modalities!.input!.includes('image') : undefined
       ),
       functionCall: resolveModelFunctionCall(m.tool_call),
-      reasoning: Boolean(m.reasoning?.supported),
-      type:
-        Array.isArray(m?.modalities?.output) && m.modalities!.output!.includes('image')
-          ? ModelType.ImageGeneration
-          : ModelType.Chat
+      reasoning: this.supportsReasoningCapability(providerId, m.id),
+      type: this.inferProviderDbModelType(m)
     }))
   }
 
@@ -1108,7 +1751,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setLanguage(language: string): void {
     this.setSetting('language', language)
     // Trigger language change event (need to notify all tabs)
-    eventBus.sendToRenderer(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
+    eventBus.send(CONFIG_EVENTS.LANGUAGE_CHANGED, SendTarget.ALL_WINDOWS, language)
 
     try {
       presenter.floatingButtonPresenter.refreshLanguage()
@@ -1132,7 +1775,15 @@ export class ConfigPresenter implements IConfigPresenter {
       'fa-IR',
       'pt-BR',
       'da-DK',
-      'he-IL'
+      'he-IL',
+      'es-ES',
+      'de-DE',
+      'tr-TR',
+      'id-ID',
+      'ms-MY',
+      'it-IT',
+      'pl-PL',
+      'vi-VN'
     ]
 
     // Exact match
@@ -1202,7 +1853,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // Set sync function status
   setSyncEnabled(enabled: boolean): void {
-    console.log('setSyncEnabled', enabled)
+    logger.info('setSyncEnabled', enabled)
     this.setSetting('syncEnabled', enabled)
     eventBus.send(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, SendTarget.ALL_WINDOWS, { enabled })
   }
@@ -1230,6 +1881,141 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('lastSyncTime', time)
   }
 
+  // === Cloud sync (S3-compatible) settings ===
+  // Non-sensitive fields live in app-settings; the secret is encrypted via safeStorage.
+  private readonly CLOUD_SYNC_BASE_KEY = 'cloudSyncConfig'
+  private readonly CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
+
+  isCloudSafeStorageAvailable(): boolean {
+    try {
+      return safeStorage.isEncryptionAvailable()
+    } catch {
+      return false
+    }
+  }
+
+  private getCloudSyncBase(): {
+    enabled: boolean
+    endpoint: string
+    bucket: string
+    region: string
+    prefix: string
+    accessKeyId: string
+  } {
+    const stored = this.getSetting<{
+      enabled?: boolean
+      endpoint?: string
+      bucket?: string
+      region?: string
+      prefix?: string
+      accessKeyId?: string
+    }>(this.CLOUD_SYNC_BASE_KEY)
+    return {
+      enabled: stored?.enabled ?? false,
+      endpoint: stored?.endpoint ?? '',
+      bucket: stored?.bucket ?? '',
+      region: stored?.region ?? 'auto',
+      prefix: stored?.prefix ?? 'deepchat-backups',
+      accessKeyId: stored?.accessKeyId ?? ''
+    }
+  }
+
+  private getCloudSyncSecret(): string {
+    const wrapped = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    if (!wrapped) {
+      return ''
+    }
+    try {
+      return safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    } catch (error) {
+      console.error('[Config] Failed to decrypt cloud sync secret:', error)
+      return ''
+    }
+  }
+
+  getCloudSyncConfig(): CloudSyncConfigView {
+    const base = this.getCloudSyncBase()
+    return {
+      ...base,
+      hasSecret: Boolean(this.getCloudSyncSecret()),
+      safeStorageAvailable: this.isCloudSafeStorageAvailable()
+    }
+  }
+
+  private setCloudSyncSetting<T>(key: string, value: T): void {
+    this.getSettingsStoreForKey(key).set(key, value)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
+  }
+
+  private deleteCloudSyncSetting(key: string): void {
+    this.getSettingsStoreForKey(key).delete(key)
+    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
+  }
+
+  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
+    const current = this.getCloudSyncBase()
+    const next = {
+      enabled: config.enabled ?? current.enabled,
+      endpoint: config.endpoint ?? current.endpoint,
+      bucket: config.bucket ?? current.bucket,
+      region: config.region ?? current.region,
+      prefix: config.prefix ?? current.prefix,
+      accessKeyId: config.accessKeyId ?? current.accessKeyId
+    }
+
+    // Only update the secret when a non-empty value is provided; empty/undefined keeps the existing one.
+    const currentWrappedSecret = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
+    let nextWrappedSecret: string | undefined
+    if (typeof config.secretAccessKey === 'string' && config.secretAccessKey.length > 0) {
+      if (!this.isCloudSafeStorageAvailable()) {
+        throw new Error('sync.error.safeStorageUnavailable')
+      }
+      nextWrappedSecret = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
+        'base64'
+      )
+    }
+
+    let secretWritten = false
+    try {
+      if (nextWrappedSecret !== undefined) {
+        this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, nextWrappedSecret)
+        secretWritten = true
+      }
+      this.setCloudSyncSetting(this.CLOUD_SYNC_BASE_KEY, next)
+    } catch (error) {
+      if (secretWritten) {
+        try {
+          if (currentWrappedSecret) {
+            this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, currentWrappedSecret)
+          } else {
+            this.deleteCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY)
+          }
+        } catch (rollbackError) {
+          console.error('[Config] Failed to rollback cloud sync secret:', rollbackError)
+        }
+      }
+      throw error
+    }
+
+    return this.getCloudSyncConfig()
+  }
+
+  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null {
+    const base = this.getCloudSyncBase()
+    const secretAccessKey = this.getCloudSyncSecret()
+    if (!base.endpoint || !base.bucket || !base.accessKeyId || !secretAccessKey) {
+      return null
+    }
+    return {
+      endpoint: base.endpoint,
+      bucket: base.bucket,
+      region: base.region,
+      prefix: base.prefix,
+      accessKeyId: base.accessKeyId,
+      secretAccessKey
+    }
+  }
+
   // Skills settings
   getSkillsEnabled(): boolean {
     return this.getSetting<boolean>('enableSkills') ?? true
@@ -1237,6 +2023,14 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setSkillsEnabled(enabled: boolean): void {
     this.setSetting('enableSkills', enabled)
+  }
+
+  getSkillDraftSuggestionsEnabled(): boolean {
+    return this.getSetting<boolean>('skillDraftSuggestionsEnabled') ?? false
+  }
+
+  setSkillDraftSuggestionsEnabled(enabled: boolean): void {
+    this.setSetting('skillDraftSuggestionsEnabled', enabled)
   }
 
   getSkillsPath(): string {
@@ -1249,10 +2043,15 @@ export class ConfigPresenter implements IConfigPresenter {
     this.setSetting('skillsPath', skillsPath)
   }
 
-  getSkillSettings(): { skillsPath: string; enableSkills: boolean } {
+  getSkillSettings(): {
+    skillsPath: string
+    enableSkills: boolean
+    skillDraftSuggestionsEnabled: boolean
+  } {
     return {
       skillsPath: this.getSkillsPath(),
-      enableSkills: this.getSkillsEnabled()
+      enableSkills: this.getSkillsEnabled(),
+      skillDraftSuggestionsEnabled: this.getSkillDraftSuggestionsEnabled()
     }
   }
 
@@ -1307,8 +2106,16 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   setAutoCompactionEnabled(enabled: boolean): void {
+    const nextValue = Boolean(enabled)
     this.updateBuiltinDeepChatConfig({
-      autoCompactionEnabled: Boolean(enabled)
+      autoCompactionEnabled: nextValue
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionEnabled'],
+      version: Date.now(),
+      values: {
+        autoCompactionEnabled: nextValue
+      }
     })
   }
 
@@ -1323,6 +2130,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.updateBuiltinDeepChatConfig({
       autoCompactionTriggerThreshold: threshold
     })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionTriggerThreshold'],
+      version: Date.now(),
+      values: {
+        autoCompactionTriggerThreshold: this.getAutoCompactionTriggerThreshold()
+      }
+    })
   }
 
   getAutoCompactionRetainRecentPairs(): number {
@@ -1336,6 +2150,13 @@ export class ConfigPresenter implements IConfigPresenter {
     this.updateBuiltinDeepChatConfig({
       autoCompactionRetainRecentPairs: count
     })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoCompactionRetainRecentPairs'],
+      version: Date.now(),
+      values: {
+        autoCompactionRetainRecentPairs: this.getAutoCompactionRetainRecentPairs()
+      }
+    })
   }
 
   getContentProtectionEnabled(): boolean {
@@ -1346,15 +2167,47 @@ export class ConfigPresenter implements IConfigPresenter {
     this.uiSettingsHelper.setContentProtectionEnabled(enabled)
   }
 
+  getPrivacyModeEnabled(): boolean {
+    return this.uiSettingsHelper.getPrivacyModeEnabled()
+  }
+
+  setPrivacyModeEnabled(enabled: boolean): void {
+    this.uiSettingsHelper.setPrivacyModeEnabled(enabled)
+  }
+
   getLoggingEnabled(): boolean {
     return this.getSetting<boolean>('loggingEnabled') ?? false
   }
 
   setLoggingEnabled(enabled: boolean): void {
     this.setSetting('loggingEnabled', enabled)
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['loggingEnabled'],
+      version: Date.now(),
+      values: {
+        loggingEnabled: Boolean(enabled)
+      }
+    })
     setTimeout(() => {
       presenter.devicePresenter.restartApp()
     }, 1000)
+  }
+
+  getLaunchAtLoginEnabled(): boolean {
+    return app.getLoginItemSettings().openAtLogin
+  }
+
+  setLaunchAtLoginEnabled(enabled: boolean): void {
+    app.setLoginItemSettings({
+      openAtLogin: Boolean(enabled)
+    })
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['launchAtLoginEnabled'],
+      version: Date.now(),
+      values: {
+        launchAtLoginEnabled: this.getLaunchAtLoginEnabled()
+      }
+    })
   }
 
   getCopyWithCotEnabled(): boolean {
@@ -1402,14 +2255,32 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set floating button switch status
   setFloatingButtonEnabled(enabled: boolean): void {
     this.setSetting('floatingButtonEnabled', enabled)
-    eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
-    eventBus.sendToRenderer(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
+    eventBus.send(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, SendTarget.ALL_WINDOWS, enabled)
 
     try {
       presenter.floatingButtonPresenter.setEnabled(enabled)
     } catch (error) {
       console.error('Failed to directly call floatingButtonPresenter:', error)
     }
+  }
+
+  // Get persisted floating button resting position (docked, fully on-screen)
+  getFloatingButtonBounds(): FloatingButtonBounds | null {
+    const value = this.getSetting<FloatingButtonBounds>('floatingButtonBounds')
+    if (
+      !value ||
+      typeof value.x !== 'number' ||
+      typeof value.y !== 'number' ||
+      (value.dockSide !== 'left' && value.dockSide !== 'right')
+    ) {
+      return null
+    }
+    return value
+  }
+
+  // Persist floating button resting position so it survives restarts
+  setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
+    this.setSetting('floatingButtonBounds', bounds)
   }
 
   // ===================== MCP configuration related methods =====================
@@ -1462,7 +2333,7 @@ export class ConfigPresenter implements IConfigPresenter {
     if (!provider || provider.enable === enabled) {
       return
     }
-    console.log(`[ACP] syncAcpProviderEnabled: updating provider enable state to ${enabled}`)
+    logger.info(`[ACP] syncAcpProviderEnabled: updating provider enable state to ${enabled}`)
     this.updateProviderAtomic('acp', { enable: enabled })
   }
 
@@ -1474,11 +2345,11 @@ export class ConfigPresenter implements IConfigPresenter {
     const changed = this.acpConfHelper.setGlobalEnabled(enabled)
     if (!changed) return
 
-    console.log('[ACP] setAcpEnabled: updating global toggle to', enabled)
+    logger.info('[ACP] setAcpEnabled: updating global toggle to', enabled)
     this.syncAcpProviderEnabled(enabled)
 
     if (!enabled) {
-      console.log('[ACP] Disabling: clearing provider models and status cache')
+      logger.info('[ACP] Disabling: clearing provider models and status cache')
       this.providerModelHelper.setProviderModels('acp', [])
       this.clearProviderModelStatusCache('acp')
     }
@@ -1558,7 +2429,7 @@ export class ConfigPresenter implements IConfigPresenter {
       error: null
     }
     this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, installingState)
-    this.notifyAcpAgentsChanged()
+    this.notifyAcpAgentsChanged([registryAgent.id])
 
     try {
       const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
@@ -1566,7 +2437,7 @@ export class ConfigPresenter implements IConfigPresenter {
         currentState
       )
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, installedState)
-      this.notifyAcpAgentsChanged()
+      this.handleAcpAgentsMutated([registryAgent.id])
       return installedState
     } catch (error) {
       const failedState: AcpAgentInstallState = {
@@ -1580,7 +2451,7 @@ export class ConfigPresenter implements IConfigPresenter {
         error: error instanceof Error ? error.message : String(error)
       }
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, failedState)
-      this.notifyAcpAgentsChanged()
+      this.notifyAcpAgentsChanged([registryAgent.id])
       throw error
     }
   }
@@ -1599,7 +2470,8 @@ export class ConfigPresenter implements IConfigPresenter {
       error: null
     }
     this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, repairingState)
-    this.notifyAcpAgentsChanged()
+    this.notifyAcpAgentsChanged([registryAgent.id])
+    await this.refreshAcpProviderAgents([registryAgent.id])
 
     try {
       const installedState = await this.acpLaunchSpecService.ensureRegistryAgentInstalled(
@@ -1622,9 +2494,47 @@ export class ConfigPresenter implements IConfigPresenter {
         error: error instanceof Error ? error.message : String(error)
       }
       this.getAgentRepositoryOrThrow().setAgentInstallState(registryAgent.id, failedState)
-      this.notifyAcpAgentsChanged()
+      this.notifyAcpAgentsChanged([registryAgent.id])
       throw error
     }
+  }
+
+  async uninstallAcpRegistryAgent(agentId: string): Promise<void> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
+    const agentRepository = this.getAgentRepositoryOrThrow()
+    if (agentRepository.hasAgentSessions(registryAgent.id)) {
+      throw new Error(
+        'ACP registry agent still has related conversations. Move or delete them first.'
+      )
+    }
+
+    const currentState = agentRepository.getAgentInstallState(registryAgent.id)
+
+    await this.acpLaunchSpecService.uninstallRegistryAgent(registryAgent, currentState)
+
+    const uninstalledState: AcpAgentInstallState = {
+      status: 'not_installed',
+      version: registryAgent.version,
+      distributionType:
+        this.acpLaunchSpecService.selectRegistryDistribution(registryAgent)?.type ?? undefined,
+      lastCheckedAt: Date.now(),
+      installedAt: null,
+      installDir: null,
+      error: null
+    }
+
+    const updated = agentRepository.clearRegistryAcpAgentInstallation(
+      registryAgent.id,
+      uninstalledState
+    )
+    if (!updated) {
+      throw new Error(
+        `ACP registry agent not found or still has related conversations: ${registryAgent.id}`
+      )
+    }
+
+    this.handleAcpAgentsMutated([registryAgent.id])
   }
 
   async getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null> {
@@ -1841,11 +2751,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private handleAcpAgentsMutated(agentIds?: string[]) {
     this.clearProviderModelStatusCache('acp')
-    this.notifyAcpAgentsChanged()
-    this.refreshAcpProviderAgents(agentIds)
+    this.notifyAcpAgentsChanged(agentIds)
+    void this.refreshAcpProviderAgents(agentIds)
   }
 
-  private refreshAcpProviderAgents(agentIds?: string[]): void {
+  private async refreshAcpProviderAgents(agentIds?: string[]): Promise<void> {
     try {
       const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
       if (!providerInstance) {
@@ -1857,17 +2767,17 @@ export class ConfigPresenter implements IConfigPresenter {
         return
       }
 
-      void acpProvider.refreshAgents(agentIds)
+      await acpProvider.refreshAgents(agentIds)
     } catch (error) {
       console.warn('[ACP] Failed to refresh agent processes after config change:', error)
     }
   }
 
-  private notifyAcpAgentsChanged() {
-    console.log('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
-    eventBus.sendToRenderer(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS)
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
+  private notifyAcpAgentsChanged(agentIds?: string[]) {
+    logger.info('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
+    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, 'acp')
+    eventBus.send(CONFIG_EVENTS.AGENTS_CHANGED, SendTarget.ALL_WINDOWS, { agentIds })
+    eventBus.sendToRendererIfAvailable(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
   }
 
   // Provide getMcpConfHelper method to get MCP configuration helper
@@ -1898,8 +2808,9 @@ export class ConfigPresenter implements IConfigPresenter {
     options?: { source?: ModelConfigSource }
   ): void {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
+    this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // Trigger model configuration change event (need to notify all tabs)
-    eventBus.sendToRenderer(
+    eventBus.send(
       CONFIG_EVENTS.MODEL_CONFIG_CHANGED,
       SendTarget.ALL_WINDOWS,
       providerId,
@@ -1915,13 +2826,9 @@ export class ConfigPresenter implements IConfigPresenter {
    */
   resetModelConfig(modelId: string, providerId: string): void {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
+    this.providerModelHelper.invalidateProviderModelsCache(providerId)
     // 触发模型配置重置事件（需要通知所有标签页）
-    eventBus.sendToRenderer(
-      CONFIG_EVENTS.MODEL_CONFIG_RESET,
-      SendTarget.ALL_WINDOWS,
-      providerId,
-      modelId
-    )
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIG_RESET, SendTarget.ALL_WINDOWS, providerId, modelId)
   }
 
   /**
@@ -1962,8 +2869,9 @@ export class ConfigPresenter implements IConfigPresenter {
    */
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     this.modelConfigHelper.importConfigs(configs, overwrite)
+    this.providerModelHelper.invalidateAllProviderModelsCache()
     // 触发批量导入事件（需要通知所有标签页）
-    eventBus.sendToRenderer(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
+    eventBus.send(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, SendTarget.ALL_WINDOWS, overwrite)
   }
 
   getNotificationsEnabled(): boolean {
@@ -1998,7 +2906,7 @@ export class ConfigPresenter implements IConfigPresenter {
     nativeTheme.themeSource = theme
     this.setSetting('appTheme', theme)
     // 通知所有窗口主题已更改
-    eventBus.sendToRenderer(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
+    eventBus.send(CONFIG_EVENTS.THEME_CHANGED, SendTarget.ALL_WINDOWS, theme)
 
     try {
       void presenter.floatingButtonPresenter.refreshTheme()
@@ -2030,9 +2938,11 @@ export class ConfigPresenter implements IConfigPresenter {
 
     // Load from store and cache it
     try {
-      const prompts = this.customPromptsStore.get('prompts') || []
+      const prompts = this.dbBackedSettingsStore
+        ? this.getSetting<Prompt[]>('customPrompts') || []
+        : this.customPromptsStore.get('prompts') || []
       this.customPromptsCache = prompts
-      console.log(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
+      logger.info(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
       return prompts
     } catch (error) {
       console.error('[Config] Failed to load custom prompts:', error)
@@ -2043,11 +2953,15 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 保存自定义 prompts (with cache update)
   async setCustomPrompts(prompts: Prompt[]): Promise<void> {
-    await this.customPromptsStore.set('prompts', prompts)
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('customPrompts', prompts)
+    } else {
+      await this.customPromptsStore.set('prompts', prompts)
+    }
     this.clearCustomPromptsCache()
-    console.log(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
+    logger.info(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
     // Notify all windows about custom prompts change
-    eventBus.sendToRenderer(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED, SendTarget.ALL_WINDOWS, {
       count: prompts.length
     })
   }
@@ -2057,7 +2971,7 @@ export class ConfigPresenter implements IConfigPresenter {
     const prompts = await this.getCustomPrompts()
     const updatedPrompts = [...prompts, prompt] // Create new array
     await this.setCustomPrompts(updatedPrompts)
-    console.log(`[Config] Added custom prompt: ${prompt.name}`)
+    logger.info(`[Config] Added custom prompt: ${prompt.name}`)
   }
 
   // 更新单个 prompt (optimized with cache)
@@ -2068,7 +2982,7 @@ export class ConfigPresenter implements IConfigPresenter {
       const updatedPrompts = [...prompts] // Create new array
       updatedPrompts[index] = { ...updatedPrompts[index], ...updates }
       await this.setCustomPrompts(updatedPrompts)
-      console.log(`[Config] Updated custom prompt: ${promptId}`)
+      logger.info(`[Config] Updated custom prompt: ${promptId}`)
     } else {
       console.warn(`[Config] Custom prompt not found for update: ${promptId}`)
     }
@@ -2086,7 +3000,7 @@ export class ConfigPresenter implements IConfigPresenter {
     }
 
     await this.setCustomPrompts(filteredPrompts)
-    console.log(`[Config] Deleted custom prompt: ${promptId}`)
+    logger.info(`[Config] Deleted custom prompt: ${promptId}`)
   }
 
   /**
@@ -2094,63 +3008,173 @@ export class ConfigPresenter implements IConfigPresenter {
    * 这将强制下次访问时重新加载
    */
   clearCustomPromptsCache(): void {
-    console.log('[Config] Clearing custom prompts cache')
+    logger.info('[Config] Clearing custom prompts cache')
     this.customPromptsCache = null
   }
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
+      return defaultPrompt?.content ?? this.getSetting<string>('default_system_prompt') ?? ''
+    }
     return this.systemPromptHelper.getDefaultSystemPrompt()
   }
 
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', prompt)
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.setDefaultSystemPrompt(prompt)
   }
 
   async resetToDefaultPrompt(): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.resetToDefaultPrompt()
   }
 
   async clearSystemPrompt(): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('default_system_prompt', '')
+      await this.publishSystemPromptState()
+      return
+    }
     return this.systemPromptHelper.clearSystemPrompt()
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
+    if (this.dbBackedSettingsStore) {
+      return this.getSetting<SystemPrompt[]>('systemPrompts') || []
+    }
     return this.systemPromptHelper.getSystemPrompts()
   }
 
   async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
-    return this.systemPromptHelper.setSystemPrompts(prompts)
+    if (!this.dbBackedSettingsStore) {
+      return this.systemPromptHelper.setSystemPrompts(prompts)
+    }
+
+    this.setSetting('systemPrompts', prompts)
+    publishDeepchatEvent('config.systemPrompts.changed', {
+      prompts,
+      defaultPromptId: await this.getDefaultSystemPromptId(),
+      prompt: await this.getDefaultSystemPrompt(),
+      version: Date.now()
+    })
   }
 
   async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      await this.setSystemPrompts([...prompts, prompt])
+      return
+    }
     return this.systemPromptHelper.addSystemPrompt(prompt)
   }
 
   async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const index = prompts.findIndex((prompt) => prompt.id === promptId)
+      if (index === -1) {
+        return
+      }
+      const nextPrompts = [...prompts]
+      nextPrompts[index] = { ...nextPrompts[index], ...updates }
+      await this.setSystemPrompts(nextPrompts)
+      return
+    }
     return this.systemPromptHelper.updateSystemPrompt(promptId, updates)
   }
 
   async deleteSystemPrompt(promptId: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      await this.setSystemPrompts(prompts.filter((prompt) => prompt.id !== promptId))
+      return
+    }
     return this.systemPromptHelper.deleteSystemPrompt(promptId)
   }
 
   async setDefaultSystemPromptId(promptId: string): Promise<void> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const updatedPrompts = prompts.map((prompt) => ({ ...prompt, isDefault: false }))
+
+      if (promptId === 'empty') {
+        await this.setSystemPrompts(updatedPrompts)
+        await this.clearSystemPrompt()
+        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+          promptId: 'empty',
+          content: ''
+        })
+        await this.publishSystemPromptState()
+        return
+      }
+
+      const targetIndex = updatedPrompts.findIndex((prompt) => prompt.id === promptId)
+      if (targetIndex !== -1) {
+        updatedPrompts[targetIndex].isDefault = true
+        await this.setSystemPrompts(updatedPrompts)
+        await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
+        eventBus.send(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, SendTarget.ALL_WINDOWS, {
+          promptId,
+          content: updatedPrompts[targetIndex].content
+        })
+        await this.publishSystemPromptState()
+      } else {
+        await this.setSystemPrompts(updatedPrompts)
+      }
+      return
+    }
     return this.systemPromptHelper.setDefaultSystemPromptId(promptId)
   }
 
   async getDefaultSystemPromptId(): Promise<string> {
+    if (this.dbBackedSettingsStore) {
+      const prompts = await this.getSystemPrompts()
+      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
+      if (defaultPrompt) {
+        return defaultPrompt.id
+      }
+
+      const storedPrompt = this.getSetting<string>('default_system_prompt')
+      if (!storedPrompt || storedPrompt.trim() === '') {
+        return 'empty'
+      }
+
+      return prompts.find((prompt) => prompt.id === 'default')?.id || 'default'
+    }
     return this.systemPromptHelper.getDefaultSystemPromptId()
+  }
+
+  private async publishSystemPromptState(): Promise<void> {
+    publishDeepchatEvent('config.systemPrompts.changed', {
+      prompts: await this.getSystemPrompts(),
+      defaultPromptId: await this.getDefaultSystemPromptId(),
+      prompt: await this.getDefaultSystemPrompt(),
+      version: Date.now()
+    })
   }
 
   // 获取更新渠道
   getUpdateChannel(): string {
-    const raw = this.getSetting<string>('updateChannel') || 'stable'
-    const channel = raw === 'stable' || raw === 'beta' ? raw : 'beta'
-    if (channel !== raw) {
-      this.setSetting('updateChannel', channel)
+    const raw = this.getSetting<string>('updateChannel')
+    if (raw === 'stable' || raw === 'beta') {
+      return raw
     }
-    return channel
+    // 首次启动或值非法时，按当前应用版本号推断：含 -alpha/-beta/-rc/-canary 等预发后缀的安装包默认进入 beta 渠道
+    const isPrerelease = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i.test(this.currentAppVersion)
+    const inferred = isPrerelease ? 'beta' : 'stable'
+    this.setSetting('updateChannel', inferred)
+    return inferred
   }
 
   // 设置更新渠道
@@ -2186,12 +3210,39 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取知识库配置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
-    return this.knowledgeConfHelper.getKnowledgeConfigs()
+    const configs = this.dbBackedSettingsStore
+      ? this.getSetting<BuiltinKnowledgeConfig[]>('knowledgeConfigs') || []
+      : this.knowledgeConfHelper.getKnowledgeConfigs()
+    const migratedConfigs = this.mcpConfHelper.migrateBuiltinKnowledgeConfigsFromEnv(configs)
+
+    if (migratedConfigs !== configs) {
+      if (this.dbBackedSettingsStore) {
+        this.setSetting('knowledgeConfigs', migratedConfigs)
+      } else {
+        this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
+      }
+    }
+
+    return migratedConfigs
   }
 
   // 设置知识库配置
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
-    this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+    if (this.dbBackedSettingsStore) {
+      this.setSetting('knowledgeConfigs', configs)
+    } else {
+      this.knowledgeConfHelper.setKnowledgeConfigs(configs)
+    }
+    void Promise.all([this.getMcpServers(), this.getMcpEnabled()])
+      .then(([mcpServers, mcpEnabled]) => {
+        eventBus.send(MCP_EVENTS.CONFIG_CHANGED, SendTarget.ALL_WINDOWS, {
+          mcpServers,
+          mcpEnabled
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to notify MCP config change after knowledge config update:', error)
+      })
   }
 
   // 获取NPM Registry缓存
@@ -2241,10 +3292,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 对比知识库配置差异
   diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
-    return KnowledgeConfHelper.diffKnowledgeConfigs(
-      this.knowledgeConfHelper.getKnowledgeConfigs(),
-      newConfigs
-    )
+    return KnowledgeConfHelper.diffKnowledgeConfigs(this.getKnowledgeConfigs(), newConfigs)
   }
 
   // 批量导入MCP服务器
@@ -2282,7 +3330,7 @@ export class ConfigPresenter implements IConfigPresenter {
     timeout: number
   } | null> {
     try {
-      return this.store.get('nowledgeMemConfig', null) as {
+      return this.getSettingsStoreForKey('nowledgeMemConfig').get('nowledgeMemConfig', null) as {
         baseUrl: string
         apiKey?: string
         timeout: number
@@ -2299,7 +3347,7 @@ export class ConfigPresenter implements IConfigPresenter {
     timeout: number
   }): Promise<void> {
     try {
-      this.store.set('nowledgeMemConfig', config)
+      this.getSettingsStoreForKey('nowledgeMemConfig').set('nowledgeMemConfig', config)
       eventBus.sendToRenderer(
         CONFIG_EVENTS.NOWLEDGE_MEM_CONFIG_UPDATED,
         SendTarget.ALL_WINDOWS,
@@ -2312,46 +3360,38 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   getHooksNotificationsConfig(): HooksNotificationsSettings {
-    const raw = this.store.get('hooksNotifications')
+    const store = this.getSettingsStoreForKey('hooksNotifications')
+    const raw = store.get('hooksNotifications')
     const normalized = normalizeHooksNotificationsConfig(raw)
-    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
-    if (confirmoStatus && !confirmoStatus.available) {
-      normalized.confirmo.enabled = false
-    }
     if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      this.store.set('hooksNotifications', normalized)
+      store.set('hooksNotifications', normalized)
     }
     return normalized
   }
 
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
-    const confirmoStatus = presenter?.hooksNotifications?.getConfirmoHookStatus?.()
-    if (confirmoStatus && !confirmoStatus.available) {
-      normalized.confirmo.enabled = false
-    }
-    this.store.set('hooksNotifications', normalized)
+    this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
     return normalized
   }
 
-  async testTelegramNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testTelegram()
+  getScheduledTasksConfig(): ScheduledTasksSettings {
+    const raw = this.store.get('scheduledTasks')
+    const normalized = normalizeScheduledTasksConfig(raw)
+    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      this.store.set('scheduledTasks', normalized)
+    }
+    return normalized
   }
 
-  async testDiscordNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testDiscord()
+  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings {
+    const normalized = normalizeScheduledTasksConfig(config)
+    this.store.set('scheduledTasks', normalized)
+    return normalized
   }
 
-  async testConfirmoNotification(): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testConfirmo()
-  }
-
-  async testHookCommand(eventName: HookEventName): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testHookCommand(eventName)
-  }
-
-  getConfirmoHookStatus(): { available: boolean; path: string } {
-    return presenter.hooksNotifications.getConfirmoHookStatus()
+  async testHookCommand(hookId: string): Promise<HookTestResult> {
+    return await presenter.hooksNotifications.testHookCommand(hookId)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {
@@ -2386,7 +3426,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setDefaultProjectPath(projectPath: string | null): void {
     const normalized = projectPath?.trim() ? projectPath.trim() : null
     this.setSetting('defaultProjectPath', normalized)
-    eventBus.sendToRenderer(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
+    eventBus.send(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, SendTarget.ALL_WINDOWS, {
       path: normalized
     })
   }

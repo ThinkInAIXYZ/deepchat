@@ -1,17 +1,37 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import {
+  isReasoningEffort,
+  isReasoningVisibility,
+  isVerbosity,
+  type ReasoningEffort,
+  type ReasoningVisibility
+} from '@shared/types/model-db'
+import {
+  normalizeImageGenerationOptions,
+  type ImageGenerationOptions
+} from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  type VideoGenerationOptions
+} from '@shared/videoGenerationSettings'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,
   | 'systemPrompt'
   | 'temperature'
+  | 'topP'
   | 'contextLength'
   | 'maxTokens'
+  | 'timeout'
   | 'thinkingBudget'
   | 'reasoningEffort'
+  | 'reasoningVisibility'
   | 'verbosity'
   | 'forceInterleavedThinkingCompat'
+  | 'imageGeneration'
+  | 'videoGeneration'
 >
 
 export interface DeepChatSessionRow {
@@ -21,12 +41,17 @@ export interface DeepChatSessionRow {
   permission_mode: 'default' | 'full_access'
   system_prompt: string | null
   temperature: number | null
+  top_p: number | null
   context_length: number | null
   max_tokens: number | null
+  timeout_ms: number | null
   thinking_budget: number | null
-  reasoning_effort: 'minimal' | 'low' | 'medium' | 'high' | null
+  reasoning_effort: ReasoningEffort | null
+  reasoning_visibility: ReasoningVisibility | null
   verbosity: 'low' | 'medium' | 'high' | null
   force_interleaved_thinking_compat: number | null
+  image_generation_options_json: string | null
+  video_generation_options_json: string | null
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
@@ -44,7 +69,7 @@ export class DeepChatSessionsTable extends BaseTable {
   }
 
   getCreateTableSQL(): string {
-    return this.getCreateTableSQLForVersion(0)
+    return this.getCreateTableSQLForVersion(this.getLatestVersion())
   }
 
   override createTable(): void {
@@ -52,7 +77,16 @@ export class DeepChatSessionsTable extends BaseTable {
       return
     }
 
-    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
+    const recordedVersion = this.getRecordedSchemaVersion()
+    const latestVersion = this.getLatestVersion()
+
+    if (recordedVersion > latestVersion) {
+      const message = `Recorded deepchat_sessions schema version ${recordedVersion} exceeds supported version ${latestVersion}. Refusing to create table from a downgraded schema.`
+      console.error(message)
+      throw new Error(message)
+    }
+
+    this.db.exec(this.getCreateTableSQLForVersion(recordedVersion))
   }
 
   private getCreateTableSQLForVersion(version: number): string {
@@ -75,6 +109,22 @@ export class DeepChatSessionsTable extends BaseTable {
       )
     }
 
+    if (version >= 24) {
+      columns.push('timeout_ms INTEGER')
+    }
+
+    if (version >= 27) {
+      columns.push('image_generation_options_json TEXT')
+    }
+
+    if (version >= 28) {
+      columns.push('video_generation_options_json TEXT')
+    }
+
+    if (version >= 29) {
+      columns.push('top_p REAL')
+    }
+
     if (version >= 14) {
       columns.push(
         'summary_text TEXT',
@@ -87,11 +137,82 @@ export class DeepChatSessionsTable extends BaseTable {
       columns.push('force_interleaved_thinking_compat INTEGER')
     }
 
+    if (version >= 20) {
+      columns.push('reasoning_visibility TEXT')
+    }
+
     return `
       CREATE TABLE IF NOT EXISTS deepchat_sessions (
         ${columns.join(',\n        ')}
       );
     `
+  }
+
+  private getRecoveryMigrationStatements(): string[] {
+    if (!this.tableExists()) {
+      return []
+    }
+
+    const statements: string[] = []
+
+    if (!this.hasColumn('system_prompt')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN system_prompt TEXT;')
+    }
+    if (!this.hasColumn('temperature')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN temperature REAL;')
+    }
+    if (!this.hasColumn('context_length')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN context_length INTEGER;')
+    }
+    if (!this.hasColumn('top_p')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;')
+    }
+    if (!this.hasColumn('max_tokens')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN max_tokens INTEGER;')
+    }
+    if (!this.hasColumn('thinking_budget')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN thinking_budget INTEGER;')
+    }
+    if (!this.hasColumn('reasoning_effort')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN reasoning_effort TEXT;')
+    }
+    if (!this.hasColumn('verbosity')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN verbosity TEXT;')
+    }
+    if (!this.hasColumn('summary_text')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN summary_text TEXT;')
+    }
+    if (!this.hasColumn('summary_cursor_order_seq')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN summary_cursor_order_seq INTEGER NOT NULL DEFAULT 1;'
+      )
+    }
+    if (!this.hasColumn('summary_updated_at')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN summary_updated_at INTEGER;')
+    }
+    if (!this.hasColumn('timeout_ms')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;')
+    }
+    if (!this.hasColumn('force_interleaved_thinking_compat')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;'
+      )
+    }
+    if (!this.hasColumn('reasoning_visibility')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;')
+    }
+    if (!this.hasColumn('image_generation_options_json')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+      )
+    }
+    if (!this.hasColumn('video_generation_options_json')) {
+      statements.push(
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+      )
+    }
+
+    return statements
   }
 
   getMigrationSQL(version: number): string | null {
@@ -118,11 +239,72 @@ export class DeepChatSessionsTable extends BaseTable {
         ALTER TABLE deepchat_sessions ADD COLUMN force_interleaved_thinking_compat INTEGER;
       `
     }
+    if (version === 20) {
+      return `
+        ALTER TABLE deepchat_sessions ADD COLUMN reasoning_visibility TEXT;
+      `
+    }
+    if (version === 23) {
+      const statements = this.getRecoveryMigrationStatements()
+      return statements.length > 0 ? statements.join('\n') : null
+    }
+    if (version === 24) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN timeout_ms INTEGER;'
+    }
+    if (version === 27) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;'
+    }
+    if (version === 28) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+    }
+    if (version === 29) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 19
+    return 29
+  }
+
+  private serializeImageGenerationOptions(
+    value: ImageGenerationOptions | undefined
+  ): string | null {
+    const normalized = normalizeImageGenerationOptions(value)
+    return normalized ? JSON.stringify(normalized) : null
+  }
+
+  private parseImageGenerationOptions(value: string | null): ImageGenerationOptions | undefined {
+    if (!value) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(value) as ImageGenerationOptions
+      return normalizeImageGenerationOptions(parsed)
+    } catch {
+      return undefined
+    }
+  }
+
+  private serializeVideoGenerationOptions(
+    value: VideoGenerationOptions | undefined
+  ): string | null {
+    const normalized = normalizeVideoGenerationOptions(value)
+    return normalized ? JSON.stringify(normalized) : null
+  }
+
+  private parseVideoGenerationOptions(value: string | null): VideoGenerationOptions | undefined {
+    if (!value) {
+      return undefined
+    }
+
+    try {
+      const parsed = JSON.parse(value) as VideoGenerationOptions
+      return normalizeVideoGenerationOptions(parsed)
+    } catch {
+      return undefined
+    }
   }
 
   create(
@@ -141,17 +323,22 @@ export class DeepChatSessionsTable extends BaseTable {
            permission_mode,
            system_prompt,
            temperature,
+           top_p,
            context_length,
            max_tokens,
+           timeout_ms,
            thinking_budget,
            reasoning_effort,
+           reasoning_visibility,
            verbosity,
            force_interleaved_thinking_compat,
+           image_generation_options_json,
+           video_generation_options_json,
            summary_text,
            summary_cursor_order_seq,
            summary_updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -160,16 +347,21 @@ export class DeepChatSessionsTable extends BaseTable {
         permissionMode,
         generationSettings?.systemPrompt ?? null,
         generationSettings?.temperature ?? null,
+        generationSettings?.topP ?? null,
         generationSettings?.contextLength ?? null,
         generationSettings?.maxTokens ?? null,
+        generationSettings?.timeout ?? null,
         generationSettings?.thinkingBudget ?? null,
         generationSettings?.reasoningEffort ?? null,
+        generationSettings?.reasoningVisibility ?? null,
         generationSettings?.verbosity ?? null,
         generationSettings?.forceInterleavedThinkingCompat === undefined
           ? null
           : generationSettings.forceInterleavedThinkingCompat
             ? 1
             : 0,
+        this.serializeImageGenerationOptions(generationSettings?.imageGeneration),
+        this.serializeVideoGenerationOptions(generationSettings?.videoGeneration),
         null,
         1,
         null
@@ -196,23 +388,40 @@ export class DeepChatSessionsTable extends BaseTable {
     if (row.temperature !== null) {
       settings.temperature = row.temperature
     }
+    if (row.top_p !== null) {
+      settings.topP = row.top_p
+    }
     if (row.context_length !== null) {
       settings.contextLength = row.context_length
     }
     if (row.max_tokens !== null) {
       settings.maxTokens = row.max_tokens
     }
+    if (row.timeout_ms !== null) {
+      settings.timeout = row.timeout_ms
+    }
     if (row.thinking_budget !== null) {
       settings.thinkingBudget = row.thinking_budget
     }
-    if (row.reasoning_effort !== null) {
+    if (row.reasoning_effort !== null && isReasoningEffort(row.reasoning_effort)) {
       settings.reasoningEffort = row.reasoning_effort
     }
-    if (row.verbosity !== null) {
+    if (row.reasoning_visibility !== null && isReasoningVisibility(row.reasoning_visibility)) {
+      settings.reasoningVisibility = row.reasoning_visibility
+    }
+    if (row.verbosity !== null && isVerbosity(row.verbosity)) {
       settings.verbosity = row.verbosity
     }
     if (typeof row.force_interleaved_thinking_compat === 'number') {
       settings.forceInterleavedThinkingCompat = row.force_interleaved_thinking_compat === 1
+    }
+    const imageGeneration = this.parseImageGenerationOptions(row.image_generation_options_json)
+    if (imageGeneration) {
+      settings.imageGeneration = imageGeneration
+    }
+    const videoGeneration = this.parseVideoGenerationOptions(row.video_generation_options_json)
+    if (videoGeneration) {
+      settings.videoGeneration = videoGeneration
     }
 
     return settings
@@ -240,6 +449,10 @@ export class DeepChatSessionsTable extends BaseTable {
       updates.push('temperature = ?')
       params.push(settings.temperature ?? null)
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'topP')) {
+      updates.push('top_p = ?')
+      params.push(settings.topP ?? null)
+    }
     if (Object.prototype.hasOwnProperty.call(settings, 'contextLength')) {
       updates.push('context_length = ?')
       params.push(settings.contextLength ?? null)
@@ -248,6 +461,10 @@ export class DeepChatSessionsTable extends BaseTable {
       updates.push('max_tokens = ?')
       params.push(settings.maxTokens ?? null)
     }
+    if (Object.prototype.hasOwnProperty.call(settings, 'timeout')) {
+      updates.push('timeout_ms = ?')
+      params.push(settings.timeout ?? null)
+    }
     if (Object.prototype.hasOwnProperty.call(settings, 'thinkingBudget')) {
       updates.push('thinking_budget = ?')
       params.push(settings.thinkingBudget ?? null)
@@ -255,6 +472,10 @@ export class DeepChatSessionsTable extends BaseTable {
     if (Object.prototype.hasOwnProperty.call(settings, 'reasoningEffort')) {
       updates.push('reasoning_effort = ?')
       params.push(settings.reasoningEffort ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'reasoningVisibility')) {
+      updates.push('reasoning_visibility = ?')
+      params.push(settings.reasoningVisibility ?? null)
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
       updates.push('verbosity = ?')
@@ -269,6 +490,14 @@ export class DeepChatSessionsTable extends BaseTable {
             ? 1
             : 0
       )
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
+      updates.push('image_generation_options_json = ?')
+      params.push(this.serializeImageGenerationOptions(settings.imageGeneration))
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'videoGeneration')) {
+      updates.push('video_generation_options_json = ?')
+      params.push(this.serializeVideoGenerationOptions(settings.videoGeneration))
     }
 
     if (updates.length === 0) {

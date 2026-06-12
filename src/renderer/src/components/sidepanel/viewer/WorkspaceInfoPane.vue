@@ -1,5 +1,8 @@
 <template>
-  <div class="h-full min-h-0 overflow-auto px-4 py-4 text-sm" data-testid="workspace-info-pane">
+  <div
+    class="h-full min-h-0 w-full overflow-auto px-4 py-4 text-sm"
+    data-testid="workspace-info-pane"
+  >
     <div v-if="description" class="mb-3 text-foreground">{{ description }}</div>
     <div class="space-y-2 text-muted-foreground">
       <div>{{ props.filePreview.mimeType }}</div>

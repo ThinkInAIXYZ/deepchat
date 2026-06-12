@@ -24,10 +24,20 @@
     "acpMode": "模式",
     "acpModeTooltip": "目前模式：{mode}",
     "agentWorkspaceCurrent": "當前工作目錄：{path}",
+    "workspaceUnavailableTooltip": "目錄不存在或無法存取：{path}",
     "agentWorkspaceSelect": "選擇工作目錄",
     "agentWorkspaceTooltip": "設置 Agent 工作目錄",
     "attach": "新增附件",
-    "voiceInput": "語音輸入",
+    "voiceInput": "本地錄音",
+    "voiceInputStop": "停止本地錄音",
+    "voiceRecognitionUnsupportedTitle": "目前環境不支援本地錄音",
+    "voiceRecognitionUnsupportedDescription": "請在支援麥克風錄音的瀏覽器或桌面環境中使用此功能。",
+    "voiceRecognitionPermissionDeniedTitle": "無法存取麥克風",
+    "voiceRecognitionPermissionDeniedDescription": "請允許 DeepChat 使用麥克風後再試一次。",
+    "voiceRecognitionErrorTitle": "音訊轉寫失敗",
+    "voiceRecognitionErrorDescription": "無法完成音訊轉寫，請稍後再試。",
+    "send": "傳送",
+    "steer": "引導",
     "queue": "加入佇列",
     "stop": "停止",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "插件",
       "builtinSection": "內置工具",
       "loading": "正在載入工具...",
       "builtinEmpty": "暫無可用內置工具",
       "groups": {
         "agentFilesystem": "檔案系統",
         "agentCore": "核心工具",
+        "agentImageGeneration": "圖像生成",
         "agentSkills": "技能工具",
         "deepchatSettings": "DeepChat 設定",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "附件處理失敗",
+    "fileUploadFailedDesc": "無法處理 {count} 個檔案：{names}",
+    "fileUploadFailedMore": " 等 {count} 個",
+    "unnamedFile": "未命名檔案",
+    "audioInputUnsupportedTitle": "目前模型不支援音訊附件",
+    "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
     "steer": "引導",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "正在思考...",
     "rateLimitWaiting": "速率限制，正在佇列等待...",
+    "rateLimitCompactLoading": "限速中（第 {seconds} 秒）",
     "rateLimitTitle": "請求速率限制",
     "rateLimitQueue": "佇列位置",
     "rateLimitEstimated": "預估等待時間",
@@ -93,8 +112,12 @@
     "rateLimitMinutes": "分鐘"
   },
   "compaction": {
-    "compacting": "正在自動壓縮...",
-    "compacted": "上下文已自動壓縮"
+    "compacting": "正在壓縮上下文...",
+    "compacted": "上下文已壓縮",
+    "commandDescription": "壓縮會話上下文",
+    "noopTitle": "沒有可壓縮的上下文",
+    "noopDescription": "目前還沒有新的對話歷史需要壓縮。",
+    "failedTitle": "壓縮失敗"
   },
   "rateLimit": {
     "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
@@ -114,7 +137,24 @@
     "clickToView": "點擊查看詳情",
     "functionName": "函式名稱",
     "params": "參數",
-    "responseData": "回應資料"
+    "responseData": "回應資料",
+    "subagents": {
+      "summary": "{mode} · {count} 個 subagent",
+      "unnamedTask": "未命名任務",
+      "mode": {
+        "parallel": "並行",
+        "chain": "串行"
+      },
+      "status": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "completed": "已完成",
+        "error": "錯誤",
+        "cancelled": "已取消",
+        "waiting_permission": "等待權限批准",
+        "waiting_question": "等待補充輸入"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACP Agent",
@@ -123,7 +163,8 @@
   },
   "topbar": {
     "share": "分享",
-    "more": "更多"
+    "more": "更多",
+    "backToParent": "返回父會話"
   },
   "advancedSettings": {
     "button": "進階設定",
@@ -132,6 +173,9 @@
     "systemPrompt": "系統提示詞",
     "systemPromptPlaceholder": "選擇預設",
     "temperature": "溫度",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在開啟思考時固定為 {enabled}，關閉思考時固定為 {disabled}。",
+    "topP": "Top P（核心採樣）",
+    "topPDescription": "留空使用服務商預設值",
     "contextLength": "上下文長度",
     "maxTokens": "最大輸出",
     "thinkingBudget": "思考預算",
@@ -148,15 +192,18 @@
       "finiteNumber": "必須是有限數字",
       "nonNegativeInteger": "必須是非負整數",
       "contextLengthAtLeastMaxTokens": "必須大於或等於最大輸出",
-      "maxTokensWithinContextLength": "必須小於或等於上下文長度"
+      "maxTokensWithinContextLength": "必須小於或等於上下文長度",
+      "topPRange": "必須大於 0 且小於或等於 1"
     }
   },
   "workspace": {
     "collapse": "收起",
+    "expand": "展開",
     "sections": {
       "files": "檔案",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "subagent"
     },
     "files": {
       "contextMenu": {
@@ -166,6 +213,11 @@
       },
       "empty": "暫無文件",
       "loading": "加載文件中...",
+      "noWorkspace": {
+        "title": "暫無工作區",
+        "description": "選擇或拖拽資料夾來設定工作區",
+        "button": "選擇資料夾"
+      },
       "section": "文件"
     },
     "git": {
@@ -181,6 +233,7 @@
     "plan": {
       "empty": "暫無任務",
       "section": "計劃",
+      "itemAriaLabel": "{status}：{step}",
       "status": {
         "completed": "已完成",
         "failed": "失敗",
@@ -210,10 +263,20 @@
         "truncated": "[已截斷]"
       }
     },
-    "title": "工作區"
+    "title": "工作區",
+    "subagents": {
+      "empty": "暫無 subagent 會話",
+      "self": "目前智能體",
+      "status": {
+        "working": "執行中",
+        "error": "錯誤",
+        "idle": "閒置"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "未找到模型"
+    "empty": "未找到模型",
+    "audioInputSupported": "支援音訊輸入"
   },
   "audio": {
     "play": "播放",
@@ -228,13 +291,13 @@
   },
   "skills": {
     "indicator": {
-      "active": "{count} 個技能已激活",
-      "none": "無激活技能"
+      "active": "{count} 個固定技能",
+      "none": "無固定技能"
     },
     "panel": {
       "empty": "暫無安裝技能",
       "manage": "管理",
-      "title": "技能"
+      "title": "固定技能"
     }
   },
   "newThread": {
@@ -248,6 +311,10 @@
     "allAgents": "所有 Agents",
     "expandSidebar": "展開側邊欄",
     "collapseSidebar": "收起側邊欄",
+    "themeToggle": "切換主題",
+    "themeLight": "淺色",
+    "themeDark": "深色",
+    "themeSystem": "跟隨系統",
     "remoteControlStatus": {
       "disabled": "遠端控制已停用",
       "stopped": "遠端控制已停止",
@@ -261,12 +328,16 @@
     "pinned": "置頂會話",
     "emptyTitle": "還沒有對話",
     "emptyDescription": "開始新的對話吧",
-    "remoteControlDisabled": "未啟用"
+    "remoteControlDisabled": "未啟用",
+    "searchPlaceholder": "搜尋會話標題",
+    "searchAriaLabel": "搜尋會話標題",
+    "searchEmptyTitle": "找不到相符的會話",
+    "searchEmptyDescription": "試試其他標題關鍵字"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "任務總覽",
     "collapse": "收起懸浮會話列表",
-    "empty": "目前還沒有 DeepChat 會話",
+    "empty": "目前還沒有 Agent 會話",
     "executing": "進行中",
     "sessionCount": "{count} 個會話",
     "untitled": "新會話",
@@ -274,6 +345,77 @@
       "inProgress": "進行中",
       "done": "已完成",
       "error": "錯誤"
+    }
+  },
+  "subagents": {
+    "label": "subagent"
+  },
+  "spotlight": {
+    "placeholder": "搜尋會話、Agent、設定與動作…",
+    "searching": "搜尋中…",
+    "emptyTitle": "沒有符合結果",
+    "emptyDescription": "試試其他關鍵字，或直接開啟最近會話。",
+    "hints": "↑↓ 選擇 · Enter 開啟 · Esc 關閉 · Home/End 跳轉",
+    "kind": {
+      "session": "會話",
+      "message": "訊息",
+      "agent": "Agent",
+      "setting": "設定",
+      "action": "動作"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "搜尋目前會話",
+    "ariaLabel": "搜尋目前會話",
+    "previous": "上一個匹配",
+    "next": "下一個匹配",
+    "close": "關閉搜尋"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "切換到 DeepChat Agent",
+      "description": "開始聊天前，先從 ACP Agent 切回 DeepChat 對話流程。",
+      "caption": "點擊側邊欄中高亮的 Agent 按鈕即可繼續。"
+    },
+    "switchModel": {
+      "description": "為第一次 DeepChat 對話選擇你想使用的模型。",
+      "caption": "使用高亮的模型切換器，選擇任意可用模型即可。"
+    },
+    "firstChat": {
+      "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
+      "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "技能草稿",
+    "confirmationQuestion": "已產生技能草稿：{name}",
+    "previewTitle": "草稿內容預覽",
+    "actions": {
+      "view": "檢視內容",
+      "viewDescription": "預覽草稿的 SKILL.md 內容",
+      "install": "安裝為技能",
+      "installDescription": "匯入到技能目錄並啟用管理",
+      "discard": "捨棄",
+      "discardDescription": "刪除這個暫存草稿"
+    },
+    "result": {
+      "viewed": "已開啟草稿內容預覽。請選擇安裝或捨棄。",
+      "installed": "已安裝技能草稿：{name}",
+      "discarded": "已捨棄技能草稿。",
+      "failed": "處理技能草稿失敗：{error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "已經工作了 {duration}",
+    "reasoningCount": "{count} 段思考",
+    "toolCallCount": "{count} 次工具呼叫",
+    "expandLabel": "展開 {title}",
+    "collapseLabel": "收合 {title}",
+    "duration": {
+      "day": "天",
+      "hour": "小時",
+      "minute": "分鐘",
+      "second": "秒"
     }
   }
 }

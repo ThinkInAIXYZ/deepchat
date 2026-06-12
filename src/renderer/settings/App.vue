@@ -1,5 +1,9 @@
 <template>
-  <div class="w-full h-screen flex flex-col" :class="isWinMacOS ? '' : 'bg-background'">
+  <div
+    data-testid="settings-page"
+    class="w-full h-screen flex flex-col"
+    :class="isWinMacOS ? '' : 'bg-background'"
+  >
     <div
       class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
       :class="[
@@ -20,18 +24,32 @@
       <div
         class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
       ></div>
-      <div class="w-52 h-full border-r border-border p-4 space-y-1 shrink-0 overflow-y-auto">
-        <div
-          v-for="setting in settings"
-          :key="setting.name"
-          :class="[
-            'flex flex-row items-center hover:bg-accent gap-2 rounded-lg p-2 cursor-pointer',
-            route.name === setting.name ? 'bg-accent' : ''
-          ]"
-          @click="handleClick(setting.path)"
-        >
-          <Icon :icon="setting.icon" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t(setting.title) }}</span>
+      <div
+        data-testid="settings-navigation"
+        class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+      >
+        <div class="flex flex-col gap-4 p-3">
+          <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
+            <div class="px-2 text-xs font-medium text-muted-foreground">
+              {{ t(group.titleKey) }}
+            </div>
+            <div class="flex flex-col gap-1">
+              <button
+                v-for="setting in group.items"
+                :key="setting.name"
+                type="button"
+                :data-testid="getSettingsTabTestId(setting.name)"
+                :class="[
+                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
+                  route.name === setting.name ? 'bg-accent text-accent-foreground' : ''
+                ]"
+                @click="handleClick(setting.path)"
+              >
+                <Icon :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
+                <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <RouterView />
@@ -61,10 +79,10 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
-import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick } from 'vue'
+import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
-import { usePresenter } from '../src/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
@@ -82,14 +100,35 @@ import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
+import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
-import type { LLM_PROVIDER, ProviderInstallPreview } from '@shared/presenter'
+import { markStartupInteractive } from '../src/lib/startupDeferred'
+import type {
+  DatabaseRepairSuggestedPayload,
+  LLM_PROVIDER,
+  ProviderInstallPreview
+} from '@shared/presenter'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
+import {
+  getSettingsNavigationGroups,
+  getSettingsRouteItems,
+  resolveSettingsNavigationPath
+} from '@shared/settingsNavigation'
+import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 
-const devicePresenter = usePresenter('devicePresenter')
-const windowPresenter = usePresenter('windowPresenter')
-const configPresenter = usePresenter('configPresenter')
+const DATABASE_REPAIR_SECTION = 'database-repair'
+const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
+const SETTINGS_STARTUP_LOG_PREFIX = '[Startup][Settings][Renderer]'
+
+type SettingsWindowState = Window & {
+  __deepchatSettingsPendingSection?: string | null
+}
+
+const devicePresenter = useLegacyPresenter('devicePresenter')
+const windowPresenter = useLegacyPresenter('windowPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
@@ -103,6 +142,13 @@ const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
+let startupWorkloadStore: ReturnType<typeof useStartupWorkloadStore> | null = null
+
+try {
+  startupWorkloadStore = useStartupWorkloadStore()
+} catch (error) {
+  console.warn('[Startup][Settings][Renderer] startupWorkloadStore unavailable', error)
+}
 const providerDeeplinkImportStore = useProviderDeeplinkImportStore()
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
@@ -125,6 +171,17 @@ const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
 const isProcessingProviderPreview = ref(false)
+const startupTimeOrigin = typeof performance !== 'undefined' ? performance.now() : Date.now()
+const hasLoggedFirstRouteResolved = ref(false)
+
+const logSettingsStartup = (phase: string) => {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const elapsed = Math.round(now - startupTimeOrigin)
+  console.info(`${SETTINGS_STARTUP_LOG_PREFIX} ${phase} elapsed=${elapsed}ms`)
+}
+
+const isProviderStoreInitialized = () => Boolean(unref(providerStore.initialized))
+
 const providerImportConfirmDisabled = computed(() => {
   const preview = pendingProviderImportPreview.value
   if (!preview) {
@@ -145,36 +202,126 @@ const navigateToProviderSettings = async (providerId?: string) => {
   })
 }
 
-const handleSettingsNavigate = async (
-  _event: unknown,
-  payload?: { routeName?: string; section?: string }
-) => {
+const normalizeRouteParams = (params?: Record<string, string>) =>
+  Object.entries(params ?? {})
+    .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+    .reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = value
+      return acc
+    }, {})
+
+const hasSameRouteParams = (
+  currentParams: Record<string, unknown>,
+  nextParams: Record<string, string>
+): boolean => {
+  const currentEntries = Object.entries(currentParams).filter(
+    ([, value]) => typeof value === 'string'
+  )
+  const nextEntries = Object.entries(nextParams)
+
+  if (currentEntries.length !== nextEntries.length) {
+    return false
+  }
+
+  return nextEntries.every(([key, value]) => currentParams[key] === value)
+}
+
+const publishSettingsSection = async (section?: string) => {
+  if (!section) {
+    return
+  }
+
+  ;(window as SettingsWindowState).__deepchatSettingsPendingSection = section
+  await nextTick()
+  window.dispatchEvent(
+    new CustomEvent(SETTINGS_SECTION_EVENT, {
+      detail: { section }
+    })
+  )
+}
+
+const openDatabaseRepairSection = async () => {
+  await router.push({
+    name: 'settings-database'
+  })
+  await publishSettingsSection(DATABASE_REPAIR_SECTION)
+}
+
+const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
+  toast({
+    title: t(payload.title),
+    description: t(payload.message, {
+      reason: t(`settings.data.databaseRepair.reasons.${payload.reason}`)
+    }),
+    action: {
+      label: t('settings.data.databaseRepair.toastAction'),
+      onClick: () => {
+        void openDatabaseRepairSection()
+      }
+    }
+  })
+}
+
+const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
+  const params = normalizeRouteParams(payload?.params)
   if (!routeName || !router.hasRoute(routeName)) return
   await router.isReady()
-  if (router.currentRoute.value.name !== routeName) {
-    await router.push({ name: routeName })
+  if (
+    router.currentRoute.value.name !== routeName ||
+    !hasSameRouteParams(router.currentRoute.value.params, params)
+  ) {
+    await router.push({
+      name: routeName,
+      params: Object.keys(params).length > 0 ? params : undefined
+    })
   }
   if (routeName === 'settings-provider') {
     await syncPendingProviderInstall()
   }
+
+  await publishSettingsSection(payload?.section)
 }
 
 let providerStoreInitializePromise: Promise<void> | null = null
 
 const ensureProviderStoreReady = async () => {
-  if (providerStore.providers.length > 0) {
+  if (isProviderStoreInitialized()) {
     return
   }
 
   if (!providerStoreInitializePromise) {
-    providerStoreInitializePromise = providerStore.initialize().catch((error) => {
-      providerStoreInitializePromise = null
-      throw error
-    })
+    providerStoreInitializePromise = Promise.resolve(
+      providerStore.ensureInitialized?.() ?? providerStore.initialize?.()
+    )
+      .then(() => {
+        logSettingsStartup('providerStore ready')
+      })
+      .catch((error) => {
+        providerStoreInitializePromise = null
+        throw error
+      })
   }
 
   await providerStoreInitializePromise
+}
+
+const ensureProviderRouteReady = async (providerId?: string) => {
+  await ensureProviderStoreReady()
+  if (!providerId) {
+    return
+  }
+
+  const provider = providerStore.providers.find((item) => item.id === providerId)
+  if (!provider) {
+    return
+  }
+
+  await modelStore.ensureProviderModelsReady(providerId)
+
+  if (provider.apiType === 'ollama') {
+    await ollamaStore.ensureProviderReady?.(providerId)
+  }
 }
 
 const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
@@ -288,7 +435,7 @@ const confirmProviderImport = async () => {
   } catch (error) {
     console.error('Failed to import provider from deeplink:', error)
     toast({
-      title: t('common.error'),
+      title: t('common.error.operationFailed'),
       description: error instanceof Error ? error.message : String(error),
       variant: 'destructive'
     })
@@ -312,49 +459,33 @@ const settings: Ref<
     icon: string
     path: string
   }[]
-> = ref([])
+> = ref(
+  getSettingsRouteItems(window.electron?.process?.platform).map((item) => ({
+    title: item.titleKey,
+    name: item.routeName,
+    icon: item.icon,
+    path: resolveSettingsNavigationPath(item.routeName)
+  }))
+)
 
-// Get all routes and build settings navigation
-const routes = router.getRoutes()
+const settingGroups = ref(
+  getSettingsNavigationGroups(window.electron?.process?.platform).map((group) => ({
+    key: group.key,
+    titleKey: group.titleKey,
+    items: group.items.map((item) => ({
+      title: item.titleKey,
+      name: item.routeName,
+      icon: item.icon,
+      path: resolveSettingsNavigationPath(item.routeName)
+    }))
+  }))
+)
+
 onMounted(() => {
-  void initializeSettingsStores()
-  const tempArray: {
-    title: string
-    name: string
-    icon: string
-    path: string
-    position: number
-  }[] = []
-  routes.forEach((route) => {
-    // In settings window, all routes are top-level, no parent 'settings' route
-    if (route.path !== '/' && route.meta?.titleKey) {
-      console.log(`Adding settings route: ${route.path} with titleKey: ${route.meta.titleKey}`)
-      tempArray.push({
-        title: route.meta.titleKey as string,
-        icon: route.meta.icon as string,
-        path: route.path,
-        name: route.name as string,
-        position: (route.meta.position as number) || 999
-      })
-    }
-    // Sort by position meta field, default to 999 if not present
-    tempArray.sort((a, b) => {
-      return a.position - b.position
-    })
-    settings.value = tempArray
-    console.log('Final sorted settings routes:', settings.value)
-  })
+  // Ensure icons are loaded
+  void ensureIconsLoaded()
+  logSettingsStartup('app mounted')
 })
-
-const initializeSettingsStores = async () => {
-  try {
-    await ensureProviderStoreReady()
-    await modelStore.initialize()
-    await ollamaStore.initialize?.()
-  } catch (error) {
-    console.error('Failed to initialize settings stores', error)
-  }
-}
 
 // Update title function
 const updateTitle = () => {
@@ -369,9 +500,17 @@ const updateTitle = () => {
 
 // Watch route changes
 watch(
-  () => route.name,
-  () => {
+  () => [route.name, route.params.providerId],
+  async ([routeName, providerId]) => {
     updateTitle()
+    if (!hasLoggedFirstRouteResolved.value && routeName) {
+      hasLoggedFirstRouteResolved.value = true
+      logSettingsStartup(`first route resolved route=${String(routeName)}`)
+    }
+
+    if (routeName === 'settings-provider') {
+      await ensureProviderRouteReady(typeof providerId === 'string' ? providerId : undefined)
+    }
   },
   { immediate: true }
 )
@@ -379,6 +518,18 @@ watch(
 const handleClick = (path: string) => {
   router.push(path)
 }
+
+const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
+  'settings-overview': 'settings-tab-overview',
+  'settings-common': 'settings-tab-general',
+  'settings-display': 'settings-tab-appearance',
+  'settings-provider': 'settings-tab-model-providers',
+  'settings-mcp': 'settings-tab-mcp',
+  'settings-acp': 'settings-tab-acp-agents'
+}
+
+const getSettingsTabTestId = (name: string) =>
+  SETTINGS_TAB_TEST_IDS[name] ?? `settings-tab-${name.replace(/^settings-/, '')}`
 
 // Watch language changes and update i18n + HTML dir
 watch(
@@ -457,6 +608,8 @@ const handleWindowFocus = () => {
 }
 
 onMounted(async () => {
+  startupWorkloadStore?.connect()
+
   // Listen for window maximize/unmaximize events
   devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
@@ -465,14 +618,51 @@ onMounted(async () => {
   window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
     showErrorToast(error)
   })
+  window.electron.ipcRenderer.on(
+    NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+    (_event, payload) => {
+      showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
+    }
+  )
 
-  await uiSettingsStore.loadSettings()
+  const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
+    uiSettingsStore.loadSettings(),
+    router.isReady()
+  ])
 
-  // Wait for router to be ready
-  await router.isReady()
+  if (settingsLoadResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} failed to load UI settings during startup:`,
+      settingsLoadResult.reason
+    )
+  }
+
+  if (routerReadyResult.status === 'rejected') {
+    console.error(
+      `${SETTINGS_STARTUP_LOG_PREFIX} router ready failed during startup:`,
+      routerReadyResult.reason
+    )
+  }
+
+  try {
+    await providerStore.initialize()
+    logSettingsStartup('provider summaries ready')
+  } catch (error) {
+    console.error(`${SETTINGS_STARTUP_LOG_PREFIX} provider summaries failed:`, error)
+  }
+
+  try {
+    await modelStore.initialize()
+    logSettingsStartup('enabled models ready')
+  } catch (error) {
+    console.error(`${SETTINGS_STARTUP_LOG_PREFIX} enabled models failed:`, error)
+  }
+
+  markStartupInteractive()
   window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
+  logSettingsStartup('settings window ready IPC sent')
 })
 
 const closeWindow = () => {
@@ -486,6 +676,7 @@ onBeforeUnmount(() => {
   }
 
   window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
+  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED)
   window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
   window.electron.ipcRenderer.removeListener(
     SETTINGS_EVENTS.PROVIDER_INSTALL,

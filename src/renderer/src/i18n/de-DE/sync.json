@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "{count} Chats erfolgreich importiert",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
+  },
+  "error": {
+    "notEnabled": "Synchronisierung ist nicht aktiviert",
+    "folderNotExists": "Synchronisierungsordner existiert nicht",
+    "noValidBackup": "Im Synchronisierungsordner wurde kein gültiges Backup gefunden",
+    "unsupportedBackupVersion": "Dieses Backup wurde von einer neueren DeepChat-Version erstellt und kann von der aktuellen Version nicht importiert werden",
+    "dbNotExists": "Datenbankdatei existiert nicht",
+    "configNotExists": "Konfigurationsdatei existiert nicht",
+    "tempDbFailed": "Temporäre Datenbank-Backupdatei konnte nicht erstellt werden",
+    "tempConfigFailed": "Temporäre Konfigurations-Backupdatei konnte nicht erstellt werden",
+    "importFailed": "Import fehlgeschlagen, ursprüngliche Daten wurden wiederhergestellt",
+    "importProcess": "Fehler während des Imports",
+    "unknown": "Unbekannter Fehler",
+    "encryptedBackupPasswordMissing": "Dieses Backup ist verschlüsselt, aber der lokale Datenbankschlüssel ist nicht verfügbar. Entsperren Sie zuerst die verschlüsselte Datenbank und importieren Sie dann erneut.",
+    "overwriteEncryptionMismatch": "Beim überschreibenden Import müssen Backup und aktuelle Datenbank denselben Verschlüsselungsstatus haben.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Der Systemschlüsselbund ist nicht verfügbar; der geheime Schlüssel kann nicht sicher gespeichert werden.",
+    "cloudUnauthorized": "Cloud-Authentifizierung fehlgeschlagen. Prüfe Endpoint, Bucket, Access Key ID, Secret Access Key und die Berechtigungen des R2-Tokens."
+  }
+}

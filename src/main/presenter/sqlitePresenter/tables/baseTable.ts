@@ -27,6 +27,17 @@ export abstract class BaseTable {
     return !!result
   }
 
+  protected hasColumn(columnName: string): boolean {
+    if (!this.tableExists()) {
+      return false
+    }
+
+    const rows = this.db.prepare(`PRAGMA table_info(${this.tableName})`).all() as Array<{
+      name: string
+    }>
+    return rows.some((row) => row.name === columnName)
+  }
+
   protected getRecordedSchemaVersion(): number {
     const versionTable = this.db
       .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='schema_versions'`)

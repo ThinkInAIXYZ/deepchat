@@ -1,5 +1,5 @@
-import { usePresenter } from '@/composables/usePresenter'
-import { UPDATE_EVENTS } from '@/events'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createUpgradeClient } from '@api/UpgradeClient'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -20,6 +20,7 @@ type UpdateInfo = {
   releaseNotes: string
   githubUrl?: string
   downloadUrl?: string
+  isMock?: boolean
 }
 
 type ProgressInfo = {
@@ -46,7 +47,8 @@ const toUpdateInfo = (info: UpdateInfo | null | undefined): UpdateInfo | null =>
     releaseDate: info.releaseDate,
     releaseNotes: info.releaseNotes,
     githubUrl: info.githubUrl,
-    downloadUrl: info.downloadUrl
+    downloadUrl: info.downloadUrl,
+    isMock: info.isMock
   }
 }
 
@@ -62,8 +64,8 @@ const toProgressInfo = (progress: ProgressInfo | null | undefined): ProgressInfo
 }
 
 export const useUpgradeStore = defineStore('upgrade', () => {
-  const upgradeP = usePresenter('upgradePresenter')
-  const devicePresenter = usePresenter('devicePresenter')
+  const upgradeClient = createUpgradeClient()
+  const deviceClient = createDeviceClient()
 
   const rawStatus = ref<PresenterUpdateStatus>(null)
   const updateInfo = ref<UpdateInfo | null>(null)
@@ -80,6 +82,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   const isWindows = computed(() => platform.value === 'win32')
 
   const hasUpdate = computed(() => Boolean(updateInfo.value))
+  const isMockUpdate = computed(() => Boolean(updateInfo.value?.isMock))
 
   const updateState = computed<UpdateState>(() => {
     switch (rawStatus.value) {
@@ -125,7 +128,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     const requestId = ++latestSyncRequestId
     const mutationTokenBeforeRequest = externalMutationToken
     try {
-      const snapshot = (await upgradeP.getUpdateStatus()) as PresenterStatusSnapshot | null
+      const snapshot = (await upgradeClient.getUpdateStatus()) as PresenterStatusSnapshot | null
 
       if (!snapshot || snapshot.status == null) {
         return rawStatus.value
@@ -206,7 +209,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const loadDeviceInfo = async () => {
     try {
-      const deviceInfo = await devicePresenter.getDeviceInfo()
+      const deviceInfo = await deviceClient.getDeviceInfo()
       platform.value = deviceInfo?.platform ?? null
     } catch (error) {
       console.error('Failed to load device info:', error)
@@ -221,7 +224,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
     try {
       applyStatus('checking', updateInfo.value, null)
-      await upgradeP.checkUpdate()
+      await upgradeClient.checkUpdate()
       return await syncFromPresenterStatus()
     } catch (error) {
       console.error('Failed to check update:', error)
@@ -232,10 +235,40 @@ export const useUpgradeStore = defineStore('upgrade', () => {
 
   const startUpdate = async (type: 'github' | 'official') => {
     try {
-      return await upgradeP.goDownloadUpgrade(type)
+      return await upgradeClient.goDownloadUpgrade(type)
     } catch (error) {
       console.error('Failed to start update:', error)
       return false
+    }
+  }
+
+  const mockDownloadedUpdate = async () => {
+    try {
+      const success = await upgradeClient.mockDownloadedUpdate()
+      if (!success) {
+        return rawStatus.value
+      }
+
+      return await syncFromPresenterStatus()
+    } catch (error) {
+      console.error('Failed to mock downloaded update:', error)
+      applyStatus('error', updateInfo.value, error instanceof Error ? error.message : String(error))
+      return 'error'
+    }
+  }
+
+  const clearMockUpdate = async () => {
+    try {
+      const success = await upgradeClient.clearMockUpdate()
+      if (!success) {
+        return rawStatus.value
+      }
+
+      return await syncFromPresenterStatus()
+    } catch (error) {
+      console.error('Failed to clear mock update:', error)
+      applyStatus('error', updateInfo.value, error instanceof Error ? error.message : String(error))
+      return 'error'
     }
   }
 
@@ -243,7 +276,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isUpdating.value = true
     try {
       if (isReadyToInstall.value) {
-        await upgradeP.restartToUpdate()
+        await upgradeClient.restartToUpdate()
         return
       }
 
@@ -252,7 +285,7 @@ export const useUpgradeStore = defineStore('upgrade', () => {
       }
 
       if (type === 'auto') {
-        const success = await upgradeP.startDownloadUpdate()
+        const success = await upgradeClient.startDownloadUpdate()
         if (!success) {
           applyStatus('error', updateInfo.value, updateError.value)
         }
@@ -299,15 +332,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
   }
 
   const setupUpdateListener = () => {
-    if (listenersReady.value || !window?.electron?.ipcRenderer) {
+    if (listenersReady.value) {
       return
     }
 
     listenersReady.value = true
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.STATUS_CHANGED, handleStatusChanged)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.PROGRESS, handleProgress)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.WILL_RESTART, handleWillRestart)
-    window.electron.ipcRenderer.on(UPDATE_EVENTS.ERROR, handleError)
+    upgradeClient.onStatusChanged((event) => handleStatusChanged(undefined, event))
+    upgradeClient.onProgress((event) => handleProgress(undefined, event))
+    upgradeClient.onWillRestart(handleWillRestart)
+    upgradeClient.onError((event) => handleError(undefined, event))
   }
 
   setupUpdateListener()
@@ -328,12 +361,15 @@ export const useUpgradeStore = defineStore('upgrade', () => {
     isChecking,
     isDownloading,
     isReadyToInstall,
+    isMockUpdate,
     shouldShowUpdateNotes,
     shouldShowTopbarInstallButton,
     showManualDownloadOptions,
     refreshStatus: syncFromPresenterStatus,
     checkUpdate,
     startUpdate,
+    mockDownloadedUpdate,
+    clearMockUpdate,
     handleUpdate
   }
 })

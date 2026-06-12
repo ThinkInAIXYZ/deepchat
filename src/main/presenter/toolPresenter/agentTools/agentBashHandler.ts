@@ -9,7 +9,16 @@ import { getBackgroundExecConfig } from '@/lib/agentRuntime/backgroundExecSessio
 import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
-import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getShellEnvironment,
+  getUserShell,
+  mergeCommandEnvironment
+} from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  createUtf8OutputDecoderPair,
+  prepareShellCommandForUtf8Output
+} from '@/lib/agentRuntime/shellOutputEncoding'
+import { resolveUsableSpawnCwd } from '@/lib/agentRuntime/spawnGuard'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -37,6 +46,7 @@ export interface ExecuteCommandOptions {
   env?: Record<string, string>
   stdin?: string
   outputPrefix?: string
+  allowExternalCwd?: boolean
 }
 
 interface PreparedCommand {
@@ -100,7 +110,7 @@ export class AgentBashHandler {
     }
 
     const { command, timeout, background, cwd: requestedCwd, yieldMs } = parsed.data
-    const cwd = this.resolveWorkingDirectory(requestedCwd)
+    const cwd = this.resolveWorkingDirectory(requestedCwd, options.allowExternalCwd)
 
     // Handle background execution
     if (background) {
@@ -222,7 +232,7 @@ export class AgentBashHandler {
     })
   }
 
-  private resolveWorkingDirectory(requestedCwd?: string): string {
+  private resolveWorkingDirectory(requestedCwd?: string, allowExternalCwd = false): string {
     const defaultCwd = this.allowedDirectories[0]
     const normalizedInput = requestedCwd?.trim()
     if (!normalizedInput) {
@@ -234,7 +244,7 @@ export class AgentBashHandler {
       ? this.normalizePath(path.resolve(expanded))
       : this.normalizePath(path.resolve(defaultCwd, expanded))
 
-    if (!this.isPathAllowed(resolved)) {
+    if (!allowExternalCwd && !this.isPathAllowed(resolved)) {
       throw new Error(`Working directory is not allowed: ${requestedCwd}`)
     }
 
@@ -278,7 +288,12 @@ export class AgentBashHandler {
       outputPrefix: options.outputPrefix
     })
 
-    backgroundExecSessionManager.write(conversationId, session.sessionId, options.stdin ?? '', true)
+    await backgroundExecSessionManager.write(
+      conversationId,
+      session.sessionId,
+      options.stdin ?? '',
+      true
+    )
 
     const yielded = await backgroundExecSessionManager.waitForCompletionOrYield(
       conversationId,
@@ -323,17 +338,14 @@ export class AgentBashHandler {
     options: ExecuteCommandOptions
   ): Promise<CompletedShellProcessResult> {
     const { shell, args } = getUserShell()
-    const shellEnv = await getShellEnvironment()
+    const shellCommand = prepareShellCommandForUtf8Output(shell, command)
     const outputFilePath = this.createOutputFilePath(options.conversationId, options.outputPrefix)
+    const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     return new Promise((resolve, reject) => {
-      const child = spawn(shell, [...args, command], {
-        cwd,
-        env: {
-          ...process.env,
-          ...shellEnv,
-          ...options.env
-        },
+      const child = spawn(shell, [...args, shellCommand], {
+        cwd: spawnCwd,
+        env: options.env ? { ...options.env } : { ...process.env },
         detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe']
       })
@@ -346,6 +358,8 @@ export class AgentBashHandler {
       let outputWriteQueue = Promise.resolve()
       let timeoutId: NodeJS.Timeout | null = null
 
+      const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
+
       const cleanupTimeout = () => {
         if (timeoutId) {
           clearTimeout(timeoutId)
@@ -357,6 +371,7 @@ export class AgentBashHandler {
         if (settled) return
         settled = true
         cleanupTimeout()
+        outputDecoders.flush()
 
         try {
           await outputWriteQueue
@@ -394,15 +409,12 @@ export class AgentBashHandler {
           })
       }
 
-      child.stdout?.setEncoding('utf-8')
-      child.stderr?.setEncoding('utf-8')
-
-      child.stdout?.on('data', (data: string) => {
-        appendOutput(data)
+      child.stdout?.on('data', (data: Buffer | string) => {
+        outputDecoders.writeStdout(data)
       })
 
-      child.stderr?.on('data', (data: string) => {
-        appendOutput(data)
+      child.stderr?.on('data', (data: Buffer | string) => {
+        outputDecoders.writeStderr(data)
       })
 
       if (options.stdin !== undefined) {
@@ -417,6 +429,7 @@ export class AgentBashHandler {
             return
           }
 
+          outputDecoders.flush()
           const preview =
             offloaded && outputFilePath
               ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
@@ -435,10 +448,12 @@ export class AgentBashHandler {
 
       child.on('error', (error) => {
         cleanupTimeout()
+        outputDecoders.flush()
         reject(error)
       })
 
       child.on('close', async (code, signal) => {
+        outputDecoders.flush()
         const preview =
           offloaded && outputFilePath
             ? this.readLastCharsFromFile(outputFilePath, COMMAND_PREVIEW_CHARS)
@@ -574,7 +589,12 @@ export class AgentBashHandler {
     })
 
     if (options.stdin !== undefined) {
-      backgroundExecSessionManager.write(conversationId, result.sessionId, options.stdin, true)
+      await backgroundExecSessionManager.write(
+        conversationId,
+        result.sessionId,
+        options.stdin,
+        true
+      )
     }
 
     return {
@@ -591,10 +611,14 @@ export class AgentBashHandler {
   ): Promise<PreparedCommand> {
     const baseEnv = env ?? {}
     if (!this.configPresenter) {
+      const shellEnv = await getShellEnvironment()
       return {
         originalCommand: command,
         command,
-        env: baseEnv,
+        env: mergeCommandEnvironment({
+          shellEnv,
+          overrides: baseEnv
+        }),
         rewritten: false,
         rtkApplied: false,
         rtkMode: 'bypass',

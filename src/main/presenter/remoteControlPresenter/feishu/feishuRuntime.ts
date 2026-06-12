@@ -2,15 +2,25 @@ import {
   FEISHU_CONVERSATION_POLL_TIMEOUT_MS,
   FEISHU_INBOUND_DEDUP_LIMIT,
   FEISHU_INBOUND_DEDUP_TTL_MS,
+  FEISHU_REMOTE_REACTION_EMOJI,
   TELEGRAM_STREAM_POLL_INTERVAL_MS,
   buildFeishuEndpointKey,
+  type RemoteDeliverySegment,
   type FeishuInboundMessage,
+  type FeishuOutboundAction,
   type FeishuRuntimeStatusSnapshot,
   type FeishuTransportTarget
 } from '../types'
+import { RemoteBindingStore } from '../services/remoteBindingStore'
 import { FeishuCommandRouter } from '../services/feishuCommandRouter'
 import type { RemoteConversationExecution } from '../services/remoteConversationRunner'
-import { FeishuClient, type FeishuBotIdentity } from './feishuClient'
+import { REMOTE_NO_RESPONSE_TEXT } from '../services/remoteBlockRenderer'
+import {
+  buildFeishuPendingInteractionCard,
+  buildFeishuPendingInteractionText
+} from './feishuInteractionPrompt'
+import { chunkFeishuText, FeishuClient, type FeishuBotIdentity } from './feishuClient'
+import { optimizeMarkdownForFeishu } from './feishuMarkdown'
 import { FeishuParser } from './feishuParser'
 
 const sleep = async (ms: number): Promise<void> => {
@@ -23,6 +33,7 @@ type FeishuRuntimeDeps = {
   client: FeishuClient
   parser: FeishuParser
   router: FeishuCommandRouter
+  bindingStore: RemoteBindingStore
   logger?: {
     error: (...params: unknown[]) => void
   }
@@ -33,6 +44,16 @@ type FeishuRuntimeDeps = {
 type FeishuProcessedInboundEntry = {
   receivedAt: number
   eventId: string | null
+}
+
+type FeishuRemoteDeliveryState = {
+  sourceMessageId: string
+  segments: Array<{
+    key: string
+    kind: 'process' | 'answer' | 'terminal'
+    messageIds: Array<string | null>
+    lastText: string
+  }>
 }
 
 export class FeishuRuntime {
@@ -241,15 +262,16 @@ export class FeishuRuntime {
     if (!this.isCurrentRun(runId)) {
       return
     }
+    const message = await this.resolveMessageAttachments(parsed)
 
     const target: FeishuTransportTarget = {
-      chatId: parsed.chatId,
-      threadId: parsed.threadId,
-      replyToMessageId: parsed.messageId
+      chatId: message.chatId,
+      threadId: message.threadId,
+      replyToMessageId: message.messageId
     }
 
     try {
-      const routed = await this.deps.router.handleMessage(parsed)
+      const routed = await this.deps.router.handleMessage(message)
       if (!this.isCurrentRun(runId)) {
         return
       }
@@ -258,20 +280,41 @@ export class FeishuRuntime {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(target, reply)
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(reply))
+      }
+
+      if (routed.outboundActions?.length) {
+        await this.dispatchOutboundActions(target, routed.outboundActions, runId)
       }
 
       if (routed.conversation) {
-        await this.deliverConversation(target, routed.conversation, runId)
+        let reactionId: string | null = null
+        try {
+          reactionId = await this.setThinkingReaction(message.messageId)
+        } catch (error) {
+          console.warn('[FeishuRuntime] Failed to set thinking reaction:', error)
+        }
+
+        try {
+          await this.deliverConversation(target, routed.conversation, runId)
+        } finally {
+          if (reactionId) {
+            try {
+              await this.clearThinkingReaction(message.messageId, reactionId)
+            } catch (error) {
+              console.warn('[FeishuRuntime] Failed to clear thinking reaction:', error)
+            }
+          }
+        }
       }
     } catch (error) {
       const diagnostics = {
         runId,
         target,
-        chatId: parsed.chatId,
-        threadId: parsed.threadId,
-        messageId: parsed.messageId,
-        eventId: parsed.eventId
+        chatId: message.chatId,
+        threadId: message.threadId,
+        messageId: message.messageId,
+        eventId: message.eventId
       }
 
       console.warn('[FeishuRuntime] Failed to handle event:', {
@@ -297,11 +340,58 @@ export class FeishuRuntime {
         console.warn('[FeishuRuntime] Failed to send error reply:', {
           chatId: parsed.chatId,
           threadId: parsed.threadId,
-          messageId: parsed.messageId,
-          eventId: parsed.eventId,
+          messageId: message.messageId,
+          eventId: message.eventId,
           error: sendError
         })
       }
+    }
+  }
+
+  private async resolveMessageAttachments(
+    message: FeishuInboundMessage
+  ): Promise<FeishuInboundMessage> {
+    if ((message.attachments ?? []).length === 0) {
+      return message
+    }
+
+    const attachments = await Promise.all(
+      (message.attachments ?? []).map(async (attachment) => {
+        if (!attachment.resourceKey || attachment.data) {
+          return attachment
+        }
+
+        try {
+          const downloaded = await this.deps.client.downloadMessageResource({
+            messageId: message.messageId,
+            fileKey: attachment.resourceKey,
+            type: attachment.resourceType === 'image' ? 'image' : 'file'
+          })
+          return {
+            ...attachment,
+            data: downloaded.data,
+            mediaType: downloaded.mediaType?.trim() || attachment.mediaType
+          }
+        } catch (error) {
+          console.warn('[FeishuRuntime] Failed to download Feishu message resource:', {
+            messageId: message.messageId,
+            filename: attachment.filename,
+            error
+          })
+          return {
+            ...attachment,
+            failedDownload: true,
+            errorMessage: 'Failed to load attachment'
+          }
+        }
+      })
+    )
+
+    return {
+      ...message,
+      attachments,
+      allAttachmentsFailed:
+        attachments.length > 0 && attachments.every((attachment) => attachment.failedDownload)
     }
   }
 
@@ -311,18 +401,73 @@ export class FeishuRuntime {
     runId: number
   ): Promise<void> {
     const startedAt = Date.now()
+    const endpointKey = buildFeishuEndpointKey(target.chatId, target.threadId)
 
     while (this.isCurrentRun(runId)) {
       const snapshot = await execution.getSnapshot()
       if (!this.isCurrentRun(runId)) {
         return
       }
+      const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
+      let deliveryState = this.getStoredDeliveryState(endpointKey)
+      deliveryState = await this.prepareDeliveryStateForSource(
+        endpointKey,
+        sourceMessageId,
+        deliveryState
+      )
+      let deliverySegments = this.getSnapshotDeliverySegments(snapshot, sourceMessageId)
+
+      if (sourceMessageId) {
+        deliveryState = deliveryState ?? this.createDeliveryState(sourceMessageId)
+      }
 
       if (snapshot.completed) {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(target, snapshot.text)
+        if (snapshot.pendingInteraction) {
+          if (deliveryState && deliverySegments.length > 0) {
+            deliveryState = await this.syncDeliverySegments(
+              target,
+              endpointKey,
+              deliveryState,
+              deliverySegments
+            )
+          }
+          await this.dispatchOutboundActions(
+            target,
+            [
+              {
+                type: 'sendCard',
+                card: buildFeishuPendingInteractionCard(snapshot.pendingInteraction),
+                fallbackText: buildFeishuPendingInteractionText(snapshot.pendingInteraction)
+              }
+            ],
+            runId
+          )
+          return
+        }
+
+        const finalText = this.getFinalDeliveryText(snapshot)
+        deliverySegments = this.appendTerminalDeliverySegment(
+          deliverySegments,
+          sourceMessageId,
+          finalText
+        )
+        if (deliveryState) {
+          if (deliverySegments.length > 0) {
+            deliveryState = await this.syncDeliverySegments(
+              target,
+              endpointKey,
+              deliveryState,
+              deliverySegments
+            )
+          }
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+        } else if (finalText) {
+          await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(finalText))
+        }
+        await this.sendGeneratedImages(target, snapshot)
         return
       }
 
@@ -330,14 +475,310 @@ export class FeishuRuntime {
         if (!this.isCurrentRun(runId)) {
           return
         }
-        await this.deps.client.sendText(
-          target,
-          'The current conversation timed out before finishing. Please try again.'
-        )
+        const timeoutText = 'The current conversation timed out before finishing. Please try again.'
+        if (deliveryState) {
+          deliveryState = await this.syncDeliverySegments(
+            target,
+            endpointKey,
+            deliveryState,
+            this.appendTerminalDeliverySegment(deliverySegments, sourceMessageId, timeoutText)
+          )
+          this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+        } else {
+          await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(timeoutText))
+        }
         return
       }
 
+      if (deliveryState && deliverySegments.length > 0) {
+        deliveryState = await this.syncDeliverySegments(
+          target,
+          endpointKey,
+          deliveryState,
+          deliverySegments
+        )
+      }
+
       await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+    }
+  }
+
+  private getStoredDeliveryState(endpointKey: string): FeishuRemoteDeliveryState | null {
+    const state = this.deps.bindingStore.getRemoteDeliveryState(endpointKey)
+    if (!state) {
+      return null
+    }
+
+    return {
+      sourceMessageId: state.sourceMessageId,
+      segments: state.segments.map((segment) => ({
+        key: segment.key,
+        kind: segment.kind,
+        messageIds: segment.messageIds.filter(
+          (messageId): messageId is string | null =>
+            typeof messageId === 'string' || messageId === null
+        ),
+        lastText: segment.lastText
+      }))
+    }
+  }
+
+  private rememberDeliveryState(
+    endpointKey: string,
+    state: FeishuRemoteDeliveryState
+  ): FeishuRemoteDeliveryState {
+    this.deps.bindingStore.rememberRemoteDeliveryState(endpointKey, state)
+    return state
+  }
+
+  private createDeliveryState(sourceMessageId: string): FeishuRemoteDeliveryState {
+    return {
+      sourceMessageId,
+      segments: []
+    }
+  }
+
+  private async prepareDeliveryStateForSource(
+    endpointKey: string,
+    sourceMessageId: string | null,
+    state: FeishuRemoteDeliveryState | null
+  ): Promise<FeishuRemoteDeliveryState | null> {
+    if (!state) {
+      return sourceMessageId ? this.createDeliveryState(sourceMessageId) : null
+    }
+
+    if (sourceMessageId && state.sourceMessageId === sourceMessageId) {
+      return state
+    }
+
+    this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+
+    if (!sourceMessageId) {
+      return null
+    }
+
+    return this.createDeliveryState(sourceMessageId)
+  }
+
+  private getSnapshotDeliverySegments(
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>,
+    sourceMessageId: string | null
+  ): RemoteDeliverySegment[] {
+    if (snapshot.deliverySegments !== undefined) {
+      return snapshot.deliverySegments.filter((segment) => segment.text.trim().length > 0)
+    }
+
+    if (!sourceMessageId) {
+      return []
+    }
+
+    const segments: RemoteDeliverySegment[] = []
+    const traceText = snapshot.traceText?.trim() || ''
+    const answerText = snapshot.text?.trim() || ''
+
+    if (traceText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:process`,
+        kind: 'process',
+        text: traceText,
+        sourceMessageId
+      })
+    }
+
+    if (answerText) {
+      segments.push({
+        key: `${sourceMessageId}:legacy:answer`,
+        kind: 'answer',
+        text: answerText,
+        sourceMessageId
+      })
+    }
+
+    return segments
+  }
+
+  private getFinalDeliveryText(
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): string {
+    const finalText = snapshot.finalText?.trim() ?? ''
+    if (finalText) {
+      return finalText
+    }
+    if ((snapshot.generatedImages?.length ?? 0) > 0) {
+      return ''
+    }
+    return (snapshot.fullText ?? snapshot.text).trim()
+  }
+
+  private async sendGeneratedImages(
+    target: FeishuTransportTarget,
+    snapshot: Awaited<ReturnType<RemoteConversationExecution['getSnapshot']>>
+  ): Promise<void> {
+    for (const asset of snapshot.generatedImages ?? []) {
+      try {
+        await this.deps.client.sendImage(target, asset.path)
+      } catch (error) {
+        console.warn('[FeishuRuntime] Failed to send generated image:', {
+          path: asset.path,
+          error
+        })
+        await this.deps.client.sendText(
+          target,
+          '[Image] Delivery failed - see local copy in the app.'
+        )
+      }
+    }
+  }
+
+  private appendTerminalDeliverySegment(
+    segments: RemoteDeliverySegment[],
+    sourceMessageId: string | null,
+    finalText: string
+  ): RemoteDeliverySegment[] {
+    const normalized = finalText.trim()
+    if (!sourceMessageId || !normalized) {
+      return segments
+    }
+
+    const lastAnswerSegment = [...segments].reverse().find((segment) => segment.kind === 'answer')
+    if (lastAnswerSegment?.text === normalized) {
+      return segments
+    }
+
+    if (normalized === REMOTE_NO_RESPONSE_TEXT && segments.length > 0) {
+      return segments
+    }
+
+    return [
+      ...segments,
+      {
+        key: `${sourceMessageId}:terminal`,
+        kind: 'terminal',
+        text: normalized,
+        sourceMessageId
+      }
+    ]
+  }
+
+  private isDeliveryStateCompatible(
+    state: FeishuRemoteDeliveryState,
+    segments: RemoteDeliverySegment[]
+  ): boolean {
+    if (segments.length < state.segments.length) {
+      return false
+    }
+
+    return state.segments.every((segment, index) => segments[index]?.key === segment.key)
+  }
+
+  private async syncDeliverySegments(
+    target: FeishuTransportTarget,
+    endpointKey: string,
+    state: FeishuRemoteDeliveryState,
+    segments: RemoteDeliverySegment[]
+  ): Promise<FeishuRemoteDeliveryState> {
+    if (segments.length === 0) {
+      return state
+    }
+
+    let nextState = state
+    if (!this.isDeliveryStateCompatible(nextState, segments)) {
+      this.deps.bindingStore.clearRemoteDeliveryState(endpointKey)
+      nextState = this.createDeliveryState(state.sourceMessageId)
+    }
+
+    const syncedSegments: FeishuRemoteDeliveryState['segments'] = []
+
+    for (const [index, segment] of segments.entries()) {
+      const syncedSegment = await this.syncDeliverySegment(
+        target,
+        nextState.segments[index] ?? null,
+        segment
+      )
+      syncedSegments.push(syncedSegment)
+    }
+
+    return this.rememberDeliveryState(endpointKey, {
+      sourceMessageId: nextState.sourceMessageId,
+      segments: syncedSegments
+    })
+  }
+
+  private async syncDeliverySegment(
+    target: FeishuTransportTarget,
+    existing: FeishuRemoteDeliveryState['segments'][number] | null,
+    segment: RemoteDeliverySegment
+  ): Promise<FeishuRemoteDeliveryState['segments'][number]> {
+    const normalized = segment.text.trim()
+    const optimized = optimizeMarkdownForFeishu(normalized)
+    const nextChunks = chunkFeishuText(optimized)
+
+    if (!existing) {
+      const messageIds: Array<string | null> = []
+      for (const chunk of nextChunks) {
+        const messageId = await this.deps.client.sendMarkdown(target, chunk)
+        messageIds.push(messageId ?? null)
+      }
+
+      return {
+        key: segment.key,
+        kind: segment.kind,
+        messageIds,
+        lastText: normalized
+      }
+    }
+
+    const previousChunks = existing.lastText
+      ? chunkFeishuText(optimizeMarkdownForFeishu(existing.lastText))
+      : []
+    if (
+      nextChunks.length < existing.messageIds.length ||
+      previousChunks.length < existing.messageIds.length ||
+      previousChunks
+        .slice(0, Math.max(0, existing.messageIds.length - 1))
+        .some((chunk, index) => chunk !== nextChunks[index])
+    ) {
+      const messageIds: Array<string | null> = []
+      for (const chunk of nextChunks) {
+        const messageId = await this.deps.client.sendMarkdown(target, chunk)
+        messageIds.push(messageId ?? null)
+      }
+
+      return {
+        key: segment.key,
+        kind: segment.kind,
+        messageIds,
+        lastText: normalized
+      }
+    }
+
+    const messageIds = [...existing.messageIds]
+    const editableIndex = Math.max(0, messageIds.length - 1)
+    const retainedCount = Math.min(messageIds.length, nextChunks.length)
+
+    for (let index = editableIndex; index < retainedCount; index += 1) {
+      if (previousChunks[index] === nextChunks[index]) {
+        continue
+      }
+
+      const messageId = messageIds[index]
+      if (!messageId) {
+        continue
+      }
+
+      await this.deps.client.updateMarkdown(messageId, nextChunks[index])
+    }
+
+    for (let index = messageIds.length; index < nextChunks.length; index += 1) {
+      const messageId = await this.deps.client.sendMarkdown(target, nextChunks[index])
+      messageIds.push(messageId ?? null)
+    }
+
+    return {
+      key: segment.key,
+      kind: segment.kind,
+      messageIds,
+      lastText: normalized
     }
   }
 
@@ -348,6 +789,41 @@ export class FeishuRuntime {
         name: botUser.name
       }
     })
+  }
+
+  private async dispatchOutboundActions(
+    target: FeishuTransportTarget,
+    actions: FeishuOutboundAction[],
+    runId: number
+  ): Promise<void> {
+    for (const action of actions) {
+      if (!this.isCurrentRun(runId)) {
+        return
+      }
+
+      if (action.type === 'sendText') {
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.text))
+        continue
+      }
+
+      try {
+        await this.deps.client.sendCard(target, action.card)
+      } catch (error) {
+        console.warn(
+          '[FeishuRuntime] Failed to send interactive card, falling back to text:',
+          error
+        )
+        await this.deps.client.sendMarkdown(target, optimizeMarkdownForFeishu(action.fallbackText))
+      }
+    }
+  }
+
+  private async setThinkingReaction(messageId: string): Promise<string> {
+    return await this.deps.client.addReaction(messageId, FEISHU_REMOTE_REACTION_EMOJI)
+  }
+
+  private async clearThinkingReaction(messageId: string, reactionId: string): Promise<void> {
+    await this.deps.client.removeReaction(messageId, reactionId)
   }
 
   private setStatus(

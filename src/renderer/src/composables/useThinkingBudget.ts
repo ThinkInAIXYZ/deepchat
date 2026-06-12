@@ -9,6 +9,9 @@ export interface ThinkingBudgetRange {
   min?: number
   max?: number
   default?: number
+  auto?: number
+  off?: number
+  unit?: string
 }
 
 export interface UseThinkingBudgetOptions {
@@ -16,7 +19,6 @@ export interface UseThinkingBudgetOptions {
   budgetRange: Ref<ThinkingBudgetRange | null>
   modelReasoning: Ref<boolean>
   supportsReasoning: Ref<boolean | null>
-  isGeminiProvider: ComputedRef<boolean>
 }
 
 export interface UseThinkingBudgetReturn {
@@ -29,8 +31,7 @@ export interface UseThinkingBudgetReturn {
  * Handles budget range validation, display logic, and error messages
  */
 export function useThinkingBudget(options: UseThinkingBudgetOptions): UseThinkingBudgetReturn {
-  const { thinkingBudget, budgetRange, modelReasoning, supportsReasoning, isGeminiProvider } =
-    options
+  const { thinkingBudget, budgetRange, modelReasoning, supportsReasoning } = options
   const { t } = useI18n()
 
   // === Computed Properties ===
@@ -46,13 +47,14 @@ export function useThinkingBudget(options: UseThinkingBudgetOptions): UseThinkin
       !!budgetRange.value &&
       (budgetRange.value.min !== undefined ||
         budgetRange.value.max !== undefined ||
-        budgetRange.value.default !== undefined)
+        budgetRange.value.default !== undefined ||
+        budgetRange.value.auto !== undefined ||
+        budgetRange.value.off !== undefined)
     )
   })
 
   /**
    * Validates thinking budget value and returns error message if invalid
-   * Handles special case for Gemini provider (-1 value)
    */
   const validationError = computed(() => {
     const value = thinkingBudget.value
@@ -62,8 +64,11 @@ export function useThinkingBudget(options: UseThinkingBudgetOptions): UseThinkin
       return ''
     }
 
-    // Gemini special case: -1 is valid (unlimited)
-    if (isGeminiProvider.value && value === -1) {
+    const isProviderDbSentinel =
+      (typeof range.auto === 'number' && value === range.auto) ||
+      (typeof range.off === 'number' && value === range.off)
+
+    if (isProviderDbSentinel) {
       return ''
     }
 

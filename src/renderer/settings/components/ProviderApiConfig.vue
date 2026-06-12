@@ -15,7 +15,7 @@
     <!-- API URL 配置 -->
     <div class="flex flex-col items-start gap-2">
       <div class="flex justify-between items-center w-full">
-        <Label :for="`${provider.id}-url`" class="flex-1 cursor-pointer">API URL</Label>
+        <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
         <Button
           v-if="provider.custom"
           variant="destructive"
@@ -26,7 +26,21 @@
           <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />{{ t('settings.provider.delete') }}
         </Button>
       </div>
+      <div v-if="showLockedBaseUrl" class="flex w-full items-center gap-2">
+        <div
+          :id="`${provider.id}-url`"
+          class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+        >
+          <span class="truncate">
+            {{ apiHost || t('settings.provider.urlPlaceholder') }}
+          </span>
+        </div>
+        <Button variant="outline" size="sm" class="shrink-0 text-xs" @click="requestBaseUrlUnlock">
+          {{ t('settings.provider.modifyBaseUrl') }}
+        </Button>
+      </div>
       <Input
+        v-else
         :id="`${provider.id}-url`"
         :model-value="apiHost"
         :placeholder="t('settings.provider.urlPlaceholder')"
@@ -35,7 +49,7 @@
         @update:model-value="apiHost = String($event)"
       />
       <div class="text-xs text-muted-foreground">
-        <TooltipProvider v-if="hasDefaultBaseUrl" :delayDuration="200">
+        <TooltipProvider v-if="hasDefaultBaseUrl && !showLockedBaseUrl" :delayDuration="200">
           <Tooltip>
             <TooltipTrigger as-child>
               <button
@@ -56,6 +70,9 @@
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <span v-else-if="showLockedBaseUrl">
+          {{ t('settings.provider.baseUrlLockedHint') }}
+        </span>
         <span v-else>
           {{
             t('settings.provider.urlFormat', {
@@ -77,16 +94,17 @@
     <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
     <div v-else class="flex flex-col items-start gap-4">
       <div class="flex flex-col gap-2 w-full">
-        <Label :for="`${provider.id}-apikey`" class="w-full cursor-pointer">API Key</Label>
+        <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
         <div class="relative w-full">
           <Input
+            data-testid="provider-api-key-input"
             :id="`${provider.id}-apikey`"
             :model-value="apiKey"
             :type="showApiKey ? 'text' : 'password'"
             :placeholder="t('settings.provider.keyPlaceholder')"
             style="padding-right: 2.5rem !important"
             @blur="handleApiKeyBlur"
-            @keyup.enter="$emit('validate-key', apiKey)"
+            @keyup.enter="handleValidateKey"
             @update:model-value="apiKey = String($event)"
           />
           <Button
@@ -122,9 +140,11 @@
       </div>
       <div class="flex flex-row gap-2">
         <Button
+          data-testid="provider-verify-button"
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
+          :disabled="!canVerifyProvider"
           @click="openModelCheckDialog"
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
@@ -132,6 +152,7 @@
           }}
         </Button>
         <Button
+          data-testid="provider-refresh-models-button"
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
@@ -148,13 +169,13 @@
               : t('settings.provider.refreshModels')
           }}
         </Button>
-        <!-- Key Status Display -->
       </div>
+      <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
+        {{ t('settings.provider.refreshModelsWithMetadataHint') }}
+      </p>
       <div v-if="!provider.custom" class="text-xs text-muted-foreground">
         {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
-        <a :href="providerWebsites?.apiKey" target="_blank" class="text-primary">{{
-          provider.name
-        }}</a>
+        <a :href="providerApiKeyUrl" target="_blank" class="text-primary">{{ provider.name }}</a>
         {{ t('settings.provider.getKeyTipEnd') }}
       </div>
     </div>
@@ -175,9 +196,11 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
+import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
+import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 
 interface ProviderWebsites {
   official: string
@@ -188,8 +211,21 @@ interface ProviderWebsites {
 }
 
 const { t } = useI18n()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
+const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter', { safeCall: false })
 const modelCheckStore = useModelCheckStore()
+const { toast } = useToast()
+
+const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
+  'openai',
+  'openai-responses',
+  'new-api',
+  'anthropic',
+  'gemini',
+  'ollama',
+  'lmstudio',
+  'azure-openai',
+  'vertex'
+])
 
 const props = defineProps<{
   provider: LLM_PROVIDER
@@ -210,14 +246,41 @@ const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
 const isRefreshing = ref(false)
 const showApiKey = ref(false)
+const baseUrlUnlocked = ref(false)
 const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
 const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
+const isBaseUrlEditableByDefault = computed(
+  () => props.provider.custom || EDITABLE_BASE_URL_PROVIDER_IDS.has(props.provider.id)
+)
+const showLockedBaseUrl = computed(
+  () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
+)
+const shouldRefreshProviderDbFirst = computed(() => isProviderDbBackedProvider(props.provider.id))
+const providerApiKeyUrl = computed(() => {
+  if (props.provider.id !== 'new-api') {
+    return props.providerWebsites?.apiKey || ''
+  }
+
+  const normalizedHost = apiHost.value.trim() || defaultBaseUrl.value
+  if (!normalizedHost) {
+    return props.providerWebsites?.apiKey || ''
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedHost)
+    return `${parsedUrl.origin}/console/token`
+  } catch {
+    return props.providerWebsites?.apiKey || ''
+  }
+})
+const canVerifyProvider = computed(() => props.provider.enable)
 
 watch(
   () => props.provider,
   () => {
     apiKey.value = props.provider.apiKey || ''
     apiHost.value = props.provider.baseUrl || ''
+    baseUrlUnlocked.value = false
   },
   { immediate: true }
 )
@@ -242,7 +305,12 @@ const fillDefaultBaseUrl = () => {
   handleApiHostChange(defaultBaseUrl.value)
 }
 
+const requestBaseUrlUnlock = () => {
+  baseUrlUnlocked.value = true
+}
+
 const handleApiHostBlur = (event: FocusEvent) => {
+  if (showLockedBaseUrl.value) return
   const target = event.target as HTMLInputElement | null
   if (!target) return
   handleApiHostChange(target.value)
@@ -256,8 +324,48 @@ const handleOAuthError = (error: string) => {
   emit('oauth-error', error)
 }
 
+const handleValidateKey = () => {
+  if (!canVerifyProvider.value) {
+    return
+  }
+
+  emit('validate-key', apiKey.value)
+}
+
 const openModelCheckDialog = () => {
+  if (!canVerifyProvider.value) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
+}
+
+const extractRefreshErrorMessage = (error: unknown): string | null => {
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const normalizedMessage = rawMessage.trim()
+
+  if (!normalizedMessage) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedMessage) as {
+      error?: { message?: string }
+      message?: string
+    }
+
+    if (typeof parsed.error?.message === 'string' && parsed.error.message.trim()) {
+      return parsed.error.message.trim()
+    }
+
+    if (typeof parsed.message === 'string' && parsed.message.trim()) {
+      return parsed.message.trim()
+    }
+  } catch {
+    // ignore JSON parse errors and fall back to the original message
+  }
+
+  return normalizedMessage
 }
 
 const getKeyStatus = async () => {
@@ -282,8 +390,29 @@ const refreshModels = async () => {
   isRefreshing.value = true
   try {
     await llmProviderPresenter.refreshModels(props.provider.id)
+    toast({
+      title: t('settings.provider.toast.refreshModelsSuccessTitle'),
+      description: t(
+        shouldRefreshProviderDbFirst.value
+          ? 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
+          : 'settings.provider.toast.refreshModelsSuccessDescription'
+      ),
+      duration: 4000
+    })
   } catch (error) {
     console.error('Failed to refresh models:', error)
+    const fallbackDescription = t(
+      shouldRefreshProviderDbFirst.value
+        ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
+        : 'settings.provider.toast.refreshModelsFailedDescription'
+    )
+    const errorMessage = extractRefreshErrorMessage(error)
+    toast({
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: errorMessage ? `${fallbackDescription}: ${errorMessage}` : fallbackDescription,
+      variant: 'destructive',
+      duration: 4000
+    })
   } finally {
     isRefreshing.value = false
   }

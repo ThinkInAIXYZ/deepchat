@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import { exec } from 'child_process'
 import { presenter } from '@/presenter'
+import logger from '@shared/logger'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
 
@@ -403,7 +404,7 @@ export class GitHubCopilotDeviceFlow {
         try {
           // Use fixed GitHub device activation page
           const url = GITHUB_DEVICE_URL
-          console.log('Attempting to open URL:', url)
+          logger.info('Attempting to open URL:', url)
 
           if (process.platform === 'win32') {
             // First try using explorer command
@@ -605,7 +606,7 @@ export function createGitHubCopilotDeviceFlow(clientIdOverride?: string): GitHub
     scope: 'read:user read:org'
   }
 
-  console.log('[GitHub Copilot][DeviceFlow] Creating device flow with config:', {
+  logger.info('[GitHub Copilot][DeviceFlow] Creating device flow with config:', {
     clientIdConfigured: !!clientId,
     scope: config.scope
   })

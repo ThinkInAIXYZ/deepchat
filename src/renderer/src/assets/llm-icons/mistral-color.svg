@@ -1,1 +1,19 @@
-<svg height="1em" style="flex:none;line-height:1" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><title>Mistral</title><g fill="none" fill-rule="nonzero"><path d="M15 6v4h-2V6h2zm4-4v4h-2V2h2zM3 2H1h2zM1 2h2v20H1V2zm8 12h2v4H9v-4zm8 0h2v8h-2v-8z" fill="#000"></path><path d="M19 2h4v4h-4V2zM3 2h4v4H3V2z" fill="#F7D046"></path><path d="M15 10V6h8v4h-8zM3 10V6h8v4H3z" fill="#F2A73B"></path><path d="M3 14v-4h20v4z" fill="#EE792F"></path><path d="M11 14h4v4h-4v-4zm8 0h4v4h-4v-4zM3 14h4v4H3v-4z" fill="#EB5829"></path><path d="M19 18h4v4h-4v-4zM3 18h4v4H3v-4z" fill="#EA3326"></path></g></svg>
+<svg width="191" height="135" viewBox="0 0 191 135" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_134_208)">
+<path d="M54.3221 0H27.1531V27.0892H54.3221V0Z" fill="#FFD800"/>
+<path d="M162.984 0H135.815V27.0892H162.984V0Z" fill="#FFD800"/>
+<path d="M81.4823 27.0913H27.1531V54.1805H81.4823V27.0913Z" fill="#FFAF00"/>
+<path d="M162.99 27.0913H108.661V54.1805H162.99V27.0913Z" fill="#FFAF00"/>
+<path d="M162.972 54.168H27.1531V81.2572H162.972V54.168Z" fill="#FF8205"/>
+<path d="M54.3221 81.2593H27.1531V108.349H54.3221V81.2593Z" fill="#FA500F"/>
+<path d="M108.661 81.2593H81.4917V108.349H108.661V81.2593Z" fill="#FA500F"/>
+<path d="M162.984 81.2593H135.815V108.349H162.984V81.2593Z" fill="#FA500F"/>
+<path d="M81.4879 108.339H-0.00146484V135.429H81.4879V108.339Z" fill="#E10500"/>
+<path d="M190.159 108.339H108.661V135.429H190.159V108.339Z" fill="#E10500"/>
+</g>
+<defs>
+<clipPath id="clip0_134_208">
+<rect width="190.141" height="135" fill="white"/>
+</clipPath>
+</defs>
+</svg>

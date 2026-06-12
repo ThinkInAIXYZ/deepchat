@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "Berjaya mengimport perbualan {count}",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
+  },
+  "error": {
+    "notEnabled": "Penyegerakan tidak didayakan",
+    "folderNotExists": "Folder penyegerakan tidak wujud",
+    "noValidBackup": "Tiada fail sandaran yang sah dalam folder penyegerakan",
+    "unsupportedBackupVersion": "Sandaran ini dibuat oleh versi DeepChat yang lebih baharu, versi semasa tidak boleh diimport",
+    "dbNotExists": "Fail pangkalan data tidak wujud",
+    "configNotExists": "Fail konfigurasi tidak wujud",
+    "tempDbFailed": "Penciptaan fail sandaran pangkalan data sementara gagal",
+    "tempConfigFailed": "Pembuatan fail sandaran konfigurasi sementara gagal",
+    "importFailed": "Import gagal, data asal dipulihkan",
+    "importProcess": "Ralat semasa import",
+    "unknown": "ralat yang tidak diketahui",
+    "encryptedBackupPasswordMissing": "Sandaran disulitkan, tetapi kunci pangkalan data tempatan tidak tersedia. Sila buka kunci pangkalan data yang disulitkan dahulu dan kemudian importnya semula.",
+    "overwriteEncryptionMismatch": "Import ganti ganti memerlukan pangkalan data sandaran dan semasa berada dalam keadaan penyulitan yang sama.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahsia tidak boleh disimpan dengan selamat.",
+    "cloudUnauthorized": "Pengesahan awan gagal. Semak Endpoint, bucket, Access Key ID, Secret Access Key dan kebenaran token R2."
+  }
+}

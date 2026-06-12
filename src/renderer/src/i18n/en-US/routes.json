@@ -1,7 +1,6 @@
 {
   "chat": "Chat",
   "welcome": "Welcome",
-  "playground": "Playground",
   "settings": "Settings",
   "settings-common": "Common Settings",
   "settings-provider": "Providers",
@@ -17,7 +16,10 @@
   "settings-acp": "ACP Agents",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
+  "settings-scheduled-tasks": "Scheduled Tasks",
   "settings-dashboard": "Dashboard",
   "settings-environments": "Environments",
-  "settings-remote": "Remote"
+  "settings-remote": "Remote",
+  "settings-plugins": "Plugins",
+  "settings-overview": "Settings Overview"
 }

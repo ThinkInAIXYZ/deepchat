@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col items-start gap-2">
-    <Label class="flex-1 cursor-pointer">
+    <Label class="flex-1">
       {{ t('settings.provider.githubCopilotAuth') }}
     </Label>
 
@@ -36,6 +36,7 @@
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
+          :disabled="!provider.enable"
           @click="openModelCheckDialog"
         >
           <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
@@ -136,7 +137,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { useLegacyPresenter } from '@api/legacy/presenters'
 import { useProviderStore } from '@/stores/providerStore'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -152,7 +153,7 @@ const emit = defineEmits<{
   'auth-error': [error: string]
 }>()
 
-const oauthPresenter = usePresenter('oauthPresenter')
+const oauthPresenter = useLegacyPresenter('oauthPresenter')
 const providerStore = useProviderStore()
 const modelCheckStore = useModelCheckStore()
 
@@ -261,6 +262,10 @@ const startOAuthLogin = async () => {
 }
 
 const openModelCheckDialog = () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 

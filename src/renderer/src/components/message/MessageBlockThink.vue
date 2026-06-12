@@ -12,7 +12,7 @@
 import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { usePresenter } from '@/composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
@@ -28,7 +28,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const configPresenter = usePresenter('configPresenter')
+const configClient = createConfigClient()
 
 // kept for potential future scroll anchoring; currently unused
 
@@ -38,10 +38,30 @@ const UPDATE_INTERVAL = 1000
 const UPDATE_OFFSET = 80
 let updateTimer: ReturnType<typeof setTimeout> | null = null
 
+type ReasoningTimeRange = {
+  start: number
+  end: number
+}
+
+const toReasoningTimeRange = (
+  value: DisplayAssistantMessageBlock['reasoning_time']
+): ReasoningTimeRange | null => {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  return typeof value.start === 'number' && typeof value.end === 'number'
+    ? { start: value.start, end: value.end }
+    : null
+}
+
+const reasoningTimeRange = computed(() => toReasoningTimeRange(props.block.reasoning_time))
+
 const reasoningDuration = computed(() => {
   let duration = 0
-  if (props.block.reasoning_time) {
-    duration = (props.block.reasoning_time.end - props.block.reasoning_time.start) / 1000
+  const range = reasoningTimeRange.value
+  if (range) {
+    duration = (range.end - range.start) / 1000
   } else {
     duration = (props.usage.reasoning_end_time - props.usage.reasoning_start_time) / 1000
   }
@@ -69,7 +89,7 @@ const scheduleNextUpdate = () => {
   const fallbackDuration = Number.isFinite(reasoningDuration.value)
     ? reasoningDuration.value * 1000
     : 0
-  const startTimestamp = props.block.reasoning_time?.start ?? Date.now() - fallbackDuration
+  const startTimestamp = reasoningTimeRange.value?.start ?? Date.now() - fallbackDuration
   const now = Date.now()
   const elapsed = Math.max(0, now - startTimestamp)
   const remainder = elapsed % UPDATE_INTERVAL
@@ -102,13 +122,13 @@ const headerText = computed(() => {
 watch(
   () => collapse.value,
   (newValue) => {
-    configPresenter.setSetting('think_collapse', newValue)
+    void configClient.setSetting('think_collapse', newValue)
     emit('toggle-collapse', !newValue)
   }
 )
 
 const statusWatchSource = () =>
-  [props.block.status, props.block.reasoning_time?.start, props.block.reasoning_time?.end] as const
+  [props.block.status, reasoningTimeRange.value?.start, reasoningTimeRange.value?.end] as const
 
 const handleStatusChange = useThrottleFn(
   () => {
@@ -142,7 +162,7 @@ watch(
 )
 
 onMounted(async () => {
-  collapse.value = Boolean(await configPresenter.getSetting('think_collapse'))
+  collapse.value = Boolean(await configClient.getSetting('think_collapse'))
 })
 
 onBeforeUnmount(() => {

@@ -2,7 +2,10 @@ import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
-import type { DisplayAssistantMessage } from '@/components/chat/messageListItems'
+import type {
+  DisplayAssistantMessage,
+  DisplayAssistantMessageBlock
+} from '@/components/chat/messageListItems'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -97,6 +100,7 @@ const createMessage = (
   id: 'm1',
   role: 'assistant',
   timestamp: 1,
+  updatedAt: 1,
   avatar: '',
   name: 'Assistant',
   model_name: 'GPT-4',
@@ -121,6 +125,42 @@ const createMessage = (
   content
 })
 
+const createVideoLikeImageBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
+  type: 'image',
+  status: 'success',
+  timestamp: 1,
+  image_data: {
+    data: 'https://example.com/sample.png',
+    mimeType: 'image/png'
+  },
+  ...overrides
+})
+
+const createThinkingBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
+  type: 'reasoning_content',
+  content: 'thinking',
+  status: 'success',
+  timestamp: 1,
+  ...overrides
+})
+
+const createToolCallBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
+  type: 'tool_call',
+  status: 'success',
+  timestamp: 2,
+  tool_call: {
+    id: 'tc1',
+    name: 'read_file'
+  },
+  ...overrides
+})
+
 describe('MessageItemAssistant', () => {
   const global = {
     stubs: {
@@ -134,8 +174,29 @@ describe('MessageItemAssistant', () => {
       MessageToolbar: componentStub('MessageToolbar'),
       MessageBlockAction: componentStub('MessageBlockAction'),
       MessageBlockImage: componentStub('MessageBlockImage'),
+      MessageBlockVideo: defineComponent({
+        name: 'MessageBlockVideo',
+        props: {
+          block: {
+            type: Object,
+            required: false
+          }
+        },
+        template: '<div data-testid="video-block" />'
+      }),
       MessageBlockAudio: componentStub('MessageBlockAudio'),
-      MessageBlockPlan: componentStub('MessageBlockPlan')
+      MessageBlockPlan: componentStub('MessageBlockPlan'),
+      MessageBlockActivityGroup: defineComponent({
+        name: 'MessageBlockActivityGroup',
+        props: {
+          blocks: {
+            type: Array,
+            required: true
+          }
+        },
+        template:
+          '<div data-testid="activity-group" :data-block-count="String(blocks.length)">activity</div>'
+      })
     }
   }
 
@@ -163,28 +224,126 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
   })
 
-  it('renders a spinner for the currently displayed pending variant', async () => {
-    const variant = {
-      ...createMessage('pending', []),
-      id: 'm1-variant',
-      is_variant: 1
-    }
-
+  it('renders video blocks from legacy content urls', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
-        message: {
-          ...createMessage('sent', []),
-          variants: [variant]
-        },
-        isCapturingImage: false,
-        useLegacyActions: true
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            content: 'https://example.com/media/generated-video.mp4?download=1',
+            image_data: undefined
+          })
+        ]),
+        isCapturingImage: false
       },
       global
     })
 
-    wrapper.vm.handleAction('next')
-    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(true)
+  })
 
-    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+  it('does not classify non-video urls as video blocks when extensions only appear in query text', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'https://example.com/assets/preview.png?redirect=.mp4',
+              mimeType: 'image/png'
+            }
+          })
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(false)
+  })
+
+  it('groups completed assistant activity blocks after the turn is settled', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('2')
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
+
+  it('does not group activity while the assistant message is pending', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('does not group sent activity while the thread is still generating', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('does not group pending activity when the thread is idle', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('excludes internal tool calls from activity groups', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createThinkingBlock(),
+          createToolCallBlock({
+            extra: {
+              internalTool: true
+            },
+            tool_call: {
+              id: 'tc-plan',
+              name: 'update_plan'
+            }
+          })
+        ]),
+        isCapturingImage: false,
+        isInGeneratingThread: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
   })
 })

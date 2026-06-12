@@ -1,0 +1,15 @@
+{
+  "sourceKind": "deepchat-owned-fork",
+  "upstreamRepo": "https://github.com/trycua/cua.git",
+  "upstreamSubdir": "libs/cua-driver",
+  "tag": "cua-driver-v0.2.0",
+  "commit": "d3f3b9325f49aa5302c15fb03f6b66bd1e688e27",
+  "version": "0.2.0",
+  "updatedAt": "2026-05-25",
+  "forkPolicy": "Build from the DeepChat-maintained local source snapshot. Cherry-pick upstream fixes only when they directly improve the bundled DeepChat Computer Use helper.",
+  "lastCherryPick": {
+    "sourceTag": "cua-driver-v0.2.0",
+    "sourceCommit": "d3f3b9325f49aa5302c15fb03f6b66bd1e688e27",
+    "appliedAt": "2026-05-25"
+  }
+}

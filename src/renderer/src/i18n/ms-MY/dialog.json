@@ -1,0 +1,89 @@
+{
+  "cancel": "Batal",
+  "confirm": "mengesahkan",
+  "close": "penutupan",
+  "ok": "pasti",
+  "delete": {
+    "title": "Adakah anda pasti mahu memadamkan perbualan ini?",
+    "description": "Operasi ini tidak boleh dibuat asal, sila teruskan dengan berhati-hati.",
+    "confirm": "padam"
+  },
+  "rename": {
+    "title": "Namakan semula sesi",
+    "description": "Sila masukkan nama sesi baharu."
+  },
+  "cleanMessages": {
+    "title": "Kosongkan mesej perbualan",
+    "description": "Mengosongkan mesej akan memadamkan semua mesej dan fail dalam sesi. Adakah anda pasti mahu meneruskan?",
+    "confirm": "Jelas"
+  },
+  "fork": {
+    "title": "Buat cawangan sesi",
+    "description": "Menyalin mesej pertama ke mesej yang dipilih pada masa ini ke dalam perbualan baharu di mana anda boleh meneruskan perbualan.",
+    "confirm": "Buat cawangan",
+    "tag": "cawangan"
+  },
+  "error": {
+    "title": "kesilapan"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Sahkan untuk membolehkan keupayaan penaakulan",
+      "functionCall": "Sahkan untuk mendayakan panggilan fungsi"
+    },
+    "message": {
+      "reasoning": "Menghidupkan keupayaan inferens akan mematikan fungsi panggilan fungsi secara automatik. Ini adalah had model DeepSeek-V3.1, dan kedua-dua fungsi tidak boleh digunakan pada masa yang sama. teruskan?",
+      "functionCall": "Mendayakan panggilan fungsi akan mematikan keupayaan inferens secara automatik. Ini adalah had model DeepSeek-V3.1, dan kedua-dua fungsi tidak boleh digunakan pada masa yang sama. teruskan?"
+    },
+    "warningText": {
+      "reasoning": "Nota: Menghidupkan keupayaan inferens akan mematikan fungsi panggilan secara automatik, yang merupakan pengehadan model DeepSeek-V3.1.",
+      "functionCall": "Nota: Mendayakan panggilan fungsi akan mematikan keupayaan inferens secara automatik, yang merupakan pengehadan model DeepSeek-V3.1."
+    },
+    "confirmEnable": "Sahkan untuk membuka"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Padam {name}?",
+    "deleteDescription": "Pilih apa yang perlu berlaku kepada perbualan yang kini dimiliki oleh ejen ini.",
+    "moveTitle": "Pindahkan Perbualan",
+    "moveDescription": "Pindahkan perbualan yang telah selesai ini ke ejen lain tanpa mengubah mesejnya.",
+    "loading": "Memeriksa perbualan berkaitan...",
+    "processing": "Memproses...",
+    "totalSessions": "Berkaitan",
+    "movableSessions": "Boleh dipindahkan",
+    "emptyDrafts": "Draf kosong",
+    "blockedSessions": "Disekat",
+    "moveBeforeDeleteTitle": "Pindahkan perbualan ke ejen lain",
+    "moveBeforeDeleteDescription": "Perbualan yang selesai mengekalkan mesejnya dan akan menggunakan ejen sasaran untuk balasan seterusnya. Draf kosong akan dibuang.",
+    "deleteSessionsTitle": "Padam perbualan dengan ejen ini",
+    "deleteSessionsDescription": "Semua perbualan dan mesej berkaitan akan dipadam bersama ejen.",
+    "targetAgent": "Ejen sasaran",
+    "selectTarget": "Pilih ejen",
+    "acpWorkdir": "Direktori kerja ACP",
+    "acpWorkdirPlaceholder": "Biarkan kosong untuk mengekalkan projek setiap perbualan",
+    "acpWorkdirHint": "Ejen ACP memerlukan direktori kerja. Jika perbualan tiada projek, nyatakan satu di sini.",
+    "currentAgent": "Ejen semasa: {name}",
+    "relatedSessions": "Perbualan berkaitan",
+    "blockedWarning": "Sesetengah perbualan masih berjalan atau mempunyai input beratur. Selesaikan dahulu sebelum memindahkan atau memadam ejen ini.",
+    "agentDeleteBlocked": "Ejen ini masih mempunyai perbualan berkaitan. Pindahkan atau padamkannya dahulu.",
+    "deleteAgentAndSessions": "Padam Ejen dan Perbualan",
+    "moveAndDeleteAgent": "Pindahkan dan Padam Ejen",
+    "moveConversation": "Pindahkan Perbualan",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Sedang berjalan",
+      "pending-input": "Beratur",
+      "missing-target-workdir": "Perlu direktori kerja",
+      "missing-session": "Tiada",
+      "same-agent": "Ejen yang sama"
+    },
+    "sampleState": {
+      "ready": "Sedia",
+      "draft": "Draf",
+      "subagent": "Subejen"
+    },
+    "deepChatTargetOnly": "Hanya ejen DeepChat boleh dipilih sebagai sasaran pemindahan. Perbualan ACP boleh dipindahkan ke DeepChat, tetapi tidak ke ACP."
+  }
+}

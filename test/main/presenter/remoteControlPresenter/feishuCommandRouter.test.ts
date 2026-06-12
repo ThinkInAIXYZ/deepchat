@@ -15,10 +15,71 @@ const createMessage = (
   command: null,
   mentionedBot: false,
   mentions: [],
+  attachments: [],
+  ...overrides
+})
+
+const createBindingStore = () => ({
+  getFeishuConfig: vi.fn().mockReturnValue({
+    pairedUserOpenIds: ['ou_123'],
+    bindings: {},
+    defaultWorkdir: ''
+  })
+})
+
+const createRunner = (overrides: Record<string, unknown> = {}) => ({
+  getPendingInteraction: vi.fn().mockResolvedValue(null),
+  getDefaultAgentId: vi.fn().mockResolvedValue('deepchat'),
+  getDefaultWorkdir: vi.fn().mockResolvedValue(null),
+  isSessionModelLocked: vi.fn().mockResolvedValue(false),
   ...overrides
 })
 
 describe('FeishuCommandRouter', () => {
+  it('surfaces failed attachment downloads before sending to the runner', async () => {
+    const runner = createRunner({
+      sendInput: vi.fn()
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '',
+        attachments: [
+          {
+            id: 'img-key',
+            filename: 'img-key',
+            resourceKey: 'img-key',
+            resourceType: 'image',
+            failedDownload: true,
+            errorMessage: 'Failed to load attachment'
+          }
+        ],
+        allAttachmentsFailed: true
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['Failed to load your attachment. Please resend.']
+    })
+    expect(runner.sendInput).not.toHaveBeenCalled()
+  })
+
   it('ignores group messages that do not mention the bot', async () => {
     const router = new FeishuCommandRouter({
       authGuard: {
@@ -47,13 +108,14 @@ describe('FeishuCommandRouter', () => {
   })
 
   it('switches models directly from text args', async () => {
-    const runner = {
+    const runner = createRunner({
       getCurrentSession: vi.fn().mockResolvedValue({
         id: 'session-1',
         title: 'Remote',
         modelId: 'gpt-4o',
         agentId: 'deepchat'
       }),
+      isSessionModelLocked: vi.fn().mockResolvedValue(false),
       listAvailableModelProviders: vi.fn().mockResolvedValue([
         {
           providerId: 'openai',
@@ -67,7 +129,7 @@ describe('FeishuCommandRouter', () => {
         modelId: 'gpt-5',
         agentId: 'deepchat'
       })
-    }
+    })
     const router = new FeishuCommandRouter({
       authGuard: {
         ensureAuthorized: vi.fn().mockReturnValue({
@@ -77,12 +139,7 @@ describe('FeishuCommandRouter', () => {
         pair: vi.fn()
       } as any,
       runner: runner as any,
-      bindingStore: {
-        getFeishuConfig: vi.fn().mockReturnValue({
-          pairedUserOpenIds: ['ou_123'],
-          bindings: {}
-        })
-      } as any,
+      bindingStore: createBindingStore() as any,
       getRuntimeStatus: vi.fn().mockReturnValue({
         state: 'running',
         lastError: null,
@@ -105,6 +162,50 @@ describe('FeishuCommandRouter', () => {
     expect(result.replies[0]).toContain('GPT-5')
   })
 
+  it('blocks /model when the current Feishu session is ACP-backed', async () => {
+    const listAvailableModelProviders = vi.fn()
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: createRunner({
+        getCurrentSession: vi.fn().mockResolvedValue({
+          id: 'session-1',
+          title: 'ACP Remote',
+          modelId: 'acp-agent',
+          agentId: 'acp-agent'
+        }),
+        isSessionModelLocked: vi.fn().mockResolvedValue(true),
+        listAvailableModelProviders
+      }) as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn().mockReturnValue({
+        state: 'running',
+        lastError: null,
+        botUser: null
+      })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/model',
+        command: {
+          name: 'model',
+          args: ''
+        }
+      })
+    )
+
+    expect(result).toEqual({
+      replies: ['ACP sessions lock the model. Change the channel default agent instead.']
+    })
+    expect(listAvailableModelProviders).not.toHaveBeenCalled()
+  })
+
   it('returns a desktop window hint when /open cannot find a chat window', async () => {
     const router = new FeishuCommandRouter({
       authGuard: {
@@ -114,17 +215,12 @@ describe('FeishuCommandRouter', () => {
         }),
         pair: vi.fn()
       } as any,
-      runner: {
+      runner: createRunner({
         open: vi.fn().mockResolvedValue({
           status: 'windowNotFound'
         })
-      } as any,
-      bindingStore: {
-        getFeishuConfig: vi.fn().mockReturnValue({
-          pairedUserOpenIds: ['ou_123'],
-          bindings: {}
-        })
-      } as any,
+      }) as any,
+      bindingStore: createBindingStore() as any,
       getRuntimeStatus: vi.fn().mockReturnValue({
         state: 'running',
         lastError: null,
@@ -145,5 +241,310 @@ describe('FeishuCommandRouter', () => {
     expect(result).toEqual({
       replies: ['Could not find a DeepChat desktop window. Open DeepChat and try /open again.']
     })
+  })
+
+  it('routes pending permission replies before opening a new turn', async () => {
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'permission',
+        messageId: 'assistant-1',
+        toolCallId: 'tool-1',
+        toolName: 'shell_command',
+        toolArgs: '{"command":"git push"}',
+        permission: {
+          permissionType: 'command',
+          description: 'Run git push',
+          command: 'git push'
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockResolvedValue({
+        waitingForUserMessage: false,
+        execution: {
+          sessionId: 'session-1',
+          eventId: 'assistant-1',
+          getSnapshot: vi.fn()
+        }
+      })
+    }
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: 'ALLOW'
+      })
+    )
+
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('feishu:oc_100:root', {
+      kind: 'permission',
+      granted: true
+    })
+    expect(result.replies).toEqual(['Approved. Continuing...'])
+    expect(result.conversation).toEqual(
+      expect.objectContaining({
+        sessionId: 'session-1'
+      })
+    )
+  })
+
+  it('re-sends the current pending question as a card action', async () => {
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: {
+        getPendingInteraction: vi.fn().mockResolvedValue({
+          type: 'question',
+          messageId: 'assistant-2',
+          toolCallId: 'tool-2',
+          toolName: 'ask_user',
+          toolArgs: '{}',
+          question: {
+            question: 'Pick one',
+            options: [{ label: 'A' }, { label: 'B' }],
+            custom: true,
+            multiple: false
+          }
+        })
+      } as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/pending',
+        command: {
+          name: 'pending',
+          args: ''
+        }
+      })
+    )
+
+    expect(result.replies).toEqual([])
+    expect(result.outboundActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'sendCard',
+          fallbackText: expect.stringContaining('Pick one'),
+          card: expect.objectContaining({
+            header: expect.objectContaining({
+              title: expect.objectContaining({
+                content: 'Question'
+              })
+            })
+          })
+        })
+      ])
+    )
+  })
+
+  it('parses option numbers for pending questions', async () => {
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'question',
+        messageId: 'assistant-3',
+        toolCallId: 'tool-3',
+        toolName: 'ask_user',
+        toolArgs: '{}',
+        question: {
+          question: 'Pick one',
+          options: [{ label: 'Alpha' }, { label: 'Beta' }],
+          custom: false,
+          multiple: false
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockResolvedValue({
+        waitingForUserMessage: false,
+        execution: null
+      })
+    }
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '2'
+      })
+    )
+
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('feishu:oc_100:root', {
+      kind: 'question_option',
+      optionLabel: 'Beta'
+    })
+    expect(result.replies).toEqual(['Selected: Beta'])
+  })
+
+  it('treats prefixed numeric text as custom input instead of an option', async () => {
+    const runner = {
+      getPendingInteraction: vi.fn().mockResolvedValue({
+        type: 'question',
+        messageId: 'assistant-4',
+        toolCallId: 'tool-4',
+        toolName: 'ask_user',
+        toolArgs: '{}',
+        question: {
+          question: 'Pick one',
+          options: [{ label: 'Alpha' }, { label: 'Beta' }],
+          custom: true,
+          multiple: false
+        }
+      }),
+      respondToPendingInteraction: vi.fn().mockResolvedValue({
+        waitingForUserMessage: false,
+        execution: null
+      })
+    }
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({
+          ok: true,
+          userOpenId: 'ou_123'
+        }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi.fn()
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '2 please'
+      })
+    )
+
+    expect(runner.respondToPendingInteraction).toHaveBeenCalledWith('feishu:oc_100:root', {
+      kind: 'question_custom',
+      answerText: '2 please'
+    })
+    expect(result.replies).toEqual(['Answer received: 2 please'])
+  })
+
+  it('lists agents for /agent without args', async () => {
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      listAvailableAgents: vi.fn().mockResolvedValue([
+        {
+          agentId: 'deepchat',
+          agentName: 'DeepChat',
+          agentType: 'deepchat',
+          source: 'builtin'
+        },
+        {
+          agentId: 'codex',
+          agentName: 'Codex',
+          agentType: 'acp',
+          source: 'registry'
+        }
+      ])
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userOpenId: 'ou_123' }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi
+        .fn()
+        .mockReturnValue({ state: 'running', lastError: null, botUser: null })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent',
+        command: { name: 'agent', args: '' }
+      })
+    )
+
+    expect(result.replies[0]).toContain('Current agent: deepchat')
+    expect(result.replies[0]).toContain('Codex')
+    expect(result.replies[0]).toContain('Usage: /agent <id>')
+  })
+
+  it('switches the channel default agent for /agent <id>', async () => {
+    const setChannelDefaultAgent = vi.fn().mockResolvedValue({
+      session: {
+        id: 'session-2',
+        title: 'New Chat',
+        agentId: 'codex',
+        providerId: 'acp',
+        modelId: 'codex'
+      },
+      agent: {
+        agentId: 'codex',
+        agentName: 'Codex',
+        agentType: 'acp',
+        source: 'registry'
+      }
+    })
+    const runner = createRunner({
+      getCurrentSession: vi.fn().mockResolvedValue({
+        id: 'session-1',
+        title: 'Remote',
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-5'
+      }),
+      listAvailableAgents: vi
+        .fn()
+        .mockResolvedValue([
+          { agentId: 'codex', agentName: 'Codex', agentType: 'acp', source: 'registry' }
+        ]),
+      setChannelDefaultAgent
+    })
+    const router = new FeishuCommandRouter({
+      authGuard: {
+        ensureAuthorized: vi.fn().mockReturnValue({ ok: true, userOpenId: 'ou_123' }),
+        pair: vi.fn()
+      } as any,
+      runner: runner as any,
+      bindingStore: createBindingStore() as any,
+      getRuntimeStatus: vi
+        .fn()
+        .mockReturnValue({ state: 'running', lastError: null, botUser: null })
+    })
+
+    const result = await router.handleMessage(
+      createMessage({
+        text: '/agent codex',
+        command: { name: 'agent', args: 'codex' }
+      })
+    )
+
+    expect(setChannelDefaultAgent).toHaveBeenCalledWith('feishu:oc_100:root', 'codex')
+    expect(result.replies[0]).toContain('Agent switched to Codex')
+    expect(result.replies[0]).toContain('Started a new session')
   })
 })

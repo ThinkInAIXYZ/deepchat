@@ -1,18 +1,14 @@
 <template>
-  <div class="w-full h-full overflow-auto">
-    <div
-      class="relative w-full h-full"
-      :class="viewportSize !== 'desktop' ? 'flex items-center justify-center' : ''"
-    >
-      <div :class="viewportSize === 'desktop' ? 'relative w-full h-full' : 'relative'">
-        <iframe
-          ref="iframeRef"
-          :srcdoc="block.content"
-          :class="viewportClasses"
-          :style="viewportStyles"
-          sandbox="allow-scripts allow-same-origin"
-        ></iframe>
-      </div>
+  <div :class="containerClasses" data-testid="html-artifact-root">
+    <div :class="frameContainerClasses">
+      <iframe
+        ref="iframeRef"
+        :srcdoc="block.content"
+        :class="viewportClasses"
+        :style="viewportStyles"
+        sandbox="allow-scripts allow-same-origin"
+        data-testid="html-artifact-iframe"
+      ></iframe>
     </div>
   </div>
 </template>
@@ -39,9 +35,26 @@ const props = defineProps<{
 }>()
 
 const iframeRef = ref<HTMLIFrameElement>()
+const resolvedViewportSize = computed(() => props.viewportSize || 'desktop')
+
+const containerClasses = computed(() => {
+  if (resolvedViewportSize.value === 'desktop') {
+    return 'flex h-full min-h-0 w-full overflow-hidden'
+  }
+
+  return 'flex h-full min-h-0 w-full items-center justify-center overflow-auto'
+})
+
+const frameContainerClasses = computed(() => {
+  if (resolvedViewportSize.value === 'desktop') {
+    return 'h-full min-h-0 w-full'
+  }
+
+  return 'relative shrink-0'
+})
 
 const viewportClasses = computed(() => {
-  const size = props.viewportSize || 'desktop'
+  const size = resolvedViewportSize.value
   const baseClasses = 'html-iframe-wrapper transition-all duration-300 ease-in-out'
 
   switch (size) {
@@ -49,12 +62,12 @@ const viewportClasses = computed(() => {
     case 'tablet':
       return `${baseClasses} border border-gray-300 dark:border-gray-600 relative`
     default:
-      return `${baseClasses} w-full h-full`
+      return `${baseClasses} block h-full min-h-0 w-full`
   }
 })
 
 const viewportStyles = computed(() => {
-  const size = props.viewportSize || 'desktop'
+  const size = resolvedViewportSize.value
 
   if (size === 'mobile' || size === 'tablet') {
     const dimensions = VIEWPORT_SIZES[size]
@@ -75,7 +88,7 @@ const setupIframe = () => {
       if (!doc) return
 
       // Add viewport meta tag
-      const viewportSize = props.viewportSize || 'desktop'
+      const viewportSize = resolvedViewportSize.value
       let viewportContent = 'width=device-width, initial-scale=1.0'
 
       if (viewportSize === 'mobile' || viewportSize === 'tablet') {

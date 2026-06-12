@@ -1,28 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  ChatMessage,
-  IConfigPresenter,
-  ISQLitePresenter,
-  LLM_PROVIDER,
-  MCPToolDefinition,
-  ModelConfig
-} from '../../../../src/shared/presenter'
-import { OpenAICompatibleProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
-import { OpenRouterProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/openRouterProvider'
-import { LLMProviderPresenter } from '../../../../src/main/presenter/llmProviderPresenter'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../../src/shared/presenter'
+import {
+  AiSdkProvider,
+  normalizeExtractedImageText
+} from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR } from '../../../../src/main/presenter/llmProviderPresenter/baseProvider'
 
 const {
-  mockChatCompletionsCreate,
-  mockModelsList,
-  mockMcpToolsToOpenAITools,
   mockGetProxyUrl,
-  mockCacheImage
+  mockRunAiSdkCoreStream,
+  mockRunAiSdkDimensions,
+  mockRunAiSdkEmbeddings,
+  mockRunAiSdkGenerateText
 } = vi.hoisted(() => ({
-  mockChatCompletionsCreate: vi.fn(),
-  mockModelsList: vi.fn().mockResolvedValue({ data: [] }),
-  mockMcpToolsToOpenAITools: vi.fn().mockResolvedValue([]),
   mockGetProxyUrl: vi.fn().mockReturnValue(null),
-  mockCacheImage: vi.fn()
+  mockRunAiSdkCoreStream: vi.fn(),
+  mockRunAiSdkDimensions: vi.fn(),
+  mockRunAiSdkEmbeddings: vi.fn(),
+  mockRunAiSdkGenerateText: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -32,64 +27,13 @@ vi.mock('electron', () => ({
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),
     on: vi.fn()
-  },
-  session: {},
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
-  BrowserWindow: vi.fn(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-    isDestroyed: vi.fn(() => false),
-    close: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn()
-  })),
-  dialog: {
-    showOpenDialog: vi.fn()
-  },
-  shell: {
-    openExternal: vi.fn()
-  }
-}))
-
-vi.mock('openai', () => {
-  class MockOpenAI {
-    chat = {
-      completions: {
-        create: mockChatCompletionsCreate
-      }
-    }
-    models = {
-      list: mockModelsList
-    }
-  }
-
-  return {
-    default: MockOpenAI,
-    AzureOpenAI: MockOpenAI
-  }
-})
-
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: mockCacheImage
-    }
   }
 }))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToRenderer: vi.fn(),
-    sendToMain: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
+    sendToRenderer: vi.fn()
   },
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
@@ -98,10 +42,11 @@ vi.mock('@/eventbus', () => ({
 
 vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
-    PROXY_RESOLVED: 'PROXY_RESOLVED',
-    PROVIDER_ATOMIC_UPDATE: 'PROVIDER_ATOMIC_UPDATE',
-    PROVIDER_BATCH_UPDATE: 'PROVIDER_BATCH_UPDATE',
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
+  },
+  PROVIDER_DB_EVENTS: {
+    LOADED: 'LOADED',
+    UPDATED: 'UPDATED'
   },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'SHOW_ERROR'
@@ -114,47 +59,33 @@ vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
-  modelCapabilities: {
-    supportsReasoningEffort: vi.fn().mockReturnValue(false),
-    supportsVerbosity: vi.fn().mockReturnValue(false),
-    supportsReasoning: vi.fn().mockReturnValue(false),
-    resolveProviderId: vi.fn((providerId: string) => providerId)
-  }
+vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
+  runAiSdkCoreStream: mockRunAiSdkCoreStream,
+  runAiSdkDimensions: mockRunAiSdkDimensions,
+  runAiSdkEmbeddings: mockRunAiSdkEmbeddings,
+  runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
-const createAsyncStream = (chunks: Array<Record<string, unknown>>) => ({
+const createStream = (events: Array<Record<string, unknown>>) => ({
   async *[Symbol.asyncIterator]() {
-    for (const chunk of chunks) {
-      yield chunk
+    for (const event of events) {
+      yield event
     }
   }
 })
 
-const collectEvents = async (
-  provider: OpenAICompatibleProvider,
-  providerModel: string,
-  modelConfig: ModelConfig,
-  messages: ChatMessage[],
-  tools: MCPToolDefinition[]
-) => {
-  const events = []
-  for await (const event of provider.coreStream(
-    messages,
-    providerModel,
-    modelConfig,
-    0.7,
-    512,
-    tools
-  )) {
-    events.push(event)
-  }
-  return events
-}
+const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
+  id: 'novita',
+  name: 'Novita',
+  apiType: 'openai-completions',
+  apiKey: 'test-key',
+  baseUrl: 'https://mock.example.com/v1',
+  enable: false,
+  ...overrides
+})
 
-const createConfigPresenter = (providers: LLM_PROVIDER[]) =>
+const createConfigPresenter = (): IConfigPresenter =>
   ({
-    getProviders: vi.fn().mockReturnValue(providers),
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
     getModelConfig: vi.fn().mockReturnValue(undefined),
@@ -163,175 +94,250 @@ const createConfigPresenter = (providers: LLM_PROVIDER[]) =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as IConfigPresenter
 
-const mockSqlitePresenter = {
-  getAcpSession: vi.fn().mockResolvedValue(null),
-  upsertAcpSession: vi.fn().mockResolvedValue(undefined),
-  updateAcpSessionId: vi.fn().mockResolvedValue(undefined),
-  updateAcpWorkdir: vi.fn().mockResolvedValue(undefined),
-  updateAcpSessionStatus: vi.fn().mockResolvedValue(undefined),
-  deleteAcpSession: vi.fn().mockResolvedValue(undefined),
-  deleteAcpSessions: vi.fn().mockResolvedValue(undefined)
-} as unknown as ISQLitePresenter
-
-describe('OpenAICompatibleProvider MCP runtime injection', () => {
-  const convertedTools = [
-    {
-      type: 'function',
-      function: {
-        name: 'get_weather',
-        description: 'Get current weather',
-        parameters: {
-          type: 'object',
-          properties: {
-            city: {
-              type: 'string'
-            }
-          }
-        }
-      }
-    }
-  ]
-
-  const modelConfig: ModelConfig = {
-    maxTokens: 1024,
-    contextLength: 8192,
-    vision: false,
-    functionCall: true,
-    reasoning: false,
-    type: 'chat'
-  }
-
-  const messages: ChatMessage[] = [{ role: 'user', content: 'What is the weather today?' }]
-
-  const mcpTools: MCPToolDefinition[] = [
-    {
-      type: 'function',
-      function: {
-        name: 'get_weather',
-        description: 'Get current weather',
-        parameters: {
-          type: 'object',
-          properties: {
-            city: {
-              type: 'string'
-            }
-          },
-          required: ['city']
-        }
-      },
-      server: {
-        name: 'weather-server',
-        icons: '',
-        description: 'Weather tools'
-      }
-    }
-  ]
-
-  const mcpRuntime = {
-    mcpToolsToOpenAITools: mockMcpToolsToOpenAITools
-  }
-
-  const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
-    id: 'mock-openai-compatible',
-    name: 'Mock OpenAI Compatible',
-    apiType: 'openai-compatible',
-    apiKey: 'test-key',
-    baseUrl: 'https://mock.example.com/v1',
-    enable: false,
-    ...overrides
-  })
-
+describe('AiSdkProvider openai-compatible', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockModelsList.mockResolvedValue({ data: [] })
+    vi.unstubAllGlobals()
     mockGetProxyUrl.mockReturnValue(null)
-    mockMcpToolsToOpenAITools.mockResolvedValue(convertedTools)
-    mockChatCompletionsCreate.mockResolvedValue(
-      createAsyncStream([
-        {
-          choices: [
-            {
-              delta: {
-                content: 'ok'
-              },
-              finish_reason: 'stop'
-            }
-          ],
-          usage: {
-            prompt_tokens: 12,
-            completion_tokens: 4,
-            total_tokens: 16
-          }
-        }
+    mockRunAiSdkCoreStream.mockReturnValue(
+      createStream([
+        { type: 'text', content: 'ok' },
+        { type: 'stop', stop_reason: 'complete' }
       ])
     )
   })
 
-  it('injects converted tools for direct OpenAICompatibleProvider instances', async () => {
-    const provider = new OpenAICompatibleProvider(
-      createProvider(),
-      createConfigPresenter([]),
-      mcpRuntime as any
-    )
-    ;(provider as any).isInitialized = true
-
-    const events = await collectEvents(provider, 'gpt-4o', modelConfig, messages, mcpTools)
-    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
-
-    expect(events.some((event) => event.type === 'text')).toBe(true)
-    expect(events.some((event) => event.type === 'stop')).toBe(true)
-    expect(mockMcpToolsToOpenAITools).toHaveBeenCalledWith(mcpTools, 'mock-openai-compatible')
-    expect(requestParams.tools).toEqual(convertedTools)
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
-  it('does not inject tools when mcpRuntime is missing', async () => {
-    const provider = new OpenAICompatibleProvider(createProvider(), createConfigPresenter([]))
-    ;(provider as any).isInitialized = true
-
-    await collectEvents(provider, 'gpt-4o', modelConfig, messages, mcpTools)
-    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
-
-    expect(mockMcpToolsToOpenAITools).not.toHaveBeenCalled()
-    expect(requestParams.tools).toBeUndefined()
-  })
-
-  it('forwards mcpRuntime through OpenAICompatibleProvider subclasses', async () => {
-    const provider = new OpenRouterProvider(
-      createProvider({
-        id: 'openrouter',
-        name: 'OpenRouter'
-      }),
-      createConfigPresenter([]),
-      mcpRuntime as any
-    )
-    ;(provider as any).isInitialized = true
-
-    await collectEvents(provider, 'gpt-4o', modelConfig, messages, mcpTools)
-    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
-
-    expect(mockMcpToolsToOpenAITools).toHaveBeenCalledWith(mcpTools, 'openrouter')
-    expect(requestParams.tools).toEqual(convertedTools)
-  })
-
-  it('preserves mcpRuntime on the LLMProviderPresenter instantiation path', async () => {
-    const providerConfig = createProvider({
-      id: 'openrouter',
-      name: 'OpenRouter'
+  it('fetches models over the provider HTTP endpoint instead of the legacy SDK client', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        data: [{ id: 'gpt-4o' }]
+      })
     })
-    const llmProviderPresenter = new LLMProviderPresenter(
-      createConfigPresenter([providerConfig]),
-      mockSqlitePresenter,
-      mcpRuntime as any
-    )
+    vi.stubGlobal('fetch', fetchMock)
 
-    const provider = llmProviderPresenter.getProviderInstance('openrouter') as OpenRouterProvider
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await provider.fetchModels()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://mock.example.com/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'gpt-4o',
+        providerId: 'novita'
+      })
+    ])
+  })
+
+  it('forwards streaming requests to the AI SDK runtime', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     ;(provider as any).isInitialized = true
 
-    await collectEvents(provider, 'gpt-4o', modelConfig, messages, mcpTools)
-    const requestParams = mockChatCompletionsCreate.mock.calls[0]?.[0]
+    const modelConfig: ModelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: true,
+      reasoning: false,
+      type: 'chat'
+    }
 
-    expect(provider).toBeInstanceOf(OpenRouterProvider)
-    expect(mockMcpToolsToOpenAITools).toHaveBeenCalledWith(mcpTools, 'openrouter')
-    expect(requestParams.tools).toEqual(convertedTools)
+    const events = []
+    for await (const event of provider.coreStream(
+      [{ role: 'user', content: 'hello' }],
+      'gpt-4o',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      events.push(event)
+    }
+
+    expect(events).toEqual([
+      { type: 'text', content: 'ok' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+    expect(mockRunAiSdkCoreStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible'
+      }),
+      [{ role: 'user', content: 'hello' }],
+      'gpt-4o',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )
+  })
+
+  it('submits audio transcriptions using OpenAI multipart format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ text: 'hello world' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const result = await provider.transcribeAudio(
+      'distil-whisper-large-v3-en',
+      'AQID',
+      'audio/mpeg',
+      'audio.mp3'
+    )
+
+    expect(result).toBe('hello world')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://mock.example.com/v1/audio/transcriptions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const body = requestInit.body as FormData
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.get('model')).toBe('distil-whisper-large-v3-en')
+
+    const file = body.get('file') as Blob & { name?: string }
+    expect(file).toBeInstanceOf(Blob)
+    expect(file.type).toBe('audio/mpeg')
+    expect(file.name).toBe('audio.mp3')
+  })
+
+  it('marks unsupported audio transcription endpoints for fallback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: vi.fn().mockResolvedValue('Not Found')
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await expect(
+      provider.transcribeAudio('distil-whisper-large-v3-en', 'AQID', 'audio/wav')
+    ).rejects.toThrow(AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR)
+  })
+
+  it('uses image generation for OpenAI-compatible models declared by type', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    const modelConfig = {
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'imageGeneration'
+    } as ModelConfig
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'paint' }],
+      'custom-image-model',
+      modelConfig,
+      0.7,
+      512,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+    expect(context.providerKind).toBe('openai-compatible')
+    expect(context.shouldUseImageGeneration('custom-image-model', modelConfig)).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        apiEndpoint: 'image',
+        type: 'chat'
+      } as ModelConfig)
+    ).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-chat-model', {
+        type: 'chat'
+      } as ModelConfig)
+    ).toBe(false)
+  })
+
+  it('builds azure runtime context with azure auth headers and image routing', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiType: 'openai-completions',
+        baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod'
+      }),
+      createConfigPresenter()
+    )
+    ;(provider as any).isInitialized = true
+
+    const modelConfig = {
+      apiEndpoint: 'image',
+      maxTokens: 1024,
+      contextLength: 8192,
+      vision: false,
+      functionCall: false,
+      reasoning: false,
+      type: 'chat'
+    } as ModelConfig
+
+    for await (const _event of provider.coreStream(
+      [{ role: 'user', content: 'paint' }],
+      'gpt-image-1',
+      modelConfig,
+      0.7,
+      256,
+      []
+    )) {
+      break
+    }
+
+    const context = mockRunAiSdkCoreStream.mock.calls.at(-1)?.[0]
+    expect(context.providerKind).toBe('azure')
+    expect(context.cleanHeaders).toBe(false)
+    expect(context.buildTraceHeaders()).toMatchObject({
+      'Content-Type': 'application/json',
+      'api-key': 'test-key'
+    })
+    expect(context.shouldUseImageGeneration('gpt-image-1', modelConfig)).toBe(true)
+    expect(
+      context.shouldUseImageGeneration('custom-image-model', {
+        type: 'imageGeneration'
+      } as ModelConfig)
+    ).toBe(false)
+    expect(context.shouldUseImageGeneration('gpt-image-1', {} as ModelConfig)).toBe(false)
+  })
+})
+
+describe('normalizeExtractedImageText', () => {
+  it('keeps meaningful text after markdown cleanup', () => {
+    expect(normalizeExtractedImageText('  Here is the updated image.\n\n')).toBe(
+      'Here is the updated image.'
+    )
+  })
+
+  it('drops markdown residue that contains no semantic text', () => {
+    expect(normalizeExtractedImageText('`\n')).toBe('')
+    expect(normalizeExtractedImageText('[]()')).toBe('')
   })
 })

@@ -43,6 +43,7 @@
   "noFiles": "暂无文件",
   "noFilesUploadDesc": "点击上方上传文件",
   "uploadSuccess": "上传成功",
+  "uploadFailed": "上传失败",
   "uploadedCount": "已上传 {count} 个文件",
   "confirmDelete": "确定要删除提示词「{name}」吗？",
   "confirmDeleteDescription": "此操作不可撤销，删除后将无法恢复该提示词。",

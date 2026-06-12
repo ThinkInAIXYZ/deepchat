@@ -24,10 +24,20 @@
     "acpMode": "モード",
     "acpModeTooltip": "現在のモード：{mode}",
     "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "workspaceUnavailableTooltip": "ディレクトリが存在しないかアクセスできません: {path}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
     "attach": "添付",
     "voiceInput": "音声入力",
+    "voiceInputStop": "音声入力を停止",
+    "voiceRecognitionUnsupportedTitle": "現在の環境は音声認識に対応していません",
+    "voiceRecognitionUnsupportedDescription": "音声認識に対応したブラウザまたはデスクトップ環境でこの機能を使用してください。",
+    "voiceRecognitionPermissionDeniedTitle": "マイクにアクセスできません",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat にマイクの使用を許可してからもう一度お試しください。",
+    "voiceRecognitionErrorTitle": "音声認識に失敗しました",
+    "voiceRecognitionErrorDescription": "音声認識を完了できませんでした。しばらくしてからもう一度お試しください。",
+    "send": "送信",
+    "steer": "誘導",
     "queue": "キューに追加",
     "stop": "停止",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "内蔵ツール",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "画像生成",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "添付ファイルの処理に失敗しました",
+    "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
+    "fileUploadFailedMore": " ほか {count} 件",
+    "unnamedFile": "名前のないファイル",
+    "audioInputUnsupportedTitle": "現在のモデルは音声添付をサポートしていません",
+    "audioInputUnsupportedDescription": "モデル {model} は音声入力をサポートしていないため、{count} 件の音声添付を無視しました。"
   },
   "pendingInput": {
     "steer": "誘導",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "思考中...",
     "rateLimitWaiting": "レート制限により、キューで待機中...",
+    "rateLimitCompactLoading": "制限中（{seconds}秒）",
     "rateLimitTitle": "リクエストレート制限",
     "rateLimitQueue": "キューの位置",
     "rateLimitEstimated": "推定待機時間",
@@ -110,7 +129,24 @@
     "clickToView": "詳細を表示",
     "functionName": "関数名",
     "params": "パラメータ",
-    "responseData": "レスポンスデータ"
+    "responseData": "レスポンスデータ",
+    "subagents": {
+      "summary": "{mode} · {count} 個のサブエージェント",
+      "unnamedTask": "名前未設定のタスク",
+      "mode": {
+        "parallel": "並列",
+        "chain": "直列"
+      },
+      "status": {
+        "queued": "待機中",
+        "running": "実行中",
+        "completed": "完了",
+        "error": "エラー",
+        "cancelled": "キャンセル済み",
+        "waiting_permission": "権限待ち",
+        "waiting_question": "入力待ち"
+      }
+    }
   },
   "mode": {
     "acpAgent": "ACPエージェント",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "共有",
-    "more": "その他"
+    "more": "その他",
+    "backToParent": "親セッションに戻る"
   },
   "advancedSettings": {
     "button": "詳細設定",
@@ -128,6 +165,9 @@
     "systemPrompt": "システムプロンプト",
     "systemPromptPlaceholder": "プリセットを選択",
     "temperature": "温度",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
+    "topP": "Top P",
+    "topPDescription": "核サンプリング。空欄でプロバイダーの既定値を使用",
     "contextLength": "コンテキスト長",
     "maxTokens": "最大トークン",
     "thinkingBudget": "思考予算",
@@ -144,15 +184,18 @@
       "finiteNumber": "有限の数値である必要があります",
       "nonNegativeInteger": "0以上の整数である必要があります",
       "contextLengthAtLeastMaxTokens": "最大トークン数以上である必要があります",
-      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります"
+      "maxTokensWithinContextLength": "コンテキスト長以下である必要があります",
+      "topPRange": "0 より大きく 1 以下である必要があります"
     }
   },
   "workspace": {
     "collapse": "近い",
+    "expand": "展開",
     "sections": {
       "files": "ファイル",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "サブエージェント"
     },
     "files": {
       "contextMenu": {
@@ -162,6 +205,11 @@
       },
       "empty": "まだファイルがありません",
       "loading": "ファイルをロード中...",
+      "noWorkspace": {
+        "title": "ワークスペースなし",
+        "description": "フォルダを選択してワークスペースを設定",
+        "button": "フォルダを選択"
+      },
       "section": "書類"
     },
     "git": {
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "まだタスクはありません",
       "section": "プラン",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "完了しました",
         "failed": "失敗",
@@ -206,10 +255,20 @@
         "aborted": "中止"
       }
     },
-    "title": "ワークスペース"
+    "title": "ワークスペース",
+    "subagents": {
+      "empty": "子セッションはまだありません",
+      "self": "このエージェント",
+      "status": {
+        "working": "実行中",
+        "error": "エラー",
+        "idle": "待機中"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "モデルが見つかりません"
+    "empty": "モデルが見つかりません",
+    "audioInputSupported": "音声入力をサポート"
   },
   "audio": {
     "play": "再生",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "コンテキストを自動圧縮しています...",
-    "compacted": "コンテキストは自動圧縮されました"
+    "compacting": "コンテキストを圧縮しています...",
+    "compacted": "コンテキストは圧縮されました",
+    "commandDescription": "会話コンテキストを圧縮",
+    "noopTitle": "圧縮できるコンテキストがありません",
+    "noopDescription": "まだ圧縮できる新しい会話履歴がありません。",
+    "failedTitle": "圧縮に失敗しました"
   },
   "newThread": {
     "title": "作成して探索"
@@ -248,6 +311,10 @@
     "allAgents": "すべてのエージェント",
     "expandSidebar": "サイドバーを展開",
     "collapseSidebar": "サイドバーを折りたたむ",
+    "themeToggle": "テーマを切り替え",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システム",
     "remoteControlStatus": {
       "disabled": "リモート操作は無効です",
       "stopped": "リモート操作は停止しました",
@@ -261,12 +328,16 @@
     "pinned": "ピン留め",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう",
-    "remoteControlDisabled": "無効"
+    "remoteControlDisabled": "無効",
+    "searchPlaceholder": "チャットタイトルを検索",
+    "searchAriaLabel": "チャットタイトルを検索",
+    "searchEmptyTitle": "一致する会話はありません",
+    "searchEmptyDescription": "別のキーワードを試してください"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "タスク概要",
     "collapse": "フローティングセッションを折りたたむ",
-    "empty": "DeepChat セッションはまだありません",
+    "empty": "Agent セッションはまだありません",
     "executing": "アクティブ",
     "sessionCount": "{count}件のセッション",
     "untitled": "新しいチャット",
@@ -274,6 +345,77 @@
       "inProgress": "進行中",
       "done": "完了",
       "error": "エラー"
+    }
+  },
+  "subagents": {
+    "label": "サブエージェント"
+  },
+  "spotlight": {
+    "placeholder": "会話、Agent、設定、アクションを検索…",
+    "searching": "検索中…",
+    "emptyTitle": "一致する結果がありません",
+    "emptyDescription": "別のキーワードを試すか、最近のセッションを開いてください。",
+    "hints": "↑↓ 移動 · Enter 開く · Esc 閉じる · Home/End ジャンプ",
+    "kind": {
+      "session": "セッション",
+      "message": "メッセージ",
+      "agent": "Agent",
+      "setting": "設定",
+      "action": "アクション"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "現在の会話を検索",
+    "ariaLabel": "現在の会話を検索",
+    "previous": "前の一致",
+    "next": "次の一致",
+    "close": "検索を閉じる"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "DeepChat Agent に切り替える",
+      "description": "チャットを始める前に ACP から切り替え、組み込みの DeepChat フローに戻ってください。",
+      "caption": "続行するには、サイドバーでハイライトされたエージェントボタンをクリックしてください。"
+    },
+    "switchModel": {
+      "description": "最初の DeepChat 会話で使用するモデルを選択してください。",
+      "caption": "ハイライトされたモデル切り替えを使って、利用可能な任意のモデルを選んでください。"
+    },
+    "firstChat": {
+      "description": "準備は完了です。ここに最初のメッセージを入力してオンボーディングを完了しましょう。",
+      "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "スキルドラフト",
+    "confirmationQuestion": "スキルドラフトが生成されました: {name}",
+    "previewTitle": "ドラフト内容のプレビュー",
+    "actions": {
+      "view": "内容を表示",
+      "viewDescription": "ドラフトの SKILL.md 内容をプレビュー",
+      "install": "スキルとしてインストール",
+      "installDescription": "管理できるようにスキルフォルダへインポート",
+      "discard": "破棄",
+      "discardDescription": "この一時ドラフトを削除"
+    },
+    "result": {
+      "viewed": "ドラフト内容のプレビューを開きました。インストールまたは破棄を選択してください。",
+      "installed": "スキルドラフトをインストールしました: {name}",
+      "discarded": "スキルドラフトを破棄しました。",
+      "failed": "スキルドラフトの処理に失敗しました: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "{duration} 作業しました",
+    "reasoningCount": "{count} 件の思考",
+    "toolCallCount": "{count} 件のツール呼び出し",
+    "expandLabel": "{title} を展開",
+    "collapseLabel": "{title} を折りたたむ",
+    "duration": {
+      "day": "日",
+      "hour": "時間",
+      "minute": "分",
+      "second": "秒"
     }
   }
 }

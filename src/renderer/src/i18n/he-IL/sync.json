@@ -1,17 +1,30 @@
 {
   "success": {
-    "importComplete": "יובאו בהצלחה {count} שיחות."
+    "importComplete": "יובאו בהצלחה {count} שיחות.",
+    "cloudConnected": "החיבור לענן הצליח",
+    "cloudUploaded": "הועלה לענן",
+    "cloudPulled": "הגיבוי האחרון נמשך מהענן"
   },
   "error": {
     "notEnabled": "הסנכרון אינו מופעל",
     "folderNotExists": "תיקיית הסנכרון אינה קיימת",
     "noValidBackup": "לא נמצאו קבצי גיבוי תקינים בתיקיית הסנכרון.",
+    "unsupportedBackupVersion": "גיבוי זה נוצר בגרסה חדשה יותר של DeepChat ולא ניתן לייבא אותו.",
     "dbNotExists": "קובץ מסד הנתונים אינו קיים",
     "configNotExists": "קובץ התצורה אינו קיים",
     "tempDbFailed": "נכשל ביצירת קובץ גיבוי זמני למסד הנתונים",
     "tempConfigFailed": "נכשל ביצירת קובץ גיבוי זמני לתצורה",
     "importFailed": "הייבוא נכשל, הנתונים המקוריים שוחזרו",
     "importProcess": "אירעה שגיאה במהלך תהליך הייבוא",
-    "unknown": "שגיאה לא ידועה"
+    "unknown": "שגיאה לא ידועה",
+    "encryptedBackupPasswordMissing": "הגיבוי הזה מוצפן, אך מפתח מסד הנתונים המקומי אינו זמין. פתח תחילה את מסד הנתונים המוצפן ולאחר מכן יבא שוב.",
+    "overwriteEncryptionMismatch": "ייבוא בדריסת נתונים דורש שלגיבוי ולמסד הנתונים הנוכחי יהיה אותו מצב הצפנה.",
+    "cloudNotConfigured": "הענן אינו מוגדר. מלא ושמור תחילה את חיבור הענן.",
+    "cloudNoBackup": "אין גיבוי זמין בדלי הענן",
+    "cloudDownloadFailed": "נכשל בהורדת הגיבוי מהענן",
+    "cloudOperationFailed": "פעולת הענן נכשלה",
+    "noLocalBackup": "אין גיבוי מקומי להעלאה. הפעל גיבוי תחילה.",
+    "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; אי אפשר לשמור את המפתח הסודי באופן מאובטח.",
+    "cloudUnauthorized": "אימות הענן נכשל. בדוק את Endpoint, bucket, Access Key ID, Secret Access Key והרשאות אסימון R2."
   }
 }

@@ -5,7 +5,16 @@
     "inputArea": "Input Area",
     "functionSwitch": "Function Switch",
     "attach": "Attach",
-    "voiceInput": "Voice input",
+    "voiceInput": "Local recording",
+    "voiceInputStop": "Stop local recording",
+    "voiceRecognitionUnsupportedTitle": "Local recording is not available here",
+    "voiceRecognitionUnsupportedDescription": "Use this feature in a browser or desktop environment that supports microphone recording.",
+    "voiceRecognitionPermissionDeniedTitle": "Microphone access is unavailable",
+    "voiceRecognitionPermissionDeniedDescription": "Allow DeepChat to use the microphone and try again.",
+    "voiceRecognitionErrorTitle": "Audio transcription failed",
+    "voiceRecognitionErrorDescription": "Could not complete audio transcription. Please try again later.",
+    "send": "Send",
+    "steer": "Steer",
     "queue": "Queue",
     "stop": "Stop",
     "fileSelect": "Select File",
@@ -30,6 +39,7 @@
     "agentWorkspaceTooltip": "Set Agent workspace directory",
     "agentWorkspaceSelect": "Select a folder to use as the workspace",
     "agentWorkspaceCurrent": "Current workspace: {path}",
+    "workspaceUnavailableTooltip": "Directory does not exist or cannot be accessed: {path}",
     "mcp": {
       "badge": "MCP {count}",
       "title": "Enabled MCP",
@@ -40,16 +50,43 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "Built-in Tools",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "Image Generation",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
+    },
+    "fileUploadFailed": "Attachment failed",
+    "fileUploadFailedDesc": "Could not process {count} files: {names}",
+    "fileUploadFailedMore": " and {count} more",
+    "unnamedFile": "unnamed file",
+    "audioInputUnsupportedTitle": "Current model does not support audio attachments",
+    "audioInputUnsupportedDescription": "Model {model} does not support audio input. Ignored {count} audio attachment(s)."
+  },
+  "skillDraft": {
+    "confirmationTitle": "Skill Draft",
+    "confirmationQuestion": "Generated skill draft: {name}",
+    "previewTitle": "Draft content preview",
+    "actions": {
+      "view": "View content",
+      "viewDescription": "Preview the draft SKILL.md content",
+      "install": "Install as Skill",
+      "installDescription": "Import it into the Skills folder for management",
+      "discard": "Discard",
+      "discardDescription": "Delete this temporary draft"
+    },
+    "result": {
+      "viewed": "Draft content preview is open. Choose install or discard.",
+      "installed": "Installed skill draft: {name}",
+      "discarded": "Discarded skill draft.",
+      "failed": "Failed to handle skill draft: {error}"
     }
   },
   "pendingInput": {
@@ -83,6 +120,7 @@
   "messages": {
     "thinking": "Thinking...",
     "rateLimitWaiting": "Rate limit reached, waiting in queue...",
+    "rateLimitCompactLoading": "Rate limited for {seconds}s...",
     "rateLimitTitle": "Rate Limit Active",
     "rateLimitQueue": "Queue Position",
     "rateLimitEstimated": "Estimated Wait",
@@ -93,8 +131,12 @@
     "rateLimitMinutes": "m"
   },
   "compaction": {
-    "compacting": "Auto-compacting context...",
-    "compacted": "Context was auto-compacted"
+    "compacting": "Compacting context...",
+    "compacted": "Context was compacted",
+    "commandDescription": "Compact conversation context",
+    "noopTitle": "No context to compact",
+    "noopDescription": "There is no new conversation history to compact yet.",
+    "failedTitle": "Compaction failed"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",
@@ -114,7 +156,24 @@
     "clickToView": "Click to view details",
     "functionName": "Function",
     "params": "Parameters",
-    "responseData": "Response data"
+    "responseData": "Response data",
+    "subagents": {
+      "summary": "{mode} · {count} subagents",
+      "unnamedTask": "Unnamed task",
+      "mode": {
+        "parallel": "Parallel",
+        "chain": "Chain"
+      },
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "error": "Error",
+        "cancelled": "Cancelled",
+        "waiting_permission": "Waiting for permission",
+        "waiting_question": "Waiting for input"
+      }
+    }
   },
   "mode": {
     "current": "Current mode: {mode}",
@@ -122,8 +181,12 @@
     "acpAgent": "ACP Agent"
   },
   "topbar": {
+    "backToParent": "Back to Parent",
     "share": "Share",
     "more": "More"
+  },
+  "subagents": {
+    "label": "Subagents"
   },
   "advancedSettings": {
     "button": "Advanced",
@@ -132,6 +195,9 @@
     "systemPrompt": "System Prompt",
     "systemPromptPlaceholder": "Select a preset",
     "temperature": "Temperature",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "Context Length",
     "maxTokens": "Max Tokens",
     "thinkingBudget": "Thinking Budget",
@@ -148,11 +214,13 @@
       "finiteNumber": "Must be a finite number",
       "nonNegativeInteger": "Must be a non-negative integer",
       "contextLengthAtLeastMaxTokens": "Must be greater than or equal to Max Tokens",
-      "maxTokensWithinContextLength": "Must be less than or equal to Context Length"
+      "maxTokensWithinContextLength": "Must be less than or equal to Context Length",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "modelPicker": {
-    "empty": "No models found"
+    "empty": "No models found",
+    "audioInputSupported": "Audio input supported"
   },
   "audio": {
     "play": "Play",
@@ -167,11 +235,11 @@
   },
   "skills": {
     "indicator": {
-      "active": "{count} skills active",
-      "none": "No skills active"
+      "active": "{count} pinned skills",
+      "none": "No pinned skills"
     },
     "panel": {
-      "title": "Skills",
+      "title": "Pinned Skills",
       "manage": "Manage",
       "empty": "No skills installed"
     }
@@ -179,14 +247,17 @@
   "workspace": {
     "title": "Workspace",
     "collapse": "Collapse",
+    "expand": "Expand",
     "sections": {
       "files": "Files",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "Subagents"
     },
     "plan": {
       "section": "Plan",
       "empty": "No tasks yet",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "pending": "Pending",
         "in_progress": "In Progress",
@@ -199,6 +270,11 @@
       "section": "Files",
       "empty": "No files",
       "loading": "Loading files...",
+      "noWorkspace": {
+        "title": "No workspace",
+        "description": "Select or drag a folder to set the workspace",
+        "button": "Select folder"
+      },
       "contextMenu": {
         "openFile": "Open file",
         "revealInFolder": "Show in file manager",
@@ -210,6 +286,15 @@
       "clean": "Clean working tree",
       "staged": "Staged",
       "unstaged": "Unstaged"
+    },
+    "subagents": {
+      "empty": "No child sessions yet",
+      "self": "Self",
+      "status": {
+        "working": "Running",
+        "error": "Error",
+        "idle": "Idle"
+      }
     },
     "browser": {
       "section": "Browser",
@@ -241,9 +326,9 @@
     "title": "Build and explore"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Task Overview",
     "collapse": "Collapse floating sessions",
-    "empty": "No DeepChat sessions yet",
+    "empty": "No agent sessions yet",
     "executing": "active",
     "sessionCount": "{count} sessions",
     "untitled": "New Chat",
@@ -261,6 +346,10 @@
     "allAgents": "All Agents",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
+    "themeToggle": "Toggle theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",
@@ -274,6 +363,59 @@
     "groupByProject": "Group by project",
     "pinned": "Pinned",
     "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin"
+    "emptyDescription": "Start a new chat to begin",
+    "searchPlaceholder": "Search chats",
+    "searchAriaLabel": "Search chats",
+    "searchEmptyTitle": "No matching conversations",
+    "searchEmptyDescription": "Try a different title keyword"
+  },
+  "spotlight": {
+    "placeholder": "Search chats, agents, settings, actions…",
+    "searching": "Searching…",
+    "emptyTitle": "No matching results",
+    "emptyDescription": "Try another keyword or open a recent session.",
+    "hints": "↑↓ move · Enter open · Esc close · Home/End jump",
+    "kind": {
+      "session": "Session",
+      "message": "Message",
+      "agent": "Agent",
+      "setting": "Setting",
+      "action": "Action"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Search in conversation",
+    "ariaLabel": "Search in current conversation",
+    "previous": "Previous match",
+    "next": "Next match",
+    "close": "Close search"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Switch to DeepChat Agent",
+      "description": "Before chatting, switch away from ACP and return to the built-in DeepChat flow.",
+      "caption": "Click the highlighted agent button in the sidebar to continue."
+    },
+    "switchModel": {
+      "description": "Pick the model you want to use for your first DeepChat conversation.",
+      "caption": "Use the highlighted model switcher and choose any available model."
+    },
+    "firstChat": {
+      "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
+      "caption": "The spotlight stays on the input box until you send your first message."
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Worked for {duration}",
+    "reasoningCount": "{count} thought(s)",
+    "toolCallCount": "{count} tool call(s)",
+    "expandLabel": "Expand {title}",
+    "collapseLabel": "Collapse {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "h ",
+      "minute": "m ",
+      "second": "s"
+    }
   }
 }

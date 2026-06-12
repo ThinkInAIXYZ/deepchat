@@ -12,7 +12,7 @@ import type {
   UsageDashboardRtkSummary
 } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
-import { getShellEnvironment } from './shellEnvHelper'
+import { getShellEnvironment, mergeCommandEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '../runtimeHelper'
 
 const RTK_ENABLED_SETTING_KEY = 'rtkEnabled'
@@ -57,6 +57,11 @@ interface PrepareShellCommandResult {
   rtkMode: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
 }
+
+type RtkRewriteResult =
+  | { status: 'rewritten'; command: string }
+  | { status: 'bypass'; message: string }
+  | { status: 'failure'; message: string }
 
 interface RtkRuntimeServiceDeps {
   runtimeHelper?: Pick<
@@ -110,6 +115,37 @@ function getErrorMessage(error: unknown): string {
     return error.message
   }
   return String(error)
+}
+
+function classifyRtkRewriteResult(result: CommandResult): RtkRewriteResult {
+  const stdout = result.stdout.trim()
+  const stderr = result.stderr.trim()
+
+  if (result.code === 0 && stdout) {
+    return {
+      status: 'rewritten',
+      command: stdout
+    }
+  }
+
+  if (result.code === 3 && stdout && /No hook installed/i.test(stderr)) {
+    return {
+      status: 'rewritten',
+      command: stdout
+    }
+  }
+
+  if (result.code === 1) {
+    return {
+      status: 'bypass',
+      message: 'RTK rewrite did not match this command'
+    }
+  }
+
+  return {
+    status: 'failure',
+    message: stderr || stdout || 'rtk rewrite failed'
+  }
 }
 
 async function defaultRunCommand(
@@ -371,24 +407,22 @@ export class RtkRuntimeService {
         env: preparedEnv,
         timeoutMs: RTK_REWRITE_TIMEOUT_MS
       })
+      const rewrite = classifyRtkRewriteResult(rewriteResult)
 
-      if (rewriteResult.code === 0) {
-        const rewritten = rewriteResult.stdout.trim()
-        if (rewritten) {
-          this.recordRuntimeSuccess()
-          return {
-            originalCommand: rawCommand,
-            command: rewritten,
-            env: preparedEnv,
-            rewritten: true,
-            usedRtk: true,
-            rtkApplied: true,
-            rtkMode: 'rewrite'
-          }
+      if (rewrite.status === 'rewritten') {
+        this.recordRuntimeSuccess()
+        return {
+          originalCommand: rawCommand,
+          command: rewrite.command,
+          env: preparedEnv,
+          rewritten: true,
+          usedRtk: true,
+          rtkApplied: true,
+          rtkMode: 'rewrite'
         }
       }
 
-      if (rewriteResult.code === 1) {
+      if (rewrite.status === 'bypass') {
         this.recordRuntimeSuccess()
         return {
           originalCommand: rawCommand,
@@ -398,13 +432,11 @@ export class RtkRuntimeService {
           usedRtk: false,
           rtkApplied: false,
           rtkMode: 'bypass',
-          rtkFallbackReason: 'RTK rewrite did not match this command'
+          rtkFallbackReason: rewrite.message
         }
       }
 
-      const failureMessage =
-        rewriteResult.stderr.trim() || rewriteResult.stdout.trim() || 'rtk rewrite failed'
-      this.recordRuntimeFailure('rewrite', failureMessage)
+      this.recordRuntimeFailure('rewrite', rewrite.message)
       return {
         originalCommand: rawCommand,
         command: rawCommand,
@@ -413,7 +445,7 @@ export class RtkRuntimeService {
         usedRtk: false,
         rtkApplied: false,
         rtkMode: 'bypass',
-        rtkFallbackReason: failureMessage
+        rtkFallbackReason: rewrite.message
       }
     } catch (error) {
       const failureMessage = getErrorMessage(error)
@@ -565,84 +597,18 @@ export class RtkRuntimeService {
       )
     }
 
-    const rewrite = await this.runCommandImpl(candidate.command, ['rewrite', 'git status'], {
-      env: baseEnv,
-      timeoutMs: RTK_HEALTH_TIMEOUT_MS
-    })
-    if (rewrite.code !== 0 || !rewrite.stdout.trim()) {
-      throw new RtkHealthCheckError(
-        'rewrite',
-        rewrite.stderr.trim() || rewrite.stdout.trim() || 'rtk rewrite failed'
-      )
-    }
-
     const resolvedRtk = await this.runCommandImpl('rtk', ['--version'], {
       env: baseEnv,
       timeoutMs: RTK_HEALTH_TIMEOUT_MS
     })
     if (resolvedRtk.code !== 0) {
       throw new RtkHealthCheckError(
-        'smoke',
+        'version',
         resolvedRtk.stderr.trim() ||
           resolvedRtk.stdout.trim() ||
           'rtk is not resolvable via injected PATH'
       )
     }
-
-    const bundledRipgrepCommand = this.runtimeHelper.replaceWithRuntimeCommand('rg', true, true)
-    if (bundledRipgrepCommand !== 'rg') {
-      const resolvedRg = await this.runCommandImpl('rg', ['--version'], {
-        env: baseEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      })
-      if (resolvedRg.code !== 0) {
-        throw new RtkHealthCheckError(
-          'smoke',
-          resolvedRg.stderr.trim() ||
-            resolvedRg.stdout.trim() ||
-            'rg is not resolvable via injected PATH'
-        )
-      }
-    }
-
-    const tempRoot = fs.mkdtempSync(path.join(this.getPathImpl('temp'), 'deepchat-rtk-health-'))
-    try {
-      const healthFilePath = path.join(tempRoot, 'health.txt')
-      fs.writeFileSync(healthFilePath, 'ok', 'utf-8')
-      const smokeDbPath = path.join(tempRoot, 'tracking.db')
-      const smokeEnv = await this.createRuntimeEnv({}, smokeDbPath)
-      const smoke = await this.runCommandImpl(candidate.command, ['read', healthFilePath], {
-        cwd: tempRoot,
-        env: smokeEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      })
-      if (smoke.code !== 0 || !smoke.stdout.trim()) {
-        throw new RtkHealthCheckError(
-          'smoke',
-          smoke.stderr.trim() || smoke.stdout.trim() || 'rtk smoke test failed'
-        )
-      }
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-    }
-
-    const gainEnv = await this.createRuntimeEnv({}, this.getAppTrackingDbPath())
-    const gain = await this.runCommandImpl(
-      candidate.command,
-      ['gain', '--all', '--format', 'json'],
-      {
-        env: gainEnv,
-        timeoutMs: RTK_HEALTH_TIMEOUT_MS
-      }
-    )
-    if (gain.code !== 0) {
-      throw new RtkHealthCheckError(
-        'gain',
-        gain.stderr.trim() || gain.stdout.trim() || 'rtk gain failed'
-      )
-    }
-
-    this.parseGainJson(gain.stdout)
   }
 
   private async createRuntimeEnv(
@@ -650,15 +616,12 @@ export class RtkRuntimeService {
     dbPath?: string
   ): Promise<Record<string, string>> {
     const shellEnv = await this.getShellEnvironmentImpl()
-    const env = this.runtimeHelper.prependBundledRuntimeToEnv({
-      ...Object.fromEntries(
-        Object.entries(process.env).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string'
-        )
-      ),
-      ...shellEnv,
-      ...baseEnv
-    })
+    const env = this.runtimeHelper.prependBundledRuntimeToEnv(
+      mergeCommandEnvironment({
+        shellEnv,
+        overrides: baseEnv
+      })
+    )
 
     if (dbPath) {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true })

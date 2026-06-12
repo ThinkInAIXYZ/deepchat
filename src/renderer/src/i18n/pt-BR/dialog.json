@@ -40,5 +40,50 @@
       "functionCall": "Nota: Ativar as chamadas de função desativará automaticamente o raciocínio, o que é um requisito dos modelos DeepSeek-V3.1."
     },
     "confirmEnable": "Confirmar Ativação"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Excluir {name}?",
+    "deleteDescription": "Escolha o que deve acontecer com as conversas que pertencem atualmente a este agente.",
+    "moveTitle": "Mover conversa",
+    "moveDescription": "Mova esta conversa concluída para outro agente sem alterar suas mensagens.",
+    "loading": "Verificando conversas relacionadas...",
+    "processing": "Processando...",
+    "totalSessions": "Relacionadas",
+    "movableSessions": "Podem ser movidas",
+    "emptyDrafts": "Rascunhos vazios",
+    "blockedSessions": "Bloqueadas",
+    "moveBeforeDeleteTitle": "Mover conversas para outro agente",
+    "moveBeforeDeleteDescription": "As conversas concluídas mantêm suas mensagens e usarão o agente de destino nas próximas respostas. Rascunhos vazios serão removidos.",
+    "deleteSessionsTitle": "Excluir conversas com este agente",
+    "deleteSessionsDescription": "Todas as conversas e mensagens relacionadas serão excluídas junto com o agente.",
+    "targetAgent": "Agente de destino",
+    "selectTarget": "Selecione um agente",
+    "acpWorkdir": "Diretório de trabalho ACP",
+    "acpWorkdirPlaceholder": "Deixe em branco para manter o projeto de cada conversa",
+    "acpWorkdirHint": "Agentes ACP exigem um diretório de trabalho. Se uma conversa não tiver projeto, informe um aqui.",
+    "currentAgent": "Agente atual: {name}",
+    "relatedSessions": "Conversas relacionadas",
+    "blockedWarning": "Algumas conversas ainda estão em execução ou têm entradas na fila. Finalize-as antes de mover ou excluir este agente.",
+    "agentDeleteBlocked": "O agente ainda tem conversas relacionadas. Mova ou exclua-as primeiro.",
+    "deleteAgentAndSessions": "Excluir agente e conversas",
+    "moveAndDeleteAgent": "Mover e excluir agente",
+    "moveConversation": "Mover conversa",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Em execução",
+      "pending-input": "Na fila",
+      "missing-target-workdir": "Precisa de diretório",
+      "missing-session": "Ausente",
+      "same-agent": "Mesmo agente"
+    },
+    "sampleState": {
+      "ready": "Pronta",
+      "draft": "Rascunho",
+      "subagent": "Subagente"
+    },
+    "deepChatTargetOnly": "Somente agentes DeepChat podem ser selecionados como destinos de movimentação. Conversas ACP podem ser movidas para o DeepChat, mas não para o ACP."
   }
 }

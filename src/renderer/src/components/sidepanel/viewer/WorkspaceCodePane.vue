@@ -1,8 +1,8 @@
 <template>
-  <div class="h-full min-h-0 overflow-hidden bg-background">
+  <div class="flex h-full min-h-0 w-full overflow-hidden bg-background">
     <div
       ref="editorRef"
-      class="h-full w-full"
+      class="workspace-code-editor-host h-full min-h-0 w-full flex-1"
       :data-language="resolvedLanguage"
       data-testid="workspace-code-pane"
     ></div>
@@ -10,8 +10,9 @@
 </template>
 
 <script setup lang="ts">
-import * as monaco from 'monaco-editor'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useMonaco } from 'stream-monaco'
+import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 type WorkspaceCodeSource = {
@@ -26,13 +27,32 @@ const props = defineProps<{
 }>()
 
 const uiSettingsStore = useUiSettingsStore()
+const themeStore = useThemeStore()
 const editorRef = ref<HTMLElement | null>(null)
-const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-const model = shallowRef<monaco.editor.ITextModel | null>(null)
-
+const editorInitialized = ref(false)
+let createEditorTask: Promise<void> | null = null
 let resizeObserver: ResizeObserver | null = null
-let themeObserver: MutationObserver | null = null
-let currentSourceId: string | null = null
+const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
+
+const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
+  readOnly: true,
+  domReadOnly: true,
+  automaticLayout: true,
+  wordWrap: 'on',
+  wrappingIndent: 'same',
+  scrollBeyondLastLine: false,
+  minimap: { enabled: false },
+  lineNumbers: 'on',
+  renderLineHighlight: 'none',
+  contextmenu: false,
+  themes: ['vitesse-dark', 'vitesse-light'],
+  theme: resolvedTheme.value,
+  fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  padding: {
+    top: 12,
+    bottom: 12
+  }
+})
 
 const LANGUAGE_ALIASES: Record<string, string> = {
   md: 'markdown',
@@ -117,105 +137,67 @@ const resolveLanguage = (source: WorkspaceCodeSource): string => {
 
 const resolvedLanguage = computed(() => resolveLanguage(props.source))
 
-const getThemeName = () => {
-  return document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs'
+const applyFontFamily = (fontFamily: string) => {
+  getEditorView()?.updateOptions({ fontFamily })
 }
 
-const applyTheme = () => {
-  monaco.editor.setTheme(getThemeName())
+const applyTheme = async () => {
+  try {
+    getEditor().setTheme(resolvedTheme.value)
+  } catch (error) {
+    console.warn('[WorkspaceCodePane] Failed to apply Monaco theme:', error)
+  }
 }
 
 const layoutEditor = () => {
-  editor.value?.layout()
+  try {
+    getEditorView()?.layout()
+  } catch (error) {
+    console.warn('[WorkspaceCodePane] Failed to layout Monaco editor:', error)
+  }
 }
 
-const disposeModel = () => {
-  model.value?.dispose()
-  model.value = null
-  currentSourceId = null
-}
-
-const syncModel = () => {
-  if (!editor.value) {
+const syncEditor = async () => {
+  const editorElement = editorRef.value
+  if (!editorElement) {
     return
   }
 
-  const nextLanguage = resolvedLanguage.value
   const nextContent = props.source.content ?? ''
+  const nextLanguage = resolvedLanguage.value
+  const hasEditor = Boolean(editorElement.querySelector('.monaco-editor'))
 
-  if (!model.value || currentSourceId !== props.source.id) {
-    disposeModel()
-    model.value = monaco.editor.createModel(nextContent, nextLanguage)
-    currentSourceId = props.source.id
-    editor.value.setModel(model.value)
-    return
-  }
-
-  if (model.value.getLanguageId() !== nextLanguage) {
-    monaco.editor.setModelLanguage(model.value, nextLanguage)
-  }
-
-  if (model.value.getValue() !== nextContent) {
-    model.value.setValue(nextContent)
-  }
-}
-
-const ensureEditor = async () => {
-  if (editor.value || !editorRef.value) {
-    return
-  }
-
-  applyTheme()
-
-  editor.value = monaco.editor.create(editorRef.value, {
-    readOnly: true,
-    domReadOnly: true,
-    automaticLayout: false,
-    wordWrap: 'on',
-    wrappingIndent: 'same',
-    scrollBeyondLastLine: false,
-    minimap: { enabled: false },
-    lineNumbers: 'on',
-    renderLineHighlight: 'none',
-    contextmenu: false,
-    fontFamily: uiSettingsStore.formattedCodeFontFamily,
-    padding: {
-      top: 12,
-      bottom: 12
+  if (!hasEditor || !editorInitialized.value) {
+    if (createEditorTask) {
+      await createEditorTask
+      return
     }
-  })
 
-  syncModel()
-  await nextTick()
+    createEditorTask = (async () => {
+      await createEditor(editorElement, nextContent, nextLanguage)
+      editorInitialized.value = true
+      await applyTheme()
+      applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+      layoutEditor()
+    })()
+
+    try {
+      await createEditorTask
+    } finally {
+      createEditorTask = null
+    }
+    return
+  }
+
+  updateCode(nextContent, nextLanguage)
   layoutEditor()
 }
 
-onMounted(() => {
-  void ensureEditor()
-
-  if (typeof ResizeObserver !== 'undefined' && editorRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      layoutEditor()
-    })
-    resizeObserver.observe(editorRef.value)
-  }
-
-  themeObserver = new MutationObserver(() => {
-    applyTheme()
-  })
-  themeObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class']
-  })
-})
-
 watch(
-  () => [props.source.id, props.source.content, props.source.language, props.source.type] as const,
+  () => [editorRef.value, props.source.id, props.source.content, resolvedLanguage.value] as const,
   async () => {
-    await ensureEditor()
-    syncModel()
     await nextTick()
-    layoutEditor()
+    await syncEditor()
   },
   {
     immediate: true,
@@ -226,18 +208,92 @@ watch(
 watch(
   () => uiSettingsStore.formattedCodeFontFamily,
   (fontFamily) => {
-    editor.value?.updateOptions({ fontFamily })
-    layoutEditor()
+    applyFontFamily(fontFamily)
   }
+)
+
+watch(
+  resolvedTheme,
+  () => {
+    if (!editorInitialized.value) {
+      return
+    }
+
+    void applyTheme()
+  },
+  {
+    flush: 'post'
+  }
+)
+
+watch(editorRef, (value) => {
+  if (value) {
+    return
+  }
+
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  cleanupEditor()
+  editorInitialized.value = false
+  createEditorTask = null
+})
+
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') {
+    return
+  }
+
+  resizeObserver = new ResizeObserver(() => {
+    layoutEditor()
+  })
+
+  if (editorRef.value) {
+    resizeObserver.observe(editorRef.value)
+  }
+})
+
+watch(
+  editorRef,
+  (value, oldValue) => {
+    if (!resizeObserver) {
+      return
+    }
+
+    if (oldValue) {
+      resizeObserver.unobserve(oldValue)
+    }
+
+    if (value) {
+      resizeObserver.observe(value)
+      layoutEditor()
+    }
+  },
+  { flush: 'post' }
 )
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
-  themeObserver?.disconnect()
-  themeObserver = null
-  editor.value?.dispose()
-  editor.value = null
-  disposeModel()
+  cleanupEditor()
+  editorInitialized.value = false
+  createEditorTask = null
 })
 </script>
+
+<style scoped>
+.workspace-code-editor-host {
+  display: flex;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.workspace-code-editor-host :deep(.monaco-editor),
+.workspace-code-editor-host :deep(.overflow-guard),
+.workspace-code-editor-host :deep(.monaco-scrollable-element) {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+</style>

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
 import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
@@ -27,7 +28,7 @@ import {
   IYoBrowserPresenter,
   ISkillPresenter,
   ISkillSyncPresenter,
-  INewAgentPresenter,
+  IAgentSessionPresenter,
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
@@ -41,13 +42,13 @@ import { FilePresenter } from './filePresenter/FilePresenter'
 import { McpPresenter } from './mcpPresenter'
 import { SyncPresenter } from './syncPresenter'
 import { DeeplinkPresenter } from './deeplinkPresenter'
-import { NotificationPresenter } from './notifactionPresenter'
+import { NotificationPresenter } from './notificationPresenter'
 import { TabPresenter } from './tabPresenter'
 import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
 import { YoBrowserPresenter } from './browser/YoBrowserPresenter'
-import { CONFIG_EVENTS, WINDOW_EVENTS } from '@/events'
+import { CONFIG_EVENTS } from '@/events'
 import { KnowledgePresenter } from './knowledgePresenter'
 import { WorkspacePresenter } from './workspacePresenter'
 import { ToolPresenter } from './toolPresenter'
@@ -64,13 +65,29 @@ import type { SkillSessionStatePort } from './skillPresenter'
 import { SkillSyncPresenter } from './skillSyncPresenter'
 import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
-import { NewAgentPresenter } from './newAgentPresenter'
-import { DeepChatAgentPresenter } from './deepchatAgentPresenter'
+import { ScheduledTasksService } from './scheduledTasks'
+import { AgentSessionPresenter } from './agentSessionPresenter'
+import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
+import { PluginPresenter } from './pluginPresenter'
 import { AgentRepository } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
+import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
+import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
+import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
+import type {
+  ProviderCatalogPort,
+  ProviderSessionPort,
+  SessionPermissionPort,
+  SessionUiPort
+} from './runtimePorts'
+import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
+import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
+import { setupLegacyTypedEventBridge } from '@/routes/legacyTypedEventBridge'
+import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
+import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
 // IPC调用上下文接口
 interface IPCCallContext {
@@ -111,16 +128,18 @@ export class Presenter implements IPresenter {
     'toolPresenter',
     'skillPresenter',
     'skillSyncPresenter',
-    'newAgentPresenter',
+    'agentSessionPresenter',
     'projectPresenter'
   ])
 
   static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
+    'listRemoteChannels',
     'getChannelSettings',
     'saveChannelSettings',
     'getChannelStatus',
     'getChannelBindings',
     'removeChannelBinding',
+    'removeChannelPrincipal',
     'getChannelPairingSnapshot',
     'createChannelPairCode',
     'clearChannelPairCode',
@@ -134,7 +153,13 @@ export class Presenter implements IPresenter {
     'createTelegramPairCode',
     'clearTelegramPairCode',
     'clearTelegramBindings',
-    'testTelegramHookNotification'
+    'getWeixinIlinkSettings',
+    'saveWeixinIlinkSettings',
+    'getWeixinIlinkStatus',
+    'startWeixinIlinkLogin',
+    'waitForWeixinIlinkLogin',
+    'removeWeixinIlinkAccount',
+    'restartWeixinIlinkAccount'
   ])
 
   windowPresenter: IWindowPresenter
@@ -163,14 +188,19 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  newAgentPresenter: INewAgentPresenter
+  agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
+  pluginPresenter: PluginPresenter
+  databaseSecurityPresenter: DatabaseSecurityPresenter
   hooksNotifications: HooksNotificationsService
+  scheduledTasks: ScheduledTasksService
   commandPermissionService: CommandPermissionService
   filePermissionService: FilePermissionService
   settingsPermissionService: SettingsPermissionService
+  startupWorkloadCoordinator: StartupWorkloadCoordinator
   private sessionMessageManager: MessageManager
   private sessionPresenterInternal?: SessionPresenter
+  private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
   readonly #remoteControlBridge: IRemoteControlPresenter
 
@@ -181,28 +211,32 @@ export class Presenter implements IPresenter {
     const context = lifecycleManager.getLifecycleContext()
     this.configPresenter = context.config as IConfigPresenter
     this.sqlitePresenter = context.database as ISQLitePresenter
+    this.databaseSecurityPresenter =
+      (context.databaseSecurity as DatabaseSecurityPresenter | undefined) ??
+      new DatabaseSecurityPresenter()
     const agentRepository = new AgentRepository(this.sqlitePresenter as unknown as SQLitePresenter)
     ;(
       this.configPresenter as IConfigPresenter & {
         setAgentRepository?: (repository: AgentRepository) => void
       }
     ).setAgentRepository?.(agentRepository)
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
+      }
+    ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
+    this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
 
     // 初始化各个 Presenter 实例及其依赖
-    this.windowPresenter = new WindowPresenter(this.configPresenter)
+    this.windowPresenter = new WindowPresenter(
+      this.configPresenter,
+      this.startupWorkloadCoordinator
+    )
     this.tabPresenter = new TabPresenter(this.windowPresenter)
     this.llmproviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
       {
-        mcpToolsToAnthropicTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToAnthropicTools(mcpTools, serverName),
-        mcpToolsToGeminiTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToGeminiTools(mcpTools, serverName),
-        mcpToolsToOpenAITools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToOpenAITools(mcpTools, serverName),
-        mcpToolsToOpenAIResponsesTools: (mcpTools, serverName) =>
-          this.mcpPresenter.mcpToolsToOpenAIResponsesTools(mcpTools, serverName),
         getNpmRegistry: () => this.mcpPresenter.getNpmRegistry?.() ?? null,
         getUvRegistry: () => this.mcpPresenter.getUvRegistry?.() ?? null
       }
@@ -218,7 +252,9 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.mcpPresenter = new McpPresenter(this.configPresenter)
+    this.mcpPresenter = new McpPresenter(this.configPresenter, (data) =>
+      this.devicePresenter.cacheImage(data)
+    )
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
@@ -245,7 +281,7 @@ export class Presenter implements IPresenter {
     const agentToolRuntime: AgentToolRuntimePort = {
       resolveConversationWorkdir: async (conversationId) => {
         try {
-          const session = await this.newAgentPresenter?.getSession(conversationId)
+          const session = await this.agentSessionPresenter?.getSession(conversationId)
           const normalized = session?.projectDir?.trim()
           if (normalized) {
             return normalized
@@ -260,17 +296,91 @@ export class Presenter implements IPresenter {
         return null
       },
       resolveConversationSessionInfo: async (conversationId) => {
-        const session = await this.newAgentPresenter?.getSession(conversationId)
+        const session = await this.agentSessionPresenter?.getSession(conversationId)
         if (!session) {
           return null
         }
 
+        const agent = await this.configPresenter.getAgent(session.agentId)
+        const agentType = await this.configPresenter.getAgentType(session.agentId)
+        const permissionMode =
+          typeof this.agentSessionPresenter?.getPermissionMode === 'function'
+            ? await this.agentSessionPresenter.getPermissionMode(session.id)
+            : 'full_access'
+        const generationSettings =
+          typeof this.agentSessionPresenter?.getSessionGenerationSettings === 'function'
+            ? await this.agentSessionPresenter.getSessionGenerationSettings(session.id)
+            : null
+        const disabledAgentTools =
+          typeof this.agentSessionPresenter?.getSessionDisabledAgentTools === 'function'
+            ? await this.agentSessionPresenter.getSessionDisabledAgentTools(session.id)
+            : []
+        const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
+        const availableSubagentSlots =
+          agentType === 'deepchat' && session.sessionKind === 'regular'
+            ? normalizeDeepChatSubagentSlots(
+                (await this.configPresenter.resolveDeepChatAgentConfig(session.agentId)).subagents
+              )
+            : []
+
         return {
+          sessionId: session.id,
           agentId: session.agentId,
+          agentName: agent?.name?.trim() || session.agentId,
+          agentType,
           providerId: session.providerId,
-          modelId: session.modelId
+          modelId: session.modelId,
+          projectDir: session.projectDir ?? null,
+          permissionMode,
+          generationSettings,
+          disabledAgentTools,
+          activeSkills,
+          sessionKind: session.sessionKind,
+          parentSessionId: session.parentSessionId ?? null,
+          subagentEnabled: session.subagentEnabled,
+          subagentMeta: session.subagentMeta ?? null,
+          availableSubagentSlots
         }
       },
+      getTapeInfo: async (conversationId) => {
+        return await this.agentSessionPresenter.getTapeInfo(conversationId)
+      },
+      searchTape: async (conversationId, query, options) => {
+        return await this.agentSessionPresenter.searchTape(conversationId, query, options)
+      },
+      listTapeAnchors: async (conversationId, options) => {
+        return await this.agentSessionPresenter.listTapeAnchors(conversationId, options)
+      },
+      handoffTape: async (conversationId, name, state) => {
+        return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
+      },
+      createSubagentSession: async (input) => {
+        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
+          createSubagentSession?: (createInput: typeof input) => Promise<{
+            id: string
+          } | null>
+        }
+        const created = await agentSessionPresenter.createSubagentSession?.(input)
+        if (!created?.id) {
+          return null
+        }
+
+        return await agentToolRuntime.resolveConversationSessionInfo(created.id)
+      },
+      mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await this.agentSessionPresenter.mergeSubagentTape(parentSessionId, childSessionId, meta)
+      },
+      discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await this.agentSessionPresenter.discardSubagentTape(parentSessionId, childSessionId, meta)
+      },
+      sendConversationMessage: async (conversationId, content) => {
+        await this.agentSessionPresenter.sendMessage(conversationId, content)
+      },
+      cancelConversation: async (conversationId) => {
+        await this.agentSessionPresenter.cancelGeneration(conversationId)
+      },
+      subscribeDeepChatSessionUpdates: (listener) =>
+        subscribeDeepChatInternalSessionUpdates(listener),
       getSkillPresenter: () => this.skillPresenter,
       getYoBrowserToolHandler: () => this.yoBrowserPresenter.toolHandler,
       getFilePresenter: () => ({
@@ -279,20 +389,47 @@ export class Presenter implements IPresenter {
           this.filePresenter.prepareFileCompletely(absPath, typeInfo, contentType)
       }),
       getLlmProviderPresenter: () => ({
-        generateCompletionStandalone: (providerId, messages, modelId, temperature, maxTokens) =>
+        executeWithRateLimit: (providerId, options) =>
+          this.llmproviderPresenter.executeWithRateLimit(providerId, options),
+        generateCompletionStandalone: (
+          providerId,
+          messages,
+          modelId,
+          temperature,
+          maxTokens,
+          options
+        ) =>
           this.llmproviderPresenter.generateCompletionStandalone(
             providerId,
             messages,
             modelId,
             temperature,
-            maxTokens
+            maxTokens,
+            options
+          ),
+        generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
+          this.llmproviderPresenter.generateImageStandalone(
+            providerId,
+            prompt,
+            modelId,
+            imageOptions,
+            options
+          ),
+        generateVideoStandalone: (providerId, prompt, modelId, videoOptions, options) =>
+          this.llmproviderPresenter.generateVideoStandalone(
+            providerId,
+            prompt,
+            modelId,
+            videoOptions,
+            options
           )
       }),
+      cacheImage: (data) => this.devicePresenter.cacheImage(data),
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         this.windowPresenter.sendToWindow(windowId, channel, ...args),
-      getApprovedFilePaths: (conversationId) =>
-        this.filePermissionService.getApprovedPaths(conversationId),
+      getApprovedFilePaths: (conversationId, requiredPermission) =>
+        this.filePermissionService.getApprovedPaths(conversationId, requiredPermission),
       consumeSettingsApproval: (conversationId, toolName) =>
         this.settingsPermissionService.consumeApproval(conversationId, toolName)
     }
@@ -308,7 +445,7 @@ export class Presenter implements IPresenter {
     const skillSessionStatePort: SkillSessionStatePort = {
       hasNewSession: async (conversationId) => {
         try {
-          return Boolean(await this.newAgentPresenter?.getSession(conversationId))
+          return Boolean(await this.agentSessionPresenter?.getSession(conversationId))
         } catch {
           return false
         }
@@ -324,15 +461,25 @@ export class Presenter implements IPresenter {
         sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
       },
       repairImportedLegacySessionSkills: async (conversationId) => {
-        const newAgentPresenter = this.newAgentPresenter as INewAgentPresenter & {
+        const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           repairImportedLegacySessionSkills?: (sessionId: string) => Promise<string[]>
         }
-        return (await newAgentPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+        return (
+          (await agentSessionPresenter.repairImportedLegacySessionSkills?.(conversationId)) ?? []
+        )
       }
     }
 
     // Initialize Skill presenter
     this.skillPresenter = new SkillPresenter(this.configPresenter, skillSessionStatePort)
+
+    // Initialize official plugin host. Plugins are activated before MCP startup so managed
+    // MCP servers are present when the regular MCP presenter starts enabled servers.
+    this.pluginPresenter = new PluginPresenter({
+      configPresenter: this.configPresenter,
+      mcpPresenter: this.mcpPresenter,
+      skillPresenter: this.skillPresenter
+    })
 
     // Initialize Skill Sync presenter
     this.skillSyncPresenter = new SkillSyncPresenter(this.skillPresenter, this.configPresenter)
@@ -342,22 +489,113 @@ export class Presenter implements IPresenter {
       getSession: async () => null,
       getMessage: async () => null
     })
+    this.scheduledTasks = new ScheduledTasksService({
+      configPresenter: this.configPresenter,
+      notificationPresenter: this.notificationPresenter,
+      windowPresenter: this.windowPresenter
+    })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
+    const providerCatalogPort: ProviderCatalogPort = {
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? [],
+      getAgentType: async (agentId) => await this.configPresenter.getAgentType(agentId)
+    }
+    const sessionUiPort: SessionUiPort = {
+      refreshSessionUi: () => {
+        try {
+          void this.floatingButtonPresenter.refreshWidgetState()
+        } catch (error) {
+          console.warn('[Presenter] Failed to refresh floating widget state:', error)
+        }
+      }
+    }
+    const sessionPermissionPort: SessionPermissionPort = {
+      clearSessionPermissions: (sessionId) => {
+        this.commandPermissionService.clearConversation(sessionId)
+        this.filePermissionService.clearConversation(sessionId)
+        this.settingsPermissionService.clearConversation(sessionId)
+      },
+      approvePermission: async (sessionId, permission) => {
+        const permissionType = permission.permissionType
+        const serverName = permission.serverName || ''
+        const toolName = permission.toolName || ''
+
+        if (permissionType === 'command') {
+          const command = permission.command || permission.commandInfo?.command || ''
+          const signature =
+            permission.commandSignature ||
+            permission.commandInfo?.signature ||
+            (command ? this.commandPermissionService.extractCommandSignature(command) : '')
+          if (signature) {
+            this.commandPermissionService.approve(sessionId, signature, false)
+          }
+          return
+        }
+
+        if (
+          serverName === 'agent-filesystem' &&
+          Array.isArray(permission.paths) &&
+          permission.paths.length > 0
+        ) {
+          this.filePermissionService.approve(sessionId, permission.paths, permissionType, false)
+          return
+        }
+
+        if (serverName === 'deepchat-settings' && toolName) {
+          this.settingsPermissionService.approve(sessionId, toolName, false)
+          return
+        }
+
+        if (
+          serverName &&
+          (permissionType === 'read' || permissionType === 'write' || permissionType === 'all')
+        ) {
+          await this.mcpPresenter.grantPermission(serverName, permissionType, false, sessionId)
+        }
+      }
+    }
+    const providerSessionPort: ProviderSessionPort = {
+      setAcpWorkdir: async (conversationId, agentId, workdir) =>
+        await this.llmproviderPresenter.setAcpWorkdir(conversationId, agentId, workdir),
+      prepareAcpSession: async (conversationId, agentId, workdir) =>
+        await this.llmproviderPresenter.prepareAcpSession(conversationId, agentId, workdir),
+      getAcpSessionConfigOptions: async (conversationId) =>
+        await this.llmproviderPresenter.getAcpSessionConfigOptions(conversationId),
+      setAcpSessionConfigOption: async (conversationId, configId, value) =>
+        await this.llmproviderPresenter.setAcpSessionConfigOption(conversationId, configId, value),
+      getAcpSessionCommands: async (conversationId) =>
+        await this.llmproviderPresenter.getAcpSessionCommands(conversationId),
+      clearAcpSession: async (conversationId) =>
+        await this.llmproviderPresenter.clearAcpSession(conversationId)
+    }
 
     // Initialize new agent architecture presenters
-    const deepchatAgentPresenter = new DeepChatAgentPresenter(
+    const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
       this.toolPresenter,
-      newSessionHooksBridge
+      newSessionHooksBridge,
+      {
+        providerCatalogPort,
+        sessionPermissionPort,
+        sessionUiPort,
+        cacheImage: (data) => this.devicePresenter.cacheImage(data),
+        skillPresenter: this.skillPresenter
+      }
     )
-    this.newAgentPresenter = new NewAgentPresenter(
-      deepchatAgentPresenter,
+    this.agentSessionPresenter = new AgentSessionPresenter(
+      agentRuntimePresenter,
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.skillPresenter
+      this.skillPresenter,
+      undefined,
+      {
+        providerSessionPort,
+        sessionPermissionPort,
+        sessionUiPort
+      }
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
@@ -365,21 +603,18 @@ export class Presenter implements IPresenter {
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
-      newAgentPresenter: this.newAgentPresenter,
-      deepchatAgentPresenter,
+      agentSessionPresenter: this.agentSessionPresenter,
+      filePresenter: this.filePresenter,
+      agentRuntimePresenter,
       windowPresenter: this.windowPresenter,
-      tabPresenter: this.tabPresenter,
-      getHooksNotificationsConfig: () => this.configPresenter.getHooksNotificationsConfig(),
-      setHooksNotificationsConfig: (config) =>
-        this.configPresenter.setHooksNotificationsConfig(config),
-      testTelegramHookNotification: () => this.configPresenter.testTelegramNotification()
+      tabPresenter: this.tabPresenter
     })
     this.#remoteControlBridge = this.#remoteControlPresenter
 
-    // Update hooksNotifications with actual dependencies now that newAgentPresenter is ready
+    // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: this.newAgentPresenter.getSession.bind(this.newAgentPresenter),
-      getMessage: this.newAgentPresenter.getMessage.bind(this.newAgentPresenter)
+      getSession: this.agentSessionPresenter.getSession.bind(this.agentSessionPresenter),
+      getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
     })
 
     this.setupEventBus() // 设置事件总线监听
@@ -433,15 +668,6 @@ export class Presenter implements IPresenter {
 
     // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()
-
-    // 应用主窗口准备就绪时触发初始化（只执行一次）
-    let initCalled = false
-    eventBus.on(WINDOW_EVENTS.READY_TO_SHOW, () => {
-      if (!initCalled) {
-        initCalled = true
-        this.init()
-      }
-    })
   }
 
   // 设置需要特殊处理的事件
@@ -462,31 +688,120 @@ export class Presenter implements IPresenter {
 
   // 应用初始化逻辑 (主窗口准备就绪后调用)
   init() {
+    if (this.hasInitialized) {
+      console.info('[Startup][Main] Presenter.init skipped because startup already ran')
+      return
+    }
+
+    this.hasInitialized = true
+
     // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
+    console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
+    const mainRunId = this.startupWorkloadCoordinator.createRun('main')
 
-    // 同步所有 provider 的自定义模型
-    this.syncCustomModels()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:floating-button',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.main.floatingButton',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeFloatingButton()
+      }
+    })
 
-    // 初始化悬浮按钮
-    this.initializeFloatingButton()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:yo-browser',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.yoBrowser',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeYoBrowser()
+      }
+    })
 
-    // 初始化 Yo Browser
-    this.initializeYoBrowser()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:skills-init',
+      target: 'main',
+      phase: 'background',
+      resource: 'cpu',
+      labelKey: 'startup.main.skillsInit',
+      runId: mainRunId,
+      run: async () => {
+        await this.initializeSkills()
+      }
+    })
 
-    // 初始化 Skills 系统
-    this.initializeSkills()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:skills-sync-scan',
+      target: 'main',
+      phase: 'background',
+      resource: 'cpu',
+      labelKey: 'startup.main.skillsSyncScan',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeSkillSyncScan()
+      }
+    })
 
-    // Initialize remote control runtime
-    void this.initializeRemoteControl()
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:mcp-init',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.mcpInit',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeMcp()
+      }
+    })
+
+    void this.startupWorkloadCoordinator.scheduleTask({
+      id: 'main:remote-runtime',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.main.remoteRuntime',
+      runId: mainRunId,
+      run: async (taskContext) => {
+        await taskContext.yield()
+        await this.initializeRemoteControl()
+      }
+    })
+
+    void this.startupWorkloadCoordinator
+      .whenIdle('main', async () => {
+        await this.startupWorkloadCoordinator.scheduleTask({
+          id: 'main:provider-warmup-idle',
+          target: 'main',
+          phase: 'background',
+          resource: 'io',
+          labelKey: 'startup.main.provider.warmup',
+          visibleId: 'main.provider.warmup',
+          dedupeKey: 'main.provider.warmup:idle',
+          runId: mainRunId,
+          run: async (taskContext) => {
+            await this.initializeIdleProviderWarmup(taskContext)
+          }
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to schedule idle provider warmup:', error)
+      })
   }
 
   // 初始化悬浮按钮
   private async initializeFloatingButton() {
     try {
       await this.floatingButtonPresenter.initialize()
-      console.log('FloatingButtonPresenter initialized successfully')
+      logger.info('FloatingButtonPresenter initialized successfully')
     } catch (error) {
       console.error('Failed to initialize FloatingButtonPresenter:', error)
     }
@@ -495,7 +810,7 @@ export class Presenter implements IPresenter {
   private async initializeYoBrowser() {
     try {
       await this.yoBrowserPresenter.initialize()
-      console.log('YoBrowserPresenter initialized')
+      logger.info('YoBrowserPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize YoBrowserPresenter:', error)
     }
@@ -505,17 +820,42 @@ export class Presenter implements IPresenter {
     try {
       const { enableSkills } = this.configPresenter.getSkillSettings()
       if (!enableSkills) {
-        console.log('SkillPresenter disabled by config')
+        logger.info('SkillPresenter disabled by config')
         return
       }
       await (this.skillPresenter as SkillPresenter).initialize()
-      console.log('SkillPresenter initialized')
-
-      // Initialize SkillSyncPresenter for background scanning
+      logger.info('SkillPresenter initialized')
       await this.skillSyncPresenter.initialize()
-      console.log('SkillSyncPresenter initialized')
     } catch (error) {
       console.error('Failed to initialize SkillPresenter:', error)
+    }
+  }
+
+  private async initializeSkillSyncScan() {
+    try {
+      const { enableSkills } = this.configPresenter.getSkillSettings()
+      if (!enableSkills) {
+        return
+      }
+      await this.skillSyncPresenter.initialize()
+      await this.skillSyncPresenter.scanAndDetectNewDiscoveries()
+      logger.info('SkillSyncPresenter background scan completed')
+    } catch (error) {
+      console.error('Failed to run SkillSyncPresenter background scan:', error)
+    }
+  }
+
+  private async initializeMcp() {
+    try {
+      await this.pluginPresenter.initialize()
+    } catch (error) {
+      console.error('[PluginHost] Failed to initialize plugins:', error)
+    }
+
+    try {
+      await this.mcpPresenter.initialize()
+    } catch (error) {
+      console.error('Failed to initialize McpPresenter:', error)
     }
   }
 
@@ -525,6 +865,45 @@ export class Presenter implements IPresenter {
     } catch (error) {
       console.error('RemoteControlPresenter.initialize failed:', error)
     }
+  }
+
+  private async initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
+    const enabledProviders = this.configPresenter
+      .getEnabledProviders()
+      .map((provider) => provider.id)
+      .filter((providerId, index, ids) => ids.indexOf(providerId) === index)
+
+    if (enabledProviders.length === 0) {
+      taskContext.reportProgress(1)
+      return
+    }
+
+    console.info(
+      `[Startup][Main] startup.provider.warmup.deferred begin providers=${enabledProviders.length}`
+    )
+
+    for (const [index, providerId] of enabledProviders.entries()) {
+      if (taskContext.signal.aborted) {
+        const error = new Error(`Provider warmup aborted for ${providerId}`)
+        error.name = 'AbortError'
+        throw error
+      }
+
+      const providerModels = this.configPresenter.getProviderModels(providerId)
+      const customModels = this.configPresenter.getCustomModels(providerId)
+      this.configPresenter.getDbProviderModels(providerId)
+      this.configPresenter.getBatchModelStatus(providerId, [
+        ...providerModels.map((model) => model.id),
+        ...customModels.map((model) => model.id)
+      ])
+
+      taskContext.reportProgress((index + 1) / enabledProviders.length)
+      await taskContext.yield()
+    }
+
+    console.info(
+      `[Startup][Main] startup.provider.warmup.deferred done providers=${enabledProviders.length}`
+    )
   }
 
   async callRemoteControl(
@@ -539,24 +918,8 @@ export class Presenter implements IPresenter {
     return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
   }
 
-  // 从配置中同步自定义模型到 LLMProviderPresenter
-  private async syncCustomModels() {
-    const providers = this.configPresenter.getProviders()
-    for (const provider of providers) {
-      if (provider.enable) {
-        const customModels = this.configPresenter.getCustomModels(provider.id)
-        console.log('syncCustomModels', provider.id, customModels)
-        for (const model of customModels) {
-          await this.llmproviderPresenter.addCustomModel(provider.id, {
-            id: model.id,
-            name: model.name,
-            contextLength: model.contextLength,
-            maxTokens: model.maxTokens,
-            type: model.type
-          })
-        }
-      }
-    }
+  getStartupWorkloadCoordinator(): StartupWorkloadCoordinator {
+    return this.startupWorkloadCoordinator
   }
 
   // 在应用退出时进行清理，关闭数据库连接
@@ -587,13 +950,55 @@ export class Presenter implements IPresenter {
 
 // Export presenter instance - will be initialized with database during lifecycle
 export let presenter: Presenter
+let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
+
+const buildMainKernelRouteRuntime = () =>
+  createMainKernelRouteRuntime({
+    configPresenter: presenter.configPresenter,
+    llmProviderPresenter: presenter.llmproviderPresenter,
+    agentSessionPresenter: presenter.agentSessionPresenter,
+    skillPresenter: presenter.skillPresenter,
+    mcpPresenter: presenter.mcpPresenter,
+    syncPresenter: presenter.syncPresenter,
+    upgradePresenter: presenter.upgradePresenter,
+    dialogPresenter: presenter.dialogPresenter,
+    toolPresenter: presenter.toolPresenter,
+    sqlitePresenter: presenter.sqlitePresenter,
+    windowPresenter: presenter.windowPresenter,
+    devicePresenter: presenter.devicePresenter,
+    projectPresenter: presenter.projectPresenter,
+    filePresenter: presenter.filePresenter,
+    workspacePresenter: presenter.workspacePresenter,
+    yoBrowserPresenter: presenter.yoBrowserPresenter,
+    tabPresenter: presenter.tabPresenter,
+    startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
+    pluginPresenter: presenter.pluginPresenter,
+    databaseSecurityPresenter: presenter.databaseSecurityPresenter,
+    scheduledTasks: presenter.scheduledTasks
+  })
+
+export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {
+  if (!presenter) {
+    throw new Error('Presenter must be initialized before accessing the kernel route runtime')
+  }
+  if (!cachedMainKernelRouteRuntime) {
+    cachedMainKernelRouteRuntime = buildMainKernelRouteRuntime()
+  }
+  return cachedMainKernelRouteRuntime
+}
 
 // Initialize presenter with database instance and optional lifecycle manager
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
   if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
+  setupLegacyTypedEventBridge({
+    configPresenter: presenter.configPresenter,
+    llmProviderPresenter: presenter.llmproviderPresenter
+  })
   return presenter
 }
+
+registerMainKernelRoutes(ipcMain, () => (presenter ? getMainKernelRouteRuntime() : undefined))
 
 // 检查对象属性是否为函数 (用于动态调用)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -605,9 +1010,9 @@ function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: a
 ipcMain.handle(
   'presenter:call',
   (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
+    const webContentsId = event.sender.id
     try {
       // 构建调用上下文
-      const webContentsId = event.sender.id
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       const context: IPCCallContext = {
@@ -620,7 +1025,7 @@ ipcMain.handle(
 
       // 记录调用日志
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        console.log(
+        logger.info(
           `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
         )
       }
@@ -648,7 +1053,12 @@ ipcMain.handle(
       // 检查方法是否存在且为函数
       if (isFunction(calledPresenter, resolvedMethod)) {
         // 调用方法并返回结果
-        return calledPresenter[resolvedMethod](...resolvedPayloads)
+        const result = calledPresenter[resolvedMethod](...resolvedPayloads)
+        return handlePresenterCallResult(result, {
+          webContentsId,
+          presenterName: name,
+          methodName: method
+        })
       } else {
         console.warn(
           `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
@@ -659,11 +1069,11 @@ ipcMain.handle(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      // 尝试获取调用上下文以改进错误日志
-      const webContentsId = event.sender.id
-
-      console.error(`[IPC Error] WebContents:${webContentsId} ${name}.${method}:`, e)
-      return { error: e.message || String(e) }
+      return handlePresenterCallError(e, {
+        webContentsId,
+        presenterName: name,
+        methodName: method
+      })
     }
   }
 )
@@ -671,12 +1081,12 @@ ipcMain.handle(
 ipcMain.handle(
   'remoteControlPresenter:call',
   async (event: IpcMainInvokeEvent, method: string, ...payloads: unknown[]) => {
+    const webContentsId = event.sender.id
     try {
-      const webContentsId = event.sender.id
       const windowId = BrowserWindow.fromWebContents(event.sender)?.id
 
       if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        console.log(
+        logger.info(
           `[IPC Call] WebContents:${webContentsId} Window:${windowId || 'unknown'} -> remoteControlPresenter.${method}`
         )
       }
@@ -688,14 +1098,50 @@ ipcMain.handle(
         return { error: `Method "${method}" is not allowed on "remoteControlPresenter"` }
       }
 
-      return await presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
+      const isSettingsWindow =
+        windowId != null && presenter.windowPresenter.getSettingsWindowId() === windowId
+      const shouldTrackRemoteRuntime =
+        isSettingsWindow &&
+        (method === 'listRemoteChannels' ||
+          method.startsWith('getChannel') ||
+          method.startsWith('getTelegram') ||
+          method.startsWith('getFeishu') ||
+          method.startsWith('getQQBot') ||
+          method.startsWith('getDiscord') ||
+          method.startsWith('getWeixinIlink'))
+
+      const result = shouldTrackRemoteRuntime
+        ? presenter.startupWorkloadCoordinator.scheduleTask({
+            id: `settings.remote.runtime:${method}`,
+            target: 'settings',
+            phase: 'deferred',
+            resource: 'io',
+            labelKey: 'startup.settings.remote.runtime',
+            visibleId: 'settings.remote.runtime',
+            runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
+            run: async () => {
+              return await presenter.callRemoteControl(
+                method as keyof IRemoteControlPresenter,
+                ...payloads
+              )
+            }
+          })
+        : presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
+
+      return handlePresenterCallResult(result, {
+        webContentsId,
+        presenterName: 'remoteControlPresenter',
+        methodName: method
+      })
     } catch (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       e: any
     ) {
-      const webContentsId = event.sender.id
-      console.error(`[IPC Error] WebContents:${webContentsId} remoteControlPresenter.${method}:`, e)
-      return { error: e.message || String(e) }
+      return handlePresenterCallError(e, {
+        webContentsId,
+        presenterName: 'remoteControlPresenter',
+        methodName: method
+      })
     }
   }
 )

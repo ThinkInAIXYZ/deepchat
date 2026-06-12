@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Protocol registration hook for init phase
  * Registers deepcdn, imgcache, and workspace preview protocols
@@ -68,7 +69,7 @@ export const protocolRegistrationHook: LifecycleHook = {
   priority: 1,
   critical: true,
   execute: async (_context: LifecycleContext) => {
-    console.log('protocolRegistrationHook: Registering application protocols')
+    logger.info('protocolRegistrationHook: Registering application protocols')
 
     // Register 'deepcdn' protocol for loading built-in resources (simulating CDN)
     protocol.handle('deepcdn', (request) => {
@@ -221,6 +222,6 @@ export const protocolRegistrationHook: LifecycleHook = {
       }
     })
 
-    console.log('protocolRegistrationHook: Application protocols registered successfully')
+    logger.info('protocolRegistrationHook: Application protocols registered successfully')
   }
 }

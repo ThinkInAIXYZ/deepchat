@@ -1,0 +1,9 @@
+{
+  "loadError": "Impossible de charger l'image",
+  "loading": "Chargement de l'image...",
+  "preview": "Aperçu de l'image",
+  "save": "Enregistrer l'image",
+  "saveAs": "Enregistrer l'image sous...",
+  "saveSuccess": "Image enregistrée",
+  "saveFailed": "Impossible d'enregistrer l'image"
+}

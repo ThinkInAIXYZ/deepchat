@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -58,16 +59,7 @@ export class DifyKnowledgeServer {
     enabled: boolean
   }> = []
 
-  constructor(env?: {
-    configs: {
-      apiKey: string
-      endpoint: string
-      datasetId: string
-      description: string
-      enabled: boolean
-    }[]
-  }) {
-    console.log('DifyKnowledgeServer constructor', env)
+  constructor(env?: Record<string, unknown>) {
     if (!env) {
       throw new Error('需要提供Dify知识库配置')
     }
@@ -80,22 +72,28 @@ export class DifyKnowledgeServer {
 
     // 处理每个配置
     for (const env of envs) {
-      if (!env.apiKey) {
+      const config = env && typeof env === 'object' ? (env as Record<string, unknown>) : {}
+      const apiKey = String(config.apiKey ?? '')
+      const datasetId = String(config.datasetId ?? '')
+      const description = String(config.description ?? '')
+      const endpoint = String(config.endpoint ?? '') || 'https://api.dify.ai/v1'
+
+      if (!apiKey) {
         throw new Error('需要提供Dify API Key')
       }
-      if (!env.datasetId) {
+      if (!datasetId) {
         throw new Error('需要提供Dify Dataset ID')
       }
-      if (!env.description) {
+      if (!description) {
         throw new Error('需要提供对这个知识库的描述，以方便ai决定是否检索此知识库')
       }
 
       this.configs.push({
-        apiKey: env.apiKey,
-        datasetId: env.datasetId,
-        endpoint: env.endpoint || 'https://api.dify.ai/v1',
-        description: env.description,
-        enabled: env.enabled
+        apiKey,
+        datasetId,
+        endpoint,
+        description,
+        enabled: config.enabled === true || String(config.enabled ?? '').toLowerCase() === 'true'
       })
     }
 
@@ -219,24 +217,31 @@ export class DifyKnowledgeServer {
 
     try {
       const url = `${config.endpoint.replace(/\/$/, '')}/datasets/${config.datasetId}/retrieve`
-      console.log('performDifyKnowledgeSearch request', url, {
+
+      // Dify 新版 API 把检索配置统一收进了 retrieval_model 对象，且要求：
+      // 1. search_method 为必填项（缺失会导致参数校验失败）；
+      // 2. reranking_enable / score_threshold_enabled 必须是布尔值，旧版传 null 已不再被接受。
+      // 这里默认走 semantic_search 且关闭 rerank —— 不依赖数据集是否配置了 Rerank 模型，
+      // 对任意数据集都可用；阈值过滤维持原有「不过滤」行为，保证检索结果集与改动前一致。
+      const retrievalModel = {
+        search_method: 'semantic_search',
+        reranking_enable: false,
+        top_k: topK,
+        score_threshold_enabled: false,
+        score_threshold: null
+      }
+
+      logger.info('performDifyKnowledgeSearch request', url, {
         query,
-        retrieval_model: {
-          top_k: topK,
-          score_threshold: scoreThreshold
-        }
+        score_threshold: scoreThreshold,
+        retrieval_model: retrievalModel
       })
 
       const response = await axios.post<DifySearchResponse>(
         url,
         {
           query,
-          retrieval_model: {
-            top_k: topK,
-            score_threshold: scoreThreshold,
-            reranking_enable: null, // 下面这两个字段即使为空也必须要有，否则接口无法请求
-            score_threshold_enabled: null
-          }
+          retrieval_model: retrievalModel
         },
         {
           headers: {

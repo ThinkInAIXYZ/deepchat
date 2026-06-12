@@ -1,8 +1,19 @@
 <template>
-  <ScrollArea class="w-full h-full">
-    <div class="w-full h-full flex flex-col gap-3 p-4">
+  <SettingsPageShell
+    :title="t('routes.settings-common')"
+    :eyebrow="t('settings.controlCenter.groups.setup')"
+    data-testid="settings-general-page"
+  >
+    <div class="flex w-full flex-col gap-3">
       <UploadFileSettingsSection />
       <ProxySettingsSection />
+      <SettingToggleRow
+        id="launch-at-login-switch"
+        icon="lucide:power"
+        :label="t('settings.common.launchAtLoginEnabled')"
+        :model-value="launchAtLoginEnabled"
+        @update:model-value="handleLaunchAtLoginChange"
+      />
       <SettingToggleRow
         id="auto-scroll-switch"
         icon="lucide:arrow-down"
@@ -26,18 +37,18 @@
       />
       <LoggingSettingsSection />
     </div>
-  </ScrollArea>
+  </SettingsPageShell>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
 import SettingToggleRow from './common/SettingToggleRow.vue'
 import UploadFileSettingsSection from './common/UploadFileSettingsSection.vue'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()
 const uiSettingsStore = useUiSettingsStore()
@@ -45,9 +56,14 @@ const uiSettingsStore = useUiSettingsStore()
 const autoScrollEnabled = computed(() => uiSettingsStore.autoScrollEnabled)
 const copyWithCotEnabled = computed(() => uiSettingsStore.copyWithCotEnabled)
 const traceDebugEnabled = computed(() => uiSettingsStore.traceDebugEnabled)
+const launchAtLoginEnabled = computed(() => uiSettingsStore.launchAtLoginEnabled)
 
 const handleAutoScrollChange = (value: boolean) => {
   uiSettingsStore.setAutoScrollEnabled(value)
+}
+
+const handleLaunchAtLoginChange = (value: boolean) => {
+  uiSettingsStore.setLaunchAtLoginEnabled(value)
 }
 
 const handleCopyWithCotChange = (value: boolean) => {

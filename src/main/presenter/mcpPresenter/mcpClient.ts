@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -142,6 +143,45 @@ export class McpClient {
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
+    this.runtimeHelper.initializeRuntimes()
+  }
+
+  public processCommandWithArgs(
+    command: string,
+    args: string[]
+  ): { command: string; args: string[] } {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.processCommandWithArgs(command, args)
+  }
+
+  public expandPath(inputPath: string): string {
+    return this.runtimeHelper.expandPath(inputPath)
+  }
+
+  public get nodeRuntimePath(): string | null {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.getNodeRuntimePath()
+  }
+
+  public set nodeRuntimePath(value: string | null) {
+    this.runtimeHelper.setNodeRuntimePath(value)
+  }
+
+  public get bunRuntimePath(): string | null {
+    return this.nodeRuntimePath
+  }
+
+  public set bunRuntimePath(value: string | null) {
+    this.nodeRuntimePath = value
+  }
+
+  public get uvRuntimePath(): string | null {
+    this.runtimeHelper.initializeRuntimes()
+    return this.runtimeHelper.getUvRuntimePath()
+  }
+
+  public set uvRuntimePath(value: string | null) {
+    this.runtimeHelper.setUvRuntimePath(value)
   }
 
   // Connect to MCP server
@@ -168,7 +208,7 @@ export class McpClient {
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
         const _args = Array.isArray(this.serverConfig.args) ? this.serverConfig.args : []
-        const _env = this.serverConfig.env ? (this.serverConfig.env as Record<string, string>) : {}
+        const _env = this.serverConfig.env ? (this.serverConfig.env as Record<string, unknown>) : {}
         const _server = getInMemoryServer(this.serverName, _args, _env)
         _server.startServer(serverTransport)
         this.transport = clientTransport
@@ -315,18 +355,19 @@ export class McpClient {
 
         // 添加自定义环境变量
         if (this.serverConfig.env) {
-          Object.entries(this.serverConfig.env as Record<string, string>).forEach(
+          Object.entries(this.serverConfig.env as Record<string, unknown>).forEach(
             ([key, value]) => {
               if (value !== undefined) {
+                const stringValue = String(value ?? '')
                 // 如果是PATH相关变量，合并到主PATH中
                 if (['PATH', 'Path', 'path'].includes(key)) {
                   const currentPathKey = process.platform === 'win32' ? 'Path' : 'PATH'
                   const separator = process.platform === 'win32' ? ';' : ':'
                   env[currentPathKey] = env[currentPathKey]
-                    ? `${value}${separator}${env[currentPathKey]}`
-                    : value
+                    ? `${stringValue}${separator}${env[currentPathKey]}`
+                    : stringValue
                 } else {
-                  env[key] = value
+                  env[key] = stringValue
                 }
               }
             }
@@ -912,7 +953,7 @@ export class McpClient {
       ? `MCP service ${this.serverName} has been stopped due to ${reason}`
       : `Disconnected from MCP server: ${this.serverName}`
 
-    console.log(logMessage)
+    logger.info(logMessage)
 
     // Trigger server status changed event to notify the system
     eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {

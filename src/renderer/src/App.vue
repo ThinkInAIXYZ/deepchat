@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { usePresenter } from './composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
+import { createOnboardingClient } from '@api/OnboardingClient'
 import SelectedTextContextMenu from './components/message/SelectedTextContextMenu.vue'
 import { useArtifactStore } from './stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
-import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SHORTCUT_EVENTS } from './events'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { useThemeStore } from '@/stores/theme'
+import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
@@ -21,21 +21,44 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from './components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
 import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitializer'
+import { ensureIconsLoaded } from '@/lib/iconLoader'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from './composables/useFontManager'
 import AppBar from '@/components/AppBar.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from './components/WindowSideBar.vue'
+import SpotlightOverlay from '@/components/spotlight/SpotlightOverlay.vue'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useSidebarStore } from '@/stores/ui/sidebar'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
+import { useAppIpcRuntime } from '@/composables/useAppIpcRuntime'
+import {
+  clearGuidedOnboardingResumeIntent,
+  GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+  readGuidedOnboardingResumeIntent,
+  type GuidedOnboardingResumeRequestDetail,
+  type GuidedOnboardingResumeTrigger
+} from '@/lib/onboardingResume'
+import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
+import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import { createWindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
 const route = useRoute()
-const configPresenter = usePresenter('configPresenter')
+const configClient = createConfigClient()
+const onboardingClient = createOnboardingClient()
+const windowClient = createWindowClient()
 const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const draftStore = useDraftStore()
 const pageRouterStore = usePageRouterStore()
+const sidepanelStore = useSidepanelStore()
+const sidebarStore = useSidebarStore()
+const spotlightStore = useSpotlightStore()
 const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
@@ -46,6 +69,8 @@ const { isWinMacOS } = useDeviceVersion()
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
 const { t } = useI18n()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
@@ -53,28 +78,45 @@ const toasterTheme = computed(() =>
 // Error notification queue and currently displayed error
 const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
 const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
+let errorDisplayTimer: number | null = null
 
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
-// Watch theme and font size changes, update body class directly
+
+const resolveThemeName = (themeMode: ThemeMode, isDark: boolean) => {
+  return themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
+}
+
+const syncAppearanceClasses = (themeName: string, fontSizeClass: string) => {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const root = document.documentElement
+  // 切换期间临时禁用过渡，让主题瞬时生效，避免大量元素同时跑颜色过渡造成的重绘卡顿
+  root.classList.add('dc-theme-switching')
+
+  for (const target of [root, document.body]) {
+    target.classList.remove('light', 'dark', 'system')
+    target.classList.add(themeName)
+    target.classList.remove('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl')
+    target.classList.add(fontSizeClass)
+  }
+
+  // 强制同步重算，使本次类切换在「过渡已禁用」的状态下完成
+  void root.offsetWidth
+  // 下一帧恢复过渡，不影响日常 hover 等交互动画
+  requestAnimationFrame(() => {
+    root.classList.remove('dc-theme-switching')
+  })
+}
+
 watch(
-  [() => themeStore.themeMode, () => uiSettingsStore.fontSizeClass],
-  ([newTheme, newFontSizeClass], [oldTheme, oldFontSizeClass]) => {
-    let newThemeName = newTheme
-    if (newTheme === 'system') {
-      newThemeName = themeStore.isDark ? 'dark' : 'light'
-    }
-    if (oldTheme) {
-      document.documentElement.classList.remove(oldTheme)
-    }
-    if (oldFontSizeClass) {
-      document.documentElement.classList.remove(oldFontSizeClass)
-    }
-    document.documentElement.classList.add(newThemeName)
-    document.documentElement.classList.add(newFontSizeClass)
-    console.log('newTheme', newThemeName)
+  [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
+  ([themeMode, isDark, fontSizeClass]) => {
+    const nextThemeName = resolveThemeName(themeMode, isDark)
+    syncAppearanceClasses(nextThemeName, fontSizeClass)
   },
-  { immediate: false } // Initialization is handled in onMounted
+  { immediate: true }
 )
 
 // Handle error notifications
@@ -115,12 +157,11 @@ const displayError = (error: { id: string; title: string; message: string; type:
   })
 
   // Set timer to automatically close current error after 3 seconds
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
+  if (errorDisplayTimer) {
+    clearTimeout(errorDisplayTimer)
   }
 
-  errorDisplayTimer.value = window.setTimeout(() => {
-    console.log('errorDisplayTimer.value', errorDisplayTimer.value)
+  errorDisplayTimer = window.setTimeout(() => {
     // Handle logic after error is closed
     dismiss()
     handleErrorClosed()
@@ -140,9 +181,9 @@ const handleErrorClosed = () => {
     }
   } else {
     // Queue is empty, clear timer
-    if (errorDisplayTimer.value) {
-      clearTimeout(errorDisplayTimer.value)
-      errorDisplayTimer.value = null
+    if (errorDisplayTimer) {
+      clearTimeout(errorDisplayTimer)
+      errorDisplayTimer = null
     }
   }
 }
@@ -177,8 +218,31 @@ const ensureStartupWelcomeState = async () => {
       return
     }
 
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
-    if (!initComplete) {
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
+    let onboardingState: Awaited<ReturnType<typeof onboardingClient.getState>> | null = null
+
+    try {
+      onboardingState = await onboardingClient.getState()
+    } catch (error) {
+      console.warn('[App] Failed to load onboarding state during startup:', error)
+    }
+
+    if (onboardingState?.status === 'completed') {
+      if (isWelcomeRoute) {
+        await router.replace({ name: 'chat' })
+      }
+      return
+    }
+
+    if (!initComplete || onboardingState?.status === 'active') {
+      if (!initComplete && onboardingState?.status !== 'active') {
+        try {
+          onboardingState = await onboardingClient.start()
+        } catch (error) {
+          console.warn('[App] Failed to start onboarding during startup:', error)
+        }
+      }
+
       if (!isWelcomeRoute) {
         await router.replace({ name: 'welcome' })
       }
@@ -214,11 +278,7 @@ const handleZoomResume = () => {
 // Handle creating new conversation
 const handleCreateNewConversation = async () => {
   try {
-    if (sessionStore.hasActiveSession) {
-      await sessionStore.closeSession()
-      return
-    }
-    pageRouterStore.goToNewThread()
+    await sessionStore.startNewConversation({ refresh: true })
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
@@ -240,7 +300,7 @@ const activatePendingStartDeeplink = async () => {
   processingStartDeeplinkToken.value = token
 
   try {
-    const initComplete = Boolean(await configPresenter.getSetting('init_complete'))
+    const initComplete = Boolean(await configClient.getSetting('init_complete'))
     if (!initComplete) {
       return
     }
@@ -257,7 +317,7 @@ const activatePendingStartDeeplink = async () => {
       return
     }
 
-    pageRouterStore.goToNewThread()
+    pageRouterStore.goToNewThread({ refresh: true })
     processedStartDeeplinkToken.value = token
   } finally {
     if (processingStartDeeplinkToken.value === token) {
@@ -281,14 +341,163 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
   void activatePendingStartDeeplink()
 }
 
-if (window?.electron?.ipcRenderer) {
-  window.electron.ipcRenderer.on(DEEPLINK_EVENTS.START, handleStartDeeplink)
+const handleDatabaseRepairSuggested = (payload: unknown) => {
+  const repairPayload = payload as DatabaseRepairSuggestedPayload | undefined
+  if (!repairPayload) {
+    return
+  }
+
+  toast({
+    title: t(repairPayload.title),
+    description: t(repairPayload.message, {
+      reason: t(`settings.data.databaseRepair.reasons.${repairPayload.reason}`)
+    }),
+    action: {
+      label: t('settings.data.databaseRepair.toastAction'),
+      onClick: () => {
+        void configClient.openSettings({
+          routeName: 'settings-database',
+          section: 'database-repair'
+        })
+      }
+    }
+  })
 }
+
+const handleStartGuidedOnboardingDev = async () => {
+  if (!import.meta.env.DEV) {
+    return
+  }
+
+  try {
+    clearGuidedOnboardingResumeIntent()
+    await onboardingClient.start({
+      force: true,
+      stepId: 'select-provider'
+    })
+
+    if (router.currentRoute.value.name !== 'welcome') {
+      await router.replace({ name: 'welcome' })
+    }
+  } catch (error) {
+    console.warn('[App] Failed to start guided onboarding from dev trigger:', error)
+  }
+}
+
+const CHAT_GUIDED_ONBOARDING_STEP_IDS = new Set<GuidedOnboardingStepId>([
+  'switch-agent',
+  'switch-model',
+  'first-chat'
+])
+
+const routeToGuidedOnboardingStep = async (stepId: GuidedOnboardingStepId | null) => {
+  if (stepId && CHAT_GUIDED_ONBOARDING_STEP_IDS.has(stepId)) {
+    if (router.currentRoute.value.name !== 'chat') {
+      await router.replace({ name: 'chat' })
+    }
+
+    pageRouterStore.goToNewThread({ refresh: true })
+    return
+  }
+
+  if (router.currentRoute.value.name !== 'welcome') {
+    await router.replace({ name: 'welcome' })
+  }
+}
+
+const handleResumeGuidedOnboarding = async (trigger: GuidedOnboardingResumeTrigger) => {
+  const resumeIntent = readGuidedOnboardingResumeIntent()
+  if (!resumeIntent || resumeIntent.trigger !== trigger) {
+    return
+  }
+
+  try {
+    const onboardingState = await onboardingClient.getState()
+
+    if (onboardingState.status !== 'active') {
+      clearGuidedOnboardingResumeIntent()
+      if (onboardingState.status === 'completed') {
+        if (router.currentRoute.value.name !== 'chat') {
+          await router.replace({ name: 'chat' })
+        }
+
+        pageRouterStore.goToNewThread({ refresh: true })
+      }
+      return
+    }
+
+    clearGuidedOnboardingResumeIntent()
+    await routeToGuidedOnboardingStep(onboardingState.currentStepId)
+  } catch (error) {
+    console.warn('[App] Failed to resume guided onboarding:', error)
+  }
+}
+
+const handleGuidedOnboardingResumeRequested = (event: Event) => {
+  const detail = (event as CustomEvent<GuidedOnboardingResumeRequestDetail>).detail
+  if (!detail?.trigger) {
+    return
+  }
+
+  void handleResumeGuidedOnboarding(detail.trigger)
+}
+
+const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRuntime({
+  handleStartDeeplink: (event, payload) => {
+    handleStartDeeplink(event, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
+  },
+  handleStartGuidedOnboardingDev,
+  handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),
+  showErrorToast,
+  handleDatabaseRepairSuggested,
+  handleZoomIn,
+  handleZoomOut,
+  handleZoomResume,
+  handleCreateNewConversation,
+  handleToggleSidebar: () => {
+    sidebarStore.toggleSidebar()
+  },
+  handleToggleWorkspace: () => {
+    if (pageRouterStore.currentRoute !== 'chat' || !pageRouterStore.chatSessionId) {
+      return
+    }
+
+    sidepanelStore.toggleWorkspace(pageRouterStore.chatSessionId)
+  },
+  openSpotlight: () => {
+    spotlightStore.openSpotlight()
+  },
+  handleDataResetComplete: () => {
+    toast({
+      title: t('settings.data.resetCompleteDevTitle'),
+      description: t('settings.data.resetCompleteDevMessage'),
+      variant: 'default',
+      duration: 15000
+    })
+  },
+  handleSystemNotificationClick: (msg) => {
+    let sessionId: string | null = null
+
+    if (typeof msg === 'string' && msg.startsWith('chat/')) {
+      const parts = msg.split('/')
+      if (parts.length === 3) {
+        sessionId = parts[1]
+      }
+    } else if (msg && typeof msg === 'object' && 'threadId' in msg) {
+      sessionId = (msg as { threadId?: string }).threadId ?? null
+    }
+
+    if (sessionId) {
+      void sessionStore.selectSession(sessionId)
+    }
+  },
+  getCurrentRouteName: () => router.currentRoute.value.name
+})
 
 // Handle ESC key - close floating chat window
 const handleEscKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
-    window.electron.ipcRenderer.send('close-floating-window')
+    void windowClient.closeFloatingCurrent()
   }
 }
 
@@ -304,74 +513,22 @@ watch(
 )
 
 onMounted(() => {
-  // Set initial body class
-  document.body.classList.add(themeStore.themeMode)
-  document.body.classList.add(uiSettingsStore.fontSizeClass)
-
   window.addEventListener('keydown', handleEscKey)
+  window.addEventListener(
+    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+    handleGuidedOnboardingResumeRequested as EventListener
+  )
 
-  // initialize store data
+  // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
+  void ensureIconsLoaded()
+
+  // Start shell-critical data directly from the main window so it does not depend on settings.
   void initAppStores()
+  void providerStore.ensureInitialized()
+  void modelStore.initialize()
+  void sessionStore.fetchSessions()
   setupMcpDeeplink()
-
-  // Listen for global error notification events
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
-    showErrorToast(error)
-  })
-
-  // Listen for shortcut key events
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_IN, () => {
-    handleZoomIn()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_OUT, () => {
-    handleZoomOut()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.ZOOM_RESUME, () => {
-    handleZoomResume()
-  })
-
-  window.electron.ipcRenderer.on(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION, () => {
-    // Check if current route is chat page
-    const currentRoute = router.currentRoute.value
-    if (currentRoute.name !== 'chat') {
-      return
-    }
-    void handleCreateNewConversation()
-  })
-
-  // GO_SETTINGS is now handled in main process (open/focus Settings tab)
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, () => {
-    toast({
-      title: t('settings.data.resetCompleteDevTitle'),
-      description: t('settings.data.resetCompleteDevMessage'),
-      variant: 'default',
-      duration: 15000
-    })
-  })
-
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED, (_, msg) => {
-    let sessionId: string | null = null
-
-    // Check if msg is string and starts with chat/
-    if (typeof msg === 'string' && msg.startsWith('chat/')) {
-      // Split by /, check if there are three segments
-      const parts = msg.split('/')
-      if (parts.length === 3) {
-        // Extract middle part as sessionId
-        sessionId = parts[1]
-      }
-    } else if (msg && msg.threadId) {
-      // Compatible with original format, if msg is object and contains threadId property
-      sessionId = msg.threadId
-    }
-
-    if (sessionId) {
-      void sessionStore.selectSession(sessionId)
-    }
-  })
+  setupAppIpcRuntime()
 
   watch(
     () => activeTab.value,
@@ -408,28 +565,24 @@ onMounted(() => {
 
 // Clear timers and event listeners before component unmounts
 onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
+  if (errorDisplayTimer) {
+    clearTimeout(errorDisplayTimer)
+    errorDisplayTimer = null
   }
 
   window.removeEventListener('keydown', handleEscKey)
-
-  // Remove shortcut key event listeners
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_IN)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_OUT)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.ZOOM_RESUME)
-  window.electron.ipcRenderer.removeAllListeners(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
-  // GO_SETTINGS listener removed; handled in main
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SYS_NOTIFY_CLICKED)
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV)
-  window.electron.ipcRenderer.removeAllListeners(DEEPLINK_EVENTS.START)
+  window.removeEventListener(
+    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+    handleGuidedOnboardingResumeRequested as EventListener
+  )
+  cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
 })
 </script>
 
 <template>
   <div
+    data-testid="app-root"
     class="flex flex-col h-screen"
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
@@ -440,9 +593,12 @@ onBeforeUnmount(() => {
 
         <!-- Main content area -->
         <div
-          class="flex-1 min-w-0 bg-background overflow-hidden rounded-tl-xl border-black/20 dark:border-white/10 border-l border-t"
+          data-testid="app-main"
+          class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
         >
-          <RouterView v-if="isStartupRouteReady" />
+          <div class="min-h-0 flex-1">
+            <RouterView v-if="isStartupRouteReady" />
+          </div>
         </div>
       </div>
     </div>
@@ -453,6 +609,7 @@ onBeforeUnmount(() => {
     <Toaster :theme="toasterTheme" />
     <SelectedTextContextMenu />
     <TranslatePopup />
+    <SpotlightOverlay />
     <!-- Global model check dialog -->
     <ModelCheckDialog
       :open="modelCheckStore.isDialogOpen"

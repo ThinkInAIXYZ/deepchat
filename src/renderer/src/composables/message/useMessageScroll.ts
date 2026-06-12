@@ -1,7 +1,6 @@
 import { ref, reactive, readonly, onBeforeUnmount, nextTick, type Ref } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import type { ScrollInfo } from './types'
-import type { DynamicScroller } from 'vue-virtual-scroller'
 
 // === Constants ===
 const MESSAGE_HIGHLIGHT_CLASS = 'message-highlight'
@@ -10,8 +9,13 @@ const SCROLL_RETRY_DELAY = 80
 const HIGHLIGHT_DURATION = 2000
 const PLACEHOLDER_POSITION_THRESHOLD = 5000
 
+type DynamicScrollerHandle = {
+  scrollToBottom?: () => void
+  scrollToItem?: (index: number) => void
+}
+
 export interface UseMessageScrollOptions {
-  dynamicScrollerRef?: Ref<InstanceType<typeof DynamicScroller> | null>
+  dynamicScrollerRef?: Ref<DynamicScrollerHandle | null>
   shouldAutoFollow?: Ref<boolean>
   autoScrollEnabled?: Ref<boolean>
   scrollAnchor?: Ref<HTMLDivElement | undefined>
@@ -94,15 +98,16 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
 
       const dynamicScrollerRef = options?.dynamicScrollerRef
       const scroller = dynamicScrollerRef?.value
+      const scrollToBottomFn = scroller?.scrollToBottom
 
-      if (scroller?.scrollToBottom) {
+      if (scrollToBottomFn) {
         // Virtual scroll with retry mechanism
         let retryCount = 0
         let lastScrollHeight = 0
 
         const attemptScrollToBottom = () => {
           if (currentBottomToken !== bottomScrollCancelToken) return
-          scroller.scrollToBottom()
+          scrollToBottomFn()
 
           nextTick(() => {
             bottomScrollRetryTimer = window.setTimeout(() => {
@@ -177,8 +182,9 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
   const scrollToMessage = (messageId: string, itemsGetter?: () => Array<{ id: string }>) => {
     const dynamicScrollerRef = options?.dynamicScrollerRef
     const scroller = dynamicScrollerRef?.value
+    const scrollToItemFn = scroller?.scrollToItem
 
-    if (!scroller?.scrollToItem || !itemsGetter) {
+    if (!scrollToItemFn || !itemsGetter) {
       scrollToMessageBase(messageId)
       return
     }
@@ -227,7 +233,7 @@ export function useMessageScroll(options?: UseMessageScrollOptions) {
     const attemptScroll = () => {
       if (currentToken !== scrollRetryToken) return
 
-      scroller.scrollToItem(index)
+      scrollToItemFn(index)
       nextTick(() => {
         setTimeout(() => {
           if (tryApplyCenterAndHighlight()) return

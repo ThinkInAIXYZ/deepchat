@@ -31,6 +31,10 @@ type RegistryManifest = {
   agents: AcpRegistryAgent[]
 }
 
+type AcpRegistryServiceOptions = {
+  isPrivacyModeEnabled?: () => boolean
+}
+
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 const normalizeArgs = (value: unknown): string[] | undefined => {
@@ -203,9 +207,11 @@ export class AcpRegistryService {
   private readonly iconCacheDir: string
   private readonly svgSanitizer = new SVGSanitizer()
   private readonly iconMarkupCache = new Map<string, Promise<string | null>>()
+  private readonly isPrivacyModeEnabled: () => boolean
   private manifest: RegistryManifest | null = null
 
-  constructor() {
+  constructor(options: AcpRegistryServiceOptions = {}) {
+    this.isPrivacyModeEnabled = options.isPrivacyModeEnabled ?? (() => false)
     const userDataPath = app.getPath('userData')
     this.cacheDir = path.join(userDataPath, 'acp-registry')
     this.cacheFilePath = path.join(this.cacheDir, 'registry.json')
@@ -227,7 +233,11 @@ export class AcpRegistryService {
       this.manifest = cached
     }
 
-    await this.refreshIfNeeded(false)
+    if (this.isAutomaticRefreshBlocked()) {
+      return
+    }
+
+    await this.refreshIfNeeded(false, { automatic: true })
   }
 
   listAgents(): AcpRegistryAgent[] {
@@ -330,7 +340,16 @@ export class AcpRegistryService {
     return null
   }
 
-  private async refreshIfNeeded(force: boolean): Promise<void> {
+  private async refreshIfNeeded(
+    force: boolean,
+    options: {
+      automatic?: boolean
+    } = {}
+  ): Promise<void> {
+    if (options.automatic && this.isAutomaticRefreshBlocked()) {
+      return
+    }
+
     const meta = this.readMeta()
     const now = Date.now()
     const expired = !meta || now - meta.lastUpdated > ACP_REGISTRY_CACHE_TTL_MS
@@ -340,6 +359,14 @@ export class AcpRegistryService {
     }
 
     await this.fetchAndCache(meta)
+  }
+
+  private isAutomaticRefreshBlocked(): boolean {
+    try {
+      return Boolean(this.isPrivacyModeEnabled())
+    } catch {
+      return false
+    }
   }
 
   private async fetchAndCache(previousMeta: RegistryCacheMeta | null): Promise<void> {

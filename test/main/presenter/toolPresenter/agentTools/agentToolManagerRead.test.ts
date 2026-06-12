@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
+import * as sessionVisionResolverModule from '@/presenter/vision/sessionVisionResolver'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -15,7 +16,18 @@ vi.mock('fs', async (importOriginal) => {
 
 vi.mock('electron', () => ({
   app: {
-    getPath: () => os.tmpdir()
+    getPath: (name: string) => {
+      if (name === 'temp') {
+        return path.join(os.tmpdir(), 'deepchat-electron-temp')
+      }
+      if (name === 'home') {
+        return path.join(os.tmpdir(), 'deepchat-electron-home')
+      }
+      if (name === 'userData') {
+        return path.join(os.tmpdir(), 'deepchat-electron-user-data')
+      }
+      return os.tmpdir()
+    }
   },
   nativeImage: {
     createFromPath: () => ({
@@ -33,7 +45,9 @@ describe('AgentToolManager read routing', () => {
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
   let llmProviderPresenter: {
+    executeWithRateLimit: ReturnType<typeof vi.fn>
     generateCompletionStandalone: ReturnType<typeof vi.fn>
+    generateImageStandalone: ReturnType<typeof vi.fn>
   }
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   let resolveConversationSessionInfo: ReturnType<typeof vi.fn>
@@ -46,7 +60,9 @@ describe('AgentToolManager read routing', () => {
       prepareFileCompletely: vi.fn()
     }
     llmProviderPresenter = {
-      generateCompletionStandalone: vi.fn()
+      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+      generateCompletionStandalone: vi.fn(),
+      generateImageStandalone: vi.fn()
     }
     resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
     resolveConversationSessionInfo = vi.fn().mockResolvedValue({
@@ -111,6 +127,135 @@ describe('AgentToolManager read routing', () => {
     expect(filePresenter.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
+  it('allows reading outside the workspace when external file access is enabled', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-external-'))
+    const externalFile = path.join(externalDir, 'outside.txt')
+    await fs.writeFile(externalFile, 'external text', 'utf-8')
+    filePresenter.getMimeType.mockResolvedValue('text/plain')
+
+    const result = (await manager.callTool('read', { path: externalFile }, 'conv1', {
+      allowExternalFileAccess: true
+    })) as {
+      content: string
+    }
+
+    expect(result.content).toContain('outside.txt')
+    expect(result.content).toContain('external text')
+  })
+
+  it('requests permission for external reads in default access mode', async () => {
+    const externalFile = path.join(path.parse(workspaceDir).root, 'deepchat-outside-default.txt')
+
+    const permission = await manager.preCheckToolPermission('read', { path: externalFile }, 'conv1')
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [externalFile]
+      })
+    )
+  })
+
+  it('requests permission for workspace symlinks that point outside', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-link-target-'))
+    const externalFile = path.join(externalDir, 'outside.txt')
+    const symlinkPath = path.join(workspaceDir, 'linked-outside.txt')
+    await fs.writeFile(externalFile, 'external text', 'utf-8')
+
+    try {
+      await fs.symlink(externalFile, symlinkPath, 'file')
+    } catch (error) {
+      const errorCode =
+        error instanceof Error && 'code' in error
+          ? String((error as Error & { code?: string }).code)
+          : ''
+      if (['EPERM', 'EACCES', 'ENOTSUP', 'EINVAL'].includes(errorCode)) {
+        return
+      }
+      throw error
+    }
+
+    const realExternalFile = await fs.realpath(externalFile)
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: 'linked-outside.txt' },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'read',
+        paths: [realExternalFile]
+      })
+    )
+  })
+
+  it('does not request external read permission when full access is enabled', async () => {
+    const externalFile = path.join(
+      path.parse(workspaceDir).root,
+      'deepchat-outside-full-access.txt'
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'read',
+      { path: externalFile },
+      'conv1',
+      {
+        allowExternalFileAccess: true
+      }
+    )
+
+    expect(permission).toBeNull()
+  })
+
+  it('allows writing outside the workspace when external file access is enabled', async () => {
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-write-external-'))
+    const externalFile = path.join(externalDir, 'created.txt')
+
+    const result = (await manager.callTool(
+      'write',
+      {
+        path: externalFile,
+        content: 'created outside'
+      },
+      'conv1',
+      {
+        allowExternalFileAccess: true
+      }
+    )) as {
+      content: string
+    }
+
+    await expect(fs.readFile(externalFile, 'utf-8')).resolves.toBe('created outside')
+    expect(result.content).toContain('Successfully wrote')
+  })
+
+  it('requests permission for new external writes without broadening to the parent directory', async () => {
+    const externalFile = path.join(
+      path.parse(workspaceDir).root,
+      `deepchat-write-target-${Date.now()}.txt`
+    )
+
+    const permission = await manager.preCheckToolPermission(
+      'write',
+      {
+        path: externalFile,
+        content: 'created outside'
+      },
+      'conv1'
+    )
+
+    expect(permission).toEqual(
+      expect.objectContaining({
+        needsPermission: true,
+        permissionType: 'write',
+        paths: [externalFile]
+      })
+    )
+  })
+
   it('uses filePresenter llm-friendly content for document files with offset/limit', async () => {
     const filePath = path.join(workspaceDir, 'report.pdf')
     await fs.writeFile(filePath, 'pdf-binary', 'utf-8')
@@ -155,6 +300,7 @@ describe('AgentToolManager read routing', () => {
     }
 
     expect(result.content).toContain('detailed image description')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalled()
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'openai',
@@ -192,12 +338,105 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('fallback image description')
     expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-vision')
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('anthropic')
     expect(llmProviderPresenter.generateCompletionStandalone).toHaveBeenCalledWith(
       'anthropic',
       expect.any(Array),
       'claude-3-7-sonnet',
       expect.any(Number),
       expect.any(Number)
+    )
+  })
+
+  it('propagates abort signals to queued image analysis waits', async () => {
+    const filePath = path.join(workspaceDir, 'image-abort.png')
+    await fs.writeFile(filePath, Buffer.from([4, 3, 2, 1]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+
+    const abortController = new AbortController()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    let queuedResolve!: () => void
+    const queued = new Promise<void>((resolve) => {
+      queuedResolve = resolve
+    })
+
+    llmProviderPresenter.executeWithRateLimit.mockImplementation(
+      async (_providerId: string, options?: { signal?: AbortSignal }) =>
+        await new Promise<void>((_resolve, reject) => {
+          queuedResolve()
+
+          if (options?.signal?.aborted) {
+            reject(abortError)
+            return
+          }
+
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(abortError)
+            },
+            { once: true }
+          )
+        })
+    )
+
+    const resultPromise = manager.callTool('read', { path: 'image-abort.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+    await queued
+    abortController.abort()
+
+    await expect(resultPromise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        signal: abortController.signal
+      })
+    )
+    expect(llmProviderPresenter.generateCompletionStandalone).not.toHaveBeenCalled()
+  })
+
+  it('passes abort signals into vision target resolution', async () => {
+    const filePath = path.join(workspaceDir, 'image-resolver-signal.png')
+    await fs.writeFile(filePath, Buffer.from([4, 5, 6, 7]))
+    filePresenter.getMimeType.mockResolvedValue('image/png')
+    resolveConversationSessionInfo.mockResolvedValue({
+      agentId: 'deepchat',
+      providerId: 'openai',
+      modelId: 'gpt-4o'
+    })
+    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      temperature: 0.2,
+      maxTokens: 1200,
+      vision: providerId === 'openai' && modelId === 'gpt-4o'
+    }))
+    llmProviderPresenter.generateCompletionStandalone.mockResolvedValue('visible image description')
+    const resolveVisionTargetSpy = vi.spyOn(
+      sessionVisionResolverModule,
+      'resolveSessionVisionTarget'
+    )
+    const abortController = new AbortController()
+
+    await manager.callTool('read', { path: 'image-resolver-signal.png' }, 'conv1', {
+      signal: abortController.signal
+    })
+
+    expect(resolveVisionTargetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signal: abortController.signal,
+        logLabel: 'read:conv1'
+      })
     )
   })
 
@@ -218,6 +457,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('falls back to image metadata when the conversation cannot be found', async () => {
@@ -236,6 +476,7 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('[Image Metadata]')
     expect(result.content).toContain('neither the current session model nor the agent vision model')
+    expect(llmProviderPresenter.executeWithRateLimit).not.toHaveBeenCalled()
   })
 
   it('surfaces runtime errors while resolving the conversation vision target', async () => {

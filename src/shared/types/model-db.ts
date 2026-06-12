@@ -3,8 +3,23 @@ import { z } from 'zod'
 // ---------- Zod Schemas ----------
 
 // Capability sub-schemas
-export const ReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high'])
+export const REASONING_EFFORT_VALUES = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max'
+] as const
+export const ReasoningEffortSchema = z.enum(REASONING_EFFORT_VALUES)
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+export const DEFAULT_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high'
+]
 
 export const VerbositySchema = z.enum(['low', 'medium', 'high'])
 export type Verbosity = z.infer<typeof VerbositySchema>
@@ -12,8 +27,18 @@ export type Verbosity = z.infer<typeof VerbositySchema>
 export const ReasoningModeSchema = z.enum(['budget', 'effort', 'level', 'fixed', 'mixed'])
 export type ReasoningMode = z.infer<typeof ReasoningModeSchema>
 
-export const ReasoningVisibilitySchema = z.enum(['hidden', 'summary', 'full', 'mixed'])
+export const REASONING_VISIBILITY_VALUES = [
+  'hidden',
+  'summary',
+  'full',
+  'mixed',
+  'omitted',
+  'summarized'
+] as const
+export const ANTHROPIC_REASONING_VISIBILITY_VALUES = ['omitted', 'summarized'] as const
+export const ReasoningVisibilitySchema = z.enum(REASONING_VISIBILITY_VALUES)
 export type ReasoningVisibility = z.infer<typeof ReasoningVisibilitySchema>
+export type AnthropicReasoningVisibility = (typeof ANTHROPIC_REASONING_VISIBILITY_VALUES)[number]
 
 export const ReasoningSchema = z
   .object({
@@ -104,7 +129,9 @@ export const ModelSchema = z.object({
   release_date: z.string().optional(),
   last_updated: z.string().optional(),
   cost: z.record(z.union([z.string(), z.number()])).optional(),
-  type: z.enum(['chat', 'embedding', 'rerank', 'imageGeneration']).optional()
+  type: z
+    .enum(['chat', 'embedding', 'rerank', 'imageGeneration', 'videoGeneration', 'tts'])
+    .optional()
 })
 
 export type ProviderModel = z.infer<typeof ModelSchema>
@@ -150,6 +177,161 @@ export type ReasoningPortrait = {
   visibility?: ReasoningVisibility
   continuation?: string[]
   notes?: string[]
+}
+
+export type ReasoningControlMode = 'unsupported' | 'toggle' | 'indicator'
+
+export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
+  ReasoningEffortSchema.safeParse(value).success
+
+export const isVerbosity = (value: unknown): value is Verbosity =>
+  VerbositySchema.safeParse(value).success
+
+export const isReasoningVisibility = (value: unknown): value is ReasoningVisibility =>
+  ReasoningVisibilitySchema.safeParse(value).success
+
+export const normalizeReasoningVisibilityValue = (
+  value: unknown
+): ReasoningVisibility | undefined => {
+  return isReasoningVisibility(value) ? value : undefined
+}
+
+export const normalizeAnthropicReasoningVisibilityValue = (
+  value: unknown
+): AnthropicReasoningVisibility | undefined => {
+  switch (value) {
+    case 'hidden':
+    case 'omitted':
+      return 'omitted'
+    case 'summary':
+    case 'summarized':
+      return 'summarized'
+    default:
+      return undefined
+  }
+}
+
+const canResolveReasoningEffortFromPortrait = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean =>
+  portrait?.mode !== 'budget' && portrait?.mode !== 'level' && portrait?.mode !== 'mixed'
+
+export const normalizeReasoningEffortValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): ReasoningEffort | undefined => {
+  if (!isReasoningEffort(value)) {
+    return undefined
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    if (options.includes(value)) {
+      return value
+    }
+
+    return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
+      ? portrait.effort
+      : undefined
+  }
+
+  if (canResolveReasoningEffortFromPortrait(portrait) && isReasoningEffort(portrait?.effort)) {
+    return value === portrait.effort ? value : portrait.effort
+  }
+
+  return value
+}
+
+export const supportsReasoningCapability = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => portrait?.supported === true
+
+export const getReasoningControlMode = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningControlMode => {
+  if (!supportsReasoningCapability(portrait)) {
+    return 'unsupported'
+  }
+
+  return portrait?.mode === undefined || portrait.mode === 'budget' ? 'toggle' : 'indicator'
+}
+
+export const hasAnthropicReasoningToggle = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): boolean =>
+  providerId?.trim().toLowerCase() === 'anthropic' &&
+  supportsReasoningCapability(portrait) &&
+  portrait?.mode === 'effort'
+
+export const getReasoningControlModeForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningControlMode => {
+  if (hasAnthropicReasoningToggle(providerId, portrait)) {
+    return 'toggle'
+  }
+
+  return getReasoningControlMode(portrait)
+}
+
+export const hasIndependentReasoningToggle = (
+  portrait: ReasoningPortrait | null | undefined
+): boolean => getReasoningControlMode(portrait) === 'toggle'
+
+export const hasIndependentReasoningToggleForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined
+): boolean => getReasoningControlModeForProvider(providerId, portrait) === 'toggle'
+
+export const getReasoningEffectiveEnabled = (
+  portrait: ReasoningPortrait | null | undefined,
+  state: {
+    reasoning?: boolean | null
+    reasoningEffort?: unknown
+  } = {}
+): boolean => {
+  if (!portrait) {
+    return state.reasoning === true
+  }
+
+  if (!supportsReasoningCapability(portrait)) {
+    return false
+  }
+
+  if (hasIndependentReasoningToggle(portrait)) {
+    return state.reasoning ?? portrait.defaultEnabled ?? true
+  }
+
+  if (canResolveReasoningEffortFromPortrait(portrait)) {
+    const resolvedEffort =
+      normalizeReasoningEffortValue(portrait, state.reasoningEffort) ??
+      normalizeReasoningEffortValue(portrait, portrait.effort)
+    if (resolvedEffort === 'none') {
+      return false
+    }
+
+    if (resolvedEffort !== undefined) {
+      return true
+    }
+  }
+
+  return portrait.defaultEnabled ?? true
+}
+
+export const getReasoningEffectiveEnabledForProvider = (
+  providerId: string | null | undefined,
+  portrait: ReasoningPortrait | null | undefined,
+  state: {
+    reasoning?: boolean | null
+    reasoningEffort?: unknown
+  } = {}
+): boolean => {
+  if (hasAnthropicReasoningToggle(providerId, portrait)) {
+    return state.reasoning ?? portrait?.defaultEnabled ?? true
+  }
+
+  return getReasoningEffectiveEnabled(portrait, state)
 }
 
 // ---------- Helpers ----------
@@ -202,16 +384,20 @@ function getStringNumberRecord(obj: unknown): Record<string, string | number> | 
   return Object.keys(out).length ? out : undefined
 }
 
-type ModelTypeValue = 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+type ModelTypeValue =
+  | 'chat'
+  | 'embedding'
+  | 'rerank'
+  | 'imageGeneration'
+  | 'videoGeneration'
+  | 'tts'
 
 function getEffortValue(v: unknown): ReasoningEffort | undefined {
-  const parsed = ReasoningEffortSchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isReasoningEffort(v) ? v : undefined
 }
 
 function getVerbosityValue(v: unknown): Verbosity | undefined {
-  const parsed = VerbositySchema.safeParse(v)
-  return parsed.success ? parsed.data : undefined
+  return isVerbosity(v) ? v : undefined
 }
 
 function getReasoningModeValue(v: unknown): ReasoningMode | undefined {
@@ -286,6 +472,8 @@ function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
     case 'embedding':
     case 'rerank':
     case 'imageGeneration':
+    case 'videoGeneration':
+    case 'tts':
       return v
   }
 
@@ -301,6 +489,12 @@ function getModelTypeValue(v: unknown): ModelTypeValue | undefined {
     case 'imagegeneration':
     case 'imagegen':
       return 'imageGeneration'
+    case 'videogeneration':
+    case 'videogen':
+    case 'video':
+      return 'videoGeneration'
+    case 'tts':
+      return 'tts'
     default:
       return undefined
   }

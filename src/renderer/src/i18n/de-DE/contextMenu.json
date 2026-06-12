@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "Übersetzen",
+    "original": "Original",
+    "translated": "Übersetzung",
+    "error": "Übersetzung fehlgeschlagen"
+  },
+  "askAI": {
+    "title": "KI fragen",
+    "question": "Frage",
+    "answer": "Antwort",
+    "error": "KI-Antwort fehlgeschlagen"
+  },
+  "copy": "Kopieren",
+  "paste": "Einfügen",
+  "cut": "Ausschneiden"
+}

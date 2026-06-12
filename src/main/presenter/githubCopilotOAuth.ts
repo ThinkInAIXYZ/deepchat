@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import { randomBytes } from 'crypto'
 import { is } from '@electron-toolkit/utils'
@@ -25,7 +26,7 @@ export class GitHubCopilotOAuth {
 
       // Build authorization URL
       const authUrl = this.buildAuthUrl()
-      console.log('Starting GitHub OAuth with URL:', authUrl)
+      logger.info('Starting GitHub OAuth with URL:', authUrl)
 
       // Create authorization window
       this.authWindow = new BrowserWindow({
@@ -43,7 +44,7 @@ export class GitHubCopilotOAuth {
 
       // Monitor URL changes to capture authorization callback
       this.authWindow.webContents.on('will-redirect', (_event, url) => {
-        console.log('Redirecting to:', url)
+        logger.info('Redirecting to:', url)
         this.handleCallback(url, resolve, reject)
       })
 
@@ -55,13 +56,13 @@ export class GitHubCopilotOAuth {
 
       // Monitor navigation events
       this.authWindow.webContents.on('did-navigate', (_event, url) => {
-        console.log('Navigated to:', url)
+        logger.info('Navigated to:', url)
         this.handleCallback(url, resolve, reject)
       })
 
       // Monitor new window events (GitHub may open in new window)
       this.authWindow.webContents.setWindowOpenHandler(({ url }) => {
-        console.log('New window requested for:', url)
+        logger.info('New window requested for:', url)
         this.handleCallback(url, resolve, reject)
         return { action: 'deny' }
       })
@@ -131,7 +132,7 @@ export class GitHubCopilotOAuth {
           this.closeWindow()
           reject(new Error(`GitHub authorization failed: ${error}`))
         } else if (code) {
-          console.log('OAuth success, received authorization code')
+          logger.info('OAuth success, received authorization code')
           this.closeWindow()
           resolve(code)
         } else {
@@ -228,21 +229,21 @@ export function createGitHubCopilotOAuth(clientIdOverride?: string): GitHubCopil
   const redirectUri =
     import.meta.env.VITE_GITHUB_REDIRECT_URI || 'https://deepchatai.cn/auth/github/callback'
 
-  console.log('GitHub OAuth Configuration:')
-  console.log('- Client ID configured:', clientId ? '✅' : '❌')
-  console.log('- Client ID override provided:', clientIdOverride ? '✅' : '❌')
-  console.log('- Client Secret configured:', clientSecret ? '✅' : '❌')
-  console.log('- Redirect URI:', redirectUri)
-  console.log('- Environment variables check:')
-  console.log(
+  logger.info('GitHub OAuth Configuration:')
+  logger.info('- Client ID configured:', clientId ? '✅' : '❌')
+  logger.info('- Client ID override provided:', clientIdOverride ? '✅' : '❌')
+  logger.info('- Client Secret configured:', clientSecret ? '✅' : '❌')
+  logger.info('- Redirect URI:', redirectUri)
+  logger.info('- Environment variables check:')
+  logger.info(
     '  - import.meta.env.VITE_GITHUB_CLIENT_ID:',
     import.meta.env.VITE_GITHUB_CLIENT_ID ? 'EXISTS' : 'NOT SET'
   )
-  console.log(
+  logger.info(
     '  - import.meta.env.VITE_GITHUB_CLIENT_SECRET:',
     import.meta.env.VITE_GITHUB_CLIENT_SECRET ? 'EXISTS' : 'NOT SET'
   )
-  console.log(
+  logger.info(
     '  - import.meta.env.VITE_GITHUB_REDIRECT_URI:',
     import.meta.env.VITE_GITHUB_REDIRECT_URI ? 'EXISTS' : 'NOT SET'
   )
@@ -266,7 +267,7 @@ export function createGitHubCopilotOAuth(clientIdOverride?: string): GitHubCopil
     scope: 'read:user read:org'
   }
   if (is.dev) {
-    console.log('Final OAuth config:', {
+    logger.info('Final OAuth config:', {
       clientIdConfigured: !!config.clientId,
       redirectUri: config.redirectUri,
       scope: config.scope,

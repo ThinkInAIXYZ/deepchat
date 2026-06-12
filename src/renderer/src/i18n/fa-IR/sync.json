@@ -1,17 +1,30 @@
 {
   "success": {
-    "importComplete": "{count} مکالمه با موفقیت وارد شد."
+    "importComplete": "{count} مکالمه با موفقیت وارد شد.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "ویژگی همگام‌سازی روشن نیست",
     "folderNotExists": "پوشه همگام‌سازی وجود ندارد",
     "noValidBackup": "پرونده پشتیبان معتبر در پوشه همگام‌سازی نیست",
+    "unsupportedBackupVersion": "این پشتیبان با نسخه جدیدتری از DeepChat ساخته شده و قابل وارد کردن نیست.",
     "dbNotExists": "پرونده پایگاه داده وجود ندارد",
     "configNotExists": "پرونده پیکربندی وجود ندارد",
     "tempDbFailed": "ساخت پرونده پشتیبان موقت پایگاه داده ناموفق بود",
     "tempConfigFailed": "ساخت پرونده پشتیبان موقت پیکربندی ناموفق بود",
     "importFailed": "وارد کردن ناموفق بود، داده اصلی بازیابی شد",
     "importProcess": "خطا در فرایند وارد کردن",
-    "unknown": "خطای ناشناخته"
+    "unknown": "خطای ناشناخته",
+    "encryptedBackupPasswordMissing": "این نسخه پشتیبان رمزگذاری شده است، اما کلید پایگاه داده محلی در دسترس نیست. ابتدا پایگاه داده رمزگذاری‌شده را باز کنید و سپس دوباره وارد کنید.",
+    "overwriteEncryptionMismatch": "وارد کردن با بازنویسی نیاز دارد که نسخه پشتیبان و پایگاه داده فعلی وضعیت رمزگذاری یکسانی داشته باشند.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Keychain سیستم در دسترس نیست؛ کلید محرمانه را نمی‌توان به‌صورت امن ذخیره کرد.",
+    "cloudUnauthorized": "احراز هویت ابری ناموفق بود. Endpoint، bucket، Access Key ID، Secret Access Key و مجوزهای توکن R2 را بررسی کنید."
   }
 }

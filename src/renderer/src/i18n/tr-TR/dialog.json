@@ -1,0 +1,89 @@
+{
+  "cancel": "İptal etmek",
+  "confirm": "Onaylamak",
+  "close": "Kapalı",
+  "ok": "TAMAM",
+  "delete": {
+    "title": "Bu görüşmeyi silmek istediğinizden emin misiniz?",
+    "description": "Bu eylem geri alınamaz.",
+    "confirm": "Silmek"
+  },
+  "rename": {
+    "title": "Konuşmayı Yeniden Adlandır",
+    "description": "Lütfen görüşme için yeni bir ad girin."
+  },
+  "cleanMessages": {
+    "title": "Tüm Mesajları Temizle",
+    "description": "Bu işlem, bu görüşmedeki tüm mesajları ve dosyaları silecektir. Devam etmek istediğinizden emin misiniz?",
+    "confirm": "Temizlemek"
+  },
+  "fork": {
+    "title": "Şube Oluştur",
+    "description": "Bu, ilk mesajdaki tüm mesajları mevcut mesaja, diyaloğa devam edebileceğiniz yeni bir sohbete kopyalayacaktır.",
+    "confirm": "Şube Oluştur",
+    "tag": "Dal"
+  },
+  "error": {
+    "title": "Hata"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Akıl Yürütmeyi Etkinleştirmeyi Onaylayın",
+      "functionCall": "İşlev Çağrısını Etkinleştirmeyi Onaylayın"
+    },
+    "message": {
+      "reasoning": "Akıl yürütmenin etkinleştirilmesi, işlev çağrısını otomatik olarak devre dışı bırakacaktır. Bu, DeepSeek-V3.1 modellerinin bir sınırlamasıdır ve her iki özellik aynı anda kullanılamaz. Devam etmek?",
+      "functionCall": "İşlev çağrısını etkinleştirmek, akıl yürütmeyi otomatik olarak devre dışı bırakacaktır. Bu, DeepSeek-V3.1 modellerinin bir sınırlamasıdır ve her iki özellik aynı anda kullanılamaz. Devam etmek?"
+    },
+    "warningText": {
+      "reasoning": "Not: Akıl yürütmenin etkinleştirilmesi, DeepSeek-V3.1 modellerinin bir gereği olan işlev çağrısını otomatik olarak devre dışı bırakacaktır.",
+      "functionCall": "Not: İşlev çağrısının etkinleştirilmesi, DeepSeek-V3.1 modellerinin bir gereği olan akıl yürütmeyi otomatik olarak devre dışı bırakacaktır."
+    },
+    "confirmEnable": "Etkinleştirmeyi Onayla"
+  },
+  "agentTransfer": {
+    "deleteTitle": "{name} silinsin mi?",
+    "deleteDescription": "Şu anda bu ajana ait konuşmalara ne yapılacağını seçin.",
+    "moveTitle": "Konuşmayı Taşı",
+    "moveDescription": "Bu tamamlanmış konuşmayı mesajlarını değiştirmeden başka bir ajana taşıyın.",
+    "loading": "İlgili konuşmalar kontrol ediliyor...",
+    "processing": "İşleniyor...",
+    "totalSessions": "İlgili",
+    "movableSessions": "Taşınabilir",
+    "emptyDrafts": "Boş taslaklar",
+    "blockedSessions": "Engelli",
+    "moveBeforeDeleteTitle": "Konuşmaları başka bir ajana taşı",
+    "moveBeforeDeleteDescription": "Tamamlanmış konuşmalar mesajlarını korur ve sonraki yanıtlar için hedef ajanı kullanır. Boş taslaklar kaldırılır.",
+    "deleteSessionsTitle": "Bu ajanla olan konuşmaları sil",
+    "deleteSessionsDescription": "Tüm ilgili konuşmalar ve mesajlar ajanla birlikte silinir.",
+    "targetAgent": "Hedef ajan",
+    "selectTarget": "Bir ajan seç",
+    "acpWorkdir": "ACP çalışma dizini",
+    "acpWorkdirPlaceholder": "Her konuşmanın projesini korumak için boş bırakın",
+    "acpWorkdirHint": "ACP ajanları bir çalışma dizini gerektirir. Bir konuşmanın projesi yoksa burada belirtin.",
+    "currentAgent": "Geçerli ajan: {name}",
+    "relatedSessions": "İlgili konuşmalar",
+    "blockedWarning": "Bazı konuşmalar hâlâ çalışıyor veya kuyrukta girdi var. Bu ajanı taşımadan veya silmeden önce bunları bitirin.",
+    "agentDeleteBlocked": "Ajanın hâlâ ilgili konuşmaları var. Önce bunları taşıyın veya silin.",
+    "deleteAgentAndSessions": "Ajanı ve Konuşmaları Sil",
+    "moveAndDeleteAgent": "Taşı ve Ajanı Sil",
+    "moveConversation": "Konuşmayı Taşı",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "Çalışıyor",
+      "pending-input": "Kuyrukta",
+      "missing-target-workdir": "Çalışma dizini gerekiyor",
+      "missing-session": "Eksik",
+      "same-agent": "Aynı ajan"
+    },
+    "sampleState": {
+      "ready": "Hazır",
+      "draft": "Taslak",
+      "subagent": "Alt ajan"
+    },
+    "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca DeepChat ajanları seçilebilir. ACP konuşmaları DeepChat’e taşınabilir, ancak ACP’ye taşınamaz."
+  }
+}

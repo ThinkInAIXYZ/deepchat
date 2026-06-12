@@ -24,10 +24,20 @@
     "acpMode": "דֶגֶם",
     "acpModeTooltip": "מצב נוכחי: {mode}",
     "agentWorkspaceCurrent": "ספריית עבודה נוכחית: {path}",
+    "workspaceUnavailableTooltip": "התיקייה אינה קיימת או לא ניתנת לגישה: {path}",
     "agentWorkspaceSelect": "בחר ספריית עבודה",
     "agentWorkspaceTooltip": "הגדר את ספריית העבודה של הסוכן",
     "attach": "צרף",
     "voiceInput": "קלט קולי",
+    "voiceInputStop": "עצור קלט קולי",
+    "voiceRecognitionUnsupportedTitle": "הסביבה הנוכחית לא תומכת בזיהוי דיבור",
+    "voiceRecognitionUnsupportedDescription": "השתמש בתכונה זו בדפדפן או בסביבת שולחן עבודה שתומכים בזיהוי דיבור.",
+    "voiceRecognitionPermissionDeniedTitle": "לא ניתן לגשת למיקרופון",
+    "voiceRecognitionPermissionDeniedDescription": "אפשר ל-DeepChat להשתמש במיקרופון ונסה שוב.",
+    "voiceRecognitionErrorTitle": "זיהוי הדיבור נכשל",
+    "voiceRecognitionErrorDescription": "לא ניתן היה להשלים את זיהוי הדיבור. נסה שוב מאוחר יותר.",
+    "send": "שלח",
+    "steer": "כוון",
     "queue": "הוסף לתור",
     "stop": "עצור",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "כלים מובנים",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "יצירת תמונות",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
+    "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
+    "fileUploadFailedMore": " ועוד {count} נוספים",
+    "unnamedFile": "קובץ ללא שם",
+    "audioInputUnsupportedTitle": "המודל הנוכחי לא תומך בקבצי אודיו מצורפים",
+    "audioInputUnsupportedDescription": "המודל {model} לא תומך בקלט אודיו. {count} קובץ/י אודיו צורף/ו והתעלמנו מהם."
   },
   "pendingInput": {
     "steer": "הכוונה",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "חושב...",
     "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
+    "rateLimitCompactLoading": "מוגבל קצב ({seconds}ש׳)",
     "rateLimitTitle": "מגבלת קצב פעילה",
     "rateLimitQueue": "מיקום בתור",
     "rateLimitEstimated": "המתנה משוערת",
@@ -110,7 +129,24 @@
     "clickToView": "לחץ לצפייה בפרטים",
     "functionName": "פונקציה",
     "params": "פרמטרים",
-    "responseData": "נתוני תגובה"
+    "responseData": "נתוני תגובה",
+    "subagents": {
+      "summary": "{mode} · {count} סוכני משנה",
+      "unnamedTask": "משימה ללא שם",
+      "mode": {
+        "parallel": "במקביל",
+        "chain": "בטור"
+      },
+      "status": {
+        "queued": "ממתין בתור",
+        "running": "פועל",
+        "completed": "הושלם",
+        "error": "שגיאה",
+        "cancelled": "בוטל",
+        "waiting_permission": "ממתין לאישור",
+        "waiting_question": "ממתין לקלט"
+      }
+    }
   },
   "mode": {
     "acpAgent": "סוכן ACP",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "שיתוף",
-    "more": "עוד"
+    "more": "עוד",
+    "backToParent": "חזרה לשיחת האב"
   },
   "advancedSettings": {
     "button": "מתקדם",
@@ -128,6 +165,9 @@
     "systemPrompt": "הנחיית מערכת",
     "systemPromptPlaceholder": "בחר תבנית",
     "temperature": "טמפרטורה",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "אורך הקשר",
     "maxTokens": "מקסימום טוקנים",
     "thinkingBudget": "תקציב חשיבה",
@@ -144,15 +184,18 @@
       "finiteNumber": "חייב להיות מספר סופי",
       "nonNegativeInteger": "חייב להיות מספר שלם לא שלילי",
       "contextLengthAtLeastMaxTokens": "חייב להיות גדול או שווה למספר הטוקנים המרבי",
-      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר"
+      "maxTokensWithinContextLength": "חייב להיות קטן או שווה לאורך ההקשר",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "workspace": {
     "collapse": "לִסְגוֹר",
+    "expand": "הרחב",
     "sections": {
       "files": "קבצים",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "סוכני משנה"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "עדיין אין קבצים",
       "loading": "טוען קבצים...",
-      "section": "מִסְמָך"
+      "section": "מִסְמָך",
+      "noWorkspace": {
+        "title": "אין אזור עבודה",
+        "description": "בחר או גרור תיקייה כדי להגדיר את אזור העבודה",
+        "button": "בחר תיקייה"
+      }
     },
     "git": {
       "empty": "אין diff להצגה",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "עדיין אין משימות",
       "section": "לְתַכְנֵן",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "הושלם",
         "failed": "לְהִכָּשֵׁל",
@@ -206,10 +255,20 @@
         "truncated": "[מקוצר]"
       }
     },
-    "title": "סביבת עבודה"
+    "title": "סביבת עבודה",
+    "subagents": {
+      "empty": "עדיין אין שיחות-בת",
+      "self": "הסוכן הזה",
+      "status": {
+        "working": "פועל",
+        "error": "שגיאה",
+        "idle": "לא פעיל"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "לא נמצאו מודלים"
+    "empty": "לא נמצאו מודלים",
+    "audioInputSupported": "קלט אודיו נתמך"
   },
   "audio": {
     "play": "נגן",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "דחיסת ההקשר מתבצעת באופן אוטומטי...",
-    "compacted": "ההקשר נדחס אוטומטית"
+    "compacting": "דחיסת ההקשר מתבצעת...",
+    "compacted": "ההקשר נדחס",
+    "commandDescription": "דחיסת הקשר השיחה",
+    "noopTitle": "אין הקשר לדחיסה",
+    "noopDescription": "עדיין אין היסטוריית שיחה חדשה לדחיסה.",
+    "failedTitle": "הדחיסה נכשלה"
   },
   "newThread": {
     "title": "בנו וגלו"
@@ -248,6 +311,10 @@
     "allAgents": "כל הסוכנים",
     "expandSidebar": "הרחב את הסרגל הצדדי",
     "collapseSidebar": "כווץ את הסרגל הצדדי",
+    "themeToggle": "החלפת ערכת נושא",
+    "themeLight": "בהיר",
+    "themeDark": "כהה",
+    "themeSystem": "מערכת",
     "remoteControlStatus": {
       "disabled": "בקרה מרחוק מושבתת",
       "stopped": "בקרה מרחוק נעצרה",
@@ -261,12 +328,16 @@
     "pinned": "נעוצים",
     "emptyTitle": "עדיין אין שיחות",
     "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
-    "remoteControlDisabled": "מושבת"
+    "remoteControlDisabled": "מושבת",
+    "searchPlaceholder": "חיפוש בצ׳אטים",
+    "searchAriaLabel": "חיפוש בצ׳אטים",
+    "searchEmptyTitle": "לא נמצאו שיחות תואמות",
+    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "סקירת משימות",
     "collapse": "כווץ את הסשנים הצפים",
-    "empty": "עדיין אין סשנים של DeepChat",
+    "empty": "עדיין אין סשנים של Agent",
     "executing": "פעיל",
     "sessionCount": "{count} סשנים",
     "untitled": "צ'אט חדש",
@@ -274,6 +345,77 @@
       "inProgress": "בתהליך",
       "done": "הושלם",
       "error": "שגיאה"
+    }
+  },
+  "subagents": {
+    "label": "סוכני משנה"
+  },
+  "spotlight": {
+    "placeholder": "חיפוש שיחות, סוכנים, הגדרות ופעולות…",
+    "searching": "מחפש…",
+    "emptyTitle": "לא נמצאו תוצאות מתאימות",
+    "emptyDescription": "נסו מילת מפתח אחרת או פתחו שיחה אחרונה.",
+    "hints": "↑↓ מעבר · Enter פתיחה · Esc סגירה · Home/End קפיצה",
+    "kind": {
+      "session": "שיחה",
+      "message": "הודעה",
+      "agent": "סוכן",
+      "setting": "הגדרה",
+      "action": "פעולה"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "חיפוש בשיחה",
+    "ariaLabel": "חיפוש בשיחה הנוכחית",
+    "previous": "התאמה קודמת",
+    "next": "התאמה הבאה",
+    "close": "סגירת החיפוש"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "מעבר לסוכן DeepChat",
+      "description": "לפני שמתחילים לשוחח, עברו מ-ACP וחזרו לזרימה המובנית של DeepChat.",
+      "caption": "כדי להמשיך, לחצו על כפתור הסוכן המודגש בסרגל הצד."
+    },
+    "switchModel": {
+      "description": "בחרו את המודל שבו תרצו להשתמש בשיחת ה-DeepChat הראשונה שלכם.",
+      "caption": "השתמשו במחליף המודלים המודגש ובחרו כל מודל זמין."
+    },
+    "firstChat": {
+      "description": "הכול מוכן. הקלידו כאן את ההודעה הראשונה כדי להשלים את תהליך ההיכרות.",
+      "caption": "ההדגשה תישאר על שדה הקלט עד שתשלחו את ההודעה הראשונה."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "טיוטת מיומנות",
+    "confirmationQuestion": "נוצרה טיוטת מיומנות: {name}",
+    "previewTitle": "תצוגה מקדימה של תוכן הטיוטה",
+    "actions": {
+      "view": "הצגת תוכן",
+      "viewDescription": "תצוגה מקדימה של תוכן ה-SKILL.md של הטיוטה",
+      "install": "התקנה כמיומנות",
+      "installDescription": "ייבוא לתיקיית המיומנויות לצורך ניהול",
+      "discard": "מחיקה",
+      "discardDescription": "מחיקת הטיוטה הזמנית הזו"
+    },
+    "result": {
+      "viewed": "תצוגת תוכן הטיוטה פתוחה. בחרו להתקין או למחוק.",
+      "installed": "טיוטת המיומנות הותקנה: {name}",
+      "discarded": "טיוטת המיומנות נמחקה.",
+      "failed": "הטיפול בטיוטת המיומנות נכשל: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "עבד במשך {duration}",
+    "reasoningCount": "{count} מחשבות",
+    "toolCallCount": "{count} קריאות כלי",
+    "expandLabel": "הרחב את {title}",
+    "collapseLabel": "כווץ את {title}",
+    "duration": {
+      "day": " יום ",
+      "hour": " שעה ",
+      "minute": " דק׳ ",
+      "second": " שנ׳"
     }
   }
 }

@@ -1,17 +1,30 @@
 {
   "success": {
-    "importComplete": "{count} conversation(s) importée(s) avec succès."
+    "importComplete": "{count} conversation(s) importée(s) avec succès.",
+    "cloudConnected": "Cloud connection succeeded",
+    "cloudUploaded": "Uploaded to cloud",
+    "cloudPulled": "Pulled the latest backup from cloud"
   },
   "error": {
     "notEnabled": "La fonction de synchronisation n'est pas activée",
     "folderNotExists": "Le dossier de synchronisation n'existe pas",
     "noValidBackup": "Aucun fichier de sauvegarde valide dans le dossier de synchronisation",
+    "unsupportedBackupVersion": "Cette sauvegarde a été créée par une version plus récente de DeepChat et ne peut pas être importée.",
     "dbNotExists": "Le fichier de base de données n'existe pas",
     "configNotExists": "Le fichier de configuration n'existe pas",
     "tempDbFailed": "Échec de la création du fichier de sauvegarde temporaire de la base de données",
     "tempConfigFailed": "Échec de la création du fichier de sauvegarde temporaire de la configuration",
     "importFailed": "L'importation a échoué, les données d'origine ont été restaurées",
     "importProcess": "Erreur dans le processus d'importation",
-    "unknown": "Erreur inconnue"
+    "unknown": "Erreur inconnue",
+    "encryptedBackupPasswordMissing": "Cette sauvegarde est chiffrée, mais la clé de la base locale n’est pas disponible. Déverrouillez d’abord la base chiffrée, puis relancez l’importation.",
+    "overwriteEncryptionMismatch": "L’importation avec remplacement exige que la sauvegarde et la base actuelle aient le même état de chiffrement.",
+    "cloudNotConfigured": "Cloud is not configured. Fill in and save the cloud connection first.",
+    "cloudNoBackup": "No backup available in the cloud bucket",
+    "cloudDownloadFailed": "Failed to download backup from cloud",
+    "cloudOperationFailed": "Cloud operation failed",
+    "noLocalBackup": "No local backup to upload. Run a backup first.",
+    "safeStorageUnavailable": "Le trousseau système est indisponible ; impossible de stocker la clé secrète en toute sécurité.",
+    "cloudUnauthorized": "L’authentification cloud a échoué. Vérifiez Endpoint, bucket, Access Key ID, Secret Access Key et les autorisations du jeton R2."
   }
 }

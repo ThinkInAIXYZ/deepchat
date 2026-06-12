@@ -8,7 +8,16 @@
     "searchEngine": "Поисковая система",
     "searchEngineSelect": "Выбрать поисковую систему",
     "searchPreview": "Предпросмотр поиска",
+    "launchAtLoginEnabled": "Запускать DeepChat при входе в систему",
     "autoScrollEnabled": "Автопрокрутка во время генерации",
+    "privacyMode": "Режим конфиденциальности",
+    "privacyModeDescription": "Останавливает автоматические исходящие запросы, которыми управляет DeepChat:",
+    "privacyModeAutoUpdate": "Проверка обновлений приложения",
+    "privacyModeProviderDb": "Обновление метаданных провайдеров и моделей",
+    "privacyModeAcpRegistry": "Обновление реестра ACP и синхронизация значков",
+    "privacyModeNpmRegistry": "Автоопределение npm-реестра для MCP",
+    "privacyModeManualActions": "Ручные проверки и ручные обновления остаются доступными.",
+    "privacyModeIntegrations": "Настроенные сторонние интеграции остаются доступными.",
     "searchAssistantModel": "Помощник модели",
     "selectModel": "Выбрать модель",
     "proxyMode": "Режим прокси",
@@ -78,7 +87,7 @@
   },
   "notificationsHooks": {
     "title": "Хуки",
-    "description": "Настройте webhook-уведомления и хуки жизненного цикла.",
+    "description": "Настройте команды хуков для событий жизненного цикла.",
     "events": {
       "title": "События",
       "SessionStart": "Начало сессии",
@@ -90,32 +99,45 @@
       "Stop": "Остановка",
       "SessionEnd": "Конец сессии"
     },
-    "telegram": {
-      "title": "Telegram",
-      "description": "Отправлять уведомления через бота Telegram.",
-      "botToken": "Токен бота",
-      "botTokenPlaceholder": "Токен бота Telegram",
-      "chatId": "ID чата",
-      "chatIdPlaceholder": "например 123456789",
-      "threadId": "ID треда (необязательно)",
-      "threadIdPlaceholder": "Необязательный ID треда"
-    },
-    "discord": {
-      "title": "Discord",
-      "description": "Отправлять уведомления через webhook Discord.",
-      "webhookUrl": "URL вебхука",
-      "webhookUrlPlaceholder": "https://discord.com/api/webhooks/..."
-    },
-    "confirmo": {
-      "title": "Confirmo",
-      "description": "Отправлять уведомления через хук Confirmo (все события).",
-      "unavailable": "Хук Confirmo не найден: {path}"
-    },
     "commands": {
       "title": "Команды хуков",
-      "description": "Выполнять команду для каждого события.",
-      "hint": "Пейлоад отправляется в stdin в формате JSON.",
-      "commandPlaceholder": "Команда для запуска"
+      "description": "Запускайте пользовательские команды для выбранных событий жизненного цикла.",
+      "hint": "Полные данные события передаются в stdin в формате JSON.",
+      "commandPlaceholder": "Команда для запуска",
+      "commandLabel": "Команда",
+      "name": "Название",
+      "namePlaceholder": "Название хука",
+      "newHook": "Новый хук",
+      "empty": "Пока нет хуков. Добавьте хук, чтобы начать.",
+      "defaultName": "Хук {index}",
+      "guideTitle": "Как использовать",
+      "guideDescription": "Когда срабатывает отмеченное событие, DeepChat запускает команду. Данные о текущем событии доступны через JSON в stdin, переменные окружения и плейсхолдеры командной строки.",
+      "deliveryTitle": "Как передаются данные",
+      "deliveryStdin": "Полные данные события записываются в stdin в формате JSON.",
+      "deliveryPlaceholder": "Вы можете использовать плейсхолдеры командной строки прямо в команде.",
+      "deliveryEnv": "Те же базовые метаданные также доступны через переменные окружения.",
+      "metadataOnly": "Плейсхолдеры командной строки лучше подходят для небольших метаданных. Подробности о prompt/tool, permission, usage, stop и error читайте из JSON в stdin.",
+      "stdinPreviewLabel": "Пример stdin",
+      "placeholdersTitle": "Плейсхолдеры командной строки",
+      "placeholdersDescription": "Плейсхолдеры разворачиваются перед выполнением и могут передаваться как аргументы команды.",
+      "envTitle": "Переменные окружения",
+      "examplesTitle": "Примеры",
+      "exampleNodeLabel": "Node.js",
+      "examplePythonLabel": "Python",
+      "examplePowerShellLabel": "PowerShell",
+      "fields": {
+        "event": "Имя текущего события",
+        "time": "Время события в формате ISO-8601",
+        "isTest": "Запущено ли это выполнение кнопкой теста",
+        "conversationId": "ID текущего диалога / сессии",
+        "workdir": "Рабочая директория, определённая для сессии",
+        "agentId": "ID текущего агента, если доступен",
+        "providerId": "ID текущего провайдера, если доступен",
+        "modelId": "ID текущей модели, если доступен",
+        "messageId": "ID текущего сообщения пользователя, если доступен",
+        "toolName": "Имя текущего инструмента, если доступно",
+        "toolCallId": "ID текущего вызова инструмента, если доступен"
+      }
     },
     "test": {
       "button": "Тест",
@@ -171,6 +193,23 @@
       "backupSuccessTitle": "Резервное копирование выполнено успешно",
       "backupSuccessMessage": "Резервное копирование данных успешно выполнено"
     },
+    "syncSectionTitle": "Резервное копирование и синхронизация",
+    "operationsSectionTitle": "Операции с данными",
+    "resetDataDescription": "Сбросить чат, базу знаний, конфигурацию или все данные по типу.",
+    "modelConfigUpdate": {
+      "title": "Обновить конфигурацию моделей",
+      "descriptionPrefix": "Синхронизировать данные моделей из ",
+      "linkLabel": "ThinkInAIXYZ/PublicProviderConf",
+      "descriptionSuffix": ".",
+      "button": "Обновить сейчас",
+      "updating": "Обновление...",
+      "updatedTitle": "Конфигурация моделей обновлена",
+      "updatedDescription": "Получены актуальные метаданные провайдеров.",
+      "upToDateTitle": "Уже актуально",
+      "upToDateDescription": "Локальная конфигурация моделей уже использует актуальные метаданные провайдеров.",
+      "failedTitle": "Не удалось обновить",
+      "failedDescription": "Сейчас не удалось обновить конфигурацию моделей. Попробуйте позже."
+    },
     "yoBrowser": {
       "clearButton": "Очистить данные YoBrowser",
       "clearFailedDescription": "Повторите попытку или проверьте журналы для получения дополнительной информации.",
@@ -183,6 +222,210 @@
       "confirmTitle": "Подтвердить очистку данных YoBrowser?",
       "description": "Независимая песочница браузера, которая не использует файлы cookie и локальное хранилище совместно с основным приложением. Данные YoBrowser можно очистить одним щелчком мыши здесь.",
       "title": "Песочница YoBrowser"
+    },
+    "databaseRepair": {
+      "title": "Восстановление базы данных",
+      "description": "Detect and automatically repair the database",
+      "button": "Проверить и восстановить базу данных",
+      "running": "Проверка и восстановление...",
+      "lastResultLabel": "Последний результат: {result}",
+      "summaryHealthy": "Исправна",
+      "summaryRepaired": "Исправлено {count} проблем",
+      "summaryRepairedWithManual": "Исправлено {repaired} проблем, {manual} требуют ручной обработки",
+      "summaryManualOnly": "{manual} проблем требуют внимания",
+      "manualHint": "Ещё {count} проблем требуют ручной обработки.",
+      "toastSuggestedTitle": "Рекомендуется восстановить базу данных",
+      "toastSuggestedDescription": "DeepChat обнаружил проблему со схемой базы данных ({reason}). Вы можете запустить восстановление прямо сейчас.",
+      "toastAction": "Перейти к восстановлению",
+      "toastHealthyTitle": "База данных исправна",
+      "toastHealthyDescription": "Проблем со схемой не обнаружено.",
+      "toastCompletedTitle": "Восстановление базы данных завершено",
+      "toastRepairedDescription": "Исправлено {count} проблем.",
+      "toastManualDescription": "Исправлено {repaired} проблем. Ещё {manual} проблем требуют ручной обработки.",
+      "toastFailedTitle": "Не удалось восстановить базу данных",
+      "toastFailedDescription": "Сейчас не удалось завершить восстановление базы данных. Проверьте логи и повторите попытку.",
+      "reasons": {
+        "missing-table": "отсутствует таблица",
+        "missing-column": "отсутствует столбец",
+        "column-count-mismatch": "несовпадение количества столбцов",
+        "type-mismatch": "несовпадение типа столбца"
+      }
+    },
+    "privacyTitle": "Data & Privacy",
+    "privacyDescription": "Manage backup, sync, privacy mode, maintenance, and dangerous operations.",
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Reset chat, knowledge, or all data. This cannot be undone."
+    },
+    "providerImport": {
+      "entryTitle": "Импорт настроек provider",
+      "entryDescription": "Сканирует CC Switch, Alma, Cherry Studio, Hermes и OpenClaw для поиска учетных данных provider и списков моделей.",
+      "entryButton": "Импорт из агентов",
+      "dialogTitle": "Импорт из других агентов",
+      "dialogDescription": "Сначала выберите найденные приложения, затем проверьте providers, которые DeepChat может импортировать.",
+      "toastTitle": "Импорт providers завершен",
+      "toastDescription": "Импортировано provider: {count}.",
+      "steps": {
+        "scan": "Сканирование",
+        "providers": "Providers",
+        "done": "Готово"
+      },
+      "scanningTitle": "Сканирование установленных агентов",
+      "scanningDescription": "DeepChat проверяет известные локальные файлы конфигурации и никуда не отправляет данные.",
+      "scanFailedTitle": "Сканирование не удалось",
+      "sourcesTitle": "Найденные источники",
+      "sourcesDescription": "Выберите одного или нескольких агентов. Выбранные агенты обрабатываются в указанном порядке.",
+      "selectedSources": "Выбрано {selected}/{total}",
+      "noSourcesTitle": "Не найдена конфигурация provider для импорта",
+      "noSourcesDescription": "Установите один из поддерживаемых агентов или сначала настройте в нем учетные данные provider.",
+      "providersFound": "Provider: {count}",
+      "sourceProgress": "{current} из {total}",
+      "overwriteNote": "Если несколько выбранных providers сопоставлены с одним provider DeepChat, более поздний источник перезапишет более ранний.",
+      "noProvidersTitle": "В этом источнике нет данных provider",
+      "noProvidersDescription": "Этот агент выбран, но импортируемая запись provider не найдена.",
+      "apiKey": "Ключ {value}",
+      "noModels": "Нет списка моделей",
+      "modelsImported": "Моделей: {count}",
+      "importingTitle": "Импорт providers",
+      "importingDescription": "DeepChat записывает выбранные providers и пользовательские модели.",
+      "doneTitle": "Сводка импорта",
+      "doneDescription": "Импортировано provider: {count}. Проверьте результат по каждому provider ниже.",
+      "badges": {
+        "configured": "Настроено"
+      },
+      "sourceStatus": {
+        "found": "Найдено",
+        "not_found": "Не найдено",
+        "error": "Ошибка",
+        "unsupported_platform": "Неподдерживаемая платформа"
+      },
+      "targetKind": {
+        "builtin": "Встроенный",
+        "custom": "Пользовательский",
+        "unsupported": "Не поддерживается"
+      },
+      "warnings": {
+        "already_configured": "Уже настроен в DeepChat, поэтому не выбран по умолчанию.",
+        "missing_api_key": "Отсутствует API-ключ или необходимый endpoint.",
+        "unsupported_provider": "DeepChat не может импортировать этот provider автоматически.",
+        "overwrites_previous_selection": "Этот выбор конфликтует с более ранним источником.",
+        "credential_only_import": "Будет импортирован только API-ключ; DeepChat сохранит endpoint и runtime встроенного provider."
+      },
+      "conflicts": {
+        "overridesPrevious": "Этот выбор перезапишет ранее выбранный provider.",
+        "overwrittenByLater": "Более поздний выбранный источник перезапишет этот provider."
+      },
+      "summary": {
+        "imported": "Импортировано",
+        "created": "Создано",
+        "updated": "Обновлено",
+        "overwritten": "Перезаписано",
+        "models": "Модели",
+        "skipped": "Пропущено"
+      },
+      "resultStatus": {
+        "created": "Создано",
+        "updated": "Обновлено",
+        "skipped": "Пропущено",
+        "overwritten": "Перезаписано"
+      },
+      "actions": {
+        "rescan": "Сканировать снова",
+        "selectAll": "Выбрать все",
+        "clearSelected": "Очистить",
+        "import": "Импортировать выбранное"
+      },
+      "apiTypes": {
+        "openaiCompletions": "OpenAI Chat Completions",
+        "openai": "OpenAI",
+        "openaiResponses": "OpenAI Responses",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "ollama": "Ollama",
+        "mistral": "Mistral AI"
+      },
+      "applyFailed": "Импорт не удался: {message}"
+    },
+    "databaseEncryption": {
+      "title": "Шифрование базы данных SQLite",
+      "description": "Шифрует agent.db с помощью SQLCipher и запрашивает пароль SQLite, когда системная разблокировка недоступна.",
+      "enabled": "Включено",
+      "disabled": "Отключено",
+      "cipher": "Шифр",
+      "systemUnlock": "Системная разблокировка",
+      "startupUnlock": "Разблокировка при запуске",
+      "lastMigration": "Последняя миграция",
+      "loading": "Загрузка",
+      "never": "Никогда",
+      "notRequired": "Не требуется",
+      "systemUnlockAvailable": "Доступна",
+      "systemUnlockUnavailable": "Недоступна",
+      "systemUnlockMode": "Системная разблокировка",
+      "manualUnlock": "Ручной пароль",
+      "currentPassword": "Текущий пароль",
+      "newPassword": "Новый пароль SQLite",
+      "confirmPassword": "Подтвердите пароль",
+      "passwordMismatch": "Пароли не совпадают",
+      "systemCredentialStore": "Когда безопасное системное хранилище доступно, DeepChat сохраняет пароль SQLite в зашифрованном виде в хранилище учетных данных ОС (macOS Keychain, Windows Credential Vault или Linux secret store). После одной успешной разблокировки последующие запуски обычно открываются автоматически; повторный ввод ключа шифрования нужен только после миграции данных, если системные учетные данные отсутствуют или не могут быть расшифрованы, либо если безопасное хранилище недоступно.",
+      "safeStorageUnavailable": "Electron safeStorage недоступен в этой системе. После включения шифрования пароль нужно будет вводить при каждом запуске.",
+      "enableButton": "Включить шифрование",
+      "changeButton": "Изменить пароль",
+      "disableButton": "Отключить шифрование",
+      "enabledTitle": "Шифрование базы данных включено",
+      "changedTitle": "Пароль SQLite изменен",
+      "disabledTitle": "Шифрование базы данных отключено",
+      "failedTitle": "Сбой шифрования базы данных",
+      "failedDescription": "Проверьте пароль и повторите попытку.",
+      "setPasswordButton": "Задать пароль",
+      "enableDialogTitle": "Задать пароль SQLite",
+      "changeDialogTitle": "Изменить пароль SQLite",
+      "disableDialogTitle": "Отключить шифрование базы данных",
+      "enableDialogDescription": "Создает зашифрованную базу SQLite и переносит в нее текущие локальные данные.",
+      "changeDialogDescription": "Переносит текущую зашифрованную базу данных в новую зашифрованную базу с новым паролем.",
+      "disableDialogDescription": "Переносит текущую зашифрованную базу данных обратно в локальную базу в открытом виде.",
+      "cancelButton": "Отмена",
+      "unknown": "Неизвестно"
+    },
+    "cloudSync": {
+      "title": "Облачная синхронизация (совместимо с S3)",
+      "description": "Загружайте резервные копии в S3-совместимое хранилище, например Cloudflare R2, и получайте последнюю копию на другом устройстве.",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "region": "Регион",
+      "prefix": "Префикс пути",
+      "accessKeyId": "Access Key ID",
+      "secretAccessKey": "Secret Access Key",
+      "secretConfigured": "Настроено (оставьте пустым, чтобы сохранить)",
+      "safeStorageUnavailable": "Системная связка ключей недоступна; невозможно безопасно сохранить секретный ключ.",
+      "save": "Сохранить",
+      "test": "Проверить подключение",
+      "upload": "Загрузить в облако",
+      "pull": "Получить последнюю из облака",
+      "savedTitle": "Облачная конфигурация сохранена",
+      "testSuccessTitle": "Подключение успешно",
+      "testFailedTitle": "Подключение не удалось",
+      "uploadSuccessTitle": "Загрузка успешна",
+      "uploadFailedTitle": "Загрузка не удалась",
+      "pullSuccessTitle": "Получение успешно",
+      "providerR2": "Cloudflare R2",
+      "providerCustom": "Пользовательское S3-совместимое",
+      "r2GuideTitle": "Скопируйте учетные данные клиента S3 со страницы API-токена Cloudflare R2.",
+      "r2EndpointHint": "Используйте URL Endpoint для клиентов S3, соответствующий юрисдикции",
+      "r2AccessKeyHint": "Используйте Access Key ID, а не Account ID",
+      "r2SecretHint": "Используйте Secret Access Key, а не значение токена, начинающееся с cfat_",
+      "r2DocsLink": "Открыть документацию Cloudflare R2 S3",
+      "endpointR2Description": "Используйте https://<account_id>.r2.cloudflarestorage.com без имени bucket.",
+      "endpointCustomDescription": "Используйте Endpoint S3-совместимого сервиса.",
+      "r2AccessKeyAccountIdWarning": "Это значение похоже на R2 Account ID. Access Key ID находится в разделе учетных данных клиента S3.",
+      "r2SecretApiTokenError": "Здесь нужен S3 Secret Access Key, а не значение API-токена Cloudflare, начинающееся с cfat_.",
+      "secretStoredDescription": "Секретный ключ сохранен. Оставьте поле пустым, чтобы сохранить его, или введите новое значение для замены.",
+      "secretInputDescription": "Скопируйте Secret Access Key из раздела учетных данных клиента S3.",
+      "advancedTitle": "Расширенные настройки",
+      "r2RegionDescription": "Для Cloudflare R2 обычно следует оставить значение auto.",
+      "prefixDescription": "Резервные копии записываются под этим префиксом пути.",
+      "saveAndTest": "Сохранить и проверить",
+      "saveOnly": "Только сохранить",
+      "saveAndTestFirst": "Сначала сохраните и проверьте облачную конфигурацию."
     }
   },
   "dashboard": {
@@ -288,6 +531,9 @@
     },
     "unavailable": "Недоступно"
   },
+  "modelConfigItem": {
+    "chatFallbackWarning": "Слабые возможности Agent: поддерживаются только устаревшие fallback-вызовы инструментов"
+  },
   "model": {
     "title": "Настройки модели",
     "systemPrompt": {
@@ -346,6 +592,10 @@
       },
       "createTitle": "Добавить пользовательскую модель",
       "editTitle": "Изменить конфигурацию модели — {name}",
+      "speechRecognition": {
+        "label": "Распознавание речи",
+        "description": "Управляет тем, разрешён ли для этой модели голосовой ввод с локальным преобразованием речи в текст."
+      },
       "functionCall": {
         "description": "Независимо от того, поддерживает ли модель вызовы функций назначать (DeepChat автоматически смоделирует вызовы функций после отключения этой опции)",
         "label": "Функциональные вызовы"
@@ -355,8 +605,12 @@
         "label": "Максимальная длина выходного сигнала"
       },
       "reasoning": {
-        "description": "Поддерживает ли модель способность рассуждать?",
+        "description": "Эта модель поддерживает рассуждение",
         "label": "Способность рассуждать"
+      },
+      "reasoningToggle": {
+        "description": "Определяет, включено ли рассуждение по умолчанию для этой модели",
+        "label": "Включить рассуждение"
       },
       "interleavedThinking": {
         "label": "Interleaved Thinking",
@@ -383,10 +637,13 @@
         "description": "Контролирует глубину рассуждения модели; более высокое усилие дает лучшие результаты, но более медленные ответы",
         "placeholder": "Выберите усилие рассуждения",
         "options": {
+          "none": "None - Без рассуждений",
           "minimal": "Minimal - Самый быстрый ответ",
           "low": "Low - Низкое усилие",
           "medium": "Medium - Умеренное усилие",
-          "high": "High - Высокое усилие"
+          "high": "High - Высокое усилие",
+          "xhigh": "XHigh - Максимальное усилие",
+          "max": "Max - Наивысшее усилие"
         }
       },
       "verbosity": {
@@ -405,7 +662,12 @@
       "currentUsingModelDefault": "В настоящее время используются настройки модели по умолчанию",
       "temperature": {
         "description": "Управляйте случайностью выхода. Большинство моделей 0-1, а некоторая поддержка между 0-2. Чем выше, тем выше случайность.",
+        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 фиксирует температуру на уровне {enabled}, когда мышление включено, и на уровне {disabled}, когда оно отключено.",
         "label": "температура"
+      },
+      "topP": {
+        "label": "Top P",
+        "description": "Управляет nucleus sampling. Оставьте пустым, чтобы использовать значение модели или провайдера по умолчанию."
       },
       "title": "Пользовательские параметры модели",
       "type": {
@@ -415,7 +677,8 @@
           "chat": "Языковая модель",
           "embedding": "Встроенная модель",
           "imageGeneration": "Модель генерации изображений",
-          "rerank": "Переупорядочить модель"
+          "rerank": "Переупорядочить модель",
+          "videoGeneration": "Модель генерации видео"
         }
       },
       "validation": {
@@ -427,7 +690,10 @@
         "maxTokensRequired": "Максимальная длина выходной подачи не может быть пустой",
         "temperatureMax": "Температура должна быть меньше или равна 2",
         "temperatureMin": "Температура должна быть больше или равна 0",
-        "temperatureRequired": "Температура не может быть пустой"
+        "temperatureRequired": "Температура не может быть пустой",
+        "timeoutMin": "Тайм-аут запроса должен быть не менее 1000ms",
+        "timeoutMax": "Тайм-аут запроса не может превышать 3600000ms",
+        "topPRange": "Top P должно быть больше 0 и меньше либо равно 1"
       },
       "vision": {
         "description": "Поддерживает ли модель визуальные способности?",
@@ -438,7 +704,118 @@
         "label": "Конечная точка API",
         "options": {
           "chat": "генерация текста",
-          "image": "Генерация изображений"
+          "image": "Генерация изображений",
+          "video": "Video Generation"
+        }
+      },
+      "endpointType": {
+        "label": "Тип конечной точки",
+        "description": "Выберите, какой upstream-протокол New API должен использовать для этой модели.",
+        "placeholder": "Выберите тип конечной точки",
+        "required": "Тип конечной точки обязателен",
+        "options": {
+          "openai": "OpenAI Chat",
+          "openai-response": "OpenAI Responses",
+          "anthropic": "Anthropic Messages",
+          "gemini": "Gemini Native",
+          "image-generation": "Генерация изображений",
+          "video-generation": "Video Generation"
+        }
+      },
+      "reasoningVisibility": {
+        "label": "Отображение рассуждений",
+        "description": "Управляет тем, скрывать ли содержимое рассуждений или показывать его в виде краткого резюме, когда рассуждение включено",
+        "placeholder": "Выберите способ отображения рассуждений",
+        "options": {
+          "omitted": "Omitted - Не показывать содержимое рассуждений",
+          "summarized": "Summarized - Показывать краткое резюме рассуждений"
+        }
+      },
+      "timeout": {
+        "label": "Request Timeout (ms)",
+        "description": "Set the timeout for a single model request. If exceeded, the request will be aborted."
+      },
+      "imageGeneration": {
+        "default": "По умолчанию",
+        "size": {
+          "label": "Размер изображения",
+          "custom": "Пользовательский",
+          "placeholder": "например 2048x2048",
+          "experimental": "Размеры больше 2560x1440 отмечены OpenAI как экспериментальные.",
+          "validation": {
+            "invalid_format": "Используйте формат {width}x{height}.",
+            "invalid_multiple": "Ширина и высота должны быть кратны 16.",
+            "side_too_large": "Ширина и высота должны быть не более 3840px.",
+            "aspect_ratio_too_large": "Длинная сторона не может быть больше короткой более чем в 3 раза.",
+            "pixel_count_out_of_range": "Общее число пикселей должно быть от 655360 до 8294400."
+          }
+        },
+        "quality": {
+          "label": "Качество",
+          "options": {
+            "low": "Низкое",
+            "medium": "Среднее",
+            "high": "Высокое",
+            "auto": "Авто"
+          }
+        },
+        "outputFormat": {
+          "label": "Формат вывода",
+          "options": {
+            "png": "PNG",
+            "jpeg": "JPEG",
+            "webp": "WebP"
+          }
+        },
+        "outputCompression": {
+          "label": "Сжатие",
+          "placeholder": "По умолчанию: 100",
+          "validation": "Сжатие должно быть целым числом от 0 до 100."
+        },
+        "background": {
+          "label": "Фон",
+          "options": {
+            "auto": "Авто",
+            "opaque": "Непрозрачный"
+          }
+        },
+        "moderation": {
+          "label": "Модерация",
+          "options": {
+            "auto": "Авто",
+            "low": "Низкая"
+          }
+        }
+      },
+      "videoGeneration": {
+        "size": {
+          "label": "Frame size",
+          "placeholder": "e.g. 1280x720"
+        },
+        "seconds": {
+          "label": "Seconds",
+          "placeholder": "e.g. 5"
+        },
+        "duration": {
+          "label": "Duration",
+          "placeholder": "e.g. 5",
+          "description": "Sent through extra_body.duration for compatible video endpoints."
+        },
+        "ratio": {
+          "label": "Aspect ratio",
+          "placeholder": "e.g. 16:9"
+        },
+        "resolution": {
+          "label": "Resolution",
+          "placeholder": "e.g. 720p"
+        },
+        "watermark": {
+          "label": "Watermark",
+          "description": "Request a provider-side watermark when the upstream endpoint supports it."
+        },
+        "generateAudio": {
+          "label": "Generate audio",
+          "description": "Request an audio track together with the generated video when supported."
         }
       }
     }
@@ -450,6 +827,11 @@
     "disabled": "Отключен",
     "urlPlaceholder": "Введите API URL",
     "keyPlaceholder": "Введите API Key",
+    "authMode": "Способ аутентификации",
+    "authModeAccessKeys": "Ключи доступа",
+    "authModeProfile": "Профиль AWS",
+    "profileNameLabel": "Имя профиля AWS",
+    "profilePlaceholder": "Введите имя профиля AWS (напр. default)",
     "accessKeyIdPlaceholder": "Введите AWS Access Key ID",
     "secretAccessKeyPlaceholder": "Введите AWS Secret Access Key",
     "regionPlaceholder": "Введите регион AWS",
@@ -484,8 +866,8 @@
     "stopModel": "Остановить модель",
     "pulling": "Скачивание...",
     "runModel": "Запустить модель",
-    "voiceai": {
-      "title": "Синтез речи Voice.ai",
+    "tts": {
+      "title": "Текст в речь (TTS)",
       "description": "Генерируйте речь из текста. Голоса отображаются в списке моделей ниже.",
       "audioFormat": {
         "label": "Аудиоформат",
@@ -563,6 +945,11 @@
         "overwriteWarning": "Этот импорт перезапишет текущую конфигурацию провайдера.",
         "confirming": "Импорт..."
       },
+      "baseUrlUnlock": {
+        "title": "Подтвердить изменение базового URL",
+        "description": "Изменять базовый URL для этого провайдера не рекомендуется. Неверный адрес конечной точки может привести к ошибкам запросов или другому непредвиденному поведению. Если вы понимаете риск, всё равно можно продолжить.",
+        "confirm": "Продолжить"
+      },
       "deleteProvider": {
         "title": "Подтверждение удаления провайдера",
         "content": "Вы уверены, что хотите удалить провайдера \"{name}\"? Это действие нельзя отменить.",
@@ -602,6 +989,9 @@
     "urlFormat": "Образец API: {defaultUrl}",
     "urlFormatFill": "Подставить в URL API",
     "openaiResponsesNotice": "OpenAI по умолчанию использует Responses API. Если сторонний endpoint поддерживает только Chat Completions, используйте провайдера OpenAI Completions.",
+    "modifyBaseUrl": "Изменить",
+    "baseUrlLockedHint": "Этот провайдер закреплён за рекомендуемым базовым URL, чтобы снизить риск ошибочной настройки.",
+    "refreshModelsWithMetadataHint": "Обновление этого провайдера сначала синхронизирует метаданные из upstream, а затем пересоберёт локальный список моделей.",
     "azureApiVersion": "Версия API",
     "safety": {
       "title": "Настройки безопасности",
@@ -640,7 +1030,13 @@
       "backupSuccessTitle": "Резервное копирование завершено",
       "backupSuccessMessage": "Резервная копия сохранена (время: {time}, размер: {size})",
       "importSuccessTitle": "Импорт завершён",
-      "importSuccessMessage": "Успешно импортировано {count} бесед"
+      "importSuccessMessage": "Успешно импортировано {count} бесед",
+      "refreshModelsSuccessTitle": "Модели обновлены",
+      "refreshModelsSuccessDescription": "Для этого провайдера синхронизирован актуальный список моделей.",
+      "refreshModelsSuccessDescriptionWithMetadata": "Для этого провайдера синхронизированы upstream-метаданные и актуальный список моделей.",
+      "refreshModelsFailedTitle": "Не удалось обновить",
+      "refreshModelsFailedDescription": "Сейчас не удалось обновить модели этого провайдера. Попробуйте позже.",
+      "refreshModelsFailedDescriptionWithMetadata": "Сейчас не удалось синхронизировать upstream-метаданные и модели этого провайдера. Попробуйте позже."
     },
     "apiKeyLabel": "API ключ",
     "apiUrlLabel": "API URL",
@@ -703,7 +1099,25 @@
     "operationSuccess": "Операция успешна",
     "settingsApplied": "Применяются настройки",
     "bedrockLimitTip": "* Поддерживает только Anthropic Claude (включая модели Opus, Sonnet, Haiku)",
-    "bedrockVerifyTip": "DeepChat использует модель Claude 3.5 Sonnet для верификации. Если у вас нет разрешения на её использование, верификация не пройдёт. Это не повлияет на использование других моделей."
+    "bedrockVerifyTip": "DeepChat использует модель Claude 3.5 Sonnet для верификации. Если у вас нет разрешения на её использование, верификация не пройдёт. Это не повлияет на использование других моделей.",
+    "center": {
+      "title": "Provider Center",
+      "description": "Manage provider connections, models, and advanced configuration.",
+      "noApiUrl": "No API URL configured",
+      "enabledModels": "{count} models enabled",
+      "noAdvancedConfig": "This provider has no extra advanced configuration.",
+      "status": {
+        "connected": "Connected",
+        "keyMissing": "Key missing",
+        "disabled": "Disabled",
+        "local": "Local"
+      },
+      "tabs": {
+        "connection": "Connect",
+        "models": "Models",
+        "advanced": "Advanced"
+      }
+    }
   },
   "knowledgeBase": {
     "title": "Настройки базы знаний",
@@ -842,6 +1256,7 @@
     "stopServer": "Остановить сервер",
     "startServer": "Запустить сервер",
     "noServersFound": "Серверы не найдены",
+    "noServersDescription": "Добавьте MCP-сервер, чтобы использовать инструменты, промпты и ресурсы.",
     "addServerDialog": {
       "title": "Добавить сервер",
       "description": "Настройка нового сервера MCP"
@@ -956,7 +1371,7 @@
     "removeDefaultFirst": "Сначала удалите несколько серверов по умолчанию",
     "higressMarket": "Перейти к установке Higress MCP",
     "npmRegistry": {
-      "title": "Настройка источников NPM",
+      "title": "Источник NPM",
       "currentSource": "Текущий источник",
       "cached": "Кэшировано",
       "lastChecked": "Последняя проверка",
@@ -1002,7 +1417,85 @@
     "restartServer": "Перезапустить сервер",
     "viewLogs": "Просмотр логов",
     "starting": "Запуск",
-    "error": "Ошибка"
+    "error": "Ошибка",
+    "managedServerReadOnly": "DeepChat managed service",
+    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "center": {
+      "title": "MCP Center",
+      "running": "Running",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "searchPlaceholder": "Search MCP servers...",
+      "noResults": "No matching MCP servers",
+      "command": "Command / URL",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "stopped": "Stopped",
+        "builtIn": "Built-in",
+        "custom": "Custom"
+      }
+    }
+  },
+  "scheduledTasks": {
+    "title": "Запланированные задачи",
+    "description": "Покажите системное уведомление или отправьте готовый промпт агенту в выбранное время.",
+    "hint": "Разовые задачи, пропущенные при закрытом приложении, выполняются при следующем запуске; повторяющиеся задачи переходят к следующему времени.",
+    "newTask": "Новая задача",
+    "empty": "Задач пока нет",
+    "namePlaceholder": "Название задачи",
+    "fireNow": "Запустить сейчас",
+    "fireNowSuccess": "Задача запущена",
+    "defaults": {
+      "name": "Новая задача",
+      "title": "Напоминание",
+      "body": "Время пришло"
+    },
+    "trigger": {
+      "title": "Триггер",
+      "kind": "Тип триггера",
+      "kindOnce": "Один раз",
+      "kindDaily": "Ежедневно",
+      "kindWeekly": "Еженедельно",
+      "firesAt": "Запустить в",
+      "dayOfWeek": "День недели",
+      "time": "Время",
+      "description": "Выберите, когда выполнять эту задачу."
+    },
+    "action": {
+      "title": "Действие",
+      "kind": "Тип действия",
+      "kindNotify": "Уведомление",
+      "kindPrompt": "Чат-промпт",
+      "titleField": "Заголовок",
+      "titlePlaceholder": "Заголовок уведомления",
+      "body": "Текст",
+      "message": "Сообщение",
+      "agentId": "Агент",
+      "agentIdPlaceholder": "по умолчанию: deepchat",
+      "modelId": "Модель",
+      "modelIdPlaceholder": "оставьте пустым для значения по умолчанию",
+      "systemPrompt": "Системный промпт",
+      "autoSend": "Автоматически отправить выбранному агенту",
+      "description": "Выберите уведомление или промпт для агента."
+    },
+    "weekday": {
+      "sun": "Вс",
+      "mon": "Пн",
+      "tue": "Вт",
+      "wed": "Ср",
+      "thu": "Чт",
+      "fri": "Пт",
+      "sat": "Сб"
+    },
+    "listTitle": "Список задач",
+    "listDescription": "Управляйте расписаниями, действиями и состоянием включения в одном месте.",
+    "summary": {
+      "task": "{trigger} · {action}",
+      "once": "{time}",
+      "daily": "Каждый день в {time}",
+      "weekly": "{day} в {time}"
+    }
   },
   "about": {
     "title": "О нас",
@@ -1044,12 +1537,15 @@
     "goSettings": "Откройте настройки",
     "hideWindow": "Скрыть окно",
     "quitApp": "Отказаться от приложения",
+    "toggleSidebar": "Показать/скрыть боковую панель",
+    "toggleWorkspace": "Показать/скрыть рабочую область",
     "zoomIn": "Увеличить",
     "zoomOut": "Увеличить",
     "zoomReset": "Сбросить Zoom",
     "newWindow": "Откройте новое окно",
     "showHideWindow": "Показать/Скрыть окно",
     "newConversation": "Новый разговор",
+    "quickSearch": "Поиск Spotlight",
     "closeWindow": "Закройте текущую страницу вкладки"
   },
   "rateLimit": {
@@ -1112,7 +1608,7 @@
     "disabledBadge": "Не активировано",
     "loading": "Загрузка данных ACP...",
     "manageProfiles": "Профили",
-    "none": "никто",
+    "none": "Нет",
     "profileDialog": {
       "addBuiltinTitle": "Добавлена новая конфигурация {name}",
       "addCustomTitle": "Добавить пользовательского агента",
@@ -1183,14 +1679,21 @@
       "eventCount": "{count} событий",
       "eventKinds": {
         "error": "ошибка",
+        "lifecycle": "Жизненный цикл",
         "notification": "Уведомление",
         "permission": "Разрешение",
         "request": "Запрос",
-        "response": "Ответ"
+        "response": "Ответ",
+        "stderr": "stderr"
       },
       "events": "События",
       "format": "Формат JSON",
       "methods": {
+        "authenticate": "Аутентификация",
+        "sessionClose": "Закрыть сеанс",
+        "sessionFork": "Создать ветку сеанса",
+        "sessionList": "Список сеансов",
+        "sessionResume": "Возобновить сеанс",
         "cancel": "сеанс/отмена",
         "extMethod": "расширение/метод",
         "extNotification": "расширение/уведомление",
@@ -1249,6 +1752,10 @@
     "installedEmptyDescription": "Install an agent from the ACP Registry first, then configure it here.",
     "registryOverlayEmpty": "No agents match the current filters.",
     "registryInstallAction": "Install",
+    "registryUninstallAction": "Удалить",
+    "registryUninstallConfirm": "Удалить агента «{name}»?",
+    "registryUninstallDescription": "DeepChat отключит этого агента и, если применимо, очистит локально управляемые данные установки. При необходимости его можно снова установить из ACP Registry.",
+    "registryUninstallFailed": "Не удалось удалить агента",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Search, filter, and install ACP agents. Configure them back in settings after installation.",
     "registryLearnMore": "Learn More",
@@ -1261,6 +1768,10 @@
   },
   "skills": {
     "addSkill": "Добавить навык",
+    "draftSuggestions": {
+      "title": "Предлагать черновики навыков",
+      "description": "После завершения задачи разрешите Agent предлагать временные переиспользуемые черновики навыков. Черновики будут храниться во временной папке, пока вы не решите импортировать их вручную."
+    },
     "conflict": {
       "description": "Навык с именем «{name}» уже существует. Заменить его?",
       "overwrite": "покрытие",
@@ -1315,15 +1826,15 @@
     "install": {
       "description": "Выберите способ установки skill",
       "failed": "Установка не удалась",
-      "folderHint": "Нажмите, чтобы выбрать папку skill",
+      "folderHint": "Нажмите или перетащите сюда папку skill",
       "folderTip": "Поддерживает прямой импорт из ~/.claude/skills/ и других клиентов",
       "installing": "Устанавливается...",
       "success": "Установка завершена успешно",
       "tabFolder": "папка",
       "title": "Установить skill",
       "urlPlaceholder": "Введите адрес для скачивания skill ZIP",
-      "zipHint": "Нажмите, чтобы выбрать ZIP-файл",
-      "dragNotSupported": "Перетаскивание пока не поддерживается. Пожалуйста, кликните для выбора.",
+      "zipHint": "Нажмите или перетащите сюда ZIP-файл",
+      "dragInvalid": "Содержимое не поддерживается. Перетащите папку skill или один файл .zip.",
       "fromFolder": "Установка из папки",
       "installButton": "установка",
       "selectFolder": "Выберите папку skill",
@@ -1479,12 +1990,50 @@
   },
   "remote": {
     "title": "Удалённое управление",
-    "description": "Настройте удалённое управление через Telegram и Feishu в одном месте.",
+    "description": "Здесь можно централизованно настроить удалённое управление через Telegram, Feishu, QQBot и WeChat iLink.",
     "telegram": {
       "title": "Telegram",
-      "description": "Управляйте одним ботом Telegram для удалённого управления и доставки хуков.",
+      "description": "Подключите бота Telegram для удалённого управления через личные сообщения, группы и ветки тем.",
       "botToken": "Токен бота",
-      "botTokenPlaceholder": "Токен бота Telegram"
+      "botTokenPlaceholder": "Токен бота Telegram",
+      "botTokenDescription": "Введите токен бота Telegram, который будет использоваться для удалённого управления через Telegram."
+    },
+    "feishu": {
+      "title": "Feishu / Lark",
+      "description": "Подключите бота Feishu для личных сообщений, групповых чатов и веток тем.",
+      "brand": "Бренд",
+      "brandFeishu": "Feishu",
+      "brandLark": "Lark",
+      "appId": "ID приложения",
+      "appIdPlaceholder": "ID приложения Feishu",
+      "appSecret": "Секрет приложения",
+      "appSecretPlaceholder": "Секрет приложения Feishu",
+      "verificationToken": "Токен проверки",
+      "verificationTokenPlaceholder": "Токен проверки Feishu",
+      "encryptKey": "Ключ шифрования (необязательно)",
+      "encryptKeyPlaceholder": "Оставьте пустым, если шифрование событий не включено",
+      "botUser": "Пользователь бота: {name} ({openId})",
+      "bindings": "Привязки: {count}, связанных пользователей: {pairedUserCount}",
+      "pairedUserOpenIds": "Open ID связанных пользователей",
+      "pairedUserOpenIdsPlaceholder": "например: ou_xxx, ou_yyy",
+      "accessRulesDescription": "Сначала выполните привязку в личном сообщении. В группах только связанные пользователи, которые упоминают бота через {'@'}, могут управлять сессией.",
+      "accessRule1": "Выполните привязку в личном сообщении командой /pair [код].",
+      "accessRule2": "В группах и темах бот реагирует только тогда, когда связанный пользователь упоминает его через {'@'}."
+    },
+    "discord": {
+      "title": "Discord",
+      "description": "Подключите бота Discord для личных сообщений, упоминаний в каналах и удалённого управления через slash-команды.",
+      "botToken": "Токен бота",
+      "botTokenPlaceholder": "Токен бота Discord",
+      "remoteControlDescription": "Удалённое управление в Discord использует собственный токен бота, шлюз и REST API.",
+      "accessRule1": "Отправьте /pair [code] в личном сообщении или целевом канале, чтобы авторизовать текущую точку входа Discord.",
+      "accessRule2": "Сообщения из канала попадают в сессию только при упоминании бота, чтобы не захватывать обычный чат."
+    },
+    "sections": {
+      "credentials": "Учетные данные",
+      "remoteControl": "Удалённое управление",
+      "notifications": "Уведомления",
+      "accessRules": "Правила доступа"
     },
     "remoteControl": {
       "title": "Удалённое управление",
@@ -1493,9 +2042,12 @@
       "streamModeDraft": "Черновой стриминг",
       "streamModeFinal": "Только финальный ответ",
       "allowedUserIds": "Разрешённые ID пользователей",
-      "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
+      "allowedUserIdsPlaceholder": "например: 123456789, 987654321",
       "defaultAgent": "Агент DeepChat по умолчанию",
       "defaultAgentPlaceholder": "Выберите агента",
+      "defaultWorkdir": "Каталог по умолчанию",
+      "defaultWorkdirPlaceholder": "Выберите каталог по умолчанию",
+      "defaultWorkdirHelper": "Рабочий каталог для сеансов удаленного управления. Обязателен, когда агент по умолчанию ACP.",
       "openPairDialog": "Связать",
       "manageBindings": "Управление привязками",
       "pairCode": "Код привязки",
@@ -1514,13 +2066,22 @@
       "clearBindings": "Очистить привязки",
       "clearBindingsResult": "Очищено привязок: {count}.",
       "pairDialogInstructionTelegram": "Отправьте эту команду боту Telegram:",
-      "pairDialogInstructionFeishu": "Отправьте эту команду боту Feishu в личном сообщении:"
+      "pairDialogInstructionFeishu": "Отправьте эту команду боту Feishu в личном сообщении:",
+      "pairDialogInstructionDiscord": "Отправьте эту команду боту Discord в личном сообщении или целевом канале:",
+      "pairDialogInstructionQQBot": "Отправьте эту команду в чат с QQ-ботом или в авторизованную группу QQ:",
+      "authorizedPrincipalsTitle": "Авторизованные субъекты",
+      "authorizedPrincipalsDescription": "Эти аккаунты {channel} авторизованы и могут выполнять привязку и управлять сессиями.",
+      "authorizedPrincipalsEmpty": "Пока нет авторизованных субъектов.",
+      "sessionBindingsTitle": "Привязки сессий",
+      "sessionBindingsDescription": "Каждая удалённая точка входа ниже сейчас привязана к одной сессии DeepChat.",
+      "acpDefaultWorkdirRequiredTitle": "Требуется каталог по умолчанию",
+      "acpDefaultWorkdirRequiredDescription": "Агентам ACP нужен локальный рабочий каталог. Выберите каталог по умолчанию перед сохранением."
     },
     "hooks": {
-      "title": "Telegram Hook уведомления",
-      "description": "Используйте того же бота Telegram для hook-уведомлений.",
+      "title": "Уведомления хуков Telegram",
+      "description": "Используйте того же бота Telegram для уведомлений хуков.",
       "chatId": "ID чата",
-      "chatIdPlaceholder": "e.g. 123456789",
+      "chatIdPlaceholder": "например: 123456789",
       "threadId": "ID треда (необязательно)",
       "threadIdPlaceholder": "Необязательный ID треда"
     },
@@ -1535,43 +2096,62 @@
         "running": "Работает",
         "backoff": "Повтор после сбоя",
         "error": "Ошибка"
-      }
-    },
-    "feishu": {
-      "title": "Feishu",
-      "description": "Подключите бота Feishu для личных сообщений, групповых чатов и веток тем.",
-      "appId": "ID приложения",
-      "appIdPlaceholder": "ID приложения Feishu",
-      "appSecret": "Секрет приложения",
-      "appSecretPlaceholder": "Секрет приложения Feishu",
-      "verificationToken": "Токен проверки",
-      "verificationTokenPlaceholder": "Токен проверки Feishu",
-      "encryptKey": "Ключ шифрования (необязательно)",
-      "encryptKeyPlaceholder": "Оставьте пустым, если шифрование событий не включено",
-      "botUser": "Пользователь бота: {name} ({openId})",
-      "bindings": "Привязки: {count}, связанных пользователей: {pairedUserCount}",
-      "pairedUserOpenIds": "Open ID связанных пользователей",
-      "pairedUserOpenIdsPlaceholder": "например: ou_xxx, ou_yyy",
-      "accessRulesDescription": "Сначала выполните привязку в личном сообщении. В группах только связанные пользователи, которые упоминают бота через {'@'}, могут управлять сессией.",
-      "accessRule1": "Выполните привязку в личном сообщении командой /pair [код].",
-      "accessRule2": "В группах и темах бот реагирует только тогда, когда связанный пользователь упоминает его через {'@'}."
-    },
-    "sections": {
-      "credentials": "Учетные данные",
-      "remoteControl": "Удалённое управление",
-      "notifications": "Уведомления",
-      "accessRules": "Правила доступа"
+      },
+      "bindingOnly": "Привязки: {count}, связанных субъектов: {paired}"
     },
     "overview": {
-      "telegram": "{bindingCount} привязок, {pairedCount} связанных пользователей, hooks {hooks}",
+      "telegram": "{bindingCount} привязок, {pairedCount} связанных пользователей",
       "feishu": "{bindingCount} привязок, {pairedCount} связанных пользователей",
       "hooksOn": "вкл.",
-      "hooksOff": "выкл."
+      "hooksOff": "выкл.",
+      "qqbot": "{bindingCount} привязок, {pairedCount} связанных пользователей",
+      "discord": "{bindingCount} привязок, {pairedCount} сопряжённых каналов",
+      "weixinIlink": "{bindingCount} привязок, {accountCount} аккаунтов, подключено {connectedCount}"
     },
     "bindingKinds": {
       "dm": "Личка",
       "group": "Группа",
       "topic": "Тема"
+    },
+    "qqbot": {
+      "title": "QQBot",
+      "description": "Подключите официальный QQ Bot для C2C-чатов и управления ботом по упоминанию в авторизованных группах.",
+      "appId": "ID приложения",
+      "appIdPlaceholder": "ID приложения QQ Bot",
+      "clientSecret": "Секрет клиента",
+      "clientSecretPlaceholder": "Секрет клиента QQ Bot",
+      "remoteControlDescription": "Официальные идентификаторы openid в QQ различаются для C2C и групп, поэтому в личных сообщениях выполняется привязка пользователя, а группы нужно авторизовать отдельно через /pair.",
+      "pairedUserIds": "OpenID связанных пользователей",
+      "pairedUserIdsPlaceholder": "например: user_openid_xxx, user_openid_yyy"
+    },
+    "weixinIlink": {
+      "title": "WeChat iLink",
+      "description": "Подключите официальный бот WeChat iLink через вход по QR-коду, а встроенный адаптер будет обрабатывать сеансы удалённого управления.",
+      "loginDescription": "Нажмите кнопку ниже, чтобы открыть официальное окно входа WeChat. Завершите там авторизацию iLink Bot, и подключённый аккаунт автоматически появится в списке ниже.",
+      "ownerOnlyNotice": "В первой версии управлять DeepChat может только владелец аккаунта, вошедший через QR-код.",
+      "connectButton": "Открыть окно входа",
+      "refreshQrCode": "Открыть окно входа снова",
+      "loginDialogTitle": "Подключить WeChat iLink",
+      "loginDialogDescription": "Официальная страница входа WeChat открывается в отдельном окне. Завершите там авторизацию по QR-коду и держите этот диалог открытым до завершения подключения.",
+      "loginFailed": "Не удалось войти в WeChat iLink.",
+      "loginSuccessTitle": "WeChat iLink подключён",
+      "loginSuccessDescription": "Аккаунт {accountId} готов к работе.",
+      "accountsTitle": "Аккаунты",
+      "accountsDescription": "Каждый подключённый аккаунт iLink Bot работает отдельно и хранит собственные привязки и состояние.",
+      "noAccounts": "Пока не подключено ни одного аккаунта WeChat iLink.",
+      "ownerUserId": "ID владельца: {ownerUserId}",
+      "baseUrl": "Базовый URL: {baseUrl}",
+      "accountBindings": "Привязки: {count}",
+      "remoteControlDescription": "Настройте общего агента по умолчанию для аккаунтов WeChat iLink, затем управляйте привязками, созданными входящими сеансами.",
+      "removeAccount": "Удалить аккаунт",
+      "restartAccount": "Перезапустить аккаунт",
+      "statusSummary": "аккаунтов: {accounts}, подключено: {connected}, привязок: {bindings}",
+      "qrcodeAlt": "QR-код WeChat iLink",
+      "loginWindowOpened": "Официальное окно входа WeChat открыто. Завершите в нём авторизацию по QR-коду.",
+      "loginSessionExpired": "Срок действия этой сессии входа истёк. Откройте окно входа заново и попробуйте ещё раз.",
+      "loginResponseIncomplete": "Ответ входа WeChat iLink был неполным. Попробуйте ещё раз.",
+      "loginTimedOut": "Истекло время ожидания авторизации WeChat iLink. Откройте окно входа заново и попробуйте ещё раз.",
+      "loginConnected": "Аккаунт WeChat iLink подключён."
     }
   },
   "deepchatAgents": {
@@ -1602,6 +2182,8 @@
     "modelsTitle": "Параметры модели по умолчанию",
     "chatModel": "Модель чата по умолчанию",
     "assistantModel": "Модель помощника",
+    "visionModel": "Визуальная модель",
+    "imageGenerationModel": "Модель генерации изображений",
     "temperature": "Температура",
     "contextLength": "Длина контекста",
     "maxTokens": "Макс. токенов",
@@ -1622,6 +2204,121 @@
     "compactionDescription": "Эти значения влияют только на будущие сессии DeepChat.",
     "compactionThreshold": "Порог срабатывания",
     "compactionRetainPairs": "Сохранять последние пары",
-    "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat."
+    "deleteConfirm": "Удалить агента «{name}»? Его история будет возвращена встроенному агенту DeepChat.",
+    "subagentsTitle": "Субагенты",
+    "subagentsDescription": "Настройте переиспользуемые слоты дочерних сессий, доступные через `subagent_orchestrator`.",
+    "subagentsEnabled": "Включить субагентов",
+    "subagentTargetType": "Тип цели",
+    "subagentTargetSelf": "Этот агент",
+    "subagentTargetAgent": "Агент",
+    "subagentDisplayName": "Отображаемое имя",
+    "subagentDescription": "Описание слота",
+    "subagentTargetAgentLabel": "Целевой агент",
+    "subagentLimit": "{count}/{max} слотов",
+    "addSubagentSlot": "+ Добавить слот"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "officialOnly": "Manage built-in official plugins included with this DeepChat version.",
+    "refresh": "Refresh",
+    "empty": "No official plugins available",
+    "loadFailed": "Failed to load plugins",
+    "actionFailed": "Plugin operation failed",
+    "install": "Install",
+    "enable": "Enable",
+    "disable": "Disable",
+    "openSettings": "Settings",
+    "runtime": "Runtime",
+    "version": "Version",
+    "command": "Command",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "available": "Available"
+    },
+    "runtimeStates": {
+      "missing": "Missing",
+      "installed": "Installed",
+      "running": "Running",
+      "error": "Error"
+    },
+    "emptyTitle": "No built-in plugins available",
+    "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
+    "installFromFile": "Choose .dcplugin",
+    "openRelease": "GitHub Release"
+  },
+  "controlCenter": {
+    "groups": {
+      "overview": "Overview",
+      "setup": "Setup",
+      "models": "Agent Settings",
+      "tools": "Capability Extensions",
+      "knowledge": "Knowledge",
+      "system": "System"
+    },
+    "overview": {
+      "title": "Settings Overview",
+      "description": "Review provider, MCP, DeepChat Agents, data, and usage status in one place.",
+      "searchPlaceholder": "Search settings, providers, models, agents, MCP...",
+      "providers": "Providers",
+      "mcp": "MCP",
+      "deepchatAgents": "DeepChat Agents",
+      "data": "Data",
+      "enabledCount": "{count} enabled",
+      "runningCount": "{count} running",
+      "enabledAgentCount": "{count} agents enabled",
+      "providersDescription": "Provider connection status",
+      "deepchatAgentsDescription": "Agent configuration entry point",
+      "mcpOn": "MCP enabled",
+      "mcpOff": "MCP disabled",
+      "syncOn": "Sync enabled",
+      "syncOff": "Sync disabled",
+      "backupNever": "Backup: never"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "addApiKey": "Add API Key",
+      "addApiKeyDesc": "Configure provider access",
+      "enableModel": "Enable Model",
+      "enableModelDesc": "Turn on a usable model",
+      "startMcp": "Start MCP Server",
+      "startMcpDesc": "Start tool servers",
+      "backupNow": "Backup Now",
+      "backupNowDesc": "Create a data backup"
+    },
+    "needsAttention": {
+      "title": "Needs attention",
+      "empty": "Nothing needs attention",
+      "noModels": "No model is enabled",
+      "privacyOff": "Privacy Mode is off",
+      "backupNever": "Backup has never run"
+    },
+    "activity": {
+      "title": "Recent changes",
+      "description": "Shows the newest 200 changes while retaining the newest 2000 records.",
+      "when": "Time",
+      "category": "Category",
+      "change": "Change",
+      "empty": "No recent changes",
+      "emptyDescription": "Successful settings changes will appear here.",
+      "settingUpdated": "Updated setting: {key}",
+      "providerUpdated": "Updated provider: {name}",
+      "providerCreated": "Added provider: {name}",
+      "providerRemoved": "Removed provider: {name}",
+      "providerModelsRefreshed": "Refreshed provider models: {name}",
+      "modelStatusChanged": "Updated model status: {model}",
+      "modelBatchUpdated": "Updated {count} models",
+      "mcpServerCreated": "Added MCP server: {name}",
+      "mcpServerUpdated": "Updated MCP server: {name}",
+      "mcpServerRemoved": "Removed MCP server: {name}",
+      "mcpServerStatusChanged": "Toggled MCP server: {name}",
+      "mcpGlobalStatusChanged": "Toggled MCP global status: {status}",
+      "mcpServerStarted": "Started MCP server: {name}",
+      "mcpServerStopped": "Stopped MCP server: {name}",
+      "mcpRegistryRefreshed": "Refreshed MCP NPM registry",
+      "backupCreated": "Created backup: {name}",
+      "backupImported": "Imported backup: {name}",
+      "databaseRepaired": "Database repair finished: {status}"
+    }
   }
 }

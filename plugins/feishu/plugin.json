@@ -1,0 +1,44 @@
+{
+  "id": "com.deepchat.plugins.feishu",
+  "name": "Feishu/Lark Integration",
+  "version": "0.1.0",
+  "publisher": "DeepChat",
+  "engines": {
+    "deepchat": ">=${app.version}",
+    "platforms": ["darwin", "linux", "win32"]
+  },
+  "activationEvents": ["onEnable"],
+  "capabilities": ["runtime.manage", "mcp.register", "skills.register", "settings.contribute"],
+  "source": {
+    "type": "deepchat-official",
+    "url": "${github.release.download}/deepchat-plugin-feishu-${app.version}-${target.platform}-${arch}.dcplugin",
+    "publisher": "DeepChat"
+  },
+  "mcpServers": [
+    {
+      "id": "feishu-tools",
+      "displayName": "Feishu/Lark Tools",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["${plugin.root}/mcp/serve.mjs"],
+      "env": {},
+      "autoApprove": []
+    }
+  ],
+  "skills": [
+    {
+      "id": "feishu-tools",
+      "path": "skills/feishu-tools/SKILL.md",
+      "scope": "agent"
+    }
+  ],
+  "settingsContributions": [
+    {
+      "id": "feishu-settings",
+      "title": "Feishu/Lark Integration",
+      "placement": "plugins",
+      "entry": "settings/index.html",
+      "preloadTypes": "types/settings-preload.d.ts"
+    }
+  ]
+}

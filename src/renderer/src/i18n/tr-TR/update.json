@@ -1,0 +1,20 @@
+{
+  "newVersion": "Yeni Sürüm Bulundu",
+  "version": "Sürüm",
+  "releaseDate": "Yayın tarihi",
+  "releaseNotes": "Sürüm Notları",
+  "later": "Daha sonra",
+  "githubDownload": "GitHub İndir",
+  "officialDownload": "Resmi İndirme",
+  "checkUpdate": "Güncellemeleri Kontrol Et",
+  "downloading": "İndiriliyor",
+  "installNow": "Şimdi Yükle",
+  "installUpdate": "Güncellemeyi Yükle",
+  "versionAvailable": "{version} mevcut",
+  "autoUpdateFailed": "Otomatik güncelleme başarısız oldu. Lütfen aşağıdaki manuel indirme bağlantılarını kullanın.",
+  "topbarButton": "Güncelleme",
+  "autoUpdate": "Otomatik Güncelleme",
+  "restarting": "Yeniden başlatılıyor",
+  "alreadyUpToDate": "Zaten Güncel",
+  "alreadyUpToDateDesc": "DeepChat cihazınız zaten en son sürüme güncellenmiştir, herhangi bir güncelleme gerekmez."
+}

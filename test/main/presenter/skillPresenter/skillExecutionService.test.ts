@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
 import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
@@ -15,10 +16,16 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', () => ({
-  getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
-  getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
-}))
+vi.mock('../../../../src/main/lib/agentRuntime/shellEnvHelper', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../../src/main/lib/agentRuntime/shellEnvHelper')>()
+
+  return {
+    ...actual,
+    getShellEnvironment: vi.fn().mockResolvedValue({ PATH: '/shell/bin' }),
+    getUserShell: vi.fn().mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
+  }
+})
 
 vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
   rtkRuntimeService: {
@@ -37,6 +44,7 @@ vi.mock('../../../../src/main/lib/agentRuntime/rtkRuntimeService', () => ({
 }))
 
 import { spawn } from 'child_process'
+import * as shellEnvHelper from '../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
@@ -47,6 +55,7 @@ describe('SkillExecutionService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(shellEnvHelper.getUserShell).mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
     vi.mocked(fs.promises.stat).mockResolvedValue({
       isDirectory: () => true
@@ -100,6 +109,8 @@ describe('SkillExecutionService', () => {
     }
   })
 
+  const resolvePath = (targetPath: string) => path.resolve(targetPath)
+
   it('builds spawn plan with session workdir cwd and skill root env', async () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
@@ -115,8 +126,8 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/workspace/session')
-    expect(plan.env.PATH).toBe('/shell/bin')
+    expect(plan.cwd).toBe(resolvePath('/workspace/session'))
+    expect(plan.env.PATH).toContain('/shell/bin')
     expect(plan.env.API_KEY).toBe('secret')
     expect(plan.env.SKILL_ROOT).toBe('/skills/ocr')
     expect(plan.env.DEEPCHAT_SKILL_ROOT).toBe('/skills/ocr')
@@ -138,7 +149,7 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/skills/ocr')
+    expect(plan.cwd).toBe(resolvePath('/skills/ocr'))
   })
 
   it('falls back to skill root cwd when the resolved session workdir is not a directory', async () => {
@@ -158,7 +169,7 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe('/skills/ocr')
+    expect(plan.cwd).toBe(resolvePath('/skills/ocr'))
   })
 
   it('falls back to bundled uv for python auto runtime', async () => {
@@ -177,6 +188,16 @@ describe('SkillExecutionService', () => {
       command: '/runtime/uv',
       mode: 'uv'
     })
+  })
+
+  it('reports unavailable python runtime when uv and system python are missing', async () => {
+    vi.spyOn(service as never, 'hasCommand' as never).mockResolvedValue(false)
+    vi.spyOn(service as never, 'getBundledRuntimeCommand' as never).mockReturnValue(null)
+    vi.spyOn(service as never, 'findSystemPythonRuntime' as never).mockResolvedValue(null)
+
+    await expect(
+      (service as never).resolvePythonRuntime('auto', { PATH: '/bin' }, '/skill')
+    ).rejects.toThrow('No compatible Python runtime found for this skill')
   })
 
   it('switches to shell spawn mode when RTK rewrites the command', async () => {
@@ -224,6 +245,125 @@ describe('SkillExecutionService', () => {
     })
 
     expect((service as never).quoteForShell('value%"PATH"%')).toBe('"value%%\\"PATH\\"%%"')
+  })
+
+  it('wraps Windows shell-mode foreground commands with UTF-8 output setup', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+    vi.mocked(shellEnvHelper.getUserShell).mockReturnValue({
+      shell: 'powershell.exe',
+      args: ['-NoProfile', '-Command']
+    })
+
+    class MockStream extends EventEmitter {
+      destroy = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      kill = vi.fn()
+    }
+
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(null)
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'node',
+        args: ['script.js'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'dir',
+        outputPrefix: 'skill_ocr',
+        spawnMode: 'shell'
+      },
+      1000,
+      'conv-1'
+    )
+
+    child.stdout.emit('data', Buffer.from('ok\n'))
+    child.emit('close', 0)
+
+    const result = await resultPromise
+
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      ['-NoProfile', '-Command', expect.stringContaining('[Console]::OutputEncoding')],
+      expect.objectContaining({
+        shell: false
+      })
+    )
+    expect(result).toContain('ok')
+    expect(result).toContain('Exit Code: 0')
+  })
+
+  it('decodes split UTF-8 foreground output', async () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'win32'
+    })
+
+    class MockStream extends EventEmitter {
+      destroy = vi.fn()
+    }
+
+    class MockChild extends EventEmitter {
+      stdout = new MockStream()
+      stderr = new MockStream()
+      stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+        destroy: vi.fn()
+      }
+      kill = vi.fn()
+    }
+
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(service as never, 'createForegroundOutputPath' as never).mockReturnValue(null)
+
+    const resultPromise = (service as never).runForeground(
+      {
+        command: 'python',
+        args: ['script.py'],
+        cwd: '/skills/ocr',
+        env: { PATH: '/bin' },
+        shellCommand: 'python script.py',
+        outputPrefix: 'skill_ocr',
+        spawnMode: 'direct'
+      },
+      1000,
+      'conv-1'
+    )
+
+    const bytes = Buffer.from('中文.txt\n', 'utf8')
+    child.stdout.emit('data', bytes.subarray(0, 2))
+    child.stdout.emit('data', bytes.subarray(2))
+    child.emit('close', 0)
+
+    const result = await resultPromise
+
+    expect(spawn).toHaveBeenCalledWith(
+      'python',
+      ['script.py'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUTF8: '1'
+        })
+      })
+    )
+    expect(result).toContain('中文.txt')
+    expect(result).toContain('Exit Code: 0')
   })
 
   it('escalates to SIGKILL when foreground timeout grace expires', async () => {

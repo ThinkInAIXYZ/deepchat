@@ -15,6 +15,29 @@ const FILE_CONTENT_TRUNCATION_SUFFIX = '…(truncated)'
 
 type VisionUserMessageContent = UserMessageContent & { images?: string[] }
 
+function parseProviderOptionsJson(
+  value: unknown
+): Record<string, Record<string, unknown>> | undefined {
+  if (typeof value !== 'string' || !value) {
+    return undefined
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (isRecord(parsed) && !Array.isArray(parsed)) {
+      return parsed as Record<string, Record<string, unknown>>
+    }
+  } catch {}
+
+  return undefined
+}
+
+function getBlockProviderOptions(
+  block: AssistantMessageBlock
+): Record<string, Record<string, unknown>> | undefined {
+  return parseProviderOptionsJson(block.extra?.providerOptionsJson)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -253,13 +276,15 @@ export function addContextMessages(
           if (block.type === 'tool_call' && block.tool_call) {
             if (block.tool_call.response) {
               const toolCallId = block.tool_call.id || nanoid(8)
+              const providerOptions = getBlockProviderOptions(block)
               toolCalls.push({
                 id: toolCallId,
                 type: 'function',
                 function: {
                   name: block.tool_call.name,
                   arguments: block.tool_call.params || ''
-                }
+                },
+                ...(providerOptions ? { provider_options: providerOptions } : {})
               })
               toolResponses.push({
                 id: toolCallId,
@@ -267,14 +292,24 @@ export function addContextMessages(
               })
             }
           } else if (block.type === 'content' && block.content) {
-            messageContent.push({ type: 'text', text: block.content })
+            const providerOptions = getBlockProviderOptions(block)
+            messageContent.push({
+              type: 'text',
+              text: block.content,
+              ...(providerOptions ? { provider_options: providerOptions } : {})
+            })
           }
         })
 
         if (toolCalls.length > 0) {
           const assistantMessage: ChatMessage = {
             role: 'assistant',
-            content: messageContent.length > 0 ? messageContent : undefined,
+            content:
+              messageContent.length > 0
+                ? messageContent.some((part) => part.type === 'text' && part.provider_options)
+                  ? messageContent
+                  : messageContent.map((part) => ('text' in part ? part.text : '')).join('')
+                : undefined,
             tool_calls: toolCalls
           }
           resultMessages.push(assistantMessage)
@@ -289,7 +324,9 @@ export function addContextMessages(
         } else if (messageContent.length > 0) {
           const assistantMessage: ChatMessage = {
             role: 'assistant',
-            content: messageContent
+            content: messageContent.some((part) => part.type === 'text' && part.provider_options)
+              ? messageContent
+              : messageContent.map((part) => ('text' in part ? part.text : '')).join('')
           }
           resultMessages.push(assistantMessage)
         }

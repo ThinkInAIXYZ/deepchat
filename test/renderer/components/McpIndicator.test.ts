@@ -27,7 +27,7 @@ const SwitchStub = defineComponent({
   },
   emits: ['update:modelValue'],
   template:
-    '<button role="switch" :aria-label="ariaLabel" :aria-checked="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
+    '<button v-bind="$attrs" role="switch" :aria-label="ariaLabel" :aria-checked="String(modelValue)" :disabled="disabled" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
 })
 
 const buildTool = (name: string, serverName: string, source: 'mcp' | 'agent' = 'agent') => ({
@@ -53,13 +53,51 @@ const setup = async (options?: {
   activeAgentId?: string
   selectedAgentId?: string
   disabledAgentTools?: string[]
+  showSubagentToggle?: boolean
+  subagentEnabled?: boolean
+  pluginEnabled?: boolean
+  regularMcpEnabled?: boolean
 }) => {
   vi.resetModules()
+  let skillSessionChangedHandler:
+    | ((payload: {
+        conversationId?: string | null
+        skills?: string[]
+        change: 'activated' | 'deactivated'
+      }) => void)
+    | undefined
+  const ipcRenderer = {
+    emit: (event: string, payload?: { conversationId?: string; skills?: string[] }) => {
+      if (event === 'skill:activated') {
+        skillSessionChangedHandler?.({
+          conversationId: payload?.conversationId ?? null,
+          skills: payload?.skills,
+          change: 'activated'
+        })
+      }
+      if (event === 'skill:deactivated') {
+        skillSessionChangedHandler?.({
+          conversationId: payload?.conversationId ?? null,
+          skills: payload?.skills,
+          change: 'deactivated'
+        })
+      }
+    }
+  }
 
+  const pluginTools = options?.pluginEnabled
+    ? [buildTool('check_permissions', 'cua-driver', 'mcp')]
+    : []
+  const regularMcpEnabled = options?.regularMcpEnabled ?? true
   const mcpStore = reactive({
-    enabledServers: [{ name: 'demo-server', icons: 'D', enabled: true }],
-    enabledServerCount: 1,
-    tools: [buildTool('mcp_tool', 'demo-server', 'mcp')]
+    enabledServers: regularMcpEnabled ? [{ name: 'demo-server', icons: 'D', enabled: true }] : [],
+    enabledPluginServers: options?.pluginEnabled
+      ? [{ name: 'cua-driver', icons: 'plugin', descriptions: 'CUA Driver', enabled: true }]
+      : [],
+    enabledServerCount: regularMcpEnabled ? 1 : 0,
+    tools: regularMcpEnabled ? [buildTool('mcp_tool', 'demo-server', 'mcp')] : [],
+    visibleTools: regularMcpEnabled ? [buildTool('mcp_tool', 'demo-server', 'mcp')] : [],
+    pluginTools
   })
 
   const sessionStore = reactive({
@@ -97,12 +135,13 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
+        buildTool('update_plan', 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
   }
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getSessionDisabledAgentTools: vi
       .fn()
       .mockResolvedValue([...(options?.disabledAgentTools ?? [])]),
@@ -132,12 +171,41 @@ const setup = async (options?: {
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'toolPresenter') return toolPresenter
-      if (name === 'newAgentPresenter') return newAgentPresenter
-      return windowPresenter
-    }
+  vi.doMock('@api/ToolClient', () => ({
+    createToolClient: vi.fn(() => ({
+      getAllToolDefinitions: toolPresenter.getAllToolDefinitions
+    }))
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: vi.fn(() => ({
+      getSessionDisabledAgentTools: agentSessionPresenter.getSessionDisabledAgentTools,
+      updateSessionDisabledAgentTools: agentSessionPresenter.updateSessionDisabledAgentTools
+    }))
+  }))
+  vi.doMock('@api/SkillClient', () => ({
+    createSkillClient: vi.fn(() => ({
+      onSessionChanged: vi.fn(
+        (
+          listener: (payload: {
+            conversationId?: string | null
+            skills?: string[]
+            change: 'activated' | 'deactivated'
+          }) => void
+        ) => {
+          skillSessionChangedHandler = listener
+          return () => {
+            if (skillSessionChangedHandler === listener) {
+              skillSessionChangedHandler = undefined
+            }
+          }
+        }
+      )
+    }))
+  }))
+  vi.doMock('@api/SettingsClient', () => ({
+    createSettingsClient: vi.fn(() => ({
+      openSettings: windowPresenter.createSettingsWindow
+    }))
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -151,12 +219,14 @@ const setup = async (options?: {
           'chat.advancedSettings.systemPrompt': 'System Prompt',
           'chat.advancedSettings.systemPromptPlaceholder': 'Select preset',
           'chat.advancedSettings.currentCustomPrompt': 'Current custom',
+          'chat.subagents.label': 'subagent',
           'chat.input.mcp.title': 'Enabled MCP',
           'chat.input.mcp.empty': 'No enabled services',
           'chat.input.mcp.openSettings': 'Open MCP settings',
           'chat.input.tools.badge': 'Tools',
           'chat.input.tools.title': 'Tools',
           'chat.input.tools.mcpSection': 'MCP',
+          'chat.input.tools.pluginSection': 'Plugins',
           'chat.input.tools.loading': 'Loading tools...',
           'chat.input.tools.builtinEmpty': 'No built-in tools available',
           'chat.input.tools.groups.agentFilesystem': 'Agent Filesystem',
@@ -179,6 +249,10 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
+    props: {
+      showSubagentToggle: options?.showSubagentToggle ?? false,
+      subagentEnabled: options?.subagentEnabled ?? false
+    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -202,13 +276,14 @@ const setup = async (options?: {
     wrapper,
     draftStore,
     toolPresenter,
-    newAgentPresenter
+    agentSessionPresenter,
+    ipcRenderer
   }
 }
 
 describe('McpIndicator', () => {
   it('renders icon-only trigger for deepchat and keeps built-in tools session scoped', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
@@ -225,11 +300,13 @@ describe('McpIndicator', () => {
     await execButton!.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', ['exec'])
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+      'exec'
+    ])
   })
 
   it('supports enabling and disabling a whole tool group', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat',
       disabledAgentTools: ['exec']
@@ -243,14 +320,37 @@ describe('McpIndicator', () => {
     await filesystemSwitch.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
       'exec',
       'read'
     ])
   })
 
+  it('renders update_plan inside Agent Core and toggles it individually', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat'
+    })
+
+    expect(wrapper.text()).toContain('Agent Core')
+    expect(wrapper.text()).not.toContain('Progress')
+    expect(wrapper.text()).toContain('update_plan')
+
+    const updatePlanButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'update_plan')
+    expect(updatePlanButton).toBeTruthy()
+
+    await updatePlanButton!.trigger('click')
+    await flushPromises()
+
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
+      'update_plan'
+    ])
+  })
+
   it('resets a fully disabled tool group back to all enabled when switched on', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat',
       disabledAgentTools: ['exec', 'read']
@@ -264,7 +364,7 @@ describe('McpIndicator', () => {
     await filesystemSwitch.trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [])
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [])
   })
 
   it('renders MCP badge for ACP sessions and keeps built-in tools hidden', async () => {
@@ -279,19 +379,91 @@ describe('McpIndicator', () => {
     expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
   })
 
+  it('renders plugin-owned MCP tools in a separate plugin section', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'acp-coder',
+      pluginEnabled: true
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].text()).toContain('MCP 1')
+    expect(wrapper.text()).toContain('MCP')
+    expect(wrapper.text()).toContain('demo-server')
+    expect(wrapper.text()).toContain('Plugins')
+    expect(wrapper.text()).toContain('CUA Driver')
+  })
+
+  it('shows plugin MCP when global MCP has no enabled regular servers', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'acp-coder',
+      pluginEnabled: true,
+      regularMcpEnabled: false
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].text()).toContain('MCP 0')
+    expect(wrapper.text()).toContain('Plugins')
+    expect(wrapper.text()).toContain('CUA Driver')
+    expect(wrapper.text()).not.toContain('demo-server')
+  })
+
   it('updates draft disabled tools for deepchat new thread mode', async () => {
-    const { wrapper, draftStore, newAgentPresenter } = await setup({
+    const { wrapper, draftStore, agentSessionPresenter } = await setup({
       hasActiveSession: false,
       selectedAgentId: 'deepchat'
     })
 
-    const execButton = wrapper.findAll('button').find((button) => button.text() === 'exec')
-    expect(execButton).toBeTruthy()
+    const updatePlanButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'update_plan')
+    expect(updatePlanButton).toBeTruthy()
 
-    await execButton!.trigger('click')
+    await updatePlanButton!.trigger('click')
     await flushPromises()
 
-    expect(draftStore.disabledAgentTools).toEqual(['exec'])
-    expect(newAgentPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+    expect(draftStore.disabledAgentTools).toEqual(['update_plan'])
+    expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('renders subagent as a regular tool button inside Agent Core and emits updates', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat',
+      showSubagentToggle: true,
+      subagentEnabled: true
+    })
+
+    expect(wrapper.text()).toContain('Agent Core')
+
+    const subagentButton = wrapper.findAll('button').find((node) => node.text() === 'subagent')
+
+    expect(subagentButton).toBeTruthy()
+
+    await subagentButton!.trigger('click')
+
+    expect(wrapper.emitted('toggle-subagents')).toEqual([[false]])
+  })
+
+  it('reloads deepchat tools when the active session emits skill activation changes', async () => {
+    const { toolPresenter, ipcRenderer } = await setup({
+      hasActiveSession: true,
+      activeAgentId: 'deepchat'
+    })
+
+    toolPresenter.getAllToolDefinitions.mockClear()
+    ipcRenderer.emit('skill:activated', {
+      conversationId: 's1',
+      skills: ['deepchat-settings']
+    })
+    await flushPromises()
+
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith({
+      chatMode: 'agent',
+      conversationId: 's1',
+      agentWorkspacePath: '/tmp/workspace'
+    })
   })
 })

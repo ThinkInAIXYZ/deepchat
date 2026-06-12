@@ -1,4 +1,3 @@
-import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 
 function createDeferred<T>() {
@@ -11,10 +10,10 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
-const createPendingItem = (id: string, sessionId: string) => ({
+const createPendingItem = (id: string, sessionId: string, mode: 'queue' | 'steer' = 'queue') => ({
   id,
   sessionId,
-  mode: 'queue' as const,
+  mode,
   state: 'pending' as const,
   payload: {
     text: id,
@@ -29,52 +28,42 @@ const createPendingItem = (id: string, sessionId: string) => ({
 
 const setupStore = async () => {
   vi.resetModules()
+  vi.doUnmock('pinia')
+  const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
   setActivePinia(createPinia())
 
-  const newAgentPresenter = {
+  const unsubscribePendingInputsChanged = vi.fn()
+  const sessionClient = {
     listPendingInputs: vi.fn(),
     queuePendingInput: vi.fn(),
     updateQueuedInput: vi.fn(),
     moveQueuedInput: vi.fn(),
     convertPendingInputToSteer: vi.fn(),
     deletePendingInput: vi.fn(),
-    resumePendingQueue: vi.fn()
+    resumePendingQueue: vi.fn(),
+    onPendingInputsChanged: vi.fn(() => unsubscribePendingInputsChanged)
   }
 
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: () => newAgentPresenter
+  vi.doMock('../../../src/renderer/api/SessionClient', () => ({
+    createSessionClient: vi.fn(() => sessionClient)
   }))
-  ;(
-    window as typeof window & {
-      electron: {
-        ipcRenderer: {
-          on: ReturnType<typeof vi.fn>
-          removeListener: ReturnType<typeof vi.fn>
-        }
-      }
-    }
-  ).electron = {
-    ipcRenderer: {
-      on: vi.fn(),
-      removeListener: vi.fn()
-    }
-  }
 
   const { usePendingInputStore } = await import('@/stores/ui/pendingInput')
 
   return {
     store: usePendingInputStore(),
-    newAgentPresenter
+    sessionClient,
+    unsubscribePendingInputsChanged
   }
 }
 
 describe('pendingInput store', () => {
   it('ignores stale load results after the active session changes', async () => {
-    const { store, newAgentPresenter } = await setupStore()
+    const { store, sessionClient } = await setupStore()
     const firstLoad = createDeferred<ReturnType<typeof createPendingItem>[]>()
     const secondLoad = createDeferred<ReturnType<typeof createPendingItem>[]>()
 
-    newAgentPresenter.listPendingInputs
+    sessionClient.listPendingInputs
       .mockReturnValueOnce(firstLoad.promise)
       .mockReturnValueOnce(secondLoad.promise)
 
@@ -99,10 +88,10 @@ describe('pendingInput store', () => {
   })
 
   it('preserves clear state when an in-flight load later fails', async () => {
-    const { store, newAgentPresenter } = await setupStore()
+    const { store, sessionClient } = await setupStore()
     const load = createDeferred<ReturnType<typeof createPendingItem>[]>()
 
-    newAgentPresenter.listPendingInputs.mockReturnValueOnce(load.promise)
+    sessionClient.listPendingInputs.mockReturnValueOnce(load.promise)
 
     const loadPromise = store.loadPendingInputs('s1')
     expect(store.currentSessionId).toBe('s1')
@@ -125,27 +114,27 @@ describe('pendingInput store', () => {
   })
 
   it('removes the pending inputs listener when the store is disposed', async () => {
-    const { store } = await setupStore()
-    const ipcRenderer = (
-      window as typeof window & {
-        electron: {
-          ipcRenderer: {
-            on: ReturnType<typeof vi.fn>
-            removeListener: ReturnType<typeof vi.fn>
-          }
-        }
-      }
-    ).electron.ipcRenderer
+    const { store, sessionClient, unsubscribePendingInputsChanged } = await setupStore()
 
-    expect(ipcRenderer.on).toHaveBeenCalledTimes(1)
-
-    const [eventName, pendingInputsHandler] = ipcRenderer.on.mock.calls[0]
-
-    expect(eventName).toBe('session:pending-inputs-updated')
-    expect(typeof pendingInputsHandler).toBe('function')
+    expect(sessionClient.onPendingInputsChanged).toHaveBeenCalledTimes(1)
 
     store.$dispose()
 
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(eventName, pendingInputsHandler)
+    expect(unsubscribePendingInputsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes steer inputs while counting only queue inputs toward queue capacity', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.listPendingInputs.mockResolvedValueOnce([
+      createPendingItem('q1', 's1'),
+      createPendingItem('steer1', 's1', 'steer')
+    ])
+
+    await store.loadPendingInputs('s1')
+
+    expect(store.queueItems).toHaveLength(1)
+    expect(store.steerItems).toHaveLength(1)
+    expect(store.activeCount).toBe(1)
+    expect(store.isAtCapacity).toBe(false)
   })
 })

@@ -24,10 +24,20 @@
     "acpMode": "حالت",
     "acpModeTooltip": "حالت فعلی: {mode}",
     "agentWorkspaceCurrent": "فهرست کاری فعلی: {path}",
+    "workspaceUnavailableTooltip": "فهرست وجود ندارد یا قابل دسترسی نیست: {path}",
     "agentWorkspaceSelect": "پوشه کاری را انتخاب کنید",
     "agentWorkspaceTooltip": "دایرکتوری کاری عامل را تنظیم کنید",
     "attach": "پیوست",
     "voiceInput": "ورودی صوتی",
+    "voiceInputStop": "توقف ورودی صوتی",
+    "voiceRecognitionUnsupportedTitle": "محیط فعلی از تشخیص گفتار پشتیبانی نمی‌کند",
+    "voiceRecognitionUnsupportedDescription": "از این قابلیت در مرورگر یا محیط دسکتاپی که از تشخیص گفتار پشتیبانی می‌کند استفاده کنید.",
+    "voiceRecognitionPermissionDeniedTitle": "امکان دسترسی به میکروفون وجود ندارد",
+    "voiceRecognitionPermissionDeniedDescription": "اجازه استفاده از میکروفون را به DeepChat بدهید و دوباره تلاش کنید.",
+    "voiceRecognitionErrorTitle": "تشخیص گفتار ناموفق بود",
+    "voiceRecognitionErrorDescription": "تشخیص گفتار کامل نشد. لطفاً بعداً دوباره تلاش کنید.",
+    "send": "ارسال",
+    "steer": "هدایت",
     "queue": "افزودن به صف",
     "stop": "توقف",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "ابزارهای داخلی",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "تولید تصویر",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "خطا در پردازش پیوست",
+    "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
+    "fileUploadFailedMore": " و {count} مورد دیگر",
+    "unnamedFile": "فایل بدون نام",
+    "audioInputUnsupportedTitle": "مدل فعلی از پیوست صوتی پشتیبانی نمی‌کند",
+    "audioInputUnsupportedDescription": "مدل {model} از ورودی صوتی پشتیبانی نمی‌کند. {count} پیوست صوتی نادیده گرفته شد."
   },
   "pendingInput": {
     "steer": "هدایت",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "در حال تفکر...",
     "rateLimitWaiting": "محدودیت نرخ درخواست، در صف انتظار...",
+    "rateLimitCompactLoading": "در محدودیت نرخ ({seconds}ث)",
     "rateLimitTitle": "محدودیت نرخ درخواست",
     "rateLimitQueue": "موقعیت صف",
     "rateLimitEstimated": "زمان تخمینی انتظار",
@@ -110,7 +129,24 @@
     "clickToView": "برای مشاهده جزئیات کلیک کنید",
     "functionName": "نام تابع",
     "params": "پارامترها",
-    "responseData": "داده‌های پاسخ"
+    "responseData": "داده‌های پاسخ",
+    "subagents": {
+      "summary": "{mode} · {count} زیرایجنت",
+      "unnamedTask": "وظیفه بی‌نام",
+      "mode": {
+        "parallel": "موازی",
+        "chain": "زنجیره‌ای"
+      },
+      "status": {
+        "queued": "در صف",
+        "running": "در حال اجرا",
+        "completed": "تکمیل‌شده",
+        "error": "خطا",
+        "cancelled": "لغوشده",
+        "waiting_permission": "در انتظار مجوز",
+        "waiting_question": "در انتظار ورودی"
+      }
+    }
   },
   "mode": {
     "acpAgent": "نماینده ACP",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "اشتراک‌گذاری",
-    "more": "بیشتر"
+    "more": "بیشتر",
+    "backToParent": "بازگشت به نشست والد"
   },
   "advancedSettings": {
     "button": "پیشرفته",
@@ -128,6 +165,9 @@
     "systemPrompt": "پرامپت سیستم",
     "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
     "temperature": "دما",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "طول زمینه",
     "maxTokens": "حداکثر توکن",
     "thinkingBudget": "بودجه تفکر",
@@ -144,15 +184,18 @@
       "finiteNumber": "باید یک عدد متناهی باشد",
       "nonNegativeInteger": "باید یک عدد صحیح نامنفی باشد",
       "contextLengthAtLeastMaxTokens": "باید بزرگ‌تر یا مساوی حداکثر توکن‌ها باشد",
-      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد"
+      "maxTokensWithinContextLength": "باید کوچک‌تر یا مساوی طول زمینه باشد",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
     }
   },
   "workspace": {
     "collapse": "بستن",
+    "expand": "گسترش",
     "sections": {
       "files": "فایل‌ها",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Artifacts",
+      "subagents": "زیرایجنت‌ها"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "هنوز فایلی وجود ندارد",
       "loading": "در حال بارگیری فایل ها...",
-      "section": "سند"
+      "section": "سند",
+      "noWorkspace": {
+        "title": "بدون فضای کاری",
+        "description": "پوشه‌ای را انتخاب یا بکشید تا فضای کاری را تنظیم کنید",
+        "button": "انتخاب پوشه"
+      }
     },
     "git": {
       "empty": "diff برای نمایش وجود ندارد",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "هنوز هیچ تکلیفی وجود ندارد",
       "section": "برنامه ریزی کنید",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "تکمیل شد",
         "failed": "شکست بخورد",
@@ -206,10 +255,20 @@
       },
       "noOutput": "بدون خروجی"
     },
-    "title": "فضای کار"
+    "title": "فضای کار",
+    "subagents": {
+      "empty": "هنوز هیچ نشست فرزندی وجود ندارد",
+      "self": "همین ایجنت",
+      "status": {
+        "working": "در حال اجرا",
+        "error": "خطا",
+        "idle": "بیکار"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "هیچ مدلی پیدا نشد"
+    "empty": "هیچ مدلی پیدا نشد",
+    "audioInputSupported": "پشتیبانی از ورودی صوتی"
   },
   "audio": {
     "play": "پخش",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "در حال فشرده‌سازی خودکار زمینه...",
-    "compacted": "زمینه به‌صورت خودکار فشرده شد"
+    "compacting": "در حال فشرده سازی زمینه...",
+    "compacted": "زمینه فشرده شد",
+    "commandDescription": "فشرده سازی زمینه گفتگو",
+    "noopTitle": "زمینه ای برای فشرده سازی نیست",
+    "noopDescription": "هنوز تاریخچه گفت وگوی جدیدی برای فشرده سازی وجود ندارد.",
+    "failedTitle": "فشرده سازی ناموفق بود"
   },
   "newThread": {
     "title": "بسازید و کاوش کنید"
@@ -248,6 +311,10 @@
     "allAgents": "همه عامل‌ها",
     "expandSidebar": "گسترش نوار کناری",
     "collapseSidebar": "جمع کردن نوار کناری",
+    "themeToggle": "تغییر پوسته",
+    "themeLight": "روشن",
+    "themeDark": "تیره",
+    "themeSystem": "سیستم",
     "remoteControlStatus": {
       "disabled": "کنترل از راه دور غیرفعال است",
       "stopped": "کنترل از راه دور متوقف شده است",
@@ -261,12 +328,16 @@
     "pinned": "سنجاق‌شده‌ها",
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
-    "remoteControlDisabled": "غیرفعال"
+    "remoteControlDisabled": "غیرفعال",
+    "searchPlaceholder": "جستجوی گفتگوها",
+    "searchAriaLabel": "جستجوی گفتگوها",
+    "searchEmptyTitle": "گفتگوی منطبقی پیدا نشد",
+    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "نمای کلی کارها",
     "collapse": "جمع کردن نشست‌های شناور",
-    "empty": "هنوز هیچ نشست DeepChat وجود ندارد",
+    "empty": "هنوز هیچ نشست عامل وجود ندارد",
     "executing": "فعال",
     "sessionCount": "{count} نشست",
     "untitled": "گفت‌وگوی جدید",
@@ -274,6 +345,77 @@
       "inProgress": "در حال انجام",
       "done": "انجام شد",
       "error": "خطا"
+    }
+  },
+  "subagents": {
+    "label": "زیرایجنت‌ها"
+  },
+  "spotlight": {
+    "placeholder": "جست‌وجوی گفتگوها، Agentها، تنظیمات و اقدامات…",
+    "searching": "در حال جست‌وجو…",
+    "emptyTitle": "نتیجهٔ مطابقی پیدا نشد",
+    "emptyDescription": "یک کلیدواژهٔ دیگر را امتحان کنید یا یک نشست اخیر را باز کنید.",
+    "hints": "↑↓ جابه‌جایی · Enter باز کردن · Esc بستن · Home/End پرش",
+    "kind": {
+      "session": "گفتگو",
+      "message": "پیام",
+      "agent": "Agent",
+      "setting": "تنظیمات",
+      "action": "اقدام"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "جستجو در گفتگو",
+    "ariaLabel": "جستجو در گفتگوی فعلی",
+    "previous": "نتیجه قبلی",
+    "next": "نتیجه بعدی",
+    "close": "بستن جستجو"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "به عامل DeepChat بروید",
+      "description": "قبل از شروع گفتگو، از ACP خارج شوید و به جریان داخلی DeepChat برگردید.",
+      "caption": "برای ادامه، روی دکمه عاملِ هایلایت‌شده در نوار کناری کلیک کنید."
+    },
+    "switchModel": {
+      "description": "مدلی را که می‌خواهید برای اولین گفتگوی DeepChat استفاده کنید انتخاب کنید.",
+      "caption": "از انتخاب‌گر مدلِ هایلایت‌شده استفاده کنید و هر مدل در دسترس را برگزینید."
+    },
+    "firstChat": {
+      "description": "همه‌چیز آماده است. برای پایان دادن به فرایند راه‌اندازی، اولین پیام خود را اینجا بنویسید.",
+      "caption": "تا زمانی که اولین پیام خود را ارسال کنید، نورافکن روی کادر ورودی می‌ماند."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "پیش‌نویس مهارت",
+    "confirmationQuestion": "یک پیش‌نویس مهارت ایجاد شد: {name}",
+    "previewTitle": "پیش‌نمایش محتوای پیش‌نویس",
+    "actions": {
+      "view": "مشاهدهٔ محتوا",
+      "viewDescription": "پیش‌نمایش محتوای SKILL.md پیش‌نویس",
+      "install": "نصب به‌عنوان مهارت",
+      "installDescription": "درون‌ریزی به پوشهٔ مهارت‌ها برای مدیریت",
+      "discard": "دور انداختن",
+      "discardDescription": "حذف این پیش‌نویس موقت"
+    },
+    "result": {
+      "viewed": "پیش‌نمایش محتوای پیش‌نویس باز است. نصب یا دور انداختن را انتخاب کنید.",
+      "installed": "پیش‌نویس مهارت نصب شد: {name}",
+      "discarded": "پیش‌نویس مهارت دور انداخته شد.",
+      "failed": "رسیدگی به پیش‌نویس مهارت ناموفق بود: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "به مدت {duration} کار کرده است",
+    "reasoningCount": "{count} مورد تفکر",
+    "toolCallCount": "{count} فراخوانی ابزار",
+    "expandLabel": "گسترش {title}",
+    "collapseLabel": "جمع کردن {title}",
+    "duration": {
+      "day": " روز ",
+      "hour": " ساعت ",
+      "minute": " دقیقه ",
+      "second": " ثانیه"
     }
   }
 }

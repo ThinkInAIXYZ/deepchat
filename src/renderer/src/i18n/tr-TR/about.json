@@ -1,0 +1,23 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat, yapay zekayı daha fazla kişi için erişilebilir hale getirmeye adanmış, platformlar arası bir yapay zeka istemcisidir.",
+  "website": "Web Sitemizi Ziyaret Edin",
+  "disclaimerButton": "Sorumluluk reddi beyanı",
+  "feedbackButton": "Geri bildirim",
+  "disclaimerTitle": "Kullanım Koşulları Beyanı",
+  "checkUpdateButton": "Güncellemeleri Kontrol Et",
+  "mockUpdateButton": "Sahte İndirilen Güncelleme",
+  "clearMockUpdateButton": "Sahte Güncellemeyi Temizle",
+  "mockOnboardingButton": "Sahte İlk Çalıştırma Kılavuzu",
+  "updateChannel": "Kanalı Güncelle",
+  "stableChannel": "Stabil",
+  "betaChannel": "Beta",
+  "deviceInfo": {
+    "title": "Cihaz Bilgileri",
+    "platform": "platformu",
+    "arch": "Mimarlık",
+    "cpuModel": "CPU Modeli",
+    "totalMemory": "Toplam Bellek",
+    "osVersion": "Sistem Sürümü"
+  }
+}

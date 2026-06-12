@@ -1,100 +1,93 @@
 <template>
-  <section class="w-full h-full">
-    <ScrollArea class="w-full h-full px-4 flex flex-col gap-2">
-      <div class="flex flex-col gap-4 px-2 py-4">
-        <!-- 基础API配置 -->
-        <ProviderApiConfig
-          :provider="provider"
-          :provider-websites="providerWebsites"
-          @api-host-change="handleApiHostChange"
-          @api-key-change="handleApiKeyChange"
-          @validate-key="openModelCheckDialog"
-          @delete-provider="showDeleteProviderDialog = true"
-          @oauth-success="handleOAuthSuccess"
-          @oauth-error="handleOAuthError"
-        />
+  <ProviderSettingsShell
+    v-model:active-tab="activeTab"
+    :title="t(provider.name)"
+    :subtitle="provider.baseUrl"
+    :enabled-count="enabledModels.length"
+  >
+    <template #connection>
+      <ProviderApiConfig
+        :provider="provider"
+        :provider-websites="providerWebsites"
+        @api-host-change="handleApiHostChange"
+        @api-key-change="handleApiKeyChange"
+        @validate-key="openModelCheckDialog"
+        @delete-provider="showDeleteProviderDialog = true"
+        @oauth-success="handleOAuthSuccess"
+        @oauth-error="handleOAuthError"
+      />
+    </template>
 
-        <Separator />
+    <template #models>
+      <ProviderModelManager
+        data-testid="provider-model-manager"
+        :provider="provider"
+        :enabled-models="enabledModels"
+        :total-models-count="providerModels.length + customModels.length"
+        :provider-models="providerModels"
+        :custom-models="customModels"
+        :is-model-list-loading="isModelListLoading"
+        @custom-model-added="handleAddModelSaved"
+        @disable-all-models="disableAllModelsConfirm"
+        @model-enabled-change="handleModelEnabledChange"
+        @config-changed="handleConfigChanged"
+      />
+    </template>
 
-        <VertexProviderSettingsDetail
-          v-if="provider.apiType === 'vertex'"
-          :provider="provider as VERTEX_PROVIDER"
-          @config-updated="handleConfigChanged"
-          @validate-provider="validateApiKey"
-        />
+    <template #advanced>
+      <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
 
-        <Separator v-if="provider.apiType === 'vertex'" />
+      <VertexProviderSettingsDetail
+        v-if="provider.apiType === 'vertex'"
+        :provider="provider as VERTEX_PROVIDER"
+        @config-updated="handleConfigChanged"
+        @validate-provider="validateApiKey"
+      />
 
-        <!-- Azure特殊配置 -->
-        <AzureProviderConfig
-          v-if="provider.id === 'azure-openai'"
-          :provider="provider"
-          :initial-value="azureApiVersion"
-          @api-version-change="handleAzureApiVersionChange"
-        />
+      <AzureProviderConfig
+        v-if="provider.id === 'azure-openai'"
+        :provider="provider"
+        :initial-value="azureApiVersion"
+        @api-version-change="handleAzureApiVersionChange"
+      />
 
-        <Separator v-if="provider.id === 'azure-openai'" />
+      <GeminiSafetyConfig
+        v-if="provider.id === 'gemini'"
+        :provider="provider"
+        :initial-safety-levels="geminiSafetyLevelsForChild"
+        @safety-setting-change="handleSafetySettingChange"
+      />
 
-        <!-- Gemini安全设置 -->
-        <GeminiSafetyConfig
-          v-if="provider.id === 'gemini'"
-          :provider="provider"
-          :initial-safety-levels="geminiSafetyLevelsForChild"
-          @safety-setting-change="handleSafetySettingChange"
-        />
+      <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
 
-        <Separator v-if="provider.id === 'gemini'" />
+      <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
+    </template>
 
-        <VoiceAIProviderConfig v-if="provider.id === 'voiceai'" :provider="provider" />
-
-        <Separator v-if="provider.id === 'voiceai'" />
-
-        <!-- 速率限制配置 -->
-        <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
-
-        <Separator />
-
-        <!-- ModelScope MCP 同步 -->
-        <ModelScopeMcpSync v-if="provider.id === 'modelscope'" :provider="provider" />
-
-        <!-- 模型管理 -->
-        <ProviderModelManager
-          :provider="provider"
-          :enabled-models="enabledModels"
-          :total-models-count="providerModels.length + customModels.length"
-          :provider-models="providerModels"
-          :custom-models="customModels"
-          :is-model-list-loading="isModelListLoading"
-          @custom-model-added="handleAddModelSaved"
-          @disable-all-models="disableAllModelsConfirm"
-          @model-enabled-change="handleModelEnabledChange"
-          @config-changed="handleConfigChanged"
-        />
-      </div>
-    </ScrollArea>
-
-    <!-- 对话框容器 -->
-    <ProviderDialogContainer
-      v-model:show-confirm-dialog="showConfirmDialog"
-      v-model:show-check-model-dialog="showCheckModelDialog"
-      v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
-      v-model:show-delete-provider-dialog="showDeleteProviderDialog"
-      :provider="provider"
-      :model-to-disable="modelToDisable"
-      :check-result="checkResult"
-      @confirm-disable-model="confirmDisable"
-      @confirm-disable-all-models="confirmDisableAll"
-      @confirm-delete-provider="confirmDeleteProvider"
-    />
-  </section>
+    <template #dialogs>
+      <ProviderDialogContainer
+        v-model:show-confirm-dialog="showConfirmDialog"
+        v-model:show-check-model-dialog="showCheckModelDialog"
+        v-model:show-disable-all-confirm-dialog="showDisableAllConfirmDialog"
+        v-model:show-delete-provider-dialog="showDeleteProviderDialog"
+        :provider="provider"
+        :model-to-disable="modelToDisable"
+        :check-result="checkResult"
+        @confirm-disable-model="confirmDisable"
+        @confirm-disable-all-models="confirmDisableAll"
+        @confirm-delete-provider="confirmDeleteProvider"
+      />
+    </template>
+  </ProviderSettingsShell>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/presenter'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import ProviderSettingsShell from './ProviderSettingsShell.vue'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
 import GeminiSafetyConfig from './GeminiSafetyConfig.vue'
@@ -105,7 +98,6 @@ import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
-import { Separator } from '@shadcn/components/ui/separator'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
 
@@ -128,10 +120,18 @@ const valueToLevelMap: Record<SafetySettingValue, number> = {
 
 const props = defineProps<{
   provider: LLM_PROVIDER
+  activeOnboardingStepId?: string | null
 }>()
 
+const emit = defineEmits<{
+  'provider-configured': []
+  'provider-model-enabled': []
+}>()
+
+const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
+const uiSettingsStore = useUiSettingsStore()
 const modelCheckStore = useModelCheckStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
@@ -164,6 +164,10 @@ const enabledModels = computed(() => {
 })
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
+const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
+const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
+  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
+}
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
   () =>
@@ -182,7 +186,36 @@ const customModelsSource = computed(
     modelStore.customModels.find((p) => p.providerId === props.provider.id)?.models ?? emptyModels
 )
 
+const isProviderReadyForOnboarding = (
+  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
+) => {
+  if (!provider.enable) {
+    return false
+  }
+
+  const hasApiKey = provider.apiKey?.trim().length > 0
+  if (!hasApiKey) {
+    return false
+  }
+
+  if (provider.custom) {
+    return Boolean(provider.baseUrl?.trim())
+  }
+
+  return true
+}
+
+const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
+  if (isProviderReadyForOnboarding(provider)) {
+    emit('provider-configured')
+  }
+}
+
 const validateApiKey = async () => {
+  if (!props.provider.enable) {
+    return false
+  }
+
   try {
     const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
@@ -191,15 +224,18 @@ const validateApiKey = async () => {
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
       await modelStore.refreshProviderModels(props.provider.id)
+      return true
     } else {
       console.log('验证失败', resp.errorMsg)
       checkResult.value = false
       showCheckModelDialog.value = true
+      return false
     }
   } catch (error) {
     console.error('Failed to validate API key:', error)
     checkResult.value = false
     showCheckModelDialog.value = true
+    return false
   }
 }
 
@@ -227,6 +263,8 @@ watch(
 
 const initProviderSettings = async () => {
   console.log('initData for provider:', props.provider.id)
+
+  await providerStore.ensureDefaultProvidersReady()
 
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
@@ -273,16 +311,49 @@ const initProviderSettings = async () => {
 watch(
   () => props.provider.id,
   () => {
+    syncActiveTabFromOnboardingStep(props.activeOnboardingStepId)
     initProviderSettings()
   },
   { immediate: true }
 )
 
-const handleApiKeyChange = (value: string) =>
-  providerStore.updateProviderApi(props.provider.id, value, undefined)
+watch(
+  () => props.activeOnboardingStepId,
+  (stepId) => {
+    syncActiveTabFromOnboardingStep(stepId)
+  },
+  { immediate: true }
+)
 
-const handleApiHostChange = (value: string) =>
-  providerStore.updateProviderApi(props.provider.id, undefined, value)
+const handleApiKeyChange = async (value: string) => {
+  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
+}
+
+const handleApiHostChange = async (value: string) => {
+  const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
+  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
+}
+
+const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+  if (!uiSettingsStore.traceDebugEnabled) {
+    return
+  }
+
+  console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+}
+
+const waitForNextPaint = async () => {
+  if (typeof requestAnimationFrame !== 'function') {
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve())
+  })
+}
 
 const handleModelEnabledChange = async (
   model: RENDERER_MODEL_META,
@@ -294,7 +365,38 @@ const handleModelEnabledChange = async (
     return
   }
 
+  const interactionStart = getPerfNow()
+  logModelTogglePerf('detail.click', {
+    providerId: props.provider.id,
+    modelId: model.id,
+    enabled
+  })
+
   await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+
+  if (enabled) {
+    emit('provider-model-enabled')
+  }
+
+  const storeComplete = getPerfNow()
+  if (!uiSettingsStore.traceDebugEnabled) {
+    return
+  }
+
+  await nextTick()
+  const nextTickComplete = getPerfNow()
+  await waitForNextPaint()
+  const paintComplete = getPerfNow()
+
+  logModelTogglePerf('detail.settled', {
+    providerId: props.provider.id,
+    modelId: model.id,
+    enabled,
+    storeMs: Math.round(storeComplete - interactionStart),
+    nextTickMs: Math.round(nextTickComplete - storeComplete),
+    paintMs: Math.round(paintComplete - nextTickComplete),
+    totalMs: Math.round(paintComplete - interactionStart)
+  })
 }
 
 const disableModel = (model: RENDERER_MODEL_META) => {
@@ -365,7 +467,9 @@ const handleOAuthSuccess = async () => {
   await initProviderSettings()
   syncModels()
   // 可以自动验证一次
-  await validateApiKey()
+  if (await validateApiKey()) {
+    emit('provider-configured')
+  }
 }
 
 // Handler for OAuth error
@@ -381,6 +485,10 @@ const handleConfigChanged = () => {
 }
 
 const openModelCheckDialog = () => {
+  if (!props.provider.enable) {
+    return
+  }
+
   modelCheckStore.openDialog(props.provider.id)
 }
 

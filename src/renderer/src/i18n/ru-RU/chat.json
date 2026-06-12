@@ -24,10 +24,20 @@
     "acpMode": "Режим",
     "acpModeTooltip": "Текущий режим: {mode}",
     "agentWorkspaceCurrent": "Текущий рабочий каталог: {path}",
+    "workspaceUnavailableTooltip": "Каталог не существует или недоступен: {path}",
     "agentWorkspaceSelect": "Выберите рабочий каталог",
     "agentWorkspaceTooltip": "Установить рабочий каталог агента",
     "attach": "Прикрепить",
     "voiceInput": "Голосовой ввод",
+    "voiceInputStop": "Остановить голосовой ввод",
+    "voiceRecognitionUnsupportedTitle": "Текущая среда не поддерживает распознавание речи",
+    "voiceRecognitionUnsupportedDescription": "Используйте эту функцию в браузере или настольной среде с поддержкой распознавания речи.",
+    "voiceRecognitionPermissionDeniedTitle": "Не удалось получить доступ к микрофону",
+    "voiceRecognitionPermissionDeniedDescription": "Разрешите DeepChat использовать микрофон и попробуйте снова.",
+    "voiceRecognitionErrorTitle": "Ошибка распознавания речи",
+    "voiceRecognitionErrorDescription": "Не удалось завершить распознавание речи. Повторите попытку позже.",
+    "send": "Отправить",
+    "steer": "Направить",
     "queue": "В очередь",
     "stop": "Стоп",
     "mcp": {
@@ -40,17 +50,25 @@
       "badge": "Tools",
       "title": "Tools",
       "mcpSection": "MCP",
+      "pluginSection": "Plugins",
       "builtinSection": "Встроенные инструменты",
       "loading": "Loading tools...",
       "builtinEmpty": "No built-in tools available",
       "groups": {
         "agentFilesystem": "Agent Filesystem",
         "agentCore": "Agent Core",
+        "agentImageGeneration": "Генерация изображений",
         "agentSkills": "Agent Skills",
         "deepchatSettings": "DeepChat Settings",
         "yobrowser": "YoBrowser"
       }
-    }
+    },
+    "fileUploadFailed": "Не удалось обработать вложение",
+    "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",
+    "fileUploadFailedMore": " и ещё {count}",
+    "unnamedFile": "файл без имени",
+    "audioInputUnsupportedTitle": "Текущая модель не поддерживает аудиовложения",
+    "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. Пропущено аудиофайлов: {count}."
   },
   "pendingInput": {
     "steer": "Направление",
@@ -83,6 +101,7 @@
   "messages": {
     "thinking": "Думаю ...",
     "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
+    "rateLimitCompactLoading": "Ограничение скорости ({seconds}с)",
     "rateLimitTitle": "Ограничение скорости запросов",
     "rateLimitQueue": "Позиция в очереди",
     "rateLimitEstimated": "Предполагаемое время ожидания",
@@ -110,7 +129,24 @@
     "clickToView": "Нажмите, чтобы посмотреть детали",
     "functionName": "Имя функции",
     "params": "Параметры",
-    "responseData": "Данные ответа"
+    "responseData": "Данные ответа",
+    "subagents": {
+      "summary": "{mode} · {count} субагентов",
+      "unnamedTask": "Безымянная задача",
+      "mode": {
+        "parallel": "Параллельно",
+        "chain": "Последовательно"
+      },
+      "status": {
+        "queued": "В очереди",
+        "running": "Выполняется",
+        "completed": "Завершено",
+        "error": "Ошибка",
+        "cancelled": "Отменено",
+        "waiting_permission": "Ожидает разрешения",
+        "waiting_question": "Ожидает ввода"
+      }
+    }
   },
   "mode": {
     "acpAgent": "Агент АШП",
@@ -119,7 +155,8 @@
   },
   "topbar": {
     "share": "Поделиться",
-    "more": "Ещё"
+    "more": "Ещё",
+    "backToParent": "Вернуться к родительской сессии"
   },
   "advancedSettings": {
     "button": "Расширенные",
@@ -128,6 +165,9 @@
     "systemPrompt": "Системный промпт",
     "systemPromptPlaceholder": "Выберите пресет",
     "temperature": "Температура",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 фиксирует температуру на уровне {enabled}, когда мышление включено, и на уровне {disabled}, когда оно отключено.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; оставьте пустым, чтобы использовать значение провайдера по умолчанию",
     "contextLength": "Длина контекста",
     "maxTokens": "Макс. токенов",
     "thinkingBudget": "Бюджет размышления",
@@ -144,15 +184,18 @@
       "finiteNumber": "Должно быть конечным числом",
       "nonNegativeInteger": "Должно быть неотрицательным целым числом",
       "contextLengthAtLeastMaxTokens": "Должно быть больше или равно максимальному числу токенов",
-      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста"
+      "maxTokensWithinContextLength": "Должно быть меньше или равно длине контекста",
+      "topPRange": "Должно быть больше 0 и меньше либо равно 1"
     }
   },
   "workspace": {
     "collapse": "закрывать",
+    "expand": "Развернуть",
     "sections": {
       "files": "Файлы",
       "git": "Git",
-      "artifacts": "Artifacts"
+      "artifacts": "Артефакты",
+      "subagents": "Субагенты"
     },
     "files": {
       "contextMenu": {
@@ -162,7 +205,12 @@
       },
       "empty": "Файлов пока нет",
       "loading": "Загрузка файлов...",
-      "section": "документ"
+      "section": "документ",
+      "noWorkspace": {
+        "title": "Нет рабочей области",
+        "description": "Выберите или перетащите папку для настройки рабочей области",
+        "button": "Выбрать папку"
+      }
     },
     "git": {
       "empty": "Нет доступного diff",
@@ -177,6 +225,7 @@
     "plan": {
       "empty": "Заданий пока нет",
       "section": "план",
+      "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Завершенный",
         "failed": "неудача",
@@ -206,10 +255,20 @@
         "truncated": "[обрезано]"
       }
     },
-    "title": "рабочее пространство"
+    "title": "рабочее пространство",
+    "subagents": {
+      "empty": "Дочерних сессий пока нет",
+      "self": "Этот агент",
+      "status": {
+        "working": "Выполняется",
+        "error": "Ошибка",
+        "idle": "Неактивно"
+      }
+    }
   },
   "modelPicker": {
-    "empty": "Модели не найдены"
+    "empty": "Модели не найдены",
+    "audioInputSupported": "Поддерживается аудиоввод"
   },
   "audio": {
     "play": "Воспроизвести",
@@ -234,8 +293,12 @@
     }
   },
   "compaction": {
-    "compacting": "Контекст автоматически сжимается...",
-    "compacted": "Контекст был автоматически сжат"
+    "compacting": "Сжатие контекста...",
+    "compacted": "Контекст сжат",
+    "commandDescription": "Сжать контекст беседы",
+    "noopTitle": "Нет контекста для сжатия",
+    "noopDescription": "Пока нет новой истории разговора для сжатия.",
+    "failedTitle": "Не удалось сжать контекст"
   },
   "newThread": {
     "title": "Создавайте и исследуйте"
@@ -248,6 +311,10 @@
     "allAgents": "Все агенты",
     "expandSidebar": "Развернуть боковую панель",
     "collapseSidebar": "Свернуть боковую панель",
+    "themeToggle": "Сменить тему",
+    "themeLight": "Светлая",
+    "themeDark": "Тёмная",
+    "themeSystem": "Системная",
     "remoteControlStatus": {
       "disabled": "Удалённое управление отключено",
       "stopped": "Удалённое управление остановлено",
@@ -261,12 +328,16 @@
     "pinned": "Закрепленные",
     "emptyTitle": "Пока нет диалогов",
     "emptyDescription": "Начните новый чат, чтобы приступить",
-    "remoteControlDisabled": "Отключено"
+    "remoteControlDisabled": "Отключено",
+    "searchPlaceholder": "Поиск по чатам",
+    "searchAriaLabel": "Поиск по чатам",
+    "searchEmptyTitle": "Совпадений не найдено",
+    "searchEmptyDescription": "Попробуйте другое ключевое слово в названии"
   },
   "floatingWidget": {
-    "title": "DeepChat",
+    "title": "Обзор задач",
     "collapse": "Свернуть плавающие сессии",
-    "empty": "Пока нет сессий DeepChat",
+    "empty": "Пока нет сессий агентов",
     "executing": "активно",
     "sessionCount": "{count} сессий",
     "untitled": "Новый чат",
@@ -274,6 +345,77 @@
       "inProgress": "В процессе",
       "done": "Готово",
       "error": "Ошибка"
+    }
+  },
+  "subagents": {
+    "label": "Субагенты"
+  },
+  "spotlight": {
+    "placeholder": "Искать чаты, агентов, настройки и действия…",
+    "searching": "Поиск…",
+    "emptyTitle": "Совпадений не найдено",
+    "emptyDescription": "Попробуйте другой запрос или откройте недавнюю сессию.",
+    "hints": "↑↓ перемещение · Enter открыть · Esc закрыть · Home/End переход",
+    "kind": {
+      "session": "Сессия",
+      "message": "Сообщение",
+      "agent": "Агент",
+      "setting": "Настройка",
+      "action": "Действие"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Поиск по текущему чату",
+    "ariaLabel": "Поиск по текущему чату",
+    "previous": "Предыдущее совпадение",
+    "next": "Следующее совпадение",
+    "close": "Закрыть поиск"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Переключиться на агент DeepChat",
+      "description": "Перед началом чата переключитесь с ACP и вернитесь к встроенному потоку DeepChat.",
+      "caption": "Нажмите на выделенную кнопку агента на боковой панели, чтобы продолжить."
+    },
+    "switchModel": {
+      "description": "Выберите модель, которую хотите использовать для первого разговора в DeepChat.",
+      "caption": "Используйте выделенный переключатель моделей и выберите любую доступную модель."
+    },
+    "firstChat": {
+      "description": "Всё готово. Введите здесь своё первое сообщение, чтобы завершить онбординг.",
+      "caption": "Подсветка останется на поле ввода, пока вы не отправите первое сообщение."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Черновик навыка",
+    "confirmationQuestion": "Создан черновик навыка: {name}",
+    "previewTitle": "Предпросмотр содержимого черновика",
+    "actions": {
+      "view": "Показать содержимое",
+      "viewDescription": "Предпросмотреть содержимое SKILL.md черновика",
+      "install": "Установить как навык",
+      "installDescription": "Импортировать в папку навыков для управления",
+      "discard": "Отбросить",
+      "discardDescription": "Удалить этот временный черновик"
+    },
+    "result": {
+      "viewed": "Предпросмотр содержимого черновика открыт. Выберите установку или удаление.",
+      "installed": "Черновик навыка установлен: {name}",
+      "discarded": "Черновик навыка отброшен.",
+      "failed": "Не удалось обработать черновик навыка: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Работал(а) {duration}",
+    "reasoningCount": "{count} рассуждение(й)",
+    "toolCallCount": "{count} вызов(ов) инструмента",
+    "expandLabel": "Развернуть {title}",
+    "collapseLabel": "Свернуть {title}",
+    "duration": {
+      "day": "д ",
+      "hour": "ч ",
+      "minute": "мин ",
+      "second": "с"
     }
   }
 }

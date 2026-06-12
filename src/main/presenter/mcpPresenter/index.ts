@@ -1,5 +1,7 @@
+import logger from '@shared/logger'
 import {
   IMCPPresenter,
+  IConfigPresenter,
   MCPServerConfig,
   MCPToolDefinition,
   MCPToolCall,
@@ -17,67 +19,10 @@ import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { eventBus, SendTarget } from '@/eventbus'
 import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
-import { IConfigPresenter } from '@shared/presenter'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { OpenAI } from 'openai'
-import { ToolListUnion, Type, FunctionDeclaration } from '@google/genai'
 import { presenter } from '@/presenter'
-
-// Define MCP tool interface
-interface MCPTool {
-  id: string
-  name: string
-  type: string
-  description: string
-  serverName: string
-  inputSchema: {
-    properties: Record<string, Record<string, unknown>>
-    required: string[]
-    [key: string]: unknown
-  }
-}
-
-// Define tool type interfaces for various LLM providers
-interface OpenAIToolCall {
-  function: {
-    name: string
-    arguments: string
-  }
-}
-
-interface AnthropicToolUse {
-  name: string
-  input: Record<string, unknown>
-}
-
-interface GeminiFunctionCall {
-  name: string
-  args: Record<string, unknown>
-}
-
-// Define tool conversion interfaces
-interface OpenAITool {
-  type: 'function'
-  function: {
-    name: string
-    description: string
-    parameters: {
-      type: string
-      properties: Record<string, Record<string, unknown>>
-      required: string[]
-    }
-  }
-}
-
-interface AnthropicTool {
-  name: string
-  description: string
-  input_schema: {
-    type: string
-    properties: Record<string, Record<string, unknown>>
-    required: string[]
-  }
-}
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 // Complete McpPresenter implementation
 export class McpPresenter implements IMCPPresenter {
@@ -87,15 +32,17 @@ export class McpPresenter implements IMCPPresenter {
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
+  private cacheImage?: (data: string) => Promise<string>
   private pendingSamplingRequests = new Map<
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
   >()
 
-  constructor(configPresenter?: IConfigPresenter) {
-    console.log('Initializing MCP Presenter')
+  constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
+    logger.info('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter || presenter.configPresenter
+    this.cacheImage = cacheImage
     this.serverManager = new ServerManager(this.configPresenter)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
     // init mcprouter manager
@@ -104,14 +51,26 @@ export class McpPresenter implements IMCPPresenter {
     } catch (e) {
       console.warn('[MCP] McpRouterManager init failed:', e)
     }
-
-    // Delayed initialization to ensure other components are ready
-    setTimeout(() => {
-      this.initialize()
-    }, 1000)
   }
 
-  private async initialize() {
+  private isPrivacyModeEnabled(): boolean {
+    return Boolean(this.configPresenter.getPrivacyModeEnabled())
+  }
+
+  private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {
+    return Boolean(config?.ownerPluginId || config?.source === 'plugin')
+  }
+
+  private async isPluginOwnedServerName(serverName: string): Promise<boolean> {
+    const servers = await this.configPresenter.getMcpServers()
+    return this.isPluginOwnedServerConfig(servers[serverName])
+  }
+
+  async initialize() {
+    if (this.isInitialized) {
+      return
+    }
+
     try {
       // If no configPresenter is provided, get it from presenter
       if (!this.configPresenter.getLanguage) {
@@ -121,28 +80,33 @@ export class McpPresenter implements IMCPPresenter {
       }
 
       // Load configuration
-      const [servers, enabledServers] = await Promise.all([
+      const [servers, enabledServers, mcpEnabled] = await Promise.all([
         this.configPresenter.getMcpServers(),
-        this.configPresenter.getEnabledMcpServers()
+        this.configPresenter.getEnabledMcpServers(),
+        this.configPresenter.getMcpEnabled()
       ])
 
       // Initialize npm registry (prefer cache if available)
-      console.log('[MCP] Initializing npm registry...')
-      try {
-        await this.serverManager.testNpmRegistrySpeed(true)
-        console.log(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
-      } catch (error) {
-        console.error('[MCP] npm registry initialization failed:', error)
+      if (this.isPrivacyModeEnabled()) {
+        logger.info('[MCP] Privacy mode enabled, skipping automatic npm registry detection')
+      } else {
+        logger.info('[MCP] Initializing npm registry...')
+        try {
+          await this.serverManager.testNpmRegistrySpeed(true)
+          logger.info(`[MCP] npm registry initialized: ${this.serverManager.getNpmRegistry()}`)
+        } catch (error) {
+          console.error('[MCP] npm registry initialization failed:', error)
+        }
       }
 
       // Check and start deepchat-inmemory/custom-prompts-server
       const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
-      if (servers[customPromptsServerName]) {
-        console.log(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
+      if (mcpEnabled && servers[customPromptsServerName]) {
+        logger.info(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
 
         try {
           await this.serverManager.startServer(customPromptsServerName)
-          console.log(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
+          logger.info(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
 
           // Notify renderer process that server has started
           eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
@@ -156,12 +120,13 @@ export class McpPresenter implements IMCPPresenter {
 
       if (enabledServers.length > 0) {
         for (const serverName of enabledServers) {
-          if (servers[serverName]) {
-            console.log(`[MCP] Attempting to start enabled server: ${serverName}`)
+          const serverConfig = servers[serverName]
+          if (serverConfig && (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))) {
+            logger.info(`[MCP] Attempting to start enabled server: ${serverName}`)
 
             try {
               await this.serverManager.startServer(serverName)
-              console.log(`[MCP] Enabled server ${serverName} started successfully`)
+              logger.info(`[MCP] Enabled server ${serverName} started successfully`)
 
               // Notify renderer process that server has started
               eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
@@ -174,7 +139,7 @@ export class McpPresenter implements IMCPPresenter {
 
       // Mark initialization complete and emit event
       this.isInitialized = true
-      console.log('[MCP] Initialization completed')
+      logger.info('[MCP] Initialization completed')
       eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
 
       this.scheduleBackgroundRegistryUpdate()
@@ -255,11 +220,19 @@ export class McpPresenter implements IMCPPresenter {
       await this.configPresenter.updateMcpServer(update.name, update.config)
     }
 
-    console.log(`Updated Authorization for ${updates.length} mcprouter servers`)
+    logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
   }
 
   private scheduleBackgroundRegistryUpdate(): void {
+    if (this.isPrivacyModeEnabled()) {
+      return
+    }
+
     setTimeout(async () => {
+      if (this.isPrivacyModeEnabled()) {
+        return
+      }
+
       try {
         await this.serverManager.updateNpmRegistryInBackground()
       } catch (error) {
@@ -280,7 +253,11 @@ export class McpPresenter implements IMCPPresenter {
 
   // Get all MCP servers
   async getMcpClients(): Promise<McpClient[]> {
-    const clients = await this.toolManager.getRunningClients()
+    const enabled = await this.configPresenter.getMcpEnabled()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const clientsList: McpClient[] = []
     for (const client of clients) {
       const results: MCPToolDefinition[] = []
@@ -369,7 +346,12 @@ export class McpPresenter implements IMCPPresenter {
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
     await this.configPresenter.setMcpServerEnabled(serverName, enabled)
 
-    if (!(await this.configPresenter.getMcpEnabled())) {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (
+      !this.isPluginOwnedServerConfig(serverConfig) &&
+      !(await this.configPresenter.getMcpEnabled())
+    ) {
       return
     }
 
@@ -410,11 +392,11 @@ export class McpPresenter implements IMCPPresenter {
 
     // If server was previously running, restart it to apply new configuration
     if (wasRunning) {
-      console.log(`[MCP] Configuration updated, restarting server: ${serverName}`)
+      logger.info(`[MCP] Configuration updated, restarting server: ${serverName}`)
       try {
         await this.stopServer(serverName) // stopServer will emit SERVER_STOPPED event
         await this.startServer(serverName) // startServer will emit SERVER_STARTED event
-        console.log(`[MCP] Server ${serverName} restarted successfully`)
+        logger.info(`[MCP] Server ${serverName} restarted successfully`)
       } catch (error) {
         console.error(`[MCP] Failed to restart server ${serverName}:`, error)
         // Even if restart fails, ensure correct state by marking as not running
@@ -447,12 +429,19 @@ export class McpPresenter implements IMCPPresenter {
     // Notify renderer process that server has stopped
     eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
   }
+
+  getServerLastError(serverName: string): string | undefined {
+    return this.serverManager.getServerLastError(serverName)
+  }
+
   async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
     const enabled = await this.configPresenter.getMcpEnabled()
+    const tools = await this.toolManager.getAllToolDefinitions(enabledMcpTools)
     if (enabled) {
-      return await this.toolManager.getAllToolDefinitions(enabledMcpTools)
+      return tools
     }
-    return []
+    const servers = await this.configPresenter.getMcpServers()
+    return tools.filter((tool) => this.isPluginOwnedServerConfig(servers[tool.server.name]))
   }
 
   /**
@@ -461,11 +450,10 @@ export class McpPresenter implements IMCPPresenter {
    */
   async getAllPrompts(): Promise<Array<PromptListEntry>> {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
-      return []
-    }
-
-    const clients = await this.toolManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const promptsList: Array<Prompt & { client: { name: string; icon: string } }> = []
 
     for (const client of clients) {
@@ -507,11 +495,10 @@ export class McpPresenter implements IMCPPresenter {
     Array<ResourceListEntry & { client: { name: string; icon: string } }>
   > {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
-      return []
-    }
-
-    const clients = await this.toolManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
+    const clients = (await this.toolManager.getRunningClients()).filter(
+      (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
+    )
     const resourcesList: Array<ResourceListEntry & { client: { name: string; icon: string } }> = []
 
     for (const client of clients) {
@@ -540,6 +527,12 @@ export class McpPresenter implements IMCPPresenter {
 
   async callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }> {
     const toolCallResult = await this.toolManager.callTool(request)
+    const imagePreviews = await extractToolCallImagePreviews({
+      toolName: request.function.name,
+      toolArgs: request.function.arguments,
+      content: toolCallResult.content,
+      cacheImage: this.cacheImage
+    })
 
     // Format tool call results into strings that are easy for large models to parse
     let formattedContent = ''
@@ -581,7 +574,13 @@ export class McpPresenter implements IMCPPresenter {
       formattedContent = `Error: ${formattedContent}`
     }
 
-    return { content: formattedContent, rawData: toolCallResult }
+    return {
+      content: formattedContent,
+      rawData: {
+        ...toolCallResult,
+        ...(imagePreviews.length > 0 ? { imagePreviews } : {})
+      }
+    }
   }
 
   /**
@@ -616,6 +615,10 @@ export class McpPresenter implements IMCPPresenter {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
         eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
+        publishDeepchatEvent('mcp.sampling.request', {
+          request,
+          version: Date.now()
+        })
       } catch (error) {
         this.pendingSamplingRequests.delete(request.requestId)
         reject(error instanceof Error ? error : new Error(String(error)))
@@ -640,6 +643,10 @@ export class McpPresenter implements IMCPPresenter {
     pending.resolve(decision)
 
     eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_DECISION, SendTarget.ALL_WINDOWS, decision)
+    publishDeepchatEvent('mcp.sampling.decision', {
+      decision,
+      version: Date.now()
+    })
   }
 
   async cancelSamplingRequest(requestId: string, reason?: string): Promise<void> {
@@ -659,495 +666,11 @@ export class McpPresenter implements IMCPPresenter {
       requestId,
       reason: reason ?? 'cancelled'
     })
-  }
-
-  // Convert MCPToolDefinition to MCPTool
-  private mcpToolDefinitionToMcpTool(
-    toolDefinition: MCPToolDefinition,
-    serverName: string
-  ): MCPTool {
-    const toolParameters = toolDefinition.function.parameters
-    const mcpTool = {
-      id: toolDefinition.function.name,
-      name: toolDefinition.function.name,
-      type: toolDefinition.type,
-      description: toolDefinition.function.description,
-      serverName,
-      inputSchema: {
-        properties: (toolParameters?.properties ?? {}) as Record<string, Record<string, unknown>>,
-        type: toolParameters?.type ?? 'object',
-        required: toolParameters?.required ?? []
-      }
-    } as MCPTool
-    return mcpTool
-  }
-
-  // Tool properties filter function
-  private filterPropertieAttributes(tool: MCPTool): Record<string, Record<string, unknown>> {
-    const supportedAttributes = [
-      'type',
-      'nullable',
-      'description',
-      'properties',
-      'items',
-      'enum',
-      'anyOf',
-      '$def'
-    ]
-
-    const properties = tool.inputSchema.properties ?? {}
-
-    // Recursive cleanup function to ensure all values are serializable
-    const cleanValue = (value: unknown): unknown => {
-      if (value === null || value === undefined) {
-        return value
-      }
-
-      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return value
-      }
-
-      if (Array.isArray(value)) {
-        return value.map(cleanValue)
-      }
-
-      if (typeof value === 'object') {
-        const cleaned: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          cleaned[k] = cleanValue(v)
-        }
-        return cleaned
-      }
-
-      // For functions, Symbols and other non-serializable values, return string representation
-      return String(value)
-    }
-
-    const getSubMap = (obj: Record<string, unknown>, keys: string[]): Record<string, unknown> => {
-      const filtered = Object.fromEntries(Object.entries(obj).filter(([key]) => keys.includes(key)))
-      const cleaned: Record<string, unknown> = {}
-      for (const [key, value] of Object.entries(filtered)) {
-        if (key === 'type') {
-          // Handle type property specifically to ensure it has a valid value
-          const typeValue = cleanValue(value)
-          if (
-            !typeValue ||
-            typeof typeValue !== 'string' ||
-            typeValue.trim() === '' ||
-            typeValue.toLowerCase() === 'any' ||
-            typeValue.toLowerCase() === 'unknown'
-          ) {
-            // Set to 'string' if type is missing, empty, 'any', or 'unknown'
-            cleaned[key] = 'string'
-          } else {
-            // Validate that it's a supported JSON Schema type
-            const supportedTypes = [
-              'string',
-              'number',
-              'integer',
-              'boolean',
-              'array',
-              'object',
-              'null'
-            ]
-            if (supportedTypes.includes(typeValue.toLowerCase())) {
-              cleaned[key] = typeValue.toLowerCase()
-            } else {
-              // If it's not a supported type, default to 'string'
-              cleaned[key] = 'string'
-            }
-          }
-        } else {
-          cleaned[key] = cleanValue(value)
-        }
-      }
-
-      // Ensure type property exists if it was supposed to be included
-      if (keys.includes('type') && !cleaned.hasOwnProperty('type')) {
-        cleaned.type = 'string'
-      }
-
-      return cleaned
-    }
-
-    const result: Record<string, Record<string, unknown>> = {}
-    for (const [key, val] of Object.entries(properties)) {
-      if (typeof val === 'object' && val !== null) {
-        result[key] = getSubMap(val as Record<string, unknown>, supportedAttributes)
-      }
-    }
-
-    return result
-  }
-
-  // New tool conversion methods
-  /**
-   * Convert MCP tool definitions to OpenAI tool format
-   * @param mcpTools Array of MCP tool definitions
-   * @param serverName Server name
-   * @returns Tool definitions in OpenAI tool format
-   */
-  async mcpToolsToOpenAITools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<OpenAITool[]> {
-    const openaiTools: OpenAITool[] = mcpTools.map((toolDef) => {
-      const tool = this.mcpToolDefinitionToMcpTool(toolDef, serverName)
-      return {
-        type: 'function',
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: {
-            type: 'object',
-            properties: this.filterPropertieAttributes(tool),
-            required: tool.inputSchema.required || []
-          }
-        }
-      }
+    publishDeepchatEvent('mcp.sampling.cancelled', {
+      requestId,
+      reason: reason ?? 'cancelled',
+      version: Date.now()
     })
-    // console.log('openaiTools', JSON.stringify(openaiTools))
-    return openaiTools
-  }
-
-  /**
-   * Convert OpenAI tool call back to MCP tool call
-   * @param mcpTools Array of MCP tool definitions
-   * @param llmTool OpenAI tool call
-   * @param serverName Server name
-   * @returns Matching MCP tool call
-   */
-  async openAIToolsToMcpTool(
-    llmTool: OpenAIToolCall,
-    providerId: string
-  ): Promise<MCPToolCall | undefined> {
-    const mcpTools = await this.getAllToolDefinitions()
-    const tool = mcpTools.find((tool) => tool.function.name === llmTool.function.name)
-    if (!tool) {
-      return undefined
-    }
-
-    // Create MCP tool call
-    const mcpToolCall: MCPToolCall = {
-      id: `${providerId}:${tool.function.name}-${Date.now()}`, // Generate unique ID including server name
-      type: tool.type,
-      function: {
-        name: tool.function.name,
-        arguments: llmTool.function.arguments
-      },
-      server: {
-        name: tool.server.name,
-        icons: tool.server.icons,
-        description: tool.server.description
-      }
-    }
-    // console.log('mcpToolCall', mcpToolCall, tool)
-
-    return mcpToolCall
-  }
-
-  /**
-   * Convert MCP tool definitions to Anthropic tool format
-   * @param mcpTools Array of MCP tool definitions
-   * @param serverName Server name
-   * @returns Tool definitions in Anthropic tool format
-   */
-  async mcpToolsToAnthropicTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<AnthropicTool[]> {
-    return mcpTools.map((toolDef) => {
-      const tool = this.mcpToolDefinitionToMcpTool(toolDef, serverName)
-      return {
-        name: tool.name,
-        description: tool.description,
-        input_schema: {
-          type: 'object',
-          properties: this.filterPropertieAttributes(tool),
-          required: tool.inputSchema.required as string[]
-        }
-      }
-    })
-  }
-
-  /**
-   * Convert Anthropic tool use back to MCP tool call
-   * @param mcpTools Array of MCP tool definitions
-   * @param toolUse Anthropic tool use
-   * @param serverName Server name
-   * @returns Matching MCP tool call
-   */
-  async anthropicToolUseToMcpTool(
-    toolUse: AnthropicToolUse,
-    providerId: string
-  ): Promise<MCPToolCall | undefined> {
-    const mcpTools = await this.getAllToolDefinitions()
-
-    const tool = mcpTools.find((tool) => tool.function.name === toolUse.name)
-    // console.log('tool', tool, toolUse)
-    if (!tool) {
-      return undefined
-    }
-
-    // Create MCP tool call
-    const mcpToolCall: MCPToolCall = {
-      id: `${providerId}:${tool.function.name}-${Date.now()}`, // Generate unique ID including server name
-      type: tool.type,
-      function: {
-        name: tool.function.name,
-        arguments: JSON.stringify(toolUse.input)
-      },
-      server: {
-        name: tool.server.name,
-        icons: tool.server.icons,
-        description: tool.server.description
-      }
-    }
-
-    return mcpToolCall
-  }
-
-  /**
-   * Convert MCP tool definitions to Gemini tool format
-   * @param mcpTools Array of MCP tool definitions
-   * @param serverName Server name
-   * @returns Tool definitions in Gemini tool format
-   */
-  async mcpToolsToGeminiTools(
-    mcpTools: MCPToolDefinition[] | undefined,
-    serverName: string
-  ): Promise<ToolListUnion> {
-    if (!mcpTools || mcpTools.length === 0) {
-      return []
-    }
-
-    // Recursively clean Schema objects to ensure compliance with Gemini API requirements
-    const cleanSchema = (schema: Record<string, unknown>): Record<string, unknown> => {
-      const cleanedSchema: Record<string, unknown> = {}
-
-      // Handle type field - ensure always has valid value
-      if ('type' in schema) {
-        const type = schema.type
-        if (typeof type === 'string' && type.trim() !== '') {
-          cleanedSchema.type = type
-        } else if (Array.isArray(type) && type.length > 0) {
-          // If it's a type array, take the first non-empty type
-          const validType = type.find((t) => typeof t === 'string' && t.trim() !== '')
-          if (validType) {
-            cleanedSchema.type = validType
-          } else {
-            cleanedSchema.type = 'string' // Default type
-          }
-        } else {
-          // If no valid type, infer from other attributes
-          if ('enum' in schema) {
-            cleanedSchema.type = 'string'
-          } else if ('properties' in schema) {
-            cleanedSchema.type = 'object'
-          } else if ('items' in schema) {
-            cleanedSchema.type = 'array'
-          } else {
-            cleanedSchema.type = 'string' // Default type
-          }
-        }
-      } else {
-        // If there's no type field at all, infer from other attributes
-        if ('enum' in schema) {
-          cleanedSchema.type = 'string'
-        } else if ('properties' in schema) {
-          cleanedSchema.type = 'object'
-        } else if ('items' in schema) {
-          cleanedSchema.type = 'array'
-        } else if ('anyOf' in schema || 'oneOf' in schema) {
-          // For union types, try to infer the most appropriate type
-          cleanedSchema.type = 'string' // Default to string
-        } else {
-          cleanedSchema.type = 'string' // Final default type
-        }
-      }
-
-      // Handle description
-      if ('description' in schema && typeof schema.description === 'string') {
-        cleanedSchema.description = schema.description
-      }
-
-      // Handle enum
-      if ('enum' in schema && Array.isArray(schema.enum)) {
-        cleanedSchema.enum = schema.enum
-        // Ensure enum type is string
-        if (!cleanedSchema.type || cleanedSchema.type === '') {
-          cleanedSchema.type = 'string'
-        }
-      }
-
-      // Handle properties
-      if (
-        'properties' in schema &&
-        typeof schema.properties === 'object' &&
-        schema.properties !== null
-      ) {
-        const properties = schema.properties as Record<string, unknown>
-        const cleanedProperties: Record<string, unknown> = {}
-
-        for (const [propName, propValue] of Object.entries(properties)) {
-          if (typeof propValue === 'object' && propValue !== null) {
-            cleanedProperties[propName] = cleanSchema(propValue as Record<string, unknown>)
-          }
-        }
-
-        if (Object.keys(cleanedProperties).length > 0) {
-          cleanedSchema.properties = cleanedProperties
-          cleanedSchema.type = 'object'
-        }
-      }
-
-      // Handle items (array type)
-      if ('items' in schema && typeof schema.items === 'object' && schema.items !== null) {
-        cleanedSchema.items = cleanSchema(schema.items as Record<string, unknown>)
-        cleanedSchema.type = 'array'
-      }
-
-      // Handle nullable
-      if ('nullable' in schema && typeof schema.nullable === 'boolean') {
-        cleanedSchema.nullable = schema.nullable
-      }
-
-      // Handle anyOf/oneOf (union types) - simplify to single type
-      if ('anyOf' in schema && Array.isArray(schema.anyOf)) {
-        const anyOfOptions = schema.anyOf as Array<Record<string, unknown>>
-
-        // Try to find the most suitable type
-        let bestOption = anyOfOptions[0]
-
-        // Prefer options with enum
-        for (const option of anyOfOptions) {
-          if ('enum' in option && Array.isArray(option.enum)) {
-            bestOption = option
-            break
-          }
-        }
-
-        // If no enum, prefer string type
-        if (!('enum' in bestOption)) {
-          for (const option of anyOfOptions) {
-            if (option.type === 'string') {
-              bestOption = option
-              break
-            }
-          }
-        }
-
-        // Recursively clean the selected option
-        const cleanedOption = cleanSchema(bestOption)
-        Object.assign(cleanedSchema, cleanedOption)
-      }
-
-      // Handle oneOf similar to anyOf
-      if ('oneOf' in schema && Array.isArray(schema.oneOf)) {
-        const oneOfOptions = schema.oneOf as Array<Record<string, unknown>>
-        const bestOption = oneOfOptions[0] || {}
-        const cleanedOption = cleanSchema(bestOption)
-        Object.assign(cleanedSchema, cleanedOption)
-      }
-
-      // Final check: ensure type field is mandatory
-      if (!cleanedSchema.type || cleanedSchema.type === '') {
-        cleanedSchema.type = 'string'
-      }
-
-      return cleanedSchema
-    }
-
-    // Process each tool definition to build function declarations that comply with Gemini API
-    const functionDeclarations = mcpTools.map((toolDef) => {
-      // Convert to internal tool representation
-      const tool = this.mcpToolDefinitionToMcpTool(toolDef, serverName)
-
-      // Get parameter properties
-      const properties = tool.inputSchema.properties
-      const processedProperties: Record<string, Record<string, unknown>> = {}
-
-      // Process each property and apply cleanup function
-      for (const [propName, propValue] of Object.entries(properties)) {
-        if (typeof propValue === 'object' && propValue !== null) {
-          const cleaned = cleanSchema(propValue as Record<string, unknown>)
-          // Ensure cleaned property has valid type
-          if (cleaned.type && cleaned.type !== '') {
-            processedProperties[propName] = cleaned
-          } else {
-            console.warn(`[MCP] Skipping property ${propName} due to invalid type`)
-          }
-        }
-      }
-
-      // Prepare function declaration structure
-      const functionDeclaration: FunctionDeclaration = {
-        name: tool.id,
-        description: tool.description
-      }
-
-      if (Object.keys(processedProperties).length > 0) {
-        functionDeclaration.parameters = {
-          type: Type.OBJECT,
-          properties: processedProperties,
-          required: tool.inputSchema.required || []
-        }
-      }
-
-      // Log functions without parameters
-      if (Object.keys(processedProperties).length === 0) {
-        console.log(
-          `[MCP] Function ${tool.id} has no parameters, providing minimal parameter structure`
-        )
-      }
-
-      return functionDeclaration
-    })
-
-    // Return result in Gemini tool format
-    return [
-      {
-        functionDeclarations
-      }
-    ]
-  }
-
-  /**
-   * Convert Gemini function call back to MCP tool call
-   * @param mcpTools Array of MCP tool definitions
-   * @param fcall Gemini function call
-   * @param serverName Server name
-   * @returns Matching MCP tool call
-   */
-  async geminiFunctionCallToMcpTool(
-    fcall: GeminiFunctionCall | undefined,
-    providerId: string
-  ): Promise<MCPToolCall | undefined> {
-    const mcpTools = await this.getAllToolDefinitions()
-    if (!fcall) return undefined
-    if (!mcpTools) return undefined
-
-    const tool = mcpTools.find((tool) => tool.function.name === fcall.name)
-    if (!tool) {
-      return undefined
-    }
-
-    // Create MCP tool call
-    const mcpToolCall: MCPToolCall = {
-      id: `${providerId}:${tool.function.name}-${Date.now()}`, // Generate unique ID including server name
-      type: tool.type,
-      function: {
-        name: tool.function.name,
-        arguments: JSON.stringify(fcall.args)
-      },
-      server: {
-        name: tool.server.name,
-        icons: tool.server.icons,
-        description: tool.server.description
-      }
-    }
-
-    return mcpToolCall
   }
 
   // Get MCP enabled status
@@ -1160,8 +683,12 @@ export class McpPresenter implements IMCPPresenter {
     await this.configPresenter?.setMcpEnabled(enabled)
 
     if (enabled) {
+      const servers = await this.configPresenter.getMcpServers()
       const enabledServers = await this.configPresenter.getEnabledMcpServers()
       for (const serverName of enabledServers) {
+        if (this.isPluginOwnedServerConfig(servers[serverName])) {
+          continue
+        }
         try {
           await this.startServer(serverName)
         } catch (error) {
@@ -1172,7 +699,11 @@ export class McpPresenter implements IMCPPresenter {
     }
 
     const runningClients = await this.serverManager.getRunningClients()
+    const servers = await this.configPresenter.getMcpServers()
     for (const client of runningClients) {
+      if (this.isPluginOwnedServerConfig(servers[client.serverName])) {
+        continue
+      }
       try {
         await this.stopServer(client.serverName)
       } catch (error) {
@@ -1190,7 +721,7 @@ export class McpPresenter implements IMCPPresenter {
   async getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown> {
     // Check if this is a custom prompt from deepchat/custom-prompts-server
     if (prompt.client.name === 'deepchat/custom-prompts-server') {
-      console.log(`[MCP] Getting custom prompt: ${prompt.name}`)
+      logger.info(`[MCP] Getting custom prompt: ${prompt.name}`)
       try {
         const customPrompts = await this.configPresenter.getCustomPrompts()
         const foundPrompt = customPrompts.find((p) => p.name === prompt.name)
@@ -1215,7 +746,7 @@ export class McpPresenter implements IMCPPresenter {
 
     // For MCP server prompts, check if MCP is enabled
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
+    if (!enabled && !(await this.isPluginOwnedServerName(prompt.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
 
@@ -1230,39 +761,12 @@ export class McpPresenter implements IMCPPresenter {
    */
   async readResource(resource: ResourceListEntry): Promise<Resource> {
     const enabled = await this.configPresenter.getMcpEnabled()
-    if (!enabled) {
+    if (!enabled && !(await this.isPluginOwnedServerName(resource.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
 
     // Pass client information and resource URI to toolManager
     return this.toolManager.readResourceByClient(resource.client.name, resource.uri)
-  }
-
-  /**
-   * Convert MCP tool definitions to OpenAI Responses API tool format
-   * @param mcpTools Array of MCP tool definitions
-   * @param serverName Server name
-   * @returns Tool definitions in OpenAI Responses API tool format
-   */
-  async mcpToolsToOpenAIResponsesTools(
-    mcpTools: MCPToolDefinition[],
-    serverName: string
-  ): Promise<OpenAI.Responses.Tool[]> {
-    const openaiTools: OpenAI.Responses.Tool[] = mcpTools.map((toolDef) => {
-      const tool = this.mcpToolDefinitionToMcpTool(toolDef, serverName)
-      return {
-        type: 'function',
-        name: tool.name,
-        description: tool.description,
-        parameters: {
-          type: 'object',
-          properties: this.filterPropertieAttributes(tool),
-          required: tool.inputSchema.required || []
-        },
-        strict: false
-      }
-    })
-    return openaiTools
   }
 
   async grantPermission(
@@ -1272,11 +776,11 @@ export class McpPresenter implements IMCPPresenter {
     conversationId?: string
   ): Promise<void> {
     try {
-      console.log(
+      logger.info(
         `[MCP] Granting ${permissionType} permission for server: ${serverName}, remember: ${remember}, conversationId: ${conversationId}`
       )
       await this.toolManager.grantPermission(serverName, permissionType, remember, conversationId)
-      console.log(
+      logger.info(
         `[MCP] Successfully granted ${permissionType} permission for server: ${serverName}`
       )
     } catch (error) {
@@ -1320,9 +824,9 @@ export class McpPresenter implements IMCPPresenter {
   async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
     this.configPresenter.setCustomNpmRegistry?.(registry)
     if (registry) {
-      console.log(`[MCP] Setting custom NPM registry: ${registry}`)
+      logger.info(`[MCP] Setting custom NPM registry: ${registry}`)
     } else {
-      console.log('[MCP] Clearing custom NPM registry')
+      logger.info('[MCP] Clearing custom NPM registry')
     }
     this.serverManager.loadRegistryFromCache()
   }
@@ -1336,7 +840,7 @@ export class McpPresenter implements IMCPPresenter {
 
   async clearNpmRegistryCache(): Promise<void> {
     this.configPresenter.clearNpmRegistryCache?.()
-    console.log('[MCP] NPM Registry cache cleared')
+    logger.info('[MCP] NPM Registry cache cleared')
   }
 
   // Get npm registry (for ACP and other internal use)

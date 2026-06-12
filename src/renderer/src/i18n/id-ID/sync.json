@@ -1,0 +1,30 @@
+{
+  "success": {
+    "importComplete": "Berhasil mengimpor percakapan {count}",
+    "cloudConnected": "Koneksi cloud berhasil",
+    "cloudUploaded": "Diunggah ke cloud",
+    "cloudPulled": "Cadangan terbaru ditarik dari cloud"
+  },
+  "error": {
+    "notEnabled": "Sinkronisasi tidak diaktifkan",
+    "folderNotExists": "Folder sinkronisasi tidak ada",
+    "noValidBackup": "Tidak ada file cadangan yang valid di folder sinkronisasi",
+    "unsupportedBackupVersion": "Cadangan ini dibuat oleh versi DeepChat yang lebih baru dan versi saat ini tidak dapat diimpor",
+    "dbNotExists": "File basis data tidak ada",
+    "configNotExists": "File konfigurasi tidak ada",
+    "tempDbFailed": "Pembuatan file cadangan database sementara gagal",
+    "tempConfigFailed": "Pembuatan file cadangan konfigurasi sementara gagal",
+    "importFailed": "Impor gagal, data asli dipulihkan",
+    "importProcess": "Kesalahan saat mengimpor",
+    "unknown": "kesalahan yang tidak diketahui",
+    "encryptedBackupPasswordMissing": "Cadangan dienkripsi, namun kunci database lokal tidak tersedia. Harap buka kunci basis data terenkripsi terlebih dahulu lalu impor lagi.",
+    "overwriteEncryptionMismatch": "Impor penimpaan mengharuskan database cadangan dan database saat ini berada dalam status enkripsi yang sama.",
+    "cloudNotConfigured": "Cloud belum dikonfigurasi. Isi dan simpan koneksi cloud terlebih dahulu.",
+    "cloudNoBackup": "Tidak ada cadangan yang tersedia di bucket cloud",
+    "cloudDownloadFailed": "Gagal mengunduh cadangan dari cloud",
+    "cloudOperationFailed": "Operasi cloud gagal",
+    "noLocalBackup": "Tidak ada cadangan lokal untuk diunggah. Jalankan pencadangan terlebih dahulu.",
+    "safeStorageUnavailable": "Keychain sistem tidak tersedia; kunci rahasia tidak dapat disimpan dengan aman.",
+    "cloudUnauthorized": "Autentikasi cloud gagal. Periksa Endpoint, bucket, Access Key ID, Secret Access Key, dan izin token R2."
+  }
+}

@@ -83,6 +83,11 @@ describe('Provider DB strict matching + user overrides', () => {
               modalities: { input: ['text'] }
             },
             {
+              id: 'large-output',
+              limit: { context: 200000, output: 64000 },
+              modalities: { input: ['text'] }
+            },
+            {
               id: 'no-limit' // both missing -> fallback 16000/4096
             },
             {
@@ -112,6 +117,60 @@ describe('Provider DB strict matching + user overrides', () => {
                   default_enabled: true,
                   mode: 'budget',
                   budget: { min: 0, max: 24576, default: -1, auto: -1, off: 0, unit: 'tokens' }
+                }
+              }
+            },
+            {
+              id: 'gpt-5.2',
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'effort',
+                  effort: 'none',
+                  effort_options: ['none', 'low', 'medium', 'high', 'xhigh'],
+                  verbosity: 'medium',
+                  verbosity_options: ['low', 'medium', 'high']
+                }
+              }
+            }
+          ]
+        },
+        moonshot: {
+          id: 'moonshot',
+          name: 'Moonshot',
+          models: [
+            {
+              id: 'moonshotai/kimi-k2.6',
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: true,
+                  mode: 'budget',
+                  budget: { min: 0, max: 32768, default: 8192 }
+                }
+              }
+            },
+            {
+              id: 'moonshotai/kimi-k2.6:thinking',
+              reasoning: {
+                supported: true,
+                default: false
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  default_enabled: false,
+                  mode: 'budget',
+                  budget: { min: 0, max: 32768, default: 8192 }
                 }
               }
             }
@@ -158,6 +217,14 @@ describe('Provider DB strict matching + user overrides', () => {
     expect(cfg2.searchStrategy).toBe('turbo')
   })
 
+  it('caps provider-derived maxTokens defaults at 32000', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const cfg = helper.getModelConfig('large-output', 'test-provider')
+
+    expect(cfg.contextLength).toBe(200000)
+    expect(cfg.maxTokens).toBe(32000)
+  })
+
   it('preserves explicit tool_call=false from provider DB', () => {
     const helper = new ModelConfigHelper('1.0.0')
     const cfg = helper.getModelConfig('tool-call-disabled', 'test-provider')
@@ -178,8 +245,8 @@ describe('Provider DB strict matching + user overrides', () => {
   it('prefers user config over provider DB and persists across restart', () => {
     const helper1 = new ModelConfigHelper('1.0.0')
     const userCfg = {
-      maxTokens: 8888,
-      contextLength: 7777,
+      maxTokens: 64000,
+      contextLength: 128000,
       temperature: 0.5,
       vision: false,
       functionCall: false,
@@ -199,6 +266,55 @@ describe('Provider DB strict matching + user overrides', () => {
     const helper3 = new ModelConfigHelper('2.0.0')
     const read3 = helper3.getModelConfig('test-model', 'test-provider')
     expect(read3).toMatchObject({ ...userCfg, isUserDefined: true })
+  })
+
+  it('caps legacy provider-managed cache values on read while preserving user values', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const helperAny = helper as any
+    const providerCacheKey = helperAny.generateCacheKey('test-provider', 'large-output')
+
+    helper.importConfigs(
+      {
+        [providerCacheKey]: {
+          id: 'large-output',
+          providerId: 'test-provider',
+          source: 'provider',
+          config: {
+            maxTokens: 64000,
+            contextLength: 200000,
+            temperature: 0.4,
+            vision: false,
+            functionCall: true,
+            reasoning: false,
+            type: ModelType.Chat,
+            isUserDefined: false
+          }
+        }
+      },
+      false
+    )
+
+    const providerRead = helper.getModelConfig('large-output', 'test-provider')
+    expect(providerRead.maxTokens).toBe(32000)
+
+    helper.setModelConfig(
+      'large-output',
+      'test-provider',
+      {
+        maxTokens: 64000,
+        contextLength: 128000,
+        temperature: 0.6,
+        vision: false,
+        functionCall: true,
+        reasoning: false,
+        type: ModelType.Chat
+      },
+      { source: 'user' }
+    )
+
+    const userRead = helper.getModelConfig('large-output', 'test-provider')
+    expect(userRead.maxTokens).toBe(64000)
+    expect(userRead.isUserDefined).toBe(true)
   })
 
   it('matches DB with case-insensitive provider/model IDs for provider data (strictly lowercase in DB)', () => {
@@ -226,6 +342,34 @@ describe('Provider DB strict matching + user overrides', () => {
 
     expect(cfg.reasoning).toBe(true)
     expect(cfg.thinkingBudget).toBe(-1)
+  })
+
+  it('keeps none as the provider default effort without enabling reasoning', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('gpt-5.2', 'test-provider')
+
+    expect(cfg.reasoning).toBe(false)
+    expect(cfg.reasoningEffort).toBe('none')
+    expect(cfg.verbosity).toBe('medium')
+  })
+
+  it('forces Moonshot Kimi defaults to the thinking-enabled temperature when reasoning defaults on', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('moonshotai/kimi-k2.6', 'moonshot')
+
+    expect(cfg.reasoning).toBe(true)
+    expect(cfg.temperature).toBe(1)
+  })
+
+  it('forces Moonshot Kimi :thinking variants to keep reasoning on and temperature at 1.0', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('moonshotai/kimi-k2.6:thinking', 'moonshot')
+
+    expect(cfg.reasoning).toBe(true)
+    expect(cfg.temperature).toBe(1)
   })
 
   it('recomputes reasoning-related fields for provider cached configs', () => {

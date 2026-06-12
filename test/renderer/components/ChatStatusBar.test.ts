@@ -2,25 +2,40 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ACP_WORKSPACE_EVENTS } from '@/events'
-import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
+import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
+import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 
-type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
+const TEST_TIMEOUT_MS = 20000
+
 type TestGenerationSettings = {
   systemPrompt: string
   temperature: number
   contextLength: number
   maxTokens: number
+  apiEndpoint?: 'chat' | 'image'
+  endpointType?: string
+  type?: 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+  reasoning?: boolean
   thinkingBudget?: number
   forceInterleavedThinkingCompat?: boolean
   reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: 'omitted' | 'summarized'
   verbosity?: 'low' | 'medium' | 'high'
+  imageGeneration?: ImageGenerationOptions
 }
 
 type ExtraModelGroup = {
   providerId: string
   providerName: string
-  models: Array<{ id: string; name: string }>
+  apiType?: string
+  models: Array<{
+    id: string
+    name: string
+    type?: 'chat' | 'embedding' | 'rerank' | 'imageGeneration'
+    endpointType?: string
+    supportedEndpointTypes?: string[]
+  }>
 }
 
 type SetupOptions = {
@@ -29,6 +44,8 @@ type SetupOptions = {
   activeProviderId?: string
   activeModelId?: string
   activeProjectDir?: string | null
+  activeSessionSubagentEnabled?: boolean
+  draftSubagentEnabled?: boolean
   supportsEffort?: boolean
   setSessionModelError?: Error
   defaultModel?: { providerId: string; modelId: string } | null
@@ -39,10 +56,16 @@ type SetupOptions = {
   sessionSettings?: Partial<TestGenerationSettings> | null
   draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
+  capabilityProviderId?: string
+  temperatureCapability?: boolean | undefined
   projectPath?: string | null
   acpDraftSessionId?: string | null
   acpProcessConfig?: AcpConfigState | null
   acpSessionConfig?: AcpConfigState | null
+  deferStartupTasks?: boolean
+  modelStoreInitialized?: boolean
+  modelStoreInitializationError?: Error | null
+  initializeModels?: () => Promise<void>
 }
 
 const createDeferred = <T>() => {
@@ -178,6 +201,25 @@ const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
   const extraModelGroups = options.extraModelGroups ?? []
+  const normalizedExtraModelGroups = extraModelGroups.map((group) => ({
+    ...group,
+    apiType: group.apiType ?? (group.providerId === 'new-api' ? 'new-api' : 'openai-compatible'),
+    models: group.models.map((model) => {
+      if (
+        options.capabilityProviderId === 'anthropic' &&
+        group.providerId === 'new-api' &&
+        !model.endpointType
+      ) {
+        return {
+          ...model,
+          endpointType: 'anthropic',
+          supportedEndpointTypes: ['anthropic']
+        }
+      }
+
+      return model
+    })
+  }))
   const reasoningEffortDefault = options.reasoningEffortDefault ?? 'medium'
   const reasoningPortrait =
     options.reasoningPortrait ??
@@ -218,30 +260,94 @@ const setup = async (options: SetupOptions = {}) => {
     ['acp-agent', { model: { id: 'acp-agent', name: 'ACP Agent' } }],
     ['dimcode-acp', { model: { id: 'dimcode-acp', name: 'DimCode - Default' } }]
   ])
-  extraModelGroups.forEach((group) => {
+  normalizedExtraModelGroups.forEach((group) => {
     group.models.forEach((model) => {
       modelLookup.set(model.id, { model })
     })
   })
+  const isChatSelectableModel = (model: { type?: ExtraModelGroup['models'][number]['type'] }) =>
+    !model.type || model.type === 'chat' || model.type === 'imageGeneration'
+  const getChatSelectableModelGroups = () =>
+    modelStore.enabledModels
+      .filter((group) => group.providerId !== 'acp')
+      .map((group) => ({
+        providerId: group.providerId,
+        providerName:
+          normalizedExtraModelGroups.find((entry) => entry.providerId === group.providerId)
+            ?.providerName ??
+          (group.providerId === 'openai'
+            ? 'OpenAI'
+            : group.providerId === 'anthropic'
+              ? 'Anthropic'
+              : group.providerId),
+        models: group.models.filter(isChatSelectableModel)
+      }))
+      .filter((group) => group.models.length > 0)
 
   const themeStore = reactive({
     isDark: false
   })
 
   const modelStore = reactive({
-    enabledModels: [...baseModelGroups, ...extraModelGroups],
+    initialized: options.modelStoreInitialized ?? true,
+    isInitializing: false,
+    initializationError: options.modelStoreInitializationError ?? null,
+    initialize: vi.fn().mockImplementation(async () => {
+      modelStore.isInitializing = true
+      modelStore.initializationError = null
+      try {
+        if (options.initializeModels) {
+          await options.initializeModels()
+        }
+        modelStore.initialized = true
+      } catch (error) {
+        modelStore.initialized = false
+        modelStore.initializationError = error as Error
+        throw error
+      } finally {
+        modelStore.isInitializing = false
+      }
+    }),
+    enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
+    get chatSelectableModelGroups() {
+      return getChatSelectableModelGroups()
+    },
+    findChatSelectableModel: vi.fn((providerId: string, modelId: string) => {
+      const groups = getChatSelectableModelGroups().filter(
+        (entry) => entry.providerId === providerId
+      )
+      for (const group of groups) {
+        const model = group.models.find((entry) => entry.id === modelId)
+        if (model) {
+          return { providerId, providerName: group.providerName, model }
+        }
+      }
+      return null
+    }),
+    pickFirstChatSelectableModel: vi.fn(() => {
+      const firstGroup = getChatSelectableModelGroups()[0]
+      const firstModel = firstGroup?.models[0]
+      return firstGroup && firstModel
+        ? {
+            providerId: firstGroup.providerId,
+            providerName: firstGroup.providerName,
+            model: firstModel
+          }
+        : null
+    }),
     findModelByIdOrName: vi.fn((value: string) => modelLookup.get(value) ?? null)
   })
 
   const providerStore = reactive({
     sortedProviders: [
-      { id: 'openai', name: 'OpenAI', enable: true },
-      { id: 'anthropic', name: 'Anthropic', enable: true },
-      { id: 'acp', name: 'ACP', enable: true }
+      { id: 'openai', name: 'OpenAI', apiType: 'openai', enable: true },
+      { id: 'anthropic', name: 'Anthropic', apiType: 'anthropic', enable: true },
+      { id: 'acp', name: 'ACP', apiType: 'acp', enable: true }
     ].concat(
-      extraModelGroups.map((group) => ({
+      normalizedExtraModelGroups.map((group) => ({
         id: group.providerId,
         name: group.providerName,
+        apiType: group.apiType,
         enable: true
       }))
     )
@@ -268,15 +374,25 @@ const setup = async (options: SetupOptions = {}) => {
     activeSession: hasActiveSession
       ? {
           id: 's1',
+          agentId: options.agentId ?? 'deepchat',
           providerId: options.activeProviderId ?? 'openai',
           modelId: options.activeModelId ?? 'gpt-4',
           projectDir: options.activeProjectDir ?? options.projectPath ?? null,
-          status: 'idle'
+          status: 'idle',
+          sessionKind: 'regular',
+          subagentEnabled: options.activeSessionSubagentEnabled === true
         }
       : null,
     setSessionModel: options.setSessionModelError
       ? vi.fn().mockRejectedValue(options.setSessionModelError)
-      : vi.fn().mockResolvedValue(undefined)
+      : vi.fn().mockResolvedValue(undefined),
+    setSessionSubagentEnabled: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, enabled: boolean) => {
+        if (sessionStore.activeSession) {
+          sessionStore.activeSession.subagentEnabled = enabled
+        }
+      })
   })
 
   const draftStore = reactive({
@@ -289,8 +405,11 @@ const setup = async (options: SetupOptions = {}) => {
     maxTokens: undefined as number | undefined,
     thinkingBudget: undefined as number | undefined,
     forceInterleavedThinkingCompat: undefined as boolean | undefined,
-    reasoningEffort: undefined as 'minimal' | 'low' | 'medium' | 'high' | undefined,
+    reasoningEffort: undefined as ReasoningEffort | undefined,
+    reasoningVisibility: undefined as 'omitted' | 'summarized' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
+    imageGeneration: undefined as ImageGenerationOptions | undefined,
+    subagentEnabled: options.draftSubagentEnabled === true,
     ...options.draftGenerationSettings,
     updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
       Object.assign(draftStore, patch)
@@ -303,7 +422,9 @@ const setup = async (options: SetupOptions = {}) => {
       draftStore.thinkingBudget = undefined
       draftStore.forceInterleavedThinkingCompat = undefined
       draftStore.reasoningEffort = undefined
+      draftStore.reasoningVisibility = undefined
       draftStore.verbosity = undefined
+      draftStore.imageGeneration = undefined
     })
   })
 
@@ -326,24 +447,15 @@ const setup = async (options: SetupOptions = {}) => {
       return Promise.resolve(undefined)
     }),
     setSetting: vi.fn().mockResolvedValue(undefined),
-    getModelConfig: vi.fn().mockResolvedValue({
-      temperature: 0.7,
-      contextLength: 16000,
-      maxTokens: 4096,
-      thinkingBudget: 512,
-      forceInterleavedThinkingCompat: undefined,
-      reasoningEffort: reasoningEffortDefault,
-      verbosity: 'medium',
-      ...options.modelConfig
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      defaultModelPreset: undefined,
+      defaultProjectPath: undefined,
+      systemPrompt: 'Default prompt',
+      permissionMode: 'full_access',
+      disabledAgentTools: [],
+      subagentEnabled: false
     }),
-    getReasoningPortrait: vi.fn().mockResolvedValue(reasoningPortrait),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('Default prompt'),
-    supportsReasoningCapability: vi.fn().mockReturnValue(true),
-    getThinkingBudgetRange: vi.fn().mockReturnValue({ min: 0, max: 8192, default: 512 }),
-    supportsReasoningEffortCapability: vi.fn().mockReturnValue(options.supportsEffort ?? true),
-    getReasoningEffortDefault: vi.fn().mockReturnValue(reasoningEffortDefault),
-    supportsVerbosityCapability: vi.fn().mockReturnValue(true),
-    getVerbosityDefault: vi.fn().mockReturnValue('medium'),
     getSystemPrompts: vi.fn().mockResolvedValue([
       {
         id: 'preset-default',
@@ -351,6 +463,29 @@ const setup = async (options: SetupOptions = {}) => {
         content: 'Default prompt'
       }
     ])
+  }
+
+  const modelClient = {
+    getModelConfig: vi.fn().mockResolvedValue({
+      temperature: 0.7,
+      contextLength: 16000,
+      maxTokens: 4096,
+      thinkingBudget: 512,
+      forceInterleavedThinkingCompat: undefined,
+      reasoningEffort: reasoningEffortDefault,
+      reasoningVisibility: undefined,
+      verbosity: 'medium',
+      ...options.modelConfig
+    }),
+    getCapabilities: vi.fn().mockResolvedValue({
+      supportsReasoning: reasoningPortrait?.supported ?? true,
+      reasoningPortrait,
+      thinkingBudgetRange: reasoningPortrait?.budget ?? null,
+      supportsSearch: null,
+      searchDefaults: null,
+      supportsTemperatureControl: options.temperatureCapability ?? true,
+      temperatureCapability: options.temperatureCapability ?? true
+    })
   }
 
   const baseSessionSettings: TestGenerationSettings = {
@@ -361,14 +496,24 @@ const setup = async (options: SetupOptions = {}) => {
     thinkingBudget: 512,
     forceInterleavedThinkingCompat: undefined,
     reasoningEffort: 'medium',
+    reasoningVisibility: undefined,
     verbosity: 'medium',
     ...options.sessionSettings
   }
 
   const sessionSettingsResult =
     options.sessionSettings === null ? null : ({ ...baseSessionSettings } as TestGenerationSettings)
+  let acpConfigOptionsReadyHandler:
+    | ((payload: {
+        conversationId?: string
+        agentId: string
+        workdir: string
+        configState: AcpConfigState
+        version: number
+      }) => void)
+    | undefined
 
-  const newAgentPresenter = {
+  const agentSessionPresenter = {
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue(sessionSettingsResult),
@@ -388,7 +533,25 @@ const setup = async (options: SetupOptions = {}) => {
       .fn()
       .mockImplementation((_: string, patch: any) =>
         Promise.resolve({ ...baseSessionSettings, ...patch })
-      )
+      ),
+    onAcpConfigOptionsReady: vi.fn(
+      (
+        listener: (payload: {
+          conversationId?: string
+          agentId: string
+          workdir: string
+          configState: AcpConfigState
+          version: number
+        }) => void
+      ) => {
+        acpConfigOptionsReadyHandler = listener
+        return () => {
+          if (acpConfigOptionsReadyHandler === listener) {
+            acpConfigOptionsReadyHandler = undefined
+          }
+        }
+      }
+    )
   }
 
   const llmproviderPresenter = {
@@ -396,33 +559,50 @@ const setup = async (options: SetupOptions = {}) => {
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
-  const ipcListeners = new Map<string, Set<(event: unknown, payload?: unknown) => void>>()
-  ;(
-    window as typeof window & {
-      electron?: {
-        ipcRenderer?: {
-          on: ReturnType<typeof vi.fn>
-          removeListener: ReturnType<typeof vi.fn>
-          emit: (channel: string, payload?: unknown) => void
-        }
+  const ipcRenderer = {
+    emit: (channel: string, payload?: unknown) => {
+      if (channel === ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY && payload) {
+        acpConfigOptionsReadyHandler?.({
+          ...(payload as {
+            conversationId?: string
+            agentId: string
+            workdir: string
+            configState: AcpConfigState
+          }),
+          version: Date.now()
+        })
       }
     }
-  ).electron = {
-    ipcRenderer: {
-      on: vi.fn((channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-        const handlers = ipcListeners.get(channel) ?? new Set()
-        handlers.add(handler)
-        ipcListeners.set(channel, handlers)
-      }),
-      removeListener: vi.fn(
-        (channel: string, handler: (event: unknown, payload?: unknown) => void) => {
-          ipcListeners.get(channel)?.delete(handler)
-        }
-      ),
-      emit: (channel: string, payload?: unknown) => {
-        ipcListeners.get(channel)?.forEach((handler) => handler({}, payload))
-      }
-    }
+  }
+  const startupDeferredTasks: Array<() => void | Promise<void>> = []
+  const onboardingClient = {
+    getState: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'idle',
+      startedAt: null,
+      completedAt: null,
+      lastActiveAt: 1,
+      currentStepId: null,
+      steps: []
+    }),
+    setStepStatus: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'completed',
+      startedAt: 1,
+      completedAt: 2,
+      lastActiveAt: 2,
+      currentStepId: null,
+      steps: []
+    }),
+    complete: vi.fn().mockResolvedValue({
+      version: 1,
+      status: 'completed',
+      startedAt: 1,
+      completedAt: 2,
+      lastActiveAt: 2,
+      currentStepId: null,
+      steps: []
+    })
   }
 
   vi.doMock('@/stores/theme', () => ({
@@ -446,12 +626,30 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@/composables/usePresenter', () => ({
-    usePresenter: (name: string) => {
-      if (name === 'configPresenter') return configPresenter
-      if (name === 'llmproviderPresenter') return llmproviderPresenter
-      return newAgentPresenter
-    }
+  vi.doMock('@api/ConfigClient', () => ({
+    createConfigClient: vi.fn(() => configPresenter)
+  }))
+  vi.doMock('@api/ModelClient', () => ({
+    createModelClient: vi.fn(() => modelClient)
+  }))
+  vi.doMock('@api/OnboardingClient', () => ({
+    createOnboardingClient: vi.fn(() => onboardingClient)
+  }))
+  vi.doMock('@api/ProviderClient', () => ({
+    createProviderClient: vi.fn(() => llmproviderPresenter)
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: vi.fn(() => agentSessionPresenter)
+  }))
+  vi.doMock('@/lib/startupDeferred', () => ({
+    scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
+      if (options.deferStartupTasks) {
+        startupDeferredTasks.push(task)
+      } else {
+        void task()
+      }
+      return () => {}
+    })
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -471,10 +669,14 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'McpIndicator',
       props: {
-        showSystemPromptSection: { type: Boolean, default: false }
+        showSystemPromptSection: { type: Boolean, default: false },
+        showSubagentToggle: { type: Boolean, default: false },
+        subagentEnabled: { type: Boolean, default: false },
+        subagentTogglePending: { type: Boolean, default: false }
       },
+      emits: ['toggle-subagents'],
       template:
-        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" />'
+        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" :data-show-subagent-toggle="String(showSubagentToggle)" :data-subagent-enabled="String(subagentEnabled)" :data-subagent-toggle-pending="String(subagentTogglePending)"><button class="mcp-subagents-toggle-stub" type="button" @click="$emit(\'toggle-subagents\', !subagentEnabled)" /></div>'
     })
   }))
 
@@ -515,14 +717,25 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    newAgentPresenter,
+    agentSessionPresenter,
     llmproviderPresenter,
+    modelClient,
+    modelStore,
     agentStore,
     sessionStore,
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer: window.electron?.ipcRenderer
+    ipcRenderer,
+    flushStartupDeferredTasks: async () => {
+      while (startupDeferredTasks.length > 0) {
+        const task = startupDeferredTasks.shift()
+        if (task) {
+          await task()
+        }
+      }
+      await flushPromises()
+    }
   }
 }
 
@@ -553,18 +766,97 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
-  it('passes system prompt section to the unified session panel in deepchat and hides it in ACP', async () => {
-    const deepchat = await setup({ agentId: 'deepchat', hasActiveSession: false })
-    expect(
-      deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
-    ).toBe('true')
-    expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
+  it(
+    'passes system prompt section to the unified session panel in deepchat and hides it in ACP',
+    async () => {
+      const deepchat = await setup({ agentId: 'deepchat', hasActiveSession: false })
+      expect(
+        deepchat.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+      ).toBe('true')
+      expect(deepchat.wrapper.text()).toContain('chat.permissionMode.fullAccess')
 
-    const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
-    expect(
-      acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
-    ).toBe('false')
-    expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
+      const acp = await setup({ agentId: 'acp-agent', hasActiveSession: false })
+      expect(
+        acp.wrapper.find('.mcp-indicator-stub').attributes('data-show-system-prompt-section')
+      ).toBe('false')
+      expect(acp.wrapper.text()).not.toContain('chat.permissionMode.fullAccess')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('routes the subagent toggle through the unified tools panel', async () => {
+    const active = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activeSessionSubagentEnabled: true
+    })
+
+    const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
+    expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('true')
+    expect(activeIndicator.attributes('data-subagent-enabled')).toBe('true')
+    expect(active.wrapper.text()).not.toContain('chat.subagents.label')
+
+    await active.wrapper.get('.mcp-subagents-toggle-stub').trigger('click')
+    await flushPromises()
+
+    expect(active.sessionStore.setSessionSubagentEnabled).toHaveBeenCalledWith('s1', false)
+
+    const draft = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      draftSubagentEnabled: false
+    })
+
+    const draftIndicator = draft.wrapper.find('.mcp-indicator-stub')
+    expect(draftIndicator.attributes('data-show-subagent-toggle')).toBe('true')
+    expect(draftIndicator.attributes('data-subagent-enabled')).toBe('false')
+
+    await draft.wrapper.get('.mcp-subagents-toggle-stub').trigger('click')
+    await flushPromises()
+
+    expect(draft.draftStore.subagentEnabled).toBe(true)
+  })
+
+  it('hides the subagent toggle for active regular sessions that are not deepchat', async () => {
+    const active = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: true,
+      activeProviderId: 'openai'
+    })
+
+    const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
+    expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('false')
+  })
+
+  it('shows loading state and hides partial model groups before full initialization completes', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelStoreInitialized: false
+    })
+
+    expect(wrapper.find('[data-model-picker-state="loading"]').exists()).toBe(true)
+    expect(wrapper.find('[data-model-search-input="true"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('common.loading')
+    expect(wrapper.text()).not.toContain('gpt-4')
+    expect(wrapper.text()).not.toContain('claude-3-5-sonnet')
+  })
+
+  it('shows retry state after initialization failure and retries on demand', async () => {
+    const { wrapper, modelStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelStoreInitialized: false,
+      modelStoreInitializationError: new Error('init failed')
+    })
+
+    expect(wrapper.find('[data-model-picker-state="error"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('model.error.loadFailed')
+
+    await wrapper.get('[data-model-picker-state="error"] button').trigger('click')
+    await flushPromises()
+
+    expect(modelStore.initialize).toHaveBeenCalledTimes(1)
   })
 
   it('renders compact model ids in the trigger and list, and keeps chevron actions for settings', async () => {
@@ -595,6 +887,76 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).isModelSettingsExpanded).toBe(true)
   })
 
+  it('filters embedding and rerank models out of the chat model list', async () => {
+    const { wrapper } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [
+            { id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' },
+            { id: 'bge-rerank-v2', name: 'Rerank', type: 'rerank' },
+            { id: 'gpt-4.1', name: 'GPT-4.1', type: 'chat' },
+            { id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }
+          ]
+        }
+      ]
+    })
+
+    const filteredGroups = (wrapper.vm as any).filteredModelGroups as Array<{
+      providerId: string
+      models: Array<{ id: string }>
+    }>
+    const newApiGroup = filteredGroups.find((group) => group.providerId === 'new-api')
+
+    expect(newApiGroup?.models.map((model) => model.id)).toEqual(['gpt-4.1', 'gpt-image-2'])
+    expect(wrapper.text()).not.toContain('text-embedding-3-large')
+    expect(wrapper.text()).not.toContain('bge-rerank-v2')
+  })
+
+  it('shows Ollama chat models in the picker while filtering Ollama embedding models out', async () => {
+    const { wrapper } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'ollama',
+          providerName: 'Ollama',
+          models: [
+            { id: 'deepseek-r1:1.5b', name: 'DeepSeek R1', type: 'chat' },
+            { id: 'nomic-embed-text:latest', name: 'Nomic Embed', type: 'embedding' }
+          ]
+        }
+      ]
+    })
+
+    const filteredGroups = (wrapper.vm as any).filteredModelGroups as Array<{
+      providerId: string
+      models: Array<{ id: string }>
+    }>
+    const ollamaGroup = filteredGroups.find((group) => group.providerId === 'ollama')
+
+    expect(ollamaGroup?.models.map((model) => model.id)).toEqual(['deepseek-r1:1.5b'])
+    expect(wrapper.text()).toContain('deepseek-r1:1.5b')
+    expect(wrapper.text()).not.toContain('nomic-embed-text:latest')
+  })
+
+  it('skips non-chat defaults and falls back to the first chat-selectable model', async () => {
+    const { wrapper, draftStore } = await setup({
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' }]
+        }
+      ],
+      defaultModel: { providerId: 'new-api', modelId: 'text-embedding-3-large' },
+      preferredModel: undefined
+    })
+
+    expect(draftStore.providerId).toBe('openai')
+    expect(draftStore.modelId).toBe('gpt-4')
+    expect((wrapper.vm as any).displayModelText).toBe('gpt-4')
+  })
+
   it('shows reasoning effort controls only when model capability supports it', async () => {
     const enabled = await setup({
       hasActiveSession: true,
@@ -623,8 +985,278 @@ describe('ChatStatusBar model and session panels', () => {
     )
   })
 
+  it('hides anthropic adaptive reasoning subsettings when backend reasoning is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max']
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningEffort.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('shows anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
+  it('defaults always-on anthropic adaptive reasoning controls from the effective reasoning state', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-fable-5' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-fable-5' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-fable-5', name: 'Claude Fable 5' }]
+        }
+      ],
+      modelConfig: {
+        reasoningEffort: 'high'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-fable-5')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('high')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('omitted')
+  })
+
+  it('hides new-api anthropic adaptive reasoning subsettings when backend reasoning is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      capabilityProviderId: 'anthropic',
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic',
+        reasoning: false,
+        reasoningEffort: 'high',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(false)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(false)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBeUndefined()
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningEffort.label')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('shows new-api anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      capabilityProviderId: 'anthropic',
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic',
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+    expect(wrapper.text()).toContain(
+      'settings.model.modelConfig.reasoningVisibility.options.summarized'
+    )
+  })
+
+  it('shows zenmux anthropic adaptive reasoning controls when backend reasoning is enabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'zenmux', modelId: 'anthropic/claude-opus-4-7' },
+      defaultModel: { providerId: 'zenmux', modelId: 'anthropic/claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'zenmux',
+          providerName: 'ZenMux',
+          apiType: 'openai',
+          models: [{ id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max',
+        reasoningVisibility: 'summarized'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('zenmux', 'anthropic/claude-opus-4-7')
+    await flushPromises()
+
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect((wrapper.vm as any).showReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('max')
+    expect((wrapper.vm as any).localSettings.reasoningVisibility).toBe('summarized')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningVisibility.label')
+  })
+
+  it('keeps reasoning visibility controls visible for legacy sessions without persisted visibility', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'max'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    ;(wrapper.vm as any).localSettings.reasoningVisibility = undefined
+    await (wrapper.vm as any).$nextTick()
+
+    expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
+    expect((wrapper.vm as any).reasoningVisibilityOptions[0]?.value).toBe('omitted')
+  })
+
   it('keeps showing loading until settings finish loading for the current model selection', async () => {
-    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -646,8 +1278,10 @@ describe('ChatStatusBar model and session panels', () => {
         sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
       }
     })
-    newAgentPresenter.getSessionGenerationSettings.mockClear()
-    newAgentPresenter.getSessionGenerationSettings.mockImplementation(() => pendingSettings.promise)
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+    agentSessionPresenter.getSessionGenerationSettings.mockImplementation(
+      () => pendingSettings.promise
+    )
 
     await (wrapper.vm as any).openModelSettings('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
@@ -739,6 +1373,31 @@ describe('ChatStatusBar model and session panels', () => {
     )
   })
 
+  it('keeps none as the default effort and renders extended portrait options', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-5.2' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-5.2' },
+      reasoningEffortDefault: 'none',
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'none',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5.2')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.reasoningEffort).toBe('none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
+  })
+
   it('uses unified defaults for draft model settings', async () => {
     const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: false })
 
@@ -746,6 +1405,122 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(16000)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(4096)
     expect((wrapper.vm as any).localSettings.thinkingBudget).toBe(512)
+  })
+
+  it('uses the dedicated image settings panel for gpt-image-2', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-image-2' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-image-2' },
+      extraModelGroups: [
+        {
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          apiType: 'openai',
+          models: [{ id: 'gpt-image-2', name: 'GPT Image 2', type: 'imageGeneration' }]
+        }
+      ],
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024',
+          quality: 'high'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-image-2')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.maxTokens')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.interleavedThinking.label')
+    expect(findNumericInput(wrapper, 'timeout').exists()).toBe(true)
+    expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(false)
+    expect((wrapper.vm as any).localSettings.imageGeneration).toEqual({
+      size: '1024x1024',
+      quality: 'high'
+    })
+  })
+
+  it('uses the image settings panel for gpt-image-2 on OpenAI-compatible providers', async () => {
+    const { wrapper, modelClient } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'aihubmix', modelId: 'gpt-image-2' },
+      defaultModel: { providerId: 'aihubmix', modelId: 'gpt-image-2' },
+      extraModelGroups: [
+        {
+          providerId: 'aihubmix',
+          providerName: 'AIHubMix',
+          apiType: 'openai-compatible',
+          models: [{ id: 'gpt-image-2', name: 'GPT Image 2' }]
+        }
+      ],
+      modelConfig: {
+        apiEndpoint: 'image',
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('aihubmix', 'gpt-image-2')
+    await flushPromises()
+
+    expect(modelClient.getModelConfig).toHaveBeenCalledWith('gpt-image-2', 'aihubmix')
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.contextLength')
+  })
+
+  it('keeps ordinary OpenAI chat models on the generic chat settings panel', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      preferredModel: { providerId: 'openai', modelId: 'gpt-5' },
+      defaultModel: { providerId: 'openai', modelId: 'gpt-5' },
+      extraModelGroups: [
+        {
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          apiType: 'openai',
+          models: [{ id: 'gpt-5', name: 'GPT-5' }]
+        }
+      ],
+      modelConfig: {
+        imageGeneration: {
+          size: '1024x1024'
+        }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-5')
+    await flushPromises()
+
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect(wrapper.text()).toContain('chat.advancedSettings.contextLength')
+    expect(wrapper.text()).toContain('chat.advancedSettings.maxTokens')
+    expect(findNumericInput(wrapper, 'contextLength').exists()).toBe(true)
+  })
+
+  it('uses the derived default maxTokens value from model config', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: {
+        contextLength: 128000,
+        maxTokens: 32000
+      }
+    })
+
+    expect((wrapper.vm as any).localSettings.contextLength).toBe(128000)
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(32000)
   })
 
   it('awaits async model config values for draft model settings', async () => {
@@ -767,6 +1542,97 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).localSettings.contextLength).toBe(8192)
     expect((wrapper.vm as any).localSettings.maxTokens).toBe(2048)
     expect((wrapper.vm as any).localSettings.forceInterleavedThinkingCompat).toBe(true)
+  })
+
+  it('preserves user-entered maxTokens values above the default cap', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: {
+        contextLength: 128000,
+        maxTokens: 32000
+      }
+    })
+    await (wrapper.vm as any).openModelSettings('openai', 'gpt-4')
+    await flushPromises()
+
+    await commitNumericInput(wrapper, 'maxTokens', '64000')
+
+    expect((wrapper.vm as any).localSettings.maxTokens).toBe(64000)
+    expect(draftStore.maxTokens).toBe(64000)
+  })
+
+  it('hides temperature controls when the selected model disables temperature', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      defaultModel: { providerId: 'anthropic', modelId: 'claude-opus-4-7' },
+      extraModelGroups: [
+        {
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          models: [{ id: 'claude-opus-4-7', name: 'Claude Opus 4.7' }]
+        }
+      ],
+      temperatureCapability: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('anthropic', 'claude-opus-4-7')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.topP')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(0.7)
+  })
+
+  it('hides sampling controls for new-api anthropic routes when temperature is disabled', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      preferredModel: { providerId: 'new-api', modelId: 'claude-opus-4-8' },
+      defaultModel: { providerId: 'new-api', modelId: 'claude-opus-4-8' },
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          apiType: 'new-api',
+          models: [
+            {
+              id: 'claude-opus-4-8',
+              name: 'Claude Opus 4.8',
+              endpointType: 'anthropic',
+              supportedEndpointTypes: ['openai-response', 'anthropic']
+            }
+          ]
+        }
+      ],
+      modelConfig: {
+        endpointType: 'anthropic'
+      },
+      temperatureCapability: false,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: false,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
+        visibility: 'omitted'
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('new-api', 'claude-opus-4-8')
+    await flushPromises()
+
+    expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.temperature')
+    expect(wrapper.text()).not.toContain('chat.advancedSettings.topP')
   })
 
   it('shows interleaved thinking as enabled when the provider portrait requires it', async () => {
@@ -792,6 +1658,42 @@ describe('ChatStatusBar model and session panels', () => {
     expect(findInterleavedThinkingToggle(wrapper).attributes('data-model-value')).toBe('true')
   })
 
+  it('locks Moonshot Kimi temperatures in chat advanced settings and keeps the fixed value', async () => {
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      extraModelGroups: [
+        {
+          providerId: 'moonshot',
+          providerName: 'Moonshot',
+          models: [{ id: 'moonshotai/kimi-k2.6', name: 'Kimi K2.6' }]
+        }
+      ],
+      modelConfig: {
+        temperature: 0.6,
+        reasoning: true
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'budget',
+        budget: { min: 0, max: 32768, default: 8192 }
+      }
+    })
+
+    await (wrapper.vm as any).openModelSettings('moonshot', 'moonshotai/kimi-k2.6')
+    await flushPromises()
+
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1)
+    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
+    expect(wrapper.text()).toContain('chat.advancedSettings.temperatureFixedMoonshotKimi')
+    expect(findNumericButton(wrapper, 'temperature', 'increment').attributes('disabled')).toBe('')
+    expect(findNumericInput(wrapper, 'temperature').attributes('disabled')).toBe('')
+
+    await findNumericButton(wrapper, 'temperature', 'increment').trigger('click')
+    expect((wrapper.vm as any).localSettings.temperature).toBe(1)
+  })
+
   it('ignores existing draft generation overrides when loading draft model defaults', async () => {
     const { wrapper, draftStore } = await setup({
       agentId: 'deepchat',
@@ -813,7 +1715,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('falls back to model defaults when the active session has no saved generation settings', async () => {
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
       activeProviderId: 'openai',
@@ -821,12 +1723,13 @@ describe('ChatStatusBar model and session panels', () => {
       sessionSettings: null
     })
 
-    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
     expect((wrapper.vm as any).localSettings).toEqual({
       systemPrompt: 'Default prompt',
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
+      timeout: 600000,
       thinkingBudget: 512,
       reasoningEffort: 'medium',
       verbosity: 'medium'
@@ -900,7 +1803,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('treats negative thinking budget sentinels as switch-off state', async () => {
-    const { wrapper, configPresenter } = await setup({
+    const { wrapper, modelClient } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
       reasoningPortrait: {
@@ -912,7 +1815,7 @@ describe('ChatStatusBar model and session panels', () => {
         verbosityOptions: ['low', 'medium', 'high']
       }
     })
-    configPresenter.getModelConfig.mockReturnValue({
+    modelClient.getModelConfig.mockReturnValue({
       temperature: 0.7,
       contextLength: 16000,
       maxTokens: 4096,
@@ -952,7 +1855,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -966,13 +1869,13 @@ describe('ChatStatusBar model and session panels', () => {
 
     vi.advanceTimersByTime(299)
     await flushPromises()
-    expect(newAgentPresenter.updateSessionGenerationSettings).not.toHaveBeenCalled()
+    expect(agentSessionPresenter.updateSessionGenerationSettings).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(1)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledTimes(1)
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ temperature: 1.2 })
     )
@@ -984,7 +1887,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('turns thinking budget off with the switch and clears the persisted field', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
@@ -998,7 +1901,7 @@ describe('ChatStatusBar model and session panels', () => {
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({ thinkingBudget: undefined })
     )
@@ -1010,7 +1913,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('sends an explicit false when interleaved thinking is turned off', async () => {
     vi.useFakeTimers()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4',
@@ -1038,7 +1941,7 @@ describe('ChatStatusBar model and session panels', () => {
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    expect(newAgentPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
       's1',
       expect.objectContaining({
         forceInterleavedThinkingCompat: false
@@ -1054,13 +1957,13 @@ describe('ChatStatusBar model and session panels', () => {
 
     const firstResponse = createDeferred<TestGenerationSettings>()
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
 
-    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+    agentSessionPresenter.updateSessionGenerationSettings.mockImplementation(
       () => firstResponse.promise
     )
 
@@ -1102,13 +2005,13 @@ describe('ChatStatusBar model and session panels', () => {
     const secondResponse = createDeferred<TestGenerationSettings>()
     const responseQueue = [firstResponse.promise, secondResponse.promise]
 
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeProviderId: 'openai',
       activeModelId: 'gpt-4'
     })
 
-    newAgentPresenter.updateSessionGenerationSettings.mockImplementation(
+    agentSessionPresenter.updateSessionGenerationSettings.mockImplementation(
       () => responseQueue.shift() ?? Promise.reject(new Error('missing mocked response'))
     )
 
@@ -1173,7 +2076,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('reloads active session generation settings after switching models', async () => {
-    const { wrapper, sessionStore, newAgentPresenter } = await setup({
+    const { wrapper, sessionStore, agentSessionPresenter } = await setup({
       agentId: 'deepchat',
       hasActiveSession: true,
       activeProviderId: 'openai',
@@ -1196,13 +2099,13 @@ describe('ChatStatusBar model and session panels', () => {
         sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
       }
     })
-    newAgentPresenter.getSessionGenerationSettings.mockClear()
-    newAgentPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+    agentSessionPresenter.getSessionGenerationSettings.mockResolvedValue(nextSettings)
 
     await (wrapper.vm as any).selectModel('anthropic', 'claude-3-5-sonnet')
     await flushPromises()
 
-    expect(newAgentPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('s1')
     expect((wrapper.vm as any).localSettings).toEqual(nextSettings)
   })
 
@@ -1243,11 +2146,11 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('resets draft numeric overrides when switching models without an active session', async () => {
-    const { wrapper, draftStore, configPresenter } = await setup({
+    const { wrapper, draftStore, modelClient } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false
     })
-    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+    modelClient.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
       if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
         return {
           temperature: 0.2,
@@ -1303,6 +2206,29 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
+  })
+
+  it('defers ACP process warmup until startup deferred tasks are released', async () => {
+    const { llmproviderPresenter, flushStartupDeferredTasks } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      deferStartupTasks: true
+    })
+
+    expect(llmproviderPresenter.warmupAcpProcess).not.toHaveBeenCalled()
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).not.toHaveBeenCalled()
+
+    await flushStartupDeferredTasks()
+
+    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'acp-agent',
+      '/tmp/workspace'
+    )
   })
 
   it('shows only the ACP badge and MCP when no ACP config data is available', async () => {
@@ -1465,6 +2391,46 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
   })
 
+  it('treats empty ACP config options as a loaded state', async () => {
+    const emptyConfig: AcpConfigState = {
+      source: 'configOptions',
+      options: []
+    }
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: emptyConfig
+    })
+
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toEqual(emptyConfig)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
+  })
+
+  it('renders ACP select option labels instead of raw values', async () => {
+    const processConfig = createAcpConfigState({}, 'gpt-5')
+    processConfig.options[0] = {
+      ...processConfig.options[0],
+      currentValue: 'gpt-5',
+      options: [
+        { value: 'gpt-5', label: 'GPT Five' },
+        { value: 'gpt-5-mini', label: 'GPT Five Mini' }
+      ]
+    }
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace',
+      acpProcessConfig: processConfig
+    })
+
+    const modelOption = wrapper.find('.acp-inline-option[data-option-id="model"]')
+    expect(modelOption.text()).toContain('GPT Five')
+    expect(modelOption.attributes('title')).toBe('GPT Five')
+  })
+
   it('isolates warmup config cache by ACP agent id', async () => {
     const codexConfig = createAcpConfigState({}, 'gpt-5')
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
@@ -1526,6 +2492,30 @@ describe('ChatStatusBar model and session panels', () => {
     await flushPromises()
   })
 
+  it('isolates warmup config cache by ACP workspace path', async () => {
+    const firstWorkspaceConfig = createAcpConfigState({}, 'gpt-5')
+    const { wrapper, llmproviderPresenter, projectStore } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: false,
+      projectPath: '/tmp/workspace-one',
+      acpProcessConfig: firstWorkspaceConfig
+    })
+
+    expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
+
+    llmproviderPresenter.getAcpProcessConfigOptions.mockRejectedValueOnce(new Error('boom'))
+    projectStore.selectedProject = { path: '/tmp/workspace-two' }
+    await flushPromises()
+
+    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenLastCalledWith(
+      'acp-agent',
+      '/tmp/workspace-two'
+    )
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect((wrapper.vm as any).acpConfigState).toBeNull()
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
+  })
+
   it('moves ACP overflow options into the gear popover', async () => {
     const { wrapper } = await setup({
       agentId: 'acp-agent',
@@ -1546,21 +2536,21 @@ describe('ChatStatusBar model and session panels', () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
     const pendingSessionConfig = createDeferred<AcpConfigState | null>()
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
       acpProcessConfig: processConfig
     })
 
-    newAgentPresenter.getAcpSessionConfigOptions.mockImplementation(
+    agentSessionPresenter.getAcpSessionConfigOptions.mockImplementation(
       () => pendingSessionConfig.promise
     )
 
     await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
     await flushPromises()
 
-    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect(agentSessionPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
     expect((wrapper.vm as any).acpConfigState).toBeNull()
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
@@ -1578,7 +2568,7 @@ describe('ChatStatusBar model and session panels', () => {
   it('switches from warmup config to session config and writes ACP options through the session presenter', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
     const sessionConfig = createAcpConfigState({}, 'gpt-5-mini')
-    const { wrapper, newAgentPresenter } = await setup({
+    const { wrapper, agentSessionPresenter } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
@@ -1592,7 +2582,7 @@ describe('ChatStatusBar model and session panels', () => {
     await wrapper.setProps({ acpDraftSessionId: 'draft-1' })
     await flushPromises()
 
-    expect(newAgentPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
+    expect(agentSessionPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('draft-1')
     expect(wrapper.text()).toContain('gpt-5-mini')
     expect((wrapper.vm as any).acpConfigReadOnly).toBe(false)
     ;(wrapper.vm as any).onAcpInlineOptionOpenChange('model', true)
@@ -1603,7 +2593,7 @@ describe('ChatStatusBar model and session panels', () => {
       .trigger('click')
     await flushPromises()
 
-    expect(newAgentPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
+    expect(agentSessionPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
       'draft-1',
       'model',
       'gpt-5'

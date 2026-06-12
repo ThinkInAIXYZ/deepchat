@@ -105,10 +105,11 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 ## Project Structure
 
-- `src/main/`: Electron main process. Presenters live here (window/tab/thread/config/llmProvider/mcp/config/knowledge/sync/floating button/deeplink/OAuth, etc.).
-- `src/preload/`: Context-isolated IPC bridge; only exposes whitelisted APIs to the renderer.
-- `src/renderer/`: Vue 3 + Pinia app. App code under `src/renderer/src` (components, stores, views, lib, i18n). Shell UI lives in `src/renderer/shell/`.
-- `src/shared/`: Shared types/utilities and presenter contracts used by both processes.
+- `src/main/`: Electron main process. Presenters, typed route handlers, runtime orchestration, and storage owners live here (window/tab/thread/config/llmProvider/mcp/knowledge/sync/floating button/deeplink/OAuth, etc.).
+- `src/preload/`: Context-isolated bridge. Exposes typed `window.deepchat` APIs plus a minimal legacy compatibility surface.
+- `src/renderer/`: Vue 3 + Pinia app. Business/UI code lives under `src/renderer/src` (components, stores, views, lib, i18n). Shell UI lives in `src/renderer/shell/`.
+- `src/renderer/api/`: Renderer-main boundary layer. Put typed `*Client` classes, event subscriptions, and named runtime wrappers here. `src/renderer/api/legacy/` is quarantine-only compatibility code.
+- `src/shared/`: Shared route contracts, event contracts, types, and utilities used by both processes. Legacy presenter typings still exist for main internals and quarantine adapters.
 - `runtime/`: Bundled runtimes used by MCP and agent tooling (Node/uv).
 - `scripts/`, `resources/`: Build, packaging, and asset pipelines.
 - `build/`, `out/`, `dist/`: Build outputs (do not edit manually).
@@ -119,26 +120,32 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 ### Design Principles
 
-- **Presenter pattern**: All system capabilities are in main-process presenters; the renderer calls them via the typed `usePresenter` hook and preload bridge.
+- **Single-track renderer-main boundary**: New renderer business code should go through typed route contracts, typed event contracts, `src/renderer/api/*Client`, and named runtime wrappers. Do not treat presenter names as a public renderer API.
+- **Presenters stay in main**: Presenters still own most main-process capabilities, but on active paths they are an implementation detail behind routes, events, and wrappers. `src/renderer/api/legacy/**` is quarantine-only compatibility code.
 - **Multi-window + multi-tab shell**: WindowPresenter and TabPresenter manage true Electron windows/BrowserViews with detach/move support; an EventBus fans out cross-process events.
 - **Clear data boundaries**: Chat data lives in SQLite (`app_db/chat.db`), settings in Electron Store, knowledge bases in DuckDB, and backups via SyncPresenter. Renderer never touches the filesystem directly.
 - **Tooling-first runtime**: LLMProviderPresenter handles streaming, rate limits, and provider instances (cloud/local/ACP agent). MCPPresenter boots MCP servers, router marketplace, and in-memory tools with a bundled Node runtime.
-- **Safety & resilience**: contextIsolation is on; file access is gated behind presenters (e.g., ACP workdir registration); backup/import pipelines validate inputs; rate-limit guards prevent provider overload.
+- **Safety & resilience**: `contextIsolation` is on; renderer-side OS/file/network access is gated behind typed bridges or quarantined wrappers; backup/import pipelines validate inputs; rate-limit guards prevent provider overload.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Electron Main (TS)                       │
-│  Presenters: window/tab/thread/config/llm/mcp/knowledge/    │
-│  sync/oauth/deeplink/floating button                        │
+│  Presenters + routes + runtime owners + persistence         │
+│  window/tab/thread/config/llm/mcp/knowledge/sync/...        │
 │  Storage: SQLite chat.db, ElectronStore settings, backups   │
 └───────────────┬─────────────────────────────────────────────┘
-                │ IPC (contextBridge + EventBus)
+                │ Typed routes/events + limited legacy IPC
 ┌───────────────▼─────────────────────────────────────────────┐
-│                    Preload (strict API)                     │
+│         Preload (`window.deepchat` + compat whitelist)      │
 └───────────────┬─────────────────────────────────────────────┘
-                │ Typed presenters via `usePresenter`
+                │ typed clients / runtime wrappers / quarantine
 ┌───────────────▼─────────────────────────────────────────────┐
-│      Renderer (Vue 3 + Pinia + Tailwind + shadcn/ui)        │
+│ Renderer boundary: `src/renderer/api/*Client` + wrappers    │
+│ quarantine: `src/renderer/api/legacy/**`                    │
+└───────────────┬─────────────────────────────────────────────┘
+                │
+┌───────────────▼─────────────────────────────────────────────┐
+│  Renderer business: `src/renderer/src/**`                   │
 │  Shell UI, chat flow, ACP workspace, MCP console, settings  │
 └───────────────┬─────────────────────────────────────────────┘
                 │
@@ -158,11 +165,12 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 ## Best Practices
 
-- **Use presenters, not Node APIs in the renderer**: All OS/network/filesystem work should go through the preload bridge and presenters. Keep features multi-window-safe by scoping state to `tabId`/`windowId`.
+- **Use typed clients and runtime wrappers from renderer business code**: In `src/renderer/src/**`, prefer `src/renderer/api/*Client`, typed event helpers, and named runtime wrappers. Do not import `@api/legacy/presenters` or add new presenter-name-based transport there.
+- **Do not use Node APIs in the renderer**: All OS/network/filesystem work should go through `window.deepchat`, typed clients, or explicitly named wrappers. Keep features multi-window-safe by scoping state to `tabId`/`windowId`.
 - **i18n everywhere**: All user-visible strings belong in `src/renderer/src/i18n`; avoid hardcoded text in components.
 - **State & UI**: Favor Pinia stores and composition utilities; keep components stateless where possible and compatible with detached tabs. Consider artifacts, variants, and streaming states when touching chat flows.
-- **LLM/MCP/ACP changes**: Respect rate limits; clean up active streams before switching providers; emit events via `eventBus`. For MCP, persist changes through `configPresenter` and surface server start/stop events. For ACP, always call `registerWorkdir` before reading the filesystem and clear plan/workspace state when sessions end.
-- **Data & persistence**: Use `sqlitePresenter` for conversation data, `configPresenter` for settings/providers, and `syncPresenter` for backup/import. Do not write directly into `appData` from the renderer.
+- **LLM/MCP/ACP changes**: Respect rate limits; clean up active streams before switching providers; prefer typed events on migrated paths instead of adding new raw IPC or presenter reflection. For MCP, persist changes through main-owned config/runtime layers and surface server start/stop events. For ACP, always call `registerWorkdir` before reading the filesystem and clear plan/workspace state when sessions end.
+- **Data & persistence**: Route conversation/settings/provider/backup changes through main-owned clients or compatibility adapters; do not write directly into `appData` or other local stores from the renderer.
 - **Testing & quality gates**: Before sending a PR, run `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`, and relevant `pnpm test*` suites. Use `pnpm run i18n` to validate locale keys when adding strings.
 
 ## Code Style

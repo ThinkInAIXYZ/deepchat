@@ -86,9 +86,16 @@
         <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
             <Button
+              data-testid="app-model-switcher"
+              :data-selected-provider-id="effectiveModelSelection?.providerId ?? ''"
+              :data-selected-model-id="effectiveModelSelection?.modelId ?? ''"
               variant="ghost"
               size="sm"
-              class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg"
+              :class="[
+                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground backdrop-blur-lg',
+                !isModelOptionsReady ? 'opacity-70' : ''
+              ]"
+              :aria-busy="!isModelOptionsReady"
             >
               <ModelIcon
                 :model-id="displayIconId"
@@ -96,14 +103,19 @@
                 :is-dark="themeStore.isDark"
               />
               <span>{{ displayModelText }}</span>
-              <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+              <Icon
+                v-if="showModelOptionsLoading"
+                icon="lucide:loader-2"
+                class="h-3 w-3 animate-spin"
+              />
+              <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </PopoverTrigger>
 
           <PopoverContent
             align="start"
             :class="[
-              'max-w-[calc(100vw-1rem)] overflow-hidden p-0',
+              'z-72 max-w-[calc(100vw-1rem)] overflow-hidden p-0',
               isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
             ]"
           >
@@ -114,7 +126,7 @@
                   isModelSettingsExpanded ? 'w-[18rem] border-r' : 'w-full'
                 ]"
               >
-                <div class="border-b px-2.5 py-2">
+                <div v-if="isModelOptionsReady" class="border-b px-2.5 py-2">
                   <Input
                     data-model-search-input="true"
                     v-model="modelSearchKeyword"
@@ -125,7 +137,35 @@
 
                 <div class="max-h-[24rem] overflow-y-auto px-2 py-2">
                   <div
-                    v-if="filteredModelGroups.length === 0"
+                    v-if="showModelOptionsLoading"
+                    data-model-picker-state="loading"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    <div class="flex items-center justify-center gap-2">
+                      <Icon icon="lucide:loader-2" class="h-3.5 w-3.5 animate-spin" />
+                      <span>{{ t('common.loading') }}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    v-else-if="hasModelOptionsError"
+                    data-model-picker-state="error"
+                    class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
+                  >
+                    <div>{{ t('model.error.loadFailed') }}</div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="mt-3 h-7 px-3 text-xs"
+                      @click="retryModelOptionsInitialization"
+                    >
+                      {{ t('settings.dashboard.rtk.actions.retry') }}
+                    </Button>
+                  </div>
+
+                  <div
+                    v-else-if="filteredModelGroups.length === 0"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     {{ t('chat.modelPicker.empty') }}
@@ -151,6 +191,9 @@
                         >
                           <button
                             type="button"
+                            data-testid="model-option"
+                            :data-provider-id="group.providerId"
+                            :data-model-id="model.id"
                             :class="[
                               'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
                               isModelSelected(group.providerId, model.id)
@@ -220,351 +263,579 @@
                   </div>
 
                   <div v-else-if="localSettings" class="space-y-4">
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.temperature')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="temperature"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.temperature')
-                            })
-                          "
-                          :disabled="hasNumericInputError('temperature')"
-                          @click="stepTemperature(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('temperature') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="temperature"
-                          type="number"
-                          :step="TEMPERATURE_STEP"
-                          :aria-invalid="hasNumericInputError('temperature')"
-                          :model-value="temperatureInputValue"
-                          @focus="startNumericInputEdit('temperature')"
-                          @update:model-value="onTemperatureInput"
-                          @blur="commitTemperatureInput"
-                          @keydown.enter.prevent="commitTemperatureInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="temperature"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.temperature')
-                            })
-                          "
-                          :disabled="hasNumericInputError('temperature')"
-                          @click="stepTemperature(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('temperature')"
-                        class="text-[11px] text-destructive"
+                    <TooltipProvider :delay-duration="200">
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
+                        class="space-y-1.5"
                       >
-                        {{ getNumericInputErrorMessage('temperature') }}
-                      </p>
-                    </div>
-
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.contextLength')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="contextLength"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.contextLength')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('contextLength') ||
-                            localSettings.contextLength <= 0
-                          "
-                          @click="stepContextLength(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('contextLength') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="contextLength"
-                          type="number"
-                          :step="CONTEXT_LENGTH_STEP"
-                          :aria-invalid="hasNumericInputError('contextLength')"
-                          :model-value="contextLengthInputValue"
-                          @focus="startNumericInputEdit('contextLength')"
-                          @update:model-value="onContextLengthInput"
-                          @blur="commitContextLengthInput"
-                          @keydown.enter.prevent="commitContextLengthInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="contextLength"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.contextLength')
-                            })
-                          "
-                          :disabled="hasNumericInputError('contextLength')"
-                          @click="stepContextLength(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('contextLength')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('contextLength') }}
-                      </p>
-                    </div>
-
-                    <div class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('chat.advancedSettings.maxTokens')
-                      }}</label>
-                      <div class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="maxTokens"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.maxTokens')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
-                          "
-                          @click="stepMaxTokens(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('maxTokens') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="maxTokens"
-                          type="number"
-                          :step="MAX_TOKENS_STEP"
-                          :aria-invalid="hasNumericInputError('maxTokens')"
-                          :model-value="maxTokensInputValue"
-                          @focus="startNumericInputEdit('maxTokens')"
-                          @update:model-value="onMaxTokensInput"
-                          @blur="commitMaxTokensInput"
-                          @keydown.enter.prevent="commitMaxTokensInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="maxTokens"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.maxTokens')
-                            })
-                          "
-                          :disabled="hasNumericInputError('maxTokens')"
-                          @click="stepMaxTokens(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('maxTokens')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('maxTokens') }}
-                      </p>
-                    </div>
-
-                    <div v-if="showReasoningEffort" class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.reasoningEffort.label')
-                      }}</label>
-                      <Select
-                        :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
-                        @update:model-value="onReasoningEffortSelect($event as string)"
-                      >
-                        <SelectTrigger class="h-8 text-xs">
-                          <SelectValue
-                            :placeholder="
-                              t('settings.model.modelConfig.reasoningEffort.placeholder')
-                            "
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="option in effortOptions"
-                            :key="option.value"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div v-if="showVerbosity" class="space-y-1.5">
-                      <label class="text-xs font-medium">{{
-                        t('settings.model.modelConfig.verbosity.label')
-                      }}</label>
-                      <Select
-                        :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
-                        @update:model-value="onVerbositySelect($event as string)"
-                      >
-                        <SelectTrigger class="h-8 text-xs">
-                          <SelectValue
-                            :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem
-                            v-for="option in verbosityOptions"
-                            :key="option.value"
-                            :value="option.value"
-                          >
-                            {{ option.label }}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div v-if="showThinkingBudget" class="space-y-1.5">
-                      <div class="flex items-center justify-between">
                         <label class="text-xs font-medium">{{
-                          t('chat.advancedSettings.thinkingBudget')
+                          t('chat.advancedSettings.temperature')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <span v-if="thinkingBudgetHint" class="text-[11px] text-muted-foreground">
-                            {{ thinkingBudgetHint }}
-                          </span>
-                          <Switch
-                            data-setting-control="thinkingBudget-toggle"
-                            :model-value="isThinkingBudgetEnabled"
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="temperature"
+                            data-setting-action="decrement"
                             :aria-label="
-                              t('chat.advancedSettings.toggleValue', {
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
+                            :disabled="
+                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                            "
+                            @click="stepTemperature(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('temperature') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="temperature"
+                            type="number"
+                            :step="TEMPERATURE_STEP"
+                            :disabled="isMoonshotKimiTemperatureLocked"
+                            :aria-invalid="hasNumericInputError('temperature')"
+                            :model-value="temperatureInputValue"
+                            @focus="startNumericInputEdit('temperature')"
+                            @update:model-value="onTemperatureInput"
+                            @blur="commitTemperatureInput"
+                            @keydown.enter.prevent="commitTemperatureInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="temperature"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
+                            :disabled="
+                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
+                            "
+                            @click="stepTemperature(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="moonshotKimiTemperatureHint"
+                          class="text-[11px] text-muted-foreground"
+                        >
+                          {{ moonshotKimiTemperatureHint }}
+                        </p>
+                        <p
+                          v-if="getNumericInputErrorMessage('temperature')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('temperature') }}
+                        </p>
+                      </div>
+
+                      <div v-if="showTopPControl" class="space-y-1.5">
+                        <div class="flex items-center gap-1.5">
+                          <label class="text-xs font-medium">{{
+                            t('chat.advancedSettings.topP')
+                          }}</label>
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <button
+                                type="button"
+                                class="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                :aria-label="t('chat.advancedSettings.topPDescription')"
+                              >
+                                <Icon icon="lucide:help-circle" class="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              align="start"
+                              class="z-[1000] max-w-80 text-xs"
+                            >
+                              {{ t('chat.advancedSettings.topPDescription') }}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="topP"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
+                            :disabled="hasNumericInputError('topP') || topPDecreaseDisabled"
+                            @click="stepTopP(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('topP') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="topP"
+                            type="number"
+                            :step="TOP_P_STEP"
+                            :min="TOP_P_MIN"
+                            :max="TOP_P_MAX"
+                            :aria-invalid="hasNumericInputError('topP')"
+                            :placeholder="t('chat.advancedSettings.useDefault')"
+                            :model-value="topPInputValue"
+                            @focus="startNumericInputEdit('topP')"
+                            @update:model-value="onTopPInput"
+                            @blur="commitTopPInput"
+                            @keydown.enter.prevent="commitTopPInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="topP"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
+                            :disabled="hasNumericInputError('topP') || topPIncreaseDisabled"
+                            @click="stepTopP(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('topP')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('topP') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.contextLength')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="contextLength"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('contextLength') ||
+                              localSettings.contextLength <= 0
+                            "
+                            @click="stepContextLength(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('contextLength') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="contextLength"
+                            type="number"
+                            :step="CONTEXT_LENGTH_STEP"
+                            :aria-invalid="hasNumericInputError('contextLength')"
+                            :model-value="contextLengthInputValue"
+                            @focus="startNumericInputEdit('contextLength')"
+                            @update:model-value="onContextLengthInput"
+                            @blur="commitContextLengthInput"
+                            @keydown.enter.prevent="commitContextLengthInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="contextLength"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
+                            :disabled="hasNumericInputError('contextLength')"
+                            @click="stepContextLength(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('contextLength')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('contextLength') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('chat.advancedSettings.maxTokens')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="maxTokens"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
+                            "
+                            @click="stepMaxTokens(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('maxTokens') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="maxTokens"
+                            type="number"
+                            :step="MAX_TOKENS_STEP"
+                            :aria-invalid="hasNumericInputError('maxTokens')"
+                            :model-value="maxTokensInputValue"
+                            @focus="startNumericInputEdit('maxTokens')"
+                            @update:model-value="onMaxTokensInput"
+                            @blur="commitMaxTokensInput"
+                            @keydown.enter.prevent="commitMaxTokensInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="maxTokens"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
+                            :disabled="hasNumericInputError('maxTokens')"
+                            @click="stepMaxTokens(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('maxTokens')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('maxTokens') }}
+                        </p>
+                      </div>
+
+                      <div class="space-y-1.5">
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.timeout.label')
+                        }}</label>
+                        <div class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="timeout"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('timeout') ||
+                              (localSettings.timeout ?? 0) <= TIMEOUT_MIN
+                            "
+                            @click="stepTimeout(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('timeout') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="timeout"
+                            type="number"
+                            :step="TIMEOUT_STEP"
+                            :min="TIMEOUT_MIN"
+                            :max="TIMEOUT_MAX"
+                            :aria-invalid="hasNumericInputError('timeout')"
+                            :model-value="timeoutInputValue"
+                            @focus="startNumericInputEdit('timeout')"
+                            @update:model-value="onTimeoutInput"
+                            @blur="commitTimeoutInput"
+                            @keydown.enter.prevent="commitTimeoutInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="timeout"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
+                            :disabled="
+                              hasNumericInputError('timeout') ||
+                              (localSettings.timeout ?? 0) >= TIMEOUT_MAX
+                            "
+                            @click="stepTimeout(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('timeout')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('timeout') }}
+                        </p>
+                      </div>
+
+                      <OpenAIImageGenerationSettingsFields
+                        v-if="showOpenAIImageGenerationSettings"
+                        density="compact"
+                        :model-value="localSettings.imageGeneration"
+                        @update:model-value="onImageGenerationSettingsUpdate"
+                      />
+
+                      <OpenAIVideoGenerationSettingsFields
+                        v-if="showOpenAIVideoGenerationSettings"
+                        density="compact"
+                        :model-value="localSettings.videoGeneration"
+                        @update:model-value="onVideoGenerationSettingsUpdate"
+                      />
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.reasoningEffort.label')
+                        }}</label>
+                        <Select
+                          :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
+                          @update:model-value="onReasoningEffortSelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="
+                                t('settings.model.modelConfig.reasoningEffort.placeholder')
+                              "
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in effortOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.reasoningVisibility.label')
+                        }}</label>
+                        <Select
+                          :model-value="
+                            localSettings.reasoningVisibility ??
+                            reasoningVisibilityOptions[0]?.value
+                          "
+                          @update:model-value="onReasoningVisibilitySelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="
+                                t('settings.model.modelConfig.reasoningVisibility.placeholder')
+                              "
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in reasoningVisibilityOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showVerbosity"
+                        class="space-y-1.5"
+                      >
+                        <label class="text-xs font-medium">{{
+                          t('settings.model.modelConfig.verbosity.label')
+                        }}</label>
+                        <Select
+                          :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
+                          @update:model-value="onVerbositySelect($event as string)"
+                        >
+                          <SelectTrigger class="h-8 text-xs">
+                            <SelectValue
+                              :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem
+                              v-for="option in verbosityOptions"
+                              :key="option.value"
+                              :value="option.value"
+                            >
+                              {{ option.label }}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div
+                        v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget"
+                        class="space-y-1.5"
+                      >
+                        <div class="flex items-center justify-between">
+                          <label class="text-xs font-medium">{{
+                            t('chat.advancedSettings.thinkingBudget')
+                          }}</label>
+                          <div class="flex items-center gap-2">
+                            <span
+                              v-if="thinkingBudgetHint"
+                              class="text-[11px] text-muted-foreground"
+                            >
+                              {{ thinkingBudgetHint }}
+                            </span>
+                            <Switch
+                              data-setting-control="thinkingBudget-toggle"
+                              :model-value="isThinkingBudgetEnabled"
+                              :aria-label="
+                                t('chat.advancedSettings.toggleValue', {
+                                  label: t('chat.advancedSettings.thinkingBudget')
+                                })
+                              "
+                              @update:model-value="onThinkingBudgetToggle(Boolean($event))"
+                            />
+                          </div>
+                        </div>
+                        <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="thinkingBudget"
+                            data-setting-action="decrement"
+                            :aria-label="
+                              t('chat.advancedSettings.decreaseValue', {
                                 label: t('chat.advancedSettings.thinkingBudget')
                               })
                             "
-                            @update:model-value="onThinkingBudgetToggle(Boolean($event))"
+                            :disabled="
+                              hasNumericInputError('thinkingBudget') ||
+                              (localSettings.thinkingBudget ?? 0) <= 0
+                            "
+                            @click="stepThinkingBudget(-1)"
+                          >
+                            <Icon icon="lucide:minus" class="h-3 w-3" />
+                          </Button>
+                          <Input
+                            :class="[
+                              'h-8 flex-1 text-xs tabular-nums',
+                              hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
+                            ]"
+                            data-setting-control="thinkingBudget"
+                            type="number"
+                            :step="THINKING_BUDGET_STEP"
+                            :aria-invalid="hasNumericInputError('thinkingBudget')"
+                            :model-value="thinkingBudgetInputValue"
+                            @focus="startNumericInputEdit('thinkingBudget')"
+                            @update:model-value="onThinkingBudgetInput"
+                            @blur="commitThinkingBudgetInput"
+                            @keydown.enter.prevent="commitThinkingBudgetInput"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            class="h-8 w-8 shrink-0"
+                            data-setting-control="thinkingBudget"
+                            data-setting-action="increment"
+                            :aria-label="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
+                            :disabled="hasNumericInputError('thinkingBudget')"
+                            @click="stepThinkingBudget(1)"
+                          >
+                            <Icon icon="lucide:plus" class="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p
+                          v-if="getNumericInputErrorMessage('thinkingBudget')"
+                          class="text-[11px] text-destructive"
+                        >
+                          {{ getNumericInputErrorMessage('thinkingBudget') }}
+                        </p>
+                      </div>
+
+                      <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-1.5">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <label class="text-xs font-medium">
+                              {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
+                            </label>
+                            <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                              {{
+                                t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
+                              }}
+                            </p>
+                          </div>
+                          <Switch
+                            data-setting-control="forceInterleavedThinkingCompat-toggle"
+                            :model-value="isInterleavedThinkingEnabled"
+                            :aria-label="
+                              t('chat.advancedSettings.toggleValue', {
+                                label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
+                              })
+                            "
+                            @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
                           />
                         </div>
                       </div>
-                      <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="thinkingBudget"
-                          data-setting-action="decrement"
-                          :aria-label="
-                            t('chat.advancedSettings.decreaseValue', {
-                              label: t('chat.advancedSettings.thinkingBudget')
-                            })
-                          "
-                          :disabled="
-                            hasNumericInputError('thinkingBudget') ||
-                            (localSettings.thinkingBudget ?? 0) <= 0
-                          "
-                          @click="stepThinkingBudget(-1)"
-                        >
-                          <Icon icon="lucide:minus" class="h-3 w-3" />
-                        </Button>
-                        <Input
-                          :class="[
-                            'h-8 flex-1 text-xs tabular-nums',
-                            hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
-                          ]"
-                          data-setting-control="thinkingBudget"
-                          type="number"
-                          :step="THINKING_BUDGET_STEP"
-                          :aria-invalid="hasNumericInputError('thinkingBudget')"
-                          :model-value="thinkingBudgetInputValue"
-                          @focus="startNumericInputEdit('thinkingBudget')"
-                          @update:model-value="onThinkingBudgetInput"
-                          @blur="commitThinkingBudgetInput"
-                          @keydown.enter.prevent="commitThinkingBudgetInput"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 shrink-0"
-                          data-setting-control="thinkingBudget"
-                          data-setting-action="increment"
-                          :aria-label="
-                            t('chat.advancedSettings.increaseValue', {
-                              label: t('chat.advancedSettings.thinkingBudget')
-                            })
-                          "
-                          :disabled="hasNumericInputError('thinkingBudget')"
-                          @click="stepThinkingBudget(1)"
-                        >
-                          <Icon icon="lucide:plus" class="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p
-                        v-if="getNumericInputErrorMessage('thinkingBudget')"
-                        class="text-[11px] text-destructive"
-                      >
-                        {{ getNumericInputErrorMessage('thinkingBudget') }}
-                      </p>
-                    </div>
-
-                    <div class="space-y-1.5">
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <label class="text-xs font-medium">
-                            {{ t('chat.advancedSettings.forceInterleavedThinkingCompat') }}
-                          </label>
-                          <p class="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                            {{
-                              t('chat.advancedSettings.forceInterleavedThinkingCompatDescription')
-                            }}
-                          </p>
-                        </div>
-                        <Switch
-                          data-setting-control="forceInterleavedThinkingCompat-toggle"
-                          :model-value="isInterleavedThinkingEnabled"
-                          :aria-label="
-                            t('chat.advancedSettings.toggleValue', {
-                              label: t('chat.advancedSettings.forceInterleavedThinkingCompat')
-                            })
-                          "
-                          @update:model-value="onInterleavedThinkingToggle(Boolean($event))"
-                        />
-                      </div>
-                    </div>
+                    </TooltipProvider>
                   </div>
                 </div>
               </div>
@@ -661,8 +932,12 @@
           :system-prompt-options="systemPromptMenuOptions"
           :selected-system-prompt-id="selectedSystemPromptId"
           :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          :show-subagent-toggle="showSubagentToggle"
+          :subagent-enabled="subagentEnabled"
+          :subagent-toggle-pending="isSubagentToggleUpdating"
           @select-system-prompt="onSystemPromptSelect"
           @open-change="handleSessionPanelOpenChange"
+          @toggle-subagents="onSubagentToggle"
         />
 
         <DropdownMenu v-if="!isAcpAgent">
@@ -718,6 +993,12 @@ import {
 import { Input } from '@shadcn/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -725,29 +1006,69 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import type {
-  AcpConfigOption,
-  AcpConfigState,
-  RENDERER_MODEL_META,
-  SystemPrompt
-} from '@shared/presenter'
+import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import { isNewApiEndpointType, resolveProviderCapabilityProviderId } from '@shared/model'
+import {
+  MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
+  MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
+  getMoonshotKimiTemperaturePolicy,
+  resolveMoonshotKimiTemperaturePolicy
+} from '@shared/moonshotKimiPolicy'
+import {
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
+  type AnthropicReasoningVisibility,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
   toValidNonNegativeInteger,
   type GenerationNumericField,
-  type GenerationNumericValidationCode,
   validateGenerationNumericField
 } from '@shared/utils/generationSettingsValidation'
+import {
+  DEFAULT_MODEL_TIMEOUT,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
+} from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
+import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
+import {
+  getReasoningEffortOptions,
+  getReasoningVisibilityOptions,
+  getVerbosityOptions,
+  hasThinkingBudgetSupport,
+  normalizeReasoningEffort,
+  normalizeReasoningVisibility,
+  normalizeVerbosity,
+  supportsReasoningEffort,
+  supportsVerbosity
+} from './composables/chatStatusBarReasoningOptions'
+import { useGenerationNumericInputs } from './composables/useGenerationNumericInputs'
 import McpIndicator from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { usePresenter } from '@/composables/usePresenter'
+import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
+import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
+import { createConfigClient } from '@api/ConfigClient'
+import { createModelClient } from '@api/ModelClient'
+import { createOnboardingClient } from '@api/OnboardingClient'
+import { createProviderClient } from '@api/ProviderClient'
+import { createSessionClient } from '@api/SessionClient'
+import { requestGuidedOnboardingResume } from '@/lib/onboardingResume'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useThemeStore } from '@/stores/theme'
@@ -755,7 +1076,8 @@ import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
+import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { useChatStatusBarAcpConfig } from './composables/useChatStatusBarAcpConfig'
 
 const props = withDefaults(
   defineProps<{
@@ -773,6 +1095,12 @@ type ModelSelection = {
   modelId: string
 }
 
+const isSameModelSelection = (
+  left: ModelSelection | null | undefined,
+  right: ModelSelection | null | undefined
+): boolean =>
+  Boolean(left && right && left.providerId === right.providerId && left.modelId === right.modelId)
+
 type SystemPromptOption = {
   id: string
   label: string
@@ -787,21 +1115,15 @@ type GroupedModelList = {
 }
 
 const TEMPERATURE_STEP = 0.1
+const TOP_P_STEP = 0.1
+const TOP_P_MIN = 0.1
+const TOP_P_MAX = 1
 const CONTEXT_LENGTH_STEP = 1024
 const MAX_TOKENS_STEP = 128
+const TIMEOUT_STEP = 1000
+const TIMEOUT_MIN = MODEL_TIMEOUT_MIN_MS
+const TIMEOUT_MAX = MODEL_TIMEOUT_MAX_MS
 const THINKING_BUDGET_STEP = 128
-const ACP_INLINE_OPTION_LIMIT = 3
-const DEFAULT_REASONING_EFFORT_OPTIONS: SessionGenerationSettings['reasoningEffort'][] = [
-  'minimal',
-  'low',
-  'medium',
-  'high'
-]
-const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
-  'low',
-  'medium',
-  'high'
-]
 
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
@@ -810,13 +1132,16 @@ const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
-const configPresenter = usePresenter('configPresenter')
-const llmproviderPresenter = usePresenter('llmproviderPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const configClient = createConfigClient()
+const modelClient = createModelClient()
+const onboardingClient = createOnboardingClient()
+const providerClient = createProviderClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')
+const subagentEnabled = ref(false)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
@@ -824,39 +1149,45 @@ const isModelPanelOpen = ref(false)
 const isModelSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
 const modelSettingsSelection = ref<ModelSelection | null>(null)
-const acpConfigState = ref<AcpConfigState | null>(null)
-const acpConfigLoadedRequestKey = ref<string | null>(null)
-const acpConfigLoadingRequestKey = ref<string | null>(null)
-const acpInlineOpenOptionId = ref<string | null>(null)
-const acpOptionSavingIds = ref<string[]>([])
-const acpConfigCacheByAgent = new Map<string, AcpConfigState>()
-const activeNumericInput = ref<GenerationNumericField | null>(null)
-const numericInputDrafts = ref<Record<GenerationNumericField, string>>({
-  temperature: '',
-  contextLength: '',
-  maxTokens: '',
-  thinkingBudget: ''
-})
-const numericInputErrors = ref<
-  Record<GenerationNumericField, GenerationNumericValidationCode | null>
->({
-  temperature: null,
-  contextLength: null,
-  maxTokens: null,
-  thinkingBudget: null
-})
+const modelSettingsTargetConfig = ref<ModelConfig | null>(null)
+const modelSettingsTargetConfigSelection = ref<ModelSelection | null>(null)
+let modelSettingsTargetConfigToken = 0
 
 const capabilitySupportsReasoning = ref<boolean | null>(null)
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
+const capabilitySupportsTemperature = ref<boolean | null>(null)
+const capabilityProviderId = ref('')
 
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
 let generationSyncToken = 0
-let acpConfigSyncToken = 0
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
+let cancelAcpConfigSyncTask: (() => void) | null = null
+const isSubagentToggleUpdating = ref(false)
+
+const {
+  numericInputDrafts,
+  clearNumericInputError,
+  setNumericInputError,
+  resetNumericInputFieldState,
+  resetNumericInputState,
+  hasNumericInputError,
+  startNumericInputEdit,
+  setNumericInputDraft,
+  stopNumericInputEdit,
+  getNumericInputValue,
+  getNumericInputErrorMessage
+} = useGenerationNumericInputs({
+  localSettings,
+  t,
+  onDraftChange: () => {
+    generationLocalRevision += 1
+  }
+})
 
 const hasActiveSession = computed(() => sessionStore.hasActiveSession)
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
@@ -879,21 +1210,19 @@ const inferAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' 
 }
 
 const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgentConfig> => {
-  if (typeof configPresenter.resolveDeepChatAgentConfig === 'function') {
-    return configPresenter.resolveDeepChatAgentConfig(agentId)
+  const config = await configClient.resolveDeepChatAgentConfig(agentId)
+  if (config) {
+    return config
   }
 
-  const defaultSystemPrompt =
-    (typeof configPresenter.getDefaultSystemPrompt === 'function'
-      ? await configPresenter.getDefaultSystemPrompt()
-      : await configPresenter.getSetting?.('default_system_prompt')) ?? ''
+  const defaultSystemPrompt = (await configClient.getDefaultSystemPrompt()) ?? ''
 
-  return {
+  return normalizeDeepChatSubagentConfig({
     defaultModelPreset: undefined,
     systemPrompt: typeof defaultSystemPrompt === 'string' ? defaultSystemPrompt : '',
     permissionMode: 'full_access',
     disabledAgentTools: []
-  }
+  })
 }
 
 const selectedAgentType = computed<'deepchat' | 'acp' | null>(() => {
@@ -971,7 +1300,39 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   return draftModelSelection.value
 })
 
+const moonshotKimiTemperaturePolicy = computed(() =>
+  getMoonshotKimiTemperaturePolicy(
+    effectiveModelSelection.value?.providerId,
+    effectiveModelSelection.value?.modelId
+  )
+)
+const isMoonshotKimiTemperatureLocked = computed(
+  () => moonshotKimiTemperaturePolicy.value?.lockTemperatureControl === true
+)
+const moonshotKimiTemperatureHint = computed(() =>
+  isMoonshotKimiTemperatureLocked.value
+    ? t('chat.advancedSettings.temperatureFixedMoonshotKimi', {
+        enabled: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE.toFixed(1),
+        disabled: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE.toFixed(1)
+      })
+    : ''
+)
+
 const canSelectPermissionMode = computed(() => !isAcpAgent.value)
+const showSubagentToggle = computed(() => {
+  if (isAcpAgent.value) {
+    return false
+  }
+
+  if (hasActiveSession.value) {
+    return (
+      sessionStore.activeSession?.sessionKind === 'regular' &&
+      inferAgentType(sessionStore.activeSession?.agentId) === 'deepchat'
+    )
+  }
+
+  return selectedAgentType.value === 'deepchat'
+})
 
 const providerNameMap = computed(() => {
   const map = new Map<string, string>()
@@ -980,42 +1341,23 @@ const providerNameMap = computed(() => {
   })
   return map
 })
+const isModelOptionsReady = computed(() => isAcpAgent.value || modelStore.initialized)
+const hasModelOptionsError = computed(
+  () => !isAcpAgent.value && !modelStore.initialized && Boolean(modelStore.initializationError)
+)
+const showModelOptionsLoading = computed(
+  () => !isAcpAgent.value && !modelStore.initialized && !hasModelOptionsError.value
+)
+
+const resolveProviderApiType = (providerId: string): string | undefined =>
+  providerStore.sortedProviders.find((provider) => provider.id === providerId)?.apiType
 
 const modelGroups = computed<GroupedModelList[]>(() => {
-  const groupsById = new Map(
-    modelStore.enabledModels
-      .filter((group) => group.providerId !== 'acp')
-      .map((group) => [group.providerId, group.models] as const)
-  )
+  if (!isModelOptionsReady.value) {
+    return []
+  }
 
-  const result: GroupedModelList[] = []
-
-  providerStore.sortedProviders
-    .filter((provider) => provider.enable && provider.id !== 'acp')
-    .forEach((provider) => {
-      const models = groupsById.get(provider.id)
-      if (!models || models.length === 0) {
-        return
-      }
-      result.push({
-        providerId: provider.id,
-        providerName: provider.name,
-        models
-      })
-      groupsById.delete(provider.id)
-    })
-
-  Array.from(groupsById.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .forEach(([providerId, models]) => {
-      result.push({
-        providerId,
-        providerName: providerNameMap.value.get(providerId) ?? providerId,
-        models
-      })
-    })
-
-  return result
+  return modelStore.chatSelectableModelGroups
 })
 
 const filteredModelGroups = computed<GroupedModelList[]>(() => {
@@ -1045,121 +1387,92 @@ const modelSettingsTarget = computed<ModelSelection | null>(() => {
   return modelSettingsSelection.value ?? effectiveModelSelection.value
 })
 
-const acpConfigCacheKey = computed(() => {
-  if (!isAcpAgent.value || activeAcpSessionId.value) {
+const modelSettingsTargetMeta = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
     return null
   }
-  return activeAcpAgentId.value
+  return findEnabledModelMeta(target.providerId, target.modelId)
 })
 
-const acpConfigRequestKey = computed(() => {
-  if (!isAcpAgent.value) {
-    return null
-  }
-  if (activeAcpSessionId.value) {
-    return `session:${activeAcpSessionId.value}`
-  }
-  if (acpConfigCacheKey.value && acpWorkspacePath.value) {
-    return `process:${acpConfigCacheKey.value}::${acpWorkspacePath.value}`
-  }
-  if (acpConfigCacheKey.value) {
-    return `agent:${acpConfigCacheKey.value}`
-  }
-  return null
-})
-
-const getCachedAcpConfigState = (agentId?: string | null): AcpConfigState | null => {
-  if (!agentId) {
-    return null
-  }
-  return acpConfigCacheByAgent.get(agentId) ?? null
-}
-
-const setCachedAcpConfigState = (
-  agentId: string | null | undefined,
-  state: AcpConfigState | null | undefined
-): void => {
-  if (!agentId || !hasAcpConfigStateData(state)) {
-    return
-  }
-  acpConfigCacheByAgent.set(agentId, state)
-}
-
-const acpConfigOptions = computed(() => acpConfigState.value?.options ?? [])
-const isAcpConfigLoading = computed(() => {
-  if (!isAcpAgent.value || activeAcpSessionId.value) {
-    return false
-  }
-
-  const requestKey = acpConfigRequestKey.value
-  return Boolean(requestKey && acpConfigLoadingRequestKey.value === requestKey)
-})
-const isAcpSessionConfigLoaded = computed(() => {
-  if (!activeAcpSessionId.value) {
-    return false
-  }
-
-  return acpConfigLoadedRequestKey.value === acpConfigRequestKey.value
-})
-
-const acpConfigReadOnly = computed(() => {
-  if (!isAcpAgent.value) {
-    return false
-  }
-
-  if (!activeAcpSessionId.value) {
-    return true
-  }
-
-  return !isAcpSessionConfigLoaded.value
-})
-const acpInlineOptions = computed(() =>
-  acpConfigOptions.value
-    .filter((option) => option.type === 'select')
-    .slice(0, ACP_INLINE_OPTION_LIMIT)
-)
-const acpOverflowOptions = computed(() => {
-  const inlineIds = new Set(acpInlineOptions.value.map((option) => option.id))
-  return acpConfigOptions.value.filter((option) => !inlineIds.has(option.id))
-})
-const acpAgentLabel = computed(() => {
-  const modelId = activeAcpAgentId.value ?? agentStore.selectedAgentId
-  return (
-    resolveModelName('acp', modelId) ||
-    agentStore.selectedAgent?.name ||
-    modelId ||
-    t('chat.mode.acpAgent')
-  )
-})
-const acpAgentIconId = computed(() =>
-  resolveModelIconId('acp', activeAcpAgentId.value ?? agentStore.selectedAgentId)
+const modelSettingsTargetResolvedConfig = computed(() =>
+  isSameModelSelection(modelSettingsTarget.value, modelSettingsTargetConfigSelection.value)
+    ? modelSettingsTargetConfig.value
+    : null
 )
 
-const setAcpConfigLoadingRequest = (requestKey: string | null | undefined): void => {
-  acpConfigLoadingRequestKey.value = requestKey?.trim() ? requestKey : null
-}
-
-const clearAcpConfigLoadingRequest = (requestKey?: string | null): void => {
-  if (!requestKey || acpConfigLoadingRequestKey.value === requestKey) {
-    acpConfigLoadingRequestKey.value = null
-  }
-}
-
-const matchesCurrentAcpWarmupTarget = (
-  agentId: string | null | undefined,
-  workdir: string | null | undefined
-): boolean => {
-  if (activeAcpSessionId.value || !agentId || activeAcpAgentId.value !== agentId) {
+const showOpenAIImageGenerationSettings = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
     return false
   }
 
-  const expectedWorkdir = acpWorkspacePath.value?.trim()
-  if (!expectedWorkdir) {
-    return true
+  const modelMeta = modelSettingsTargetMeta.value
+  const modelConfig = modelSettingsTargetResolvedConfig.value
+  return supportsOpenAIImageGenerationSettings({
+    providerId: target.providerId,
+    providerApiType: resolveProviderApiType(target.providerId),
+    modelId: target.modelId,
+    apiEndpoint: modelConfig?.apiEndpoint,
+    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
+    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+    type: modelConfig?.type ?? modelMeta?.type
+  })
+})
+
+const showOpenAIVideoGenerationSettings = computed(() => {
+  const target = modelSettingsTarget.value
+  if (!target) {
+    return false
   }
 
-  return workdir?.trim() === expectedWorkdir
-}
+  const modelMeta = modelSettingsTargetMeta.value
+  const modelConfig = modelSettingsTargetResolvedConfig.value
+  return supportsOpenAICompatibleVideoGeneration({
+    providerId: target.providerId,
+    providerApiType: resolveProviderApiType(target.providerId),
+    modelId: target.modelId,
+    apiEndpoint: modelConfig?.apiEndpoint,
+    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
+    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+    type: modelConfig?.type ?? modelMeta?.type
+  })
+})
+
+const showOpenAIMediaGenerationSettings = computed(
+  () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
+)
+
+watch(
+  () => {
+    const target = modelSettingsTarget.value
+    return target ? { providerId: target.providerId, modelId: target.modelId } : null
+  },
+  async (target) => {
+    const token = ++modelSettingsTargetConfigToken
+    modelSettingsTargetConfig.value = null
+    modelSettingsTargetConfigSelection.value = null
+
+    if (!target) {
+      return
+    }
+
+    try {
+      const config = await modelClient.getModelConfig(target.modelId, target.providerId)
+      if (token !== modelSettingsTargetConfigToken) {
+        return
+      }
+      modelSettingsTargetConfig.value = config
+      modelSettingsTargetConfigSelection.value = { ...target }
+    } catch (error) {
+      if (token !== modelSettingsTargetConfigToken) {
+        return
+      }
+      console.warn('[ChatStatusBar] Failed to load model settings target config:', error)
+    }
+  },
+  { immediate: true }
+)
 
 const permissionModeLabel = computed(() =>
   permissionMode.value === 'default'
@@ -1192,304 +1505,26 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   return typeof candidate.providerId === 'string' && typeof candidate.modelId === 'string'
 }
 
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
-
-const getCommittedNumericInputValue = (field: GenerationNumericField): string => {
-  if (!localSettings.value) {
-    return ''
-  }
-
-  switch (field) {
-    case 'temperature':
-      return String(localSettings.value.temperature)
-    case 'contextLength':
-      return String(localSettings.value.contextLength)
-    case 'maxTokens':
-      return String(localSettings.value.maxTokens)
-    case 'thinkingBudget': {
-      const value = localSettings.value.thinkingBudget
-      return value === undefined ? '' : String(value)
-    }
-  }
-}
-
-const syncNumericInputDraft = (field: GenerationNumericField): void => {
-  numericInputDrafts.value[field] = getCommittedNumericInputValue(field)
-}
-
-const clearNumericInputError = (field: GenerationNumericField): void => {
-  numericInputErrors.value[field] = null
-}
-
-const setNumericInputError = (
-  field: GenerationNumericField,
-  code: GenerationNumericValidationCode
-): void => {
-  numericInputErrors.value[field] = code
-}
-
-const resetNumericInputFieldState = (field: GenerationNumericField): void => {
-  clearNumericInputError(field)
-  syncNumericInputDraft(field)
-}
-
-const resetNumericInputState = (): void => {
-  activeNumericInput.value = null
-  resetNumericInputFieldState('temperature')
-  resetNumericInputFieldState('contextLength')
-  resetNumericInputFieldState('maxTokens')
-  resetNumericInputFieldState('thinkingBudget')
-}
-
-const hasNumericInputError = (field: GenerationNumericField): boolean =>
-  numericInputErrors.value[field] !== null
-
-const startNumericInputEdit = (field: GenerationNumericField): void => {
-  activeNumericInput.value = field
-  if (!hasNumericInputError(field)) {
-    syncNumericInputDraft(field)
-  }
-}
-
-const setNumericInputDraft = (field: GenerationNumericField, value: string | number): void => {
-  if (activeNumericInput.value !== field) {
-    activeNumericInput.value = field
-  }
-  const nextValue = typeof value === 'string' ? value : String(value)
-  if (numericInputDrafts.value[field] !== nextValue) {
-    generationLocalRevision += 1
-  }
-  numericInputDrafts.value[field] = nextValue
-  clearNumericInputError(field)
-}
-
-const stopNumericInputEdit = (field: GenerationNumericField): void => {
-  if (activeNumericInput.value === field) {
-    activeNumericInput.value = null
-  }
-}
-
-const getNumericInputValue = (field: GenerationNumericField): string => {
-  if (activeNumericInput.value === field || hasNumericInputError(field)) {
-    return numericInputDrafts.value[field]
-  }
-  return getCommittedNumericInputValue(field)
-}
-
-const getNumericInputErrorMessage = (field: GenerationNumericField): string => {
-  const code = numericInputErrors.value[field]
-  if (!code) {
-    return ''
-  }
-
-  switch (code) {
-    case 'finite_number':
-      return t('chat.advancedSettings.validation.finiteNumber')
-    case 'non_negative_integer':
-      return t('chat.advancedSettings.validation.nonNegativeInteger')
-    case 'context_length_below_max_tokens':
-      return t('chat.advancedSettings.validation.contextLengthAtLeastMaxTokens')
-    case 'max_tokens_exceed_context_length':
-      return t('chat.advancedSettings.validation.maxTokensWithinContextLength')
-  }
-}
-
-const isAcpConfigOptionValue = (
-  value: unknown
-): value is NonNullable<AcpConfigOption['options']>[number] => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  return typeof candidate.value === 'string' && typeof candidate.label === 'string'
-}
-
-const isAcpConfigOption = (value: unknown): value is AcpConfigOption => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  if (
-    typeof candidate.id !== 'string' ||
-    typeof candidate.label !== 'string' ||
-    (candidate.type !== 'select' && candidate.type !== 'boolean')
-  ) {
-    return false
-  }
-  if (!('currentValue' in candidate)) {
-    return false
-  }
-  if (candidate.type === 'select' && candidate.options !== undefined) {
-    return Array.isArray(candidate.options) && candidate.options.every(isAcpConfigOptionValue)
-  }
-  return true
-}
-
-const isAcpConfigState = (value: unknown): value is AcpConfigState => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const candidate = value as Record<string, unknown>
-  return (
-    (candidate.source === 'configOptions' || candidate.source === 'legacy') &&
-    Array.isArray(candidate.options) &&
-    candidate.options.every(isAcpConfigOption)
-  )
-}
-
-const hasAcpConfigStateData = (state: AcpConfigState | null | undefined): state is AcpConfigState =>
-  Boolean(state?.options.length)
-
-const getAcpOptionCurrentLabel = (option?: AcpConfigOption | null): string | null => {
-  if (!option) {
-    return null
-  }
-  if (option.type !== 'select') {
-    return null
-  }
-  const currentValue = typeof option.currentValue === 'string' ? option.currentValue : ''
-  return option.options?.find((entry) => entry.value === currentValue)?.label ?? currentValue
-}
-
-const getAcpOptionDisplayValue = (option: AcpConfigOption): string => {
-  if (option.type === 'boolean') {
-    return t(option.currentValue ? 'common.enabled' : 'common.disabled')
-  }
-
-  if (typeof option.currentValue === 'string' && option.currentValue.trim()) {
-    return option.currentValue
-  }
-
-  return getAcpOptionCurrentLabel(option) ?? ''
-}
-
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
-  const group = modelStore.enabledModels.find((item) => item.providerId === providerId)
-  return group?.models.find((model) => model.id === modelId) ?? null
+  return modelStore.findChatSelectableModel(providerId, modelId)?.model ?? null
 }
 
-const getReasoningEffortOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): SessionGenerationSettings['reasoningEffort'][] => {
-  if (
-    !portrait ||
-    portrait.mode === 'budget' ||
-    portrait.mode === 'level' ||
-    portrait.mode === 'fixed'
-  ) {
-    return []
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (options && options.length > 0) {
-    return options
-  }
-  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
-    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
-    : []
-}
-
-const getVerbosityOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): SessionGenerationSettings['verbosity'][] => {
-  const options = portrait?.verbosityOptions?.filter(isVerbosity)
-  if (options && options.length > 0) {
-    return options
-  }
-  return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
-}
-
-const supportsReasoningEffort = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
-
-const supportsVerbosity = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
-
-const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  Boolean(
-    portrait &&
-    portrait.mode !== 'effort' &&
-    portrait.mode !== 'level' &&
-    portrait.mode !== 'fixed' &&
-    portrait.budget &&
-    (portrait.budget.default !== undefined ||
-      portrait.budget.min !== undefined ||
-      portrait.budget.max !== undefined ||
-      portrait.budget.auto !== undefined ||
-      portrait.budget.off !== undefined)
+const resolveCapabilityProviderIdForSelection = (
+  providerId: string,
+  modelId: string,
+  endpointType?: unknown
+): string => {
+  const modelMeta = findEnabledModelMeta(providerId, modelId)
+  return resolveProviderCapabilityProviderId(
+    providerId,
+    {
+      endpointType: isNewApiEndpointType(endpointType) ? endpointType : modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelMeta?.type,
+      providerApiType: resolveProviderApiType(providerId)
+    },
+    modelId
   )
-
-const normalizeReasoningEffort = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): SessionGenerationSettings['reasoningEffort'] | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = getReasoningEffortOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
-
-const normalizeVerbosity = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): SessionGenerationSettings['verbosity'] | undefined => {
-  if (!isVerbosity(value)) {
-    return undefined
-  }
-
-  const options = getVerbosityOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
-    ? portrait.verbosity
-    : undefined
-}
-
-const findEnabledModel = (providerId: string, modelId: string): ModelSelection | null => {
-  const hit = findEnabledModelMeta(providerId, modelId)
-  if (!hit) {
-    return null
-  }
-  return { providerId, modelId: hit.id }
-}
-
-const pickFirstEnabledModel = (): ModelSelection | null => {
-  for (const group of modelStore.enabledModels) {
-    if (group.providerId === 'acp') continue
-    const firstModel = group.models[0]
-    if (firstModel) {
-      return { providerId: group.providerId, modelId: firstModel.id }
-    }
-  }
-  for (const group of modelStore.enabledModels) {
-    const firstModel = group.models[0]
-    if (firstModel) {
-      return { providerId: group.providerId, modelId: firstModel.id }
-    }
-  }
-  return null
 }
 
 const resolveModelName = (providerId?: string | null, modelId?: string | null): string => {
@@ -1514,6 +1549,36 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   return providerId || 'anthropic'
 }
 
+const {
+  acpConfigState,
+  acpInlineOpenOptionId,
+  acpConfigReadOnly,
+  acpInlineOptions,
+  acpOverflowOptions,
+  acpAgentLabel,
+  acpAgentIconId,
+  isAcpConfigLoading,
+  getAcpOptionDisplayValue,
+  isAcpOptionSaving,
+  syncAcpConfigOptions,
+  handleAcpConfigOptionsReady,
+  onAcpInlineOptionOpenChange,
+  onAcpSelectOption,
+  onAcpBooleanOption
+} = useChatStatusBarAcpConfig({
+  t,
+  isAcpAgent,
+  activeAcpAgentId,
+  activeAcpSessionId,
+  acpWorkspacePath,
+  selectedAgentId: computed(() => agentStore.selectedAgentId),
+  selectedAgentName: computed(() => agentStore.selectedAgent?.name ?? null),
+  providerClient,
+  sessionClient,
+  resolveModelName,
+  resolveModelIconId
+})
+
 const clearPendingGenerationPersist = () => {
   if (generationPersistTimer) {
     clearTimeout(generationPersistTimer)
@@ -1527,8 +1592,17 @@ const invalidateGenerationPersistResponses = () => {
 }
 
 const temperatureInputValue = computed(() => getNumericInputValue('temperature'))
+const topPInputValue = computed(() => getNumericInputValue('topP'))
+const topPCommittedValue = computed(() => localSettings.value?.topP ?? TOP_P_MAX)
+const topPDecreaseDisabled = computed(
+  () => localSettings.value?.topP === undefined || topPCommittedValue.value <= TOP_P_MIN
+)
+const topPIncreaseDisabled = computed(
+  () => localSettings.value?.topP !== undefined && topPCommittedValue.value >= TOP_P_MAX
+)
 const contextLengthInputValue = computed(() => getNumericInputValue('contextLength'))
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
+const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
 const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
 const isInterleavedThinkingEnabled = computed(
@@ -1552,6 +1626,21 @@ const showThinkingBudget = computed(() => {
   )
 })
 
+const showTemperatureControl = computed(
+  () =>
+    (capabilitySupportsTemperature.value !== false || isMoonshotKimiTemperatureLocked.value) &&
+    Boolean(localSettings.value)
+)
+const supportsTopPControl = computed(
+  () => capabilityProviderId.value !== 'anthropic' || capabilitySupportsTemperature.value !== false
+)
+const showTopPControl = computed(
+  () =>
+    !showOpenAIMediaGenerationSettings.value &&
+    supportsTopPControl.value &&
+    Boolean(localSettings.value)
+)
+
 const showVerbosity = computed(
   () =>
     !isAcpAgent.value &&
@@ -1559,11 +1648,40 @@ const showVerbosity = computed(
     Boolean(localSettings.value)
 )
 
+const isAnthropicReasoningEnabled = computed(() => {
+  if (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value)) {
+    return true
+  }
+  if (!localSettings.value) {
+    return false
+  }
+
+  return getReasoningEffectiveEnabledForProvider(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    {
+      reasoning: localSettings.value.reasoningEffort !== undefined ? true : undefined,
+      reasoningEffort: localSettings.value.reasoningEffort
+    }
+  )
+})
+
 const showReasoningEffort = computed(
   () =>
     !isAcpAgent.value &&
     supportsReasoningEffort(capabilityReasoningPortrait.value) &&
-    Boolean(localSettings.value)
+    Boolean(localSettings.value) &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      isAnthropicReasoningEnabled.value)
+)
+const showReasoningVisibility = computed(
+  () =>
+    !isAcpAgent.value &&
+    Boolean(localSettings.value) &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      isAnthropicReasoningEnabled.value) &&
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
 )
 
 const effortOptions = computed(() => {
@@ -1579,6 +1697,14 @@ const verbosityOptions = computed(() => {
     label: t(`settings.model.modelConfig.verbosity.options.${value}`)
   }))
 })
+const reasoningVisibilityOptions = computed(() =>
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
+    (value) => ({
+      value,
+      label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+    })
+  )
+)
 
 const systemPromptOptions = computed<SystemPromptOption[]>(() => {
   const presetOptions: SystemPromptOption[] = [
@@ -1701,6 +1827,9 @@ const displayIconId = computed(() => {
 })
 
 const displayModelText = computed(() => {
+  if (!isModelOptionsReady.value) {
+    return hasModelOptionsError.value ? t('model.error.loadFailed') : t('common.loading')
+  }
   if (isAcpAgent.value) {
     return acpAgentLabel.value
   }
@@ -1717,6 +1846,20 @@ const displayModelText = computed(() => {
   }
   return t('common.selectModel')
 })
+
+const ensureCompleteModelOptionsReady = async (): Promise<boolean> => {
+  if (isAcpAgent.value || modelStore.initialized) {
+    return true
+  }
+
+  try {
+    await modelStore.initialize()
+    return true
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to initialize enabled models:', error)
+    return false
+  }
+}
 
 const syncDraftModelSelection = async () => {
   const token = ++draftModelSyncToken
@@ -1736,52 +1879,45 @@ const syncDraftModelSelection = async () => {
     return
   }
 
+  if (!modelStore.initialized) {
+    applyDraftSelection(null)
+    return
+  }
+
   try {
-    const currentDraft = findEnabledModel(draftStore.providerId || '', draftStore.modelId || '')
-    if (currentDraft) {
-      applyDraftSelection(currentDraft)
-      return
-    }
-
     const deepChatAgentId = selectedDeepChatAgentId.value ?? 'deepchat'
-    const agentConfig = await resolveDeepChatAgentConfig(deepChatAgentId)
+    const [agentConfig, preferredModel, defaultModel] = await Promise.all([
+      resolveDeepChatAgentConfig(deepChatAgentId),
+      configClient.getSetting('preferredModel'),
+      configClient.getSetting('defaultModel')
+    ])
     if (token !== draftModelSyncToken) return
-    if (isModelSelection(agentConfig.defaultModelPreset)) {
-      const resolvedAgentDefault = findEnabledModel(
-        agentConfig.defaultModelPreset.providerId,
-        agentConfig.defaultModelPreset.modelId
-      )
-      if (resolvedAgentDefault) {
-        applyDraftSelection(resolvedAgentDefault)
-        return
-      }
-    }
 
-    const preferredModel = (await configPresenter.getSetting('preferredModel')) as unknown
-    if (token !== draftModelSyncToken) return
-    if (isModelSelection(preferredModel)) {
-      const resolvedPreferred = findEnabledModel(preferredModel.providerId, preferredModel.modelId)
-      if (resolvedPreferred) {
-        applyDraftSelection(resolvedPreferred)
-        return
-      }
-    }
-
-    const defaultModel = (await configPresenter.getSetting('defaultModel')) as unknown
-    if (token !== draftModelSyncToken) return
-    if (isModelSelection(defaultModel)) {
-      const resolvedDefault = findEnabledModel(defaultModel.providerId, defaultModel.modelId)
-      if (resolvedDefault) {
-        applyDraftSelection(resolvedDefault)
-        return
-      }
-    }
+    const resolvedModel = resolvePreferredChatModel({
+      modelGroups: modelStore.chatSelectableModelGroups,
+      selections: [
+        draftStore.providerId && draftStore.modelId
+          ? { providerId: draftStore.providerId, modelId: draftStore.modelId }
+          : null,
+        isModelSelection(agentConfig.defaultModelPreset)
+          ? (agentConfig.defaultModelPreset as ChatModelSelection)
+          : null,
+        isModelSelection(preferredModel) ? (preferredModel as ChatModelSelection) : null,
+        isModelSelection(defaultModel) ? (defaultModel as ChatModelSelection) : null
+      ]
+    })
+    applyDraftSelection(
+      resolvedModel
+        ? { providerId: resolvedModel.providerId, modelId: resolvedModel.model.id }
+        : null
+    )
+    return
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to resolve draft model:', error)
   }
 
   if (token !== draftModelSyncToken) return
-  applyDraftSelection(pickFirstEnabledModel())
+  applyDraftSelection(null)
 }
 
 const resolveDefaultGenerationSettings = async (
@@ -1790,16 +1926,34 @@ const resolveDefaultGenerationSettings = async (
   agentId: string = 'deepchat'
 ): Promise<SessionGenerationSettings> => {
   const agentConfig = await resolveDeepChatAgentConfig(agentId)
-  const modelConfig = await configPresenter.getModelConfig(modelId, providerId)
-  const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+  const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+  const capabilities = await modelClient.getCapabilities(providerId, modelId)
+  const resolvedCapabilityProviderId = resolveCapabilityProviderIdForSelection(
+    providerId,
+    modelId,
+    modelConfig.endpointType
+  )
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    providerId,
+    modelId,
+    modelConfig.reasoning
+  )
+  const portrait = capabilities.reasoningPortrait ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
+  const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
 
   const defaults: SessionGenerationSettings = {
     systemPrompt: agentConfig.systemPrompt ?? '',
-    temperature: parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    temperature:
+      fixedTemperatureKimi?.temperature ?? parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
+    topP: normalizeTopP(modelConfig.topP),
     contextLength: contextLengthDefault,
+    timeout:
+      timeoutDefault >= TIMEOUT_MIN && timeoutDefault <= TIMEOUT_MAX
+        ? timeoutDefault
+        : DEFAULT_MODEL_TIMEOUT,
     maxTokens:
       maxTokensDefault <= contextLengthDefault
         ? maxTokensDefault
@@ -1816,6 +1970,41 @@ const resolveDefaultGenerationSettings = async (
     defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
+  const modelMeta = findEnabledModelMeta(providerId, modelId)
+  if (
+    supportsOpenAIImageGenerationSettings({
+      providerId,
+      providerApiType: resolveProviderApiType(providerId),
+      modelId,
+      apiEndpoint: modelConfig.apiEndpoint,
+      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelConfig.type ?? modelMeta?.type
+    })
+  ) {
+    const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
+    if (imageGeneration) {
+      defaults.imageGeneration = imageGeneration
+    }
+  }
+
+  if (
+    supportsOpenAICompatibleVideoGeneration({
+      providerId,
+      providerApiType: resolveProviderApiType(providerId),
+      modelId,
+      apiEndpoint: modelConfig.apiEndpoint,
+      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
+      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
+      type: modelConfig.type ?? modelMeta?.type
+    })
+  ) {
+    const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
+    if (videoGeneration) {
+      defaults.videoGeneration = videoGeneration
+    }
+  }
+
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
       modelConfig.thinkingBudget ?? portrait.budget?.default
@@ -1825,7 +2014,18 @@ const resolveDefaultGenerationSettings = async (
     }
   }
 
-  if (supportsReasoningEffort(portrait)) {
+  const anthropicReasoningToggle = hasAnthropicReasoningToggle(
+    resolvedCapabilityProviderId,
+    portrait
+  )
+  const anthropicReasoningEnabled = anthropicReasoningToggle
+    ? getReasoningEffectiveEnabledForProvider(resolvedCapabilityProviderId, portrait, {
+        reasoning: modelConfig.reasoning,
+        reasoningEffort: modelConfig.reasoningEffort
+      })
+    : true
+
+  if (supportsReasoningEffort(portrait) && anthropicReasoningEnabled) {
     const effort = normalizeReasoningEffort(
       portrait,
       modelConfig.reasoningEffort ?? portrait?.effort
@@ -1833,6 +2033,15 @@ const resolveDefaultGenerationSettings = async (
     if (effort) {
       defaults.reasoningEffort = effort
     }
+  }
+
+  const reasoningVisibility = normalizeReasoningVisibility(
+    resolvedCapabilityProviderId,
+    portrait,
+    modelConfig.reasoningVisibility ?? portrait?.visibility
+  )
+  if (anthropicReasoningEnabled && reasoningVisibility) {
+    defaults.reasoningVisibility = reasoningVisibility
   }
 
   if (supportsVerbosity(portrait)) {
@@ -1847,15 +2056,28 @@ const resolveDefaultGenerationSettings = async (
 
 const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
   try {
-    const portrait = (await configPresenter.getReasoningPortrait?.(providerId, modelId)) ?? null
+    const modelConfig = await modelClient.getModelConfig(modelId, providerId)
+    const capabilities = await modelClient.getCapabilities(providerId, modelId)
+    capabilityProviderId.value = resolveCapabilityProviderIdForSelection(
+      providerId,
+      modelId,
+      modelConfig.endpointType
+    )
+    const portrait = capabilities.reasoningPortrait ?? null
 
     capabilityReasoningPortrait.value = portrait
     capabilitySupportsReasoning.value =
       typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilitySupportsTemperature.value =
+      typeof capabilities.supportsTemperatureControl === 'boolean'
+        ? capabilities.supportsTemperatureControl
+        : capabilities.temperatureCapability
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
+    capabilityProviderId.value = providerId
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
+    capabilitySupportsTemperature.value = null
   }
 }
 
@@ -1877,7 +2099,7 @@ const flushGenerationPatch = async () => {
   const requestToken = ++generationPersistRequestToken
   const localRevisionAtRequest = generationLocalRevision
   try {
-    const updated = await newAgentPresenter.updateSessionGenerationSettings(sessionId, patch)
+    const updated = await sessionClient.updateSessionGenerationSettings(sessionId, patch)
     if (requestToken !== generationPersistRequestToken) {
       return
     }
@@ -1914,37 +2136,60 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   generationSyncToken += 1
   generationLocalRevision += 1
 
+  const nextPatch = { ...patch }
+  if (isMoonshotKimiTemperatureLocked.value) {
+    delete nextPatch.temperature
+  }
+
   const next: SessionGenerationSettings = {
     ...localSettings.value,
-    ...patch
+    ...nextPatch
   }
 
   localSettings.value = next
 
   const normalizedPatch: Partial<SessionGenerationSettings> = {}
-  if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'systemPrompt')) {
     normalizedPatch.systemPrompt = next.systemPrompt
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'temperature')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'temperature')) {
     normalizedPatch.temperature = next.temperature
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'contextLength')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'topP')) {
+    normalizedPatch.topP = normalizeTopP(next.topP)
+    next.topP = normalizedPatch.topP
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'contextLength')) {
     normalizedPatch.contextLength = next.contextLength
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'maxTokens')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'maxTokens')) {
     normalizedPatch.maxTokens = next.maxTokens
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'timeout')) {
+    normalizedPatch.timeout = next.timeout
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'thinkingBudget')) {
     normalizedPatch.thinkingBudget = next.thinkingBudget
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'reasoningEffort')) {
     normalizedPatch.reasoningEffort = next.reasoningEffort
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'verbosity')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'reasoningVisibility')) {
+    normalizedPatch.reasoningVisibility = next.reasoningVisibility
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'verbosity')) {
     normalizedPatch.verbosity = next.verbosity
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'forceInterleavedThinkingCompat')) {
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'forceInterleavedThinkingCompat')) {
     normalizedPatch.forceInterleavedThinkingCompat = next.forceInterleavedThinkingCompat
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'imageGeneration')) {
+    normalizedPatch.imageGeneration = normalizeImageGenerationOptions(next.imageGeneration)
+    next.imageGeneration = normalizedPatch.imageGeneration
+  }
+  if (Object.prototype.hasOwnProperty.call(nextPatch, 'videoGeneration')) {
+    normalizedPatch.videoGeneration = normalizeVideoGenerationOptions(next.videoGeneration)
+    next.videoGeneration = normalizedPatch.videoGeneration
   }
 
   scheduleGenerationPersist(normalizedPatch)
@@ -1960,6 +2205,7 @@ const syncGenerationSettings = async () => {
   if (isAcpAgent.value) {
     localSettings.value = null
     loadedSettingsSelection.value = null
+    capabilityProviderId.value = ''
     capabilitySupportsReasoning.value = null
     capabilityReasoningPortrait.value = null
     return
@@ -1969,6 +2215,7 @@ const syncGenerationSettings = async () => {
   if (!selection) {
     localSettings.value = null
     loadedSettingsSelection.value = null
+    capabilityProviderId.value = ''
     capabilityReasoningPortrait.value = null
     capabilitySupportsReasoning.value = null
     return
@@ -1982,7 +2229,7 @@ const syncGenerationSettings = async () => {
   const sessionId = sessionStore.activeSessionId
   if (sessionId) {
     try {
-      const settings = await newAgentPresenter.getSessionGenerationSettings(sessionId)
+      const settings = await sessionClient.getSessionGenerationSettings(sessionId)
       if (token !== generationSyncToken) {
         return
       }
@@ -2019,172 +2266,23 @@ const syncGenerationSettings = async () => {
   loadedSettingsSelection.value = { ...selection }
 }
 
-const syncAcpConfigOptions = async () => {
-  const token = ++acpConfigSyncToken
-  const requestKey = acpConfigRequestKey.value
-  acpInlineOpenOptionId.value = null
-
-  if (!isAcpAgent.value || !requestKey) {
-    acpConfigState.value = null
-    acpConfigLoadedRequestKey.value = null
-    clearAcpConfigLoadingRequest()
-    return
-  }
-
-  const agentId = activeAcpAgentId.value
-
-  if (activeAcpSessionId.value) {
-    clearAcpConfigLoadingRequest()
-    acpConfigState.value = null
-    acpConfigLoadedRequestKey.value = null
-
-    try {
-      const state = await newAgentPresenter.getAcpSessionConfigOptions(activeAcpSessionId.value)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = state
-      acpConfigLoadedRequestKey.value = requestKey
-      setCachedAcpConfigState(agentId, state)
-      clearAcpConfigLoadingRequest(requestKey)
-      return
-    } catch (error) {
-      console.warn('[ChatStatusBar] Failed to load ACP session config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = null
-      acpConfigLoadedRequestKey.value = null
-      clearAcpConfigLoadingRequest(requestKey)
-      return
-    }
-  }
-
-  acpConfigLoadedRequestKey.value = null
-  const cachedState = getCachedAcpConfigState(agentId)
-  acpConfigState.value = cachedState
-
-  if (hasAcpConfigStateData(cachedState)) {
-    clearAcpConfigLoadingRequest(requestKey)
-  } else {
-    setAcpConfigLoadingRequest(requestKey)
-  }
-
-  if (agentId) {
-    try {
-      let warmupFailed = false
-      try {
-        await llmproviderPresenter.warmupAcpProcess(agentId, acpWorkspacePath.value ?? undefined)
-      } catch (error) {
-        warmupFailed = true
-        console.warn('[ChatStatusBar] Failed to warmup ACP process:', error)
-      }
-
-      const state = await llmproviderPresenter.getAcpProcessConfigOptions(
-        agentId,
-        acpWorkspacePath.value ?? undefined
-      )
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-
-      if (!hasAcpConfigStateData(state)) {
-        acpConfigState.value = getCachedAcpConfigState(agentId)
-        if (warmupFailed) {
-          clearAcpConfigLoadingRequest(requestKey)
-        }
-        return
-      }
-
-      setCachedAcpConfigState(agentId, state)
-      acpConfigState.value = state
-      clearAcpConfigLoadingRequest(requestKey)
-    } catch (error) {
-      console.warn('[ChatStatusBar] Failed to load ACP process config options:', error)
-      if (token !== acpConfigSyncToken || acpConfigRequestKey.value !== requestKey) {
-        return
-      }
-      acpConfigState.value = getCachedAcpConfigState(agentId)
-      clearAcpConfigLoadingRequest(requestKey)
-    }
-  }
-}
-
-const updateAcpConfigOption = async (configId: string, value: string | boolean) => {
-  const sessionId = activeAcpSessionId.value
-  const agentId = activeAcpAgentId.value
-  if (!sessionId || !isAcpSessionConfigLoaded.value) {
-    return
-  }
-
-  if (acpOptionSavingIds.value.includes(configId)) {
-    return
-  }
-
-  acpOptionSavingIds.value = [...acpOptionSavingIds.value, configId]
-  try {
-    const updated = await newAgentPresenter.setAcpSessionConfigOption(sessionId, configId, value)
-    setCachedAcpConfigState(agentId, updated)
-    if (activeAcpSessionId.value !== sessionId) {
-      return
-    }
-    acpConfigState.value = updated
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to update ACP config option:', error)
-  } finally {
-    acpOptionSavingIds.value = acpOptionSavingIds.value.filter((id) => id !== configId)
-  }
-}
-
-const isAcpOptionSaving = (configId: string) => acpOptionSavingIds.value.includes(configId)
-
 const reloadSystemPrompts = async () => {
   try {
-    systemPromptList.value = await configPresenter.getSystemPrompts()
+    systemPromptList.value = await configClient.getSystemPrompts()
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to load system prompt options:', error)
     systemPromptList.value = []
   }
 }
 
-const handleAcpConfigOptionsReady = (_event: unknown, payload?: Record<string, unknown>) => {
-  if (!payload || !isAcpAgent.value) {
-    return
-  }
-
-  const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : ''
-  const agentId = typeof payload.agentId === 'string' ? payload.agentId : ''
-  const workdir = typeof payload.workdir === 'string' ? payload.workdir : ''
-
-  if (!isAcpConfigState(payload.configState)) {
-    return
-  }
-
-  if (conversationId) {
-    if (activeAcpSessionId.value !== conversationId) {
-      return
-    }
-    setCachedAcpConfigState(agentId || activeAcpAgentId.value, payload.configState)
-    acpConfigState.value = payload.configState
-    acpConfigLoadedRequestKey.value = `session:${conversationId}`
-    clearAcpConfigLoadingRequest(`session:${conversationId}`)
-    return
-  }
-
-  if (!matchesCurrentAcpWarmupTarget(agentId, workdir)) {
-    return
-  }
-
-  setCachedAcpConfigState(agentId, payload.configState)
-
-  if (!activeAcpSessionId.value) {
-    acpConfigState.value = payload.configState
-    clearAcpConfigLoadingRequest(acpConfigRequestKey.value)
-  }
-}
-
 watch(
-  [hasActiveSession, isAcpAgent, () => agentStore.selectedAgentId, () => modelStore.enabledModels],
+  [
+    hasActiveSession,
+    isAcpAgent,
+    () => agentStore.selectedAgentId,
+    () => modelStore.initialized,
+    () => modelStore.chatSelectableModelGroups
+  ],
   () => {
     if (hasActiveSession.value) return
     void syncDraftModelSelection()
@@ -2207,7 +2305,7 @@ watch(
     }
 
     try {
-      const mode = await newAgentPresenter.getPermissionMode(sessionId)
+      const mode = await sessionClient.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
       permissionMode.value = mode === 'default' ? 'default' : 'full_access'
     } catch (error) {
@@ -2215,6 +2313,29 @@ watch(
       if (token !== permissionSyncToken) return
       permissionMode.value = 'full_access'
     }
+  },
+  { immediate: true }
+)
+
+watch(
+  [
+    () => sessionStore.activeSessionId,
+    showSubagentToggle,
+    () => sessionStore.activeSession?.subagentEnabled,
+    () => draftStore.subagentEnabled
+  ],
+  ([sessionId, canShow, activeEnabled, draftEnabled]) => {
+    if (!canShow) {
+      subagentEnabled.value = false
+      return
+    }
+
+    if (sessionId) {
+      subagentEnabled.value = activeEnabled === true
+      return
+    }
+
+    subagentEnabled.value = draftEnabled === true
   },
   { immediate: true }
 )
@@ -2246,18 +2367,12 @@ watch(
     () => isAcpAgent.value
   ],
   () => {
-    void syncAcpConfigOptions()
+    cancelAcpConfigSyncTask?.()
+    cancelAcpConfigSyncTask = scheduleStartupDeferredTask(async () => {
+      await syncAcpConfigOptions()
+    })
   },
   { immediate: true }
-)
-
-watch(
-  () => acpInlineOptions.value.map((option) => option.id),
-  (optionIds) => {
-    if (acpInlineOpenOptionId.value && !optionIds.includes(acpInlineOpenOptionId.value)) {
-      acpInlineOpenOptionId.value = null
-    }
-  }
 )
 
 function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
@@ -2274,10 +2389,15 @@ watch(isModelPanelOpen, (open) => {
       return
     }
 
-    void nextTick(() => {
+    void (async () => {
+      const ready = await ensureCompleteModelOptionsReady()
+      if (!ready || !isModelPanelOpen.value) {
+        return
+      }
+      await nextTick()
       const input = document.querySelector<HTMLInputElement>('[data-model-search-input="true"]')
       input?.focus()
-    })
+    })()
     return
   }
 
@@ -2289,15 +2409,14 @@ watch(isModelPanelOpen, (open) => {
 onBeforeUnmount(() => {
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
-  window.electron?.ipcRenderer?.removeListener?.(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-    handleAcpConfigOptionsReady
-  )
+  cancelAcpConfigSyncTask?.()
+  cancelAcpConfigSyncTask = null
+  unsubscribeAcpConfigOptionsReady?.()
+  unsubscribeAcpConfigOptionsReady = null
 })
 
 onMounted(() => {
-  window.electron?.ipcRenderer?.on?.(
-    ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
+  unsubscribeAcpConfigOptionsReady = sessionClient.onAcpConfigOptionsReady(
     handleAcpConfigOptionsReady
   )
 })
@@ -2309,29 +2428,74 @@ function isModelSelected(providerId: string, modelId: string) {
   )
 }
 
-async function changeModelSelection(providerId: string, modelId: string): Promise<boolean> {
+async function completeSwitchModelOnboardingIfNeeded(previousSelection: ModelSelection | null) {
+  const currentSelection = getEffectiveModelSelectionSnapshot()
+  const alreadySelected =
+    previousSelection?.providerId === currentSelection?.providerId &&
+    previousSelection?.modelId === currentSelection?.modelId
+
+  if (alreadySelected) {
+    return
+  }
+
+  try {
+    const state = await onboardingClient.getState()
+    if (state.status !== 'active' || state.currentStepId !== 'switch-model') {
+      return
+    }
+
+    const nextState = await onboardingClient.setStepStatus({
+      stepId: 'switch-model',
+      status: 'completed'
+    })
+
+    if (nextState.currentStepId === null) {
+      await onboardingClient.complete()
+    }
+
+    requestGuidedOnboardingResume('step-completed')
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to complete switch-model onboarding step:', error)
+  }
+}
+
+async function changeModelSelection(
+  providerId: string,
+  modelId: string
+): Promise<{
+  applied: boolean
+  selectionChanged: boolean
+  previousSelection: ModelSelection | null
+}> {
+  const ready = await ensureCompleteModelOptionsReady()
+  const previousSelection = getEffectiveModelSelectionSnapshot()
+
+  if (!ready) {
+    return { applied: false, selectionChanged: false, previousSelection }
+  }
+
   if (isModelSelectionLocked.value) {
-    return false
+    return { applied: false, selectionChanged: false, previousSelection }
   }
 
   if (
     effectiveModelSelection.value?.providerId === providerId &&
     effectiveModelSelection.value?.modelId === modelId
   ) {
-    return true
+    return { applied: true, selectionChanged: false, previousSelection }
   }
 
   if (hasActiveSession.value) {
     const sessionId = sessionStore.activeSessionId
     if (!sessionId) {
-      return false
+      return { applied: false, selectionChanged: false, previousSelection }
     }
     try {
       await sessionStore.setSessionModel(sessionId, providerId, modelId)
-      return true
+      return { applied: true, selectionChanged: true, previousSelection }
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to switch active session model:', error)
-      return false
+      return { applied: false, selectionChanged: false, previousSelection }
     }
   }
 
@@ -2341,21 +2505,31 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
   const previousDraftGenerationSettings = {
     systemPrompt: draftStore.systemPrompt,
     temperature: draftStore.temperature,
+    topP: draftStore.topP,
     contextLength: draftStore.contextLength,
     maxTokens: draftStore.maxTokens,
+    timeout: draftStore.timeout,
     thinkingBudget: draftStore.thinkingBudget,
     reasoningEffort: draftStore.reasoningEffort,
+    reasoningVisibility: draftStore.reasoningVisibility,
     verbosity: draftStore.verbosity,
-    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat
+    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat,
+    imageGeneration: draftStore.imageGeneration,
+    videoGeneration: draftStore.videoGeneration
   } as Partial<SessionGenerationSettings>
   const clearedDraftModelOverrides = {
     temperature: undefined,
+    topP: undefined,
     contextLength: undefined,
     maxTokens: undefined,
+    timeout: undefined,
     thinkingBudget: undefined,
     reasoningEffort: undefined,
+    reasoningVisibility: undefined,
     verbosity: undefined,
-    forceInterleavedThinkingCompat: undefined
+    forceInterleavedThinkingCompat: undefined,
+    imageGeneration: undefined,
+    videoGeneration: undefined
   } as Partial<SessionGenerationSettings>
 
   try {
@@ -2364,22 +2538,26 @@ async function changeModelSelection(providerId: string, modelId: string): Promis
     draftModelSelection.value = { providerId, modelId }
     draftStore.providerId = providerId
     draftStore.modelId = modelId
-    await configPresenter.setSetting('preferredModel', { providerId, modelId })
-    return true
+    await configClient.setSetting('preferredModel', { providerId, modelId })
+    return { applied: true, selectionChanged: true, previousSelection }
   } catch (error) {
     draftModelSelection.value = previousDraftSelection
     draftStore.providerId = previousDraftProviderId
     draftStore.modelId = previousDraftModelId
     draftStore.updateGenerationSettings(previousDraftGenerationSettings)
     console.warn('[ChatStatusBar] Failed to switch draft model:', error)
-    return false
+    return { applied: false, selectionChanged: false, previousSelection }
   }
 }
 
 async function handleModelQuickSelect(providerId: string, modelId: string) {
-  const changed = await changeModelSelection(providerId, modelId)
-  if (!changed) {
+  const result = await changeModelSelection(providerId, modelId)
+  if (!result.applied) {
     return
+  }
+
+  if (result.selectionChanged) {
+    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
   modelSettingsSelection.value = { providerId, modelId }
@@ -2388,11 +2566,15 @@ async function handleModelQuickSelect(providerId: string, modelId: string) {
 }
 
 async function openModelSettings(providerId: string, modelId: string) {
-  const changed = await changeModelSelection(providerId, modelId)
-  if (!changed) {
+  const result = await changeModelSelection(providerId, modelId)
+  if (!result.applied) {
     modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
     isModelSettingsExpanded.value = false
     return
+  }
+
+  if (result.selectionChanged) {
+    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
   modelSettingsSelection.value = { providerId, modelId }
@@ -2401,6 +2583,10 @@ async function openModelSettings(providerId: string, modelId: string) {
 
 function collapseModelSettings() {
   isModelSettingsExpanded.value = false
+}
+
+async function retryModelOptionsInitialization() {
+  await ensureCompleteModelOptionsReady()
 }
 
 function handleSessionPanelOpenChange(open: boolean) {
@@ -2469,6 +2655,9 @@ function stepTemperature(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
+  if (isMoonshotKimiTemperatureLocked.value) {
+    return
+  }
   if (hasNumericInputError('temperature')) {
     return
   }
@@ -2479,11 +2668,71 @@ function stepTemperature(direction: -1 | 1) {
   resetNumericInputFieldState('temperature')
 }
 
+const roundTopPStepValue = (value: number): number => Number(value.toFixed(10))
+
+function normalizeTopP(value: unknown): number | undefined {
+  const numeric = parseFiniteNumericValue(value)
+  return numeric !== undefined && numeric >= 0.1 && numeric <= 1 ? numeric : undefined
+}
+
+function stepTopP(direction: -1 | 1) {
+  if (!localSettings.value) {
+    return
+  }
+  if (hasNumericInputError('topP')) {
+    return
+  }
+  if (direction === -1 && localSettings.value.topP === undefined) {
+    return
+  }
+  const current = localSettings.value.topP ?? TOP_P_MAX
+  const next = Math.min(TOP_P_MAX, Math.max(TOP_P_MIN, current + direction * TOP_P_STEP))
+  updateLocalGenerationSettings({ topP: roundTopPStepValue(next) })
+  resetNumericInputFieldState('topP')
+}
+
+function onTopPInput(value: string | number) {
+  setNumericInputDraft('topP', value)
+}
+
+function commitTopPInput() {
+  if (numericInputDrafts.value.topP.trim() === '') {
+    stopNumericInputEdit('topP')
+    clearNumericInputError('topP')
+    updateLocalGenerationSettings({ topP: undefined })
+    resetNumericInputFieldState('topP')
+    return
+  }
+
+  const draftNum = parseFiniteNumericValue(numericInputDrafts.value.topP)
+  if (draftNum !== undefined) {
+    if (draftNum < TOP_P_MIN) {
+      numericInputDrafts.value.topP = String(TOP_P_MIN)
+    } else if (draftNum > TOP_P_MAX) {
+      numericInputDrafts.value.topP = String(TOP_P_MAX)
+    }
+  }
+
+  const next = commitNumericField('topP', numericInputDrafts.value.topP)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ topP: next })
+  resetNumericInputFieldState('topP')
+}
+
 function onTemperatureInput(value: string | number) {
+  if (isMoonshotKimiTemperatureLocked.value) {
+    return
+  }
   setNumericInputDraft('temperature', value)
 }
 
 function commitTemperatureInput() {
+  if (isMoonshotKimiTemperatureLocked.value) {
+    resetNumericInputFieldState('temperature')
+    return
+  }
   const next = commitNumericField('temperature', numericInputDrafts.value.temperature)
   if (next === undefined) {
     return
@@ -2548,6 +2797,39 @@ function commitMaxTokensInput() {
   }
   updateLocalGenerationSettings({ maxTokens: next })
   resetNumericInputFieldState('maxTokens')
+}
+
+function stepTimeout(direction: -1 | 1) {
+  if (!localSettings.value) {
+    return
+  }
+  if (hasNumericInputError('timeout')) {
+    return
+  }
+
+  const next = Math.max(
+    TIMEOUT_MIN,
+    Math.min(TIMEOUT_MAX, localSettings.value.timeout + direction * TIMEOUT_STEP)
+  )
+  const committed = commitNumericField('timeout', next)
+  if (committed === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ timeout: committed })
+  resetNumericInputFieldState('timeout')
+}
+
+function onTimeoutInput(value: string | number) {
+  setNumericInputDraft('timeout', value)
+}
+
+function commitTimeoutInput() {
+  const next = commitNumericField('timeout', numericInputDrafts.value.timeout)
+  if (next === undefined) {
+    return
+  }
+  updateLocalGenerationSettings({ timeout: next })
+  resetNumericInputFieldState('timeout')
 }
 
 function onThinkingBudgetToggle(enabled: boolean) {
@@ -2619,6 +2901,21 @@ function onVerbositySelect(value: string) {
   updateLocalGenerationSettings({ verbosity: normalized })
 }
 
+function onReasoningVisibilitySelect(value: string) {
+  if (!localSettings.value) {
+    return
+  }
+  const normalized = normalizeReasoningVisibility(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    value
+  )
+  if (!normalized) {
+    return
+  }
+  updateLocalGenerationSettings({ reasoningVisibility: normalized })
+}
+
 function onInterleavedThinkingToggle(enabled: boolean) {
   if (!localSettings.value) {
     return
@@ -2628,27 +2925,26 @@ function onInterleavedThinkingToggle(enabled: boolean) {
   })
 }
 
-function onAcpInlineOptionOpenChange(optionId: string, open: boolean) {
-  if (open) {
-    acpInlineOpenOptionId.value = optionId
+function onImageGenerationSettingsUpdate(
+  imageGeneration: SessionGenerationSettings['imageGeneration']
+) {
+  if (!localSettings.value) {
     return
   }
-
-  if (acpInlineOpenOptionId.value === optionId) {
-    acpInlineOpenOptionId.value = null
-  }
+  updateLocalGenerationSettings({
+    imageGeneration: normalizeImageGenerationOptions(imageGeneration)
+  })
 }
 
-function onAcpSelectOption(configId: string, value: string) {
-  if (!value) {
+function onVideoGenerationSettingsUpdate(
+  videoGeneration: SessionGenerationSettings['videoGeneration']
+) {
+  if (!localSettings.value) {
     return
   }
-  acpInlineOpenOptionId.value = null
-  void updateAcpConfigOption(configId, value)
-}
-
-function onAcpBooleanOption(configId: string, value: boolean) {
-  void updateAcpConfigOption(configId, value)
+  updateLocalGenerationSettings({
+    videoGeneration: normalizeVideoGenerationOptions(videoGeneration)
+  })
 }
 
 async function selectPermissionMode(mode: PermissionMode) {
@@ -2662,9 +2958,32 @@ async function selectPermissionMode(mode: PermissionMode) {
     return
   }
   try {
-    await newAgentPresenter.setPermissionMode(sessionId, mode)
+    await sessionClient.setPermissionMode(sessionId, mode)
   } catch (error) {
     console.warn('[ChatStatusBar] Failed to set permission mode:', error)
+  }
+}
+
+async function onSubagentToggle(enabled: boolean) {
+  if (!showSubagentToggle.value || subagentEnabled.value === enabled) {
+    return
+  }
+
+  subagentEnabled.value = enabled
+  const sessionId = sessionStore.activeSessionId
+  if (!sessionId) {
+    draftStore.subagentEnabled = enabled
+    return
+  }
+
+  isSubagentToggleUpdating.value = true
+  try {
+    await sessionStore.setSessionSubagentEnabled(sessionId, enabled)
+  } catch (error) {
+    console.warn('[ChatStatusBar] Failed to set subagent toggle:', error)
+    subagentEnabled.value = sessionStore.activeSession?.subagentEnabled === true
+  } finally {
+    isSubagentToggleUpdating.value = false
   }
 }
 
@@ -2672,6 +2991,7 @@ defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
+  subagentEnabled,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,
@@ -2680,12 +3000,15 @@ defineExpose({
   commitContextLengthInput,
   onMaxTokensInput,
   commitMaxTokensInput,
+  onTimeoutInput,
+  commitTimeoutInput,
   onThinkingBudgetInput,
   commitThinkingBudgetInput,
   onThinkingBudgetToggle,
   stepTemperature,
   stepContextLength,
   stepMaxTokens,
+  stepTimeout,
   stepThinkingBudget,
   selectModel: changeModelSelection,
   openModelSettings,

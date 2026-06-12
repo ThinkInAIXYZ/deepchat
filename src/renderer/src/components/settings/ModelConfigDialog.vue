@@ -11,7 +11,7 @@
       <div class="overflow-y-auto flex-1 pr-2 -mr-2">
         <form @submit.prevent="handleSave" class="space-y-6">
           <!-- 模型名称 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
             <Input
               id="modelName"
@@ -34,7 +34,7 @@
           </div>
 
           <!-- 模型 ID -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
             <Label for="modelId">{{ t('settings.model.modelConfig.id.label') }}</Label>
             <Input
               id="modelId"
@@ -57,7 +57,7 @@
           </div>
 
           <!-- 最大输出长度 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
             <Label for="maxTokens">{{ t('settings.model.modelConfig.maxTokens.label') }}</Label>
             <Input
               id="maxTokens"
@@ -77,7 +77,7 @@
           </div>
 
           <!-- 上下文长度 -->
-          <div class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
             <Label for="contextLength">{{
               t('settings.model.modelConfig.contextLength.label')
             }}</Label>
@@ -98,8 +98,43 @@
             </p>
           </div>
 
+          <div class="space-y-2">
+            <Label for="timeout">{{ t('settings.model.modelConfig.timeout.label') }}</Label>
+            <Input
+              id="timeout"
+              v-model.number="config.timeout"
+              type="number"
+              step="1000"
+              :min="MODEL_TIMEOUT_MIN_MS"
+              :max="MODEL_TIMEOUT_MAX_MS"
+              :placeholder="t('settings.model.modelConfig.timeout.label')"
+              :class="{ 'border-destructive': errors.timeout }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.timeout.description') }}
+            </p>
+            <p v-if="errors.timeout" class="text-xs text-destructive">
+              {{ errors.timeout }}
+            </p>
+          </div>
+
+          <OpenAIImageGenerationSettingsFields
+            v-if="showOpenAIImageGenerationSettings"
+            v-model="config.imageGeneration"
+          />
+
+          <OpenAIVideoGenerationSettingsFields
+            v-if="showOpenAIVideoGenerationSettings"
+            v-model="config.videoGeneration"
+          />
+
+          <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
+
           <!-- 温度 (支持推理努力程度的模型不显示) -->
-          <div v-if="!supportsReasoningEffort" class="space-y-2">
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
+            class="space-y-2"
+          >
             <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
             <Input
               id="temperature"
@@ -110,12 +145,34 @@
               :max="2"
               :placeholder="t('settings.model.modelConfig.temperature.label')"
               :class="{ 'border-destructive': errors.temperature }"
+              :disabled="isMoonshotKimiTemperatureLocked"
             />
             <p class="text-xs text-muted-foreground">
               {{ t('settings.model.modelConfig.temperature.description') }}
             </p>
+            <p v-if="moonshotKimiTemperatureHint" class="text-xs text-muted-foreground">
+              {{ moonshotKimiTemperatureHint }}
+            </p>
             <p v-if="errors.temperature" class="text-xs text-destructive">
               {{ errors.temperature }}
+            </p>
+          </div>
+
+          <div v-if="showTopPControl" class="space-y-2">
+            <Label for="topP">{{ t('settings.model.modelConfig.topP.label') }}</Label>
+            <Input
+              id="topP"
+              v-model="topPDraft"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.useModelDefault')"
+              :class="{ 'border-destructive': errors.topP }"
+              @blur="clampTopPDraft"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.topP.description') }}
+            </p>
+            <p v-if="errors.topP" class="text-xs text-destructive">
+              {{ errors.topP }}
             </p>
           </div>
 
@@ -139,6 +196,12 @@
                 <SelectItem value="imageGeneration">
                   {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
                 </SelectItem>
+                <SelectItem value="videoGeneration">
+                  {{ t('settings.model.modelConfig.type.options.videoGeneration') }}
+                </SelectItem>
+                <SelectItem value="tts">
+                  {{ t('settings.provider.tts.title') }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
@@ -146,8 +209,48 @@
             </p>
           </div>
 
+          <div
+            v-if="
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
+              showEndpointTypeSelector
+            "
+            class="space-y-2"
+          >
+            <Label for="endpointType">{{
+              t('settings.model.modelConfig.endpointType.label')
+            }}</Label>
+            <Select v-model="config.endpointType">
+              <SelectTrigger :class="{ 'border-destructive': errors.endpointType }">
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.endpointType.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="endpointType in availableEndpointTypes"
+                  :key="endpointType"
+                  :value="endpointType"
+                >
+                  {{ t(`settings.model.modelConfig.endpointType.options.${endpointType}`) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.endpointType.description') }}
+            </p>
+            <p v-if="errors.endpointType" class="text-xs text-destructive">
+              {{ errors.endpointType }}
+            </p>
+          </div>
+
           <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
-          <div v-if="showApiEndpointSelector" class="space-y-2">
+          <div
+            v-if="
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
+              showApiEndpointSelector
+            "
+            class="space-y-2"
+          >
             <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
             <Select v-model="config.apiEndpoint">
               <SelectTrigger>
@@ -160,6 +263,12 @@
                 <SelectItem value="image">
                   {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
                 </SelectItem>
+                <SelectItem value="video">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.video') }}
+                </SelectItem>
+                <SelectItem value="audio-speech">
+                  {{ t('settings.provider.tts.title') }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
@@ -168,7 +277,7 @@
           </div>
 
           <!-- 视觉能力 -->
-          <div class="flex items-center justify-between">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.vision.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -181,8 +290,22 @@
             />
           </div>
 
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.speechRecognition.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.speechRecognition.description') }}
+              </p>
+            </div>
+            <Switch
+              data-setting-control="speechRecognition-toggle"
+              :model-value="config.speechRecognition === true"
+              @update:model-value="(value) => (config.speechRecognition = Boolean(value))"
+            />
+          </div>
+
           <!-- 函数调用 -->
-          <div class="flex items-center justify-between">
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.functionCall.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -200,21 +323,31 @@
           </div>
 
           <!-- 推理能力 -->
-          <div v-if="showReasoningToggle" class="flex items-center justify-between">
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningToggle"
+            class="flex items-center justify-between"
+          >
             <div class="space-y-0.5">
-              <Label>{{ t('settings.model.modelConfig.reasoning.label') }}</Label>
+              <Label>{{ t(reasoningToggleLabelKey) }}</Label>
               <p class="text-xs text-muted-foreground">
-                {{ t('settings.model.modelConfig.reasoning.description') }}
+                {{ t(reasoningToggleDescriptionKey) }}
               </p>
               <!-- DeepSeek-V3.1 互斥提示 -->
-              <p v-if="isDeepSeekV31Model" class="text-xs text-orange-600">
+              <p v-if="showReasoningMutualExclusiveWarning" class="text-xs text-orange-600">
                 {{ t('dialog.mutualExclusive.warningText.reasoning') }}
               </p>
             </div>
-            <Switch :model-value="config.reasoning" @update:model-value="handleReasoningToggle" />
+            <Switch
+              :model-value="reasoningToggleValue"
+              :disabled="reasoningToggleDisabled"
+              @update:model-value="handleReasoningToggle"
+            />
           </div>
 
-          <div v-if="showInterleavedThinking" class="flex items-center justify-between gap-4">
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showInterleavedThinking"
+            class="flex items-center justify-between gap-4"
+          >
             <div class="space-y-0.5">
               <Label>{{ t('settings.model.modelConfig.interleavedThinking.label') }}</Label>
               <p class="text-xs text-muted-foreground">
@@ -231,7 +364,7 @@
           </div>
 
           <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
-          <div v-if="supportsReasoningEffort" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort" class="space-y-2">
             <Label for="reasoningEffort">{{
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
@@ -256,8 +389,36 @@
             </p>
           </div>
 
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
+            class="space-y-2"
+          >
+            <Label for="reasoningVisibility">{{
+              t('settings.model.modelConfig.reasoningVisibility.label')
+            }}</Label>
+            <Select v-model="config.reasoningVisibility">
+              <SelectTrigger>
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.reasoningVisibility.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in reasoningVisibilityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.reasoningVisibility.description') }}
+            </p>
+          </div>
+
           <!-- 详细程度（存在该参数即显示） -->
-          <div v-if="supportsVerbosity" class="space-y-2">
+          <div v-if="!showOpenAIMediaGenerationSettings && supportsVerbosity" class="space-y-2">
             <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
             <Select v-model="config.verbosity">
               <SelectTrigger>
@@ -279,7 +440,7 @@
           </div>
 
           <!-- 思考预算（统一基于能力） -->
-          <div v-if="showThinkingBudget" class="space-y-4">
+          <div v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget" class="space-y-4">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
@@ -378,21 +539,65 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { ApiEndpointType, ModelType } from '@shared/model'
+import {
+  ApiEndpointType,
+  ModelType,
+  NEW_API_ENDPOINT_TYPES,
+  isNewApiEndpointType,
+  resolveProviderCapabilityProviderId,
+  type NewApiEndpointType
+} from '@shared/model'
+import {
+  MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
+  MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
+  getMoonshotKimiTemperaturePolicy,
+  resolveMoonshotKimiTemperaturePolicy
+} from '@shared/moonshotKimiPolicy'
 import type { ModelConfig } from '@shared/presenter'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import {
+  ANTHROPIC_REASONING_VISIBILITY_VALUES,
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningControlModeForProvider,
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
+  isReasoningEffort,
+  normalizeAnthropicReasoningVisibilityValue,
+  isVerbosity,
+  normalizeReasoningEffortValue,
+  type AnthropicReasoningVisibility,
+  supportsReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
   DEFAULT_MODEL_MAX_TOKENS,
-  DEFAULT_MODEL_VISION
+  DEFAULT_MODEL_SPEECH_RECOGNITION,
+  DEFAULT_MODEL_TIMEOUT,
+  DEFAULT_MODEL_VISION,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
+import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
-import { usePresenter } from '@/composables/usePresenter'
+import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
+import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
+import TtsSettingsFields from './TtsSettingsFields.vue'
+import { createModelClient } from '@api/ModelClient'
 import {
   Dialog,
   DialogContent,
@@ -404,6 +609,12 @@ import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@shadcn/components/ui/tooltip'
 import {
   Select,
   SelectContent,
@@ -446,8 +657,9 @@ const modelConfigStore = useModelConfigStore()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 const { customModels, allProviderModels } = storeToRefs(modelStore)
-const configPresenter = usePresenter('configPresenter')
+const modelClient = createModelClient()
 const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
+const capabilityProviderId = ref(props.providerId)
 const currentProvider = computed(() =>
   providerStore.providers.find((provider) => provider.id === props.providerId)
 )
@@ -475,34 +687,43 @@ const isResponsesProvider = computed(() => {
   return apiType === 'openai' || apiType === 'openai-responses'
 })
 
+const isNewApiProvider = computed(() => {
+  if (providerIdLower.value === 'new-api') {
+    return true
+  }
+
+  return currentProvider.value?.apiType?.toLowerCase() === 'new-api'
+})
+
 const showApiEndpointSelector = computed(
-  () => !isResponsesProvider.value && isOpenAICompatibleProvider.value
+  () => !isNewApiProvider.value && !isResponsesProvider.value && isOpenAICompatibleProvider.value
 )
+const showEndpointTypeSelector = computed(() => isNewApiProvider.value)
 
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: DEFAULT_MODEL_MAX_TOKENS,
   contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+  timeout: DEFAULT_MODEL_TIMEOUT,
   temperature: 0.7,
+  topP: undefined,
   vision: DEFAULT_MODEL_VISION,
+  speechRecognition: DEFAULT_MODEL_SPEECH_RECOGNITION,
   functionCall: DEFAULT_MODEL_FUNCTION_CALL,
   reasoning: false,
   forceInterleavedThinkingCompat: undefined,
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
+  endpointType: undefined,
   reasoningEffort: 'medium',
+  reasoningVisibility: undefined,
   verbosity: 'medium'
 })
 
-const DEFAULT_REASONING_EFFORT_OPTIONS: Array<'minimal' | 'low' | 'medium' | 'high'> = [
-  'minimal',
-  'low',
-  'medium',
-  'high'
-]
 const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high']
 
 // 配置数据
 const config = ref<ModelConfig>(createDefaultConfig())
+const topPDraft = ref('')
 const modelNameField = ref(props.modelName ?? '')
 const modelIdField = ref(props.modelId ?? '')
 const originalModelId = ref(props.modelId ?? '')
@@ -516,6 +737,68 @@ const dialogTitle = computed(() =>
 )
 const canEditModelIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
 const shouldValidateIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+const showOpenAIImageGenerationSettings = computed(() =>
+  supportsOpenAIImageGenerationSettings({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIVideoGenerationSettings = computed(() =>
+  supportsOpenAICompatibleVideoGeneration({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIMediaGenerationSettings = computed(
+  () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
+)
+const showOpenAIImageGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIVideoGenerationRouteControls = computed(
+  () => showOpenAIVideoGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIMediaGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationRouteControls.value || showOpenAIVideoGenerationRouteControls.value
+)
+const showTtsSettings = computed(() => config.value.type === ModelType.TTS)
+
+const syncTopPDraftFromConfig = () => {
+  topPDraft.value = typeof config.value.topP === 'number' ? String(config.value.topP) : ''
+}
+
+const parseTopPDraft = (): number | undefined => {
+  const raw = topPDraft.value.trim()
+  if (!raw) {
+    return undefined
+  }
+
+  return Number(raw)
+}
+
+const clampTopPDraft = () => {
+  const raw = topPDraft.value.trim()
+  if (!raw) return
+
+  const num = Number(raw)
+  if (!Number.isFinite(num)) return
+
+  if (num < 0.1) {
+    topPDraft.value = '0.1'
+  } else if (num > 1) {
+    topPDraft.value = '1'
+  }
+}
 
 // 重置确认对话框
 const showResetConfirm = ref(false)
@@ -530,16 +813,11 @@ const mutualExclusiveAction = ref<{
 // 错误信息
 const errors = ref<Record<string, string>>({})
 const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
-
-const isReasoningEffort = (value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' =>
-  value === 'minimal' || value === 'low' || value === 'medium' || value === 'high'
-
-const isVerbosity = (value: unknown): value is 'low' | 'medium' | 'high' =>
-  value === 'low' || value === 'medium' || value === 'high'
+const capabilitySupportsTemperature = ref<boolean | null>(null)
 
 const getReasoningEffortOptions = (
   portrait: ReasoningPortrait | null | undefined
-): Array<'minimal' | 'low' | 'medium' | 'high'> => {
+): ReasoningEffort[] => {
   if (
     !portrait ||
     portrait.mode === 'budget' ||
@@ -553,9 +831,13 @@ const getReasoningEffortOptions = (
   if (options && options.length > 0) {
     return options
   }
-  return portrait.mode !== 'mixed' && isReasoningEffort(portrait?.effort)
-    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
-    : []
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
+    return []
+  }
+
+  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
 }
 
 const getVerbosityOptions = (
@@ -568,11 +850,19 @@ const getVerbosityOptions = (
   return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
 }
 
+const getReasoningVisibilityOptions = (
+  providerId: string,
+  portrait: ReasoningPortrait | null | undefined
+): AnthropicReasoningVisibility[] =>
+  hasAnthropicReasoningToggle(providerId, portrait)
+    ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
+    : []
+
 const hasReasoningEffortSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
+  supportsReasoningCapability(portrait) && getReasoningEffortOptions(portrait).length > 0
 
 const hasVerbositySupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
+  supportsReasoningCapability(portrait) && getVerbosityOptions(portrait).length > 0
 
 const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
   Boolean(
@@ -587,28 +877,6 @@ const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined
       portrait.budget.auto !== undefined ||
       portrait.budget.off !== undefined)
   )
-
-const normalizeReasoningEffortValue = (
-  portrait: ReasoningPortrait | null | undefined,
-  value: unknown
-): 'minimal' | 'low' | 'medium' | 'high' | undefined => {
-  if (!isReasoningEffort(value)) {
-    return undefined
-  }
-
-  const options = getReasoningEffortOptions(portrait)
-  if (options.length === 0) {
-    return value
-  }
-
-  if (options.includes(value)) {
-    return value
-  }
-
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
-}
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null | undefined,
@@ -669,6 +937,71 @@ const isThinkingBudgetSentinel = (
   return sentinelValues.has(roundedValue)
 }
 
+const capabilitySupportsReasoning = ref<boolean | null>(null)
+const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
+const capabilitySupportsEffort = ref<boolean | null>(null)
+const capabilityEffortDefault = ref<ReasoningEffort | undefined>(undefined)
+const capabilitySupportsVerbosity = ref<boolean | null>(null)
+const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
+const capabilityReasoningVisibilityDefault = ref<AnthropicReasoningVisibility | undefined>(
+  undefined
+)
+
+const fetchCapabilities = async () => {
+  syncCapabilityProviderId()
+  const targetModelId = currentModelLookupId.value
+
+  if (!props.providerId || !targetModelId) {
+    capabilityReasoningPortrait.value = null
+    capabilitySupportsReasoning.value = null
+    capabilityBudgetRange.value = null
+    capabilitySupportsTemperature.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
+    capabilityReasoningVisibilityDefault.value = undefined
+    return
+  }
+  try {
+    const capabilities = await modelClient.getCapabilities(props.providerId, targetModelId)
+    const portrait = capabilities.reasoningPortrait ?? null
+    capabilityReasoningPortrait.value = portrait
+    capabilitySupportsReasoning.value =
+      typeof portrait?.supported === 'boolean' ? portrait.supported : null
+    capabilityBudgetRange.value = portrait?.budget
+      ? {
+          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
+          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
+          ...(typeof portrait.budget.default === 'number'
+            ? { default: portrait.budget.default }
+            : {})
+        }
+      : null
+    capabilitySupportsTemperature.value =
+      typeof capabilities.supportsTemperatureControl === 'boolean'
+        ? capabilities.supportsTemperatureControl
+        : capabilities.temperatureCapability
+    capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
+    capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
+    capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
+    capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
+    capabilityReasoningVisibilityDefault.value = normalizeAnthropicReasoningVisibilityValue(
+      portrait?.visibility
+    )
+  } catch {
+    capabilityReasoningPortrait.value = null
+    capabilitySupportsReasoning.value = null
+    capabilityBudgetRange.value = null
+    capabilitySupportsTemperature.value = null
+    capabilitySupportsEffort.value = null
+    capabilityEffortDefault.value = undefined
+    capabilitySupportsVerbosity.value = null
+    capabilityVerbosityDefault.value = undefined
+    capabilityReasoningVisibilityDefault.value = undefined
+  }
+}
+
 const providerCustomModelList = computed(() => {
   if (!props.providerId) return []
   return customModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
@@ -679,6 +1012,70 @@ const providerStandardModelList = computed(() => {
   return (
     allProviderModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
   )
+})
+
+const currentModelLookupId = computed(() =>
+  (isCreateMode.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
+)
+
+const moonshotKimiTemperaturePolicy = computed(() =>
+  getMoonshotKimiTemperaturePolicy(props.providerId, currentModelLookupId.value)
+)
+const resolvedMoonshotKimiTemperaturePolicy = computed(() =>
+  resolveMoonshotKimiTemperaturePolicy(
+    props.providerId,
+    currentModelLookupId.value,
+    config.value.reasoning
+  )
+)
+const isMoonshotKimiTemperatureLocked = computed(
+  () => moonshotKimiTemperaturePolicy.value?.lockTemperatureControl === true
+)
+const moonshotKimiTemperatureHint = computed(() =>
+  isMoonshotKimiTemperatureLocked.value
+    ? t('settings.model.modelConfig.temperature.fixedMoonshotKimi', {
+        enabled: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE.toFixed(1),
+        disabled: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE.toFixed(1)
+      })
+    : ''
+)
+
+const providerModelMeta = computed(() => {
+  const targetModelId = currentModelLookupId.value
+  if (!targetModelId) return null
+
+  return (
+    providerStandardModelList.value.find((model) => model.id === targetModelId) ??
+    providerCustomModelList.value.find((model) => model.id === targetModelId) ??
+    null
+  )
+})
+
+const syncCapabilityProviderId = () => {
+  capabilityProviderId.value = resolveProviderCapabilityProviderId(
+    props.providerId,
+    {
+      endpointType: isNewApiEndpointType(config.value.endpointType)
+        ? config.value.endpointType
+        : providerModelMeta.value?.endpointType,
+      supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+      type: config.value.type ?? providerModelMeta.value?.type,
+      providerApiType: currentProvider.value?.apiType
+    },
+    currentModelLookupId.value
+  )
+}
+
+const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+  const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
+  if (Array.isArray(supportedEndpointTypes) && supportedEndpointTypes.length > 0) {
+    const normalizedEndpointTypes = supportedEndpointTypes.filter(isNewApiEndpointType)
+    if (normalizedEndpointTypes.length > 0) {
+      return normalizedEndpointTypes
+    }
+  }
+
+  return [...NEW_API_ENDPOINT_TYPES]
 })
 
 const currentCustomModel = computed(() => {
@@ -700,17 +1097,66 @@ const hasModelIdConflict = (modelId: string, excludeId?: string) => {
   })
 }
 
-const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => ({
-  id,
-  name,
-  enabled: enabled ?? true,
-  contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
-  maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
-  vision: config.value.vision ?? DEFAULT_MODEL_VISION,
-  functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
-  reasoning: config.value.reasoning ?? false,
-  type: config.value.type ?? ModelType.Chat
-})
+const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => {
+  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
+    props.providerId,
+    id,
+    config.value.reasoning
+  )
+
+  return {
+    id,
+    name,
+    enabled: enabled ?? true,
+    contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
+    maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+    vision: config.value.vision ?? DEFAULT_MODEL_VISION,
+    functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
+    reasoning: fixedTemperatureKimi?.reasoningEnabled ?? config.value.reasoning ?? false,
+    type: config.value.type ?? ModelType.Chat,
+    endpointType: config.value.endpointType
+  }
+}
+
+const syncNewApiDerivedFields = () => {
+  if (!showEndpointTypeSelector.value) {
+    return
+  }
+
+  if (!isNewApiEndpointType(config.value.endpointType)) {
+    config.value.endpointType =
+      providerModelMeta.value?.endpointType ??
+      providerModelMeta.value?.supportedEndpointTypes?.[0] ??
+      availableEndpointTypes.value[0]
+  }
+
+  if (config.value.endpointType === 'image-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Image
+    config.value.type = ModelType.ImageGeneration
+    return
+  }
+
+  if (config.value.endpointType === 'video-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Video
+    config.value.type = ModelType.VideoGeneration
+    return
+  }
+
+  config.value.apiEndpoint = ApiEndpointType.Chat
+
+  if (
+    config.value.type === ModelType.ImageGeneration ||
+    config.value.type === ModelType.VideoGeneration
+  ) {
+    const providerModelType = providerModelMeta.value?.type
+    config.value.type =
+      providerModelType &&
+      providerModelType !== ModelType.ImageGeneration &&
+      providerModelType !== ModelType.VideoGeneration
+        ? providerModelType
+        : ModelType.Chat
+  }
+}
 
 const initializeIdentityFields = () => {
   if (isCreateMode.value) {
@@ -733,6 +1179,8 @@ const loadConfig = async () => {
 
   if (isCreateMode.value) {
     config.value = createDefaultConfig()
+    syncTopPDraftFromConfig()
+    syncNewApiDerivedFields()
     await fetchCapabilities()
     return
   }
@@ -741,7 +1189,23 @@ const loadConfig = async () => {
 
   try {
     const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
-    config.value = { ...modelConfig }
+    config.value = { ...createDefaultConfig(), ...modelConfig }
+    syncTopPDraftFromConfig()
+
+    if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+      config.value.endpointType =
+        providerModelMeta.value?.endpointType ??
+        providerModelMeta.value?.supportedEndpointTypes?.[0] ??
+        availableEndpointTypes.value[0]
+    }
+
+    if (config.value.type === ModelType.VideoGeneration && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.Video
+    }
+
+    if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
+      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+    }
 
     if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
       config.value.apiEndpoint = ApiEndpointType.Chat
@@ -749,6 +1213,7 @@ const loadConfig = async () => {
   } catch (error) {
     console.error('Failed to load model config:', error)
     config.value = createDefaultConfig()
+    syncTopPDraftFromConfig()
   }
 
   await fetchCapabilities()
@@ -776,6 +1241,21 @@ const loadConfig = async () => {
     if (supportsVerbosity.value) {
       config.value.verbosity = normalizedVerbosity
     }
+
+    if (supportsReasoningVisibility.value) {
+      config.value.reasoningVisibility =
+        normalizeAnthropicReasoningVisibilityValue(config.value.reasoningVisibility) ??
+        capabilityReasoningVisibilityDefault.value
+    }
+  }
+
+  if (supportsReasoningVisibility.value) {
+    const normalizedVisibility = normalizeAnthropicReasoningVisibilityValue(
+      config.value.reasoningVisibility
+    )
+    if (normalizedVisibility) {
+      config.value.reasoningVisibility = normalizedVisibility
+    }
   }
 
   if (config.value.thinkingBudget === undefined) {
@@ -791,6 +1271,8 @@ const loadConfig = async () => {
       capabilityReasoningPortrait.value?.budget?.max
     )
   }
+
+  syncNewApiDerivedFields()
 }
 
 // 验证表单
@@ -818,27 +1300,64 @@ const validateForm = () => {
     }
   }
 
-  // 验证最大输出长度
-  if (!config.value.maxTokens || config.value.maxTokens <= 0) {
-    errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
-  } else if (config.value.maxTokens > 1000000) {
-    errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMax')
+  if (!showOpenAIMediaGenerationSettings.value) {
+    // 验证最大输出长度
+    if (!config.value.maxTokens || config.value.maxTokens <= 0) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
+    } else if (config.value.maxTokens > 1000000) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMax')
+    }
+
+    // 验证上下文长度
+    if (!config.value.contextLength || config.value.contextLength <= 0) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMin')
+    } else if (config.value.contextLength > 100_000_000) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
+    }
   }
 
-  // 验证上下文长度
-  if (!config.value.contextLength || config.value.contextLength <= 0) {
-    errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMin')
-  } else if (config.value.contextLength > 100_000_000) {
-    errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
-  }
-
-  // 验证温度 (仅对不支持推理努力程度的模型)
-  if (!supportsReasoningEffort.value && config.value.temperature !== undefined) {
+  // 验证温度 (仅对显示 temperature 控件的模型)
+  if (
+    !showOpenAIMediaGenerationSettings.value &&
+    showTemperatureControl.value &&
+    config.value.temperature !== undefined
+  ) {
     if (config.value.temperature < 0) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
     } else if (config.value.temperature > 2) {
       errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMax')
     }
+  }
+
+  if (showTopPControl.value) {
+    const parsedTopP = parseTopPDraft()
+    config.value.topP = parsedTopP
+    if (parsedTopP !== undefined) {
+      if (!Number.isFinite(parsedTopP)) {
+        errors.value.topP = t('chat.advancedSettings.validation.finiteNumber')
+      } else if (parsedTopP < 0.1 || parsedTopP > 1) {
+        errors.value.topP = t('settings.model.modelConfig.validation.topPRange')
+      }
+    }
+  } else {
+    config.value.topP = undefined
+  }
+
+  if (config.value.timeout !== undefined && config.value.timeout !== null) {
+    const timeout = Number(config.value.timeout)
+    if (!Number.isFinite(timeout) || timeout < MODEL_TIMEOUT_MIN_MS) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMin')
+    } else if (timeout > MODEL_TIMEOUT_MAX_MS) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMax')
+    }
+  }
+
+  if (
+    (!showOpenAIMediaGenerationSettings.value || showOpenAIMediaGenerationRouteControls.value) &&
+    showEndpointTypeSelector.value &&
+    !isNewApiEndpointType(config.value.endpointType)
+  ) {
+    errors.value.endpointType = t('settings.model.modelConfig.endpointType.required')
   }
 }
 
@@ -854,6 +1373,29 @@ const handleSave = async () => {
 
   const trimmedName = modelNameField.value.trim()
   const trimmedId = modelIdField.value.trim()
+  const timeout = Number(config.value.timeout)
+  const normalizedTimeout =
+    Number.isFinite(timeout) && timeout > 0 ? Math.round(timeout) : undefined
+  const parsedTopP = parseTopPDraft()
+  const configToSave: ModelConfig = {
+    ...config.value,
+    ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
+    topP:
+      showTopPControl.value &&
+      typeof parsedTopP === 'number' &&
+      Number.isFinite(parsedTopP) &&
+      parsedTopP >= 0.1 &&
+      parsedTopP <= 1
+        ? parsedTopP
+        : undefined,
+    imageGeneration: showOpenAIImageGenerationSettings.value
+      ? normalizeImageGenerationOptions(config.value.imageGeneration)
+      : undefined,
+    videoGeneration: showOpenAIVideoGenerationSettings.value
+      ? normalizeVideoGenerationOptions(config.value.videoGeneration)
+      : undefined,
+    tts: showTtsSettings.value ? normalizeTtsSettings(config.value.tts) : undefined
+  }
 
   try {
     if (isCreateMode.value) {
@@ -861,7 +1403,7 @@ const handleSave = async () => {
         props.providerId,
         buildCustomModelPayload(trimmedId, trimmedName, true)
       )
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
     } else if (props.isCustomModel) {
       if (!props.modelId) return
       const previousId = originalModelId.value
@@ -891,14 +1433,15 @@ const handleSave = async () => {
           vision: config.value.vision,
           functionCall: config.value.functionCall,
           reasoning: config.value.reasoning,
-          type: config.value.type ?? ModelType.Chat
+          type: config.value.type ?? ModelType.Chat,
+          endpointType: config.value.endpointType
         })
       }
 
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
     } else {
       if (!props.modelId) return
-      await modelConfigStore.setModelConfig(props.modelId, props.providerId, config.value)
+      await modelConfigStore.setModelConfig(props.modelId, props.providerId, configToSave)
     }
 
     emit('saved')
@@ -918,6 +1461,7 @@ const confirmReset = async () => {
   try {
     if (isCreateMode.value) {
       config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
       modelNameField.value = ''
       modelIdField.value = ''
       showResetConfirm.value = false
@@ -944,7 +1488,52 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
+  () => {
+    syncNewApiDerivedFields()
+    syncCapabilityProviderId()
+  }
+)
+
+watch(
+  () => [config.value.type, showApiEndpointSelector.value, showEndpointTypeSelector.value],
+  () => {
+    if (!showApiEndpointSelector.value || showEndpointTypeSelector.value) {
+      return
+    }
+
+    if (config.value.type === ModelType.ImageGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Image
+      return
+    }
+
+    if (config.value.type === ModelType.VideoGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Video
+      return
+    }
+
+    if (config.value.type === ModelType.TTS) {
+      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+      return
+    }
+
+    if (
+      config.value.apiEndpoint === ApiEndpointType.Image ||
+      config.value.apiEndpoint === ApiEndpointType.Video
+    ) {
+      config.value.apiEndpoint = ApiEndpointType.Chat
+    }
+  },
+  { immediate: true }
+)
+
 const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
+const supportsReasoningVisibility = computed(
+  () =>
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
+)
 
 const isDeepSeekV31Model = computed(() => {
   const modelId = props.modelId.toLowerCase()
@@ -953,6 +1542,68 @@ const isDeepSeekV31Model = computed(() => {
 
 const supportsReasoningEffort = computed(() =>
   hasReasoningEffortSupport(capabilityReasoningPortrait.value)
+)
+const showReasoningEffort = computed(
+  () =>
+    supportsReasoningEffort.value &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      Boolean(config.value.reasoning))
+)
+const showReasoningVisibility = computed(
+  () => supportsReasoningVisibility.value && Boolean(config.value.reasoning)
+)
+const supportsTemperatureControl = computed(() => capabilitySupportsTemperature.value !== false)
+const showTemperatureControl = computed(
+  () =>
+    (supportsTemperatureControl.value || isMoonshotKimiTemperatureLocked.value) &&
+    !supportsReasoningEffort.value
+)
+const supportsTopPControl = computed(
+  () => capabilityProviderId.value !== 'anthropic' || capabilitySupportsTemperature.value !== false
+)
+const showTopPControl = computed(
+  () => !showOpenAIMediaGenerationSettings.value && supportsTopPControl.value
+)
+const reasoningToggleMode = computed(() => {
+  if (moonshotKimiTemperaturePolicy.value?.isThinkingVariant) {
+    return 'indicator' as const
+  }
+
+  if (isCreateMode.value || props.isCustomModel) {
+    return 'toggle' as const
+  }
+
+  if (capabilityReasoningPortrait.value) {
+    return getReasoningControlModeForProvider(
+      capabilityProviderId.value,
+      capabilityReasoningPortrait.value
+    )
+  }
+
+  return capabilitySupportsReasoning.value === false
+    ? ('unsupported' as const)
+    : ('toggle' as const)
+})
+const reasoningToggleDisabled = computed(() => reasoningToggleMode.value === 'indicator')
+const reasoningToggleValue = computed(() =>
+  moonshotKimiTemperaturePolicy.value?.isThinkingVariant
+    ? true
+    : reasoningToggleDisabled.value
+      ? supportsReasoningCapability(capabilityReasoningPortrait.value)
+      : Boolean(config.value.reasoning)
+)
+const reasoningToggleLabelKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.label'
+    : 'settings.model.modelConfig.reasoningToggle.label'
+)
+const reasoningToggleDescriptionKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.description'
+    : 'settings.model.modelConfig.reasoningToggle.description'
+)
+const showReasoningMutualExclusiveWarning = computed(
+  () => isDeepSeekV31Model.value && reasoningToggleDisabled.value === false
 )
 const reasoningEffortOptions = computed(() =>
   getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
@@ -966,10 +1617,25 @@ const verbosityOptions = computed(() =>
     label: t(`settings.model.modelConfig.verbosity.options.${value}`)
   }))
 )
+const reasoningVisibilityOptions = computed(() =>
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
+    (value) => ({
+      value,
+      label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+    })
+  )
+)
 
 const showThinkingBudget = computed(() => {
-  const hasReasoning = config.value.reasoning
-  const supported = capabilitySupportsReasoning.value === true
+  const hasReasoning = getReasoningEffectiveEnabledForProvider(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    {
+      reasoning: config.value.reasoning,
+      reasoningEffort: config.value.reasoningEffort
+    }
+  )
+  const supported = supportsReasoningCapability(capabilityReasoningPortrait.value)
   const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
   return hasReasoning && supported && hasRange
 })
@@ -986,58 +1652,51 @@ const showInterleavedThinking = computed(() => {
   )
 })
 
-const capabilitySupportsReasoning = ref<boolean | null>(null)
-const capabilityBudgetRange = ref<{ min?: number; max?: number; default?: number } | null>(null)
-const capabilitySupportsEffort = ref<boolean | null>(null)
-const capabilityEffortDefault = ref<'minimal' | 'low' | 'medium' | 'high' | undefined>(undefined)
-const capabilitySupportsVerbosity = ref<boolean | null>(null)
-const capabilityVerbosityDefault = ref<'low' | 'medium' | 'high' | undefined>(undefined)
-
-const fetchCapabilities = async () => {
-  if (!props.providerId || !props.modelId) {
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilityEffortDefault.value = undefined
-    capabilitySupportsVerbosity.value = null
-    capabilityVerbosityDefault.value = undefined
-    return
-  }
-  try {
-    const portrait =
-      (await configPresenter.getReasoningPortrait?.(props.providerId, props.modelId)) ?? null
-    capabilityReasoningPortrait.value = portrait
-    capabilitySupportsReasoning.value =
-      typeof portrait?.supported === 'boolean' ? portrait.supported : null
-    capabilityBudgetRange.value = portrait?.budget
-      ? {
-          ...(typeof portrait.budget.min === 'number' ? { min: portrait.budget.min } : {}),
-          ...(typeof portrait.budget.max === 'number' ? { max: portrait.budget.max } : {}),
-          ...(typeof portrait.budget.default === 'number'
-            ? { default: portrait.budget.default }
-            : {})
-        }
-      : null
-    capabilitySupportsEffort.value = hasReasoningEffortSupport(portrait)
-    capabilityEffortDefault.value = normalizeReasoningEffortValue(portrait, portrait?.effort)
-    capabilitySupportsVerbosity.value = hasVerbositySupport(portrait)
-    capabilityVerbosityDefault.value = normalizeVerbosityValue(portrait, portrait?.verbosity)
-  } catch {
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsReasoning.value = null
-    capabilityBudgetRange.value = null
-    capabilitySupportsEffort.value = null
-    capabilityEffortDefault.value = undefined
-    capabilitySupportsVerbosity.value = null
-    capabilityVerbosityDefault.value = undefined
-  }
-}
-
 watch(
   () => [props.providerId, props.modelId, props.open],
   async () => {
     if (props.open) await fetchCapabilities()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [props.providerId, currentModelLookupId.value, providerModelMeta.value?.id],
+  () => {
+    syncCapabilityProviderId()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [props.providerId, currentModelLookupId.value, config.value.reasoning],
+  () => {
+    const fixedTemperatureKimi = resolvedMoonshotKimiTemperaturePolicy.value
+    if (!fixedTemperatureKimi) {
+      return
+    }
+
+    if (config.value.reasoning !== fixedTemperatureKimi.reasoningEnabled) {
+      config.value.reasoning = fixedTemperatureKimi.reasoningEnabled
+    }
+
+    if (config.value.temperature !== fixedTemperatureKimi.temperature) {
+      config.value.temperature = fixedTemperatureKimi.temperature
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => [capabilityProviderId.value, capabilityReasoningPortrait.value, config.value.reasoning],
+  () => {
+    if (
+      supportsReasoningVisibility.value &&
+      !config.value.reasoningVisibility &&
+      Boolean(config.value.reasoning)
+    ) {
+      config.value.reasoningVisibility = capabilityReasoningVisibilityDefault.value ?? 'omitted'
+    }
   },
   { immediate: true }
 )
@@ -1082,6 +1741,9 @@ const handleMutualExclusiveToggle = (feature: 'reasoning' | 'functionCall', enab
 }
 
 const handleReasoningToggle = (enabled: boolean) => {
+  if (reasoningToggleDisabled.value) {
+    return
+  }
   handleMutualExclusiveToggle('reasoning', enabled)
 }
 
@@ -1124,6 +1786,6 @@ onMounted(() => {
 })
 
 const showReasoningToggle = computed(() => {
-  return capabilitySupportsReasoning.value !== false
+  return reasoningToggleMode.value !== 'unsupported'
 })
 </script>

@@ -2,12 +2,14 @@
   "actions": {
     "rename": "ویرایش نام",
     "delete": "پاک کردن",
+    "switchWithShortcut": "با {shortcut} به این گفتگو بروید",
     "cleanMessages": "پاک کردن پیام‌ها",
     "pin": "سنجاق کردن",
     "unpin": "برداشتن سنجاق",
     "export": "صادر کردن",
     "exportText": "متن ساده",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "انتقال گفتگو"
   },
   "toolbar": {
     "save": "ذخیره",

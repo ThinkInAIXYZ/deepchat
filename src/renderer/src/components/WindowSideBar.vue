@@ -1,18 +1,22 @@
 <template>
   <TooltipProvider :delay-duration="200">
     <div
-      class="flex flex-row h-full shrink-0 window-drag-region transition-all duration-200"
+      data-testid="window-sidebar"
+      class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
       :class="collapsed ? 'w-12' : 'w-[288px]'"
     >
       <!-- Left Column: Agent Icons (48px) -->
-      <div class="flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
+      <div class="window-no-drag-region flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
         <!-- All agents button -->
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="sidebar-agent-all-button"
+              data-agent-id="__all__"
+              :data-selected="String(sidebarSelectedAgentId === null)"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                agentStore.selectedAgentId === null
+                sidebarSelectedAgentId === null
                   ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
@@ -30,10 +34,14 @@
         <Tooltip v-for="agent in agentStore.enabledAgents" :key="agent.id">
           <TooltipTrigger as-child>
             <Button
+              data-testid="sidebar-agent-button"
+              :data-agent-id="agent.id"
+              :data-agent-type="agent.agentType ?? agent.type"
+              :data-selected="String(sidebarSelectedAgentId === agent.id)"
               size="icon"
               class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
               :class="
-                agentStore.selectedAgentId === agent.id
+                sidebarSelectedAgentId === agent.id
                   ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
                   : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
               "
@@ -50,6 +58,24 @@
 
         <!-- Bottom action buttons -->
         <div class="w-5 h-px bg-border my-1"></div>
+
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
+              :class="
+                spotlightStore.open
+                  ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
+                  : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
+              "
+              :title="t('chat.spotlight.placeholder')"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="w-4 h-4 text-foreground/80" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{{ t('chat.spotlight.placeholder') }}</TooltipContent>
+        </Tooltip>
 
         <Tooltip v-if="showRemoteControlButton">
           <TooltipTrigger as-child>
@@ -68,12 +94,33 @@
           </TooltipContent>
         </Tooltip>
 
+        <!-- Theme toggle -->
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              data-testid="window-sidebar-theme-toggle"
+              class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
+              @click="themeStore.cycleTheme()"
+            >
+              <span class="theme-icon-wrap">
+                <Transition name="theme-icon">
+                  <Icon :key="themeIcon" :icon="themeIcon" class="theme-icon text-foreground/90" />
+                </Transition>
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {{ t('chat.sidebar.themeToggle') }} · {{ themeModeLabel }}
+          </TooltipContent>
+        </Tooltip>
+
         <!-- Collapse toggle -->
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="window-sidebar-toggle"
               class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
-              @click="collapsed = !collapsed"
+              @click="sidebarStore.toggleSidebar()"
             >
               <Icon
                 :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
@@ -89,6 +136,7 @@
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="app-settings-button"
               class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none"
               :title="t('routes.settings')"
               @click="openSettings"
@@ -101,7 +149,15 @@
       </div>
 
       <!-- Right Column: Session List (240px) -->
-      <div v-show="!collapsed" class="flex flex-col w-0 flex-1 min-w-0">
+      <div
+        data-testid="window-sidebar-session-column"
+        class="window-sidebar-session-column window-no-drag-region flex flex-col w-0 flex-1 min-w-0 transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+        :class="
+          collapsed ? 'pointer-events-none translate-x-1.5 opacity-0' : 'translate-x-0 opacity-100'
+        "
+        :aria-hidden="collapsed ? 'true' : undefined"
+        :inert="collapsed ? true : undefined"
+      >
         <!-- Header -->
         <div class="flex items-center justify-between px-3 h-10 shrink-0">
           <span class="text-sm font-medium text-foreground truncate">
@@ -131,6 +187,7 @@
             <Tooltip>
               <TooltipTrigger as-child>
                 <button
+                  data-testid="app-new-chat-button"
                   class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
                   @click="handleNewChat"
                 >
@@ -142,20 +199,80 @@
           </div>
         </div>
 
+        <div
+          v-if="!collapsed"
+          data-testid="window-sidebar-search"
+          class="window-no-drag-region px-3 pb-2"
+        >
+          <div class="relative">
+            <Icon
+              icon="lucide:search"
+              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
+            />
+            <Input
+              v-model="sessionSearchQuery"
+              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
+              :placeholder="t('chat.sidebar.searchPlaceholder')"
+              :aria-label="t('chat.sidebar.searchAriaLabel')"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button
+              v-if="sessionSearchQuery"
+              type="button"
+              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+              :title="t('common.close')"
+              :aria-label="t('common.close')"
+              @click="sessionSearchQuery = ''"
+            >
+              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="!sessionStore.hasLoadedInitialPage && sessionStore.loading"
+          class="flex flex-col gap-2 px-3 pb-3"
+          data-testid="window-sidebar-loading-first-page"
+        >
+          <div
+            v-for="row in 6"
+            :key="`session-skeleton-${row}`"
+            class="h-10 rounded-lg bg-muted/50 animate-pulse"
+          ></div>
+        </div>
+
         <!-- Empty state -->
         <div
-          v-if="pinnedSessions.length === 0 && filteredGroups.length === 0"
+          v-if="
+            sessionStore.hasLoadedInitialPage &&
+            pinnedSessions.length === 0 &&
+            filteredGroups.length === 0
+          "
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
           <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-          <p class="text-sm text-muted-foreground/60">{{ t('chat.sidebar.emptyTitle') }}</p>
+          <p class="text-sm text-muted-foreground/60">
+            {{
+              sessionSearchQuery ? t('chat.sidebar.searchEmptyTitle') : t('chat.sidebar.emptyTitle')
+            }}
+          </p>
           <p class="text-xs text-muted-foreground/40 mt-1">
-            {{ t('chat.sidebar.emptyDescription') }}
+            {{
+              sessionSearchQuery
+                ? t('chat.sidebar.searchEmptyDescription')
+                : t('chat.sidebar.emptyDescription')
+            }}
           </p>
         </div>
 
         <!-- Session list -->
-        <div ref="sessionListRef" class="session-list flex-1 overflow-y-auto px-1.5">
+        <div
+          ref="sessionListRef"
+          class="session-list flex-1 overflow-y-auto px-1.5"
+          @scroll.passive="handleSessionListScroll"
+        >
           <div v-if="pinnedSessions.length > 0" class="pt-2">
             <button
               type="button"
@@ -164,10 +281,6 @@
               :aria-expanded="!isPinnedSectionCollapsed"
               @click="togglePinnedSection"
             >
-              <Icon
-                :icon="isPinnedSectionCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'"
-                class="h-3 w-3 shrink-0"
-              />
               <span class="shrink-0 size-6 flex items-center justify-center">
                 <Icon
                   :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
@@ -179,22 +292,25 @@
               </span>
             </button>
 
-            <Transition name="sidebar-group-collapse">
-              <div v-if="!isPinnedSectionCollapsed" class="space-y-0.5 pl-4">
-                <WindowSideBarSessionItem
-                  v-for="session in pinnedSessions"
-                  :key="`pinned-${session.id}`"
-                  :session="session"
-                  :active="sessionStore.activeSessionId === session.id"
-                  region="pinned"
-                  :hero-hidden="pinFlightSessionId === session.id"
-                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                  @select="handleSessionClick"
-                  @toggle-pin="handleTogglePin"
-                  @delete="openDeleteDialog"
-                />
-              </div>
-            </Transition>
+            <div v-show="!isPinnedSectionCollapsed" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in pinnedSessions"
+                :key="`pinned-${session.id}`"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="pinned"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
           </div>
 
           <template v-for="group in filteredGroups" :key="getGroupIdentifier(group)">
@@ -205,13 +321,9 @@
               :aria-expanded="!isGroupCollapsed(group)"
               @click="toggleGroup(group)"
             >
-              <Icon
-                :icon="isGroupCollapsed(group) ? 'lucide:chevron-right' : 'lucide:chevron-down'"
-                class="h-3 w-3 shrink-0"
-              />
               <span class="shrink-0 size-6 flex items-center justify-center">
                 <Icon
-                  :icon="isPinnedSectionCollapsed ? 'lucide:folder-closed' : 'lucide:folder-open'"
+                  :icon="isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'"
                   class="size-4"
                 />
               </span>
@@ -219,23 +331,33 @@
                 {{ getGroupLabel(group) }}
               </span>
             </button>
-            <Transition name="sidebar-group-collapse">
-              <div v-if="!isGroupCollapsed(group)" class="space-y-0.5 pl-4">
-                <WindowSideBarSessionItem
-                  v-for="session in group.sessions"
-                  :key="session.id"
-                  :session="session"
-                  :active="sessionStore.activeSessionId === session.id"
-                  region="grouped"
-                  :hero-hidden="pinFlightSessionId === session.id"
-                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                  @select="handleSessionClick"
-                  @toggle-pin="handleTogglePin"
-                  @delete="openDeleteDialog"
-                />
-              </div>
-            </Transition>
+            <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in group.sessions"
+                :key="session.id"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="grouped"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
           </template>
+
+          <div
+            v-if="sessionStore.loadingMore"
+            class="px-2 py-3 text-center text-xs text-muted-foreground/70"
+          >
+            {{ t('common.loading') }}
+          </div>
         </div>
       </div>
     </div>
@@ -269,6 +391,7 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -277,56 +400,194 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { usePresenter, useRemoteControlPresenter } from '@/composables/usePresenter'
-import { SETTINGS_EVENTS } from '@/events'
+import { createSettingsClient } from '@api/SettingsClient'
+import { createRemoteControlRuntime } from '@api/RemoteControlRuntime'
+import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
+import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
-  TelegramRemoteStatus,
-  FeishuRemoteStatus,
+  RemoteChannel,
+  RemoteChannelStatus,
+  RemoteChannelDescriptor,
   RemoteRuntimeState
 } from '@shared/presenter'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'
+import { useSidebarStore } from '@/stores/ui/sidebar'
+import { useThemeStore } from '@/stores/theme'
 
 type PinFeedbackMode = 'pinning' | 'unpinning'
 
-const PIN_FEEDBACK_DURATION_MS = 560
-const PIN_FLIGHT_DURATION_MS = 500
+const PIN_FEEDBACK_DURATION_MS: Record<PinFeedbackMode, number> = {
+  pinning: 560,
+  unpinning: 460
+}
+const PIN_FLIGHT_DURATION_MS = 460
+const PIN_TARGET_SETTLE_MAX_FRAMES = 10
+const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
+const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
+const SIDEBAR_SHORTCUT_MAX_ROWS = 10
+const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
+  nextPinned ? 'pinning' : 'unpinning'
 
-const windowPresenter = usePresenter('windowPresenter')
-const remoteControlPresenter = useRemoteControlPresenter()
+type SessionItemRegion = 'pinned' | 'grouped'
+type ShortcutPlatform = 'mac' | 'other'
+type SessionItemRect = {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+const settingsClient = createSettingsClient()
+const remoteControlRuntime = createRemoteControlRuntime()
+const deviceClient = createDeviceClient()
 const { t } = useI18n()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
+const sidebarStore = useSidebarStore()
+const spotlightStore = useSpotlightStore()
+const themeStore = useThemeStore()
 
-const collapsed = ref(false)
-const remoteControlStatus = ref<{
-  telegram: TelegramRemoteStatus | null
-  feishu: FeishuRemoteStatus | null
-}>({
-  telegram: null,
-  feishu: null
+// line-md 过渡图标自带线条流动动画：切到该模式时，线条会绘制/morph 成对应形状
+const themeIcon = computed(() => {
+  switch (themeStore.themeMode) {
+    case 'light':
+      // 线条流动收拢成太阳（光线逐根画出）
+      return 'line-md:moon-to-sunny-outline-transition'
+    case 'dark':
+      // 太阳线条流动 morph 成月亮
+      return 'line-md:sunny-outline-to-moon-transition'
+    default:
+      // 显示器轮廓线条逐段绘制
+      return 'line-md:monitor'
+  }
 })
+
+const themeModeLabel = computed(() => {
+  switch (themeStore.themeMode) {
+    case 'light':
+      return t('chat.sidebar.themeLight')
+    case 'dark':
+      return t('chat.sidebar.themeDark')
+    default:
+      return t('chat.sidebar.themeSystem')
+  }
+})
+
+const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
+  {
+    id: 'telegram',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.telegram.title',
+    descriptionKey: 'settings.remote.telegram.description',
+    supportsPairing: true,
+    supportsNotifications: true
+  },
+  {
+    id: 'feishu',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.feishu.title',
+    descriptionKey: 'settings.remote.feishu.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'qqbot',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.qqbot.title',
+    descriptionKey: 'settings.remote.qqbot.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'discord',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.discord.title',
+    descriptionKey: 'settings.remote.discord.description',
+    supportsPairing: true,
+    supportsNotifications: false
+  },
+  {
+    id: 'weixin-ilink',
+    type: 'builtin',
+    implemented: true,
+    titleKey: 'settings.remote.weixinIlink.title',
+    descriptionKey: 'settings.remote.weixinIlink.description',
+    supportsPairing: false,
+    supportsNotifications: false
+  }
+]
+
+const collapsed = computed(() => sidebarStore.collapsed)
+const sessionSearchQuery = ref('')
+const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
+const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
+  telegram: null,
+  feishu: null,
+  qqbot: null,
+  discord: null,
+  'weixin-ilink': null
+})
+const remoteControlStatus =
+  ref<Record<RemoteChannel, RemoteChannelStatus | null>>(createRemoteStatusMap())
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 let pinFeedbackTimer: number | null = null
-const selectedAgentName = computed(
-  () => agentStore.selectedAgent?.name ?? t('chat.sidebar.allAgents')
+let sessionListScrollFrame: number | null = null
+let shortcutBadgeTimer: number | null = null
+const shortcutPlatform = ref<ShortcutPlatform>(
+  navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
 )
+const shortcutModifierDown = ref(false)
+const showShortcutBadges = ref(false)
+const sidebarSelectedAgentId = computed(() => {
+  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
+  if (sessionStore.hasActiveSession && activeSessionAgentId) {
+    return activeSessionAgentId
+  }
 
-const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  getChannelStatus?: (
-    channel: 'telegram' | 'feishu'
-  ) => Promise<TelegramRemoteStatus | FeishuRemoteStatus>
-}
-const showRemoteControlButton = computed(
-  () => remoteControlStatus.value.telegram?.enabled || remoteControlStatus.value.feishu?.enabled
+  const selectedAgentId =
+    typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
+  return selectedAgentId || null
+})
+
+const selectedAgentName = computed(() => {
+  if (sidebarSelectedAgentId.value === null) {
+    return t('chat.sidebar.allAgents')
+  }
+
+  if (agentStore.selectedAgent?.id === sidebarSelectedAgentId.value) {
+    return agentStore.selectedAgent.name
+  }
+
+  const matchedAgent = agentStore.enabledAgents.find(
+    (agent) => agent.id === sidebarSelectedAgentId.value
+  )
+  return matchedAgent?.name ?? t('chat.sidebar.allAgents')
+})
+
+const implementedRemoteChannels = computed(() =>
+  remoteChannelDescriptors.value
+    .filter((descriptor) => descriptor.implemented)
+    .map((descriptor) => descriptor.id)
+)
+const getRemoteChannelStatus = (channel: RemoteChannel) => remoteControlStatus.value[channel]
+const showRemoteControlButton = computed(() =>
+  implementedRemoteChannels.value.some((channel) =>
+    Boolean(getRemoteChannelStatus(channel)?.enabled)
+  )
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
-  const states = [remoteControlStatus.value.telegram, remoteControlStatus.value.feishu]
+  const states = implementedRemoteChannels.value
+    .map((channel) => getRemoteChannelStatus(channel))
     .filter((status) => status?.enabled)
     .map((status) => status?.state as RemoteRuntimeState)
 
@@ -351,14 +612,18 @@ const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   return 'disabled'
 })
 const remoteControlTooltip = computed(() => {
-  const telegramState = remoteControlStatus.value.telegram?.enabled
-    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.telegram.state}`)
-    : t('chat.sidebar.remoteControlDisabled')
-  const feishuState = remoteControlStatus.value.feishu?.enabled
-    ? t(`chat.sidebar.remoteControlStatus.${remoteControlStatus.value.feishu.state}`)
-    : t('chat.sidebar.remoteControlDisabled')
-
-  return [`Telegram: ${telegramState}`, `Feishu: ${feishuState}`].join('\n')
+  return implementedRemoteChannels.value
+    .map((channel) => {
+      const descriptor = remoteChannelDescriptors.value.find((item) => item.id === channel)
+      const title = descriptor ? t(descriptor.titleKey) : channel
+      const status = getRemoteChannelStatus(channel)
+      const statusText =
+        status?.enabled && status.state
+          ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
+          : t('chat.sidebar.remoteControlDisabled')
+      return `${title}: ${statusText}`
+    })
+    .join('\n')
 })
 const remoteControlButtonClass = computed(() => {
   const state = aggregatedRemoteControlState.value
@@ -381,9 +646,30 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const pinnedSessions = computed(() => sessionStore.getPinnedSessions(agentStore.selectedAgentId))
-const filteredGroups = computed(() => sessionStore.getFilteredGroups(agentStore.selectedAgentId))
+const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
+const matchesSessionSearch = (session: UISession) => {
+  if (!normalizedSessionSearchQuery.value) {
+    return true
+  }
+
+  return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
+}
+const pinnedSessions = computed(() =>
+  sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
+)
+const filteredGroups = computed(() =>
+  sessionStore
+    .getFilteredGroups(sidebarSelectedAgentId.value)
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      labelKey: group.labelKey,
+      sessions: group.sessions.filter(matchesSessionSearch)
+    }))
+    .filter((group) => group.sessions.length > 0)
+)
 const pinFlightSessionId = ref<string | null>(null)
+const pinDockedSessionId = ref<string | null>(null)
 const pinFeedbackSessionId = ref<string | null>(null)
 const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
 const sessionListRef = ref<HTMLElement | null>(null)
@@ -398,12 +684,59 @@ const deleteDialogOpen = computed({
   }
 })
 
-const getGroupIdentifier = (group: SessionGroup) => group.labelKey ?? group.label
+const getGroupIdentifier = (group: SessionGroup) => group.id
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
+
+const visibleShortcutSessions = computed<UISession[]>(() => {
+  if (collapsed.value) {
+    return []
+  }
+
+  const sessions: UISession[] = []
+
+  if (!isPinnedSectionCollapsed.value) {
+    sessions.push(...pinnedSessions.value)
+  }
+
+  for (const group of filteredGroups.value) {
+    if (!isGroupCollapsed(group)) {
+      sessions.push(...group.sessions)
+    }
+  }
+
+  return sessions
+    .filter((session) => session.id !== pinFlightSessionId.value)
+    .slice(0, SIDEBAR_SHORTCUT_MAX_ROWS)
+})
+
+const getShortcutDigitForIndex = (index: number) => (index === 9 ? '0' : String(index + 1))
+
+const getShortcutIndexForDigit = (digit: string) => (digit === '0' ? 9 : Number(digit) - 1)
+
+const getShortcutBadgeLabelForIndex = (index: number) => {
+  const digit = getShortcutDigitForIndex(index)
+  return shortcutPlatform.value === 'mac' ? `⌘${digit}` : `Alt+${digit}`
+}
+
+const shortcutBadgeLabelBySessionId = computed(() => {
+  const labels = new Map<string, string>()
+
+  visibleShortcutSessions.value.forEach((session, index) => {
+    labels.set(session.id, getShortcutBadgeLabelForIndex(index))
+  })
+
+  return labels
+})
+
+const getShortcutBadgeLabelForSession = (sessionId: string) =>
+  shortcutBadgeLabelBySessionId.value.get(sessionId) ?? null
+
+const hasShortcutBadgeForSession = (sessionId: string) =>
+  showShortcutBadges.value && shortcutBadgeLabelBySessionId.value.has(sessionId)
 
 const togglePinnedSection = () => {
   isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
@@ -467,52 +800,43 @@ watch(
 )
 
 const openSettings = () => {
-  const windowId = window.api.getWindowId()
-  if (windowId != null) {
-    void windowPresenter.openOrFocusSettingsWindow()
-  }
-}
-
-const navigateToSettings = (windowId: number, routeName: 'settings-remote') => {
-  void windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName
-  })
+  void settingsClient.openSettings()
 }
 
 const openRemoteSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId == null) {
-    return
-  }
-
-  navigateToSettings(settingsWindowId, 'settings-remote')
-  window.setTimeout(() => {
-    navigateToSettings(settingsWindowId, 'settings-remote')
-  }, 250)
+  await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
 const refreshRemoteControlStatus = async () => {
   try {
-    const [telegram, feishu] = presenterCompat.getChannelStatus
-      ? await Promise.all([
-          presenterCompat.getChannelStatus('telegram'),
-          presenterCompat.getChannelStatus('feishu')
-        ])
-      : [
-          await remoteControlPresenter.getTelegramStatus(),
-          {
-            channel: 'feishu',
-            enabled: false,
-            state: 'disabled',
-            bindingCount: 0,
-            pairedUserCount: 0,
-            lastError: null,
-            botUser: null
-          } satisfies FeishuRemoteStatus
-        ]
+    remoteChannelDescriptors.value =
+      (await remoteControlRuntime.listRemoteChannels()) ?? fallbackRemoteChannels
+
+    const channels = remoteChannelDescriptors.value
+      .filter((descriptor) => descriptor.implemented)
+      .map((descriptor) => descriptor.id)
+    const statuses = await Promise.all(
+      channels.map(async (channel) => ({
+        channel,
+        status: await remoteControlRuntime.getChannelStatus(channel)
+      }))
+    )
+
+    if (statuses.every((entry) => entry.status !== null)) {
+      remoteControlStatus.value = statuses.reduce(
+        (acc, entry) => ({
+          ...acc,
+          [entry.channel]: entry.status as RemoteChannelStatus
+        }),
+        createRemoteStatusMap()
+      )
+      return
+    }
+
     remoteControlStatus.value = {
-      telegram,
-      feishu
+      ...createRemoteStatusMap(),
+      telegram: await remoteControlRuntime.getTelegramStatus(),
+      'weixin-ilink': await remoteControlRuntime.getWeixinIlinkStatus()
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
@@ -520,15 +844,19 @@ const refreshRemoteControlStatus = async () => {
 }
 
 const handleNewChat = () => {
-  void sessionStore.closeSession()
+  void sessionStore.startNewConversation({ refresh: true })
 }
 
 const handleAgentSelect = async (id: string | null) => {
+  if (collapsed.value) {
+    sidebarStore.setCollapsed(false)
+  }
+
   const requestSeq = ++agentSwitchSeq
 
   agentSwitchQueue = agentSwitchQueue
     .then(async () => {
-      const currentAgentId = agentStore.selectedAgentId
+      const currentAgentId = sidebarSelectedAgentId.value
       const nextAgentId = currentAgentId === id ? null : id
       if (nextAgentId === currentAgentId) {
         return
@@ -563,6 +891,156 @@ const handleSessionClick = (session: { id: string }) => {
   void sessionStore.selectSession(session.id)
 }
 
+const loadShortcutPlatform = async () => {
+  try {
+    const deviceInfo = await deviceClient.getDeviceInfo()
+    shortcutPlatform.value = deviceInfo.platform === 'darwin' ? 'mac' : 'other'
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to resolve shortcut platform:', error)
+  }
+}
+
+const isEditableShortcutTarget = (target: EventTarget | null) => {
+  const element = target instanceof HTMLElement ? target : null
+  if (!element) {
+    return false
+  }
+
+  return Boolean(
+    element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+  )
+}
+
+const hasKeyboardOwningOverlay = () =>
+  spotlightStore.open ||
+  deleteDialogOpen.value ||
+  document.querySelector('.chat-search-bar') !== null ||
+  document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+
+const shouldIgnoreSidebarShortcutEvent = (event: KeyboardEvent) =>
+  collapsed.value || isEditableShortcutTarget(event.target) || hasKeyboardOwningOverlay()
+
+const getPlatformModifierKey = () => (shortcutPlatform.value === 'mac' ? 'Meta' : 'Alt')
+
+const isPlatformModifierPressed = (event: KeyboardEvent) =>
+  shortcutPlatform.value === 'mac' ? event.metaKey : event.altKey
+
+const isPlatformModifierOnlyKeydown = (event: KeyboardEvent) => {
+  if (event.repeat || shouldIgnoreSidebarShortcutEvent(event)) {
+    return false
+  }
+
+  if (shortcutPlatform.value === 'mac') {
+    return (
+      event.key === 'Meta' && event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+    )
+  }
+
+  return event.key === 'Alt' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
+}
+
+const isSidebarShortcutDigitEvent = (event: KeyboardEvent) => {
+  if (event.repeat || !/^[0-9]$/.test(event.key) || shouldIgnoreSidebarShortcutEvent(event)) {
+    return false
+  }
+
+  if (shortcutPlatform.value === 'mac') {
+    return event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey
+  }
+
+  return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey
+}
+
+const clearShortcutBadgeTimer = () => {
+  if (shortcutBadgeTimer !== null) {
+    window.clearTimeout(shortcutBadgeTimer)
+    shortcutBadgeTimer = null
+  }
+}
+
+const hideShortcutBadges = () => {
+  clearShortcutBadgeTimer()
+  shortcutModifierDown.value = false
+  showShortcutBadges.value = false
+}
+
+const startShortcutBadgeTimer = () => {
+  if (shortcutBadgeTimer !== null || showShortcutBadges.value) {
+    return
+  }
+
+  shortcutModifierDown.value = true
+  shortcutBadgeTimer = window.setTimeout(() => {
+    shortcutBadgeTimer = null
+
+    if (
+      shortcutModifierDown.value &&
+      !collapsed.value &&
+      !hasKeyboardOwningOverlay() &&
+      visibleShortcutSessions.value.length > 0
+    ) {
+      showShortcutBadges.value = true
+    }
+  }, SIDEBAR_SHORTCUT_BADGE_DELAY_MS)
+}
+
+const selectShortcutSession = (digit: string) => {
+  const shortcutIndex = getShortcutIndexForDigit(digit)
+  const targetSession = visibleShortcutSessions.value[shortcutIndex]
+
+  if (targetSession) {
+    void sessionStore.selectSession(targetSession.id)
+  }
+}
+
+const handleWindowShortcutKeydown = (event: KeyboardEvent) => {
+  if (isPlatformModifierOnlyKeydown(event)) {
+    if (shortcutPlatform.value !== 'mac') {
+      event.preventDefault()
+    }
+    startShortcutBadgeTimer()
+    return
+  }
+
+  if (shortcutBadgeTimer !== null && event.key !== getPlatformModifierKey()) {
+    clearShortcutBadgeTimer()
+  }
+
+  if (!isSidebarShortcutDigitEvent(event)) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  selectShortcutSession(event.key)
+}
+
+const handleWindowShortcutKeyup = (event: KeyboardEvent) => {
+  const modifierKey = getPlatformModifierKey()
+  if (event.key === modifierKey || !isPlatformModifierPressed(event)) {
+    if (shortcutPlatform.value !== 'mac' && event.key === modifierKey) {
+      event.preventDefault()
+    }
+    hideShortcutBadges()
+  }
+}
+
+const handleWindowShortcutBlur = () => {
+  hideShortcutBadges()
+}
+
+const handleDocumentVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    hideShortcutBadges()
+  }
+}
+
+watch(collapsed, (isCollapsed) => {
+  if (isCollapsed) {
+    hideShortcutBadges()
+  }
+})
+
 const openDeleteDialog = (session: UISession) => {
   deleteTargetSession.value = session
 }
@@ -591,12 +1069,13 @@ const applyPinFeedback = (sessionId: string, nextPinned: boolean) => {
   }
 
   pinFeedbackSessionId.value = sessionId
-  pinFeedbackMode.value = nextPinned ? 'pinning' : 'unpinning'
+  const mode = getPinFeedbackMode(nextPinned)
+  pinFeedbackMode.value = mode
   pinFeedbackTimer = window.setTimeout(() => {
     pinFeedbackSessionId.value = null
     pinFeedbackMode.value = null
     pinFeedbackTimer = null
-  }, PIN_FEEDBACK_DURATION_MS)
+  }, PIN_FEEDBACK_DURATION_MS[mode])
 }
 
 const commitPinToggle = async (session: UISession, nextPinned: boolean, withFeedback = true) => {
@@ -620,17 +1099,150 @@ const restoreSessionListScroll = (scrollTop: number | null) => {
   sessionListRef.value.scrollTop = scrollTop
 }
 
-const getSessionItemElement = (sessionId: string, region: 'pinned' | 'grouped') =>
+const performSessionListScrollCheck = () => {
+  const listElement = sessionListRef.value
+  if (!listElement || sessionStore.loadingMore || !sessionStore.hasMore) {
+    return
+  }
+
+  const distanceToBottom =
+    listElement.scrollHeight - listElement.scrollTop - listElement.clientHeight
+
+  if (distanceToBottom <= 96) {
+    void sessionStore.loadNextPage()
+  }
+}
+
+const handleSessionListScroll = () => {
+  if (sessionListScrollFrame !== null) {
+    return
+  }
+
+  sessionListScrollFrame = window.requestAnimationFrame(() => {
+    sessionListScrollFrame = null
+    performSessionListScrollCheck()
+  })
+}
+
+const getSessionItemElement = (sessionId: string, region: SessionItemRegion) =>
   document.querySelector<HTMLElement>(
     `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
   )
+
+const getPinPlaceholderElement = (sessionId: string, region: SessionItemRegion) =>
+  document.querySelector<HTMLElement>(
+    `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"][data-pin-placeholder="true"]`
+  )
+
+const captureSessionItemRect = (element: HTMLElement | null): SessionItemRect | null => {
+  if (!element) {
+    return null
+  }
+
+  const rect = element.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    return null
+  }
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+const areSessionItemRectsEqual = (left: SessionItemRect, right: SessionItemRect) =>
+  Math.abs(left.left - right.left) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.top - right.top) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.width - right.width) <= PIN_TARGET_SETTLE_EPSILON_PX &&
+  Math.abs(left.height - right.height) <= PIN_TARGET_SETTLE_EPSILON_PX
+
+const waitForPinTargetPlaceholder = async (
+  sessionId: string,
+  region: SessionItemRegion
+): Promise<{ element: HTMLElement; rect: SessionItemRect } | null> => {
+  let previousRect: SessionItemRect | null = null
+
+  for (let frame = 0; frame < PIN_TARGET_SETTLE_MAX_FRAMES; frame += 1) {
+    await waitForAnimationFrame()
+    const element = getPinPlaceholderElement(sessionId, region)
+    const rect = captureSessionItemRect(element)
+
+    if (!element || !rect) {
+      previousRect = null
+      continue
+    }
+
+    if (previousRect && areSessionItemRectsEqual(previousRect, rect)) {
+      return { element, rect }
+    }
+
+    previousRect = rect
+  }
+
+  const fallbackElement =
+    getPinPlaceholderElement(sessionId, region) ?? getSessionItemElement(sessionId, region)
+  const fallbackRect = captureSessionItemRect(fallbackElement)
+  if (!fallbackElement || !fallbackRect) {
+    return null
+  }
+
+  return {
+    element: fallbackElement,
+    rect: fallbackRect
+  }
+}
+
+const getPinFlightAnimationOptions = (nextPinned: boolean) =>
+  nextPinned
+    ? {
+        duration: PIN_FLIGHT_DURATION_MS,
+        easing: 'cubic-bezier(0.18, 0.92, 0.22, 1)'
+      }
+    : {
+        duration: PIN_FLIGHT_DURATION_MS + 20,
+        easing: 'cubic-bezier(0.24, 0.84, 0.28, 1)'
+      }
+
+const createPinFlightKeyframes = (
+  deltaX: number,
+  deltaY: number,
+  scaleX: number,
+  scaleY: number,
+  nextPinned: boolean
+): Keyframe[] => {
+  const leadX = nextPinned ? deltaX * 0.82 : deltaX * 0.9
+  const leadY = nextPinned ? deltaY * 0.78 : deltaY * 0.86
+  const leadScaleX = nextPinned ? 1.018 : 1.008
+  const leadScaleY = nextPinned ? 1.018 : 1.008
+
+  return [
+    {
+      transform: 'translate3d(0, 0, 0) scale(1)',
+      opacity: 1,
+      offset: 0
+    },
+    {
+      transform: `translate3d(${leadX}px, ${leadY}px, 0) scale(${leadScaleX}, ${leadScaleY})`,
+      opacity: 1,
+      offset: nextPinned ? 0.68 : 0.74
+    },
+    {
+      transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
+      opacity: 1,
+      offset: 1
+    }
+  ]
+}
 
 const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
   const clone = sourceElement.cloneNode(true) as HTMLElement
 
   clone.removeAttribute('style')
+  clone.classList.remove('is-hero-hidden')
   delete clone.dataset.pinFx
-  clone.dataset.heroHidden = 'false'
+  delete clone.dataset.heroHidden
   clone.setAttribute('aria-hidden', 'true')
   clone.classList.add('sidebar-pin-flight')
   Object.assign(clone.style, {
@@ -651,8 +1263,8 @@ const createPinFlightClone = (sourceElement: HTMLElement, sourceRect: DOMRect) =
 }
 
 const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
-  const sourceRegion = session.isPinned ? 'pinned' : 'grouped'
-  const targetRegion = nextPinned ? 'pinned' : 'grouped'
+  const sourceRegion: SessionItemRegion = session.isPinned ? 'pinned' : 'grouped'
+  const targetRegion: SessionItemRegion = nextPinned ? 'pinned' : 'grouped'
   const sourceElement = getSessionItemElement(session.id, sourceRegion)
   const sourceRect = sourceElement?.getBoundingClientRect()
   const preservedScrollTop = sessionListRef.value?.scrollTop ?? null
@@ -665,21 +1277,34 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
   const clone = createPinFlightClone(sourceElement, sourceRect)
   document.body.appendChild(clone)
   pinFlightSessionId.value = session.id
+  if (!nextPinned) {
+    pinDockedSessionId.value = session.id
+  }
   await nextTick()
 
   try {
+    await waitForAnimationFrame()
+    clone.dataset.pinState = 'docked'
+    await waitForAnimationFrame()
+
     await commitPinToggle(session, nextPinned, false)
     restoreSessionListScroll(preservedScrollTop)
     await waitForAnimationFrame()
     restoreSessionListScroll(preservedScrollTop)
     await waitForAnimationFrame()
 
-    const targetElement = getSessionItemElement(session.id, targetRegion)
-    const targetRect = targetElement?.getBoundingClientRect()
+    const targetSettledState = await waitForPinTargetPlaceholder(session.id, targetRegion)
+    const targetElement = targetSettledState?.element
+    const targetRect = targetSettledState?.rect
 
-    if (!targetElement || !targetRect || targetRect.width === 0 || targetRect.height === 0) {
-      pinFlightSessionId.value = null
+    if (!targetElement || !targetRect) {
+      clone.remove()
+      if (pinDockedSessionId.value === session.id) {
+        pinDockedSessionId.value = null
+      }
       applyPinFeedback(session.id, nextPinned)
+      pinFlightSessionId.value = null
+      await nextTick()
       return
     }
 
@@ -689,35 +1314,25 @@ const animatePinFlight = async (session: UISession, nextPinned: boolean) => {
     const scaleY = targetRect.height / sourceRect.height
 
     const animation = clone.animate(
-      [
-        {
-          transform: 'translate3d(0, 0, 0) scale(1)',
-          opacity: 1,
-          offset: 0
-        },
-        {
-          transform: `translate3d(${deltaX * 0.88}px, ${deltaY * 0.88}px, 0) scale(${1.015}, ${1.015})`,
-          opacity: 1,
-          offset: 0.72
-        },
-        {
-          transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`,
-          opacity: 1,
-          offset: 1
-        }
-      ],
+      createPinFlightKeyframes(deltaX, deltaY, scaleX, scaleY, nextPinned),
       {
-        duration: PIN_FLIGHT_DURATION_MS,
-        easing: 'cubic-bezier(0.22, 0.88, 0.24, 1)',
+        ...getPinFlightAnimationOptions(nextPinned),
         fill: 'forwards'
       }
     )
 
     await animation.finished.catch(() => undefined)
+    clone.remove()
+    if (pinDockedSessionId.value === session.id) {
+      pinDockedSessionId.value = null
+    }
+    applyPinFeedback(session.id, nextPinned)
     pinFlightSessionId.value = null
     await nextTick()
-    applyPinFeedback(session.id, nextPinned)
   } finally {
+    if (pinDockedSessionId.value === session.id) {
+      pinDockedSessionId.value = null
+    }
     pinFlightSessionId.value = null
     clone.remove()
   }
@@ -754,6 +1369,12 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
+  void loadShortcutPlatform()
+  window.addEventListener('keydown', handleWindowShortcutKeydown)
+  window.addEventListener('keyup', handleWindowShortcutKeyup)
+  window.addEventListener('blur', handleWindowShortcutBlur)
+  document.addEventListener('visibilitychange', handleDocumentVisibilityChange)
+
   void refreshRemoteControlStatus()
   remoteControlStatusTimer = setInterval(() => {
     void refreshRemoteControlStatus()
@@ -761,13 +1382,25 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleWindowShortcutKeydown)
+  window.removeEventListener('keyup', handleWindowShortcutKeyup)
+  window.removeEventListener('blur', handleWindowShortcutBlur)
+  document.removeEventListener('visibilitychange', handleDocumentVisibilityChange)
+
   if (remoteControlStatusTimer) {
     clearInterval(remoteControlStatusTimer)
     remoteControlStatusTimer = null
   }
 
+  if (sessionListScrollFrame !== null) {
+    window.cancelAnimationFrame(sessionListScrollFrame)
+    sessionListScrollFrame = null
+  }
+
   pinFlightSessionId.value = null
+  pinDockedSessionId.value = null
   clearPinFeedback()
+  hideShortcutBadges()
 })
 </script>
 
@@ -776,11 +1409,24 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
+.window-no-drag-region {
+  -webkit-app-region: no-drag;
+}
+
+.window-sidebar-shell {
+  contain: layout style;
+}
+
+.window-sidebar-session-column {
+  backface-visibility: hidden;
+}
+
 .session-list {
   overflow-anchor: none;
 }
 
-button {
+button,
+input {
   -webkit-app-region: no-drag;
 }
 
@@ -789,26 +1435,71 @@ button {
   backface-visibility: hidden;
 }
 
-.sidebar-group-collapse-enter-active,
-.sidebar-group-collapse-leave-active {
-  overflow: hidden;
+:global(.sidebar-pin-flight .pin-button) {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none;
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: translate3d(0, -50%, 0) scale(1);
+  transition: none;
+}
+
+:global(.sidebar-pin-flight .session-content) {
+  margin-left: var(--pin-text-shift) !important;
+}
+
+.theme-icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.theme-icon {
+  /* 两个图标堆叠在同一网格单元，自动居中且不占额外空间 */
+  grid-area: 1 / 1;
+  width: 1.15rem;
+  height: 1.15rem;
+  /* 提升到独立合成层，让过渡跑在 GPU 合成线程上，
+     避免被切换主题时的全局重绘阻塞而掉帧 */
+  will-change: transform, opacity;
+}
+
+/* 形态变化交给 line-md 的线条流动动画；这里再叠加一个缩放"弹出"增强存在感 */
+.theme-icon-enter-active {
   transition:
-    max-height 180ms ease,
-    opacity 160ms ease,
-    transform 180ms ease;
+    opacity 0.25s ease,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.sidebar-group-collapse-enter-from,
-.sidebar-group-collapse-leave-to {
-  max-height: 0;
+.theme-icon-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.theme-icon-enter-from {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: scale(0.4);
 }
 
-.sidebar-group-collapse-enter-to,
-.sidebar-group-collapse-leave-from {
-  max-height: 720px;
-  opacity: 1;
-  transform: translateY(0);
+.theme-icon-leave-to {
+  opacity: 0;
+  transform: scale(0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-sidebar-shell,
+  .window-sidebar-session-column {
+    transition: none;
+  }
+
+  .theme-icon-enter-active,
+  .theme-icon-leave-active {
+    transition: none;
+  }
 }
 </style>

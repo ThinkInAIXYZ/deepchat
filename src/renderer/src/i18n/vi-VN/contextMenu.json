@@ -1,0 +1,17 @@
+{
+  "translate": {
+    "title": "Dịch",
+    "original": "Bản gốc",
+    "translated": "Dịch thuật",
+    "error": "Dịch không thành công"
+  },
+  "askAI": {
+    "title": "Hỏi AI",
+    "question": "Câu hỏi",
+    "answer": "Trả lời",
+    "error": "Phản hồi AI không thành công"
+  },
+  "copy": "Sao chép",
+  "paste": "Dán",
+  "cut": "Cắt"
+}

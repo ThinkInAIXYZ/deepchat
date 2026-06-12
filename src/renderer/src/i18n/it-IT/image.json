@@ -1,0 +1,9 @@
+{
+  "loadError": "Caricamento immagine non riuscito",
+  "loading": "Caricamento immagine...",
+  "preview": "Anteprima immagine",
+  "save": "Salva immagine",
+  "saveAs": "Salva immagine con nome...",
+  "saveSuccess": "Immagine salvata",
+  "saveFailed": "Salvataggio immagine non riuscito"
+}

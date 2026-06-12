@@ -11,7 +11,16 @@ import type {
 } from '@shared/types/skill'
 import { backgroundExecSessionManager } from '@/lib/agentRuntime/backgroundExecSessionManager'
 import { rtkRuntimeService } from '@/lib/agentRuntime/rtkRuntimeService'
-import { getShellEnvironment, getUserShell } from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  getShellEnvironment,
+  getUserShell,
+  mergeCommandEnvironment
+} from '@/lib/agentRuntime/shellEnvHelper'
+import {
+  createUtf8OutputDecoderPair,
+  prepareProcessEnvForUtf8Output,
+  prepareShellCommandForUtf8Output
+} from '@/lib/agentRuntime/shellOutputEncoding'
 import { resolveSessionDir } from '@/lib/agentRuntime/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
@@ -61,12 +70,6 @@ interface SpawnPlan {
   spawnMode: 'direct' | 'shell'
 }
 
-function toStringEnv(input: NodeJS.ProcessEnv | Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(input).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-  )
-}
-
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
@@ -100,7 +103,7 @@ export class SkillExecutionService {
       )
 
       if (input.stdin) {
-        backgroundExecSessionManager.write(
+        await backgroundExecSessionManager.write(
           options.conversationId,
           result.sessionId,
           input.stdin,
@@ -125,7 +128,7 @@ export class SkillExecutionService {
   private async buildSpawnPlan(input: SkillRunRequest, conversationId: string): Promise<SpawnPlan> {
     const activeSkills = await this.skillPresenter.getActiveSkills(conversationId)
     if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not active in this conversation`)
+      throw new Error(`Skill "${input.skill}" is not pinned in this conversation`)
     }
 
     const metadata = (await this.skillPresenter.getMetadataList()).find(
@@ -144,13 +147,14 @@ export class SkillExecutionService {
     const extension = await this.skillPresenter.getSkillExtension(input.skill)
     const shellEnv = await getShellEnvironment()
     const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
-    const mergedEnv = {
-      ...toStringEnv(process.env),
-      ...shellEnv,
-      ...extension.env,
-      SKILL_ROOT: metadata.skillRoot,
-      DEEPCHAT_SKILL_ROOT: metadata.skillRoot
-    }
+    const mergedEnv = mergeCommandEnvironment({
+      shellEnv,
+      overrides: {
+        ...extension.env,
+        SKILL_ROOT: metadata.skillRoot,
+        DEEPCHAT_SKILL_ROOT: metadata.skillRoot
+      }
+    })
 
     const runtime = await this.resolveRuntimeCommand(
       script,
@@ -406,10 +410,14 @@ export class SkillExecutionService {
     return await new Promise((resolve, reject) => {
       const shellRuntime = plan.spawnMode === 'shell' ? getUserShell() : null
       const command = shellRuntime ? shellRuntime.shell : plan.command
-      const args = shellRuntime ? [...shellRuntime.args, plan.shellCommand] : plan.args
+      const shellCommand = shellRuntime
+        ? prepareShellCommandForUtf8Output(shellRuntime.shell, plan.shellCommand)
+        : plan.shellCommand
+      const args = shellRuntime ? [...shellRuntime.args, shellCommand] : plan.args
+      const env = shellRuntime ? plan.env : prepareProcessEnvForUtf8Output(plan.env)
       const child = spawn(command, args, {
         cwd: plan.cwd,
-        env: plan.env,
+        env,
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false
       })
@@ -425,6 +433,8 @@ export class SkillExecutionService {
       let killTimeoutId: NodeJS.Timeout | null = null
       let forceSettleTimeoutId: NodeJS.Timeout | null = null
       let settled = false
+
+      const outputDecoders = createUtf8OutputDecoderPair((data) => appendOutput(data))
 
       const cleanupTimers = () => {
         if (timeoutId) {
@@ -449,6 +459,7 @@ export class SkillExecutionService {
         cleanupTimers()
         child.removeAllListeners('error')
         child.removeAllListeners('close')
+        outputDecoders.flush()
 
         try {
           await outputWriteQueue
@@ -553,10 +564,8 @@ export class SkillExecutionService {
         queueOutputWrite(chunk)
       }
 
-      child.stdout?.setEncoding('utf-8')
-      child.stderr?.setEncoding('utf-8')
-      child.stdout?.on('data', (data: string) => appendOutput(data))
-      child.stderr?.on('data', (data: string) => appendOutput(data))
+      child.stdout?.on('data', (data: Buffer | string) => outputDecoders.writeStdout(data))
+      child.stderr?.on('data', (data: Buffer | string) => outputDecoders.writeStderr(data))
 
       if (stdin !== undefined) {
         child.stdin?.write(stdin)

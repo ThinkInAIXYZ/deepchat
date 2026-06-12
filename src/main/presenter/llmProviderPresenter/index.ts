@@ -1,25 +1,40 @@
+import logger from '@shared/logger'
 import {
   ILlmProviderPresenter,
   LLM_PROVIDER,
   LLMResponse,
   MODEL_META,
+  ModelConfig,
   OllamaModel,
   ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
+  StandaloneImageGenerationResult,
+  StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
   ISQLitePresenter,
   AcpConfigState,
+  RateLimitQueueSnapshot,
   AcpWorkdirInfo,
   AcpDebugRequest,
   AcpDebugRunResult
 } from '@shared/presenter'
+import { ApiEndpointType, ModelType } from '@shared/model'
+import {
+  normalizeImageGenerationOptions,
+  type ImageGenerationOptions
+} from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  type VideoGenerationOptions
+} from '@shared/videoGenerationSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
+import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
-import { BaseLLMProvider } from './baseProvider'
+import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
+import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
 import { ProviderInstanceManager } from './managers/providerInstanceManager'
@@ -43,9 +58,47 @@ const createAbortError = (): Error => {
   return error
 }
 
+const createAbortPromise = (
+  signal: AbortSignal | undefined,
+  onAbort?: () => void
+): { promise?: Promise<never>; cleanup: () => void } => {
+  if (!signal) {
+    return { cleanup: () => undefined }
+  }
+
+  let abortHandler: (() => void) | null = null
+  const promise = new Promise<never>((_, reject) => {
+    abortHandler = () => {
+      onAbort?.()
+      reject(createAbortError())
+    }
+    signal.addEventListener('abort', abortHandler, { once: true })
+  })
+
+  return {
+    promise,
+    cleanup: () => {
+      if (abortHandler) {
+        signal.removeEventListener('abort', abortHandler)
+      }
+    }
+  }
+}
+
+const AUDIO_TRANSCRIPTION_PROMPT = [
+  'Transcribe the provided audio.',
+  'Return only the transcription text of the audio content.',
+  'Do not translate, summarize, explain, add speaker labels, or use markdown.',
+  'If there is no discernible speech, return an empty string.',
+  '请只返回音频中的转写文本，不要翻译、总结、解释、添加说话人标签或 Markdown。',
+  '如果没有可辨识的语音，请返回空字符串。'
+].join(' ')
+
 export class LLMProviderPresenter implements ILlmProviderPresenter {
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
+  private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
+  private readonly configPresenter: IConfigPresenter
   private readonly config: ProviderConfig = {
     maxConcurrentStreams: 10
   }
@@ -62,6 +115,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     sqlitePresenter: ISQLitePresenter,
     mcpRuntime?: ProviderMcpRuntimePort
   ) {
+    this.configPresenter = configPresenter
     this.rateLimitManager = new RateLimitManager(configPresenter)
     this.acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -86,8 +140,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
-      configPresenter,
-      getProviderInstance: this.getProviderInstance.bind(this)
+      configPresenter
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()
@@ -103,6 +156,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
     eventBus.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, (batchUpdate: ProviderBatchUpdate) => {
       this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
+    })
+
+    eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => {
+      this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
     })
   }
 
@@ -169,6 +226,17 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     await this.modelManager.updateModelStatus(providerId, modelId, enabled)
   }
 
+  async batchUpdateModelStatus(
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ): Promise<void> {
+    const statusMap: Record<string, boolean> = {}
+    for (const update of updates) {
+      statusMap[update.modelId] = update.enabled
+    }
+    await this.modelManager.batchUpdateModelStatusQuiet(providerId, statusMap)
+  }
+
   /**
    * 更新 provider 的速率限制配置
    */
@@ -203,6 +271,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return this.rateLimitManager.getAllProviderRateLimitStatus()
   }
 
+  async executeWithRateLimit(
+    providerId: string,
+    options?: {
+      signal?: AbortSignal
+      onQueued?: (snapshot: RateLimitQueueSnapshot) => void
+    }
+  ): Promise<void> {
+    await this.rateLimitManager.executeWithRateLimit(providerId, options)
+  }
+
   isGenerating(eventId: string): boolean {
     return this.activeStreams.has(eventId)
   }
@@ -235,7 +313,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     maxTokens?: number
   ): Promise<string> {
     // Record input messages to the large model
-    console.log('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
+    logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
     const provider = this.getProviderInstance(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
@@ -269,11 +347,12 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string> {
     const provider = this.getProviderInstance(providerId)
     let response = ''
     const signal = options?.signal
+    const shouldSwallowErrors = options?.swallowErrors !== false
 
     if (signal?.aborted) {
       throw createAbortError()
@@ -299,8 +378,252 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
         throw error
       }
+
       console.error('Stream error:', error)
+
+      if (!shouldSwallowErrors) {
+        throw error instanceof Error ? error : new Error('Standalone completion failed')
+      }
+
       return ''
+    }
+  }
+
+  async transcribeAudioStandalone(
+    providerId: string,
+    modelId: string,
+    audioBase64: string,
+    mimeType: string,
+    filename?: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<string> {
+    const normalizedAudioBase64 = audioBase64.trim()
+    const normalizedMimeType = mimeType.trim().toLowerCase()
+
+    if (!normalizedAudioBase64) {
+      throw new Error('Audio data is required for transcription')
+    }
+
+    if (!normalizedMimeType.startsWith('audio/')) {
+      throw new Error(`Invalid audio MIME type for transcription: ${mimeType}`)
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    try {
+      return (
+        await provider.transcribeAudio(
+          modelId,
+          normalizedAudioBase64,
+          normalizedMimeType,
+          filename,
+          {
+            signal
+          }
+        )
+      ).trim()
+    } catch (error) {
+      if (!isAudioTranscriptionNotSupportedError(error)) {
+        throw error
+      }
+    }
+
+    const text = await this.generateCompletionStandalone(
+      providerId,
+      [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: AUDIO_TRANSCRIPTION_PROMPT
+            },
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: normalizedAudioBase64,
+                media_type: normalizedMimeType,
+                ...(filename?.trim() ? { filename: filename.trim() } : {})
+              }
+            }
+          ]
+        }
+      ],
+      modelId,
+      0,
+      undefined,
+      { signal, swallowErrors: false }
+    )
+
+    return text.trim()
+  }
+
+  async generateImageStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    imageOptions?: ImageGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneImageGenerationResult> {
+    const normalizedPrompt = prompt.trim()
+    if (!normalizedPrompt) {
+      throw new Error('Image generation prompt is required')
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const mergedImageOptions = normalizeImageGenerationOptions({
+      ...modelConfig.imageGeneration,
+      ...imageOptions
+    })
+    const resolvedModelConfig: ModelConfig = {
+      ...modelConfig,
+      type: ModelType.ImageGeneration,
+      apiEndpoint: ApiEndpointType.Image,
+      imageGeneration: mergedImageOptions
+    }
+    const stream = provider.coreStream(
+      [{ role: 'user', content: normalizedPrompt }],
+      modelId,
+      resolvedModelConfig,
+      modelConfig.temperature ?? 0.7,
+      modelConfig.maxTokens ?? 1024,
+      []
+    )
+    const images: StandaloneImageGenerationResult['images'] = []
+    const abort = createAbortPromise(signal, () => {
+      void stream.return?.(undefined as never)
+    })
+
+    const collect = async () => {
+      for await (const event of stream) {
+        if (signal?.aborted) {
+          throw createAbortError()
+        }
+
+        if (event.type === 'image_data') {
+          images.push({
+            data: event.image_data.data,
+            mimeType: event.image_data.mimeType
+          })
+        }
+        if (event.type === 'error') {
+          throw new Error(event.error_message)
+        }
+      }
+    }
+
+    try {
+      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
+    } finally {
+      abort.cleanup()
+    }
+
+    if (images.length === 0) {
+      throw new Error('Image generation completed without image output')
+    }
+
+    return {
+      providerId,
+      modelId,
+      ...(mergedImageOptions ? { options: mergedImageOptions } : {}),
+      images
+    }
+  }
+
+  async generateVideoStandalone(
+    providerId: string,
+    prompt: string,
+    modelId: string,
+    videoOptions?: VideoGenerationOptions,
+    options?: { signal?: AbortSignal }
+  ): Promise<StandaloneVideoGenerationResult> {
+    const normalizedPrompt = prompt.trim()
+    if (!normalizedPrompt) {
+      throw new Error('Video generation prompt is required')
+    }
+
+    const signal = options?.signal
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
+
+    await this.executeWithRateLimit(providerId, { signal })
+
+    const provider = this.getProviderInstance(providerId)
+    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const mergedVideoOptions = normalizeVideoGenerationOptions({
+      ...modelConfig.videoGeneration,
+      ...videoOptions
+    })
+    const resolvedModelConfig: ModelConfig = {
+      ...modelConfig,
+      type: ModelType.VideoGeneration,
+      apiEndpoint: ApiEndpointType.Video,
+      videoGeneration: mergedVideoOptions
+    }
+    const stream = provider.coreStream(
+      [{ role: 'user', content: normalizedPrompt }],
+      modelId,
+      resolvedModelConfig,
+      modelConfig.temperature ?? 0.7,
+      modelConfig.maxTokens ?? 1024,
+      []
+    )
+    const videos: StandaloneVideoGenerationResult['videos'] = []
+    const abort = createAbortPromise(signal, () => {
+      void stream.return?.(undefined as never)
+    })
+
+    const collect = async () => {
+      for await (const event of stream) {
+        if (signal?.aborted) {
+          throw createAbortError()
+        }
+
+        if (
+          event.type === 'image_data' &&
+          event.image_data.mimeType.trim().toLowerCase().startsWith('video/')
+        ) {
+          videos.push({
+            data: event.image_data.data,
+            mimeType: event.image_data.mimeType
+          })
+        }
+        if (event.type === 'error') {
+          throw new Error(event.error_message)
+        }
+      }
+    }
+
+    try {
+      await (abort.promise ? Promise.race([collect(), abort.promise]) : collect())
+    } finally {
+      abort.cleanup()
+    }
+
+    if (videos.length === 0) {
+      throw new Error('Video generation completed without video output')
+    }
+
+    return {
+      providerId,
+      modelId,
+      ...(mergedVideoOptions ? { options: mergedVideoOptions } : {}),
+      videos
     }
   }
 
@@ -344,7 +667,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
         }
       } else {
         // 如果没有提供modelId，使用provider自己的check方法进行基本验证
-        console.log(
+        logger.info(
           `[LLMProviderPresenter] No modelId provided, using provider's own check method for ${providerId}`
         )
         try {
@@ -367,10 +690,58 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     return provider.getKeyStatus()
   }
 
-  async refreshModels(providerId: string): Promise<void> {
-    try {
+  private getEnabledProviderIdsUsingProviderDb(): string[] {
+    return this.providerInstanceManager
+      .getProviders()
+      .filter((provider) => provider.enable && isProviderDbBackedProvider(provider.id))
+      .map((provider) => provider.id)
+  }
+
+  private async syncProviderDbBeforeRefresh(providerId: string): Promise<void> {
+    if (!isProviderDbBackedProvider(providerId)) {
+      return
+    }
+
+    const result = await this.configPresenter.refreshProviderDb(true)
+    if (result.status === 'error') {
+      throw new Error(result.message || 'Provider DB refresh failed')
+    }
+  }
+
+  private enqueueProviderModelRefresh(providerId: string): Promise<void> {
+    const existingRefresh = this.modelRefreshPromises.get(providerId)
+    if (existingRefresh) {
+      return existingRefresh
+    }
+
+    const refreshPromise = (async () => {
       const provider = this.getProviderInstance(providerId)
       await provider.refreshModels()
+    })().finally(() => {
+      if (this.modelRefreshPromises.get(providerId) === refreshPromise) {
+        this.modelRefreshPromises.delete(providerId)
+      }
+    })
+
+    this.modelRefreshPromises.set(providerId, refreshPromise)
+    return refreshPromise
+  }
+
+  private refreshEnabledProviderDbBackedModelsInBackground(reason: string): void {
+    for (const providerId of this.getEnabledProviderIdsUsingProviderDb()) {
+      void this.enqueueProviderModelRefresh(providerId).catch((error) => {
+        console.warn(
+          `[LLMProviderPresenter] Failed to refresh models for provider ${providerId} during ${reason}:`,
+          error
+        )
+      })
+    }
+  }
+
+  async refreshModels(providerId: string): Promise<void> {
+    try {
+      await this.syncProviderDbBeforeRefresh(providerId)
+      await this.enqueueProviderModelRefresh(providerId)
     } catch (error) {
       console.error(`Failed to refresh models for provider ${providerId}:`, error)
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -461,7 +832,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
   async getAcpWorkdir(conversationId: string, agentId: string): Promise<AcpWorkdirInfo> {
     const record = await this.acpSessionPersistence.getSessionData(conversationId, agentId)
     const path = this.acpSessionPersistence.resolveWorkdir(record?.workdir)
-    const isCustom = Boolean(record?.workdir && record.workdir.trim().length > 0)
+    const isCustom = this.acpSessionPersistence.isWorkdirUsable(record?.workdir)
     return { path, isCustom }
   }
 
@@ -476,7 +847,16 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
       return
     }
 
-    const trimmed = workdir?.trim() ? workdir : null
+    const requestedWorkdir = workdir?.trim() ? workdir.trim() : null
+    const trimmed =
+      requestedWorkdir && this.acpSessionPersistence.isWorkdirUsable(requestedWorkdir)
+        ? requestedWorkdir
+        : null
+    if (requestedWorkdir && !trimmed) {
+      console.warn(
+        `[ACP] Ignoring unavailable ACP workdir "${requestedWorkdir}" for conversation ${conversationId} (agent ${agentId}); using default workdir.`
+      )
+    }
     await this.acpSessionPersistence.updateWorkdir(conversationId, agentId, trimmed)
   }
 

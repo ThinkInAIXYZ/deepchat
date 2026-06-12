@@ -1,13 +1,12 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
-import { SESSION_EVENTS } from '@/events'
+import { createSessionClient } from '@api/SessionClient'
 import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
 
 const MAX_PENDING_INPUTS = 5
 
 export const usePendingInputStore = defineStore('pendingInput', () => {
-  const newAgentPresenter = usePresenter('newAgentPresenter')
+  const sessionClient = createSessionClient()
 
   const currentSessionId = ref<string | null>(null)
   const items = ref<PendingSessionInputRecord[]>([])
@@ -20,7 +19,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
       .filter((item) => item.mode === 'queue')
       .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))
   )
-  const activeCount = computed(() => items.value.length)
+  const activeCount = computed(() => queueItems.value.length)
   const isAtCapacity = computed(() => activeCount.value >= MAX_PENDING_INPUTS)
 
   async function loadPendingInputs(sessionId: string): Promise<void> {
@@ -29,7 +28,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     loading.value = true
     error.value = null
     try {
-      const loadedItems = await newAgentPresenter.listPendingInputs(requestedId)
+      const loadedItems = await sessionClient.listPendingInputs(requestedId)
       if (requestedId !== currentSessionId.value) {
         return
       }
@@ -49,7 +48,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function queueInput(sessionId: string, input: string | SendMessageInput): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.queuePendingInput(sessionId, input)
+      await sessionClient.queuePendingInput(sessionId, input)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
@@ -66,7 +65,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   ): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.updateQueuedInput(sessionId, itemId, input)
+      const updated = await sessionClient.updateQueuedInput(sessionId, itemId, input)
       items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
@@ -80,7 +79,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function moveQueueInput(sessionId: string, itemId: string, toIndex: number): Promise<void> {
     error.value = null
     try {
-      items.value = await newAgentPresenter.moveQueuedInput(sessionId, itemId, toIndex)
+      items.value = await sessionClient.moveQueuedInput(sessionId, itemId, toIndex)
     } catch (e) {
       error.value = `Failed to reorder queued message: ${e}`
       throw e
@@ -90,7 +89,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function convertToSteer(sessionId: string, itemId: string): Promise<void> {
     error.value = null
     try {
-      const updated = await newAgentPresenter.convertPendingInputToSteer(sessionId, itemId)
+      const updated = await sessionClient.convertPendingInputToSteer(sessionId, itemId)
       items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
@@ -104,7 +103,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function deleteInput(sessionId: string, itemId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.deletePendingInput(sessionId, itemId)
+      await sessionClient.deletePendingInput(sessionId, itemId)
       items.value = items.value.filter((item) => item.id !== itemId)
     } catch (e) {
       error.value = `Failed to delete queued message: ${e}`
@@ -115,7 +114,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   async function resumeQueue(sessionId: string): Promise<void> {
     error.value = null
     try {
-      await newAgentPresenter.resumePendingQueue(sessionId)
+      await sessionClient.resumePendingQueue(sessionId)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
@@ -132,20 +131,15 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     error.value = null
   }
 
-  const pendingInputsHandler = (_: unknown, msg: { sessionId: string }) => {
-    if (!msg?.sessionId || msg.sessionId !== currentSessionId.value) {
+  const pendingInputsHandler = (payload: { sessionId: string; version: number }) => {
+    if (!payload.sessionId || payload.sessionId !== currentSessionId.value) {
       return
     }
-    void loadPendingInputs(msg.sessionId)
+    void loadPendingInputs(payload.sessionId)
   }
 
-  window.electron.ipcRenderer.on(SESSION_EVENTS.PENDING_INPUTS_UPDATED, pendingInputsHandler)
-  onScopeDispose(() => {
-    window.electron.ipcRenderer.removeListener(
-      SESSION_EVENTS.PENDING_INPUTS_UPDATED,
-      pendingInputsHandler
-    )
-  })
+  const unsubscribePendingInputsUpdated = sessionClient.onPendingInputsChanged(pendingInputsHandler)
+  onScopeDispose(unsubscribePendingInputsUpdated)
 
   return {
     currentSessionId,

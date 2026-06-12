@@ -1,0 +1,421 @@
+{
+  "input": {
+    "placeholder": "Zapytaj DeepChat o cokolwiek, {'@'} o wzmiankę o plikach, / o polecenia",
+    "fileArea": "Obszar pliku",
+    "inputArea": "Obszar wejściowy",
+    "functionSwitch": "Przełącznik funkcji",
+    "attach": "Dołącz",
+    "voiceInput": "Nagranie lokalne",
+    "voiceInputStop": "Zatrzymaj nagrywanie lokalne",
+    "voiceRecognitionUnsupportedTitle": "Nagrywanie lokalne nie jest tutaj dostępne",
+    "voiceRecognitionUnsupportedDescription": "Użyj tej funkcji w przeglądarce lub środowisku komputerowym obsługującym nagrywanie za pomocą mikrofonu.",
+    "voiceRecognitionPermissionDeniedTitle": "Dostęp do mikrofonu jest niedostępny",
+    "voiceRecognitionPermissionDeniedDescription": "Zezwól DeepChat na korzystanie z mikrofonu i spróbuj ponownie.",
+    "voiceRecognitionErrorTitle": "Transkrypcja dźwięku nie powiodła się",
+    "voiceRecognitionErrorDescription": "Nie można dokończyć transkrypcji audio. Spróbuj ponownie później.",
+    "send": "Wyślij",
+    "steer": "Steruj",
+    "queue": "Kolejka",
+    "stop": "Zatrzymaj się",
+    "fileSelect": "Wybierz opcję Plik",
+    "pasteFiles": "Wklej pliki ze schowka",
+    "dropFiles": "Upuść pliki tutaj",
+    "promptFilesAdded": "Dodano pliki Prompt",
+    "promptFilesAddedDesc": "Pomyślnie dodano pliki {count}",
+    "promptFilesError": "Błąd przetwarzania pliku",
+    "promptFilesErrorDesc": "Nie udało się przetworzyć plików {count}",
+    "historyPlaceholder": "(Naciśnij Tab, aby autouzupełniać)",
+    "rateLimitQueue": "Kolejka {count}",
+    "rateLimitWait": "Poczekaj {seconds}",
+    "rateLimitQueueTooltip": "Żądania {count} w kolejce, interwał {interval}",
+    "rateLimitReadyTooltip": "Gotowy do wysłania, interwał {interval}s",
+    "rateLimitWaitingTooltip": "Poczekaj jeszcze {seconds}, interwał {interval}",
+    "acpWorkdir": "ACP Workdir",
+    "acpWorkdirTooltip": "Ustaw katalog roboczy ACP",
+    "acpWorkdirSelect": "Wybierz folder, który będzie używany jako katalog roboczy ACP",
+    "acpWorkdirCurrent": "Bieżący katalog roboczy: {path}",
+    "acpMode": "Tryb",
+    "acpModeTooltip": "Bieżący tryb: {mode}",
+    "agentWorkspaceTooltip": "Ustaw katalog obszaru roboczego Agent",
+    "agentWorkspaceSelect": "Wybierz folder, który będzie używany jako obszar roboczy",
+    "agentWorkspaceCurrent": "Bieżący obszar roboczy: {path}",
+    "workspaceUnavailableTooltip": "Katalog nie istnieje lub nie można uzyskać do niego dostępu: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "Włączono MCP",
+      "empty": "Brak włączonych usług",
+      "openSettings": "Otwórz ustawienia MCP"
+    },
+    "tools": {
+      "badge": "Narzędzia",
+      "title": "Narzędzia",
+      "mcpSection": "MCP",
+      "pluginSection": "Wtyczki",
+      "builtinSection": "Wbudowane narzędzia",
+      "loading": "Ładowanie narzędzi...",
+      "builtinEmpty": "Brak dostępnych wbudowanych narzędzi",
+      "groups": {
+        "agentFilesystem": "System plików Agent",
+        "agentCore": "Rdzeń Agent",
+        "agentImageGeneration": "Generowanie obrazu",
+        "agentSkills": "Agent Skills",
+        "deepchatSettings": "Ustawienia DeepChat",
+        "yobrowser": "Twoja przeglądarka"
+      }
+    },
+    "fileUploadFailed": "Załącznik nie powiódł się",
+    "fileUploadFailedDesc": "Nie można przetworzyć plików {count}: {names}",
+    "fileUploadFailedMore": " i {count} więcej",
+    "unnamedFile": "nienazwany plik",
+    "audioInputUnsupportedTitle": "Obecny model nie obsługuje załączników audio",
+    "audioInputUnsupportedDescription": "Model {model} nie obsługuje wejścia audio. Zignorowano załączniki audio {count}."
+  },
+  "pendingInput": {
+    "steer": "Steruj",
+    "queueCount": "W kolejce {count}/{max}",
+    "resumeQueue": "Wznów wysyłanie",
+    "toSteer": "Steruj",
+    "locked": "Zablokowane",
+    "reorder": "Zmień kolejność",
+    "files": "Pliki {count}",
+    "attachmentsOnly": "Załączniki {count}",
+    "empty": "Pusta wiadomość",
+    "limitReached": "Pas oczekujących jest pełny (maks. {max})."
+  },
+  "features": {
+    "webSearch": "Wyszukiwanie w Internecie",
+    "thoughtForSeconds": "Pomyślałem o {seconds}",
+    "thoughtForSecondsLoading": "Myślenie za {seconds}...",
+    "artifactThinking": "Myślenie artefaktowe",
+    "modeChanged": "Tryb zmieniony na: {mode}"
+  },
+  "search": {
+    "results": "Znaleziono strony internetowe {0}",
+    "searching": "Wyszukiwanie...",
+    "title": "Wyniki wyszukiwania",
+    "description": "Znaleziono wyniki powiązane z {0}",
+    "optimizing": "Optymalizacja zapytania wyszukiwania...",
+    "reading": "Wyszukiwanie i czytanie stron internetowych...",
+    "error": "Wyszukiwanie nie powiodło się"
+  },
+  "messages": {
+    "thinking": "Myśląc...",
+    "rateLimitWaiting": "Osiągnięto limit stawek, czekam w kolejce...",
+    "rateLimitCompactLoading": "Stawka ograniczona dla {seconds}...",
+    "rateLimitTitle": "Limit stawki aktywny",
+    "rateLimitQueue": "Pozycja w kolejce",
+    "rateLimitEstimated": "Szacowany czas oczekiwania",
+    "rateLimitQuickSettings": "Dostosuj limit",
+    "rateLimitSwitchProvider": "Zmień dostawcę",
+    "rateLimitImmediately": "Teraz",
+    "rateLimitSeconds": "s",
+    "rateLimitMinutes": "m"
+  },
+  "compaction": {
+    "compacting": "Zagęszczanie kontekstu...",
+    "compacted": "Kontekst został zagęszczony",
+    "commandDescription": "Zwarty kontekst rozmowy",
+    "noopTitle": "Brak kontekstu do kompaktowania",
+    "noopDescription": "Nie ma jeszcze nowej historii konwersacji, którą można by skompaktować.",
+    "failedTitle": "Zagęszczanie nie powiodło się"
+  },
+  "rateLimit": {
+    "queueTooltip": "Żądania {count} w kolejce, interwał {interval}",
+    "readyTooltip": "Gotowy do wysłania, interwał {interval}s",
+    "waitingTooltip": "Poczekaj jeszcze {seconds}, interwał {interval}"
+  },
+  "notify": {
+    "generationComplete": "Generacja została zakończona",
+    "generationError": "Generacja nie powiodła się"
+  },
+  "toolCall": {
+    "title": "Wezwanie narzędzia",
+    "calling": "Trwa wywoływanie narzędzia",
+    "response": "Odpowiedź narzędzia",
+    "end": "Zakończono wywołanie narzędzia",
+    "error": "Błąd wywołania narzędzia",
+    "clickToView": "Kliknij, aby zobaczyć szczegóły",
+    "functionName": "Funkcja",
+    "params": "Parametry",
+    "responseData": "Dane odpowiedzi",
+    "subagents": {
+      "summary": "{mode} · {count} subagent",
+      "unnamedTask": "Nienazwane zadanie",
+      "mode": {
+        "parallel": "Równolegle",
+        "chain": "Łańcuch"
+      },
+      "status": {
+        "queued": "W kolejce",
+        "running": "Bieganie",
+        "completed": "Ukończono",
+        "error": "Błąd",
+        "cancelled": "Anulowano",
+        "waiting_permission": "Czekam na pozwolenie",
+        "waiting_question": "Oczekiwanie na wprowadzenie"
+      }
+    }
+  },
+  "mode": {
+    "current": "Bieżący tryb: {mode}",
+    "agent": "Agent",
+    "acpAgent": "ACP Agent"
+  },
+  "topbar": {
+    "backToParent": "Powrót do Rodzica",
+    "share": "Udostępnij",
+    "more": "Więcej"
+  },
+  "subagents": {
+    "label": "Subagenci"
+  },
+  "advancedSettings": {
+    "button": "Zaawansowane",
+    "title": "Ustawienia zaawansowane",
+    "closeHint": "Esc, aby zamknąć",
+    "systemPrompt": "System Prompt",
+    "systemPromptPlaceholder": "Wybierz ustawienie wstępne",
+    "temperature": "Temperatura",
+    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ustala temperaturę na {enabled}, gdy myślenie jest włączone, i {disabled}, gdy jest wyłączone.",
+    "topP": "Top P",
+    "topPDescription": "Nucleus sampling; leave blank to use provider default",
+    "contextLength": "Długość kontekstu",
+    "maxTokens": "Maks. Tokens",
+    "thinkingBudget": "Myślący budżet",
+    "verbosity": "Szczegółowość",
+    "forceInterleavedThinkingCompat": "Przeplatane myślenie",
+    "forceInterleavedThinkingCompatDescription": "Kontroluje, czy ta sesja obsługuje komunikaty dotyczące rozumowania i wywołań narzędzi za pomocą myślenia przeplatanego.",
+    "verbosityPlaceholder": "Wybierz szczegółowość",
+    "currentCustomPrompt": "Aktualny zwyczaj",
+    "useDefault": "Użyj domyślnego",
+    "decreaseValue": "Zmniejsz {label}",
+    "increaseValue": "Zwiększ {label}",
+    "toggleValue": "Przełącz {label}",
+    "validation": {
+      "finiteNumber": "Musi to być liczba skończona",
+      "nonNegativeInteger": "Musi być nieujemną liczbą całkowitą",
+      "contextLengthAtLeastMaxTokens": "Musi być większy lub równy Max Tokens",
+      "maxTokensWithinContextLength": "Musi być mniejsza lub równa Długość kontekstu",
+      "topPRange": "Must be greater than 0 and less than or equal to 1"
+    }
+  },
+  "modelPicker": {
+    "empty": "Nie znaleziono żadnych modeli",
+    "audioInputSupported": "Obsługiwane wejście audio"
+  },
+  "audio": {
+    "play": "Zagraj",
+    "pause": "Pauza"
+  },
+  "call": {
+    "title": "Wywołanie Voice.ai",
+    "description": "Kliknij, aby połączyć się z agentem głosowym Voice.ai, mów po nawiązaniu połączenia.",
+    "start": "Rozpocznij połączenie głosowe",
+    "stop": "Zakończ połączenie",
+    "end": "Rozłącz się"
+  },
+  "skills": {
+    "indicator": {
+      "active": "Umiejętności przypięte {count}",
+      "none": "Brak przypiętych umiejętności"
+    },
+    "panel": {
+      "title": "Przypięty Skills",
+      "manage": "Zarządzaj",
+      "empty": "Nie zainstalowano żadnych umiejętności"
+    }
+  },
+  "workspace": {
+    "title": "Obszar roboczy",
+    "collapse": "Zwiń",
+    "expand": "Rozwiń",
+    "sections": {
+      "files": "Pliki",
+      "git": "Git",
+      "artifacts": "Artefakty",
+      "subagents": "Subagenci"
+    },
+    "plan": {
+      "section": "Planuj",
+      "empty": "Nie ma jeszcze żadnych zadań",
+      "itemAriaLabel": "{status}: {step}",
+      "status": {
+        "pending": "Oczekujące",
+        "in_progress": "W toku",
+        "completed": "Ukończono",
+        "failed": "Nie udało się",
+        "skipped": "Pominięte"
+      }
+    },
+    "files": {
+      "section": "Pliki",
+      "empty": "Brak plików",
+      "loading": "Ładowanie plików...",
+      "noWorkspace": {
+        "title": "Brak obszaru roboczego",
+        "description": "Wybierz lub przeciągnij folder, aby ustawić obszar roboczy",
+        "button": "Wybierz folder"
+      },
+      "contextMenu": {
+        "openFile": "Otwórz plik",
+        "revealInFolder": "Pokaż w menedżerze plików",
+        "insertPath": "Wstaw do wejścia"
+      }
+    },
+    "git": {
+      "empty": "Brak dostępnych różnic",
+      "clean": "Czyste drzewo robocze",
+      "staged": "Inscenizacja",
+      "unstaged": "Niescenizowane"
+    },
+    "subagents": {
+      "empty": "Nie ma jeszcze sesji dziecięcych",
+      "self": "Ja",
+      "status": {
+        "working": "Bieganie",
+        "error": "Błąd",
+        "idle": "Bezczynny"
+      }
+    },
+    "browser": {
+      "section": "Przeglądarka",
+      "empty": "Nie ma jeszcze zakładek"
+    },
+    "terminal": {
+      "section": "Terminal",
+      "empty": "Nie ma jeszcze wyników",
+      "contextMenu": {
+        "terminate": "Zakończ",
+        "delete": "Usuń rekord",
+        "expand": "Rozwiń",
+        "collapse": "Zwiń"
+      },
+      "output": {
+        "truncated": "[obcięte]"
+      },
+      "noOutput": "Brak wyjścia",
+      "status": {
+        "running": "Bieganie",
+        "completed": "Sukces",
+        "failed": "Nie udało się",
+        "timed_out": "Upłynął limit czasu",
+        "aborted": "Przerwano"
+      }
+    }
+  },
+  "newThread": {
+    "title": "Buduj i odkrywaj"
+  },
+  "floatingWidget": {
+    "title": "Przegląd zadań",
+    "collapse": "Zwiń sesje pływające",
+    "empty": "Nie ma jeszcze sesji agenta",
+    "executing": "aktywny",
+    "sessionCount": "Sesje {count}",
+    "untitled": "Nowy czat",
+    "status": {
+      "inProgress": "W toku",
+      "done": "Gotowe",
+      "error": "Błąd"
+    }
+  },
+  "permissionMode": {
+    "default": "Domyślne uprawnienia",
+    "fullAccess": "Pełny dostęp"
+  },
+  "sidebar": {
+    "allAgents": "Wszystkie Agents",
+    "expandSidebar": "Rozwiń pasek boczny",
+    "collapseSidebar": "Zwiń pasek boczny",
+    "themeToggle": "Przełącz motyw",
+    "themeLight": "Jasny",
+    "themeDark": "Ciemny",
+    "themeSystem": "System",
+    "remoteControlDisabled": "Niepełnosprawny",
+    "remoteControlStatus": {
+      "disabled": "Zdalne sterowanie wyłączone",
+      "stopped": "Zdalne sterowanie zatrzymane",
+      "starting": "Uruchamianie zdalne",
+      "running": "Zdalne sterowanie działa",
+      "backoff": "Ponawianie próby zdalnego sterowania",
+      "error": "Błąd pilota"
+    },
+    "groupByDate": "Grupuj według daty",
+    "groupByProject": "Grupuj według projektu",
+    "pinned": "Przypięty",
+    "emptyTitle": "Nie ma jeszcze żadnych rozmów",
+    "emptyDescription": "Aby rozpocząć, rozpocznij nowy czat",
+    "searchPlaceholder": "Wyszukaj czaty",
+    "searchAriaLabel": "Wyszukaj czaty",
+    "searchEmptyTitle": "Brak pasujących rozmów",
+    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule"
+  },
+  "spotlight": {
+    "placeholder": "Przeszukuj czaty, agentów, ustawienia, działania…",
+    "searching": "Wyszukiwanie…",
+    "emptyTitle": "Brak pasujących wyników",
+    "emptyDescription": "Wypróbuj inne słowo kluczowe lub otwórz ostatnią sesję.",
+    "hints": "↑↓ przesuń · Enter otwórz · Esc zamknij · Home/End skok",
+    "kind": {
+      "session": "Sesja",
+      "message": "Wiadomość",
+      "agent": "Agent",
+      "setting": "Ustawienie",
+      "action": "Akcja"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "Wyszukaj w rozmowie",
+    "ariaLabel": "Wyszukaj w bieżącej rozmowie",
+    "previous": "Poprzedni mecz",
+    "next": "Następny mecz",
+    "close": "Zamknij wyszukiwanie"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "Przełącz na DeepChat Agent",
+      "description": "Przed rozmową odłącz się od ACP i wróć do wbudowanego przepływu DeepChat.",
+      "caption": "Aby kontynuować, kliknij podświetlony przycisk agenta na pasku bocznym."
+    },
+    "switchModel": {
+      "description": "Wybierz model, którego chcesz użyć do pierwszej rozmowy DeepChat.",
+      "caption": "Skorzystaj z podświetlonego przełącznika modeli i wybierz dowolny dostępny model."
+    },
+    "firstChat": {
+      "description": "Wszystko jest gotowe. Wpisz tutaj swoją pierwszą wiadomość, aby zakończyć proces wdrażania.",
+      "caption": "Światło reflektora pozostaje w polu wprowadzania, dopóki nie wyślesz pierwszej wiadomości."
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "Szkic umiejętności",
+    "confirmationQuestion": "Wygenerowano szkic umiejętności: {name}",
+    "previewTitle": "Podgląd treści szkicu",
+    "actions": {
+      "view": "Wyświetl treść",
+      "viewDescription": "Podejrzyj treść SKILL.md szkicu",
+      "install": "Zainstaluj jako umiejętność",
+      "installDescription": "Zaimportuj go do folderu umiejętności w celu zarządzania",
+      "discard": "Odrzuć",
+      "discardDescription": "Usuń ten tymczasowy szkic"
+    },
+    "result": {
+      "viewed": "Podgląd treści szkicu jest otwarty. Wybierz instalację albo odrzucenie.",
+      "installed": "Zainstalowano szkic umiejętności: {name}",
+      "discarded": "Odrzucono szkic umiejętności.",
+      "failed": "Nie udało się obsłużyć szkicu umiejętności: {error}"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "Pracowano przez {duration}",
+    "reasoningCount": "{count} rozumowanie(a)",
+    "toolCallCount": "{count} wywołanie(a) narzędzia",
+    "expandLabel": "Rozwiń {title}",
+    "collapseLabel": "Zwiń {title}",
+    "duration": {
+      "day": "d ",
+      "hour": "godz. ",
+      "minute": "min ",
+      "second": "s"
+    }
+  }
+}

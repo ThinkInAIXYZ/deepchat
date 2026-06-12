@@ -18,11 +18,11 @@ import ConfigInputField from './ChatConfig/ConfigInputField.vue'
 import ConfigSelectField from './ChatConfig/ConfigSelectField.vue'
 
 // === Composables ===
-import { usePresenter } from '@/composables/usePresenter'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
+import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'
@@ -38,9 +38,9 @@ const props = defineProps<{
   thinkingBudget?: number
   modelId?: string
   providerId?: string
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
-  modelType?: 'chat' | 'imageGeneration' | 'embedding' | 'rerank'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
+  modelType?: 'chat' | 'imageGeneration' | 'videoGeneration' | 'tts' | 'embedding' | 'rerank'
 }>()
 
 const systemPrompt = defineModel<string>('systemPrompt')
@@ -50,14 +50,13 @@ const emit = defineEmits<{
   'update:contextLength': [value: number]
   'update:maxTokens': [value: number]
   'update:thinkingBudget': [value: number | undefined]
-  'update:reasoningEffort': [value: 'minimal' | 'low' | 'medium' | 'high']
-  'update:verbosity': [value: 'low' | 'medium' | 'high']
+  'update:reasoningEffort': [value: ReasoningEffort]
+  'update:verbosity': [value: Verbosity]
 }>()
 
 // === Stores ===
 const { t } = useI18n()
 const langStore = useLanguageStore()
-const configPresenter = usePresenter('configPresenter')
 
 // === Composable Integrations ===
 
@@ -71,8 +70,7 @@ const modelTypeDetection = useModelTypeDetection({
 // Model capabilities
 const capabilities = useModelCapabilities({
   providerId: toRef(props, 'providerId'),
-  modelId: toRef(props, 'modelId'),
-  configPresenter
+  modelId: toRef(props, 'modelId')
 })
 
 // Thinking budget
@@ -80,8 +78,7 @@ const thinkingBudget = useThinkingBudget({
   thinkingBudget: toRef(props, 'thinkingBudget'),
   budgetRange: capabilities.budgetRange,
   modelReasoning: modelTypeDetection.modelReasoning,
-  supportsReasoning: capabilities.supportsReasoning,
-  isGeminiProvider: modelTypeDetection.isGeminiProvider
+  supportsReasoning: capabilities.supportsReasoning
 })
 
 // === Utility Functions ===
@@ -112,8 +109,7 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
   providerId: toRef(props, 'providerId'),
 
   // Composables
-  isGPT5Model: modelTypeDetection.isGPT5Model,
-  isImageGenerationModel: modelTypeDetection.isImageGenerationModel,
+  supportsTemperatureControl: capabilities.supportsTemperatureControl,
   showThinkingBudget: thinkingBudget.showThinkingBudget,
   thinkingBudgetError: thinkingBudget.validationError,
   budgetRange: capabilities.budgetRange,
@@ -131,7 +127,7 @@ const { sliderFields, inputFields, selectFields } = useChatConfigFields({
 watch(
   () => props.modelType,
   (newType) => {
-    if (newType === 'imageGeneration' && systemPrompt.value) {
+    if ((newType === 'imageGeneration' || newType === 'videoGeneration') && systemPrompt.value) {
       systemPrompt.value = ''
     }
   }
@@ -142,6 +138,8 @@ const modelTypeIcon = computed(() => {
   const icons = {
     chat: 'lucide:message-circle',
     imageGeneration: 'lucide:image',
+    videoGeneration: 'lucide:clapperboard',
+    tts: 'lucide:volume-2',
     embedding: 'lucide:layers',
     rerank: 'lucide:arrow-up-down'
   }
@@ -159,7 +157,13 @@ const modelTypeIcon = computed(() => {
 
     <div class="space-y-6">
       <!-- System Prompt (hidden for image generation models) -->
-      <div v-if="!modelTypeDetection.isImageGenerationModel.value" class="space-y-2 px-2">
+      <div
+        v-if="
+          !modelTypeDetection.isImageGenerationModel.value &&
+          !modelTypeDetection.isVideoGenerationModel.value
+        "
+        class="space-y-2 px-2"
+      >
         <div class="flex items-center space-x-2 py-1.5">
           <Icon icon="lucide:terminal" class="w-4 h-4 text-muted-foreground" />
           <Label class="text-xs font-medium">{{ t('settings.model.systemPrompt.label') }}</Label>

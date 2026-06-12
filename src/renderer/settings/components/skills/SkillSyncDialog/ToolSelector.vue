@@ -14,7 +14,7 @@
       <div
         v-for="tool in tools"
         :key="tool.toolId"
-        class="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+        class="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors"
         :class="{ 'border-primary bg-accent': selectedToolId === tool.toolId }"
         @click="handleSelect(tool)"
       >

@@ -1,13 +1,13 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { usePresenter } from '@/composables/usePresenter'
+import { createMcpClient } from '@api/McpClient'
+import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
-import { MCP_EVENTS } from '@/events'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
 import type {
-  McpClient,
+  McpClient as McpRuntimeClient,
   MCPConfig,
   MCPServerConfig,
   MCPToolDefinition,
@@ -17,19 +17,14 @@ import type {
   Prompt
 } from '@shared/presenter'
 
-interface MCPToolCallEventResult {
-  function_name?: string
-  content: string | { type: string; text: string }[]
-}
-
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 
 export const useMcpStore = defineStore('mcp', () => {
   const { t } = useI18n()
   // 获取MCP相关的presenter
-  const mcpPresenter = usePresenter('mcpPresenter')
-  // 获取配置相关的presenter
-  const configPresenter = usePresenter('configPresenter')
+  const mcpClient = createMcpClient()
+  // 获取配置相关的client
+  const configClient = createConfigClient()
 
   // ==================== 状态定义 ====================
   // MCP配置
@@ -85,7 +80,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const persistEnabledToolNames = async () => {
     try {
-      await configPresenter.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
+      await configClient.setSetting(ENABLED_MCP_TOOLS_KEY, [...enabledToolNames.value])
     } catch (error) {
       console.warn('Failed to persist enabled MCP tools:', error)
     }
@@ -104,7 +99,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadEnabledToolNames = async () => {
     try {
-      const stored = await configPresenter.getSetting(ENABLED_MCP_TOOLS_KEY)
+      const stored = await configClient.getSetting(ENABLED_MCP_TOOLS_KEY)
       await setEnabledToolNames(normalizeEnabledToolNames(stored), false)
     } catch (error) {
       console.warn('Failed to load enabled MCP tools:', error)
@@ -123,8 +118,8 @@ export const useMcpStore = defineStore('mcp', () => {
     gcTime: 300_000,
     query: async () => {
       const [servers, enabled] = await Promise.all([
-        mcpPresenter.getMcpServers(),
-        mcpPresenter.getMcpEnabled()
+        mcpClient.getMcpServers(),
+        mcpClient.getMcpEnabled()
       ])
 
       return {
@@ -135,32 +130,29 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const toolsQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getAllToolDefinitions',
     key: () => ['mcp', 'tools'],
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    query: () => mcpClient.getAllToolDefinitions(),
+    enabled: () => config.value.ready,
     staleTime: 30_000
   }) as UseQueryReturn<MCPToolDefinition[]>
 
   const clientsQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getMcpClients',
     key: () => ['mcp', 'clients'],
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    query: () => mcpClient.getMcpClients(),
+    enabled: () => config.value.ready,
     staleTime: 30_000
-  }) as UseQueryReturn<McpClient[]>
+  }) as UseQueryReturn<McpRuntimeClient[]>
 
   const resourcesQuery = useIpcQuery({
-    presenter: 'mcpPresenter',
-    method: 'getAllResources',
     key: () => ['mcp', 'resources'],
-    enabled: () => config.value.ready && config.value.mcpEnabled,
+    query: () => mcpClient.getAllResources(),
+    enabled: () => config.value.ready,
     staleTime: 30_000
   }) as UseQueryReturn<ResourceListEntry[]>
 
   const loadMcpPrompts = async (): Promise<PromptListEntry[]> => {
     try {
-      return await mcpPresenter.getAllPrompts()
+      return await mcpClient.getAllPrompts()
     } catch (error) {
       console.warn('Failed to load MCP prompts:', error)
       return []
@@ -169,7 +161,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
   const loadCustomPrompts = async (): Promise<PromptListEntry[]> => {
     try {
-      const configPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+      const configPrompts: Prompt[] = await configClient.getCustomPrompts()
       return configPrompts.map((prompt) => ({
         name: prompt.name,
         description: prompt.description,
@@ -192,36 +184,59 @@ export const useMcpStore = defineStore('mcp', () => {
     gcTime: 300_000,
     query: async () => {
       const customPrompts = await loadCustomPrompts()
-      if (!config.value.mcpEnabled) {
-        return customPrompts
-      }
-
       const mcpPrompts = await loadMcpPrompts()
       return [...customPrompts, ...mcpPrompts]
     }
   })
 
-  const tools = computed(() => (config.value.mcpEnabled ? (toolsQuery.data.value ?? []) : []))
+  const tools = computed(() => toolsQuery.data.value ?? [])
 
-  const clients = computed(() => (config.value.mcpEnabled ? (clientsQuery.data.value ?? []) : []))
+  const clients = computed(() => clientsQuery.data.value ?? [])
 
-  const resources = computed(() =>
-    config.value.mcpEnabled ? (resourcesQuery.data.value ?? []) : []
-  )
+  const resources = computed(() => resourcesQuery.data.value ?? [])
 
   const prompts = computed(() => promptsQuery.data.value ?? [])
 
-  type CallToolRequest = Parameters<(typeof mcpPresenter)['callTool']>[0]
-  type CallToolResult = Awaited<ReturnType<(typeof mcpPresenter)['callTool']>>
-  type CallToolMutationVars = Parameters<(typeof mcpPresenter)['callTool']>
+  const isPluginOwnedServerConfig = (serverConfig?: Partial<MCPServerConfig> | null): boolean =>
+    Boolean(serverConfig?.ownerPluginId || serverConfig?.source === 'plugin')
 
-  const callToolMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'callTool',
+  const isPluginOwnedServerName = (serverName?: string | null): boolean => {
+    if (!serverName) {
+      return false
+    }
+
+    return isPluginOwnedServerConfig(config.value.mcpServers?.[serverName])
+  }
+
+  const isVisibleServerName = (serverName?: string | null): boolean =>
+    !isPluginOwnedServerName(serverName)
+
+  const visibleTools = computed(() =>
+    tools.value.filter((tool) => isVisibleServerName(tool.server.name))
+  )
+
+  const pluginTools = computed(() =>
+    tools.value.filter((tool) => isPluginOwnedServerName(tool.server.name))
+  )
+
+  const visibleResources = computed(() =>
+    resources.value.filter((resource) => isVisibleServerName(resource.client.name))
+  )
+
+  const visiblePrompts = computed(() =>
+    prompts.value.filter((prompt) => isVisibleServerName(prompt.client?.name))
+  )
+
+  type CallToolRequest = Parameters<(typeof mcpClient)['callTool']>[0]
+  type CallToolResult = Awaited<ReturnType<(typeof mcpClient)['callTool']>>
+  type CallToolMutationVars = [request: CallToolRequest]
+
+  const callToolMutation = useIpcMutation<CallToolMutationVars, CallToolResult>({
+    mutation: (request: CallToolRequest) => mcpClient.callTool(request),
     onSuccess(result, variables) {
       const request = variables?.[0]
       const toolName = request?.function?.name
-      if (toolName) {
+      if (result && toolName) {
         toolResults.value[toolName] = result.content
       }
     },
@@ -377,7 +392,7 @@ export const useMcpStore = defineStore('mcp', () => {
   )
   // ==================== 计算属性 ====================
   // 服务器列表
-  const serverList = computed(() => {
+  const allServerList = computed(() => {
     const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
       name,
       ...serverConfig,
@@ -391,8 +406,8 @@ export const useMcpStore = defineStore('mcp', () => {
     // 3. 未启用的inmemory服务
     // 4. 其他服务
     return servers.sort((a, b) => {
-      const aIsInmemory = a.type === 'inmemory'
-      const bIsInmemory = b.type === 'inmemory'
+      const aIsInmemory = a.type === 'inmemory' || a.source === 'deepchat'
+      const bIsInmemory = b.type === 'inmemory' || b.source === 'deepchat'
 
       // inmemory 都优先
       if (aIsInmemory && !bIsInmemory) return -1
@@ -401,20 +416,29 @@ export const useMcpStore = defineStore('mcp', () => {
       return 0 // 保持原有顺序
     })
   })
+  const serverList = computed(() =>
+    allServerList.value.filter((server) => !isPluginOwnedServerConfig(server))
+  )
+  const pluginServerList = computed(() =>
+    allServerList.value.filter((server) => isPluginOwnedServerConfig(server))
+  )
   const enabledServers = computed(() =>
     config.value.mcpEnabled ? serverList.value.filter((server) => server.enabled) : []
+  )
+  const enabledPluginServers = computed(() =>
+    pluginServerList.value.filter((server) => server.enabled)
   )
   const enabledServerCount = computed(() => enabledServers.value.length)
 
   // 工具数量
-  const toolCount = computed(() => tools.value.length)
+  const toolCount = computed(() => visibleTools.value.length)
   const hasTools = computed(() => toolCount.value > 0)
 
   // ==================== Mutations ====================
   // Mutations for write operations with automatic cache invalidation
   const addServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'addMcpServer',
+    mutation: (serverName: string, serverConfig: MCPServerConfig) =>
+      mcpClient.addMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -424,8 +448,8 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const updateServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'updateMcpServer',
+    mutation: (serverName: string, serverConfig: Partial<MCPServerConfig>) =>
+      mcpClient.updateMcpServer(serverName, serverConfig),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -435,8 +459,7 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const removeServerMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'removeMcpServer',
+    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName),
     invalidateQueries: () => [
       ['mcp', 'config'],
       ['mcp', 'tools'],
@@ -446,14 +469,13 @@ export const useMcpStore = defineStore('mcp', () => {
   })
 
   const setMcpServerEnabledMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'setMcpServerEnabled',
+    mutation: (serverName: string, enabled: boolean) =>
+      mcpClient.setMcpServerEnabled(serverName, enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
   const setMcpEnabledMutation = useIpcMutation({
-    presenter: 'mcpPresenter',
-    method: 'setMcpEnabled',
+    mutation: (enabled: boolean) => mcpClient.setMcpEnabled(enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
 
@@ -477,13 +499,13 @@ export const useMcpStore = defineStore('mcp', () => {
   // 设置MCP启用状态
   const startEnabledServers = async () => {
     for (const [serverName, serverConfig] of Object.entries(config.value.mcpServers)) {
-      if (!serverConfig.enabled) {
+      if (!serverConfig.enabled || isPluginOwnedServerConfig(serverConfig)) {
         continue
       }
       try {
-        const running = await mcpPresenter.isServerRunning(serverName)
+        const running = await mcpClient.isServerRunning(serverName)
         if (!running) {
-          await mcpPresenter.startServer(serverName)
+          await mcpClient.startServer(serverName)
         }
       } catch (error) {
         console.error('Failed to auto-start MCP server', serverName, error)
@@ -525,12 +547,16 @@ export const useMcpStore = defineStore('mcp', () => {
         }, 1000)
       } else {
         await Promise.allSettled(
-          Object.keys(config.value.mcpServers).map((serverName) =>
-            mcpPresenter.stopServer(serverName)
-          )
+          Object.entries(config.value.mcpServers)
+            .filter(([, serverConfig]) => !isPluginOwnedServerConfig(serverConfig))
+            .map(([serverName]) => mcpClient.stopServer(serverName))
         )
         // clearing server/tool state when disabling
-        serverStatuses.value = {}
+        serverStatuses.value = Object.fromEntries(
+          Object.entries(serverStatuses.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
         toolInputs.value = {}
         toolResults.value = {}
         // Force refresh queries to get empty results
@@ -553,10 +579,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 更新所有服务器状态
   const updateAllServerStatuses = async () => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     for (const serverName of Object.keys(config.value.mcpServers)) {
       await updateServerStatus(serverName, true)
     }
@@ -569,18 +591,23 @@ export const useMcpStore = defineStore('mcp', () => {
   // 更新单个服务器状态
   const updateServerStatus = async (serverName: string, noRefresh: boolean = false) => {
     try {
-      if (!config.value.mcpEnabled) {
+      const serverConfig = config.value.mcpServers[serverName]
+      if (!config.value.mcpEnabled && !isPluginOwnedServerConfig(serverConfig)) {
         serverStatuses.value[serverName] = false
         return
       }
 
-      serverStatuses.value[serverName] = await mcpPresenter.isServerRunning(serverName)
+      serverStatuses.value[serverName] = await mcpClient.isServerRunning(serverName)
       if (!noRefresh) {
         // Refresh tools and clients when server status changes
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
       const isRunning = serverStatuses.value[serverName] || false
+      if (!config.value.mcpEnabled) {
+        return
+      }
+
       if (isRunning) {
         // Get server tools after refresh
         const serverTools = tools.value
@@ -687,10 +714,6 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   const loadClients = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       const state = await runQuery(clientsQuery, options)
       if (state.status === 'success') {
@@ -702,13 +725,9 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   const loadTools = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       const state = await runQuery(toolsQuery, options)
-      if (state.status === 'success') {
+      if (state.status === 'success' && config.value.mcpEnabled) {
         await syncEnabledToolsWithDefinitions(state.data ?? [])
       }
     } catch (error) {
@@ -727,10 +746,6 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 加载资源列表
   const loadResources = async (options?: QueryExecuteOptions) => {
-    if (!config.value.mcpEnabled) {
-      return
-    }
-
     try {
       await runQuery(resourcesQuery, options)
     } catch (error) {
@@ -818,7 +833,7 @@ export const useMcpStore = defineStore('mcp', () => {
 
       if (isCustomPrompt) {
         // 自定义 prompt 从 config 获取，不需要 MCP 启用
-        const customPrompts: Prompt[] = await configPresenter.getCustomPrompts()
+        const customPrompts: Prompt[] = await configClient.getCustomPrompts()
         const matchedPrompt = customPrompts.find((p) => p.name === prompt.name)
 
         if (!matchedPrompt) {
@@ -873,12 +888,12 @@ export const useMcpStore = defineStore('mcp', () => {
       }
 
       // MCP prompt 需要检查 MCP 是否启用
-      if (!config.value.mcpEnabled) {
+      if (!config.value.mcpEnabled && !isPluginOwnedServerName(prompt.client?.name)) {
         throw new Error(t('mcp.errors.mcpDisabled'))
       }
 
-      // 传递完整对象给mcpPresenter
-      return await mcpPresenter.getPrompt(prompt, args)
+      // Keep the full prompt descriptor so the route can resolve the source correctly.
+      return await mcpClient.getPrompt(prompt, args)
     } catch (error) {
       console.error(t('mcp.errors.getPromptFailed'), error)
       throw error
@@ -887,13 +902,13 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 读取资源内容
   const readResource = async (resource: ResourceListEntry): Promise<Resource> => {
-    if (!config.value.mcpEnabled) {
+    if (!config.value.mcpEnabled && !isPluginOwnedServerName(resource.client?.name)) {
       throw new Error(t('mcp.errors.mcpDisabled'))
     }
 
     try {
-      // 传递完整对象给mcpPresenter
-      return await mcpPresenter.readResource(resource)
+      // Keep the full resource descriptor so the route can resolve the source correctly.
+      return await mcpClient.readResource(resource)
     } catch (error) {
       console.error(t('mcp.errors.readResourceFailed'), error)
       throw error
@@ -903,7 +918,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // ==================== 事件监听 ====================
   // 初始化事件监听
   const initEvents = () => {
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STARTED, (_event, serverName: string) => {
+    mcpClient.onServerStarted(({ serverName }) => {
       console.log(`MCP server started: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server starts to ensure tool count is updated
@@ -915,7 +930,7 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    window.electron.ipcRenderer.on(MCP_EVENTS.SERVER_STOPPED, (_event, serverName: string) => {
+    mcpClient.onServerStopped(({ serverName }) => {
       console.log(`MCP server stopped: ${serverName}`)
       updateServerStatus(serverName).then(() => {
         // Force refresh tools after server stops to ensure tool count is updated
@@ -927,46 +942,29 @@ export const useMcpStore = defineStore('mcp', () => {
       })
     })
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.CONFIG_CHANGED,
-      (_event, payload?: ConfigQueryResult) => {
-        console.log('MCP config changed', payload)
-        if (payload) {
-          // Directly sync from event payload to avoid unnecessary query
-          syncConfigFromQuery(payload)
-          // Update server statuses after config sync
-          updateAllServerStatuses().catch((error) => {
-            console.error('Failed to update server statuses after config change:', error)
-          })
-        } else {
-          // Fallback to query if payload is missing
-          loadConfig()
-        }
-      }
-    )
+    mcpClient.onConfigChanged((payload) => {
+      console.log('MCP config changed', payload)
+      syncConfigFromQuery(payload)
+      updateAllServerStatuses().catch((error) => {
+        console.error('Failed to update server statuses after config change:', error)
+      })
+    })
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.SERVER_STATUS_CHANGED,
-      (_event, serverName: string, isRunning: boolean) => {
-        console.log(`MCP server ${serverName} status changed: ${isRunning}`)
-        serverStatuses.value[serverName] = isRunning
-      }
-    )
+    mcpClient.onServerStatusChanged(({ serverName, isRunning }) => {
+      console.log(`MCP server ${serverName} status changed: ${isRunning}`)
+      serverStatuses.value[serverName] = isRunning
+    })
 
-    window.electron.ipcRenderer.on(
-      MCP_EVENTS.TOOL_CALL_RESULT,
-      (_event, result: MCPToolCallEventResult) => {
-        console.log(`MCP tool call result:`, result.function_name)
-        if (result && result.function_name) {
-          toolResults.value[result.function_name] = result.content
-        }
+    mcpClient.onToolCallResult((result) => {
+      console.log(`MCP tool call result:`, result.functionName)
+      if (result && result.functionName) {
+        toolResults.value[result.functionName] = result.content
       }
-    )
+    })
 
-    // Listen for custom prompts changes
-    window.electron.ipcRenderer.on('config:custom-prompts-changed', () => {
+    configClient.onCustomPromptsChanged(() => {
       console.log('Custom prompts changed, reloading prompts list')
-      loadPrompts()
+      void loadPrompts()
     })
   }
 
@@ -993,42 +991,27 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 获取NPM Registry状态
   const getNpmRegistryStatus = async () => {
-    if (!mcpPresenter.getNpmRegistryStatus) {
-      throw new Error('NPM Registry status method not available')
-    }
-    return await mcpPresenter.getNpmRegistryStatus()
+    return await mcpClient.getNpmRegistryStatus()
   }
 
   // 手动刷新NPM Registry
   const refreshNpmRegistry = async (): Promise<string> => {
-    if (!mcpPresenter.refreshNpmRegistry) {
-      throw new Error('NPM Registry refresh method not available')
-    }
-    return await mcpPresenter.refreshNpmRegistry()
+    return await mcpClient.refreshNpmRegistry()
   }
 
   // 设置自定义NPM Registry
   const setCustomNpmRegistry = async (registry: string | undefined): Promise<void> => {
-    if (!mcpPresenter.setCustomNpmRegistry) {
-      throw new Error('Set custom NPM Registry method not available')
-    }
-    await mcpPresenter.setCustomNpmRegistry(registry)
+    await mcpClient.setCustomNpmRegistry(registry)
   }
 
   // 设置自动检测NPM Registry
   const setAutoDetectNpmRegistry = async (enabled: boolean): Promise<void> => {
-    if (!mcpPresenter.setAutoDetectNpmRegistry) {
-      throw new Error('Set auto detect NPM Registry method not available')
-    }
-    await mcpPresenter.setAutoDetectNpmRegistry(enabled)
+    await mcpClient.setAutoDetectNpmRegistry(enabled)
   }
 
   // 清除NPM Registry缓存
   const clearNpmRegistryCache = async (): Promise<void> => {
-    if (!mcpPresenter.clearNpmRegistryCache) {
-      throw new Error('Clear NPM Registry cache method not available')
-    }
-    await mcpPresenter.clearNpmRegistryCache()
+    await mcpClient.clearNpmRegistryCache()
   }
 
   // MCP 安装缓存管理（用于 deeplink）
@@ -1058,6 +1041,8 @@ export const useMcpStore = defineStore('mcp', () => {
     serverLoadingStates,
     configLoading,
     tools,
+    visibleTools,
+    pluginTools,
     toolsLoading,
     toolsError,
     toolsErrorMessage,
@@ -1066,13 +1051,17 @@ export const useMcpStore = defineStore('mcp', () => {
     toolResults,
     enabledToolNames,
     prompts,
+    visiblePrompts,
     resources,
+    visibleResources,
     mcpEnabled,
     mcpInstallCache,
 
     // 计算属性
     serverList,
+    pluginServerList,
     enabledServers,
+    enabledPluginServers,
     enabledServerCount,
     toolCount,
     hasTools,

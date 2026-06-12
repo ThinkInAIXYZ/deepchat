@@ -1,0 +1,9 @@
+{
+  "loadError": "Billedet kunne ikke indlæses",
+  "loading": "Indlæser billede...",
+  "preview": "Forhåndsvis billede",
+  "save": "Gem billede",
+  "saveAs": "Gem billede som...",
+  "saveSuccess": "Billede gemt",
+  "saveFailed": "Kunne ikke gemme billede"
+}

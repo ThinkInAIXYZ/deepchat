@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "Đổi tên",
+    "delete": "Xóa",
+    "switchWithShortcut": "Chuyển sang cuộc trò chuyện này bằng {shortcut}",
+    "cleanMessages": "Xóa tin nhắn",
+    "pin": "Ghim",
+    "unpin": "Bỏ ghim",
+    "export": "Xuất khẩu",
+    "exportText": "Văn bản thuần túy",
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Chuyển cuộc trò chuyện"
+  },
+  "toolbar": {
+    "save": "Lưu",
+    "cancel": "Hủy bỏ",
+    "previousVariant": "Biến thể trước đó",
+    "nextVariant": "Biến thể tiếp theo",
+    "copy": "Sao chép dưới dạng Markdown",
+    "copyImage": "Sao chép dưới dạng hình ảnh",
+    "copyImageWithLongPress": "Sao chép dưới dạng hình ảnh (nhấn và giữ để chụp từ trên xuống)",
+    "copyFromTopSuccess": "Đã sao chép toàn bộ hình ảnh cuộc trò chuyện",
+    "capturing": "Đang chụp...",
+    "retry": "tái sinh",
+    "fork": "Chi nhánh đến cuộc trò chuyện mới",
+    "edit": "Chỉnh sửa tin nhắn",
+    "delete": "Xóa tin nhắn",
+    "trace": "Yêu cầu theo dõi"
+  },
+  "message": {
+    "toolbar": {
+      "save": "Lưu"
+    }
+  },
+  "export": {
+    "failed": "Xuất không thành công",
+    "failedDesc": "Đã xảy ra lỗi trong quá trình xuất, vui lòng thử lại",
+    "success": "Xuất thành công",
+    "successDesc": "Cuộc hội thoại đã được xuất thành công",
+    "nowledgeMemSuccess": "Xuất Nowledge-mem thành công",
+    "nowledgeMemSuccessDesc": "Cuộc hội thoại đã được xuất thành công sang định dạng nowledge-mem",
+    "nowledgeMemSubmitPrompt": "Bạn có muốn gửi cuộc trò chuyện này tới nowledge-mem không?",
+    "nowledgeMemSubmitSuccess": "Gửi Nowledge-mem thành công",
+    "nowledgeMemSubmitSuccessDesc": "Cuộc trò chuyện đã được gửi thành công tới nowledge-mem",
+    "nowledgeMemSubmitFailed": "Gửi Nowledge-mem không thành công",
+    "nowledgeMemSubmitFailedDesc": "Không thể gửi cuộc trò chuyện tới nowledge-mem"
+  }
+}

@@ -5,6 +5,7 @@ export type * from './presenters/agent-provider'
 export type * from './presenters/workspace'
 export type * from './presenters/tool.presenter'
 export type * from '../hooksNotifications'
+export type * from './databaseSchema'
 export type {
   ProviderInstallByIdPayload,
   ProviderInstallByTypePayload,
@@ -14,5 +15,6 @@ export type {
 } from '../providerDeeplink'
 export * from './browser'
 export * from './chatSettings'
+export * from './plugin'
 export * from './skill'
 export * from './skillSync'

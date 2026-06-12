@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { usePresenter } from '@/composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { useToast } from '@/components/use-toast'
-import type { MCPServerConfig } from '@shared/presenter'
 
 const emit = defineEmits<{
   'update:selections': [selections: string[]]
@@ -12,11 +11,17 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const configPresenter = usePresenter('configPresenter')
+const configClient = createConfigClient()
+
+type AgentMcpServerConfig = {
+  type?: string
+  source?: string
+  ownerPluginId?: string
+}
 
 const loading = ref(false)
 const saving = ref(false)
-const availableServers = ref<Array<{ name: string; config: MCPServerConfig }>>([])
+const availableServers = ref<Array<{ name: string; config: AgentMcpServerConfig }>>([])
 const selections = ref<string[]>([])
 
 const selectableServers = computed(() =>
@@ -25,20 +30,28 @@ const selectableServers = computed(() =>
 
 const selectionSet = computed(() => new Set(selections.value))
 
+const isPluginOwnedServerConfig = (config: AgentMcpServerConfig): boolean =>
+  Boolean(config.ownerPluginId || config.source === 'plugin')
+
 const load = async () => {
   loading.value = true
   try {
     const [servers, currentSelections] = await Promise.all([
-      configPresenter.getMcpServers(),
-      configPresenter.getAcpSharedMcpSelections()
+      configClient.getMcpServers(),
+      configClient.getAcpSharedMcpSelections()
     ])
 
-    availableServers.value = Object.entries(servers ?? {}).map(([name, config]) => ({
-      name,
-      config
-    }))
+    availableServers.value = Object.entries(servers ?? {})
+      .filter(([, config]) => !isPluginOwnedServerConfig(config))
+      .map(([name, config]) => ({
+        name,
+        config
+      }))
 
-    selections.value = Array.isArray(currentSelections) ? currentSelections : []
+    const visibleServerNames = new Set(availableServers.value.map((server) => server.name))
+    selections.value = Array.isArray(currentSelections)
+      ? currentSelections.filter((serverName) => visibleServerNames.has(serverName))
+      : []
   } finally {
     loading.value = false
   }
@@ -50,7 +63,7 @@ const persist = async (
 ) => {
   saving.value = true
   try {
-    await configPresenter.setAcpSharedMcpSelections(nextSelections)
+    await configClient.setAcpSharedMcpSelections(nextSelections)
     emit('update:selections', nextSelections)
   } catch (error) {
     selections.value = previousSelections

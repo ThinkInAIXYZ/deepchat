@@ -1,7 +1,6 @@
 {
   "chat": "צ'אט",
   "welcome": "ברוכים הבאים",
-  "playground": "אזור ניסויים (Playground)",
   "settings": "הגדרות",
   "settings-common": "הגדרות כלליות",
   "settings-provider": "ספקים",
@@ -16,8 +15,11 @@
   "settings-acp": "סוכני ACP",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
+  "settings-scheduled-tasks": "משימות מתוזמנות",
   "settings-dashboard": "Dashboard",
   "settings-environments": "סביבות",
   "settings-remote": "שליטה מרחוק",
-  "settings-deepchat-agents": "סוכני DeepChat"
+  "settings-deepchat-agents": "סוכני DeepChat",
+  "settings-plugins": "Plugins",
+  "settings-overview": "סקירת ההגדרות"
 }

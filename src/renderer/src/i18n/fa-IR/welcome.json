@@ -37,6 +37,25 @@
   "page": {
     "title": "به DeepChat Agent خوش آمدید",
     "description": "برای شروع، یک ارائه‌دهنده مدل متصل کنید",
+    "guide": {
+      "title": "راهنمای راه‌اندازی",
+      "description": "گام فعلی: {step}",
+      "or": "یا",
+      "coreProgress": "پیشرفت راه‌اندازی اصلی",
+      "optional": "گام‌های اختیاری بعدی",
+      "actions": {
+        "continueSetup": "ادامه راه‌اندازی",
+        "goToChat": "رفتن به چت"
+      },
+      "steps": {
+        "provider": "ارائه‌دهنده",
+        "first-chat": "اولین چت",
+        "switch-model": "تغییر مدل",
+        "mcp": "MCP",
+        "skills": "مهارت‌ها",
+        "plugins": "افزونه‌ها"
+      }
+    },
     "browseProviders": "مرور همه ارائه‌دهنده‌ها...",
     "connectAgent": "یا یک ایجنت متصل کنید",
     "acpTitle": "یک ایجنت ACP راه‌اندازی کنید",
@@ -48,7 +67,8 @@
       "gemini": "Gemini",
       "ollama": "Ollama",
       "openrouter": "OpenRouter"
-    }
+    },
+    "importProviders": "وارد کردن از سایر عامل‌ها"
   },
   "agentPage": {
     "title": "یک ایجنت انتخاب کنید و خلق را شروع کنید",

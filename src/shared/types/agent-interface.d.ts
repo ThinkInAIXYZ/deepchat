@@ -1,3 +1,9 @@
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
+import type { ImageGenerationOptions } from '../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../videoGenerationSettings'
+import type { ToolCallImagePreview } from './core/mcp'
+import type { AgentPlanDisplayItem } from './agent-plan'
+
 /**
  * Agent Interface Protocol
  *
@@ -18,12 +24,60 @@ export interface SessionCompactionState {
 export interface SessionGenerationSettings {
   systemPrompt: string
   temperature: number
+  topP?: number
   contextLength: number
   maxTokens: number
+  timeout: number
   thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
+  verbosity?: Verbosity
   forceInterleavedThinkingCompat?: boolean
+  imageGeneration?: ImageGenerationOptions
+  videoGeneration?: VideoGenerationOptions
+}
+
+export interface AgentTapeInfo {
+  sessionId: string
+  entries: number
+  anchors: number
+  lastAnchor: string | null
+  lastAnchorEntryId: number | null
+  entriesSinceLastAnchor: number
+  lastTokenUsage: number | null
+  migrationState: 'none' | 'ready'
+}
+
+export type AgentTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
+
+export interface AgentTapeSearchOptions {
+  limit?: number
+  kinds?: AgentTapeEntryKind[]
+  start?: string
+  end?: string
+}
+
+export interface AgentTapeSearchResult {
+  entryId: number
+  kind: string
+  name: string | null
+  payload: Record<string, unknown>
+  meta: Record<string, unknown>
+  createdAt: number
+}
+
+export interface AgentTapeAnchorResult {
+  sessionId: string
+  entryId: number
+  kind: string
+  name: string | null
+  payload: Record<string, unknown>
+  meta: Record<string, unknown>
+  createdAt: number
+}
+
+export interface AgentTapeAnchorsOptions {
+  limit?: number
 }
 
 export interface DeepChatSessionState {
@@ -33,19 +87,32 @@ export interface DeepChatSessionState {
   permissionMode: PermissionMode
 }
 
+export type PendingInputEnqueueSource = 'send' | 'queue'
+
+export interface QueuePendingInputOptions {
+  source?: PendingInputEnqueueSource
+  projectDir?: string | null
+}
+
+export interface SessionAgentContextUpdate {
+  agentId: string
+  providerId: string
+  modelId: string
+  projectDir?: string | null
+  permissionMode?: PermissionMode
+  generationSettings?: Partial<SessionGenerationSettings>
+}
+
 export interface IAgentImplementation {
   /** Initialize a new session for this agent */
   initSession(
     sessionId: string,
-    config: {
-      agentId?: string
-      providerId: string
-      modelId: string
-      projectDir?: string | null
-      permissionMode?: PermissionMode
-      generationSettings?: Partial<SessionGenerationSettings>
-    }
+    config: Partial<SessionAgentContextUpdate> &
+      Pick<SessionAgentContextUpdate, 'providerId' | 'modelId'>
   ): Promise<void>
+
+  /** Update the persisted runtime context for a session without deleting its messages */
+  setSessionAgentContext?(sessionId: string, config: SessionAgentContextUpdate): Promise<void>
 
   /** Destroy a session and all its data */
   destroySession(sessionId: string): Promise<void>
@@ -53,18 +120,30 @@ export interface IAgentImplementation {
   /** Get runtime state for a session */
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
 
+  /** Get lightweight runtime state for session list hydration */
+  getSessionListState?(sessionId: string): Promise<DeepChatSessionState | null>
+
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    context?: { projectDir?: string | null; emitRefreshBeforeStream?: boolean }
-  ): Promise<void>
+    context?: {
+      projectDir?: string | null
+      emitRefreshBeforeStream?: boolean
+      pendingQueueItemId?: string
+      pendingQueueItemSource?: PendingInputEnqueueSource
+    }
+  ): Promise<MessageStartResult>
+
+  /** Steer an active turn, or start a normal turn if the session is idle */
+  steerActiveTurn?(sessionId: string, content: string | SendMessageInput): Promise<void>
 
   /** Manage waiting lane inputs */
   listPendingInputs?(sessionId: string): Promise<PendingSessionInputRecord[]>
   queuePendingInput?(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord>
   updateQueuedInput?(
     sessionId: string,
@@ -86,6 +165,15 @@ export interface IAgentImplementation {
   /** Get all messages for a session, ordered by order_seq */
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
 
+  /** Get a page of messages for a session, ordered by order_seq ASC */
+  listMessagesPage?(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): Promise<ChatMessagePageResult>
+
   /** Get only message IDs for a session, ordered by order_seq */
   getMessageIds(sessionId: string): Promise<string[]>
 
@@ -94,6 +182,46 @@ export interface IAgentImplementation {
 
   /** Get current runtime/persisted compaction state for the session */
   getSessionCompactionState?(sessionId: string): Promise<SessionCompactionState>
+
+  /** Manually compact old conversation context without threshold checks */
+  compactSession?(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>
+
+  /** Inspect the append-only tape for this session */
+  getTapeInfo?(sessionId: string): Promise<AgentTapeInfo>
+
+  /** Search append-only tape entries for this session */
+  searchTape?(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): Promise<AgentTapeSearchResult[]>
+
+  /** List recent anchors for this session tape */
+  listTapeAnchors?(
+    sessionId: string,
+    options?: AgentTapeAnchorsOptions
+  ): Promise<AgentTapeAnchorResult[]>
+
+  /** Write a handoff anchor to this session tape */
+  handoffTape?(
+    sessionId: string,
+    name: string,
+    state?: Record<string, unknown>
+  ): Promise<AgentTapeAnchorResult>
+
+  /** Record a completed child session as a merged tape fork */
+  mergeSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
+
+  /** Record an abandoned child session as a discarded tape fork */
+  discardSubagentTape?(
+    parentSessionId: string,
+    childSessionId: string,
+    meta?: Record<string, unknown>
+  ): Promise<void>
 
   /** Clear all messages in this session while keeping the session record */
   clearMessages?(sessionId: string): Promise<void>
@@ -127,6 +255,9 @@ export interface IAgentImplementation {
 
   /** Set provider/model for this session (takes effect on next user message) */
   setSessionModel?(sessionId: string, providerId: string, modelId: string): Promise<void>
+
+  /** Set project/workspace directory for this session (takes effect on next user message) */
+  setSessionProjectDir?(sessionId: string, projectDir: string | null): Promise<void>
 
   /** Get permission mode for this session */
   getPermissionMode?(sessionId: string): Promise<PermissionMode>
@@ -176,8 +307,8 @@ export interface MessageFile {
     fileName?: string
     fileSize?: number
     fileDescription?: string
-    fileCreated?: Date
-    fileModified?: Date
+    fileCreated?: string
+    fileModified?: string
     [key: string]: unknown
   }
 }
@@ -207,9 +338,11 @@ export type AssistantBlockType =
   | 'content'
   | 'search'
   | 'reasoning_content'
+  | 'plan'
   | 'error'
   | 'tool_call'
   | 'action'
+  | 'image'
 
 export interface ToolCallBlockData {
   id?: string
@@ -219,6 +352,7 @@ export interface ToolCallBlockData {
   rtkApplied?: boolean
   rtkMode?: 'rewrite' | 'direct' | 'bypass'
   rtkFallbackReason?: string
+  imagePreviews?: ToolCallImagePreview[]
   server_name?: string
   server_icons?: string
   server_description?: string
@@ -248,6 +382,19 @@ export interface AssistantMessageExtra {
   questionResolution?: 'asked' | 'replied' | 'rejected'
   answerText?: string
   answerMessageId?: string
+  skillDraftAction?: string
+  skillDraftId?: string
+  skillDraftName?: string
+  skillDraftPreview?: string
+  skillDraftStatus?: string
+  skillDraftError?: string
+  internalTool?: boolean
+  plan_entries?: AgentPlanDisplayItem[]
+  plan_explanation?: string
+  plan_revision?: number
+  plan_updated_at?: string
+  subagentProgress?: string
+  subagentFinal?: string
   [key: string]: string | number | boolean | object[] | undefined
 }
 
@@ -263,9 +410,13 @@ export interface AssistantMessageBlock {
         start: number
         end: number
       }
+  image_data?: {
+    data: string
+    mimeType: string
+  }
   tool_call?: ToolCallBlockData
   extra?: AssistantMessageExtra
-  action_type?: 'tool_call_permission' | 'question_request'
+  action_type?: 'tool_call_permission' | 'question_request' | 'rate_limit'
 }
 
 export interface MessageMetadata {
@@ -273,6 +424,7 @@ export interface MessageMetadata {
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
+  cacheWriteInputTokens?: number
   generationTime?: number
   firstTokenTime?: number
   reasoningStartTime?: number
@@ -297,6 +449,22 @@ export interface ChatMessageRecord {
   traceCount?: number
   createdAt: number
   updatedAt: number
+}
+
+export interface MessagePageCursor {
+  orderSeq: number
+  id: string
+}
+
+export interface ChatMessagePageResult {
+  messages: ChatMessageRecord[]
+  nextCursor: MessagePageCursor | null
+  hasMore: boolean
+}
+
+export interface MessageStartResult {
+  requestId: string | null
+  messageId: string | null
 }
 
 export interface UsageStatsBackfillStatus {
@@ -442,14 +610,33 @@ export interface DeepChatAgentModelPreset extends DeepChatAgentModelSelection {
   forceInterleavedThinkingCompat?: boolean
 }
 
+export interface DeepChatSubagentSlot {
+  id: string
+  targetType: 'self' | 'agent'
+  targetAgentId?: string
+  displayName: string
+  description: string
+}
+
+export type SessionKind = 'regular' | 'subagent'
+
+export interface DeepChatSubagentMeta {
+  slotId: string
+  displayName: string
+  targetAgentId?: string | null
+}
+
 export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
   visionModel?: DeepChatAgentModelSelection | null
+  imageGenerationModel?: DeepChatAgentModelSelection | null
   defaultProjectPath?: string | null
   systemPrompt?: string
   permissionMode?: PermissionMode
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
+  subagents?: DeepChatSubagentSlot[]
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number
   autoCompactionRetainRecentPairs?: number
@@ -496,6 +683,19 @@ export interface Agent {
   } | null
 }
 
+export interface AgentBootstrapItem {
+  id: string
+  name: string
+  type: AgentType
+  agentType?: AgentType
+  enabled: boolean
+  protected?: boolean
+  icon?: string
+  description?: string
+  source?: AgentSource
+  avatar?: AgentAvatar | null
+}
+
 export interface SessionRecord {
   id: string
   agentId: string
@@ -503,14 +703,66 @@ export interface SessionRecord {
   projectDir: string | null
   isPinned: boolean
   isDraft?: boolean
+  sessionKind: SessionKind
+  parentSessionId?: string | null
+  subagentEnabled: boolean
+  subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
+}
+
+export interface SessionListItem extends SessionRecord {
+  status: SessionStatus
 }
 
 export interface SessionWithState extends SessionRecord {
   status: SessionStatus
   providerId: string
   modelId: string
+}
+
+export interface ActiveSessionSummary extends SessionWithState {}
+
+export type AgentTransferBlockReason = 'active' | 'pending-input' | 'missing-session' | 'same-agent'
+
+export interface AgentTransferImpactSample {
+  id: string
+  title: string
+  sessionKind: SessionKind
+  isDraft: boolean
+  projectDir: string | null
+  status: SessionStatus
+  blockReason?: AgentTransferBlockReason
+}
+
+export interface AgentTransferImpact {
+  agentId: string
+  totalSessions: number
+  regularSessions: number
+  subagentSessions: number
+  emptyDrafts: number
+  movableSessions: number
+  blockedSessions: number
+  samples: AgentTransferImpactSample[]
+}
+
+export interface SessionPageCursor {
+  updatedAt: number
+  id: string
+}
+
+export interface SessionLightweightListResult {
+  items: SessionListItem[]
+  nextCursor: SessionPageCursor | null
+  hasMore: boolean
+}
+
+export interface StartupBootstrapShell {
+  startupRunId: string
+  activeSessionId: string | null
+  activeSession?: SessionListItem | null
+  agents: AgentBootstrapItem[]
+  defaultProjectPath: string | null
 }
 
 export type ToolInteractionResponse =
@@ -533,6 +785,7 @@ export type ToolInteractionResponse =
 export interface ToolInteractionResult {
   resumed?: boolean
   waitingForUserMessage?: boolean
+  handledInline?: boolean
 }
 
 export interface CreateSessionInput {
@@ -545,6 +798,7 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -557,6 +811,7 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
+  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 

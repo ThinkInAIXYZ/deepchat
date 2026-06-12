@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 // https://github.com/supermemoryai/apple-mcp
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -736,7 +737,7 @@ class CalendarUtils {
                     }
                   } catch (error) {
                     // Skip events we can't process
-                    console.log(
+                    logger.info(
                       'searchEvents - Error processing events: ----0----',
                       JSON.stringify(error)
                     )
@@ -744,7 +745,7 @@ class CalendarUtils {
                 }
               } catch (error) {
                 // Skip calendars we can't access
-                console.log(
+                logger.info(
                   'searchEvents - Error processing calendars: ----1----',
                   JSON.stringify(error)
                 )
@@ -913,12 +914,12 @@ class CalendarUtils {
                 }
               } catch (error) {
                 // Skip calendars we can't access
-                console.log('getEvents - Error processing events: ----0----', JSON.stringify(error))
+                logger.info('getEvents - Error processing events: ----0----', JSON.stringify(error))
               }
             }
             return events
           } catch (error) {
-            console.log('getEvents - Error processing events: ----1----', JSON.stringify(error))
+            logger.info('getEvents - Error processing events: ----1----', JSON.stringify(error))
             return [] // Return empty array on any error
           }
         },

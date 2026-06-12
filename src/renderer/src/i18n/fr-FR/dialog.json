@@ -40,5 +40,50 @@
       "functionCall": "Attention : L'activation des appels de fonction désactivera automatiquement le raisonnement, ce qui est une exigence des modèles DeepSeek-V3.1."
     },
     "confirmEnable": "Confirmer l'activation"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Supprimer {name} ?",
+    "deleteDescription": "Choisissez ce qu’il doit advenir des conversations qui appartiennent actuellement à cet agent.",
+    "moveTitle": "Déplacer la conversation",
+    "moveDescription": "Déplacez cette conversation terminée vers un autre agent sans modifier ses messages.",
+    "loading": "Vérification des conversations associées...",
+    "processing": "Traitement...",
+    "totalSessions": "Associées",
+    "movableSessions": "Déplaçables",
+    "emptyDrafts": "Brouillons vides",
+    "blockedSessions": "Bloquées",
+    "moveBeforeDeleteTitle": "Déplacer les conversations vers un autre agent",
+    "moveBeforeDeleteDescription": "Les conversations terminées conservent leurs messages et utiliseront l’agent cible pour les prochains échanges. Les brouillons vides seront supprimés.",
+    "deleteSessionsTitle": "Supprimer les conversations avec cet agent",
+    "deleteSessionsDescription": "Toutes les conversations et tous les messages associés seront supprimés avec l’agent.",
+    "targetAgent": "Agent cible",
+    "selectTarget": "Sélectionner un agent",
+    "acpWorkdir": "Dossier de travail ACP",
+    "acpWorkdirPlaceholder": "Laisser vide pour conserver le projet de chaque conversation",
+    "acpWorkdirHint": "Les agents ACP nécessitent un dossier de travail. Si une conversation n’a pas de projet, indiquez-en un ici.",
+    "currentAgent": "Agent actuel : {name}",
+    "relatedSessions": "Conversations associées",
+    "blockedWarning": "Certaines conversations sont encore en cours ou ont des entrées en file d’attente. Terminez-les avant de déplacer ou supprimer cet agent.",
+    "agentDeleteBlocked": "Cet agent a encore des conversations associées. Déplacez-les ou supprimez-les d’abord.",
+    "deleteAgentAndSessions": "Supprimer l’agent et les conversations",
+    "moveAndDeleteAgent": "Déplacer et supprimer l’agent",
+    "moveConversation": "Déplacer la conversation",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "En cours",
+      "pending-input": "En file d’attente",
+      "missing-target-workdir": "Dossier requis",
+      "missing-session": "Manquante",
+      "same-agent": "Même agent"
+    },
+    "sampleState": {
+      "ready": "Prête",
+      "draft": "Brouillon",
+      "subagent": "Sous-agent"
+    },
+    "deepChatTargetOnly": "Seuls les agents DeepChat peuvent être sélectionnés comme cibles de déplacement. Les conversations ACP peuvent être déplacées vers DeepChat, mais pas vers ACP."
   }
 }

@@ -4,7 +4,7 @@
 
 <h1 align="center">DeepChat - Powerful Open-Source AI Agent Platform</h1>
 
-<p align="center">DeepChat is a feature-rich open-source AI agent platform that unifies models, tools, and agents: multi-LLM chat, MCP tool calling, and ACP agent integration.</p>
+<p align="center">DeepChat is a feature-rich open-source AI agent platform that unifies models, tools, and agents: multi-LLM chat, MCP tool calling, Skills, ACP agent integration, and remote control.</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,7 +30,9 @@
 - [🚀 Project Introduction](#-project-introduction)
 - [💡 Why Choose DeepChat](#-why-choose-deepchat)
 - [🔥 Main Features](#-main-features)
+- [🧠 Skills Support](#-skills-support)
 - [🧩 ACP Integration (Agent Client Protocol)](#-acp-integration-agent-client-protocol)
+- [📡 Remote Control](#-remote-control)
 - [🤖 Supported Model Providers](#-supported-model-providers)
   - [Compatible with any model provider in OpenAI/Gemini/Anthropic API format](#compatible-with-any-model-provider-in-openaigeminianthropic-api-format)
 - [🔍 Use Cases](#-use-cases)
@@ -51,7 +53,7 @@
 
 DeepChat is a powerful open-source AI agent platform that brings together models, tools, and agent runtimes in one desktop app. Whether you're using cloud APIs like OpenAI, Gemini, Anthropic, or locally deployed Ollama models, DeepChat delivers a smooth user experience.
 
-Beyond chat, DeepChat supports agentic workflows: rich tool calling via MCP (Model Context Protocol), and unique ACP (Agent Client Protocol) integration that lets you run ACP-compatible agents as first-class “models” with a dedicated workspace UI.
+Beyond chat, DeepChat supports agentic workflows: rich tool calling via MCP (Model Context Protocol), installable Skills for specialized tasks, unique ACP (Agent Client Protocol) integration that lets you run ACP-compatible agents as first-class “models” with a dedicated workspace UI, and remote control from messaging apps.
 
 <table align="center">
   <tr>
@@ -72,14 +74,15 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 
 - **Unified Multi-Model Management**: One application supports almost all mainstream LLMs, eliminating the need to switch between multiple apps
 - **Seamless Local Model Integration**: Built-in Ollama support allows you to manage and use local models without command-line operations
-- **Agentic Protocol Ecosystem**: Built-in MCP support enables tool calling (code execution, web access, etc.), and built-in ACP support connects external agents into DeepChat with a native workspace UX
+- **Agentic Protocol Ecosystem**: Built-in MCP support enables tool calling (code execution, web access, etc.), Skills add reusable task expertise, and built-in ACP support connects external agents into DeepChat with a native workspace UX
 - **Powerful Search Enhancement**: Support for multiple search engines makes AI responses more accurate and timely, providing non-standard web search paradigms that can be quickly customized
+- **Remote-Ready Workflows**: Control DeepChat sessions from Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink
 - **Privacy-Focused**: Local data storage and network proxy support reduce the risk of information leakage
 - **Business-Friendly**: Embraces open source under the Apache License 2.0, suitable for both commercial and personal use
 
 ## 🔥 Main Features
 
-- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, Kimi, Grok, Gemini, Anthropic, and more
+- 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, Moonshot/Kimi, Grok, Gemini, Anthropic, and more
 - 🏠 **Local Model Deployment Support**:
   - Integrated Ollama with comprehensive management capabilities
   - Control and manage Ollama model downloads, deployments, and runs without command-line operations
@@ -104,9 +107,18 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Supports StreamableHTTP/SSE/Stdio protocol Transports
   - Supports inMemory services with built-in utilities like code execution, web information retrieval, and file operations; ready for most common use cases out-of-the-box without secondary installation
   - Converts visual model capabilities into universally usable functions for any model via the built-in MCP service
+- 🧠 **Skills**
+  - Install Skills from folders, ZIP files, or URLs
+  - Enable Skills per conversation so DeepChat can load task-specific instructions, references, and optional scripts
+  - Import and export Skills with other AI coding assistants
+  - Built-in Skills cover code review, document collaboration, Office/PDF processing, frontend design, MCP development, and more
 - 🤝 **ACP (Agent Client Protocol) Agent Integration**
   - Run ACP-compatible agents (built-in or custom commands) as selectable “models”
   - ACP workspace UI for structured plans, tool calls, and terminal output when provided by the agent
+- 📡 **Remote Control**
+  - Control DeepChat sessions from Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink
+  - Bind remote endpoints to sessions and manage conversations from messaging apps
+  - Create or switch sessions, stop generation, open desktop sessions, handle pending interactions, switch models, and check status remotely
 - 💻 **Multi-Platform Support**: Windows, macOS, Linux
 - 🎨 **Beautiful and User-Friendly Interface**, user-oriented design, meticulously themed light and dark modes
 - 🔗 **Rich DeepLink Support**: Initiate conversations via links for seamless integration with other applications. Also supports one-click installation of MCP services for simplicity and speed
@@ -118,8 +130,21 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Clear code structure, both model providers and MCP services are highly decoupled, can be freely customized with minimal cost
   - Reasonable architecture, data interaction and UI behavior separation, fully utilizing Electron's capabilities, rejecting simple web wrappers, excellent performance
 
-For more details on how to use these features, see the [User Guide](./docs/user-guide.md).
+For more details on how to use these features, see the [documentation index](./docs/README.md).
 
+## 🧠 Skills Support
+
+DeepChat Skills are designed to be compatible with the standard Agent Skills specification. A Skill can include task instructions, reference files, assets, and optional scripts, so DeepChat can act more like a domain specialist after it is enabled.
+
+You can install Skills from folders, ZIP files, or URLs, and import/export them with Claude Code, Codex, Cursor, Windsurf, GitHub Copilot, Kiro, Antigravity, OpenCode, Goose, Kilo Code, and other compatible tools.
+
+Built-in Skills cover generative art, code review, DeepChat settings, document collaboration, DOCX, frontend design, git commit messages, infographic syntax, MCP building, PDF, PPTX, Skill creation, Web Artifacts, and XLSX workflows.
+
+Quick start:
+
+1. Open **Settings → Skills**
+2. Install or import a Skill
+3. Enable it in conversations that need that capability
 ## 🧩 ACP Integration (Agent Client Protocol)
 
 DeepChat has built-in support for [Agent Client Protocol (ACP)](https://agentclientprotocol.com), allowing you to integrate external agent runtimes into DeepChat with a native UI. Once enabled, ACP agents appear as first-class entries in the model selector, so you can use coding agents and task agents directly inside DeepChat.
@@ -131,6 +156,14 @@ Quick start:
 3. Select the ACP agent in the model selector to start an agent session
 
 To explore the ecosystem of compatible agents and clients, see: https://agentclientprotocol.com/overview/clients
+
+## 📡 Remote Control
+
+DeepChat can be controlled from messaging apps, so you can keep a session running even when you are away from the desktop. Configure remote channels under **Settings → Remote**.
+
+Supported channels include Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink. Remote endpoints can bind to one DeepChat session, then create new sessions, list and switch recent sessions, stop generation, open the current session on desktop, answer pending questions or permission prompts, switch models, and check runtime status.
+
+Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`, `/stop`, `/open`, `/pending`, `/model`, and `/status`.
 
 ## 🤖 Supported Model Providers
 
@@ -163,15 +196,19 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <a href="https://www.qiniu.com">Qiniu</a>
     </td>
     <td>
+      <img src="./src/renderer/src/assets/llm-icons/newapi.svg" width="50" height="50" alt="New API Icon"><br/>
+      <a href="https://www.newapi.ai/">New API</a>
+    </td>
+    <td>
       <img src="./src/renderer/src/assets/llm-icons/grok.svg" width="50" height="50" alt="Grok Icon"><br/>
       <a href="https://x.ai/">Grok</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zhipu-color.svg" width="50" height="50" alt="Zhipu Icon"><br/>
       <a href="https://open.bigmodel.cn/">Zhipu</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/ppio-color.svg" width="50" height="50" alt="PPIO Icon"><br/>
       <a href="https://ppinfra.com/">PPIO</a>
@@ -184,12 +221,12 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/fireworks-color.svg" width="50" height="50" alt="Fireworks Icon"><br/>
       <a href="https://fireworks.ai/">Fireworks</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aihubmix.png" width="50" height="50" alt="AIHubMix Icon"><br/>
       <a href="https://aihubmix.com/">AIHubMix</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/doubao-color.svg" width="50" height="50" alt="Doubao Icon"><br/>
       <a href="https://console.volcengine.com/ark/">Doubao</a>
@@ -202,12 +239,12 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/groq.svg" width="50" height="50" alt="Groq Icon"><br/>
       <a href="https://groq.com/">Groq</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/jiekou-color.svg" width="50" height="50" alt="JieKou.AI Icon"><br/>
       <a href="https://jiekou.ai?utm_source=github_deepchat">JieKou.AI</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/zenmux-color.svg" width="50" height="50" alt="ZenMux Icon"><br/>
       <a href="https://zenmux.ai/">ZenMux</a>
@@ -220,12 +257,12 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/lmstudio.svg" width="50" height="50" alt="LM Studio Icon"><br/>
       <a href="https://lmstudio.ai/docs/app">LM Studio</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/hunyuan-color.svg" width="50" height="50" alt="Hunyuan Icon"><br/>
       <a href="https://cloud.tencent.com/product/hunyuan">Hunyuan</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
       <a href="https://302.ai">302.AI</a>
@@ -238,12 +275,12 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/poe-color.svg" width="50" height="50" alt="Poe Icon"><br/>
       <a href="https://poe.com/">Poe</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/vercel.svg" width="50" height="50" alt="Vercel AI Gateway Icon"><br/>
       <a href="https://vercel.com/ai">Vercel AI Gateway</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openrouter.svg" width="50" height="50" alt="OpenRouter Icon"><br/>
       <a href="https://openrouter.ai/">OpenRouter</a>
@@ -256,12 +293,12 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/tokenflux-color.svg" width="50" height="50" alt="TokenFlux Icon"><br/>
       <a href="https://tokenflux.ai/">TokenFlux</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/burncloud-color.svg" width="50" height="50" alt="BurnCloud Icon"><br/>
       <a href="https://www.burncloud.com/">BurnCloud</a>
     </td>
-  </tr>
-  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/openai.svg" width="50" height="50" alt="OpenAI Responses Icon"><br/>
       <a href="https://openai.com/">OpenAI Responses</a>
@@ -274,22 +311,52 @@ To explore the ecosystem of compatible agents and clients, see: https://agentcli
       <img src="./src/renderer/src/assets/llm-icons/modelscope-color.svg" width="50" height="50" alt="ModelScope Icon"><br/>
       <a href="https://modelscope.cn/">ModelScope</a>
     </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/aws-bedrock.svg" width="50" height="50" alt="AWS Bedrock Icon"><br/>
       <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/voiceai.svg" width="50" height="50" alt="Voice.ai Icon"><br/>
+      <a href="https://voice.ai/">Voice.ai</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/vertexai-color.svg" width="50" height="50" alt="Vertex AI Icon"><br/>
+      <a href="https://cloud.google.com/vertex-ai">Vertex AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/githubcopilot.svg" width="50" height="50" alt="GitHub Copilot Icon"><br/>
+      <a href="https://github.com/features/copilot">GitHub Copilot</a>
+    </td>
   </tr>
   <tr align="center">
     <td>
-      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
-      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+      <img src="./src/renderer/src/assets/llm-icons/xiaomi.png" width="50" height="50" alt="Xiaomi Icon"><br/>
+      <a href="https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call">Xiaomi</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/o3-fan.png" width="50" height="50" alt="o3.fan Icon"><br/>
+      <a href="https://o3.fan">o3.fan</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/novitaai.svg" width="50" height="50" alt="Novita AI Icon"><br/>
+      <a href="https://novita.ai/">Novita AI</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/astraflow.png" width="50" height="50" alt="Astraflow Icon"><br/>
+      <a href="https://astraflow.ucloud.cn/">Astraflow</a>
+    </td>
+  </tr>
+  <tr align="center">
     <td>
       <img src="./src/renderer/src/assets/llm-icons/anthropic.svg" width="50" height="50" alt="Anthropic Icon"><br/>
       <a href="https://www.anthropic.com/">Anthropic</a>
     </td>
-    <td></td>
-    <td></td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
+      <a href="https://www.siliconflow.cn/">SiliconFlow</a>
+    </td>
   </tr>
 
 </table>
@@ -345,7 +412,7 @@ brew install --cask deepchat
 2. Select the model you want to use
 3. Start communicating with your AI assistant
 
-For a comprehensive guide on getting started and using all features, please refer to the [User Guide](./docs/user-guide.md).
+For a comprehensive guide on getting started and using all features, please refer to the [documentation index](./docs/README.md).
 
 ## 💻 Development Guide
 
@@ -420,12 +487,13 @@ Thank you for considering contributing to deepchat! The contribution guide can b
 
 ## 🙏🏻 Thanks
 
-This project is built with the help of these awesome libraries:
+This project is built with the help of these awesome libraries and projects:
 
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
 - [oxlint](https://github.com/oxc-project/oxc)
+- [Bub](https://github.com/bubbuild/bub), whose tape model inspired DeepChat's session tape design. For the underlying tape architecture, visit [tape.systems](https://tape.systems/).
 
 ## 📃 License
 

@@ -5,8 +5,7 @@ export function sanitizeText(s: string | null | undefined, maxLen?: number) {
   // eslint-disable-next-line no-control-regex
   out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   // Remove explicit zero-width / soft-hyphen characters
-  // eslint-disable-next-line no-control-regex
-  out = out.replace(/[\u00AD\u200B\u200C\u200D\u2060\uFEFF]/g, '')
+  out = out.replace(/\u{00AD}|\u{200B}|\u{200C}|\u{200D}|\u{2060}|\u{FEFF}/gu, '')
 
   // Normalize and strip combining marks; use Unicode property escapes when available
   try {

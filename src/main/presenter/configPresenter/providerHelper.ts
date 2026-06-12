@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { eventBus, SendTarget } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import {
@@ -6,27 +7,41 @@ import {
   ProviderChange
 } from '@shared/provider-operations'
 import { LLM_PROVIDER } from '@shared/presenter'
-import ElectronStore from 'electron-store'
+import type { StoreLike } from './storeLike'
 
 type SetSetting = <T>(key: string, value: T) => void
 
 const PROVIDERS_STORE_KEY = 'providers'
 
 interface ProviderHelperOptions {
-  store: ElectronStore<any>
+  store: StoreLike<any>
   setSetting: SetSetting
   defaultProviders: LLM_PROVIDER[]
 }
 
+interface ProviderCleanupHooks {
+  deleteProviderModelStatuses?: (providerId: string) => void
+  clearProviderModelStore?: (providerId: string) => void
+}
+
 export class ProviderHelper {
-  private readonly store: ElectronStore<any>
+  private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly defaultProviders: LLM_PROVIDER[]
+  private cleanupHooks: ProviderCleanupHooks = {}
 
   constructor(options: ProviderHelperOptions) {
     this.store = options.store
     this.setSetting = options.setSetting
     this.defaultProviders = options.defaultProviders
+  }
+
+  setCleanupHooks(hooks: ProviderCleanupHooks): void {
+    this.cleanupHooks = hooks
+  }
+
+  setStore(store: StoreLike<any>): void {
+    this.store = store
   }
 
   getProviders(): LLM_PROVIDER[] {
@@ -93,7 +108,7 @@ export class ProviderHelper {
         repairedProviders.some((p) => !(p as any).apiType)
 
       if (listChanged) {
-        console.log(
+        logger.info(
           `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
         )
         this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)
@@ -195,6 +210,18 @@ export class ProviderHelper {
     const providers = this.getProviders()
     const filteredProviders = providers.filter((p) => p.id !== providerId)
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, filteredProviders)
+
+    try {
+      this.cleanupHooks.deleteProviderModelStatuses?.(providerId)
+    } catch (error) {
+      console.error(`[Config] Failed to delete model statuses for ${providerId}:`, error)
+    }
+
+    try {
+      this.cleanupHooks.clearProviderModelStore?.(providerId)
+    } catch (error) {
+      console.error(`[Config] Failed to clear provider model store for ${providerId}:`, error)
+    }
 
     const change: ProviderChange = {
       operation: 'remove',

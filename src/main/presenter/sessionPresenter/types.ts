@@ -1,3 +1,5 @@
+import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
+
 export type SessionStatus =
   | 'idle'
   | 'generating'
@@ -19,8 +21,8 @@ export type SessionConfig = {
   supportsVision?: boolean
   supportsFunctionCall?: boolean
   thinkingBudget?: number
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
-  verbosity?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
   enabledMcpTools?: string[]
   agentWorkspacePath?: string | null
   acpWorkdirMap?: Record<string, string | null>

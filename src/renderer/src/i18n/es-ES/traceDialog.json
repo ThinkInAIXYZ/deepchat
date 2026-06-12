@@ -1,0 +1,17 @@
+{
+  "title": "Solicitar vista previa",
+  "provider": "Proveedor",
+  "model": "modelo",
+  "endpoint": "API Endpoint",
+  "headers": "Encabezados",
+  "body": "Cuerpo de solicitud",
+  "copyJson": "Copia JSON",
+  "copySuccess": "Copiado al portapapeles",
+  "close": "Cerrar",
+  "loading": "Cargando...",
+  "error": "No se pudo cargar",
+  "errorDesc": "No se puede obtener la vista previa de la solicitud. Inténtelo de nuevo.",
+  "notImplemented": "No compatible",
+  "notImplementedDesc": "Este provider aún no ha implementado la vista previa de la solicitud.",
+  "mayNotMatch": "Nota: Esta vista previa se reconstruye a partir de la configuración de conversación actual y es posible que no coincida exactamente con los parámetros de solicitud reales."
+}

@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "Chào mừng",
+      "description": "Hãy bắt đầu thiết lập DeepChat"
+    },
+    "provider": {
+      "title": "nhà cung cấp",
+      "description": "Chọn nhà cung cấp mô hình ưa thích của bạn"
+    },
+    "configuration": {
+      "title": "Cấu hình",
+      "description": "Cấu hình các mô hình bạn muốn sử dụng"
+    },
+    "complete": {
+      "title": "Hoàn thành",
+      "description": "Tất cả đã sẵn sàng và sẵn sàng để đi!"
+    }
+  },
+  "title": "Chào mừng đến với DeepChat",
+  "description": "Hãy hướng dẫn bạn cách thiết lập.",
+  "provider": {
+    "select": "Chọn nhà cung cấp",
+    "apiUrl": "API URL",
+    "apiKey": "API Key",
+    "verifyLink": "Xác minh liên kết"
+  },
+  "complete": {
+    "title": "Tất cả đã hoàn tất!",
+    "description": "Bạn đã sẵn sàng. Hãy bắt đầu!"
+  },
+  "buttons": {
+    "getStarted": "Bắt đầu",
+    "next": "Tiếp theo",
+    "back": "Quay lại"
+  },
+  "page": {
+    "title": "Chào mừng đến với DeepChat Agent",
+    "description": "Kết nối nhà cung cấp mô hình để bắt đầu",
+    "guide": {
+      "title": "Hướng dẫn thiết lập",
+      "description": "Bước hiện tại: {step}",
+      "or": "hoặc",
+      "coreProgress": "Tiến trình thiết lập cốt lõi",
+      "optional": "Các bước tiếp theo tùy chọn",
+      "actions": {
+        "continueSetup": "Tiếp tục thiết lập",
+        "goToChat": "Đi tới trò chuyện"
+      },
+      "steps": {
+        "provider": "nhà cung cấp",
+        "first-chat": "Cuộc trò chuyện đầu tiên",
+        "switch-model": "Chuyển đổi mô hình",
+        "mcp": "MCP",
+        "skills": "Skills",
+        "plugins": "Plugin"
+      }
+    },
+    "browseProviders": "Duyệt qua tất cả các nhà cung cấp...",
+    "connectAgent": "hoặc kết nối đại lý",
+    "acpTitle": "Thiết lập đại lý ACP",
+    "acpDescription": "Claude Code, Codex, Kimi hoặc của riêng bạn",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "tìm kiếm sâu",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "Bộ định tuyến mở"
+    },
+    "importProviders": "Nhập từ đại lý khác"
+  },
+  "agentPage": {
+    "title": "Chọn Agent để bắt đầu tạo",
+    "deepchatType": "DeepChat Agent",
+    "acpType": "ACP Agent",
+    "manageAgents": "Quản lý DeepChat Agent"
+  }
+}

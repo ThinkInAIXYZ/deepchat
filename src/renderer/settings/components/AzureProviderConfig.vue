@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col items-start gap-2">
-    <Label :for="`${provider.id}-azure-api-version`" class="flex-1 cursor-pointer">{{
+    <Label :for="`${provider.id}-azure-api-version`" class="flex-1">{{
       t('settings.provider.azureApiVersion', 'API Version')
     }}</Label>
     <Input

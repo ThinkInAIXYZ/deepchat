@@ -43,6 +43,7 @@
   "noFiles": "Nenhum arquivo",
   "noFilesUploadDesc": "Clique acima para enviar arquivos",
   "uploadSuccess": "Envio bem-sucedido",
+  "uploadFailed": "Falha no envio",
   "uploadedCount": "Enviados {count} arquivos",
   "confirmDelete": "Tem certeza que deseja excluir o prompt \"{name}\"?",
   "confirmDeleteDescription": "Esta ação não pode ser desfeita. O prompt será excluído permanentemente.",

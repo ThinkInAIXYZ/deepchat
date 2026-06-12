@@ -1,0 +1,89 @@
+{
+  "cancel": "Annulla",
+  "confirm": "Conferma",
+  "close": "Chiudi",
+  "ok": "OK",
+  "delete": {
+    "title": "Vuoi davvero eliminare questa conversazione?",
+    "description": "Questa operazione non può essere annullata. Procedi con cautela.",
+    "confirm": "Elimina"
+  },
+  "rename": {
+    "title": "Rinomina conversazione",
+    "description": "Inserisci il nuovo nome della conversazione."
+  },
+  "cleanMessages": {
+    "title": "Cancella messaggi della conversazione",
+    "description": "La cancellazione rimuoverà tutti i messaggi e i file della conversazione. Vuoi continuare?",
+    "confirm": "Cancella"
+  },
+  "fork": {
+    "title": "Crea ramo della conversazione",
+    "description": "I messaggi dal primo a quello selezionato verranno copiati in una nuova conversazione, dove potrai continuare il dialogo.",
+    "confirm": "Crea ramo",
+    "tag": "Ramo"
+  },
+  "error": {
+    "title": "Errore"
+  },
+  "mutualExclusive": {
+    "title": {
+      "reasoning": "Conferma attivazione reasoning",
+      "functionCall": "Conferma attivazione chiamata funzione"
+    },
+    "message": {
+      "reasoning": "L'attivazione del reasoning disattiverà automaticamente la chiamata funzione. È una limitazione dei modelli DeepSeek-V3.1: le due funzioni non possono essere usate insieme. Continuare?",
+      "functionCall": "L'attivazione della chiamata funzione disattiverà automaticamente il reasoning. È una limitazione dei modelli DeepSeek-V3.1: le due funzioni non possono essere usate insieme. Continuare?"
+    },
+    "warningText": {
+      "reasoning": "Nota: l'attivazione del reasoning disattiverà automaticamente la chiamata funzione, come richiesto dai modelli DeepSeek-V3.1.",
+      "functionCall": "Nota: l'attivazione della chiamata funzione disattiverà automaticamente il reasoning, come richiesto dai modelli DeepSeek-V3.1."
+    },
+    "confirmEnable": "Conferma attivazione"
+  },
+  "agentTransfer": {
+    "deleteTitle": "Eliminare {name}?",
+    "deleteDescription": "Scegli cosa fare delle conversazioni attualmente associate a questo agente.",
+    "moveTitle": "Sposta conversazione",
+    "moveDescription": "Sposta questa conversazione completata a un altro agente senza modificarne i messaggi.",
+    "loading": "Controllo delle conversazioni correlate...",
+    "processing": "Elaborazione...",
+    "totalSessions": "Correlate",
+    "movableSessions": "Spostabili",
+    "emptyDrafts": "Bozze vuote",
+    "blockedSessions": "Bloccate",
+    "moveBeforeDeleteTitle": "Sposta conversazioni a un altro agente",
+    "moveBeforeDeleteDescription": "Le conversazioni completate mantengono i messaggi e useranno l’agente di destinazione per i turni futuri. Le bozze vuote verranno rimosse.",
+    "deleteSessionsTitle": "Elimina conversazioni con questo agente",
+    "deleteSessionsDescription": "Tutte le conversazioni e i messaggi correlati verranno eliminati insieme all’agente.",
+    "targetAgent": "Agente di destinazione",
+    "selectTarget": "Seleziona un agente",
+    "acpWorkdir": "Directory di lavoro ACP",
+    "acpWorkdirPlaceholder": "Lascia vuoto per mantenere il progetto di ogni conversazione",
+    "acpWorkdirHint": "Gli agenti ACP richiedono una directory di lavoro. Se una conversazione non ha un progetto, indicane uno qui.",
+    "currentAgent": "Agente corrente: {name}",
+    "relatedSessions": "Conversazioni correlate",
+    "blockedWarning": "Alcune conversazioni sono ancora in esecuzione o hanno input in coda. Completale prima di spostare o eliminare questo agente.",
+    "agentDeleteBlocked": "L’agente ha ancora conversazioni correlate. Spostale o eliminale prima.",
+    "deleteAgentAndSessions": "Elimina agente e conversazioni",
+    "moveAndDeleteAgent": "Sposta ed elimina agente",
+    "moveConversation": "Sposta conversazione",
+    "agentType": {
+      "deepchat": "DeepChat",
+      "acp": "ACP"
+    },
+    "blockReason": {
+      "active": "In esecuzione",
+      "pending-input": "In coda",
+      "missing-target-workdir": "Serve directory di lavoro",
+      "missing-session": "Mancante",
+      "same-agent": "Stesso agente"
+    },
+    "sampleState": {
+      "ready": "Pronta",
+      "draft": "Bozza",
+      "subagent": "Sottoagente"
+    },
+    "deepChatTargetOnly": "Solo gli agenti DeepChat possono essere selezionati come destinazioni di spostamento. Le conversazioni ACP possono essere spostate in DeepChat, ma non in ACP."
+  }
+}

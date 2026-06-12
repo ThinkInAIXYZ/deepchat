@@ -1,0 +1,17 @@
+{
+  "title": "Yêu cầu xem trước",
+  "provider": "nhà cung cấp",
+  "model": "người mẫu",
+  "endpoint": "Điểm cuối API",
+  "headers": "Tiêu đề",
+  "body": "Nội dung yêu cầu",
+  "copyJson": "Sao chép JSON",
+  "copySuccess": "Đã sao chép vào bảng nhớ tạm",
+  "close": "Đóng",
+  "loading": "Đang tải...",
+  "error": "Không tải được",
+  "errorDesc": "Không thể tìm nạp bản xem trước yêu cầu, vui lòng thử lại",
+  "notImplemented": "Không được hỗ trợ",
+  "notImplementedDesc": "Nhà cung cấp này chưa triển khai bản xem trước yêu cầu",
+  "mayNotMatch": "Lưu ý: Bản xem trước này được xây dựng lại từ cài đặt cuộc trò chuyện hiện tại và có thể không khớp chính xác với các tham số yêu cầu thực tế"
+}

@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 import { ILifecycleManager } from '@shared/presenter'
 import * as hooks from './hooks'
 
@@ -6,7 +7,7 @@ import * as hooks from './hooks'
  * This function should be called during lifecycle manager initialization
  */
 export function registerCoreHooks(lifecycleManager: ILifecycleManager): void {
-  console.log('Registering core application lifecycle hooks')
+  logger.info('Registering core application lifecycle hooks')
   Object.keys(hooks).forEach((key) => {
     lifecycleManager.registerHook(hooks[key])
   })

@@ -110,27 +110,27 @@
 
                 <div class="flex flex-wrap gap-2">
                   <Button
-                    v-for="tool in group.tools"
-                    :key="tool.function.name"
+                    v-for="item in group.items"
+                    :key="item.id"
                     variant="outline"
                     size="sm"
                     class="h-7 rounded-md px-2.5 text-xs shadow-none transition-colors"
                     :class="
-                      isToolEnabled(tool.function.name)
+                      isGroupItemEnabled(item)
                         ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                         : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
                     "
-                    :disabled="isToolPending(tool.function.name)"
-                    @click="toggleAgentTool(tool.function.name)"
+                    :disabled="isGroupItemPending(item)"
+                    @click="toggleGroupItem(item)"
                   >
-                    {{ tool.function.name }}
+                    {{ item.label }}
                   </Button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="px-3 py-3">
+          <div :class="enabledPluginServers.length > 0 ? 'border-b px-3 py-3' : 'px-3 py-3'">
             <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {{ t('chat.input.tools.mcpSection') }}
             </div>
@@ -158,6 +158,33 @@
               </div>
             </div>
           </div>
+
+          <div v-if="enabledPluginServers.length > 0" class="px-3 py-3">
+            <div class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ t('chat.input.tools.pluginSection') }}
+            </div>
+
+            <div class="space-y-1">
+              <div
+                v-for="server in enabledPluginServers"
+                :key="server.name"
+                class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+              >
+                <Icon
+                  v-if="server.icons === 'plugin'"
+                  icon="lucide:puzzle"
+                  class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                />
+                <span v-else class="shrink-0">{{ server.icons }}</span>
+                <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
+                  {{ getPluginServerLabel(server) }}
+                </span>
+                <span class="shrink-0 text-muted-foreground">
+                  {{ getPluginServerToolsCount(server.name) }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
 
@@ -180,23 +207,60 @@
           </div>
         </div>
 
-        <div v-if="enabledServers.length === 0" class="px-3 py-4 text-xs text-muted-foreground">
+        <div
+          v-if="enabledServers.length === 0 && enabledPluginServers.length === 0"
+          class="px-3 py-4 text-xs text-muted-foreground"
+        >
           {{ t('chat.input.mcp.empty') }}
         </div>
 
-        <div v-else class="max-h-64 space-y-1 overflow-y-auto px-2 py-2">
-          <div
-            v-for="server in enabledServers"
-            :key="server.name"
-            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
-          >
-            <span class="shrink-0">{{ server.icons }}</span>
-            <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
-              {{ getServerLabel(server.name) }}
-            </span>
-            <span class="shrink-0 text-muted-foreground">
-              {{ getServerToolsCount(server.name) }}
-            </span>
+        <div v-else class="max-h-64 space-y-3 overflow-y-auto px-2 py-2">
+          <div v-if="enabledServers.length > 0" class="space-y-1">
+            <div
+              v-if="enabledPluginServers.length > 0"
+              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              {{ t('chat.input.tools.mcpSection') }}
+            </div>
+            <div
+              v-for="server in enabledServers"
+              :key="server.name"
+              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+            >
+              <span class="shrink-0">{{ server.icons }}</span>
+              <span class="min-w-0 flex-1 truncate" :title="getServerLabel(server.name)">
+                {{ getServerLabel(server.name) }}
+              </span>
+              <span class="shrink-0 text-muted-foreground">
+                {{ getServerToolsCount(server.name) }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="enabledPluginServers.length > 0" class="space-y-1">
+            <div
+              class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              {{ t('chat.input.tools.pluginSection') }}
+            </div>
+            <div
+              v-for="server in enabledPluginServers"
+              :key="server.name"
+              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+            >
+              <Icon
+                v-if="server.icons === 'plugin'"
+                icon="lucide:puzzle"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+              <span v-else class="shrink-0">{{ server.icons }}</span>
+              <span class="min-w-0 flex-1 truncate" :title="getPluginServerLabel(server)">
+                {{ getPluginServerLabel(server) }}
+              </span>
+              <span class="shrink-0 text-muted-foreground">
+                {{ getPluginServerToolsCount(server.name) }}
+              </span>
+            </div>
           </div>
         </div>
       </template>
@@ -205,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -218,19 +282,34 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { createSettingsClient } from '@api/SettingsClient'
+import { createSessionClient } from '@api/SessionClient'
+import { createSkillClient } from '@api/SkillClient'
+import { createToolClient } from '@api/ToolClient'
 import type { MCPToolDefinition } from '@shared/presenter'
-import { SETTINGS_EVENTS } from '@/events'
-import { usePresenter } from '@/composables/usePresenter'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 
+type ToolGroupItem =
+  | {
+      kind: 'tool'
+      id: string
+      label: string
+      toolName: string
+    }
+  | {
+      kind: 'subagent'
+      id: 'subagent'
+      label: string
+    }
+
 type ToolGroup = {
   name: string
   label: string
-  tools: MCPToolDefinition[]
+  items: ToolGroupItem[]
 }
 
 type SystemPromptMenuOption = {
@@ -253,18 +332,25 @@ const props = withDefaults(
     systemPromptOptions?: SystemPromptMenuOption[]
     selectedSystemPromptId?: string
     showCustomSystemPromptBadge?: boolean
+    showSubagentToggle?: boolean
+    subagentEnabled?: boolean
+    subagentTogglePending?: boolean
   }>(),
   {
     showSystemPromptSection: false,
     systemPromptOptions: () => [],
     selectedSystemPromptId: 'empty',
-    showCustomSystemPromptBadge: false
+    showCustomSystemPromptBadge: false,
+    showSubagentToggle: false,
+    subagentEnabled: false,
+    subagentTogglePending: false
   }
 )
 
 const emit = defineEmits<{
   (e: 'select-system-prompt', optionId: string): void
   (e: 'open-change', open: boolean): void
+  (e: 'toggle-subagents', enabled: boolean): void
 }>()
 
 const { t } = useI18n()
@@ -273,9 +359,10 @@ const sessionStore = useSessionStore()
 const draftStore = useDraftStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
-const windowPresenter = usePresenter('windowPresenter')
-const toolPresenter = usePresenter('toolPresenter')
-const newAgentPresenter = usePresenter('newAgentPresenter')
+const settingsClient = createSettingsClient()
+const toolClient = createToolClient()
+const sessionClient = createSessionClient()
+const skillClient = createSkillClient()
 
 const panelOpen = ref(false)
 const toolsLoading = ref(false)
@@ -283,8 +370,10 @@ const agentTools = ref<MCPToolDefinition[]>([])
 const disabledToolNames = ref<string[]>([])
 const pendingToolNames = ref<string[]>([])
 let latestLoadToken = 0
+let unsubscribeSkillSessionChanged: (() => void) | null = null
 
 const enabledServers = computed(() => mcpStore.enabledServers)
+const enabledPluginServers = computed(() => mcpStore.enabledPluginServers)
 const enabledServerCount = computed(() => mcpStore.enabledServerCount)
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const resolveAgentType = (agentId: string | null | undefined): 'deepchat' | 'acp' => {
@@ -381,19 +470,34 @@ const getGroupLabel = (serverName: string) => {
 }
 
 const groupedAgentTools = computed<ToolGroup[]>(() => {
-  const groups = new Map<string, MCPToolDefinition[]>()
+  const groups = new Map<string, ToolGroupItem[]>()
 
   for (const tool of agentTools.value) {
     const existing = groups.get(tool.server.name) ?? []
-    existing.push(tool)
+    existing.push({
+      kind: 'tool',
+      id: tool.function.name,
+      label: tool.function.name,
+      toolName: tool.function.name
+    })
     groups.set(tool.server.name, existing)
   }
 
+  if (props.showSubagentToggle) {
+    const existing = groups.get('agent-core') ?? []
+    existing.push({
+      kind: 'subagent',
+      id: 'subagent',
+      label: t('chat.subagents.label')
+    })
+    groups.set('agent-core', existing)
+  }
+
   return Array.from(groups.entries())
-    .map(([name, tools]) => ({
+    .map(([name, items]) => ({
       name,
       label: getGroupLabel(name),
-      tools: [...tools].sort((left, right) => left.function.name.localeCompare(right.function.name))
+      items: [...items].sort((left, right) => left.label.localeCompare(right.label))
     }))
     .sort((left, right) => {
       const leftIndex = GROUP_ORDER.indexOf(left.name)
@@ -414,18 +518,29 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
 
 const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
 const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)
-const getGroupToolNames = (group: ToolGroup) => group.tools.map((tool) => tool.function.name)
-const isGroupEnabled = (group: ToolGroup) =>
-  getGroupToolNames(group).some((toolName) => isToolEnabled(toolName))
-const isGroupPending = (group: ToolGroup) =>
-  getGroupToolNames(group).some((toolName) => isToolPending(toolName))
+const isGroupItemEnabled = (item: ToolGroupItem) =>
+  item.kind === 'subagent' ? props.subagentEnabled : isToolEnabled(item.toolName)
+const isGroupItemPending = (item: ToolGroupItem) =>
+  item.kind === 'subagent' ? props.subagentTogglePending : isToolPending(item.toolName)
+const getGroupToolNames = (group: ToolGroup) =>
+  group.items.flatMap((item) => (item.kind === 'tool' ? [item.toolName] : []))
+const isGroupEnabled = (group: ToolGroup) => group.items.some((item) => isGroupItemEnabled(item))
+const isGroupPending = (group: ToolGroup) => group.items.some((item) => isGroupItemPending(item))
 
 const getServerLabel = (serverName: string) => {
   return t(`mcp.inmemory.${serverName}.name`, serverName)
 }
 
 const getServerToolsCount = (serverName: string) => {
-  return mcpStore.tools.filter((tool) => tool.server.name === serverName).length
+  return mcpStore.visibleTools.filter((tool) => tool.server.name === serverName).length
+}
+
+const getPluginServerLabel = (server: { name: string; descriptions?: string }) => {
+  return server.descriptions || getServerLabel(server.name)
+}
+
+const getPluginServerToolsCount = (serverName: string) => {
+  return mcpStore.pluginTools.filter((tool) => tool.server.name === serverName).length
 }
 
 const setToolsPending = (toolNames: string[], pending: boolean) => {
@@ -459,13 +574,13 @@ const loadDeepchatTools = async () => {
 
   try {
     const [toolDefinitions, persistedDisabledTools] = await Promise.all([
-      toolPresenter.getAllToolDefinitions({
+      toolClient.getAllToolDefinitions({
         chatMode: 'agent',
         conversationId: deepchatSessionId.value ?? undefined,
         agentWorkspacePath: workspacePath.value
       }),
       deepchatSessionId.value
-        ? newAgentPresenter.getSessionDisabledAgentTools(deepchatSessionId.value)
+        ? sessionClient.getSessionDisabledAgentTools(deepchatSessionId.value)
         : Promise.resolve([...draftStore.disabledAgentTools])
     ])
 
@@ -493,17 +608,8 @@ const loadDeepchatTools = async () => {
   }
 }
 
-const navigateToMcpSettings = (windowId: number) => {
-  windowPresenter.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
-    routeName: 'settings-mcp'
-  })
-}
-
 const openSettings = async () => {
-  const settingsWindowId = await windowPresenter.createSettingsWindow()
-  if (settingsWindowId != null) {
-    navigateToMcpSettings(settingsWindowId)
-  }
+  await settingsClient.openSettings({ routeName: 'settings-mcp' })
   panelOpen.value = false
 }
 
@@ -516,7 +622,7 @@ const persistDisabledTools = async (nextList: string[], affectedToolNames: strin
 
   setToolsPending(affectedToolNames, true)
   try {
-    const persisted = await newAgentPresenter.updateSessionDisabledAgentTools(
+    const persisted = await sessionClient.updateSessionDisabledAgentTools(
       deepchatSessionId.value,
       nextList
     )
@@ -544,6 +650,19 @@ const toggleAgentTool = async (toolName: string) => {
   await persistDisabledTools(nextList, [toolName])
 }
 
+const toggleGroupItem = async (item: ToolGroupItem) => {
+  if (item.kind === 'subagent') {
+    if (!isDeepchatContext.value || props.subagentTogglePending) {
+      return
+    }
+
+    emit('toggle-subagents', !props.subagentEnabled)
+    return
+  }
+
+  await toggleAgentTool(item.toolName)
+}
+
 const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   if (!isDeepchatContext.value || isGroupPending(group)) {
     return
@@ -561,11 +680,37 @@ const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
   }
 
   const nextList = Array.from(nextDisabledTools).sort((left, right) => left.localeCompare(right))
-  if (nextList.join('\n') === disabledToolNames.value.join('\n')) {
+  const shouldUpdateTools = nextList.join('\n') !== disabledToolNames.value.join('\n')
+  const shouldUpdateSubagents =
+    group.items.some((item) => item.kind === 'subagent') && props.subagentEnabled !== enabled
+
+  if (!shouldUpdateTools && !shouldUpdateSubagents) {
     return
   }
 
-  await persistDisabledTools(nextList, groupToolNames)
+  if (shouldUpdateTools) {
+    await persistDisabledTools(nextList, groupToolNames)
+  }
+
+  if (shouldUpdateSubagents) {
+    emit('toggle-subagents', enabled)
+  }
+}
+
+const handleSkillRuntimeChange = (payload: {
+  conversationId?: string | null
+  skills?: string[]
+  change: 'activated' | 'deactivated'
+}) => {
+  if (!isDeepchatContext.value || !deepchatSessionId.value) {
+    return
+  }
+
+  if (payload?.conversationId !== deepchatSessionId.value) {
+    return
+  }
+
+  void loadDeepchatTools()
 }
 
 watch(
@@ -593,4 +738,13 @@ watch(
     }
   }
 )
+
+onMounted(() => {
+  unsubscribeSkillSessionChanged = skillClient.onSessionChanged(handleSkillRuntimeChange)
+})
+
+onUnmounted(() => {
+  unsubscribeSkillSessionChanged?.()
+  unsubscribeSkillSessionChanged = null
+})
 </script>

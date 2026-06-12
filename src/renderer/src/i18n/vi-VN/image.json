@@ -1,0 +1,9 @@
+{
+  "loadError": "Không tải được hình ảnh",
+  "loading": "Đang tải hình ảnh...",
+  "preview": "Xem trước hình ảnh",
+  "save": "Lưu hình ảnh",
+  "saveAs": "Lưu hình ảnh dưới dạng...",
+  "saveSuccess": "Đã lưu hình ảnh",
+  "saveFailed": "Không lưu được hình ảnh"
+}

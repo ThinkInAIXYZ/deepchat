@@ -61,7 +61,7 @@
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/60'
             "
-            :disabled="!processReady"
+            :disabled="!processReady && method.value !== 'initialize'"
             @click="selectMethod(method.value)"
           >
             <div class="text-sm font-medium leading-tight">{{ method.label }}</div>
@@ -191,7 +191,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import type { AcpDebugEventEntry, AcpDebugRequest } from '@shared/presenter'
-import { usePresenter, getWebContentsId } from '@/composables/usePresenter'
+import { getLegacyWebContentsId, useLegacyPresenter } from '@api/legacy/presenters'
 import { ACP_DEBUG_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { nanoid } from 'nanoid'
@@ -210,9 +210,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const llmProviderPresenter = usePresenter('llmproviderPresenter')
-const configPresenter = usePresenter('configPresenter')
-const devicePresenter = usePresenter('devicePresenter')
+const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter')
+const configPresenter = useLegacyPresenter('configPresenter')
+const devicePresenter = useLegacyPresenter('devicePresenter')
 const uiSettingsStore = useUiSettingsStore()
 
 const selectedMethod = ref<AcpDebugRequest['action']>('newSession')
@@ -222,7 +222,7 @@ const customMethod = ref('')
 const loading = ref(false)
 const events = ref<AcpDebugEventEntry[]>([])
 const seenIds = new Set<string>()
-const webContentsId = getWebContentsId()
+const webContentsId = getLegacyWebContentsId()
 const debugSessionId = ref(createDebugSessionId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)
@@ -249,12 +249,36 @@ function createDebugSessionId() {
 
 const methodOptions = computed(() => [
   {
+    value: 'initialize' as const,
+    label: t('settings.acp.debug.methods.initialize')
+  },
+  {
+    value: 'authenticate' as const,
+    label: t('settings.acp.debug.methods.authenticate')
+  },
+  {
     value: 'newSession' as const,
     label: t('settings.acp.debug.methods.newSession')
   },
   {
     value: 'loadSession' as const,
     label: t('settings.acp.debug.methods.loadSession')
+  },
+  {
+    value: 'sessionList' as const,
+    label: t('settings.acp.debug.methods.sessionList')
+  },
+  {
+    value: 'sessionResume' as const,
+    label: t('settings.acp.debug.methods.sessionResume')
+  },
+  {
+    value: 'sessionClose' as const,
+    label: t('settings.acp.debug.methods.sessionClose')
+  },
+  {
+    value: 'sessionFork' as const,
+    label: t('settings.acp.debug.methods.sessionFork')
   },
   {
     value: 'prompt' as const,
@@ -283,9 +307,16 @@ const methodOptions = computed(() => [
 ])
 
 const requiresSession = computed(() =>
-  ['prompt', 'cancel', 'setSessionMode', 'setSessionModel', 'loadSession'].includes(
-    selectedMethod.value
-  )
+  [
+    'prompt',
+    'cancel',
+    'setSessionMode',
+    'setSessionModel',
+    'loadSession',
+    'sessionResume',
+    'sessionClose',
+    'sessionFork'
+  ].includes(selectedMethod.value)
 )
 
 const requiresCustomMethod = computed(() =>
@@ -329,21 +360,40 @@ const formatPayload = () => {
 const templateForMethod = (method: AcpDebugRequest['action']) => {
   switch (method) {
     case 'initialize':
-      return {
-        protocolVersion: 1.0,
-        clientCapabilities: {
-          fs: { readTextFile: true, writeTextFile: true },
-          terminal: true
-        },
-        clientInfo: { name: 'DeepChat', version: 'debug' }
-      }
+      return {}
+    case 'authenticate':
+      return { methodId: '' }
     case 'newSession':
       return {
-        cwd: workdirPath.value || undefined,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
         mcpServers: []
       }
     case 'loadSession':
-      return { sessionId: debugSessionId.value, cwd: workdirPath.value || undefined }
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {})
+      }
+    case 'sessionList':
+      return {
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        sync: true
+      }
+    case 'sessionResume':
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        mcpServers: []
+      }
+    case 'sessionClose':
+      return {
+        sessionId: debugSessionId.value
+      }
+    case 'sessionFork':
+      return {
+        sessionId: debugSessionId.value,
+        ...(workdirPath.value ? { cwd: workdirPath.value } : {}),
+        mcpServers: []
+      }
     case 'prompt':
       return {
         prompt: [{ type: 'text', text: 'ping' }]
@@ -373,7 +423,11 @@ const resetPayload = () => {
 const applyWorkdirToPayload = (
   payload: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined => {
-  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) {
+  if (
+    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(
+      selectedMethod.value
+    )
+  ) {
     return payload
   }
   const base = payload ?? {}
@@ -384,7 +438,12 @@ const applyWorkdirToPayload = (
 }
 
 const syncWorkdirIntoPayload = () => {
-  if (!['newSession', 'loadSession'].includes(selectedMethod.value)) return
+  if (
+    !['newSession', 'loadSession', 'sessionList', 'sessionResume', 'sessionFork'].includes(
+      selectedMethod.value
+    )
+  )
+    return
   if (!payloadText.value.trim()) return
   try {
     const parsed = JSON.parse(payloadText.value) ?? {}
@@ -422,6 +481,8 @@ const eventLabel = (kind: AcpDebugEventEntry['kind']) => {
 
 const eventTone = (kind: AcpDebugEventEntry['kind']) => {
   if (kind === 'request') return 'bg-primary/5 border-primary/30'
+  if (kind === 'lifecycle') return 'bg-sky-50 dark:bg-sky-950/30 border-sky-200/60'
+  if (kind === 'stderr') return 'bg-amber-50 dark:bg-amber-950/30 border-amber-200/60'
   if (kind === 'response') {
     return 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-700/40'
   }
@@ -449,6 +510,9 @@ const parsePayload = () => {
   if (!payloadText.value.trim()) return undefined
   return JSON.parse(payloadText.value)
 }
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const handleSend = async () => {
   let parsedPayload: Record<string, unknown> | undefined
@@ -479,7 +543,16 @@ const handleSend = async () => {
     return
   }
 
-  const sessionId = requiresSession.value ? debugSessionId.value : undefined
+  const payloadSessionId =
+    isPlainObject(parsedPayload) &&
+    typeof parsedPayload.sessionId === 'string' &&
+    parsedPayload.sessionId.trim()
+      ? parsedPayload.sessionId.trim()
+      : undefined
+  const fallbackSessionId = requiresSession.value
+    ? debugSessionId.value.trim() || undefined
+    : undefined
+  const sessionId = payloadSessionId ?? fallbackSessionId
   const payloadToSend = applyWorkdirToPayload(parsedPayload)
 
   loading.value = true
@@ -500,7 +573,7 @@ const handleSend = async () => {
     if (result?.sessionId) {
       debugSessionId.value = result.sessionId
     }
-    if (selectedMethod.value === 'initialize' && result?.status === 'ok') {
+    if (result?.status === 'ok') {
       processReady.value = true
     }
     if (result && result.status === 'error' && result.error) {

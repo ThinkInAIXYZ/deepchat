@@ -15,5 +15,13 @@
     "test/**",
     "src/shared/**",
     "src/shadcn/**"
+  ],
+  "overrides": [
+    {
+      "files": ["src/main/**/*.ts"],
+      "rules": {
+        "no-console": ["error", { "allow": ["warn", "error", "info", "debug", "trace"] }]
+      }
+    }
   ]
 }

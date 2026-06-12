@@ -2,12 +2,14 @@
   "actions": {
     "rename": "Переименовать",
     "delete": "Удалить",
+    "switchWithShortcut": "Переключиться на этот чат с помощью {shortcut}",
     "cleanMessages": "Очистить сообщения",
     "pin": "Закрепить",
     "unpin": "Открепить",
     "export": "Экспорт",
     "exportText": "Простой текст",
-    "exportNowledgeMem": "Nowledge-mem"
+    "exportNowledgeMem": "Nowledge-mem",
+    "moveConversation": "Переместить беседу"
   },
   "toolbar": {
     "save": "Сохранить",

@@ -12,7 +12,10 @@ export type {
   LLM_PROVIDER,
   LLM_PROVIDER_BASE,
   MODEL_META,
+  RateLimitQueueSnapshot,
   RENDERER_MODEL_META,
+  StandaloneImageGenerationResult,
+  StandaloneVideoGenerationResult,
   LLM_EMBEDDING_ATTRS,
   KeyStatus,
   AwsBedrockCredential,
@@ -73,6 +76,8 @@ export type {
   WorkspaceInvalidationKind,
   WorkspaceInvalidationSource,
   WorkspaceInvalidationEvent,
+  ResolveMarkdownLinkedFileInput,
+  WorkspaceLinkedFileResolution,
   IWorkspacePresenter
 } from './workspace'
 
@@ -80,27 +85,51 @@ export type {
 export type { IToolPresenter } from './tool.presenter'
 
 // New agent architecture types
-export type { INewAgentPresenter } from './new-agent.presenter'
+export type {
+  IAgentSessionPresenter,
+  HistorySearchHit,
+  HistorySearchMessageHit,
+  HistorySearchOptions,
+  HistorySearchSessionHit
+} from './agent-session.presenter'
 export type { IProjectPresenter } from './project.presenter'
 export type {
+  ChannelSettingsMap,
+  DiscordPairingSnapshot,
+  DiscordRemoteBindingSummary,
+  DiscordRemoteSettings,
+  DiscordRemoteStatus,
   FeishuPairingSnapshot,
+  FeishuBrand,
   FeishuRemoteBindingSummary,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
   IRemoteControlPresenter,
+  PairableRemoteChannel,
+  QQBotPairingSnapshot,
+  QQBotRemoteBindingSummary,
+  QQBotRemoteSettings,
+  QQBotRemoteStatus,
   RemoteBindingKind,
   RemoteBindingSummary,
   RemoteChannel,
+  RemoteChannelDescriptor,
+  RemoteChannelId,
   RemoteChannelSettings,
   RemoteChannelStatus,
   RemotePairingSnapshot,
   RemoteRuntimeState,
-  TelegramHookSettings,
   TelegramPairingSnapshot,
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus,
-  TelegramStreamMode
+  TelegramStreamMode,
+  WeixinIlinkAccountStatus,
+  WeixinIlinkAccountSummary,
+  WeixinIlinkLoginResult,
+  WeixinIlinkLoginSession,
+  WeixinIlinkRemoteSettings,
+  WeixinIlinkRemoteStatus
 } from './remote-control.presenter'
 
 // Re-export legacy types temporarily for compatibility

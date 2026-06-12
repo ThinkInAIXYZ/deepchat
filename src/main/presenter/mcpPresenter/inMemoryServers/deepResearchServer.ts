@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 // src/main/presenter/mcpPresenter/inMemoryServers/deepResearchServer.ts
 // 主要代码参考自 https://github.com/pinkpixel-dev/deep-research-mcp
 // 已替换搜索引擎为 Bocha，重写页面内容提取逻辑。
@@ -169,10 +170,11 @@ export class DeepResearchServer {
 
   constructor(env?: Record<string, unknown>) {
     // 检查 Bocha API 密钥是否已提供
-    if (!env?.BOCHA_API_KEY) {
+    const bochaApiKey = String(env?.BOCHA_API_KEY ?? '')
+    if (!bochaApiKey) {
       throw new Error('需要 BOCHA_API_KEY')
     }
-    this.bochaApiKey = env.BOCHA_API_KEY as string
+    this.bochaApiKey = bochaApiKey
 
     this.server = new Server(
       {
@@ -218,7 +220,7 @@ export class DeepResearchServer {
 
     expiredSessions.forEach((sessionId) => {
       this.researchSessions.delete(sessionId)
-      console.log(`已清理过期研究会话: ${sessionId}`)
+      logger.info(`已清理过期研究会话: ${sessionId}`)
     })
 
     // 如果会话数超限，清理最早访问的会话
@@ -230,7 +232,7 @@ export class DeepResearchServer {
       const toRemove = sortedSessions.slice(0, this.researchSessions.size - this.MAX_SESSIONS)
       toRemove.forEach(([sessionId]) => {
         this.researchSessions.delete(sessionId)
-        console.log(`因超限已清理旧研究会话: ${sessionId}`)
+        logger.info(`因超限已清理旧研究会话: ${sessionId}`)
       })
     }
   }
@@ -269,7 +271,7 @@ export class DeepResearchServer {
   private cleanupSession(sessionId: string): void {
     const removed = this.researchSessions.delete(sessionId)
     if (removed) {
-      console.log(`研究会话已清理: ${sessionId}`)
+      logger.info(`研究会话已清理: ${sessionId}`)
     }
   }
 
@@ -653,7 +655,7 @@ export class DeepResearchServer {
       this.cleanupTimer = null
     }
     this.researchSessions.clear() // 清理所有会话
-    console.log('DeepResearchServer 已销毁，所有会话已清理')
+    logger.info('DeepResearchServer 已销毁，所有会话已清理')
   }
 
   // 获取会话统计信息 (用于调试和监控)

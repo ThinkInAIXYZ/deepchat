@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * Tray setup hook for after-start phase
  * Initializes the system tray icon and menu
@@ -13,7 +14,7 @@ export const traySetupHook: LifecycleHook = {
   priority: 10,
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('traySetupHook: Setting up system tray')
+    logger.info('traySetupHook: Setting up system tray')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -23,6 +24,6 @@ export const traySetupHook: LifecycleHook = {
     // Initialize tray icon and menu, store presenter instance
     presenter.setupTray()
 
-    console.log('traySetupHook: System tray set up successfully')
+    logger.info('traySetupHook: System tray set up successfully')
   }
 }

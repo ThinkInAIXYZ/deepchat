@@ -1,3 +1,4 @@
+import logger from '@shared/logger'
 /**
  * built-in knowledge destroy hook
  */
@@ -12,7 +13,7 @@ export const builtinKnowledgeDestroyHook: LifecycleHook = {
   priority: 1, // will block app quit, mush first
   critical: false,
   execute: async (_context: LifecycleContext) => {
-    console.log('builtinKnowledgeDestroyHook: Destroy builtinKnowledge')
+    logger.info('builtinKnowledgeDestroyHook: Destroy builtinKnowledge')
 
     // Ensure presenter is available
     if (!presenter) {
@@ -23,9 +24,9 @@ export const builtinKnowledgeDestroyHook: LifecycleHook = {
     // ask user to confirm if there are still tasks running
     const confirmed = await presenter.knowledgePresenter.beforeDestroy()
     if (confirmed) {
-      console.log('builtinKnowledgeDestroyHook: builtinKnowledge destroyed successfully')
+      logger.info('builtinKnowledgeDestroyHook: builtinKnowledge destroyed successfully')
     } else {
-      console.log('builtinKnowledgeDestroyHook: user canceled close confirm')
+      logger.info('builtinKnowledgeDestroyHook: user canceled close confirm')
     }
     return confirmed
   }

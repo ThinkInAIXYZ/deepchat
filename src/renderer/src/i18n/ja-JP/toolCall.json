@@ -13,6 +13,8 @@
   "response": "ランニング",
   "permission": "許可を求める",
   "responseData": "関数の応答",
+  "imagePreview": "画像プレビュー",
+  "imagePreviewCount": "画像プレビューはありません | {count} 件の画像プレビュー | {count} 件の画像プレビュー",
   "success": "成功",
   "title": "ツール呼び出し",
   "terminalOutput": "端子出力",

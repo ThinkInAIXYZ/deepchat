@@ -1,21 +1,27 @@
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'child_process'
+import { fileURLToPath } from 'url'
 import { promisify } from 'util'
 import { shell } from 'electron'
 import { FSWatcher, watch } from 'chokidar'
 import { eventBus, SendTarget } from '@/eventbus'
 import { WORKSPACE_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
+  createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
+  registerWorkspacePreviewFile,
   registerWorkspacePreviewRoot,
+  unregisterWorkspacePreviewFile,
   unregisterWorkspacePreviewRoot
 } from './workspacePreviewProtocol'
 import type {
   IFilePresenter,
   IWorkspacePresenter,
+  ResolveMarkdownLinkedFileInput,
   WorkspaceFileNode,
   WorkspaceFilePreview,
   WorkspaceFilePreviewKind,
@@ -24,7 +30,8 @@ import type {
   WorkspaceGitState,
   WorkspaceInvalidationEvent,
   WorkspaceInvalidationKind,
-  WorkspaceInvalidationSource
+  WorkspaceInvalidationSource,
+  WorkspaceLinkedFileResolution
 } from '@shared/presenter'
 
 const execFileAsync = promisify(execFile)
@@ -96,6 +103,7 @@ const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
  */
 export class WorkspacePresenter implements IWorkspacePresenter {
   private readonly allowedPaths = new Set<string>()
+  private readonly allowedExactPaths = new Set<string>()
   private readonly filePresenter: IFilePresenter
   private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
 
@@ -174,6 +182,11 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     for (const runtime of runtimes) {
       void this.disposeRuntime(runtime)
     }
+
+    for (const exactPath of this.allowedExactPaths) {
+      unregisterWorkspacePreviewFile(exactPath)
+    }
+    this.allowedExactPaths.clear()
   }
 
   private createContentWatcher(workspacePath: string): FSWatcher {
@@ -272,6 +285,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
   private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
     eventBus.sendToRenderer(WORKSPACE_EVENTS.INVALIDATED, SendTarget.ALL_WINDOWS, payload)
+    publishDeepchatEvent('workspace.invalidated', {
+      ...payload,
+      version: Date.now()
+    })
   }
 
   private async refreshGitWatcher(runtime: WorkspaceWatchRuntime): Promise<void> {
@@ -400,6 +417,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       ? normalizedTarget
       : `${normalizedTarget}${path.sep}`
 
+    if (this.allowedExactPaths.has(normalizedTarget)) {
+      return true
+    }
+
     for (const workspace of this.allowedPaths) {
       const normalizedWorkspace = this.normalizePathForAccess(workspace)
       const workspaceWithSep = normalizedWorkspace.endsWith(path.sep)
@@ -496,11 +517,78 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     filePath: string,
     kind: WorkspaceFilePreviewKind
   ): string | undefined {
-    if (!workspaceRoot || (kind !== 'html' && kind !== 'pdf' && kind !== 'svg')) {
+    if (kind !== 'html' && kind !== 'pdf' && kind !== 'svg') {
       return undefined
     }
 
-    return createWorkspacePreviewUrl(workspaceRoot, filePath) ?? undefined
+    if (workspaceRoot) {
+      return createWorkspacePreviewUrl(workspaceRoot, filePath) ?? undefined
+    }
+
+    return createWorkspacePreviewFileUrl(filePath)
+  }
+
+  private authorizeExactFile(filePath: string): string {
+    const normalizedFilePath = this.normalizePathForAccess(filePath)
+    this.allowedExactPaths.add(normalizedFilePath)
+    registerWorkspacePreviewFile(normalizedFilePath)
+    return normalizedFilePath
+  }
+
+  private stripMarkdownLinkDecorators(href: string): string {
+    const trimmedHref = href.trim()
+    const queryIndex = trimmedHref.indexOf('?')
+    const hashIndex = trimmedHref.indexOf('#')
+    const firstDecoratorIndex = [queryIndex, hashIndex]
+      .filter((index) => index >= 0)
+      .sort((left, right) => left - right)[0]
+
+    if (firstDecoratorIndex == null) {
+      return trimmedHref
+    }
+
+    return trimmedHref.slice(0, firstDecoratorIndex)
+  }
+
+  private isAbsoluteWindowsPath(value: string): boolean {
+    return /^[a-zA-Z]:[\\/]/.test(value)
+  }
+
+  private isAbsoluteMarkdownPath(value: string): boolean {
+    return value.startsWith('/') || this.isAbsoluteWindowsPath(value)
+  }
+
+  private resolveMarkdownLinkedPath(input: ResolveMarkdownLinkedFileInput): string | null {
+    const rawHref = this.stripMarkdownLinkDecorators(input.href)
+    if (!rawHref) {
+      return null
+    }
+
+    if (rawHref.startsWith('file://')) {
+      try {
+        return this.normalizePathForAccess(fileURLToPath(rawHref))
+      } catch {
+        return null
+      }
+    }
+
+    if (this.isAbsoluteMarkdownPath(rawHref)) {
+      return this.normalizePathForAccess(rawHref)
+    }
+
+    const sourceFilePath = input.sourceFilePath?.trim() || null
+    const workspacePath = input.workspacePath?.trim() || null
+    const baseDir = sourceFilePath
+      ? path.dirname(sourceFilePath)
+      : workspacePath
+        ? workspacePath
+        : null
+
+    if (!baseDir) {
+      return null
+    }
+
+    return this.normalizePathForAccess(path.resolve(baseDir, rawHref))
   }
 
   private async runGitCommand(workspacePath: string, args: string[]): Promise<string | null> {
@@ -643,9 +731,50 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
   }
 
+  async resolveMarkdownLinkedFile(
+    input: ResolveMarkdownLinkedFileInput
+  ): Promise<WorkspaceLinkedFileResolution | null> {
+    const resolvedPath = this.resolveMarkdownLinkedPath(input)
+    if (!resolvedPath) {
+      return null
+    }
+
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(resolvedPath)
+    } catch {
+      return null
+    }
+
+    if (!stat.isFile()) {
+      return null
+    }
+
+    const normalizedPath = this.authorizeExactFile(resolvedPath)
+    const workspaceRoot = this.getWorkspaceRootForPath(normalizedPath)
+
+    return {
+      path: normalizedPath,
+      name: path.basename(normalizedPath),
+      relativePath: workspaceRoot
+        ? this.toRelativeWorkspacePath(workspaceRoot, normalizedPath)
+        : normalizedPath,
+      workspaceRoot
+    }
+  }
+
   async readFilePreview(filePath: string): Promise<WorkspaceFilePreview | null> {
     if (!this.isPathAllowed(filePath)) {
       console.warn(`[Workspace] Blocked preview attempt for unauthorized path: ${filePath}`)
+      return null
+    }
+
+    try {
+      const stats = fs.statSync(filePath)
+      if (!stats.isFile()) {
+        return null
+      }
+    } catch {
       return null
     }
 
@@ -655,21 +784,22 @@ export class WorkspacePresenter implements IWorkspacePresenter {
         undefined,
         'origin'
       )
-      const workspaceRoot = this.getWorkspaceRootForPath(filePath)
-      const kind = this.resolvePreviewKind(preparedFile.mimeType, filePath)
+      const normalizedPreparedPath = this.normalizePathForAccess(preparedFile.path)
+      const workspaceRoot = this.getWorkspaceRootForPath(normalizedPreparedPath)
+      const kind = this.resolvePreviewKind(preparedFile.mimeType, normalizedPreparedPath)
 
       return {
-        path: preparedFile.path,
+        path: normalizedPreparedPath,
         relativePath: workspaceRoot
-          ? this.toRelativeWorkspacePath(workspaceRoot, preparedFile.path)
-          : path.basename(preparedFile.path),
+          ? this.toRelativeWorkspacePath(workspaceRoot, normalizedPreparedPath)
+          : normalizedPreparedPath,
         name: preparedFile.name,
         mimeType: preparedFile.mimeType,
         kind,
         content: kind === 'image' ? (preparedFile.thumbnail ?? '') : (preparedFile.content ?? ''),
-        previewUrl: this.resolvePreviewUrl(workspaceRoot, preparedFile.path, kind),
+        previewUrl: this.resolvePreviewUrl(workspaceRoot, normalizedPreparedPath, kind),
         thumbnail: preparedFile.thumbnail,
-        language: this.inferLanguage(filePath, kind),
+        language: this.inferLanguage(normalizedPreparedPath, kind),
         metadata: {
           ...preparedFile.metadata
         }
@@ -759,21 +889,77 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     const fileArgs = relativePath ? ['--', relativePath] : []
 
     try {
+      // `--find-renames` keeps renames as a single rename hunk instead of an
+      // unrelated delete + add pair.
       const [staged, unstaged] = await Promise.all([
-        this.runGitCommand(workspacePath, ['diff', '--cached', ...fileArgs]),
-        this.runGitCommand(workspacePath, ['diff', ...fileArgs])
+        this.runGitCommand(workspacePath, ['diff', '--cached', '--find-renames', ...fileArgs]),
+        this.runGitCommand(workspacePath, ['diff', '--find-renames', ...fileArgs])
       ])
+
+      let resolvedUnstaged = unstaged ?? ''
+
+      // Untracked (newly added) files produce no output from `git diff`, so the
+      // panel would show an empty diff. Synthesize an "added" diff against an
+      // empty tree so the new file's contents are visible. Only do this once we
+      // confirm the file is actually untracked, otherwise `--no-index` would
+      // wrongly render unchanged tracked files as fully added.
+      if (relativePath && !staged && !resolvedUnstaged) {
+        const untracked = await this.runGitCommand(workspacePath, [
+          'ls-files',
+          '--others',
+          '--exclude-standard',
+          '--',
+          relativePath
+        ])
+
+        if (untracked && untracked.trim()) {
+          resolvedUnstaged = await this.runGitDiffNoIndex(workspacePath, relativePath)
+        }
+      }
 
       return {
         workspacePath: repoRoot,
         filePath: filePath ? path.resolve(filePath) : null,
         relativePath,
         staged: staged ?? '',
-        unstaged: unstaged ?? ''
+        unstaged: resolvedUnstaged
       }
     } catch (error) {
       console.warn(`[Workspace] Failed to read git diff for ${workspacePath}`, error)
       return null
+    }
+  }
+
+  // `git diff --no-index` compares an arbitrary file against /dev/null to build
+  // a full "added" diff for untracked files. It intentionally exits with code 1
+  // when the inputs differ, which is the normal success case here, so tolerate
+  // that and return the captured stdout.
+  private async runGitDiffNoIndex(workspacePath: string, relativePath: string): Promise<string> {
+    try {
+      const result = await execFileAsync(
+        'git',
+        ['diff', '--no-index', '--', '/dev/null', relativePath],
+        {
+          cwd: workspacePath,
+          windowsHide: true,
+          maxBuffer: 8 * 1024 * 1024
+        }
+      )
+      return result.stdout.trimEnd()
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: number }).code === 1 &&
+        'stdout' in error &&
+        typeof (error as { stdout?: unknown }).stdout === 'string'
+      ) {
+        return (error as { stdout: string }).stdout.trimEnd()
+      }
+
+      console.warn(`[Workspace] Failed to build untracked diff for ${relativePath}`, error)
+      return ''
     }
   }
 

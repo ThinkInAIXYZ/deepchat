@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/presenter/mcpPresenter/mcpClient'
+import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import path from 'path'
 import fs from 'fs'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+
+const fsExistsSyncMock = vi.hoisted(() => vi.fn())
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -18,8 +23,9 @@ vi.mock('electron', () => ({
 
 // Mock fs module
 vi.mock('fs', () => ({
+  existsSync: fsExistsSyncMock,
   default: {
-    existsSync: vi.fn()
+    existsSync: fsExistsSyncMock
   }
 }))
 
@@ -27,9 +33,13 @@ vi.mock('fs', () => ({
 vi.mock('../../../src/main/eventbus', () => ({
   eventBus: {
     emit: vi.fn(),
+    send: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn()
+  },
+  SendTarget: {
+    ALL_WINDOWS: 'all-windows'
   }
 }))
 
@@ -37,6 +47,7 @@ vi.mock('../../../src/main/eventbus', () => ({
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
   cancelSamplingRequest: vi.fn(),
+  executeWithRateLimit: vi.fn(),
   generateCompletionStandalone: vi.fn(),
   getProviderModels: vi.fn(),
   getCustomModels: vi.fn()
@@ -54,6 +65,7 @@ vi.mock('../../../src/main/presenter', () => ({
       cancelSamplingRequest: presenterMocks.cancelSamplingRequest
     },
     llmproviderPresenter: {
+      executeWithRateLimit: presenterMocks.executeWithRateLimit,
       generateCompletionStandalone: presenterMocks.generateCompletionStandalone
     }
   }
@@ -79,18 +91,25 @@ vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () =
 // Mock MCP SDK modules
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
     callTool: vi.fn(),
     listTools: vi.fn(),
     listPrompts: vi.fn(),
     getPrompt: vi.fn(),
     listResources: vi.fn(),
-    readResource: vi.fn()
+    readResource: vi.fn(),
+    setNotificationHandler: vi.fn(),
+    setRequestHandler: vi.fn()
   }))
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
-  StdioClientTransport: vi.fn()
+  StdioClientTransport: vi.fn().mockImplementation(() => ({
+    stderr: {
+      on: vi.fn()
+    },
+    close: vi.fn()
+  }))
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
@@ -109,24 +128,55 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
+  const runtimeHelper = RuntimeHelper.getInstance() as RuntimeHelper & {
+    runtimesInitialized: boolean
+  }
 
   beforeEach(() => {
     mockFsExistsSync = vi.mocked(fs.existsSync)
     vi.clearAllMocks()
+    mockFsExistsSync.mockReset()
+    mockFsExistsSync.mockReturnValue(false)
+    runtimeHelper.runtimesInitialized = false
+    runtimeHelper.setNodeRuntimePath(null)
+    runtimeHelper.setUvRuntimePath(null)
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
+    vi.mocked(Client).mockImplementation(
+      () =>
+        ({
+          connect: vi.fn().mockResolvedValue(undefined),
+          callTool: vi.fn(),
+          listTools: vi.fn(),
+          listPrompts: vi.fn(),
+          getPrompt: vi.fn(),
+          listResources: vi.fn(),
+          readResource: vi.fn(),
+          setNotificationHandler: vi.fn(),
+          setRequestHandler: vi.fn()
+        }) as any
+    )
+    vi.mocked(StdioClientTransport).mockImplementation(
+      () =>
+        ({
+          stderr: {
+            on: vi.fn()
+          },
+          close: vi.fn()
+        }) as any
+    )
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('NPX to Bun X Command Translation', () => {
-    it('should convert npx command to bun x with correct arguments for everything server', () => {
+  describe('NPX Command Processing', () => {
+    it('should keep npx command arguments unchanged for everything server', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npx',
@@ -141,9 +191,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         '@modelcontextprotocol/server-everything'
       ])
 
-      // Should convert npx to bun and add 'x' as first argument
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      expect(processedCommand.command).toContain('npx')
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
 
     it('should handle npx in command path correctly', () => {
@@ -160,9 +209,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
         '@modelcontextprotocol/server-everything'
       ])
 
-      // Should still convert to bun x regardless of npx path
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['x', '-y', '@modelcontextprotocol/server-everything'])
+      expect(processedCommand.command).toContain('npx')
+      expect(processedCommand.args).toEqual(['-y', '@modelcontextprotocol/server-everything'])
     })
   })
 
@@ -196,7 +244,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const uvRuntimePath = path
         .join('/mock/app/runtime/uv')
         .replace('app.asar', 'app.asar.unpacked')
-      ;(client as any).uvRuntimePath = uvRuntimePath
+      client.uvRuntimePath = uvRuntimePath
 
       const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
 
@@ -206,7 +254,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
           ? path.join(uvRuntimePath, 'uvx.exe')
           : path.join(uvRuntimePath, 'uvx')
 
-      expect(processedCommand.command).toBe(expectedUvxPath)
+      expect(processedCommand.command.replace(/[\\/]+/g, '/')).toBe(
+        expectedUvxPath.replace(/[\\/]+/g, '/')
+      )
       expect(processedCommand.args).toEqual(['osm-mcp-server'])
     })
 
@@ -241,12 +291,11 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('node', ['server.js'])
 
-      // Should replace node with bun
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['server.js']) // No 'x' prefix for node
+      expect(processedCommand.command).toContain('node')
+      expect(processedCommand.args).toEqual(['server.js'])
     })
 
-    it('should handle npm command replacement with bun', () => {
+    it('should keep npm command processing stable', () => {
       const serverConfig = {
         type: 'stdio',
         command: 'npm',
@@ -257,9 +306,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('npm', ['start'])
 
-      // Should replace npm with bun
-      expect(processedCommand.command).toContain('bun')
-      expect(processedCommand.args).toEqual(['start']) // No 'x' prefix for npm
+      expect(processedCommand.command).toContain('npm')
+      expect(processedCommand.args).toEqual(['start'])
     })
 
     it('should handle uv command replacement correctly', () => {
@@ -273,7 +321,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const processedCommand = (client as any).processCommandWithArgs('uv', ['run', 'server.py'])
 
-      // Should replace uv with runtime uv
       expect(processedCommand.command).toContain('uv')
       expect(processedCommand.args).toEqual(['run', 'server.py'])
     })
@@ -304,8 +351,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      // Check if uv runtime path is set
       expect((client as any).uvRuntimePath).toBeTruthy()
+      expect((client as any).nodeRuntimePath).toBeNull()
     })
 
     it('should handle missing runtime files gracefully', () => {
@@ -313,7 +360,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       const client = new McpClient('test', { type: 'stdio' })
 
-      // Should not set runtime paths when files don't exist
       expect((client as any).bunRuntimePath).toBeNull()
       expect((client as any).uvRuntimePath).toBeNull()
     })
@@ -332,6 +378,32 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       // Should handle null registry gracefully
       expect((client as any).npmRegistry).toBeNull()
+    })
+
+    it('should coerce stdio server env values to strings before spawning', async () => {
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        env: {
+          TOKEN: 123,
+          EMPTY: null,
+          SKIP: undefined,
+          PATH: '/custom/bin'
+        }
+      })
+
+      await client.connect()
+
+      const transportCalls = vi.mocked(StdioClientTransport).mock.calls
+      const transportOptions = transportCalls[transportCalls.length - 1][0] as {
+        env: Record<string, string>
+      }
+
+      expect(transportOptions.env.TOKEN).toBe('123')
+      expect(transportOptions.env.EMPTY).toBe('')
+      expect(transportOptions.env).not.toHaveProperty('SKIP')
+      expect(transportOptions.env.PATH).toContain('/custom/bin')
     })
   })
 

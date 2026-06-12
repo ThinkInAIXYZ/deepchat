@@ -1,14 +1,14 @@
 import { computed, ref, watch } from 'vue'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
-import { usePresenter } from '@/composables/usePresenter'
+import { createConfigClient } from '@api/ConfigClient'
 
 const CUSTOM_PROMPTS_CLIENT = 'deepchat/custom-prompts-server'
 
 export function useAgentMcpData() {
   const sessionStore = useSessionStore()
   const mcpStore = useMcpStore()
-  const configPresenter = usePresenter('configPresenter')
+  const configClient = createConfigClient()
   const activeSelections = ref<string[] | null>(null)
   let requestSeq = 0
 
@@ -27,7 +27,7 @@ export function useAgentMcpData() {
       }
 
       try {
-        const selections = await configPresenter.getAgentMcpSelections(agentId)
+        const selections = await configClient.getAgentMcpSelections(agentId)
         if (seq !== requestSeq) return
         activeSelections.value = Array.isArray(selections) ? selections : []
       } catch (error) {
@@ -46,25 +46,27 @@ export function useAgentMcpData() {
   })
 
   const tools = computed(() => {
-    if (!isAcpMode.value) return mcpStore.tools
+    if (!isAcpMode.value) return [...mcpStore.visibleTools, ...mcpStore.pluginTools]
     const set = selectionSet.value
     if (!set) return []
-    return mcpStore.tools.filter((tool) => set.has(tool.server.name))
+    return mcpStore.visibleTools.filter((tool) => set.has(tool.server.name))
   })
 
   const resources = computed(() => {
-    if (!isAcpMode.value) return mcpStore.resources
+    if (!isAcpMode.value) return mcpStore.visibleResources
     const set = selectionSet.value
     if (!set) return []
-    return mcpStore.resources.filter((resource) => set.has(resource.client.name))
+    return mcpStore.visibleResources.filter((resource) => set.has(resource.client.name))
   })
 
   const prompts = computed(() => {
-    if (!isAcpMode.value) return mcpStore.prompts
+    if (!isAcpMode.value) return mcpStore.visiblePrompts
     const set = selectionSet.value
     if (!set)
-      return mcpStore.prompts.filter((prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT)
-    return mcpStore.prompts.filter(
+      return mcpStore.visiblePrompts.filter(
+        (prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT
+      )
+    return mcpStore.visiblePrompts.filter(
       (prompt) => prompt.client?.name === CUSTOM_PROMPTS_CLIENT || set.has(prompt.client?.name)
     )
   })

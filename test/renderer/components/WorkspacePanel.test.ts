@@ -2,7 +2,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkspacePanel from '@/components/sidepanel/WorkspacePanel.vue'
-import { WORKSPACE_EVENTS } from '@/events'
 
 const {
   showArtifactMock,
@@ -21,7 +20,12 @@ const {
   getGitDiffMock,
   expandDirectoryMock,
   openFileMock,
-  revealFileInFolderMock
+  revealFileInFolderMock,
+  selectDirectoryMock,
+  isDirectoryMock,
+  getPathForFileMock,
+  workspaceInvalidationState,
+  setSessionProjectDirMock
 } = vi.hoisted(() => ({
   showArtifactMock: vi.fn(),
   toggleSectionMock: vi.fn(),
@@ -45,7 +49,37 @@ const {
   getGitDiffMock: vi.fn().mockResolvedValue(null),
   expandDirectoryMock: vi.fn().mockResolvedValue([]),
   openFileMock: vi.fn().mockResolvedValue(undefined),
-  revealFileInFolderMock: vi.fn().mockResolvedValue(undefined)
+  revealFileInFolderMock: vi.fn().mockResolvedValue(undefined),
+  selectDirectoryMock: vi.fn().mockResolvedValue(null),
+  isDirectoryMock: vi.fn().mockResolvedValue(true),
+  getPathForFileMock: vi.fn(() => ''),
+  workspaceInvalidationState: {
+    listeners: [] as Array<
+      (payload: {
+        workspacePath: string
+        kind: 'fs' | 'git' | 'full'
+        source: 'watcher' | 'fallback' | 'lifecycle'
+        version: number
+      }) => void
+    >,
+    reset() {
+      this.listeners = []
+    },
+    subscribe(
+      listener: (payload: {
+        workspacePath: string
+        kind: 'fs' | 'git' | 'full'
+        source: 'watcher' | 'fallback' | 'lifecycle'
+        version: number
+      }) => void
+    ) {
+      this.listeners.push(listener)
+      return () => {
+        this.listeners = this.listeners.filter((currentListener) => currentListener !== listener)
+      }
+    }
+  },
+  setSessionProjectDirMock: vi.fn().mockResolvedValue(undefined)
 }))
 
 const sessionState = {
@@ -100,16 +134,21 @@ const messageStore = {
       createdAt: 10,
       updatedAt: 10
     }
-  ]
+  ],
+  getAssistantMessageBlocks: (message: { content: string }) => JSON.parse(message.content)
 }
 
-type IpcHandler = (_event: unknown, payload: unknown) => void
-
-let ipcHandlers: Record<string, IpcHandler[]>
-
-const emitIpc = async (eventName: string, payload: unknown) => {
-  for (const handler of ipcHandlers[eventName] ?? []) {
-    handler({}, payload)
+const emitWorkspaceInvalidated = async (payload: {
+  workspacePath: string
+  kind: 'fs' | 'git' | 'full'
+  source: 'watcher' | 'fallback' | 'lifecycle'
+  version?: number
+}) => {
+  for (const listener of workspaceInvalidationState.listeners) {
+    listener({
+      version: 1,
+      ...payload
+    })
   }
   await flushPromises()
 }
@@ -139,8 +178,8 @@ vi.mock('@/stores/ui/sidepanel', () => ({
   useSidepanelStore: () => sidepanelStore
 }))
 
-vi.mock('@/composables/usePresenter', () => ({
-  usePresenter: () => ({
+vi.mock('@api/WorkspaceClient', () => ({
+  createWorkspaceClient: vi.fn(() => ({
     registerWorkspace: registerWorkspaceMock,
     watchWorkspace: watchWorkspaceMock,
     unwatchWorkspace: unwatchWorkspaceMock,
@@ -150,7 +189,29 @@ vi.mock('@/composables/usePresenter', () => ({
     getGitDiff: getGitDiffMock,
     expandDirectory: expandDirectoryMock,
     openFile: openFileMock,
-    revealFileInFolder: revealFileInFolderMock
+    revealFileInFolder: revealFileInFolderMock,
+    onInvalidated: vi.fn((listener: (payload: unknown) => void) =>
+      workspaceInvalidationState.subscribe(listener as any)
+    )
+  }))
+}))
+
+vi.mock('@api/ProjectClient', () => ({
+  createProjectClient: vi.fn(() => ({
+    selectDirectory: selectDirectoryMock
+  }))
+}))
+
+vi.mock('@api/FileClient', () => ({
+  createFileClient: vi.fn(() => ({
+    isDirectory: isDirectoryMock,
+    getPathForFile: getPathForFileMock
+  }))
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    setSessionProjectDir: setSessionProjectDirMock
   })
 }))
 
@@ -163,11 +224,14 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
         required: true
       }
     },
-    emits: ['toggle', 'append-path'],
+    emits: ['toggle', 'append-path', 'insert-path'],
     template: `
       <div class="workspace-file-node-stub">
         <button class="node-toggle" type="button" @click="$emit('toggle', node)">
           {{ node.name }}
+        </button>
+        <button class="node-insert" type="button" @click="$emit('insert-path', node.path)">
+          Insert
         </button>
         <div v-if="node.children">
           <div v-for="child in node.children" :key="child.path" class="node-child">
@@ -190,21 +254,7 @@ describe('WorkspacePanel', () => {
   beforeEach(() => {
     vi.useFakeTimers()
 
-    ipcHandlers = {}
-    window.electron = {
-      ipcRenderer: {
-        on: vi.fn((eventName: string, handler: IpcHandler) => {
-          ipcHandlers[eventName] ??= []
-          ipcHandlers[eventName].push(handler)
-        }),
-        removeListener: vi.fn((eventName: string, handler: IpcHandler) => {
-          ipcHandlers[eventName] = (ipcHandlers[eventName] ?? []).filter(
-            (currentHandler) => currentHandler !== handler
-          )
-        })
-      }
-    } as any
-
+    workspaceInvalidationState.reset()
     sidepanelStore.open = true
     sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
@@ -212,6 +262,9 @@ describe('WorkspacePanel', () => {
     sessionState.sections.files = true
     sessionState.sections.git = true
     sessionState.sections.artifacts = true
+    artifactStore.currentArtifact = null
+    artifactStore.currentMessageId = null
+    artifactStore.currentThreadId = null
 
     showArtifactMock.mockReset()
     toggleSectionMock.mockReset()
@@ -236,6 +289,10 @@ describe('WorkspacePanel', () => {
     expandDirectoryMock.mockReset().mockResolvedValue([])
     openFileMock.mockReset().mockResolvedValue(undefined)
     revealFileInFolderMock.mockReset().mockResolvedValue(undefined)
+    selectDirectoryMock.mockReset().mockResolvedValue(null)
+    isDirectoryMock.mockReset().mockResolvedValue(true)
+    getPathForFileMock.mockReset().mockReturnValue('')
+    setSessionProjectDirMock.mockReset().mockResolvedValue(undefined)
   })
 
   it('extracts artifact items from assistant blocks and opens preview context', async () => {
@@ -274,6 +331,47 @@ describe('WorkspacePanel', () => {
         viewMode: 'preview'
       }
     )
+
+    wrapper.unmount()
+  })
+
+  it('does not render a subagent section in the workspace navigation', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
+
+    wrapper.unmount()
+  })
+
+  it('emits insertion requests separately from preview selection', async () => {
+    readDirectoryMock.mockResolvedValueOnce([
+      {
+        name: 'README.md',
+        path: 'C:/repo/README.md',
+        isDirectory: false
+      }
+    ])
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    await wrapper.find('.node-insert').trigger('click')
+
+    expect(wrapper.emitted('insert-file-reference')).toEqual([['C:/repo/README.md']])
+    expect(selectFileMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
@@ -339,7 +437,7 @@ describe('WorkspacePanel', () => {
     expect(expandDirectoryMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('child.ts')
 
-    await emitIpc(WORKSPACE_EVENTS.INVALIDATED, {
+    await emitWorkspaceInvalidated({
       workspacePath: 'C:/repo',
       kind: 'full',
       source: 'watcher'
@@ -350,6 +448,65 @@ describe('WorkspacePanel', () => {
     expect(readDirectoryMock).toHaveBeenCalledTimes(2)
     expect(expandDirectoryMock).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('child.ts')
+
+    wrapper.unmount()
+  })
+
+  it('sets the workspace when a directory is dropped', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: null
+      }
+    })
+
+    await flushPromises()
+
+    const file = new File([''], 'repo')
+    getPathForFileMock.mockReturnValue('/tmp/workspace')
+
+    const dropZone = wrapper.find('[class*="border-dashed"]')
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+    await flushPromises()
+
+    expect(getPathForFileMock).toHaveBeenCalledWith(file)
+    expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace')
+    expect(setSessionProjectDirMock).toHaveBeenCalledWith('s1', '/tmp/workspace')
+    expect(wrapper.emitted('update:workspacePath')).toEqual([['/tmp/workspace']])
+
+    wrapper.unmount()
+  })
+
+  it('ignores dropped files that are not directories', async () => {
+    isDirectoryMock.mockResolvedValue(false)
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: null
+      }
+    })
+
+    await flushPromises()
+
+    const file = new File(['hello'], 'README.md', { type: 'text/markdown' })
+    getPathForFileMock.mockReturnValue('/tmp/workspace/README.md')
+
+    const dropZone = wrapper.find('[class*="border-dashed"]')
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+    await flushPromises()
+
+    expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace/README.md')
+    expect(setSessionProjectDirMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:workspacePath')).toBeUndefined()
 
     wrapper.unmount()
   })
@@ -367,7 +524,7 @@ describe('WorkspacePanel', () => {
     expect(readDirectoryMock).toHaveBeenCalledTimes(1)
     expect(getGitStatusMock).toHaveBeenCalledTimes(1)
 
-    await emitIpc(WORKSPACE_EVENTS.INVALIDATED, {
+    await emitWorkspaceInvalidated({
       workspacePath: 'C:/repo',
       kind: 'git',
       source: 'watcher'
@@ -471,7 +628,7 @@ describe('WorkspacePanel', () => {
     expect(clearFileMock).not.toHaveBeenCalled()
     expect(clearDiffMock).not.toHaveBeenCalled()
 
-    await emitIpc(WORKSPACE_EVENTS.INVALIDATED, {
+    await emitWorkspaceInvalidated({
       workspacePath: 'C:/repo',
       kind: 'full',
       source: 'watcher'
@@ -481,6 +638,36 @@ describe('WorkspacePanel', () => {
 
     expect(clearFileMock).toHaveBeenCalledWith('s1')
     expect(clearDiffMock).toHaveBeenCalledWith('s1')
+
+    wrapper.unmount()
+  })
+
+  it('keeps the current temporary artifact selection when it is not part of artifact items', async () => {
+    sessionState.selectedArtifactContext = {
+      threadId: 's1',
+      messageId: 'C:/repo/README.md',
+      artifactId: 'temp-html-preview'
+    }
+    artifactStore.currentArtifact = {
+      id: 'temp-html-preview',
+      type: 'text/html',
+      title: 'HTML Preview',
+      content: '<h1>Hello</h1>',
+      status: 'loaded'
+    }
+    artifactStore.currentMessageId = 'C:/repo/README.md'
+    artifactStore.currentThreadId = 's1'
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(clearArtifactMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

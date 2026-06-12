@@ -107,6 +107,391 @@ describe('AcpProvider runDebugAction error handling', () => {
     ).rejects.toThrow('boom')
   })
 
+  it('skips warmup when the selected workdir is unavailable', async () => {
+    const warmupProcess = vi.fn().mockResolvedValue(undefined)
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.getAgentById = vi.fn().mockResolvedValue(agent)
+    provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(false)
+    }
+    provider.processManager = {
+      warmupProcess
+    }
+
+    await provider.warmupProcess('agent1', '/tmp/missing-workdir')
+
+    expect(provider.sessionPersistence.isWorkdirUsable).toHaveBeenCalledWith('/tmp/missing-workdir')
+    expect(warmupProcess).not.toHaveBeenCalled()
+  })
+
+  it('does not let undefined debug payload cwd overwrite the resolved workdir', async () => {
+    const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      registerSessionWorkdir: vi.fn(),
+      registerSessionListener: vi.fn().mockReturnValue(() => {}),
+      registerPermissionResolver: vi.fn().mockReturnValue(() => {}),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        mcpCapabilities: undefined,
+        connection: {
+          newSession
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionManager = {
+      resolveMcpServersForAgent: vi.fn().mockResolvedValue([])
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'newSession',
+      payload: {
+        cwd: undefined,
+        mcpServers: []
+      }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(newSession).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      mcpServers: []
+    })
+  })
+
+  it('reports debug initialize state without sending a second initialize request', async () => {
+    const initialize = vi.fn()
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.acpRuntime = {
+      toConnectionRef: vi.fn().mockReturnValue({
+        id: 'agent1:/tmp/debug-workdir',
+        agentId: 'agent1',
+        workdir: '/tmp/debug-workdir',
+        protocolVersion: '1',
+        status: 'ready'
+      })
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        connection: { initialize },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionManager = {
+      resolveMcpServersForAgent: vi.fn().mockResolvedValue([])
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'initialize',
+      workdir: '/tmp/debug-workdir'
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(initialize).not.toHaveBeenCalled()
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'lifecycle',
+      action: 'initialize',
+      message: 'Connection is already initialized by the ACP runtime.'
+    })
+  })
+
+  it('syncs remote sessions when debug session/list requests sync', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/debug-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      payload: { cwd: '/tmp/debug-workdir', sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith({
+      agentId: 'agent1',
+      agentName: 'Agent 1',
+      providerId: 'acp',
+      workdir: '/tmp/debug-workdir',
+      sessions
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'lifecycle',
+      action: 'session/list.sync',
+      payload: {
+        imported: 1,
+        updated: 0,
+        skipped: 0
+      }
+    })
+  })
+
+  it('normalizes debug session/list cwd before requesting remote sessions', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/missing-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/fallback')
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/fallback',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      isWorkdirUsable,
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      workdir: '/tmp/missing-from-dialog',
+      payload: { cwd: '/tmp/missing-workdir', sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(isWorkdirUsable).toHaveBeenCalledWith('/tmp/missing-workdir')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/fallback',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workdir: '/tmp/fallback',
+        sessions
+      })
+    )
+  })
+
+  it('falls back when a cached debug handle workdir becomes unavailable', async () => {
+    const sessions = [
+      {
+        sessionId: 'remote-1',
+        cwd: '/tmp/stale-workdir',
+        title: 'Remote Session'
+      }
+    ]
+    const listSessions = vi.fn().mockResolvedValue({ sessions, nextCursor: null })
+    const syncRemoteSessions = vi.fn().mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
+    })
+    const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/default-workdir')
+    const resolveWorkdir = vi.fn().mockReturnValue('/tmp/default-workdir')
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/stale-workdir',
+        supportsSessionList: true,
+        connection: {
+          listSessions
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionPersistence = {
+      isWorkdirUsable,
+      resolveWorkdir,
+      syncRemoteSessions
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionList',
+      workdir: '/tmp/stale-workdir',
+      payload: { sync: true }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(isWorkdirUsable).toHaveBeenCalledWith('/tmp/stale-workdir')
+    expect(resolveWorkdir).toHaveBeenCalledWith('/tmp/stale-workdir')
+    expect(listSessions).toHaveBeenCalledWith({
+      cwd: '/tmp/default-workdir',
+      cursor: undefined
+    })
+    expect(syncRemoteSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workdir: '/tmp/default-workdir',
+        sessions
+      })
+    )
+  })
+
+  it('binds the forked debug session workdir and listeners', async () => {
+    const unstableForkSession = vi.fn().mockResolvedValue({ sessionId: 'forked-session' })
+    const registerSessionWorkdir = vi.fn()
+    const registerSessionListener = vi.fn().mockReturnValue(() => {})
+    const registerPermissionResolver = vi.fn().mockReturnValue(() => {})
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      registerSessionWorkdir,
+      registerSessionListener,
+      registerPermissionResolver,
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        supportsSessionFork: true,
+        connection: {
+          unstable_forkSession: unstableForkSession
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionManager = {
+      resolveMcpServersForAgent: vi.fn().mockResolvedValue([])
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'sessionFork',
+      sessionId: 'source-session',
+      payload: { cwd: '/tmp/debug-workdir', mcpServers: [] }
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(result.sessionId).toBe('forked-session')
+    expect(unstableForkSession).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      mcpServers: [],
+      sessionId: 'source-session'
+    })
+    expect(registerSessionWorkdir).toHaveBeenCalledWith('forked-session', '/tmp/debug-workdir')
+    expect(registerSessionListener).toHaveBeenCalledWith(
+      'agent1',
+      'forked-session',
+      expect.any(Function)
+    )
+    expect(registerPermissionResolver).toHaveBeenCalledWith(
+      'agent1',
+      'forked-session',
+      expect.any(Function)
+    )
+  })
+
+  it('uses real ACP MCP selections for debug sessions', async () => {
+    const mcpServers = [{ name: 'fs', command: 'node', args: ['server.js'] }]
+    const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.configPresenter = {
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.processManager = {
+      getDebugEvents: vi.fn().mockReturnValue([]),
+      registerSessionWorkdir: vi.fn(),
+      registerSessionListener: vi.fn().mockReturnValue(() => {}),
+      registerPermissionResolver: vi.fn().mockReturnValue(() => {}),
+      getConnection: vi.fn().mockResolvedValue({
+        workdir: '/tmp/debug-workdir',
+        mcpCapabilities: undefined,
+        connection: {
+          newSession
+        },
+        status: 'ready',
+        agentId: 'agent1'
+      })
+    }
+    provider.sessionManager = {
+      resolveMcpServersForAgent: vi.fn().mockResolvedValue(mcpServers)
+    }
+
+    const result = await provider.runDebugAction({
+      agentId: 'agent1',
+      action: 'newSession',
+      workdir: '/tmp/debug-workdir'
+    } as any)
+
+    expect(result.status).toBe('ok')
+    expect(provider.sessionManager.resolveMcpServersForAgent).toHaveBeenCalledWith(
+      'agent1',
+      undefined
+    )
+    expect(newSession).toHaveBeenCalledWith({
+      cwd: '/tmp/debug-workdir',
+      mcpServers
+    })
+  })
+
   it('returns cached ACP session commands', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
     provider.sessionManager = {
@@ -119,11 +504,44 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(commands).toEqual([{ name: 'review', description: 'run review', input: null }])
   })
 
+  it('maps execute permissions to command and includes the raw command', () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+
+    const payload = provider.buildPermissionPayload(
+      {
+        sessionId: 'session-1',
+        toolCall: {
+          toolCallId: 'tc-terminal',
+          title: 'Terminal',
+          kind: 'execute',
+          rawInput: { command: 'dir' }
+        },
+        options: []
+      },
+      {
+        conversationId: 'conv-1',
+        agent: {
+          id: 'agent1',
+          name: 'Claude Agent',
+          command: 'claude'
+        }
+      },
+      'req-1'
+    )
+
+    expect(payload.permissionType).toBe('command')
+    expect(payload.command).toBe('dir')
+    expect(payload.description).toBe('components.messageBlockPermissionRequest.description.command')
+  })
+
   it('prepares ACP session without prompt and emits ready events', async () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any
     provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
     provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(true),
+      resolveWorkdir: vi.fn((workdir) => workdir),
       updateWorkdir: vi.fn().mockResolvedValue(undefined)
     }
     provider.sessionManager = {
@@ -181,6 +599,35 @@ describe('AcpProvider runDebugAction error handling', () => {
         agentId: 'agent1',
         commands: [{ name: 'review', description: 'run review', input: null }]
       }
+    )
+  })
+
+  it('falls back when prepareSession receives an unavailable workdir', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.getAgentById = vi.fn().mockResolvedValue({ id: 'agent1', name: 'Agent 1' })
+    provider.sessionPersistence = {
+      isWorkdirUsable: vi.fn().mockReturnValue(false),
+      resolveWorkdir: vi.fn().mockReturnValue('/tmp/fallback'),
+      updateWorkdir: vi.fn().mockResolvedValue(undefined)
+    }
+    provider.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({
+        workdir: '/tmp/fallback',
+        currentModeId: undefined,
+        availableModes: undefined,
+        configState: null,
+        availableCommands: []
+      })
+    }
+
+    await provider.prepareSession('conv-2', 'agent1', '/tmp/missing-workspace')
+
+    expect(provider.sessionPersistence.updateWorkdir).toHaveBeenCalledWith('conv-2', 'agent1', null)
+    expect(provider.sessionManager.getOrCreateSession).toHaveBeenCalledWith(
+      'conv-2',
+      { id: 'agent1', name: 'Agent 1' },
+      expect.any(Object),
+      '/tmp/fallback'
     )
   })
 
@@ -455,5 +902,243 @@ describe('AcpProvider runDebugAction error handling', () => {
         { id: 'ask', name: 'ask', description: '' }
       ]
     )
+  })
+
+  it('cancels the ACP prompt when the model timeout elapses', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+      provider.promptController = {
+        begin: vi.fn().mockReturnValue({
+          id: 'turn-timeout',
+          sessionId: 'session-timeout',
+          conversationId: 'conv-timeout',
+          userMessageId: null,
+          startedAt: Date.now()
+        }),
+        complete: vi.fn(),
+        fail: vi.fn().mockReturnValue({
+          id: 'turn-timeout',
+          completedAt: Date.now()
+        })
+      }
+      provider.sessionPersistence = {
+        startTurn: vi.fn().mockResolvedValue(undefined),
+        finishTurn: vi.fn().mockResolvedValue(undefined)
+      }
+
+      const cancel = vi.fn().mockResolvedValue(undefined)
+      const prompt = vi.fn().mockImplementation(() => new Promise(() => {}))
+      const queue = {
+        push: vi.fn(),
+        done: vi.fn()
+      }
+
+      const runPrompt = provider['runPrompt'](
+        {
+          sessionId: 'session-timeout',
+          conversationId: 'conv-timeout',
+          connection: {
+            prompt,
+            cancel
+          }
+        },
+        [],
+        queue,
+        { timeout: 25 }
+      )
+
+      await vi.advanceTimersByTimeAsync(25)
+      await runPrompt
+
+      expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-timeout' })
+      expect(queue.push).toHaveBeenCalledWith({
+        type: 'error',
+        error_message: 'ACP: Request timed out after 25ms'
+      })
+      expect(queue.done).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('marks the system prompt as sent only after the ACP prompt succeeds', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-system',
+        sessionId: 'session-system',
+        conversationId: 'conv-system',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn().mockReturnValue({
+        id: 'turn-system',
+        completedAt: Date.now()
+      }),
+      fail: vi.fn()
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    let resolvePrompt!: (value: { stopReason: string }) => void
+    const prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: string }>((resolve) => {
+          resolvePrompt = resolve
+        })
+    )
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const onPromptSucceeded = vi.fn()
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-system',
+        conversationId: 'conv-system',
+        connection: {
+          prompt
+        }
+      },
+      [{ type: 'text', text: 'System instructions:\nBe precise.' }],
+      queue,
+      {},
+      { onPromptSucceeded }
+    )
+
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledTimes(1))
+    expect(onPromptSucceeded).not.toHaveBeenCalled()
+
+    resolvePrompt({ stopReason: 'end_turn' })
+    await runPrompt
+
+    expect(onPromptSucceeded).toHaveBeenCalledTimes(1)
+    expect(queue.done).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not mark the system prompt when prompt dispatch fails first', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockRejectedValue(new Error('trace failed'))
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-trace',
+        sessionId: 'session-trace',
+        conversationId: 'conv-trace',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn(),
+      fail: vi.fn().mockReturnValue({
+        id: 'turn-trace',
+        completedAt: Date.now()
+      })
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' })
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const onPromptSucceeded = vi.fn()
+
+    await provider['runPrompt'](
+      {
+        sessionId: 'session-trace',
+        conversationId: 'conv-trace',
+        connection: {
+          prompt
+        }
+      },
+      [{ type: 'text', text: 'System instructions:\nBe precise.' }],
+      queue,
+      {},
+      { onPromptSucceeded }
+    )
+
+    expect(prompt).not.toHaveBeenCalled()
+    expect(onPromptSucceeded).not.toHaveBeenCalled()
+    expect(queue.push).toHaveBeenCalledWith({
+      type: 'error',
+      error_message: 'ACP: trace failed'
+    })
+    expect(queue.done).toHaveBeenCalledTimes(1)
+  })
+
+  it('awaits turn start persistence before sending the ACP prompt', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-start',
+        sessionId: 'session-start',
+        conversationId: 'conv-start',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn().mockReturnValue({
+        id: 'turn-start',
+        completedAt: Date.now()
+      }),
+      fail: vi.fn()
+    }
+
+    let resolveStart!: () => void
+    const startTurn = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve
+        })
+    )
+    const finishTurn = vi.fn().mockResolvedValue(undefined)
+    provider.sessionPersistence = {
+      startTurn,
+      finishTurn
+    }
+
+    const prompt = vi.fn().mockResolvedValue({ stopReason: 'end_turn' })
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-start',
+        conversationId: 'conv-start',
+        connection: {
+          prompt
+        }
+      },
+      [],
+      queue,
+      {}
+    )
+
+    expect(startTurn).toHaveBeenCalledTimes(1)
+    expect(prompt).not.toHaveBeenCalled()
+
+    resolveStart()
+    await runPrompt
+
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(finishTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'turn-start',
+        status: 'completed',
+        stopReason: 'end_turn'
+      })
+    )
+    expect(queue.done).toHaveBeenCalledTimes(1)
   })
 })

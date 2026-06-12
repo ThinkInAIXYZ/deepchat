@@ -89,4 +89,27 @@ describe('createThrottle', () => {
 
     expect(fn).toHaveBeenCalledTimes(1)
   })
+
+  it('reschedule() resets the trailing timer from now', () => {
+    const fn = vi.fn()
+    const throttled = createThrottle(fn, 100)
+
+    throttled() // immediate
+    throttled() // schedule original trailing timer at +100ms
+
+    vi.advanceTimersByTime(40)
+    throttled.reschedule()
+
+    vi.advanceTimersByTime(59)
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(1)
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(39)
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(1)
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
 })

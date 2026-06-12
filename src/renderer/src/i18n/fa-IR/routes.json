@@ -1,7 +1,6 @@
 {
   "chat": "گفتگو",
   "welcome": "خوش آمدید",
-  "playground": "محیط آزمایشی",
   "settings": "تنظیمات",
   "settings-common": "تنظیمات عمومی",
   "settings-provider": "تنظیمات فراهم‌کننده",
@@ -16,8 +15,11 @@
   "settings-acp": "نماینده ACP",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "هوک‌ها",
+  "settings-scheduled-tasks": "وظایف زمان‌بندی‌شده",
   "settings-dashboard": "داشبورد",
   "settings-environments": "محیط‌ها",
   "settings-remote": "کنترل از راه دور",
-  "settings-deepchat-agents": "ایجنت‌های DeepChat"
+  "settings-deepchat-agents": "ایجنت‌های DeepChat",
+  "settings-plugins": "افزونه‌ها",
+  "settings-overview": "نمای کلی تنظیمات"
 }

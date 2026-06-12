@@ -82,6 +82,19 @@ const loadHelper = async (platform: string) => {
   return await import('../../../../src/main/presenter/configPresenter/mcpConfHelper')
 }
 
+const createKnowledgeConfig = (id: string, description = id) => ({
+  id,
+  description,
+  embedding: {
+    providerId: 'openai',
+    modelId: 'text-embedding-3-small'
+  },
+  dimensions: 1536,
+  normalized: true,
+  fragmentsNumber: 6,
+  enabled: true
+})
+
 describe('McpConfHelper', () => {
   beforeEach(() => {
     mockStores.clear()
@@ -124,5 +137,88 @@ describe('McpConfHelper', () => {
     helper.onUpgrade(undefined)
 
     expect(mcpStore.get('mcpServers')['deepchat/apple-server']).toBeUndefined()
+  })
+
+  it('removes the unpublished Computer Use demo MCP server config', async () => {
+    const { McpConfHelper } = await loadHelper('darwin')
+    const helper = new McpConfHelper()
+    const mcpStore = (helper as any).mcpStore
+    const legacyServer = {
+      command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
+      args: ['mcp'],
+      env: {},
+      descriptions: 'Computer Use',
+      icons: 'computer-use',
+      autoApprove: [],
+      disable: false,
+      type: 'stdio',
+      enabled: true
+    }
+
+    mcpStore.set('mcpServers', {
+      'deepchat/computer-use': legacyServer,
+      demo: {
+        command: 'demo',
+        args: [],
+        env: {},
+        descriptions: 'Demo',
+        icons: 'D',
+        autoApprove: [],
+        disable: false,
+        type: 'stdio',
+        enabled: true
+      }
+    })
+    mcpStore.set('removedBuiltInServers', ['deepchat/computer-use', 'demo'])
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['deepchat/computer-use']).toBeUndefined()
+    expect(servers.demo).toBeDefined()
+    expect(mcpStore.get('removedBuiltInServers')).toEqual(['demo'])
+  })
+
+  it('migrates legacy builtin knowledge configs out of MCP env', async () => {
+    const { McpConfHelper } = await loadHelper('win32')
+    const helper = new McpConfHelper()
+    const mcpStore = (helper as any).mcpStore
+    const legacyConfig = createKnowledgeConfig('legacy-knowledge', 'Legacy config')
+    const realConfig = createKnowledgeConfig('real-knowledge', 'Real config')
+
+    mcpStore.set('mcpServers', {
+      builtinKnowledge: {
+        ...(mcpStore.get('mcpServers').builtinKnowledge ?? {}),
+        env: {
+          configs: [legacyConfig]
+        }
+      }
+    })
+
+    const configs = helper.migrateBuiltinKnowledgeConfigsFromEnv([realConfig])
+
+    expect(configs).toEqual([realConfig, legacyConfig])
+    expect(mcpStore.get('mcpServers').builtinKnowledge.env).toEqual({})
+  })
+
+  it('keeps existing knowledge configs when legacy env has the same id', async () => {
+    const { McpConfHelper } = await loadHelper('win32')
+    const helper = new McpConfHelper()
+    const mcpStore = (helper as any).mcpStore
+    const realConfig = createKnowledgeConfig('same-id', 'Real config')
+    const legacyConfig = createKnowledgeConfig('same-id', 'Legacy config')
+
+    mcpStore.set('mcpServers', {
+      builtinKnowledge: {
+        ...(mcpStore.get('mcpServers').builtinKnowledge ?? {}),
+        env: {
+          configs: [legacyConfig]
+        }
+      }
+    })
+
+    const configs = helper.migrateBuiltinKnowledgeConfigsFromEnv([realConfig])
+
+    expect(configs).toEqual([realConfig])
+    expect(mcpStore.get('mcpServers').builtinKnowledge.env).toEqual({})
   })
 })
