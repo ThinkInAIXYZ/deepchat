@@ -130,6 +130,17 @@ const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 }
 
+function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
+  expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+    DEEPCHAT_EVENT_CHANNEL,
+    'all',
+    expect.objectContaining({
+      name: eventName,
+      payload: expect.objectContaining(payload)
+    })
+  )
+}
+
 async function executeTools(
   state: StreamState,
   conversation: any[],
@@ -2455,21 +2466,17 @@ describe('dispatch', () => {
       expect(metadata.tokensPerSecond).toBeDefined()
     })
 
-    it('emits END event', () => {
+    it('emits completed event', () => {
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:end',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1'
-        })
-      )
+      expectDeepchatEvent('chat.stream.completed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
     })
 
-    it('emits RESPONSE with blocks', () => {
+    it('emits updated event with blocks', () => {
       state.blocks.push({
         type: 'content',
         content: 'test',
@@ -2479,16 +2486,12 @@ describe('dispatch', () => {
 
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:response',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          blocks: expect.any(Array)
-        })
-      )
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        blocks: expect.any(Array)
+      })
     })
   })
 
@@ -2526,19 +2529,15 @@ describe('dispatch', () => {
       expect(metadata.model).toBe('gpt-4')
     })
 
-    it('emits ERROR event', () => {
+    it('emits failed event', () => {
       finalizeError(state, io, new Error('boom'))
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:error',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          error: 'boom'
-        })
-      )
+      expectDeepchatEvent('chat.stream.failed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        error: 'boom'
+      })
     })
 
     it('handles non-Error objects', () => {

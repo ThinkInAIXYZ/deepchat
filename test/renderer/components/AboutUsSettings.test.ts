@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { DEV_EVENTS } from '@/events'
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -19,19 +18,24 @@ const route = {
   name: 'settings-about'
 }
 
-const presenterMocks = {
-  devicePresenter: {
-    getAppVersion: vi.fn().mockResolvedValue('1.0.0-beta.3')
-  },
-  configPresenter: {
-    getUpdateChannel: vi.fn().mockResolvedValue('stable'),
-    setUpdateChannel: vi.fn().mockResolvedValue(undefined)
-  },
-  windowPresenter: {
-    sendToAllWindows: vi.fn().mockResolvedValue(undefined),
-    focusMainWindow: vi.fn().mockResolvedValue(true)
-  }
-}
+const configClientMock = vi.hoisted(() => ({
+  getUpdateChannel: vi.fn(),
+  setUpdateChannel: vi.fn()
+}))
+const deviceClientMock = vi.hoisted(() => ({
+  getAppVersion: vi.fn()
+}))
+const browserClientMock = vi.hoisted(() => ({
+  openExternal: vi.fn()
+}))
+const windowClientMock = vi.hoisted(() => ({
+  startGuidedOnboarding: vi.fn(),
+  onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
+    const wrapped = () => listener()
+    window.electron?.ipcRenderer?.on('settings:check-for-updates', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:check-for-updates', wrapped)
+  })
+}))
 
 const upgradeStoreMock = {
   shouldShowUpdateNotes: true,
@@ -55,8 +59,17 @@ const upgradeStoreMock = {
   handleUpdate: vi.fn().mockResolvedValue(undefined)
 }
 
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
+vi.mock('@api/ConfigClient', () => ({
+  createConfigClient: () => configClientMock
+}))
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => deviceClientMock
+}))
+vi.mock('@api/BrowserClient', () => ({
+  createBrowserClient: () => browserClientMock
+}))
+vi.mock('@api/WindowClient', () => ({
+  createWindowClient: () => windowClientMock
 }))
 
 vi.mock('@/stores/upgrade', () => ({
@@ -122,6 +135,11 @@ vi.mock('vue-router', () => ({
 describe('AboutUsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configClientMock.getUpdateChannel.mockResolvedValue('stable')
+    configClientMock.setUpdateChannel.mockResolvedValue('stable')
+    deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
+    browserClientMock.openExternal.mockResolvedValue(undefined)
+    windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
     Object.assign(upgradeStoreMock, {
       shouldShowUpdateNotes: true,
       updateInfo: {
@@ -200,7 +218,7 @@ describe('AboutUsSettings', () => {
 
   it('subscribes to tray update checks before initial presenter calls resolve', async () => {
     let resolveAppVersion: ((value: string) => void) | null = null
-    presenterMocks.devicePresenter.getAppVersion.mockReturnValueOnce(
+    deviceClientMock.getAppVersion.mockReturnValueOnce(
       new Promise<string>((resolve) => {
         resolveAppVersion = resolve
       })
@@ -230,14 +248,12 @@ describe('AboutUsSettings', () => {
       }
     })
 
-    const registration = vi
-      .mocked(window.electron.ipcRenderer.on)
-      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+    const handler = windowClientMock.onSettingsCheckForUpdates.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined
+    expect(handler).toBeTypeOf('function')
 
-    expect(registration).toBeTruthy()
-
-    const handler = registration?.[1] as () => Promise<void>
-    await handler()
+    await handler?.()
 
     expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
 
@@ -278,14 +294,12 @@ describe('AboutUsSettings', () => {
 
     await flushPromises()
 
-    const registration = vi
-      .mocked(window.electron.ipcRenderer.on)
-      .mock.calls.find(([event]) => event === 'settings:check-for-updates')
+    const handler = windowClientMock.onSettingsCheckForUpdates.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined
+    expect(handler).toBeTypeOf('function')
 
-    expect(registration).toBeTruthy()
-
-    const handler = registration?.[1] as () => Promise<void>
-    await handler()
+    await handler?.()
 
     expect(upgradeStoreMock.handleUpdate).not.toHaveBeenCalled()
     expect(upgradeStoreMock.checkUpdate).not.toHaveBeenCalled()
@@ -369,9 +383,6 @@ describe('AboutUsSettings', () => {
 
     await onboardingButton!.trigger('click')
 
-    expect(presenterMocks.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
-      DEV_EVENTS.START_GUIDED_ONBOARDING
-    )
-    expect(presenterMocks.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
+    expect(windowClientMock.startGuidedOnboarding).toHaveBeenCalledTimes(1)
   })
 })

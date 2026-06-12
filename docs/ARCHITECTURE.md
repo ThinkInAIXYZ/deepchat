@@ -58,8 +58,9 @@ flowchart LR
 - `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的契约真源。
 - `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
 - `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
-- `src/renderer/api/legacy/**` 是唯一 legacy quarantine。当前保留 `presenters.ts`、
-  `presenterTransport.ts`、`runtime.ts` 三个兼容文件；新业务模块不应直接导入 legacy transport。
+- `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
+- raw IPC 只允许存在于 `createBridge` 和专用 preload API 这类明确边界内，业务层不得直接调用
+  `presenter:call`、`remoteControlPresenter:call` 或 `window.electron.ipcRenderer`。
 
 ### 2. Main Route Runtime
 
@@ -98,8 +99,9 @@ flowchart LR
 ## 防回归规则
 
 - 新 renderer-main 能力默认走 `renderer/api/*Client` + `window.deepchat` + shared contracts。
-- legacy transport 只能留在 `src/renderer/api/legacy/**`，不新增第二个 quarantine 目录。
-- `scripts/architecture-guard.mjs` 固定 quarantine 文件数、检测 direct legacy transport、
+- legacy transport 已退休；不要重新创建 `src/renderer/api/legacy/**`，也不要新增第二个
+  compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
+- `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
   并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
 - `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
 

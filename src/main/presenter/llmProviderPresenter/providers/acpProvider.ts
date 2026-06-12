@@ -25,9 +25,8 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { eventBus, SendTarget } from '@/eventbus'
-import { ACP_DEBUG_EVENTS, ACP_WORKSPACE_EVENTS, CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { emitModelsChanged } from '@/presenter/configPresenter/eventPublishers'
 import {
   AcpProcessManager,
   AcpSessionManager,
@@ -253,7 +252,7 @@ export class AcpProvider extends BaseLLMProvider {
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
       logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+      emitModelsChanged(this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -273,7 +272,7 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
-      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+      emitModelsChanged(this.provider.id)
     }
   }
 
@@ -636,10 +635,11 @@ export class AcpProvider extends BaseLLMProvider {
       }
       events.push(record)
       if (request.webContentsId) {
-        eventBus.sendToRenderer(ACP_DEBUG_EVENTS.EVENT, SendTarget.ALL_WINDOWS, {
+        publishDeepchatEvent('providers.acp.debug.event', {
           webContentsId: request.webContentsId,
           agentId: agent.id,
-          event: record
+          event: record,
+          version: Date.now()
         })
       }
     }
@@ -1456,12 +1456,13 @@ export class AcpProvider extends BaseLLMProvider {
     currentModeId?: string,
     availableModes?: Array<{ id: string; name: string; description: string }>
   ): void {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('sessions.acp.modes.ready', {
       conversationId,
       agentId,
       workdir,
       current: currentModeId ?? 'default',
-      available: availableModes ?? []
+      available: availableModes ?? [],
+      version: Date.now()
     })
   }
 
@@ -1474,11 +1475,6 @@ export class AcpProvider extends BaseLLMProvider {
       input?: { hint: string } | null
     }>
   ): void {
-    eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_COMMANDS_READY, SendTarget.ALL_WINDOWS, {
-      conversationId,
-      agentId,
-      commands
-    })
     publishDeepchatEvent('sessions.acp.commands.ready', {
       conversationId,
       agentId,
@@ -1493,16 +1489,6 @@ export class AcpProvider extends BaseLLMProvider {
     workdir: string,
     configState?: AcpConfigState | null
   ): void {
-    eventBus.sendToRenderer(
-      ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY,
-      SendTarget.ALL_WINDOWS,
-      {
-        conversationId,
-        agentId,
-        workdir,
-        configState: configState ?? normalizeAcpConfigState({})
-      }
-    )
     publishDeepchatEvent('sessions.acp.configOptions.ready', {
       conversationId,
       agentId,
@@ -1829,13 +1815,13 @@ export class AcpProvider extends BaseLLMProvider {
         session.workdir,
         session.configState
       )
-      eventBus.sendToRenderer(ACP_WORKSPACE_EVENTS.SESSION_MODES_READY, SendTarget.ALL_WINDOWS, {
+      this.emitSessionModesReady(
         conversationId,
-        agentId: session.agentId,
-        workdir: session.workdir,
-        current: modeId,
-        available: session.availableModes ?? []
-      })
+        session.agentId,
+        session.workdir,
+        modeId,
+        session.availableModes
+      )
       console.info(
         `[ACP] Session mode successfully changed to "${modeId}" for conversation ${conversationId}`
       )

@@ -8,7 +8,6 @@ import {
   ipcRenderer,
   shell
 } from 'electron'
-import { exposeElectronAPI } from '@electron-toolkit/preload'
 import { normalizeExternalUrl } from '@shared/externalUrl'
 import { createBridge } from './createBridge'
 
@@ -49,6 +48,7 @@ const api = Object.freeze({
     cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
     return cachedWebContentsId
   },
+  getPlatform: () => process.platform,
   openExternal: (url: string) => {
     const externalUrl = normalizeExternalUrl(url)
     if (!externalUrl) {
@@ -124,8 +124,6 @@ const deepchatDevApi = isDevHiddenApiEnabled
     })
   : undefined
 const deepchatBridge = Object.freeze(createBridge(ipcRenderer))
-
-exposeElectronAPI()
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

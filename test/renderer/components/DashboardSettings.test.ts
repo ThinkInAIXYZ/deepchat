@@ -201,8 +201,8 @@ async function setup(
   const getUsageDashboard = options.getUsageDashboard ?? vi.fn().mockResolvedValue(data)
   const retryRtkHealthCheck = options.retryRtkHealthCheck ?? vi.fn().mockResolvedValue(undefined)
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => ({
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: () => ({
       getUsageDashboard,
       retryRtkHealthCheck
     })

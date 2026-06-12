@@ -8,6 +8,7 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToRenderer: vi.fn() },
@@ -38,6 +39,17 @@ vi.mock('@/presenter', () => ({
 
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { eventBus } from '@/eventbus'
+
+function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
+  expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
+    DEEPCHAT_EVENT_CHANNEL,
+    'all',
+    expect.objectContaining({
+      name: eventName,
+      payload: expect.objectContaining(payload)
+    })
+  )
+}
 
 const DEFAULT_INTERLEAVED_REASONING = {
   preserveReasoningContent: false,
@@ -158,15 +170,11 @@ describe('processStream', () => {
     )
     expect(finalMetadata.provider).toBe('openai')
     expect(finalMetadata.model).toBe('gpt-4')
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:end',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1'
-      })
-    )
+    expectDeepchatEvent('chat.stream.completed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1'
+    })
   })
 
   it('flushes ACP provider permission blocks immediately and keeps live permission updates mutable', async () => {
@@ -302,9 +310,9 @@ describe('processStream', () => {
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
     expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      'stream:error',
+      DEEPCHAT_EVENT_CHANNEL,
       'all',
-      expect.anything()
+      expect.objectContaining({ name: 'chat.stream.failed' })
     )
   })
 
@@ -908,16 +916,12 @@ describe('processStream', () => {
     )
     expect(abortMetadata.provider).toBe('openai')
     expect(abortMetadata.model).toBe('gpt-4')
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:error',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        error: 'common.error.userCanceledGeneration'
-      })
-    )
+    expectDeepchatEvent('chat.stream.failed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1',
+      error: 'common.error.userCanceledGeneration'
+    })
   })
 
   it('does not finalize user-cancel twice when the message is already cancelled', async () => {
@@ -967,13 +971,15 @@ describe('processStream', () => {
     expect(result.status).toBe('aborted')
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
     expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      'stream:error',
+      DEEPCHAT_EVENT_CHANNEL,
       'all',
       expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        error: 'common.error.userCanceledGeneration'
+        name: 'chat.stream.failed',
+        payload: expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'm1',
+          error: 'common.error.userCanceledGeneration'
+        })
       })
     )
   })
@@ -1125,15 +1131,11 @@ describe('processStream', () => {
     await promise
 
     expect(messageStore.setMessageError).toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:error',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        error: 'Connection lost'
-      })
-    )
+    expectDeepchatEvent('chat.stream.failed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1',
+      error: 'Connection lost'
+    })
   })
 })

@@ -23,7 +23,7 @@ import {
   SessionWithStateSchema,
   defineRouteContract
 } from '../common'
-import { AcpConfigStateSchema } from '../domainSchemas'
+import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
@@ -348,6 +348,22 @@ export const sessionsGetAgentsRoute = defineRouteContract({
   input: z.object({}),
   output: z.object({
     agents: z.array(AgentSchema)
+  })
+})
+
+export const sessionsGetUsageDashboardRoute = defineRouteContract({
+  name: 'sessions.getUsageDashboard',
+  input: z.object({}).default({}),
+  output: z.object({
+    dashboard: UsageDashboardDataSchema
+  })
+})
+
+export const sessionsRetryRtkHealthCheckRoute = defineRouteContract({
+  name: 'sessions.retryRtkHealthCheck',
+  input: z.object({}).default({}),
+  output: z.object({
+    retried: z.boolean()
   })
 })
 

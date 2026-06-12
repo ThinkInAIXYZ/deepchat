@@ -10,7 +10,6 @@ import type {
   IConfigPresenter,
   ISkillPresenter
 } from '@shared/presenter'
-import { SETTINGS_EVENTS } from '@/events'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
@@ -135,7 +134,7 @@ const openSchema = z
   })
   .strict()
 
-const SETTINGS_ROUTE_NAMES: Record<OpenChatSettingsSection, string> = {
+const SETTINGS_ROUTE_NAMES = {
   common: 'settings-common',
   display: 'settings-display',
   provider: 'settings-provider',
@@ -147,7 +146,7 @@ const SETTINGS_ROUTE_NAMES: Record<OpenChatSettingsSection, string> = {
   database: 'settings-database',
   shortcut: 'settings-shortcut',
   about: 'settings-about'
-}
+} as const satisfies Record<OpenChatSettingsSection, string>
 
 const normalizeSection = (section?: string): OpenChatSettingsSection | undefined => {
   if (!section) return undefined
@@ -177,7 +176,10 @@ export class ChatSettingsToolHandler {
     private readonly options: {
       configPresenter: IConfigPresenter
       skillPresenter: ISkillPresenter
-      windowRuntime: Pick<AgentToolRuntimePort, 'createSettingsWindow' | 'sendToWindow'>
+      windowRuntime: Pick<
+        AgentToolRuntimePort,
+        'createSettingsWindow' | 'sendToWindow' | 'sendSettingsNavigation'
+      >
     }
   ) {}
 
@@ -382,7 +384,7 @@ export class ChatSettingsToolHandler {
     }
 
     if (routeName) {
-      this.options.windowRuntime.sendToWindow(windowId, SETTINGS_EVENTS.NAVIGATE, {
+      this.options.windowRuntime.sendSettingsNavigation(windowId, {
         routeName,
         section: normalizedSection
       })

@@ -39,6 +39,23 @@ type DragRuntimeState = {
   windowHeight: number
 }
 
+type PointPayload = {
+  x: number
+  y: number
+}
+
+const isPointPayload = (payload: unknown): payload is PointPayload => {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const { x, y } = payload as { x?: unknown; y?: unknown }
+  return typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)
+}
+
+const isNonEmptyString = (payload: unknown): payload is string =>
+  typeof payload === 'string' && payload.trim().length > 0
+
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
   private config: FloatingButtonConfig
@@ -281,11 +298,19 @@ export class FloatingButtonPresenter {
       this.setExpanded(Boolean(expanded))
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.OPEN_SESSION, (_event, sessionId: string) => {
-      void this.openSession(sessionId)
+    ipcMain.on(FLOATING_BUTTON_EVENTS.OPEN_SESSION, (_event, sessionId: unknown) => {
+      if (!isNonEmptyString(sessionId)) {
+        return
+      }
+
+      void this.openSession(sessionId.trim())
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (_event, { x, y }: { x: number; y: number }) => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (_event, payload: unknown) => {
+      if (!isPointPayload(payload)) {
+        return
+      }
+
       if (!this.floatingWindow?.exists()) {
         return
       }
@@ -303,8 +328,8 @@ export class FloatingButtonPresenter {
       this.floatingWindow.setOpacity(this.resolveWindowOpacity())
 
       dragState = {
-        startX: x,
-        startY: y,
+        startX: payload.x,
+        startY: payload.y,
         windowX: stableBounds.x,
         windowY: stableBounds.y,
         windowWidth: stableBounds.width,
@@ -312,13 +337,17 @@ export class FloatingButtonPresenter {
       }
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (_event, { x, y }: { x: number; y: number }) => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (_event, payload: unknown) => {
+      if (!isPointPayload(payload)) {
+        return
+      }
+
       if (!dragState || !this.floatingWindow?.exists()) {
         return
       }
 
-      const deltaX = x - dragState.startX
-      const deltaY = y - dragState.startY
+      const deltaX = payload.x - dragState.startX
+      const deltaY = payload.y - dragState.startY
 
       this.floatingWindow.setBounds({
         x: dragState.windowX + deltaX,

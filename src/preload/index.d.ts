@@ -1,9 +1,7 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 
 declare global {
   interface Window {
-    electron: ElectronAPI
     deepchat: DeepchatBridge
     api: {
       copyText(text: string): void
@@ -12,6 +10,7 @@ declare global {
       getPathForFile(file: File): string
       getWindowId(): number | null
       getWebContentsId(): number
+      getPlatform(): string
       openExternal?(url: string): Promise<void>
       toRelativePath?(filePath: string, baseDir?: string): string
       formatPathForInput?(filePath: string): string
@@ -20,6 +19,5 @@ declare global {
       goToWelcome(): boolean
       clearWelcomeOverride(): boolean
     }
-    floatingButtonAPI: typeof floatingButtonAPI
   }
 }

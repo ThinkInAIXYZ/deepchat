@@ -18,8 +18,11 @@ const storeStates = vi.hoisted(
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   send: vi.fn(),
+  sendToMain: vi.fn(),
   sendToRenderer: vi.fn()
 }))
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('electron-store', () => ({
   default: class MockElectronStore {
@@ -72,11 +75,16 @@ vi.mock('@/eventbus', () => ({
   eventBus: {
     on: eventBusMocks.on,
     send: eventBusMocks.send,
+    sendToMain: eventBusMocks.sendToMain,
     sendToRenderer: eventBusMocks.sendToRenderer
   },
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('electron', () => ({

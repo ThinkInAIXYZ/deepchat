@@ -4,9 +4,8 @@ import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresen
 import { getInstance, Presenter } from './presenter'
 import { electronApp } from '@electron-toolkit/utils'
 import log from 'electron-log'
-import { eventBus, SendTarget } from './eventbus'
-import { NOTIFICATION_EVENTS } from './events'
 import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
+import { publishDeepchatEvent } from './routes/publishDeepchatEvent'
 import {
   findDeepLinkArg,
   findStartupDeepLink,
@@ -24,6 +23,11 @@ export function startApp(): void {
     return
   }
   appStarted = true
+
+  const e2eUserDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()
+  if (e2eUserDataDir) {
+    app.setPath('userData', e2eUserDataDir)
+  }
 
   app.setName(APP_NAME)
   if (process.platform === 'darwin') {
@@ -55,7 +59,7 @@ export function startApp(): void {
     if (isNetworkError) {
       // Send error to renderer to show a toast notification
       // This is "elegant" and non-blocking
-      eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      publishDeepchatEvent('notification.error', {
         id: Date.now().toString(),
         title: 'Network Error',
         message: msg,

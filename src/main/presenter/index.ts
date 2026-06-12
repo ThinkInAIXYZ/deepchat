@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { BrowserWindow, ipcMain, IpcMainInvokeEvent, app } from 'electron'
+import { ipcMain, app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -83,20 +83,9 @@ import type {
   SessionPermissionPort,
   SessionUiPort
 } from './runtimePorts'
-import { handlePresenterCallError, handlePresenterCallResult } from './presenterCallErrorHandler'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
-import { setupLegacyTypedEventBridge } from '@/routes/legacyTypedEventBridge'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
-
-// IPC调用上下文接口
-interface IPCCallContext {
-  windowId?: number
-  webContentsId: number
-  presenterName: string
-  methodName: string
-  timestamp: number
-}
 
 // 注意: 现在大部分事件已在各自的 presenter 中直接发送到渲染进程
 // 剩余的自动转发事件已在 EventBus 的 DEFAULT_RENDERER_EVENTS 中定义
@@ -105,62 +94,6 @@ interface IPCCallContext {
 export class Presenter implements IPresenter {
   // 私有静态实例
   private static instance: Presenter
-  static readonly DISPATCHABLE_PRESENTERS = new Set<keyof IPresenter>([
-    'windowPresenter',
-    'sqlitePresenter',
-    'llmproviderPresenter',
-    'configPresenter',
-    'exporter',
-    'devicePresenter',
-    'upgradePresenter',
-    'shortcutPresenter',
-    'filePresenter',
-    'mcpPresenter',
-    'syncPresenter',
-    'deeplinkPresenter',
-    'notificationPresenter',
-    'tabPresenter',
-    'yoBrowserPresenter',
-    'oauthPresenter',
-    'dialogPresenter',
-    'knowledgePresenter',
-    'workspacePresenter',
-    'toolPresenter',
-    'skillPresenter',
-    'skillSyncPresenter',
-    'agentSessionPresenter',
-    'projectPresenter'
-  ])
-
-  static readonly REMOTE_CONTROL_METHODS = new Set<keyof IRemoteControlPresenter>([
-    'listRemoteChannels',
-    'getChannelSettings',
-    'saveChannelSettings',
-    'getChannelStatus',
-    'getChannelBindings',
-    'removeChannelBinding',
-    'removeChannelPrincipal',
-    'getChannelPairingSnapshot',
-    'createChannelPairCode',
-    'clearChannelPairCode',
-    'clearChannelBindings',
-    'getTelegramSettings',
-    'saveTelegramSettings',
-    'getTelegramStatus',
-    'getTelegramBindings',
-    'removeTelegramBinding',
-    'getTelegramPairingSnapshot',
-    'createTelegramPairCode',
-    'clearTelegramPairCode',
-    'clearTelegramBindings',
-    'getWeixinIlinkSettings',
-    'saveWeixinIlinkSettings',
-    'getWeixinIlinkStatus',
-    'startWeixinIlinkLogin',
-    'waitForWeixinIlinkLogin',
-    'removeWeixinIlinkAccount',
-    'restartWeixinIlinkAccount'
-  ])
 
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
@@ -190,6 +123,7 @@ export class Presenter implements IPresenter {
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
   projectPresenter: IProjectPresenter
+  remoteControlPresenter: IRemoteControlPresenter
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   hooksNotifications: HooksNotificationsService
@@ -202,7 +136,6 @@ export class Presenter implements IPresenter {
   private sessionPresenterInternal?: SessionPresenter
   private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
-  readonly #remoteControlBridge: IRemoteControlPresenter
 
   private constructor(lifecycleManager: ILifecycleManager) {
     // Store lifecycle manager reference for component access
@@ -428,6 +361,8 @@ export class Presenter implements IPresenter {
       createSettingsWindow: () => this.windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         this.windowPresenter.sendToWindow(windowId, channel, ...args),
+      sendSettingsNavigation: (windowId, navigation) =>
+        this.windowPresenter.sendSettingsNavigation(windowId, navigation),
       getApprovedFilePaths: (conversationId, requiredPermission) =>
         this.filePermissionService.getApprovedPaths(conversationId, requiredPermission),
       consumeSettingsApproval: (conversationId, toolName) =>
@@ -609,7 +544,7 @@ export class Presenter implements IPresenter {
       windowPresenter: this.windowPresenter,
       tabPresenter: this.tabPresenter
     })
-    this.#remoteControlBridge = this.#remoteControlPresenter
+    this.remoteControlPresenter = this.#remoteControlPresenter
 
     // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
@@ -906,18 +841,6 @@ export class Presenter implements IPresenter {
     )
   }
 
-  async callRemoteControl(
-    method: keyof IRemoteControlPresenter,
-    ...payloads: unknown[]
-  ): Promise<unknown> {
-    if (!Presenter.REMOTE_CONTROL_METHODS.has(method)) {
-      throw new Error(`Method "${String(method)}" is not allowed on "remoteControlPresenter"`)
-    }
-
-    const handler = this.#remoteControlBridge[method] as (...args: unknown[]) => unknown
-    return await Reflect.apply(handler, this.#remoteControlBridge, payloads)
-  }
-
   getStartupWorkloadCoordinator(): StartupWorkloadCoordinator {
     return this.startupWorkloadCoordinator
   }
@@ -958,7 +881,12 @@ const buildMainKernelRouteRuntime = () =>
     llmProviderPresenter: presenter.llmproviderPresenter,
     agentSessionPresenter: presenter.agentSessionPresenter,
     skillPresenter: presenter.skillPresenter,
+    skillSyncPresenter: presenter.skillSyncPresenter,
+    exporter: presenter.exporter,
+    oauthPresenter: presenter.oauthPresenter,
     mcpPresenter: presenter.mcpPresenter,
+    remoteControlPresenter: presenter.remoteControlPresenter,
+    shortcutPresenter: presenter.shortcutPresenter,
     syncPresenter: presenter.syncPresenter,
     upgradePresenter: presenter.upgradePresenter,
     dialogPresenter: presenter.dialogPresenter,
@@ -968,6 +896,7 @@ const buildMainKernelRouteRuntime = () =>
     devicePresenter: presenter.devicePresenter,
     projectPresenter: presenter.projectPresenter,
     filePresenter: presenter.filePresenter,
+    knowledgePresenter: presenter.knowledgePresenter,
     workspacePresenter: presenter.workspacePresenter,
     yoBrowserPresenter: presenter.yoBrowserPresenter,
     tabPresenter: presenter.tabPresenter,
@@ -991,157 +920,7 @@ export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelR
 export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
   // only allow initialize once
   if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
-  setupLegacyTypedEventBridge({
-    configPresenter: presenter.configPresenter,
-    llmProviderPresenter: presenter.llmproviderPresenter
-  })
   return presenter
 }
 
 registerMainKernelRoutes(ipcMain, () => (presenter ? getMainKernelRouteRuntime() : undefined))
-
-// 检查对象属性是否为函数 (用于动态调用)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isFunction(obj: any, prop: string): obj is { [key: string]: (...args: any[]) => any } {
-  return typeof obj[prop] === 'function'
-}
-
-// IPC 主进程处理程序：动态调用 Presenter 的方法 (支持 window/webContents 上下文)
-ipcMain.handle(
-  'presenter:call',
-  (event: IpcMainInvokeEvent, name: string, method: string, ...payloads: unknown[]) => {
-    const webContentsId = event.sender.id
-    try {
-      // 构建调用上下文
-      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-
-      const context: IPCCallContext = {
-        windowId,
-        webContentsId,
-        presenterName: name,
-        methodName: method,
-        timestamp: Date.now()
-      }
-
-      // 记录调用日志
-      if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        logger.info(
-          `[IPC Call] WebContents:${context.webContentsId} Window:${context.windowId || 'unknown'} -> ${context.presenterName}.${context.methodName}`
-        )
-      }
-
-      if (!Presenter.DISPATCHABLE_PRESENTERS.has(name as keyof IPresenter)) {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} blocked presenter access: ${name}`
-        )
-        return { error: `Presenter "${name}" is not accessible via generic dispatcher` }
-      }
-
-      // 通过名称获取对应的 Presenter 实例
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let calledPresenter: any = presenter[name as keyof Presenter]
-      let resolvedMethod = method
-      let resolvedPayloads = payloads
-
-      if (!calledPresenter) {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} calling wrong presenter: ${name}`
-        )
-        return { error: `Presenter "${name}" not found` }
-      }
-
-      // 检查方法是否存在且为函数
-      if (isFunction(calledPresenter, resolvedMethod)) {
-        // 调用方法并返回结果
-        const result = calledPresenter[resolvedMethod](...resolvedPayloads)
-        return handlePresenterCallResult(result, {
-          webContentsId,
-          presenterName: name,
-          methodName: method
-        })
-      } else {
-        console.warn(
-          `[IPC Warning] WebContents:${context.webContentsId} called method is not a function or does not exist: ${name}.${method}`
-        )
-        return { error: `Method "${method}" not found or not a function on "${name}"` }
-      }
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      e: any
-    ) {
-      return handlePresenterCallError(e, {
-        webContentsId,
-        presenterName: name,
-        methodName: method
-      })
-    }
-  }
-)
-
-ipcMain.handle(
-  'remoteControlPresenter:call',
-  async (event: IpcMainInvokeEvent, method: string, ...payloads: unknown[]) => {
-    const webContentsId = event.sender.id
-    try {
-      const windowId = BrowserWindow.fromWebContents(event.sender)?.id
-
-      if (import.meta.env.VITE_LOG_IPC_CALL === '1') {
-        logger.info(
-          `[IPC Call] WebContents:${webContentsId} Window:${windowId || 'unknown'} -> remoteControlPresenter.${method}`
-        )
-      }
-
-      if (!Presenter.REMOTE_CONTROL_METHODS.has(method as keyof IRemoteControlPresenter)) {
-        console.warn(
-          `[IPC Warning] WebContents:${webContentsId} blocked remote control method: ${method}`
-        )
-        return { error: `Method "${method}" is not allowed on "remoteControlPresenter"` }
-      }
-
-      const isSettingsWindow =
-        windowId != null && presenter.windowPresenter.getSettingsWindowId() === windowId
-      const shouldTrackRemoteRuntime =
-        isSettingsWindow &&
-        (method === 'listRemoteChannels' ||
-          method.startsWith('getChannel') ||
-          method.startsWith('getTelegram') ||
-          method.startsWith('getFeishu') ||
-          method.startsWith('getQQBot') ||
-          method.startsWith('getDiscord') ||
-          method.startsWith('getWeixinIlink'))
-
-      const result = shouldTrackRemoteRuntime
-        ? presenter.startupWorkloadCoordinator.scheduleTask({
-            id: `settings.remote.runtime:${method}`,
-            target: 'settings',
-            phase: 'deferred',
-            resource: 'io',
-            labelKey: 'startup.settings.remote.runtime',
-            visibleId: 'settings.remote.runtime',
-            runId: presenter.startupWorkloadCoordinator.getRunId('settings'),
-            run: async () => {
-              return await presenter.callRemoteControl(
-                method as keyof IRemoteControlPresenter,
-                ...payloads
-              )
-            }
-          })
-        : presenter.callRemoteControl(method as keyof IRemoteControlPresenter, ...payloads)
-
-      return handlePresenterCallResult(result, {
-        webContentsId,
-        presenterName: 'remoteControlPresenter',
-        methodName: method
-      })
-    } catch (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      e: any
-    ) {
-      return handlePresenterCallError(e, {
-        webContentsId,
-        presenterName: 'remoteControlPresenter',
-        methodName: method
-      })
-    }
-  }
-)

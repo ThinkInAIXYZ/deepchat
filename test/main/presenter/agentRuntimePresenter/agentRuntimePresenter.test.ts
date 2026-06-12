@@ -107,6 +107,16 @@ import {
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
 
+function getPublishedPayloads(eventName: string): any[] {
+  return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
+    .filter(([name]) => name === eventName)
+    .map(([, payload]) => payload)
+}
+
+function expectPublished(eventName: string, payload: Record<string, unknown>): void {
+  expect(publishDeepchatEvent).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
 function getSkillPresenterMock() {
   return presenter.skillPresenter as {
     getMetadataList: ReturnType<typeof vi.fn>
@@ -1511,27 +1521,9 @@ describe('AgentRuntimePresenter', () => {
       )) {
       }
 
-      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
-        .filter(([eventName]) => eventName === 'stream:response')
-        .map(([, , payload]) => payload)
-        .filter((payload) => typeof payload?.messageId === 'string')
-
-      const rateLimitShow = streamResponseCalls.find(
-        (payload) =>
-          payload.messageId.startsWith('__rate_limit__:') &&
-          Array.isArray(payload.blocks) &&
-          payload.blocks.length === 1
+      const typedStreamUpdates = getPublishedPayloads('chat.stream.updated').filter(
+        (payload) => typeof payload?.messageId === 'string'
       )
-      const rateLimitClear = streamResponseCalls.find(
-        (payload) =>
-          payload.messageId.startsWith('__rate_limit__:') &&
-          Array.isArray(payload.blocks) &&
-          payload.blocks.length === 0
-      )
-      const typedStreamUpdates = (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
-        .filter(([eventName]) => eventName === 'chat.stream.updated')
-        .map(([, payload]) => payload)
-        .filter((payload) => typeof payload?.messageId === 'string')
       const typedRateLimitShow = typedStreamUpdates.find(
         (payload) =>
           payload.messageId.startsWith('__rate_limit__:') &&
@@ -1545,8 +1537,8 @@ describe('AgentRuntimePresenter', () => {
           payload.blocks.length === 0
       )
 
-      expect(rateLimitShow).toMatchObject({
-        conversationId: 's1',
+      expect(typedRateLimitShow).toMatchObject({
+        sessionId: 's1',
         blocks: [
           expect.objectContaining({
             type: 'action',
@@ -1560,8 +1552,8 @@ describe('AgentRuntimePresenter', () => {
           })
         ]
       })
-      expect(rateLimitClear).toMatchObject({
-        conversationId: 's1',
+      expect(typedRateLimitClear).toMatchObject({
+        sessionId: 's1',
         blocks: []
       })
       expect(typedRateLimitShow).toMatchObject({
@@ -1748,11 +1740,10 @@ describe('AgentRuntimePresenter', () => {
       const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
       expect(providerCoreStream).not.toHaveBeenCalled()
 
-      const streamResponseCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
-        .filter(([eventName]) => eventName === 'stream:response')
-        .map(([, , payload]) => payload)
-        .filter((payload) => typeof payload?.messageId === 'string')
-      const rateLimitClear = streamResponseCalls.find(
+      const streamUpdates = getPublishedPayloads('chat.stream.updated').filter(
+        (payload) => typeof payload?.messageId === 'string'
+      )
+      const rateLimitClear = streamUpdates.find(
         (payload) =>
           payload.messageId.startsWith('__rate_limit__:') &&
           Array.isArray(payload.blocks) &&
@@ -1760,7 +1751,7 @@ describe('AgentRuntimePresenter', () => {
       )
 
       expect(rateLimitClear).toMatchObject({
-        conversationId: 's1',
+        sessionId: 's1',
         blocks: []
       })
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
@@ -2071,12 +2062,10 @@ describe('AgentRuntimePresenter', () => {
       await agent.processMessage('s1', 'Hello')
 
       // Should emit generating then idle
-      const statusCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-        (c: any[]) => c[0] === 'session:status-changed'
-      )
-      expect(statusCalls).toHaveLength(2)
-      expect(statusCalls[0][2]).toEqual({ sessionId: 's1', status: 'generating' })
-      expect(statusCalls[1][2]).toEqual({ sessionId: 's1', status: 'idle' })
+      const statusPayloads = getPublishedPayloads('sessions.status.changed')
+      expect(statusPayloads).toHaveLength(2)
+      expect(statusPayloads[0]).toMatchObject({ sessionId: 's1', status: 'generating' })
+      expect(statusPayloads[1]).toMatchObject({ sessionId: 's1', status: 'idle' })
     })
 
     it('transitions to error status on exception', async () => {
@@ -2085,10 +2074,8 @@ describe('AgentRuntimePresenter', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const statusCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-        (c: any[]) => c[0] === 'session:status-changed'
-      )
-      expect(statusCalls[statusCalls.length - 1][2]).toEqual({
+      const statusPayloads = getPublishedPayloads('sessions.status.changed')
+      expect(statusPayloads[statusPayloads.length - 1]).toMatchObject({
         sessionId: 's1',
         status: 'error'
       })
@@ -2097,9 +2084,7 @@ describe('AgentRuntimePresenter', () => {
     it('emits a refresh for the persisted user message before streaming starts', async () => {
       let refreshCountAtStreamStart = 0
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
-        refreshCountAtStreamStart = (
-          eventBus.sendToRenderer as ReturnType<typeof vi.fn>
-        ).mock.calls.filter((call: any[]) => call[0] === 'stream:end').length
+        refreshCountAtStreamStart = getPublishedPayloads('chat.stream.completed').length
         return { status: 'completed' }
       })
 
@@ -3559,7 +3544,7 @@ describe('AgentRuntimePresenter', () => {
       await agent.deleteMessage('s1', 'm1')
 
       expect(sqlitePresenter.deepchatSessionsTable.resetSummaryState).toHaveBeenCalledWith('s1')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+      expectPublished('sessions.compaction.changed', {
         sessionId: 's1',
         status: 'idle',
         cursorOrderSeq: 1,
@@ -3677,9 +3662,8 @@ describe('AgentRuntimePresenter', () => {
       expect(prepareSpy).not.toHaveBeenCalled()
       expect(messageText).toContain('U'.repeat(2400))
       expect(messageText).toContain('A'.repeat(2400))
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        'session:compaction-updated',
-        'all',
+      expect(publishDeepchatEvent).not.toHaveBeenCalledWith(
+        'sessions.compaction.changed',
         expect.objectContaining({
           sessionId: 's1',
           status: 'compacting'
@@ -3902,17 +3886,15 @@ describe('AgentRuntimePresenter', () => {
       })
       await agent.processMessage('s1', 'new prompt')
 
-      const compactionCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
-        .filter((call: any[]) => call[0] === 'session:compaction-updated')
-        .map((call: any[]) => call[2])
+      const compactionCalls = getPublishedPayloads('sessions.compaction.changed')
 
       expect(compactionCalls).toEqual([
-        {
+        expect.objectContaining({
           sessionId: 's1',
           status: 'compacting',
           cursorOrderSeq: 3,
           summaryUpdatedAt: null
-        },
+        }),
         expect.objectContaining({
           sessionId: 's1',
           status: 'compacted',
@@ -4123,23 +4105,21 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.processMessage('s1', 'new prompt')
 
-      const compactionCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls
-        .filter((call: any[]) => call[0] === 'session:compaction-updated')
-        .map((call: any[]) => call[2])
+      const compactionCalls = getPublishedPayloads('sessions.compaction.changed')
 
       expect(compactionCalls).toEqual([
-        {
+        expect.objectContaining({
           sessionId: 's1',
           status: 'compacting',
           cursorOrderSeq: 5,
           summaryUpdatedAt: 111
-        },
-        {
+        }),
+        expect.objectContaining({
           sessionId: 's1',
           status: 'compacted',
           cursorOrderSeq: 3,
           summaryUpdatedAt: 111
-        }
+        })
       ])
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
     })
@@ -4179,7 +4159,7 @@ describe('AgentRuntimePresenter', () => {
       ).rejects.toThrow('late failure')
 
       expect(sqlitePresenter.deepchatMessagesTable.delete).toHaveBeenCalledWith('mock-msg-id')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+      expectPublished('sessions.compaction.changed', {
         sessionId: 's1',
         status: 'idle',
         cursorOrderSeq: 1,
@@ -4197,7 +4177,7 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.clearMessages('s1')
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:compaction-updated', 'all', {
+      expectPublished('sessions.compaction.changed', {
         sessionId: 's1',
         status: 'idle',
         cursorOrderSeq: 1,
@@ -4354,13 +4334,9 @@ describe('AgentRuntimePresenter', () => {
           })
         ])
       )
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:error',
-        'all',
-        expect.objectContaining({
-          error: expect.stringContaining('Request was not sent')
-        })
-      )
+      expectPublished('chat.stream.failed', {
+        error: expect.stringContaining('Request was not sent')
+      })
     })
   })
 

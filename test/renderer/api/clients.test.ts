@@ -1,11 +1,27 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { createAcpTerminalClient } from '../../../src/renderer/api/AcpTerminalClient'
+import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
 import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
 import { createChatClient } from '../../../src/renderer/api/ChatClient'
 import { createConfigClient } from '../../../src/renderer/api/ConfigClient'
+import { createContextMenuClient } from '../../../src/renderer/api/ContextMenuClient'
+import { createDatabaseSecurityClient } from '../../../src/renderer/api/DatabaseSecurityClient'
+import { createDeviceClient } from '../../../src/renderer/api/DeviceClient'
+import { createKnowledgeClient } from '../../../src/renderer/api/KnowledgeClient'
+import { createMcpClient } from '../../../src/renderer/api/McpClient'
 import { createModelClient } from '../../../src/renderer/api/ModelClient'
+import { createNowledgeMemClient } from '../../../src/renderer/api/NowledgeMemClient'
+import { createOAuthClient } from '../../../src/renderer/api/OAuthClient'
+import { createProjectClient } from '../../../src/renderer/api/ProjectClient'
+import { createRemoteControlClient } from '../../../src/renderer/api/RemoteControlClient'
 import { createProviderClient } from '../../../src/renderer/api/ProviderClient'
 import { createSessionClient } from '../../../src/renderer/api/SessionClient'
 import { createSettingsClient } from '../../../src/renderer/api/SettingsClient'
+import { createShortcutClient } from '../../../src/renderer/api/ShortcutClient'
+import { createSkillClient } from '../../../src/renderer/api/SkillClient'
+import { createSkillSyncClient } from '../../../src/renderer/api/SkillSyncClient'
+import { createToolClient } from '../../../src/renderer/api/ToolClient'
+import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
   function createBridge(): DeepchatBridge {
@@ -14,6 +30,16 @@ describe('renderer api clients', () => {
         .fn()
         .mockImplementation(async (routeName: string, payload?: Record<string, unknown>) => {
           switch (routeName) {
+            case 'acpTerminal.input':
+              return { sent: true }
+            case 'acpTerminal.kill':
+              return { killed: true }
+            case 'shortcut.register':
+              return { registered: true }
+            case 'shortcut.unregister':
+              return { unregistered: true }
+            case 'shortcut.destroy':
+              return { destroyed: true }
             case 'config.getEntries':
               return { version: 0, values: {} }
             case 'config.updateEntries':
@@ -40,6 +66,552 @@ describe('renderer api clients', () => {
               return { configs: [] }
             case 'config.setKnowledgeConfigs':
               return { configs: payload?.configs ?? [] }
+            case 'config.getProxySettings':
+              return { mode: 'system', customProxyUrl: '' }
+            case 'config.setProxyMode':
+              return { mode: payload?.mode, customProxyUrl: '' }
+            case 'config.setCustomProxyUrl':
+              return { mode: 'custom', customProxyUrl: payload?.url }
+            case 'config.openLoggingFolder':
+              return { opened: true }
+            case 'config.getUpdateChannel':
+              return { channel: 'stable' }
+            case 'config.setUpdateChannel':
+              return { channel: payload?.channel }
+            case 'config.getSkillDraftSuggestions':
+              return { enabled: false }
+            case 'config.setSkillDraftSuggestions':
+              return { enabled: payload?.enabled }
+            case 'config.refreshProviderDb':
+              return {
+                result: {
+                  status: 'updated',
+                  lastUpdated: 123,
+                  providersCount: 2
+                }
+              }
+            case 'config.getHooksNotifications':
+              return { config: { hooks: [] } }
+            case 'config.setHooksNotifications':
+              return { config: payload?.config }
+            case 'config.testHookCommand':
+              return {
+                result: {
+                  success: true,
+                  durationMs: 10,
+                  exitCode: 0
+                }
+              }
+            case 'databaseSecurity.getStatus':
+              return {
+                status: {
+                  enabled: false,
+                  cipher: 'sqlcipher',
+                  safeStorageAvailable: true,
+                  safeStorageBackend: undefined,
+                  passwordStorage: 'none',
+                  manualUnlockRequired: false,
+                  migrationInProgress: false,
+                  lastMigrationAt: undefined
+                }
+              }
+            case 'databaseSecurity.enable':
+            case 'databaseSecurity.changePassword':
+            case 'databaseSecurity.disable':
+              return {
+                status: {
+                  enabled: routeName !== 'databaseSecurity.disable',
+                  cipher: 'sqlcipher',
+                  safeStorageAvailable: true,
+                  safeStorageBackend: undefined,
+                  passwordStorage: 'safeStorage',
+                  manualUnlockRequired: false,
+                  migrationInProgress: false,
+                  lastMigrationAt: 123
+                }
+              }
+            case 'databaseSecurity.repairSchema':
+              return {
+                report: {
+                  startedAt: 1,
+                  finishedAt: 2,
+                  status: 'healthy',
+                  backupPath: null,
+                  diagnosisBeforeRepair: {
+                    checkedAt: 1,
+                    isHealthy: true,
+                    issues: [],
+                    repairableIssues: [],
+                    manualIssues: []
+                  },
+                  diagnosisAfterRepair: {
+                    checkedAt: 2,
+                    isHealthy: true,
+                    issues: [],
+                    repairableIssues: [],
+                    manualIssues: []
+                  },
+                  repairedIssues: [],
+                  remainingIssues: []
+                }
+              }
+            case 'config.setAcpEnabled':
+              return { enabled: payload?.enabled }
+            case 'config.listAcpRegistryAgents':
+            case 'config.refreshAcpRegistry':
+              return { agents: [] }
+            case 'config.setAcpAgentEnabled':
+            case 'config.setAcpAgentEnvOverride':
+            case 'config.uninstallAcpRegistryAgent':
+              return { ok: true }
+            case 'config.ensureAcpAgentInstalled':
+            case 'config.repairAcpAgent':
+              return {
+                installState: {
+                  status: 'installed',
+                  distributionType: 'npx',
+                  version: '1.0.0',
+                  installedAt: 123,
+                  lastCheckedAt: 123,
+                  installDir: null,
+                  error: null
+                }
+              }
+            case 'config.listManualAcpAgents':
+              return { agents: [] }
+            case 'config.addManualAcpAgent':
+              return {
+                agent: {
+                  id: 'manual-acp',
+                  name: payload?.name ?? 'Manual ACP',
+                  command: payload?.command ?? 'node',
+                  enabled: true,
+                  source: 'manual'
+                }
+              }
+            case 'config.updateManualAcpAgent':
+              return {
+                agent: {
+                  id: payload?.agentId ?? 'manual-acp',
+                  name: 'Manual ACP',
+                  command: 'node',
+                  enabled: true,
+                  source: 'manual'
+                }
+              }
+            case 'config.removeManualAcpAgent':
+              return { removed: true }
+            case 'config.listAgents':
+              return { agents: [] }
+            case 'config.createDeepChatAgent':
+              return {
+                agent: {
+                  id: 'deepchat-new',
+                  name: payload?.name ?? 'New agent',
+                  type: 'deepchat',
+                  enabled: true
+                }
+              }
+            case 'config.updateDeepChatAgent':
+              return {
+                agent: {
+                  id: payload?.agentId ?? 'deepchat',
+                  name: 'Updated agent',
+                  type: 'deepchat',
+                  enabled: true
+                }
+              }
+            case 'config.deleteDeepChatAgent':
+              return { removed: true }
+            case 'sessions.getAgents':
+              return {
+                agents: [
+                  {
+                    id: 'deepchat',
+                    name: 'DeepChat',
+                    type: 'deepchat',
+                    enabled: true
+                  }
+                ]
+              }
+            case 'sessions.getUsageDashboard':
+              return {
+                dashboard: {
+                  recordingStartedAt: null,
+                  backfillStatus: {
+                    status: 'completed',
+                    startedAt: null,
+                    finishedAt: null,
+                    error: null,
+                    updatedAt: 123
+                  },
+                  summary: {
+                    messageCount: 1,
+                    sessionCount: 1,
+                    inputTokens: 10,
+                    outputTokens: 20,
+                    totalTokens: 30,
+                    cachedInputTokens: 0,
+                    cacheHitRate: 0,
+                    estimatedCostUsd: null,
+                    mostActiveDay: {
+                      date: '2026-06-11',
+                      messageCount: 1
+                    }
+                  },
+                  calendar: [],
+                  providerBreakdown: [],
+                  modelBreakdown: [],
+                  rtk: {
+                    scope: 'deepchat',
+                    enabled: true,
+                    effectiveEnabled: true,
+                    available: true,
+                    health: 'healthy',
+                    checkedAt: 123,
+                    source: 'bundled',
+                    failureStage: null,
+                    failureMessage: null,
+                    summary: {
+                      totalCommands: 0,
+                      totalInputTokens: 0,
+                      totalOutputTokens: 0,
+                      totalSavedTokens: 0,
+                      avgSavingsPct: 0,
+                      totalTimeMs: 0,
+                      avgTimeMs: 0
+                    },
+                    daily: []
+                  }
+                }
+              }
+            case 'sessions.retryRtkHealthCheck':
+              return { retried: true }
+            case 'knowledge.isSupported':
+              return { supported: true }
+            case 'knowledge.getSupportedLanguages':
+              return { languages: ['markdown', 'typescript'] }
+            case 'knowledge.getSeparatorsForLanguage':
+              return { separators: ['\n\n', '\n', ' ', ''] }
+            case 'knowledge.getSupportedFileExtensions':
+              return { extensions: ['md', 'txt', 'pdf'] }
+            case 'knowledge.listFiles':
+              return {
+                files: [
+                  {
+                    id: 'file-1',
+                    name: 'guide.md',
+                    path: '/workspace/guide.md',
+                    mimeType: 'text/markdown',
+                    status: 'completed',
+                    uploadedAt: 123,
+                    metadata: {
+                      size: 1024,
+                      totalChunks: 3
+                    }
+                  }
+                ]
+              }
+            case 'knowledge.similarityQuery':
+              return {
+                results: [
+                  {
+                    id: 'chunk-1',
+                    metadata: {
+                      from: 'guide.md',
+                      filePath: '/workspace/guide.md',
+                      content: 'hello knowledge'
+                    },
+                    distance: 0.1
+                  }
+                ]
+              }
+            case 'knowledge.validateFile':
+              return {
+                result: {
+                  isSupported: true,
+                  mimeType: 'text/markdown',
+                  adapterType: 'text'
+                }
+              }
+            case 'knowledge.addFile':
+            case 'knowledge.reAddFile':
+              return {
+                result: {
+                  data: {
+                    id: 'file-1',
+                    name: 'guide.md',
+                    path: '/workspace/guide.md',
+                    mimeType: 'text/markdown',
+                    status: 'processing',
+                    uploadedAt: 123,
+                    metadata: {
+                      size: 1024,
+                      totalChunks: 3
+                    }
+                  }
+                }
+              }
+            case 'knowledge.deleteFile':
+              return { deleted: true }
+            case 'knowledge.pauseAllRunningTasks':
+              return { paused: true }
+            case 'knowledge.resumeAllPausedTasks':
+              return { resumed: true }
+            case 'skillSync.scanExternalTools':
+              return {
+                results: [
+                  {
+                    toolId: 'codex',
+                    toolName: 'Codex',
+                    available: true,
+                    skillsDir: '/tools',
+                    skills: [
+                      {
+                        name: 'write-tests',
+                        description: 'Write tests',
+                        path: '/tools/write-tests.md',
+                        format: 'markdown',
+                        lastModified: new Date('2024-01-01T00:00:00.000Z')
+                      }
+                    ]
+                  }
+                ]
+              }
+            case 'skillSync.getNewDiscoveries':
+              return {
+                discoveries: [
+                  {
+                    toolId: 'codex',
+                    toolName: 'Codex',
+                    newSkills: [
+                      {
+                        name: 'write-tests',
+                        description: 'Write tests',
+                        path: '/tools/write-tests.md',
+                        format: 'markdown',
+                        lastModified: new Date('2024-01-01T00:00:00.000Z')
+                      }
+                    ]
+                  }
+                ]
+              }
+            case 'skillSync.acknowledgeDiscoveries':
+              return { acknowledged: true }
+            case 'skills.readFile':
+              return { content: '---\nname: write-tests\n---\nUse tests well' }
+            case 'skillSync.getRegisteredTools':
+              return {
+                tools: [
+                  {
+                    id: 'codex',
+                    name: 'Codex',
+                    skillsDir: '/tools',
+                    filePattern: '*.md',
+                    format: 'markdown',
+                    capabilities: {
+                      hasFrontmatter: true,
+                      supportsName: true,
+                      supportsDescription: true,
+                      supportsTools: true,
+                      supportsModel: true,
+                      supportsSubfolders: false,
+                      supportsReferences: false,
+                      supportsScripts: false
+                    }
+                  }
+                ]
+              }
+            case 'skillSync.previewImport':
+              return {
+                previews: [
+                  {
+                    skill: {
+                      name: 'write-tests',
+                      description: 'Write tests',
+                      instructions: 'Write useful tests'
+                    },
+                    source: {
+                      name: 'write-tests',
+                      description: 'Write tests',
+                      path: '/tools/write-tests.md',
+                      format: 'markdown',
+                      lastModified: new Date('2024-01-01T00:00:00.000Z')
+                    },
+                    warnings: []
+                  }
+                ]
+              }
+            case 'skillSync.executeImport':
+              return {
+                result: {
+                  success: true,
+                  imported: 1,
+                  exported: 0,
+                  skipped: 0,
+                  failed: []
+                }
+              }
+            case 'skillSync.previewExport':
+              return {
+                previews: [
+                  {
+                    skillName: 'write-tests',
+                    targetTool: 'codex',
+                    targetPath: '/tools/write-tests.md',
+                    convertedContent: '# Write tests',
+                    warnings: []
+                  }
+                ]
+              }
+            case 'skillSync.executeExport':
+              return {
+                result: {
+                  success: true,
+                  imported: 0,
+                  exported: 1,
+                  skipped: 0,
+                  failed: []
+                }
+              }
+            case 'nowledgeMem.getConfig':
+            case 'nowledgeMem.updateConfig':
+              return {
+                config: {
+                  baseUrl: 'http://127.0.0.1:14242',
+                  apiKey: '',
+                  timeout: 30000
+                }
+              }
+            case 'nowledgeMem.testConnection':
+              return {
+                result: {
+                  success: true,
+                  message: 'Connection successful'
+                }
+              }
+            case 'oauth.githubCopilot.startLogin':
+              return { success: true }
+            case 'oauth.githubCopilot.startDeviceFlowLogin':
+              return { success: false }
+            case 'mcp.router.listServers':
+              return {
+                servers: [
+                  {
+                    uuid: 'router-item-1',
+                    created_at: '2026-06-11T00:00:00.000Z',
+                    updated_at: '2026-06-11T00:00:00.000Z',
+                    name: 'context7',
+                    author_name: 'upstash',
+                    title: 'Context7',
+                    description: 'Fetch current docs',
+                    content: 'Documentation helper',
+                    server_key: 'context7',
+                    config_name: 'Context7',
+                    server_url: 'https://mcp.context7.com/mcp'
+                  }
+                ]
+              }
+            case 'mcp.router.installServer':
+              return { installed: true }
+            case 'mcp.router.getApiKey':
+              return { key: 'router-key' }
+            case 'mcp.router.setApiKey':
+              return { saved: true }
+            case 'mcp.router.isServerInstalled':
+              return { installed: false }
+            case 'mcp.router.updateServersAuth':
+              return { updated: true }
+            case 'remoteControl.listChannels':
+              return {
+                channels: [
+                  {
+                    id: 'telegram',
+                    type: 'builtin',
+                    implemented: true,
+                    titleKey: 'settings.remote.telegram.title',
+                    descriptionKey: 'settings.remote.telegram.description',
+                    supportsPairing: true,
+                    supportsNotifications: false
+                  }
+                ]
+              }
+            case 'remoteControl.getChannelSettings':
+            case 'remoteControl.saveChannelSettings':
+              return {
+                settings: payload?.settings ?? {
+                  botToken: 'telegram-token',
+                  remoteEnabled: true,
+                  defaultAgentId: 'deepchat',
+                  defaultWorkdir: ''
+                }
+              }
+            case 'remoteControl.getChannelStatus':
+            case 'remoteControl.getTelegramStatus':
+              return {
+                status: {
+                  channel: 'telegram',
+                  enabled: true,
+                  state: 'running',
+                  pollOffset: 1,
+                  bindingCount: 0,
+                  allowedUserCount: 1,
+                  lastError: null,
+                  botUser: null
+                }
+              }
+            case 'remoteControl.getWeixinIlinkStatus':
+              return {
+                status: {
+                  channel: 'weixin-ilink',
+                  enabled: false,
+                  state: 'disabled',
+                  bindingCount: 0,
+                  accountCount: 0,
+                  connectedAccountCount: 0,
+                  lastError: null,
+                  accounts: []
+                }
+              }
+            case 'remoteControl.getChannelBindings':
+              return { bindings: [] }
+            case 'remoteControl.removeChannelBinding':
+            case 'remoteControl.removeChannelPrincipal':
+            case 'remoteControl.removeWeixinIlinkAccount':
+              return { removed: true }
+            case 'remoteControl.getChannelPairingSnapshot':
+              return {
+                snapshot: {
+                  pairCode: null,
+                  pairCodeExpiresAt: null,
+                  allowedUserIds: [123]
+                }
+              }
+            case 'remoteControl.createChannelPairCode':
+              return {
+                code: '654321',
+                expiresAt: 123456
+              }
+            case 'remoteControl.clearChannelPairCode':
+              return { cleared: true }
+            case 'remoteControl.startWeixinIlinkLogin':
+              return {
+                session: {
+                  sessionKey: 'weixin-session',
+                  loginUrl: null,
+                  messageKey: 'settings.remote.weixinIlink.loginWindowOpened'
+                }
+              }
+            case 'remoteControl.waitForWeixinIlinkLogin':
+              return {
+                result: {
+                  connected: true,
+                  account: null,
+                  messageKey: 'settings.remote.weixinIlink.loginConnected'
+                }
+              }
+            case 'remoteControl.restartWeixinIlinkAccount':
+              return { restarted: true }
             case 'providers.list':
             case 'providers.listSummaries':
               return { providers: [] }
@@ -50,6 +622,49 @@ describe('renderer api clients', () => {
                   currentQps: 0,
                   queueLength: 0,
                   lastRequestTime: 0
+                }
+              }
+            case 'providers.getKeyStatus':
+              return {
+                status: {
+                  remainNum: 42,
+                  limit_remaining: '42',
+                  usage: '8'
+                }
+              }
+            case 'providers.updateRateLimit':
+              return {
+                config: {
+                  enabled: payload?.enabled,
+                  qpsLimit: payload?.qpsLimit
+                }
+              }
+            case 'providers.getEmbeddingDimensions':
+              return {
+                result: {
+                  data: {
+                    dimensions: 1536,
+                    normalized: true
+                  }
+                }
+              }
+            case 'providers.syncModelScopeMcpServers':
+              return {
+                result: {
+                  success: true,
+                  message: 'ok',
+                  synced: 1,
+                  imported: 1,
+                  skipped: 0,
+                  errors: []
+                }
+              }
+            case 'providers.runAcpDebugAction':
+              return {
+                result: {
+                  status: 'ok',
+                  sessionId: 'debug-session',
+                  events: []
                 }
               }
             case 'providers.refreshModels':
@@ -94,6 +709,42 @@ describe('renderer api clients', () => {
               }
             case 'browser.updateCurrentWindowBounds':
               return { updated: true }
+            case 'browser.clearSandboxData':
+              return { cleared: true }
+            case 'window.closeSettings':
+              return { closed: true }
+            case 'window.focusMain':
+              return { focused: true }
+            case 'window.notifySettingsReady':
+              return { notified: true }
+            case 'window.consumePendingSettingsProviderInstall':
+              return {
+                preview: {
+                  kind: 'builtin',
+                  id: 'deepseek',
+                  baseUrl: 'https://api.deepseek.com',
+                  apiKey: 'sk-secret',
+                  maskedApiKey: 'sk-s...cret',
+                  iconModelId: 'deepseek-chat',
+                  willOverwrite: true
+                }
+              }
+            case 'window.requeuePendingSettingsProviderInstall':
+              return { queued: true }
+            case 'window.startGuidedOnboarding':
+              return { started: true, focused: true }
+            case 'device.selectFiles':
+              return { canceled: false, filePaths: ['/workspace/skill.zip'] }
+            case 'device.resetDataByType':
+              return { reset: true }
+            case 'project.listRecent':
+              return { projects: [] }
+            case 'project.pathExists':
+              return { exists: true }
+            case 'project.selectDirectory':
+              return { path: '/workspace' }
+            case 'tools.listDefinitions':
+              return { tools: [] }
             default:
               return {}
           }
@@ -101,6 +752,89 @@ describe('renderer api clients', () => {
       on: vi.fn(() => vi.fn())
     }
   }
+
+  it('routes ACP terminal commands and events through the shared registry names', async () => {
+    const bridge = createBridge()
+    const client = createAcpTerminalClient(bridge)
+    const listener = vi.fn()
+
+    await client.sendInput('hello\n')
+    await client.kill()
+    client.onStarted(listener)
+    client.onOutput(listener)
+    client.onExited(listener)
+    client.onError(listener)
+    client.onExternalDependenciesRequired(listener)
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'acpTerminal.input', { data: 'hello\n' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'acpTerminal.kill', {})
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'acpTerminal.started', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'acpTerminal.output', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(3, 'acpTerminal.exited', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(4, 'acpTerminal.error', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      5,
+      'acpTerminal.externalDependenciesRequired',
+      listener
+    )
+  })
+
+  it('routes context menu events through the shared registry names', () => {
+    const bridge = createBridge()
+    const client = createContextMenuClient(bridge)
+    const listener = vi.fn()
+
+    client.onTranslateRequested(listener)
+    client.onAskAiRequested(listener)
+
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'contextMenu.translateRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'contextMenu.askAiRequested', listener)
+  })
+
+  it('routes app runtime events through the shared registry names', () => {
+    const bridge = createBridge()
+    const client = createAppRuntimeClient(bridge)
+    const listener = vi.fn()
+
+    client.onStartDeeplink(listener)
+    client.onMcpInstallRequested(listener)
+    client.onGuidedOnboardingStartRequested(listener)
+    client.onWindowFocused(listener)
+    client.onWindowBlurred(listener)
+    client.onShortcutRequested(listener)
+    client.onDataResetCompleteDev(listener)
+    client.onSystemNotificationClicked(listener)
+
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'appRuntime.startDeeplinkRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'appRuntime.mcpInstallRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      3,
+      'appRuntime.guidedOnboardingStartRequested',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(4, 'appRuntime.windowFocused', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowBlurred', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.shortcutRequested', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      7,
+      'appRuntime.dataResetCompleteDev',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'appRuntime.systemNotificationClicked', listener)
+  })
+
+  it('routes shortcut runtime commands through the shared registry names', async () => {
+    const bridge = createBridge()
+    const client = createShortcutClient(bridge)
+
+    await client.registerShortcuts()
+    await client.unregisterShortcuts()
+    await client.destroy()
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'shortcut.register', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'shortcut.unregister', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'shortcut.destroy', {})
+  })
 
   it('routes settings calls through the shared registry names', async () => {
     const bridge = createBridge()
@@ -146,6 +880,10 @@ describe('renderer api clients', () => {
     await sessionClient.deactivate()
     await sessionClient.getActive()
     sessionClient.onUpdated(vi.fn())
+    sessionClient.onCompactionChanged(vi.fn())
+    sessionClient.onAcpModesReady(vi.fn())
+    sessionClient.onAcpCommandsReady(vi.fn())
+    sessionClient.onAcpConfigOptionsReady(vi.fn())
     await chatClient.sendMessage('session-1', 'follow up')
     await chatClient.steerActiveTurn('session-1', 'refine active answer')
     await chatClient.stopStream({ requestId: 'message-1' })
@@ -217,10 +955,39 @@ describe('renderer api clients', () => {
       modelId: 'gpt-5.4'
     })
     expect(bridge.on).toHaveBeenNthCalledWith(1, 'sessions.updated', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(2, 'chat.stream.updated', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(3, 'chat.stream.completed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'chat.stream.failed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(5, 'chat.plan.updated', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      2,
+      'sessions.compaction.changed',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(3, 'sessions.acp.modes.ready', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      4,
+      'sessions.acp.commands.ready',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      5,
+      'sessions.acp.configOptions.ready',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(6, 'chat.stream.updated', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'chat.stream.completed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'chat.stream.failed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(9, 'chat.plan.updated', expect.any(Function))
+  })
+
+  it('routes agent dashboard calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+
+    await sessionClient.getAgents()
+    await sessionClient.getUsageDashboard()
+    await sessionClient.retryRtkHealthCheck()
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.getAgents', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.getUsageDashboard', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.retryRtkHealthCheck', {})
   })
 
   it('routes phase2 config, provider, and model calls through the shared registry names', async () => {
@@ -249,6 +1016,13 @@ describe('renderer api clients', () => {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     })
+    await configClient.getSetting('assistantModel')
+    await configClient.setSetting('assistantModel', {
+      providerId: 'openai',
+      modelId: 'gpt-5.4-mini'
+    })
+    await configClient.getSetting('maxFileSize')
+    await configClient.setSetting('maxFileSize', 30 * 1024 * 1024)
     await configClient.getSystemPrompts()
     await configClient.getDefaultProjectPath()
     await configClient.getKnowledgeConfigs()
@@ -258,8 +1032,11 @@ describe('renderer api clients', () => {
 
     await providerClient.getProviderSummaries()
     await providerClient.getProviderRateLimitStatus('openai')
+    await providerClient.getKeyStatus('openai')
+    await providerClient.updateProviderRateLimit('openai', true, 2)
     await providerClient.refreshModels('openai')
     providerClient.onProvidersChanged(vi.fn())
+    providerClient.onRateLimitEvent(vi.fn())
 
     await modelClient.getModelConfig('gpt-5.4', 'openai')
     await modelClient.setModelConfig('gpt-5.4', 'openai', {
@@ -290,10 +1067,35 @@ describe('renderer api clients', () => {
         }
       ]
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.getSystemPrompts', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.getDefaultProjectPath', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'config.getKnowledgeConfigs', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'config.setKnowledgeConfigs', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.getEntries', {
+      keys: ['assistantModel']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.updateEntries', {
+      changes: [
+        {
+          key: 'assistantModel',
+          value: {
+            providerId: 'openai',
+            modelId: 'gpt-5.4-mini'
+          }
+        }
+      ]
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'config.getEntries', {
+      keys: ['maxFileSize']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'config.updateEntries', {
+      changes: [
+        {
+          key: 'maxFileSize',
+          value: 30 * 1024 * 1024
+        }
+      ]
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'config.getSystemPrompts', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'config.getDefaultProjectPath', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'config.getKnowledgeConfigs', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'config.setKnowledgeConfigs', {
       configs: [
         {
           id: 'knowledge-1',
@@ -309,24 +1111,32 @@ describe('renderer api clients', () => {
         }
       ]
     })
-    expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[5][1].configs[0]).not.toBe(
+    expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[9][1].configs[0]).not.toBe(
       knowledgeConfig
     )
     expect(
-      (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[5][1].configs[0].embedding
+      (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[9][1].configs[0].embedding
     ).not.toBe(knowledgeConfig.embedding)
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'providers.listSummaries', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'providers.getRateLimitStatus', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'providers.listSummaries', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'providers.getRateLimitStatus', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'providers.refreshModels', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'providers.getKeyStatus', {
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'models.getConfig', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'providers.updateRateLimit', {
+      providerId: 'openai',
+      enabled: true,
+      qpsLimit: 2
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'providers.refreshModels', {
+      providerId: 'openai'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'models.getConfig', {
       modelId: 'gpt-5.4',
       providerId: 'openai'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'models.setConfig', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'models.setConfig', {
       modelId: 'gpt-5.4',
       providerId: 'openai',
       config: {
@@ -339,7 +1149,7 @@ describe('renderer api clients', () => {
         type: 'chat'
       }
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'models.getCapabilities', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'models.getCapabilities', {
       providerId: 'openai',
       modelId: 'gpt-5.4'
     })
@@ -350,9 +1160,195 @@ describe('renderer api clients', () => {
       expect.any(Function)
     )
     expect(bridge.on).toHaveBeenNthCalledWith(3, 'providers.changed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(4, 'models.changed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(5, 'models.status.changed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(6, 'models.config.changed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      4,
+      'providers.rateLimit.configUpdated',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      5,
+      'providers.rateLimit.requestQueued',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      6,
+      'providers.rateLimit.requestExecuted',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'models.changed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'models.status.changed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(9, 'models.config.changed', expect.any(Function))
+  })
+
+  it('routes config proxy, logging, update channel, skill draft, provider DB, and hooks calls', async () => {
+    const bridge = createBridge()
+    const configClient = createConfigClient(bridge)
+
+    await configClient.getProxySettings()
+    await configClient.getProxyMode()
+    await configClient.setProxyMode('custom')
+    await configClient.getCustomProxyUrl()
+    await configClient.setCustomProxyUrl('http://127.0.0.1:7890')
+    await configClient.openLoggingFolder()
+    await configClient.getUpdateChannel()
+    await configClient.setUpdateChannel('beta')
+    await configClient.getSkillDraftSuggestionsEnabled()
+    await configClient.setSkillDraftSuggestionsEnabled(true)
+    await configClient.refreshProviderDb(true)
+    await configClient.getHooksNotificationsConfig()
+    await configClient.setHooksNotificationsConfig({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: 'Hook 1',
+          enabled: true,
+          command: 'echo test',
+          events: ['SessionStart']
+        }
+      ]
+    })
+    await configClient.testHookCommand('hook-1')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'config.getProxySettings', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'config.getProxySettings', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.setProxyMode', {
+      mode: 'custom'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.getProxySettings', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'config.setCustomProxyUrl', {
+      url: 'http://127.0.0.1:7890'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'config.openLoggingFolder', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'config.getUpdateChannel', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'config.setUpdateChannel', {
+      channel: 'beta'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'config.getSkillDraftSuggestions', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'config.setSkillDraftSuggestions', {
+      enabled: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'config.refreshProviderDb', {
+      force: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'config.getHooksNotifications', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'config.setHooksNotifications', {
+      config: {
+        hooks: [
+          {
+            id: 'hook-1',
+            name: 'Hook 1',
+            enabled: true,
+            command: 'echo test',
+            events: ['SessionStart']
+          }
+        ]
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'config.testHookCommand', {
+      hookId: 'hook-1'
+    })
+  })
+
+  it('routes DeepChat agent config calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const configClient = createConfigClient(bridge)
+
+    await configClient.listAgents({ agentType: 'deepchat' })
+    await configClient.createDeepChatAgent({
+      name: 'Writer',
+      enabled: true,
+      config: {
+        systemPrompt: 'Write clearly',
+        permissionMode: 'default'
+      }
+    })
+    await configClient.updateDeepChatAgent('writer', {
+      name: 'Writer Pro',
+      enabled: false
+    })
+    await configClient.deleteDeepChatAgent('writer')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'config.listAgents', {
+      agentType: 'deepchat'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'config.createDeepChatAgent', {
+      name: 'Writer',
+      enabled: true,
+      config: {
+        systemPrompt: 'Write clearly',
+        permissionMode: 'default'
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.updateDeepChatAgent', {
+      agentId: 'writer',
+      updates: {
+        name: 'Writer Pro',
+        enabled: false
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.deleteDeepChatAgent', {
+      agentId: 'writer'
+    })
+  })
+
+  it('routes ACP config calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const configClient = createConfigClient(bridge)
+
+    await configClient.setAcpEnabled(true)
+    await configClient.listAcpRegistryAgents()
+    await configClient.refreshAcpRegistry(true)
+    await configClient.setAcpAgentEnabled('codex-acp', true)
+    await configClient.setAcpAgentEnvOverride('codex-acp', { KEY: 'value' })
+    await configClient.ensureAcpAgentInstalled('codex-acp')
+    await configClient.repairAcpAgent('codex-acp')
+    await configClient.uninstallAcpRegistryAgent('codex-acp')
+    await configClient.listManualAcpAgents()
+    await configClient.addManualAcpAgent({
+      name: 'Manual ACP',
+      command: 'node',
+      enabled: true
+    })
+    await configClient.updateManualAcpAgent('manual-acp', { enabled: false })
+    await configClient.removeManualAcpAgent('manual-acp')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'config.setAcpEnabled', {
+      enabled: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'config.listAcpRegistryAgents', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'config.refreshAcpRegistry', {
+      force: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'config.setAcpAgentEnabled', {
+      agentId: 'codex-acp',
+      enabled: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'config.setAcpAgentEnvOverride', {
+      agentId: 'codex-acp',
+      env: { KEY: 'value' }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'config.ensureAcpAgentInstalled', {
+      agentId: 'codex-acp'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'config.repairAcpAgent', {
+      agentId: 'codex-acp'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'config.uninstallAcpRegistryAgent', {
+      agentId: 'codex-acp'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'config.listManualAcpAgents', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'config.addManualAcpAgent', {
+      name: 'Manual ACP',
+      command: 'node',
+      enabled: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'config.updateManualAcpAgent', {
+      agentId: 'manual-acp',
+      updates: { enabled: false }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'config.removeManualAcpAgent', {
+      agentId: 'manual-acp'
+    })
   })
 
   it('serializes browser bounds updates before invoking the bridge', async () => {
@@ -383,6 +1379,458 @@ describe('renderer api clients', () => {
     expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[0][1].bounds).not.toBe(
       reactiveBounds
     )
+  })
+
+  it('routes browser sandbox clearing through the shared registry name', async () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+
+    await expect(browserClient.clearSandboxData()).resolves.toBe(true)
+
+    expect(bridge.invoke).toHaveBeenCalledWith('browser.clearSandboxData', {})
+  })
+
+  it('routes database security operations through the shared registry names', async () => {
+    const bridge = createBridge()
+    const databaseSecurityClient = createDatabaseSecurityClient(bridge)
+
+    await databaseSecurityClient.getStatus()
+    await databaseSecurityClient.enable('new-password')
+    await databaseSecurityClient.changePassword('old-password', 'new-password')
+    await databaseSecurityClient.disable('old-password')
+    const repairReport = await databaseSecurityClient.repairSchema()
+
+    expect(repairReport.status).toBe('healthy')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'databaseSecurity.getStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'databaseSecurity.enable', {
+      password: 'new-password'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'databaseSecurity.changePassword', {
+      currentPassword: 'old-password',
+      newPassword: 'new-password'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'databaseSecurity.disable', {
+      currentPassword: 'old-password'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'databaseSecurity.repairSchema', {})
+  })
+
+  it('routes settings window calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const windowClient = createWindowClient(bridge)
+
+    await windowClient.closeSettings()
+    await windowClient.focusMainWindow()
+    await windowClient.notifySettingsReady()
+    const preview = await windowClient.consumePendingSettingsProviderInstall()
+    expect(preview).not.toBeNull()
+    if (!preview) {
+      throw new Error('Expected pending provider install preview')
+    }
+    await windowClient.requeuePendingSettingsProviderInstall(preview)
+    await windowClient.startGuidedOnboarding()
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'window.closeSettings', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'window.focusMain', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'window.notifySettingsReady', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(
+      4,
+      'window.consumePendingSettingsProviderInstall',
+      {}
+    )
+    expect(bridge.invoke).toHaveBeenNthCalledWith(
+      5,
+      'window.requeuePendingSettingsProviderInstall',
+      {
+        preview
+      }
+    )
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'window.startGuidedOnboarding', {})
+  })
+
+  it('routes provider runtime utility calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const providerClient = createProviderClient(bridge)
+
+    await providerClient.getEmbeddingDimensions('openai', 'text-embedding-3-small')
+    await providerClient.syncModelScopeMcpServers('modelscope', {
+      page_number: 1,
+      page_size: 50
+    })
+    await providerClient.runAcpDebugAction({
+      agentId: 'codex-acp',
+      action: 'initialize',
+      payload: {},
+      webContentsId: 999
+    })
+    providerClient.onAcpDebugEvent(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'providers.getEmbeddingDimensions', {
+      providerId: 'openai',
+      modelId: 'text-embedding-3-small'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'providers.syncModelScopeMcpServers', {
+      providerId: 'modelscope',
+      syncOptions: {
+        page_number: 1,
+        page_size: 50
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'providers.runAcpDebugAction', {
+      agentId: 'codex-acp',
+      action: 'initialize',
+      payload: {},
+      sessionId: undefined,
+      workdir: undefined,
+      methodName: undefined
+    })
+    expect(bridge.on).toHaveBeenCalledWith('providers.acp.debug.event', expect.any(Function))
+  })
+
+  it('routes knowledge calls and events through the shared registry names', async () => {
+    const bridge = createBridge()
+    const knowledgeClient = createKnowledgeClient(bridge)
+
+    await knowledgeClient.isSupported()
+    await knowledgeClient.getSupportedLanguages()
+    await knowledgeClient.getSeparatorsForLanguage('markdown')
+    await knowledgeClient.getSupportedFileExtensions()
+    await knowledgeClient.listFiles('knowledge-1')
+    await knowledgeClient.similarityQuery('knowledge-1', 'hello')
+    await knowledgeClient.validateFile('/workspace/guide.md')
+    await knowledgeClient.addFile('knowledge-1', '/workspace/guide.md')
+    await knowledgeClient.deleteFile('knowledge-1', 'file-1')
+    await knowledgeClient.reAddFile('knowledge-1', 'file-1')
+    await knowledgeClient.pauseAllRunningTasks('knowledge-1')
+    await knowledgeClient.resumeAllPausedTasks('knowledge-1')
+    knowledgeClient.onFileUpdated(vi.fn())
+    knowledgeClient.onFileProgress(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'knowledge.isSupported', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'knowledge.getSupportedLanguages', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'knowledge.getSeparatorsForLanguage', {
+      language: 'markdown'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'knowledge.getSupportedFileExtensions', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'knowledge.listFiles', {
+      knowledgeBaseId: 'knowledge-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'knowledge.similarityQuery', {
+      knowledgeBaseId: 'knowledge-1',
+      query: 'hello'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'knowledge.validateFile', {
+      filePath: '/workspace/guide.md'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'knowledge.addFile', {
+      knowledgeBaseId: 'knowledge-1',
+      filePath: '/workspace/guide.md'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'knowledge.deleteFile', {
+      knowledgeBaseId: 'knowledge-1',
+      fileId: 'file-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'knowledge.reAddFile', {
+      knowledgeBaseId: 'knowledge-1',
+      fileId: 'file-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'knowledge.pauseAllRunningTasks', {
+      knowledgeBaseId: 'knowledge-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'knowledge.resumeAllPausedTasks', {
+      knowledgeBaseId: 'knowledge-1'
+    })
+    expect(bridge.on).toHaveBeenNthCalledWith(1, 'knowledge.file.updated', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'knowledge.file.progress', expect.any(Function))
+  })
+
+  it('routes skill sync calls and events through the shared registry names', async () => {
+    const bridge = createBridge()
+    const skillSyncClient = createSkillSyncClient(bridge)
+    const importPreview = {
+      skill: {
+        name: 'write-tests',
+        description: 'Write tests',
+        instructions: 'Write useful tests'
+      },
+      source: {
+        name: 'write-tests',
+        description: 'Write tests',
+        path: '/tools/write-tests.md',
+        format: 'markdown',
+        lastModified: new Date('2024-01-01T00:00:00.000Z')
+      },
+      warnings: []
+    }
+    const exportPreview = {
+      skillName: 'write-tests',
+      targetTool: 'codex',
+      targetPath: '/tools/write-tests.md',
+      convertedContent: '# Write tests',
+      warnings: []
+    }
+
+    await skillSyncClient.scanExternalTools()
+    await skillSyncClient.getNewDiscoveries()
+    await skillSyncClient.acknowledgeDiscoveries()
+    await skillSyncClient.getRegisteredTools()
+    await skillSyncClient.previewImport('codex', ['write-tests'])
+    await skillSyncClient.executeImport([importPreview], { 'write-tests': 'overwrite' })
+    await skillSyncClient.previewExport(['write-tests'], 'codex', { inclusion: 'always' })
+    await skillSyncClient.executeExport([exportPreview], { 'write-tests': 'overwrite' })
+    skillSyncClient.onDiscoveriesChanged(vi.fn())
+    skillSyncClient.onScanStarted(vi.fn())
+    skillSyncClient.onScanCompleted(vi.fn())
+    skillSyncClient.onImportStarted(vi.fn())
+    skillSyncClient.onImportProgress(vi.fn())
+    skillSyncClient.onImportCompleted(vi.fn())
+    skillSyncClient.onExportStarted(vi.fn())
+    skillSyncClient.onExportProgress(vi.fn())
+    skillSyncClient.onExportCompleted(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skillSync.scanExternalTools', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skillSync.getNewDiscoveries', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skillSync.acknowledgeDiscoveries', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'skillSync.getRegisteredTools', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'skillSync.previewImport', {
+      toolId: 'codex',
+      skillNames: ['write-tests']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'skillSync.executeImport', {
+      previews: [importPreview],
+      strategies: { 'write-tests': 'overwrite' }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'skillSync.previewExport', {
+      skillNames: ['write-tests'],
+      targetToolId: 'codex',
+      options: { inclusion: 'always' }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'skillSync.executeExport', {
+      previews: [exportPreview],
+      strategies: { 'write-tests': 'overwrite' }
+    })
+    expect(bridge.on).toHaveBeenNthCalledWith(
+      1,
+      'skillSync.discoveries.changed',
+      expect.any(Function)
+    )
+    expect(bridge.on).toHaveBeenNthCalledWith(2, 'skillSync.scan.started', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(3, 'skillSync.scan.completed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(4, 'skillSync.import.started', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(5, 'skillSync.import.progress', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(6, 'skillSync.import.completed', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'skillSync.export.started', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(8, 'skillSync.export.progress', expect.any(Function))
+    expect(bridge.on).toHaveBeenNthCalledWith(9, 'skillSync.export.completed', expect.any(Function))
+  })
+
+  it('routes GitHub Copilot OAuth calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const oauthClient = createOAuthClient(bridge)
+
+    const loginResult = await oauthClient.startGitHubCopilotLogin('github-copilot')
+    const deviceFlowResult = await oauthClient.startGitHubCopilotDeviceFlowLogin('github-copilot')
+
+    expect(loginResult).toBe(true)
+    expect(deviceFlowResult).toBe(false)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'oauth.githubCopilot.startLogin', {
+      providerId: 'github-copilot'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'oauth.githubCopilot.startDeviceFlowLogin', {
+      providerId: 'github-copilot'
+    })
+  })
+
+  it('routes NowledgeMem calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const nowledgeMemClient = createNowledgeMemClient(bridge)
+
+    await nowledgeMemClient.getConfig()
+    await nowledgeMemClient.updateConfig({
+      baseUrl: 'http://127.0.0.1:14242',
+      apiKey: 'secret',
+      timeout: 45000
+    })
+    const testResult = await nowledgeMemClient.testConnection()
+
+    expect(testResult).toEqual({
+      success: true,
+      message: 'Connection successful'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'nowledgeMem.getConfig', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'nowledgeMem.updateConfig', {
+      config: {
+        baseUrl: 'http://127.0.0.1:14242',
+        apiKey: 'secret',
+        timeout: 45000
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'nowledgeMem.testConnection', {})
+  })
+
+  it('routes skill file reads through the shared registry name', async () => {
+    const bridge = createBridge()
+    const skillClient = createSkillClient(bridge)
+
+    const content = await skillClient.readSkillFile('write-tests')
+
+    expect(content).toBe('---\nname: write-tests\n---\nUse tests well')
+    expect(bridge.invoke).toHaveBeenCalledWith('skills.readFile', {
+      name: 'write-tests'
+    })
+  })
+
+  it('routes MCP Router marketplace calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const mcpClient = createMcpClient(bridge)
+
+    const listResult = await mcpClient.listMcpRouterServers(1, 20)
+    const key = await mcpClient.getMcpRouterApiKey()
+    await mcpClient.setMcpRouterApiKey('new-router-key')
+    await mcpClient.updateMcpRouterServersAuth('new-router-key')
+    const installed = await mcpClient.isServerInstalled('mcprouter', 'context7')
+    const installResult = await mcpClient.installMcpRouterServer('context7')
+
+    expect(listResult.servers).toEqual([
+      expect.objectContaining({
+        server_key: 'context7',
+        title: 'Context7'
+      })
+    ])
+    expect(key).toBe('router-key')
+    expect(installed).toBe(false)
+    expect(installResult).toBe(true)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'mcp.router.listServers', {
+      page: 1,
+      limit: 20
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'mcp.router.getApiKey', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'mcp.router.setApiKey', {
+      key: 'new-router-key'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'mcp.router.updateServersAuth', {
+      apiKey: 'new-router-key'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'mcp.router.isServerInstalled', {
+      source: 'mcprouter',
+      sourceId: 'context7'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'mcp.router.installServer', {
+      serverKey: 'context7'
+    })
+  })
+
+  it('routes remote control calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const remoteControlClient = createRemoteControlClient(bridge)
+
+    await remoteControlClient.listRemoteChannels()
+    await remoteControlClient.getChannelSettings('telegram')
+    await remoteControlClient.saveChannelSettings('telegram', {
+      botToken: 'telegram-token',
+      remoteEnabled: true,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: ''
+    })
+    await remoteControlClient.getChannelStatus('telegram')
+    await remoteControlClient.getChannelBindings('telegram')
+    await remoteControlClient.removeChannelBinding('telegram', 'telegram:100:0')
+    await remoteControlClient.removeChannelPrincipal('telegram', '123')
+    await remoteControlClient.getChannelPairingSnapshot('telegram')
+    await remoteControlClient.createChannelPairCode('telegram')
+    await remoteControlClient.clearChannelPairCode('telegram')
+    await remoteControlClient.getTelegramStatus()
+    await remoteControlClient.getWeixinIlinkStatus()
+    await remoteControlClient.startWeixinIlinkLogin({ force: true })
+    await remoteControlClient.waitForWeixinIlinkLogin({
+      sessionKey: 'weixin-session',
+      timeoutMs: 480000
+    })
+    await remoteControlClient.removeWeixinIlinkAccount('account-1')
+    await remoteControlClient.restartWeixinIlinkAccount('account-1')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'remoteControl.listChannels', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'remoteControl.getChannelSettings', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'remoteControl.saveChannelSettings', {
+      channel: 'telegram',
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: ''
+      }
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'remoteControl.getChannelStatus', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'remoteControl.getChannelBindings', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'remoteControl.removeChannelBinding', {
+      channel: 'telegram',
+      endpointKey: 'telegram:100:0'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'remoteControl.removeChannelPrincipal', {
+      channel: 'telegram',
+      principalId: '123'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'remoteControl.getChannelPairingSnapshot', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'remoteControl.createChannelPairCode', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'remoteControl.clearChannelPairCode', {
+      channel: 'telegram'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'remoteControl.getTelegramStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'remoteControl.getWeixinIlinkStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'remoteControl.startWeixinIlinkLogin', {
+      force: true
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'remoteControl.waitForWeixinIlinkLogin', {
+      sessionKey: 'weixin-session',
+      timeoutMs: 480000
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'remoteControl.removeWeixinIlinkAccount', {
+      accountId: 'account-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'remoteControl.restartWeixinIlinkAccount', {
+      accountId: 'account-1'
+    })
+  })
+
+  it('routes project and tool calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const deviceClient = createDeviceClient(bridge)
+    const projectClient = createProjectClient(bridge)
+    const toolClient = createToolClient(bridge)
+
+    await deviceClient.selectFiles({ filters: [{ name: 'ZIP Files', extensions: ['zip'] }] })
+    await deviceClient.resetDataByType('chat')
+    await projectClient.listRecent(8)
+    await projectClient.pathExists('/workspace')
+    await projectClient.selectDirectory()
+    await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'device.selectFiles', {
+      filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'device.resetDataByType', {
+      resetType: 'chat'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'project.listRecent', {
+      limit: 8
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'project.pathExists', {
+      path: '/workspace'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'project.selectDirectory', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'tools.listDefinitions', {
+      chatMode: 'agent'
+    })
   })
 
   it('serializes provider import selections before invoking the bridge', async () => {

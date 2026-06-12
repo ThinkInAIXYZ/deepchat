@@ -1,7 +1,9 @@
 import type { z } from 'zod'
 import type { RouteContract } from './common'
+import { acpTerminalInputRoute, acpTerminalKillRoute } from './routes/acp-terminal.routes'
 import {
   browserAttachCurrentWindowRoute,
+  browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
@@ -21,13 +23,17 @@ import {
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
-  databaseSecurityGetStatusRoute
+  databaseSecurityGetStatusRoute,
+  databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
 import {
   configAddCustomPromptRoute,
+  configAddManualAcpAgentRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
+  configCreateDeepChatAgentRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
   configGetAcpRegistryIconMarkupRoute,
   configGetAcpSharedMcpSelectionsRoute,
@@ -40,20 +46,35 @@ import {
   configGetEntriesRoute,
   configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
+  configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetMcpServersRoute,
+  configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
+  configGetSkillDraftSuggestionsRoute,
   configGetSyncSettingsRoute,
   configGetSystemPromptsRoute,
   configGetThemeRoute,
+  configGetUpdateChannelRoute,
   configGetVoiceAiConfigRoute,
+  configEnsureAcpAgentInstalledRoute,
   configListAgentsRoute,
+  configListAcpRegistryAgentsRoute,
   configListCustomPromptsRoute,
+  configListManualAcpAgentsRoute,
+  configOpenLoggingFolderRoute,
+  configRefreshAcpRegistryRoute,
+  configRefreshProviderDbRoute,
+  configRemoveManualAcpAgentRoute,
+  configRepairAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
   configResolveDeepChatAgentConfigRoute,
   configSetAcpSharedMcpSelectionsRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpAgentEnvOverrideRoute,
+  configSetAcpEnabledRoute,
   configSetAwsBedrockCredentialRoute,
   configSetAzureApiVersionRoute,
   configSetCustomPromptsRoute,
@@ -62,13 +83,22 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
+  configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
+  configSetCustomProxyUrlRoute,
   configSetShortcutKeysRoute,
+  configSetProxyModeRoute,
   configSetSystemPromptsRoute,
+  configSetSkillDraftSuggestionsRoute,
   configSetThemeRoute,
+  configSetUpdateChannelRoute,
+  configTestHookCommandRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
   configUpdateEntriesRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSyncSettingsRoute,
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute
@@ -78,8 +108,10 @@ import {
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
   deviceRestartAppRoute,
+  deviceResetDataByTypeRoute,
   deviceSanitizeSvgRoute,
-  deviceSelectDirectoryRoute
+  deviceSelectDirectoryRoute,
+  deviceSelectFilesRoute
 } from './routes/device.routes'
 import {
   fileCopyImageRoute,
@@ -91,6 +123,20 @@ import {
   fileSaveImageRoute,
   fileWriteImageBase64Route
 } from './routes/file.routes'
+import {
+  knowledgeAddFileRoute,
+  knowledgeDeleteFileRoute,
+  knowledgeGetSeparatorsForLanguageRoute,
+  knowledgeGetSupportedFileExtensionsRoute,
+  knowledgeGetSupportedLanguagesRoute,
+  knowledgeIsSupportedRoute,
+  knowledgeListFilesRoute,
+  knowledgePauseAllRunningTasksRoute,
+  knowledgeReAddFileRoute,
+  knowledgeResumeAllPausedTasksRoute,
+  knowledgeSimilarityQueryRoute,
+  knowledgeValidateFileRoute
+} from './routes/knowledge.routes'
 import {
   mcpAddServerRoute,
   mcpCallToolRoute,
@@ -108,6 +154,12 @@ import {
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
+  mcpRouterGetApiKeyRoute,
+  mcpRouterInstallServerRoute,
+  mcpRouterIsServerInstalledRoute,
+  mcpRouterListServersRoute,
+  mcpRouterSetApiKeyRoute,
+  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -143,6 +195,33 @@ import {
   onboardingStartRoute
 } from './routes/onboarding.routes'
 import {
+  nowledgeMemGetConfigRoute,
+  nowledgeMemTestConnectionRoute,
+  nowledgeMemUpdateConfigRoute
+} from './routes/nowledgeMem.routes'
+import {
+  oauthGithubCopilotStartDeviceFlowLoginRoute,
+  oauthGithubCopilotStartLoginRoute
+} from './routes/oauth.routes'
+import {
+  remoteControlClearChannelPairCodeRoute,
+  remoteControlCreateChannelPairCodeRoute,
+  remoteControlGetChannelBindingsRoute,
+  remoteControlGetChannelPairingSnapshotRoute,
+  remoteControlGetChannelSettingsRoute,
+  remoteControlGetChannelStatusRoute,
+  remoteControlGetTelegramStatusRoute,
+  remoteControlGetWeixinIlinkStatusRoute,
+  remoteControlListChannelsRoute,
+  remoteControlRemoveChannelBindingRoute,
+  remoteControlRemoveChannelPrincipalRoute,
+  remoteControlRemoveWeixinIlinkAccountRoute,
+  remoteControlRestartWeixinIlinkAccountRoute,
+  remoteControlSaveChannelSettingsRoute,
+  remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForWeixinIlinkLoginRoute
+} from './routes/remote-control.routes'
+import {
   scheduledTasksDeleteRoute,
   scheduledTasksFireNowRoute,
   scheduledTasksListRoute,
@@ -152,6 +231,8 @@ import {
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
+  providersGetEmbeddingDimensionsRoute,
+  providersGetKeyStatusRoute,
   providersGetRateLimitStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
@@ -165,8 +246,11 @@ import {
   providersRefreshModelsRoute,
   providersRemoveRoute,
   providersReorderRoute,
+  providersRunAcpDebugActionRoute,
   providersSetByIdRoute,
+  providersSyncModelScopeMcpServersRoute,
   providersTestConnectionRoute,
+  providersUpdateRateLimitRoute,
   providersUpdateRoute,
   providersWarmupAcpProcessRoute
 } from './routes/providers.routes'
@@ -174,6 +258,7 @@ import {
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
+  projectPathExistsRoute,
   projectSelectDirectoryRoute
 } from './routes/project.routes'
 import {
@@ -189,6 +274,11 @@ import {
   settingsListSystemFontsRoute,
   settingsUpdateRoute
 } from './routes/settings.routes'
+import {
+  shortcutDestroyRoute,
+  shortcutRegisterRoute,
+  shortcutUnregisterRoute
+} from './routes/shortcut.routes'
 import { startupGetBootstrapRoute } from './routes/startup.routes'
 import {
   sessionsActivateRoute,
@@ -215,6 +305,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
@@ -226,6 +317,7 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
+  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
@@ -253,12 +345,23 @@ import {
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsReadFileRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute
 } from './routes/skills.routes'
+import {
+  skillSyncAcknowledgeDiscoveriesRoute,
+  skillSyncExecuteExportRoute,
+  skillSyncExecuteImportRoute,
+  skillSyncGetNewDiscoveriesRoute,
+  skillSyncGetRegisteredToolsRoute,
+  skillSyncPreviewExportRoute,
+  skillSyncPreviewImportRoute,
+  skillSyncScanExternalToolsRoute
+} from './routes/skillSync.routes'
 import {
   syncGetBackupStatusRoute,
   syncImportRoute,
@@ -291,9 +394,15 @@ import {
 import {
   windowCloseCurrentRoute,
   windowCloseFloatingCurrentRoute,
+  windowCloseSettingsRoute,
+  windowConsumePendingSettingsProviderInstallRoute,
+  windowFocusMainRoute,
   windowGetCurrentStateRoute,
   windowMinimizeCurrentRoute,
+  windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
+  windowRequeuePendingSettingsProviderInstallRoute,
+  windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute
 } from './routes/window.routes'
 import {
@@ -313,23 +422,30 @@ import {
 } from './routes/workspace.routes'
 
 export * from './routes/browser.routes'
+export * from './routes/acp-terminal.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
 export * from './routes/database-security.routes'
 export * from './routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
+export * from './routes/knowledge.routes'
 export * from './routes/mcp.routes'
 export * from './routes/models.routes'
+export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
+export * from './routes/oauth.routes'
 export * from './routes/plugins.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
+export * from './routes/remote-control.routes'
 export * from './routes/scheduledTasks.routes'
 export * from './routes/settings.routes'
+export * from './routes/shortcut.routes'
 export * from './routes/startup.routes'
 export * from './routes/sessions.routes'
 export * from './routes/skills.routes'
+export * from './routes/skillSync.routes'
 export * from './routes/sync.routes'
 export * from './routes/system.routes'
 export * from './routes/tab.routes'
@@ -339,26 +455,63 @@ export * from './routes/window.routes'
 export * from './routes/workspace.routes'
 
 export const DEEPCHAT_ROUTE_CATALOG = {
+  [acpTerminalInputRoute.name]: acpTerminalInputRoute,
+  [acpTerminalKillRoute.name]: acpTerminalKillRoute,
+  [shortcutRegisterRoute.name]: shortcutRegisterRoute,
+  [shortcutUnregisterRoute.name]: shortcutUnregisterRoute,
+  [shortcutDestroyRoute.name]: shortcutDestroyRoute,
   [windowGetCurrentStateRoute.name]: windowGetCurrentStateRoute,
   [windowMinimizeCurrentRoute.name]: windowMinimizeCurrentRoute,
   [windowToggleMaximizeCurrentRoute.name]: windowToggleMaximizeCurrentRoute,
   [windowCloseCurrentRoute.name]: windowCloseCurrentRoute,
   [windowCloseFloatingCurrentRoute.name]: windowCloseFloatingCurrentRoute,
   [windowPreviewFileRoute.name]: windowPreviewFileRoute,
+  [windowCloseSettingsRoute.name]: windowCloseSettingsRoute,
+  [windowFocusMainRoute.name]: windowFocusMainRoute,
+  [windowNotifySettingsReadyRoute.name]: windowNotifySettingsReadyRoute,
+  [windowConsumePendingSettingsProviderInstallRoute.name]:
+    windowConsumePendingSettingsProviderInstallRoute,
+  [windowRequeuePendingSettingsProviderInstallRoute.name]:
+    windowRequeuePendingSettingsProviderInstallRoute,
+  [windowStartGuidedOnboardingRoute.name]: windowStartGuidedOnboardingRoute,
   [deviceGetAppVersionRoute.name]: deviceGetAppVersionRoute,
   [deviceGetInfoRoute.name]: deviceGetInfoRoute,
   [deviceSelectDirectoryRoute.name]: deviceSelectDirectoryRoute,
+  [deviceSelectFilesRoute.name]: deviceSelectFilesRoute,
   [deviceRestartAppRoute.name]: deviceRestartAppRoute,
+  [deviceResetDataByTypeRoute.name]: deviceResetDataByTypeRoute,
   [deviceSanitizeSvgRoute.name]: deviceSanitizeSvgRoute,
   [projectListRecentRoute.name]: projectListRecentRoute,
   [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
   [projectOpenDirectoryRoute.name]: projectOpenDirectoryRoute,
+  [projectPathExistsRoute.name]: projectPathExistsRoute,
   [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,
   [onboardingGetStateRoute.name]: onboardingGetStateRoute,
   [onboardingStartRoute.name]: onboardingStartRoute,
   [onboardingSetStepStatusRoute.name]: onboardingSetStepStatusRoute,
   [onboardingCompleteRoute.name]: onboardingCompleteRoute,
   [onboardingResetRoute.name]: onboardingResetRoute,
+  [nowledgeMemGetConfigRoute.name]: nowledgeMemGetConfigRoute,
+  [nowledgeMemUpdateConfigRoute.name]: nowledgeMemUpdateConfigRoute,
+  [nowledgeMemTestConnectionRoute.name]: nowledgeMemTestConnectionRoute,
+  [oauthGithubCopilotStartLoginRoute.name]: oauthGithubCopilotStartLoginRoute,
+  [oauthGithubCopilotStartDeviceFlowLoginRoute.name]: oauthGithubCopilotStartDeviceFlowLoginRoute,
+  [remoteControlListChannelsRoute.name]: remoteControlListChannelsRoute,
+  [remoteControlGetChannelSettingsRoute.name]: remoteControlGetChannelSettingsRoute,
+  [remoteControlSaveChannelSettingsRoute.name]: remoteControlSaveChannelSettingsRoute,
+  [remoteControlGetChannelStatusRoute.name]: remoteControlGetChannelStatusRoute,
+  [remoteControlGetChannelBindingsRoute.name]: remoteControlGetChannelBindingsRoute,
+  [remoteControlRemoveChannelBindingRoute.name]: remoteControlRemoveChannelBindingRoute,
+  [remoteControlRemoveChannelPrincipalRoute.name]: remoteControlRemoveChannelPrincipalRoute,
+  [remoteControlGetChannelPairingSnapshotRoute.name]: remoteControlGetChannelPairingSnapshotRoute,
+  [remoteControlCreateChannelPairCodeRoute.name]: remoteControlCreateChannelPairCodeRoute,
+  [remoteControlClearChannelPairCodeRoute.name]: remoteControlClearChannelPairCodeRoute,
+  [remoteControlGetTelegramStatusRoute.name]: remoteControlGetTelegramStatusRoute,
+  [remoteControlGetWeixinIlinkStatusRoute.name]: remoteControlGetWeixinIlinkStatusRoute,
+  [remoteControlStartWeixinIlinkLoginRoute.name]: remoteControlStartWeixinIlinkLoginRoute,
+  [remoteControlWaitForWeixinIlinkLoginRoute.name]: remoteControlWaitForWeixinIlinkLoginRoute,
+  [remoteControlRemoveWeixinIlinkAccountRoute.name]: remoteControlRemoveWeixinIlinkAccountRoute,
+  [remoteControlRestartWeixinIlinkAccountRoute.name]: remoteControlRestartWeixinIlinkAccountRoute,
   [scheduledTasksListRoute.name]: scheduledTasksListRoute,
   [scheduledTasksUpsertRoute.name]: scheduledTasksUpsertRoute,
   [scheduledTasksDeleteRoute.name]: scheduledTasksDeleteRoute,
@@ -377,6 +530,18 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [fileWriteImageBase64Route.name]: fileWriteImageBase64Route,
   [fileSaveImageRoute.name]: fileSaveImageRoute,
   [fileCopyImageRoute.name]: fileCopyImageRoute,
+  [knowledgeIsSupportedRoute.name]: knowledgeIsSupportedRoute,
+  [knowledgeGetSupportedLanguagesRoute.name]: knowledgeGetSupportedLanguagesRoute,
+  [knowledgeGetSeparatorsForLanguageRoute.name]: knowledgeGetSeparatorsForLanguageRoute,
+  [knowledgeGetSupportedFileExtensionsRoute.name]: knowledgeGetSupportedFileExtensionsRoute,
+  [knowledgeListFilesRoute.name]: knowledgeListFilesRoute,
+  [knowledgeSimilarityQueryRoute.name]: knowledgeSimilarityQueryRoute,
+  [knowledgeValidateFileRoute.name]: knowledgeValidateFileRoute,
+  [knowledgeAddFileRoute.name]: knowledgeAddFileRoute,
+  [knowledgeDeleteFileRoute.name]: knowledgeDeleteFileRoute,
+  [knowledgeReAddFileRoute.name]: knowledgeReAddFileRoute,
+  [knowledgePauseAllRunningTasksRoute.name]: knowledgePauseAllRunningTasksRoute,
+  [knowledgeResumeAllPausedTasksRoute.name]: knowledgeResumeAllPausedTasksRoute,
   [workspaceRegisterRoute.name]: workspaceRegisterRoute,
   [workspaceUnregisterRoute.name]: workspaceUnregisterRoute,
   [workspaceWatchRoute.name]: workspaceWatchRoute,
@@ -399,6 +564,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [browserGoBackRoute.name]: browserGoBackRoute,
   [browserGoForwardRoute.name]: browserGoForwardRoute,
   [browserReloadRoute.name]: browserReloadRoute,
+  [browserClearSandboxDataRoute.name]: browserClearSandboxDataRoute,
   [tabNotifyRendererReadyRoute.name]: tabNotifyRendererReadyRoute,
   [tabNotifyRendererActivatedRoute.name]: tabNotifyRendererActivatedRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
@@ -413,6 +579,18 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [configSetFloatingButtonRoute.name]: configSetFloatingButtonRoute,
   [configGetSyncSettingsRoute.name]: configGetSyncSettingsRoute,
   [configUpdateSyncSettingsRoute.name]: configUpdateSyncSettingsRoute,
+  [configGetProxySettingsRoute.name]: configGetProxySettingsRoute,
+  [configSetProxyModeRoute.name]: configSetProxyModeRoute,
+  [configSetCustomProxyUrlRoute.name]: configSetCustomProxyUrlRoute,
+  [configOpenLoggingFolderRoute.name]: configOpenLoggingFolderRoute,
+  [configGetUpdateChannelRoute.name]: configGetUpdateChannelRoute,
+  [configSetUpdateChannelRoute.name]: configSetUpdateChannelRoute,
+  [configGetSkillDraftSuggestionsRoute.name]: configGetSkillDraftSuggestionsRoute,
+  [configSetSkillDraftSuggestionsRoute.name]: configSetSkillDraftSuggestionsRoute,
+  [configRefreshProviderDbRoute.name]: configRefreshProviderDbRoute,
+  [configGetHooksNotificationsRoute.name]: configGetHooksNotificationsRoute,
+  [configSetHooksNotificationsRoute.name]: configSetHooksNotificationsRoute,
+  [configTestHookCommandRoute.name]: configTestHookCommandRoute,
   [configGetDefaultProjectPathRoute.name]: configGetDefaultProjectPathRoute,
   [configSetDefaultProjectPathRoute.name]: configSetDefaultProjectPathRoute,
   [configGetShortcutKeysRoute.name]: configGetShortcutKeysRoute,
@@ -434,7 +612,22 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [configClearDefaultSystemPromptRoute.name]: configClearDefaultSystemPromptRoute,
   [configSetDefaultSystemPromptIdRoute.name]: configSetDefaultSystemPromptIdRoute,
   [configGetAcpStateRoute.name]: configGetAcpStateRoute,
+  [configSetAcpEnabledRoute.name]: configSetAcpEnabledRoute,
+  [configListAcpRegistryAgentsRoute.name]: configListAcpRegistryAgentsRoute,
+  [configRefreshAcpRegistryRoute.name]: configRefreshAcpRegistryRoute,
+  [configSetAcpAgentEnabledRoute.name]: configSetAcpAgentEnabledRoute,
+  [configSetAcpAgentEnvOverrideRoute.name]: configSetAcpAgentEnvOverrideRoute,
+  [configEnsureAcpAgentInstalledRoute.name]: configEnsureAcpAgentInstalledRoute,
+  [configRepairAcpAgentRoute.name]: configRepairAcpAgentRoute,
+  [configUninstallAcpRegistryAgentRoute.name]: configUninstallAcpRegistryAgentRoute,
+  [configListManualAcpAgentsRoute.name]: configListManualAcpAgentsRoute,
+  [configAddManualAcpAgentRoute.name]: configAddManualAcpAgentRoute,
+  [configUpdateManualAcpAgentRoute.name]: configUpdateManualAcpAgentRoute,
+  [configRemoveManualAcpAgentRoute.name]: configRemoveManualAcpAgentRoute,
   [configListAgentsRoute.name]: configListAgentsRoute,
+  [configCreateDeepChatAgentRoute.name]: configCreateDeepChatAgentRoute,
+  [configUpdateDeepChatAgentRoute.name]: configUpdateDeepChatAgentRoute,
+  [configDeleteDeepChatAgentRoute.name]: configDeleteDeepChatAgentRoute,
   [configResolveDeepChatAgentConfigRoute.name]: configResolveDeepChatAgentConfigRoute,
   [configGetAgentMcpSelectionsRoute.name]: configGetAgentMcpSelectionsRoute,
   [configGetAcpSharedMcpSelectionsRoute.name]: configGetAcpSharedMcpSelectionsRoute,
@@ -482,6 +675,8 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsListMessageTracesRoute.name]: sessionsListMessageTracesRoute,
   [sessionsTranslateTextRoute.name]: sessionsTranslateTextRoute,
   [sessionsGetAgentsRoute.name]: sessionsGetAgentsRoute,
+  [sessionsGetUsageDashboardRoute.name]: sessionsGetUsageDashboardRoute,
+  [sessionsRetryRtkHealthCheckRoute.name]: sessionsRetryRtkHealthCheckRoute,
   [sessionsRenameRoute.name]: sessionsRenameRoute,
   [sessionsTogglePinnedRoute.name]: sessionsTogglePinnedRoute,
   [sessionsClearMessagesRoute.name]: sessionsClearMessagesRoute,
@@ -515,6 +710,11 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [providersListModelsRoute.name]: providersListModelsRoute,
   [providersTestConnectionRoute.name]: providersTestConnectionRoute,
   [providersGetRateLimitStatusRoute.name]: providersGetRateLimitStatusRoute,
+  [providersGetKeyStatusRoute.name]: providersGetKeyStatusRoute,
+  [providersUpdateRateLimitRoute.name]: providersUpdateRateLimitRoute,
+  [providersGetEmbeddingDimensionsRoute.name]: providersGetEmbeddingDimensionsRoute,
+  [providersSyncModelScopeMcpServersRoute.name]: providersSyncModelScopeMcpServersRoute,
+  [providersRunAcpDebugActionRoute.name]: providersRunAcpDebugActionRoute,
   [providersRefreshModelsRoute.name]: providersRefreshModelsRoute,
   [providersListOllamaModelsRoute.name]: providersListOllamaModelsRoute,
   [providersListOllamaRunningModelsRoute.name]: providersListOllamaRunningModelsRoute,
@@ -547,12 +747,14 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [databaseSecurityEnableRoute.name]: databaseSecurityEnableRoute,
   [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,
   [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
+  [databaseSecurityRepairSchemaRoute.name]: databaseSecurityRepairSchemaRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,
   [skillsInstallFromZipRoute.name]: skillsInstallFromZipRoute,
   [skillsInstallFromUrlRoute.name]: skillsInstallFromUrlRoute,
   [skillsUninstallRoute.name]: skillsUninstallRoute,
+  [skillsReadFileRoute.name]: skillsReadFileRoute,
   [skillsUpdateFileRoute.name]: skillsUpdateFileRoute,
   [skillsSaveWithExtensionRoute.name]: skillsSaveWithExtensionRoute,
   [skillsGetFolderTreeRoute.name]: skillsGetFolderTreeRoute,
@@ -562,6 +764,14 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [skillsListScriptsRoute.name]: skillsListScriptsRoute,
   [skillsGetActiveRoute.name]: skillsGetActiveRoute,
   [skillsSetActiveRoute.name]: skillsSetActiveRoute,
+  [skillSyncScanExternalToolsRoute.name]: skillSyncScanExternalToolsRoute,
+  [skillSyncGetNewDiscoveriesRoute.name]: skillSyncGetNewDiscoveriesRoute,
+  [skillSyncAcknowledgeDiscoveriesRoute.name]: skillSyncAcknowledgeDiscoveriesRoute,
+  [skillSyncGetRegisteredToolsRoute.name]: skillSyncGetRegisteredToolsRoute,
+  [skillSyncPreviewImportRoute.name]: skillSyncPreviewImportRoute,
+  [skillSyncExecuteImportRoute.name]: skillSyncExecuteImportRoute,
+  [skillSyncPreviewExportRoute.name]: skillSyncPreviewExportRoute,
+  [skillSyncExecuteExportRoute.name]: skillSyncExecuteExportRoute,
   [mcpGetServersRoute.name]: mcpGetServersRoute,
   [mcpGetEnabledRoute.name]: mcpGetEnabledRoute,
   [mcpGetClientsRoute.name]: mcpGetClientsRoute,
@@ -586,6 +796,12 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [mcpSetCustomNpmRegistryRoute.name]: mcpSetCustomNpmRegistryRoute,
   [mcpSetAutoDetectNpmRegistryRoute.name]: mcpSetAutoDetectNpmRegistryRoute,
   [mcpClearNpmRegistryCacheRoute.name]: mcpClearNpmRegistryCacheRoute,
+  [mcpRouterListServersRoute.name]: mcpRouterListServersRoute,
+  [mcpRouterInstallServerRoute.name]: mcpRouterInstallServerRoute,
+  [mcpRouterGetApiKeyRoute.name]: mcpRouterGetApiKeyRoute,
+  [mcpRouterSetApiKeyRoute.name]: mcpRouterSetApiKeyRoute,
+  [mcpRouterIsServerInstalledRoute.name]: mcpRouterIsServerInstalledRoute,
+  [mcpRouterUpdateServersAuthRoute.name]: mcpRouterUpdateServersAuthRoute,
   [syncGetBackupStatusRoute.name]: syncGetBackupStatusRoute,
   [syncListBackupsRoute.name]: syncListBackupsRoute,
   [syncStartBackupRoute.name]: syncStartBackupRoute,

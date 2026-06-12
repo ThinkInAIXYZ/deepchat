@@ -139,7 +139,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createProjectClient } from '@api/ProjectClient'
 import { useProjectStore } from '@/stores/ui/project'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
@@ -151,7 +151,7 @@ type EnvironmentListItem = EnvironmentSummary & {
 const { t, locale } = useI18n()
 const { toast } = useToast()
 const projectStore = useProjectStore()
-const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
+const projectClient = createProjectClient()
 
 const isLoading = ref(false)
 const showMissing = ref(false)
@@ -185,7 +185,7 @@ const syncSyntheticDefaultExists = async () => {
   }
 
   try {
-    const exists = await projectPresenter.pathExists(currentPath)
+    const exists = await projectClient.pathExists(currentPath)
     if (defaultProjectPath.value === currentPath) {
       syntheticDefaultExists.value = exists
     }

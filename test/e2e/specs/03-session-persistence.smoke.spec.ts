@@ -17,6 +17,11 @@ import {
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('会话重启后持久化 @smoke', async ({ app, launchApp }) => {
+  test.skip(
+    process.env.RUN_PROVIDER_INTEGRATION !== 'true',
+    'Set RUN_PROVIDER_INTEGRATION=true to run the live chat persistence smoke check.'
+  )
+
   const sessionAToken = createSmokeToken('E2E_SESSION_A')
   const sessionBToken = createSmokeToken('E2E_SESSION_B')
 

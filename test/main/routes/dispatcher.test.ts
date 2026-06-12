@@ -1,16 +1,32 @@
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
+  IConversationExporter,
   IDevicePresenter,
   IFilePresenter,
+  IKnowledgePresenter,
   ILlmProviderPresenter,
+  IMCPPresenter,
+  IOAuthPresenter,
   IProjectPresenter,
+  IRemoteControlPresenter,
+  ISQLitePresenter,
+  IShortcutPresenter,
+  ISkillPresenter,
   ITabPresenter,
   IWindowPresenter,
   IWorkspacePresenter,
-  IYoBrowserPresenter
+  IYoBrowserPresenter,
+  ISkillSyncPresenter
 } from '@shared/presenter'
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
+import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
+
+vi.mock('@/presenter/configPresenter/acpInitHelper', () => ({
+  writeToTerminal: vi.fn(),
+  killTerminal: vi.fn()
+}))
 
 type MockWindow = {
   id: number
@@ -93,7 +109,11 @@ function createRuntime() {
     launchAtLoginEnabled: false,
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
-    loggingEnabled: false
+    loggingEnabled: false,
+    proxyMode: 'system' as 'system' | 'none' | 'custom',
+    customProxyUrl: '',
+    updateChannel: 'stable' as 'stable' | 'beta',
+    skillDraftSuggestionsEnabled: false
   }
   const knowledgeConfigs = [
     {
@@ -107,6 +127,69 @@ function createRuntime() {
       normalized: true,
       fragmentsNumber: 6,
       enabled: true
+    }
+  ]
+  const agents: Array<{
+    id: string
+    name: string
+    type: 'deepchat'
+    enabled: boolean
+    protected?: boolean
+    config?: {
+      systemPrompt?: string
+    }
+  }> = [
+    {
+      id: 'deepchat',
+      name: 'DeepChat',
+      type: 'deepchat' as const,
+      enabled: true,
+      protected: true,
+      config: {
+        systemPrompt: 'system'
+      }
+    }
+  ]
+  const hooksNotifications = {
+    hooks: [] as Array<{
+      id: string
+      name: string
+      enabled: boolean
+      command: string
+      events: Array<'SessionStart'>
+    }>
+  }
+  let acpEnabled = true
+  const acpRegistryAgents = [
+    {
+      id: 'codex-acp',
+      name: 'Codex ACP',
+      version: '1.0.0',
+      distribution: {
+        npx: {
+          package: '@zed-industries/codex-acp'
+        }
+      },
+      source: 'registry' as const,
+      enabled: true,
+      installState: {
+        status: 'installed' as const,
+        distributionType: 'npx' as const,
+        version: '1.0.0',
+        installedAt: 123,
+        lastCheckedAt: 123,
+        installDir: null,
+        error: null
+      }
+    }
+  ]
+  const manualAcpAgents = [
+    {
+      id: 'manual-acp',
+      name: 'Manual ACP',
+      command: 'node',
+      enabled: true,
+      source: 'manual' as const
     }
   ]
 
@@ -214,12 +297,111 @@ function createRuntime() {
     setLoggingEnabled: vi.fn((value: boolean) => {
       settings.loggingEnabled = value
     }),
+    getProxyMode: vi.fn(() => settings.proxyMode),
+    setProxyMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
+      settings.proxyMode = mode
+    }),
+    getCustomProxyUrl: vi.fn(() => settings.customProxyUrl),
+    setCustomProxyUrl: vi.fn((url: string) => {
+      settings.customProxyUrl = url
+    }),
+    openLoggingFolder: vi.fn().mockResolvedValue(undefined),
+    getUpdateChannel: vi.fn(() => settings.updateChannel),
+    setUpdateChannel: vi.fn((channel: 'stable' | 'beta') => {
+      settings.updateChannel = channel
+    }),
+    getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
+    setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
+      settings.skillDraftSuggestionsEnabled = enabled
+    }),
+    refreshProviderDb: vi.fn().mockResolvedValue({
+      status: 'updated',
+      lastUpdated: 123,
+      providersCount: 2
+    }),
+    getHooksNotificationsConfig: vi.fn(() => hooksNotifications),
+    setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
+      hooksNotifications.hooks = [...config.hooks]
+      return hooksNotifications
+    }),
+    testHookCommand: vi.fn().mockResolvedValue({
+      success: true,
+      durationMs: 10,
+      exitCode: 0
+    }),
+    getAcpEnabled: vi.fn().mockImplementation(async () => acpEnabled),
+    setAcpEnabled: vi.fn().mockImplementation(async (enabled: boolean) => {
+      acpEnabled = enabled
+    }),
+    listAcpRegistryAgents: vi.fn().mockResolvedValue(acpRegistryAgents),
+    refreshAcpRegistry: vi.fn().mockResolvedValue(acpRegistryAgents),
+    setAcpAgentEnabled: vi.fn().mockResolvedValue(undefined),
+    setAcpAgentEnvOverride: vi.fn().mockResolvedValue(undefined),
+    ensureAcpAgentInstalled: vi.fn().mockResolvedValue(acpRegistryAgents[0].installState),
+    repairAcpAgent: vi.fn().mockResolvedValue(acpRegistryAgents[0].installState),
+    uninstallAcpRegistryAgent: vi.fn().mockResolvedValue(undefined),
+    listManualAcpAgents: vi.fn().mockResolvedValue(manualAcpAgents),
+    addManualAcpAgent: vi
+      .fn()
+      .mockImplementation(async (input: { name: string; command: string }) => ({
+        id: 'manual-new',
+        name: input.name,
+        command: input.command,
+        enabled: true,
+        source: 'manual'
+      })),
+    updateManualAcpAgent: vi
+      .fn()
+      .mockImplementation(async (agentId: string, updates: { enabled?: boolean }) => ({
+        id: agentId,
+        name: 'Manual ACP',
+        command: 'node',
+        enabled: updates.enabled ?? true,
+        source: 'manual'
+      })),
+    removeManualAcpAgent: vi.fn().mockResolvedValue(true),
     setTraceDebugEnabled: vi.fn((value: boolean) => {
       settings.traceDebugEnabled = value
     }),
     getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
     setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
       knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
+    }),
+    listAgents: vi.fn().mockImplementation(async () => agents),
+    createDeepChatAgent: vi.fn().mockImplementation(async (input: { name: string }) => {
+      const agent = {
+        id: 'writer',
+        name: input.name,
+        type: 'deepchat' as const,
+        enabled: true
+      }
+      agents.push(agent)
+      return agent
+    }),
+    updateDeepChatAgent: vi
+      .fn()
+      .mockImplementation(
+        async (agentId: string, updates: { name?: string; enabled?: boolean }) => {
+          const agent = agents.find((item) => item.id === agentId)
+          if (!agent) {
+            return null
+          }
+          if (typeof updates.name === 'string') {
+            agent.name = updates.name
+          }
+          if (typeof updates.enabled === 'boolean') {
+            agent.enabled = updates.enabled
+          }
+          return agent
+        }
+      ),
+    deleteDeepChatAgent: vi.fn().mockImplementation(async (agentId: string) => {
+      const index = agents.findIndex((item) => item.id === agentId)
+      if (index === -1) {
+        return false
+      }
+      agents.splice(index, 1)
+      return true
     })
   } as unknown as IConfigPresenter
 
@@ -313,16 +495,249 @@ function createRuntime() {
     respondToolInteraction: vi.fn().mockResolvedValue({
       resumed: true
     }),
+    getAgents: vi.fn().mockResolvedValue([
+      {
+        id: 'deepchat',
+        name: 'DeepChat',
+        type: 'deepchat',
+        enabled: true
+      }
+    ]),
+    getUsageDashboard: vi.fn().mockResolvedValue({
+      recordingStartedAt: null,
+      backfillStatus: {
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        updatedAt: 123
+      },
+      summary: {
+        messageCount: 1,
+        sessionCount: 1,
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheHitRate: 0,
+        estimatedCostUsd: null,
+        mostActiveDay: {
+          date: '2026-06-11',
+          messageCount: 1
+        }
+      },
+      calendar: [
+        {
+          date: '2026-06-11',
+          messageCount: 1,
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          cachedInputTokens: 0,
+          estimatedCostUsd: null,
+          level: 1
+        }
+      ],
+      providerBreakdown: [],
+      modelBreakdown: [],
+      rtk: {
+        scope: 'deepchat',
+        enabled: true,
+        effectiveEnabled: true,
+        available: true,
+        health: 'healthy',
+        checkedAt: 123,
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null,
+        summary: {
+          totalCommands: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalSavedTokens: 0,
+          avgSavingsPct: 0,
+          totalTimeMs: 0,
+          avgTimeMs: 0
+        },
+        daily: []
+      }
+    }),
+    retryRtkHealthCheck: vi.fn().mockResolvedValue(undefined),
     clearSessionPermissions: vi.fn()
   } as unknown as IAgentSessionPresenter
 
+  let rateLimitConfig = {
+    enabled: false,
+    qpsLimit: 1
+  }
   const llmProviderPresenter = {
     check: vi.fn().mockResolvedValue({
       isOk: true,
       errorMsg: null
-    })
+    }),
+    getKeyStatus: vi.fn().mockResolvedValue({
+      remainNum: 42,
+      limit_remaining: '42',
+      usage: '8'
+    }),
+    getProviderRateLimitStatus: vi.fn(() => ({
+      config: rateLimitConfig,
+      currentQps: 0,
+      queueLength: 0,
+      lastRequestTime: 0
+    })),
+    updateProviderRateLimit: vi.fn((_providerId: string, enabled: boolean, qpsLimit: number) => {
+      rateLimitConfig = {
+        enabled,
+        qpsLimit
+      }
+    }),
+    getDimensions: vi.fn().mockResolvedValue({
+      data: {
+        dimensions: 1536,
+        normalized: true
+      }
+    }),
+    syncModelScopeMcpServers: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'ok',
+      synced: 1,
+      imported: 1,
+      skipped: 0,
+      errors: []
+    }),
+    runAcpDebugAction: vi.fn().mockResolvedValue({
+      status: 'ok',
+      sessionId: 'debug-session',
+      events: [
+        {
+          id: 'event-1',
+          kind: 'response',
+          action: 'initialize',
+          agentId: 'codex-acp',
+          timestamp: 123,
+          payload: { ok: true }
+        }
+      ]
+    }),
+    refreshModels: vi.fn().mockResolvedValue(undefined)
   } as unknown as ILlmProviderPresenter
 
+  const mcpRouterItem = {
+    uuid: 'router-item-1',
+    created_at: '2026-06-11T00:00:00.000Z',
+    updated_at: '2026-06-11T00:00:00.000Z',
+    name: 'context7',
+    author_name: 'upstash',
+    title: 'Context7',
+    description: 'Fetch current docs',
+    content: 'Documentation helper',
+    server_key: 'context7',
+    config_name: 'Context7',
+    server_url: 'https://mcp.context7.com/mcp'
+  }
+  const mcpPresenter = {
+    listMcpRouterServers: vi.fn().mockResolvedValue({ servers: [mcpRouterItem] }),
+    installMcpRouterServer: vi.fn().mockResolvedValue(true),
+    getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
+    setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
+    isServerInstalled: vi.fn().mockResolvedValue(false),
+    updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
+  } as unknown as IMCPPresenter
+  const remoteControlPresenter = {
+    listRemoteChannels: vi.fn().mockResolvedValue([
+      {
+        id: 'telegram',
+        type: 'builtin',
+        implemented: true,
+        titleKey: 'settings.remote.telegram.title',
+        descriptionKey: 'settings.remote.telegram.description',
+        supportsPairing: true,
+        supportsNotifications: false
+      }
+    ]),
+    getChannelSettings: vi.fn().mockResolvedValue({
+      botToken: 'telegram-token',
+      remoteEnabled: true,
+      defaultAgentId: 'deepchat',
+      defaultWorkdir: ''
+    }),
+    saveChannelSettings: vi
+      .fn()
+      .mockImplementation(async (_channel: string, settings: unknown) => settings),
+    getChannelStatus: vi.fn().mockResolvedValue({
+      channel: 'telegram',
+      enabled: true,
+      state: 'running',
+      pollOffset: 1,
+      bindingCount: 0,
+      allowedUserCount: 1,
+      lastError: null,
+      botUser: null
+    }),
+    getChannelBindings: vi.fn().mockResolvedValue([]),
+    removeChannelBinding: vi.fn().mockResolvedValue(undefined),
+    removeChannelPrincipal: vi.fn().mockResolvedValue(undefined),
+    getChannelPairingSnapshot: vi.fn().mockResolvedValue({
+      pairCode: null,
+      pairCodeExpiresAt: null,
+      allowedUserIds: [123]
+    }),
+    createChannelPairCode: vi.fn().mockResolvedValue({
+      code: '654321',
+      expiresAt: 123456
+    }),
+    clearChannelPairCode: vi.fn().mockResolvedValue(undefined),
+    getTelegramStatus: vi.fn().mockResolvedValue({
+      channel: 'telegram',
+      enabled: true,
+      state: 'running',
+      pollOffset: 1,
+      bindingCount: 0,
+      allowedUserCount: 1,
+      lastError: null,
+      botUser: null
+    }),
+    getWeixinIlinkStatus: vi.fn().mockResolvedValue({
+      channel: 'weixin-ilink',
+      enabled: false,
+      state: 'disabled',
+      bindingCount: 0,
+      accountCount: 0,
+      connectedAccountCount: 0,
+      lastError: null,
+      accounts: []
+    }),
+    startWeixinIlinkLogin: vi.fn().mockResolvedValue({
+      sessionKey: 'weixin-session',
+      loginUrl: null,
+      messageKey: 'settings.remote.weixinIlink.loginWindowOpened'
+    }),
+    waitForWeixinIlinkLogin: vi.fn().mockResolvedValue({
+      connected: true,
+      account: null,
+      messageKey: 'settings.remote.weixinIlink.loginConnected'
+    }),
+    removeWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined),
+    restartWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined)
+  } as unknown as IRemoteControlPresenter
+  const shortcutPresenter = {
+    registerShortcuts: vi.fn(),
+    unregisterShortcuts: vi.fn(),
+    destroy: vi.fn()
+  } as unknown as IShortcutPresenter
+
+  const pendingProviderInstalls: ProviderInstallPreview[] = [
+    {
+      kind: 'builtin' as const,
+      id: 'deepseek',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: 'sk-secret',
+      maskedApiKey: 'sk-s...cret',
+      iconModelId: 'deepseek-chat',
+      willOverwrite: true
+    }
+  ]
   const windowPresenter = {
     createSettingsWindow: vi.fn().mockResolvedValue(9),
     previewFile: vi.fn(),
@@ -353,6 +768,15 @@ function createRuntime() {
     isMainWindowFocused: vi.fn(
       (windowId: number) => browserWindowState.windows.get(windowId)?.focused ?? false
     ),
+    getSettingsWindowId: vi.fn().mockReturnValue(99),
+    closeSettingsWindow: vi.fn(),
+    focusMainWindow: vi.fn().mockReturnValue(true),
+    notifySettingsReady: vi.fn(),
+    consumePendingSettingsProviderInstall: vi.fn(() => pendingProviderInstalls.shift() ?? null),
+    setPendingSettingsProviderInstall: vi.fn((preview: ProviderInstallPreview) => {
+      pendingProviderInstalls.push(preview)
+    }),
+    sendToAllWindows: vi.fn().mockResolvedValue(undefined),
     getFloatingChatWindow: vi.fn(() => ({
       getWindow: () => browserWindowState.windows.get(19) ?? null
     }))
@@ -376,7 +800,12 @@ function createRuntime() {
       canceled: false,
       filePaths: ['C:/workspace']
     }),
+    selectFiles: vi.fn().mockResolvedValue({
+      canceled: false,
+      filePaths: ['C:/workspace/skill.zip']
+    }),
     restartApp: vi.fn().mockResolvedValue(undefined),
+    resetDataByType: vi.fn().mockResolvedValue(undefined),
     sanitizeSvgContent: vi.fn().mockResolvedValue('<svg />')
   } as unknown as IDevicePresenter
 
@@ -400,6 +829,7 @@ function createRuntime() {
       }
     ]),
     openDirectory: vi.fn().mockResolvedValue(undefined),
+    pathExists: vi.fn().mockResolvedValue(true),
     selectDirectory: vi.fn().mockResolvedValue('C:/selected-workspace')
   } as unknown as IProjectPresenter
 
@@ -415,6 +845,151 @@ function createRuntime() {
     isDirectory: vi.fn().mockResolvedValue(true),
     writeImageBase64: vi.fn().mockResolvedValue('/tmp/capture.png')
   } as unknown as IFilePresenter
+
+  const knowledgeFile = {
+    id: 'file-1',
+    name: 'guide.md',
+    path: '/workspace/guide.md',
+    mimeType: 'text/markdown',
+    status: 'completed' as const,
+    uploadedAt: 123,
+    metadata: {
+      size: 1024,
+      totalChunks: 3
+    }
+  }
+  const knowledgePresenter = {
+    isSupported: vi.fn().mockResolvedValue(true),
+    getSupportedLanguages: vi.fn().mockResolvedValue(['markdown', 'typescript']),
+    getSeparatorsForLanguage: vi.fn().mockResolvedValue(['\n\n', '\n', ' ', '']),
+    getSupportedFileExtensions: vi.fn().mockResolvedValue(['md', 'txt', 'pdf']),
+    listFiles: vi.fn().mockResolvedValue([knowledgeFile]),
+    similarityQuery: vi.fn().mockResolvedValue([
+      {
+        id: 'chunk-1',
+        metadata: {
+          from: 'guide.md',
+          filePath: '/workspace/guide.md',
+          content: 'hello knowledge'
+        },
+        distance: 0.1
+      }
+    ]),
+    validateFile: vi.fn().mockResolvedValue({
+      isSupported: true,
+      mimeType: 'text/markdown',
+      adapterType: 'text'
+    }),
+    addFile: vi.fn().mockResolvedValue({
+      data: knowledgeFile
+    }),
+    deleteFile: vi.fn().mockResolvedValue(undefined),
+    reAddFile: vi.fn().mockResolvedValue({
+      data: {
+        ...knowledgeFile,
+        status: 'processing'
+      }
+    }),
+    pauseAllRunningTasks: vi.fn().mockResolvedValue(undefined),
+    resumeAllPausedTasks: vi.fn().mockResolvedValue(undefined)
+  } as unknown as IKnowledgePresenter
+
+  const externalSkill = {
+    name: 'write-tests',
+    description: 'Write tests',
+    path: '/tools/write-tests.md',
+    format: 'markdown',
+    lastModified: new Date('2024-01-01T00:00:00.000Z')
+  }
+  const scanResult = {
+    toolId: 'codex',
+    toolName: 'Codex',
+    available: true,
+    skillsDir: '/tools',
+    skills: [externalSkill]
+  }
+  const importPreview = {
+    skill: {
+      name: 'write-tests',
+      description: 'Write tests',
+      instructions: 'Write useful tests'
+    },
+    source: externalSkill,
+    warnings: []
+  }
+  const exportPreview = {
+    skillName: 'write-tests',
+    targetTool: 'codex',
+    targetPath: '/tools/write-tests.md',
+    convertedContent: '# Write tests',
+    warnings: []
+  }
+  const syncResult = {
+    success: true,
+    imported: 1,
+    exported: 0,
+    skipped: 0,
+    failed: []
+  }
+  const skillSyncPresenter = {
+    scanExternalTools: vi.fn().mockResolvedValue([scanResult]),
+    getNewDiscoveries: vi.fn().mockResolvedValue([
+      {
+        toolId: 'codex',
+        toolName: 'Codex',
+        newSkills: [externalSkill]
+      }
+    ]),
+    acknowledgeDiscoveries: vi.fn().mockResolvedValue(undefined),
+    getRegisteredTools: vi.fn(() => [
+      {
+        id: 'codex',
+        name: 'Codex',
+        skillsDir: '/tools',
+        filePattern: '*.md',
+        format: 'markdown',
+        capabilities: {
+          hasFrontmatter: true,
+          supportsName: true,
+          supportsDescription: true,
+          supportsTools: true,
+          supportsModel: true,
+          supportsSubfolders: false,
+          supportsReferences: false,
+          supportsScripts: false
+        }
+      }
+    ]),
+    previewImport: vi.fn().mockResolvedValue([importPreview]),
+    executeImport: vi.fn().mockResolvedValue(syncResult),
+    previewExport: vi.fn().mockResolvedValue([exportPreview]),
+    executeExport: vi.fn().mockResolvedValue({
+      ...syncResult,
+      imported: 0,
+      exported: 1
+    })
+  } as unknown as ISkillSyncPresenter
+
+  const oauthPresenter = {
+    startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
+    startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false)
+  } as unknown as IOAuthPresenter
+  const nowledgeMemConfig = {
+    baseUrl: 'http://127.0.0.1:14242',
+    apiKey: '',
+    timeout: 30000
+  }
+  const exporter = {
+    getNowledgeMemConfig: vi.fn(() => nowledgeMemConfig),
+    updateNowledgeMemConfig: vi.fn().mockResolvedValue(undefined),
+    testNowledgeMemConnection: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'Connection successful'
+    })
+  } as unknown as IConversationExporter
+  const skillPresenter = {
+    readSkillFile: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
+  } as unknown as ISkillPresenter
 
   const workspacePresenter = {
     registerWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -488,7 +1063,8 @@ function createRuntime() {
     destroySessionBrowser: vi.fn().mockResolvedValue(undefined),
     goBack: vi.fn().mockResolvedValue(undefined),
     goForward: vi.fn().mockResolvedValue(undefined),
-    reload: vi.fn().mockResolvedValue(undefined)
+    reload: vi.fn().mockResolvedValue(undefined),
+    clearSandboxData: vi.fn().mockResolvedValue(undefined)
   } as unknown as IYoBrowserPresenter
 
   const tabPresenter = {
@@ -497,6 +1073,47 @@ function createRuntime() {
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
     stitchImagesWithWatermark: vi.fn().mockResolvedValue('data:image/png;base64,stitched')
   } as unknown as ITabPresenter
+  const databaseRepairReport = {
+    startedAt: 1,
+    finishedAt: 2,
+    status: 'healthy' as const,
+    backupPath: null,
+    diagnosisBeforeRepair: {
+      checkedAt: 1,
+      isHealthy: true,
+      issues: [],
+      repairableIssues: [],
+      manualIssues: []
+    },
+    diagnosisAfterRepair: {
+      checkedAt: 2,
+      isHealthy: true,
+      issues: [],
+      repairableIssues: [],
+      manualIssues: []
+    },
+    repairedIssues: [],
+    remainingIssues: []
+  }
+  const sqlitePresenter = {
+    recordSettingsActivity: vi.fn().mockResolvedValue(undefined),
+    listSettingsActivity: vi.fn().mockResolvedValue([]),
+    repairSchema: vi.fn().mockResolvedValue(databaseRepairReport)
+  } as unknown as ISQLitePresenter
+  const scheduledTasks = {
+    setSessionCreator: vi.fn(),
+    list: vi.fn(() => ({ enabled: false, tasks: [] })),
+    upsert: vi.fn((task: unknown) => ({ task, settings: { enabled: false, tasks: [task] } })),
+    delete: vi.fn(() => ({ enabled: false, tasks: [] })),
+    toggle: vi.fn((id: string, enabled: boolean) => ({
+      task: { id, enabled },
+      settings: { enabled: false, tasks: [{ id, enabled }] }
+    })),
+    fireNow: vi.fn(async (id: string) => ({
+      task: { id },
+      settings: { enabled: false, tasks: [{ id }] }
+    }))
+  }
 
   return {
     settings,
@@ -504,21 +1121,40 @@ function createRuntime() {
       configPresenter,
       llmProviderPresenter,
       agentSessionPresenter,
+      skillPresenter,
+      skillSyncPresenter,
+      exporter,
+      oauthPresenter,
+      mcpPresenter,
+      remoteControlPresenter,
+      shortcutPresenter,
+      sqlitePresenter,
       windowPresenter,
       devicePresenter,
       projectPresenter,
       filePresenter,
+      knowledgePresenter,
       workspacePresenter,
       yoBrowserPresenter,
-      tabPresenter
+      tabPresenter,
+      scheduledTasks
     }),
     configPresenter,
     llmProviderPresenter,
     agentSessionPresenter,
+    skillPresenter,
+    skillSyncPresenter,
+    exporter,
+    oauthPresenter,
+    mcpPresenter,
+    remoteControlPresenter,
+    shortcutPresenter,
+    sqlitePresenter,
     windowPresenter,
     devicePresenter,
     projectPresenter,
     filePresenter,
+    knowledgePresenter,
     workspacePresenter,
     yoBrowserPresenter,
     tabPresenter
@@ -567,6 +1203,51 @@ describe('dispatchDeepchatRoute', () => {
     expect(result).toEqual({
       fonts: ['Inter', 'JetBrains Mono']
     })
+  })
+
+  it('dispatches ACP terminal command routes through the terminal helper', async () => {
+    const { runtime } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const inputResult = await dispatchDeepchatRoute(
+      runtime,
+      'acpTerminal.input',
+      { data: 'hello\n' },
+      context
+    )
+    const killResult = await dispatchDeepchatRoute(runtime, 'acpTerminal.kill', {}, context)
+
+    expect(writeToTerminal).toHaveBeenCalledWith('hello\n')
+    expect(killTerminal).toHaveBeenCalledTimes(1)
+    expect(inputResult).toEqual({ sent: true })
+    expect(killResult).toEqual({ killed: true })
+  })
+
+  it('dispatches shortcut routes through ShortcutPresenter', async () => {
+    const { runtime, shortcutPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const registerResult = await dispatchDeepchatRoute(runtime, 'shortcut.register', {}, context)
+    const unregisterResult = await dispatchDeepchatRoute(
+      runtime,
+      'shortcut.unregister',
+      {},
+      context
+    )
+    const destroyResult = await dispatchDeepchatRoute(runtime, 'shortcut.destroy', {}, context)
+
+    expect(shortcutPresenter.registerShortcuts).toHaveBeenCalledTimes(1)
+    expect(shortcutPresenter.unregisterShortcuts).toHaveBeenCalledTimes(1)
+    expect(shortcutPresenter.destroy).toHaveBeenCalledTimes(1)
+    expect(registerResult).toEqual({ registered: true })
+    expect(unregisterResult).toEqual({ unregistered: true })
+    expect(destroyResult).toEqual({ destroyed: true })
   })
 
   it('applies typed settings updates through presenter adapters', async () => {
@@ -657,6 +1338,1013 @@ describe('dispatchDeepchatRoute', () => {
     expect(setResult).toEqual({
       configs: nextConfigs
     })
+  })
+
+  it('dispatches knowledge file routes through KnowledgePresenter', async () => {
+    const { runtime, knowledgePresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const supportedResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.isSupported',
+      {},
+      context
+    )
+    const languagesResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.getSupportedLanguages',
+      {},
+      context
+    )
+    const separatorsResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.getSeparatorsForLanguage',
+      { language: 'markdown' },
+      context
+    )
+    const extensionsResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.getSupportedFileExtensions',
+      {},
+      context
+    )
+    const filesResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.listFiles',
+      { knowledgeBaseId: 'knowledge-1' },
+      context
+    )
+    const queryResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.similarityQuery',
+      { knowledgeBaseId: 'knowledge-1', query: 'hello' },
+      context
+    )
+    const validationResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.validateFile',
+      { filePath: '/workspace/guide.md' },
+      context
+    )
+    const addResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.addFile',
+      { knowledgeBaseId: 'knowledge-1', filePath: '/workspace/guide.md' },
+      context
+    )
+    const deleteResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.deleteFile',
+      { knowledgeBaseId: 'knowledge-1', fileId: 'file-1' },
+      context
+    )
+    const reAddResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.reAddFile',
+      { knowledgeBaseId: 'knowledge-1', fileId: 'file-1' },
+      context
+    )
+    const pauseResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.pauseAllRunningTasks',
+      { knowledgeBaseId: 'knowledge-1' },
+      context
+    )
+    const resumeResult = await dispatchDeepchatRoute(
+      runtime,
+      'knowledge.resumeAllPausedTasks',
+      { knowledgeBaseId: 'knowledge-1' },
+      context
+    )
+
+    expect(knowledgePresenter.isSupported).toHaveBeenCalled()
+    expect(knowledgePresenter.getSupportedLanguages).toHaveBeenCalled()
+    expect(knowledgePresenter.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
+    expect(knowledgePresenter.getSupportedFileExtensions).toHaveBeenCalled()
+    expect(knowledgePresenter.listFiles).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgePresenter.similarityQuery).toHaveBeenCalledWith('knowledge-1', 'hello')
+    expect(knowledgePresenter.validateFile).toHaveBeenCalledWith('/workspace/guide.md')
+    expect(knowledgePresenter.addFile).toHaveBeenCalledWith('knowledge-1', '/workspace/guide.md')
+    expect(knowledgePresenter.deleteFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgePresenter.reAddFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgePresenter.pauseAllRunningTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgePresenter.resumeAllPausedTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(supportedResult).toEqual({ supported: true })
+    expect(languagesResult).toEqual({ languages: ['markdown', 'typescript'] })
+    expect(separatorsResult).toEqual({ separators: ['\n\n', '\n', ' ', ''] })
+    expect(extensionsResult).toEqual({ extensions: ['md', 'txt', 'pdf'] })
+    expect(filesResult).toEqual({
+      files: [expect.objectContaining({ id: 'file-1', status: 'completed' })]
+    })
+    expect(queryResult).toEqual({
+      results: [expect.objectContaining({ id: 'chunk-1', distance: 0.1 })]
+    })
+    expect(validationResult).toEqual({
+      result: {
+        isSupported: true,
+        mimeType: 'text/markdown',
+        adapterType: 'text'
+      }
+    })
+    expect(addResult).toEqual({
+      result: {
+        data: expect.objectContaining({ id: 'file-1' })
+      }
+    })
+    expect(deleteResult).toEqual({ deleted: true })
+    expect(reAddResult).toEqual({
+      result: {
+        data: expect.objectContaining({ id: 'file-1', status: 'processing' })
+      }
+    })
+    expect(pauseResult).toEqual({ paused: true })
+    expect(resumeResult).toEqual({ resumed: true })
+  })
+
+  it('dispatches skill sync routes through SkillSyncPresenter', async () => {
+    const { runtime, skillSyncPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+    const importPreview = {
+      skill: {
+        name: 'write-tests',
+        description: 'Write tests',
+        instructions: 'Write useful tests'
+      },
+      source: {
+        name: 'write-tests',
+        description: 'Write tests',
+        path: '/tools/write-tests.md',
+        format: 'markdown',
+        lastModified: new Date('2024-01-01T00:00:00.000Z')
+      },
+      warnings: []
+    }
+    const exportPreview = {
+      skillName: 'write-tests',
+      targetTool: 'codex',
+      targetPath: '/tools/write-tests.md',
+      convertedContent: '# Write tests',
+      warnings: []
+    }
+
+    const scanResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.scanExternalTools',
+      {},
+      context
+    )
+    const discoveriesResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.getNewDiscoveries',
+      {},
+      context
+    )
+    const ackResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.acknowledgeDiscoveries',
+      {},
+      context
+    )
+    const toolsResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.getRegisteredTools',
+      {},
+      context
+    )
+    const importPreviewResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.previewImport',
+      {
+        toolId: 'codex',
+        skillNames: ['write-tests']
+      },
+      context
+    )
+    const importResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.executeImport',
+      {
+        previews: [importPreview],
+        strategies: {
+          'write-tests': 'overwrite'
+        }
+      },
+      context
+    )
+    const exportPreviewResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.previewExport',
+      {
+        skillNames: ['write-tests'],
+        targetToolId: 'codex',
+        options: {
+          inclusion: 'always'
+        }
+      },
+      context
+    )
+    const exportResult = await dispatchDeepchatRoute(
+      runtime,
+      'skillSync.executeExport',
+      {
+        previews: [exportPreview],
+        strategies: {
+          'write-tests': 'overwrite'
+        }
+      },
+      context
+    )
+
+    expect(skillSyncPresenter.scanExternalTools).toHaveBeenCalled()
+    expect(skillSyncPresenter.getNewDiscoveries).toHaveBeenCalled()
+    expect(skillSyncPresenter.acknowledgeDiscoveries).toHaveBeenCalled()
+    expect(skillSyncPresenter.getRegisteredTools).toHaveBeenCalled()
+    expect(skillSyncPresenter.previewImport).toHaveBeenCalledWith('codex', ['write-tests'])
+    expect(skillSyncPresenter.executeImport).toHaveBeenCalledWith([importPreview], {
+      'write-tests': 'overwrite'
+    })
+    expect(skillSyncPresenter.previewExport).toHaveBeenCalledWith(['write-tests'], 'codex', {
+      inclusion: 'always'
+    })
+    expect(skillSyncPresenter.executeExport).toHaveBeenCalledWith([exportPreview], {
+      'write-tests': 'overwrite'
+    })
+    expect(scanResult).toEqual({
+      results: [expect.objectContaining({ toolId: 'codex' })]
+    })
+    expect(discoveriesResult).toEqual({
+      discoveries: [expect.objectContaining({ toolId: 'codex' })]
+    })
+    expect(ackResult).toEqual({ acknowledged: true })
+    expect(toolsResult).toEqual({
+      tools: [expect.objectContaining({ id: 'codex' })]
+    })
+    expect(importPreviewResult).toEqual({
+      previews: [
+        expect.objectContaining({ skill: expect.objectContaining({ name: 'write-tests' }) })
+      ]
+    })
+    expect(importResult).toEqual({
+      result: {
+        success: true,
+        imported: 1,
+        exported: 0,
+        skipped: 0,
+        failed: []
+      }
+    })
+    expect(exportPreviewResult).toEqual({
+      previews: [expect.objectContaining({ skillName: 'write-tests' })]
+    })
+    expect(exportResult).toEqual({
+      result: {
+        success: true,
+        imported: 0,
+        exported: 1,
+        skipped: 0,
+        failed: []
+      }
+    })
+  })
+
+  it('dispatches GitHub Copilot OAuth routes through OAuthPresenter', async () => {
+    const { runtime, oauthPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const loginResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.githubCopilot.startLogin',
+      { providerId: 'github-copilot' },
+      context
+    )
+    const deviceFlowResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.githubCopilot.startDeviceFlowLogin',
+      { providerId: 'github-copilot' },
+      context
+    )
+
+    expect(oauthPresenter.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
+    expect(oauthPresenter.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
+    expect(loginResult).toEqual({ success: true })
+    expect(deviceFlowResult).toEqual({ success: false })
+  })
+
+  it('dispatches database schema repair through SQLitePresenter', async () => {
+    const { runtime, sqlitePresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const repairResult = await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.repairSchema',
+      {},
+      context
+    )
+
+    expect(sqlitePresenter.repairSchema).toHaveBeenCalledTimes(1)
+    expect(repairResult).toEqual({
+      report: expect.objectContaining({
+        status: 'healthy',
+        repairedIssues: [],
+        remainingIssues: []
+      })
+    })
+  })
+
+  it('dispatches NowledgeMem routes through ConversationExporter', async () => {
+    const { runtime, exporter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const getResult = await dispatchDeepchatRoute(runtime, 'nowledgeMem.getConfig', {}, context)
+    const updateResult = await dispatchDeepchatRoute(
+      runtime,
+      'nowledgeMem.updateConfig',
+      {
+        config: {
+          baseUrl: 'http://127.0.0.1:14242',
+          apiKey: 'secret',
+          timeout: 45000
+        }
+      },
+      context
+    )
+    const testResult = await dispatchDeepchatRoute(
+      runtime,
+      'nowledgeMem.testConnection',
+      {},
+      context
+    )
+
+    expect(exporter.getNowledgeMemConfig).toHaveBeenCalledTimes(2)
+    expect(exporter.updateNowledgeMemConfig).toHaveBeenCalledWith({
+      baseUrl: 'http://127.0.0.1:14242',
+      apiKey: 'secret',
+      timeout: 45000
+    })
+    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledTimes(1)
+    expect(getResult).toEqual({
+      config: {
+        baseUrl: 'http://127.0.0.1:14242',
+        apiKey: '',
+        timeout: 30000
+      }
+    })
+    expect(updateResult).toEqual({
+      config: {
+        baseUrl: 'http://127.0.0.1:14242',
+        apiKey: '',
+        timeout: 30000
+      }
+    })
+    expect(testResult).toEqual({
+      result: {
+        success: true,
+        message: 'Connection successful'
+      }
+    })
+  })
+
+  it('dispatches skill file reads through SkillPresenter', async () => {
+    const { runtime, skillPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'skills.readFile',
+      { name: 'write-tests' },
+      context
+    )
+
+    expect(skillPresenter.readSkillFile).toHaveBeenCalledWith('write-tests')
+    expect(result).toEqual({
+      content: '---\nname: write-tests\n---\nUse tests well'
+    })
+  })
+
+  it('dispatches MCP Router marketplace routes through McpPresenter', async () => {
+    const { runtime, mcpPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const listResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.listServers',
+      {
+        page: 1,
+        limit: 20
+      },
+      context
+    )
+    const keyResult = await dispatchDeepchatRoute(runtime, 'mcp.router.getApiKey', {}, context)
+    const saveResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.setApiKey',
+      {
+        key: 'new-router-key'
+      },
+      context
+    )
+    const authResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.updateServersAuth',
+      {
+        apiKey: 'new-router-key'
+      },
+      context
+    )
+    const installedResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.isServerInstalled',
+      {
+        source: 'mcprouter',
+        sourceId: 'context7'
+      },
+      context
+    )
+    const installResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.installServer',
+      {
+        serverKey: 'context7'
+      },
+      context
+    )
+
+    expect(mcpPresenter.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
+    expect(mcpPresenter.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
+    expect(mcpPresenter.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
+    expect(mcpPresenter.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
+    expect(mcpPresenter.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
+    expect(mcpPresenter.installMcpRouterServer).toHaveBeenCalledWith('context7')
+    expect(listResult).toEqual({
+      servers: [
+        expect.objectContaining({
+          server_key: 'context7',
+          title: 'Context7'
+        })
+      ]
+    })
+    expect(keyResult).toEqual({ key: 'router-key' })
+    expect(saveResult).toEqual({ saved: true })
+    expect(authResult).toEqual({ updated: true })
+    expect(installedResult).toEqual({ installed: false })
+    expect(installResult).toEqual({ installed: true })
+  })
+
+  it('dispatches remote control routes through RemoteControlPresenter', async () => {
+    const { runtime, remoteControlPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    await dispatchDeepchatRoute(runtime, 'remoteControl.listChannels', {}, context)
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.getChannelSettings',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.saveChannelSettings',
+      {
+        channel: 'telegram',
+        settings: {
+          botToken: 'telegram-token',
+          remoteEnabled: true,
+          defaultAgentId: 'deepchat',
+          defaultWorkdir: ''
+        }
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.getChannelStatus',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.getChannelBindings',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.removeChannelBinding',
+      {
+        channel: 'telegram',
+        endpointKey: 'telegram:100:0'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.removeChannelPrincipal',
+      {
+        channel: 'telegram',
+        principalId: '123'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.getChannelPairingSnapshot',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.createChannelPairCode',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.clearChannelPairCode',
+      {
+        channel: 'telegram'
+      },
+      context
+    )
+    await dispatchDeepchatRoute(runtime, 'remoteControl.getTelegramStatus', {}, context)
+    await dispatchDeepchatRoute(runtime, 'remoteControl.getWeixinIlinkStatus', {}, context)
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.startWeixinIlinkLogin',
+      {
+        force: true
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.waitForWeixinIlinkLogin',
+      {
+        sessionKey: 'weixin-session',
+        timeoutMs: 480000
+      },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.removeWeixinIlinkAccount',
+      {
+        accountId: 'account-1'
+      },
+      context
+    )
+    const restartResult = await dispatchDeepchatRoute(
+      runtime,
+      'remoteControl.restartWeixinIlinkAccount',
+      {
+        accountId: 'account-1'
+      },
+      context
+    )
+
+    expect(remoteControlPresenter.listRemoteChannels).toHaveBeenCalledTimes(1)
+    expect(remoteControlPresenter.getChannelSettings).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
+      expect.objectContaining({
+        remoteEnabled: true
+      })
+    )
+    expect(remoteControlPresenter.getChannelStatus).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.getChannelBindings).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.removeChannelBinding).toHaveBeenCalledWith(
+      'telegram',
+      'telegram:100:0'
+    )
+    expect(remoteControlPresenter.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
+    expect(remoteControlPresenter.getChannelPairingSnapshot).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.clearChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteControlPresenter.getTelegramStatus).toHaveBeenCalledTimes(1)
+    expect(remoteControlPresenter.getWeixinIlinkStatus).toHaveBeenCalledTimes(1)
+    expect(remoteControlPresenter.startWeixinIlinkLogin).toHaveBeenCalledWith({ force: true })
+    expect(remoteControlPresenter.waitForWeixinIlinkLogin).toHaveBeenCalledWith({
+      sessionKey: 'weixin-session',
+      timeoutMs: 480000
+    })
+    expect(remoteControlPresenter.removeWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(remoteControlPresenter.restartWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(restartResult).toEqual({ restarted: true })
+  })
+
+  it('dispatches DeepChat agent config routes through ConfigPresenter', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const listResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.listAgents',
+      { agentType: 'deepchat' },
+      context
+    )
+    const createResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.createDeepChatAgent',
+      {
+        name: 'Writer',
+        enabled: true,
+        config: {
+          systemPrompt: 'Write clearly'
+        }
+      },
+      context
+    )
+    const updateResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.updateDeepChatAgent',
+      {
+        agentId: 'writer',
+        updates: {
+          name: 'Writer Pro',
+          enabled: false
+        }
+      },
+      context
+    )
+    const deleteResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.deleteDeepChatAgent',
+      {
+        agentId: 'writer'
+      },
+      context
+    )
+
+    expect(listResult).toEqual({
+      agents: [
+        expect.objectContaining({
+          id: 'deepchat'
+        })
+      ]
+    })
+    expect(configPresenter.createDeepChatAgent).toHaveBeenCalledWith({
+      name: 'Writer',
+      enabled: true,
+      config: {
+        systemPrompt: 'Write clearly'
+      }
+    })
+    expect(createResult).toEqual({
+      agent: expect.objectContaining({
+        id: 'writer',
+        name: 'Writer'
+      })
+    })
+    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
+      name: 'Writer Pro',
+      enabled: false
+    })
+    expect(updateResult).toEqual({
+      agent: expect.objectContaining({
+        id: 'writer',
+        name: 'Writer Pro',
+        enabled: false
+      })
+    })
+    expect(configPresenter.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(deleteResult).toEqual({
+      removed: true
+    })
+  })
+
+  it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const initialProxy = await dispatchDeepchatRoute(
+      runtime,
+      'config.getProxySettings',
+      {},
+      context
+    )
+    const updatedMode = await dispatchDeepchatRoute(
+      runtime,
+      'config.setProxyMode',
+      {
+        mode: 'custom'
+      },
+      context
+    )
+    const updatedUrl = await dispatchDeepchatRoute(
+      runtime,
+      'config.setCustomProxyUrl',
+      {
+        url: 'http://127.0.0.1:7890'
+      },
+      context
+    )
+    const loggingResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.openLoggingFolder',
+      {},
+      context
+    )
+    const initialUpdateChannel = await dispatchDeepchatRoute(
+      runtime,
+      'config.getUpdateChannel',
+      {},
+      context
+    )
+    const updatedUpdateChannel = await dispatchDeepchatRoute(
+      runtime,
+      'config.setUpdateChannel',
+      {
+        channel: 'beta'
+      },
+      context
+    )
+    const initialSkillDraftSuggestions = await dispatchDeepchatRoute(
+      runtime,
+      'config.getSkillDraftSuggestions',
+      {},
+      context
+    )
+    const updatedSkillDraftSuggestions = await dispatchDeepchatRoute(
+      runtime,
+      'config.setSkillDraftSuggestions',
+      {
+        enabled: true
+      },
+      context
+    )
+    const refreshProviderDbResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.refreshProviderDb',
+      {
+        force: true
+      },
+      context
+    )
+    const initialHooksConfig = await dispatchDeepchatRoute(
+      runtime,
+      'config.getHooksNotifications',
+      {},
+      context
+    )
+    const updatedHooksConfig = await dispatchDeepchatRoute(
+      runtime,
+      'config.setHooksNotifications',
+      {
+        config: {
+          hooks: [
+            {
+              id: 'hook-1',
+              name: 'Hook 1',
+              enabled: true,
+              command: 'echo test',
+              events: ['SessionStart']
+            }
+          ]
+        }
+      },
+      context
+    )
+    const hookTestResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.testHookCommand',
+      {
+        hookId: 'hook-1'
+      },
+      context
+    )
+
+    expect(initialProxy).toEqual({
+      mode: 'system',
+      customProxyUrl: ''
+    })
+    expect(configPresenter.setProxyMode).toHaveBeenCalledWith('custom')
+    expect(updatedMode).toEqual({
+      mode: 'custom',
+      customProxyUrl: ''
+    })
+    expect(configPresenter.setCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(updatedUrl).toEqual({
+      mode: 'custom',
+      customProxyUrl: 'http://127.0.0.1:7890'
+    })
+    expect(configPresenter.openLoggingFolder).toHaveBeenCalled()
+    expect(loggingResult).toEqual({
+      opened: true
+    })
+    expect(initialUpdateChannel).toEqual({
+      channel: 'stable'
+    })
+    expect(configPresenter.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(updatedUpdateChannel).toEqual({
+      channel: 'beta'
+    })
+    expect(initialSkillDraftSuggestions).toEqual({
+      enabled: false
+    })
+    expect(configPresenter.setSkillDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
+    expect(updatedSkillDraftSuggestions).toEqual({
+      enabled: true
+    })
+    expect(configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
+    expect(refreshProviderDbResult).toEqual({
+      result: {
+        status: 'updated',
+        lastUpdated: 123,
+        providersCount: 2
+      }
+    })
+    expect(initialHooksConfig).toEqual({
+      config: {
+        hooks: []
+      }
+    })
+    expect(configPresenter.setHooksNotificationsConfig).toHaveBeenCalledWith({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: 'Hook 1',
+          enabled: true,
+          command: 'echo test',
+          events: ['SessionStart']
+        }
+      ]
+    })
+    expect(updatedHooksConfig).toEqual({
+      config: {
+        hooks: [
+          {
+            id: 'hook-1',
+            name: 'Hook 1',
+            enabled: true,
+            command: 'echo test',
+            events: ['SessionStart']
+          }
+        ]
+      }
+    })
+    expect(configPresenter.testHookCommand).toHaveBeenCalledWith('hook-1')
+    expect(hookTestResult).toEqual({
+      result: {
+        success: true,
+        durationMs: 10,
+        exitCode: 0
+      }
+    })
+  })
+
+  it('dispatches ACP config routes through ConfigPresenter', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const setEnabledResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.setAcpEnabled',
+      { enabled: false },
+      context
+    )
+    const registryResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.listAcpRegistryAgents',
+      {},
+      context
+    )
+    const refreshResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.refreshAcpRegistry',
+      { force: true },
+      context
+    )
+    const manualResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.listManualAcpAgents',
+      {},
+      context
+    )
+    const addManualResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.addManualAcpAgent',
+      {
+        name: 'Manual New',
+        command: 'node',
+        enabled: true
+      },
+      context
+    )
+    const updateManualResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.updateManualAcpAgent',
+      {
+        agentId: 'manual-acp',
+        updates: { enabled: false }
+      },
+      context
+    )
+    const removeManualResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.removeManualAcpAgent',
+      { agentId: 'manual-acp' },
+      context
+    )
+    const setAgentEnabledResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.setAcpAgentEnabled',
+      { agentId: 'codex-acp', enabled: true },
+      context
+    )
+    const setEnvResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.setAcpAgentEnvOverride',
+      { agentId: 'codex-acp', env: { KEY: 'value' } },
+      context
+    )
+    const ensureResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.ensureAcpAgentInstalled',
+      { agentId: 'codex-acp' },
+      context
+    )
+    const repairResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.repairAcpAgent',
+      { agentId: 'codex-acp' },
+      context
+    )
+    const uninstallResult = await dispatchDeepchatRoute(
+      runtime,
+      'config.uninstallAcpRegistryAgent',
+      { agentId: 'codex-acp' },
+      context
+    )
+
+    expect(configPresenter.setAcpEnabled).toHaveBeenCalledWith(false)
+    expect(setEnabledResult).toEqual({ enabled: false })
+    expect(registryResult).toEqual({
+      agents: [expect.objectContaining({ id: 'codex-acp' })]
+    })
+    expect(refreshResult).toEqual({
+      agents: [expect.objectContaining({ id: 'codex-acp' })]
+    })
+    expect(manualResult).toEqual({
+      agents: [expect.objectContaining({ id: 'manual-acp' })]
+    })
+    expect(addManualResult).toEqual({
+      agent: expect.objectContaining({ id: 'manual-new', name: 'Manual New' })
+    })
+    expect(updateManualResult).toEqual({
+      agent: expect.objectContaining({ id: 'manual-acp', enabled: false })
+    })
+    expect(removeManualResult).toEqual({ removed: true })
+    expect(setAgentEnabledResult).toEqual({ ok: true })
+    expect(setEnvResult).toEqual({ ok: true })
+    expect(ensureResult).toEqual({
+      installState: expect.objectContaining({ status: 'installed' })
+    })
+    expect(repairResult).toEqual({
+      installState: expect.objectContaining({ status: 'installed' })
+    })
+    expect(uninstallResult).toEqual({ ok: true })
   })
 
   it('dispatches session and chat routes with renderer context', async () => {
@@ -801,6 +2489,41 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('dispatches agent dashboard routes through AgentSessionPresenter', async () => {
+    const { runtime, agentSessionPresenter } = createRuntime()
+    const context = {
+      webContentsId: 88,
+      windowId: 3
+    }
+
+    const agentsResult = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
+    const dashboardResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getUsageDashboard',
+      {},
+      context
+    )
+    const retryResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryRtkHealthCheck',
+      {},
+      context
+    )
+
+    expect(agentSessionPresenter.getAgents).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.getUsageDashboard).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.retryRtkHealthCheck).toHaveBeenCalledTimes(1)
+    expect(agentsResult).toEqual({
+      agents: [expect.objectContaining({ id: 'deepchat' })]
+    })
+    expect(dashboardResult).toEqual({
+      dashboard: expect.objectContaining({
+        summary: expect.objectContaining({ messageCount: 1 })
+      })
+    })
+    expect(retryResult).toEqual({ retried: true })
+  })
+
   it('dispatches provider query and tool interaction routes through typed services', async () => {
     const { runtime, configPresenter, llmProviderPresenter, agentSessionPresenter } =
       createRuntime()
@@ -830,6 +2553,87 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
+    const keyStatusResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getKeyStatus',
+      {
+        providerId: 'openai'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const rateLimitStatusResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getRateLimitStatus',
+      {
+        providerId: 'openai'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const updateRateLimitResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.updateRateLimit',
+      {
+        providerId: 'openai',
+        enabled: true,
+        qpsLimit: 2
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const embeddingDimensionsResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getEmbeddingDimensions',
+      {
+        providerId: 'openai',
+        modelId: 'text-embedding-3-small'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const modelScopeSyncResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.syncModelScopeMcpServers',
+      {
+        providerId: 'modelscope',
+        syncOptions: {
+          page_number: 1,
+          page_size: 50
+        }
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    const acpDebugResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.runAcpDebugAction',
+      {
+        agentId: 'codex-acp',
+        action: 'initialize',
+        payload: {}
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
     const interactionResult = await dispatchDeepchatRoute(
       runtime,
       'chat.respondToolInteraction',
@@ -850,6 +2654,23 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
     expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
+    expect(llmProviderPresenter.getKeyStatus).toHaveBeenCalledWith('openai')
+    expect(llmProviderPresenter.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
+    expect(llmProviderPresenter.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)
+    expect(llmProviderPresenter.getDimensions).toHaveBeenCalledWith(
+      'openai',
+      'text-embedding-3-small'
+    )
+    expect(llmProviderPresenter.syncModelScopeMcpServers).toHaveBeenCalledWith('modelscope', {
+      page_number: 1,
+      page_size: 50
+    })
+    expect(llmProviderPresenter.runAcpDebugAction).toHaveBeenCalledWith({
+      agentId: 'codex-acp',
+      action: 'initialize',
+      payload: {},
+      webContentsId: 88
+    })
     expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'message-1',
@@ -873,6 +2694,66 @@ describe('dispatchDeepchatRoute', () => {
     expect(checkResult).toEqual({
       isOk: true,
       errorMsg: null
+    })
+    expect(keyStatusResult).toEqual({
+      status: {
+        remainNum: 42,
+        limit_remaining: '42',
+        usage: '8'
+      }
+    })
+    expect(rateLimitStatusResult).toEqual({
+      status: {
+        config: {
+          enabled: false,
+          qpsLimit: 1
+        },
+        currentQps: 0,
+        queueLength: 0,
+        lastRequestTime: 0
+      }
+    })
+    expect(updateRateLimitResult).toEqual({
+      config: {
+        enabled: true,
+        qpsLimit: 2
+      }
+    })
+    expect(embeddingDimensionsResult).toEqual({
+      result: {
+        data: {
+          dimensions: 1536,
+          normalized: true
+        }
+      }
+    })
+    expect(modelScopeSyncResult).toEqual({
+      result: {
+        success: true,
+        message: 'ok',
+        synced: 1,
+        imported: 1,
+        skipped: 0,
+        errors: []
+      }
+    })
+    expect(acpDebugResult).toEqual({
+      result: {
+        status: 'ok',
+        sessionId: 'debug-session',
+        events: [
+          {
+            id: 'event-1',
+            kind: 'response',
+            action: 'initialize',
+            agentId: 'codex-acp',
+            timestamp: 123,
+            payload: {
+              ok: true
+            }
+          }
+        ]
+      }
     })
     expect(interactionResult).toEqual({
       accepted: true,
@@ -1029,6 +2910,68 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
+    const closeSettingsResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.closeSettings',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    const focusMainResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.focusMain',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    const notifySettingsReadyResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.notifySettingsReady',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    const pendingProviderInstallResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.consumePendingSettingsProviderInstall',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    const requeueProviderInstallResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.requeuePendingSettingsProviderInstall',
+      {
+        preview: pendingProviderInstallResult.preview
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    const startGuidedOnboardingResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.startGuidedOnboarding',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
     expect(initialState).toEqual({
       state: {
         windowId: 7,
@@ -1064,6 +3007,34 @@ describe('dispatchDeepchatRoute', () => {
     expect(closeFloatingResult).toEqual({ closed: true })
     expect(windowPresenter.close).toHaveBeenCalledWith(7)
     expect(closeResult).toEqual({ closed: true })
+    expect(windowPresenter.getSettingsWindowId).toHaveBeenCalled()
+    expect(windowPresenter.closeSettingsWindow).toHaveBeenCalled()
+    expect(closeSettingsResult).toEqual({ closed: true })
+    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
+    expect(focusMainResult).toEqual({ focused: true })
+    expect(windowPresenter.notifySettingsReady).toHaveBeenCalledWith(42)
+    expect(notifySettingsReadyResult).toEqual({ notified: true })
+    expect(windowPresenter.consumePendingSettingsProviderInstall).toHaveBeenCalled()
+    expect(pendingProviderInstallResult).toEqual({
+      preview: {
+        kind: 'builtin',
+        id: 'deepseek',
+        baseUrl: 'https://api.deepseek.com',
+        apiKey: 'sk-secret',
+        maskedApiKey: 'sk-s...cret',
+        iconModelId: 'deepseek-chat',
+        willOverwrite: true
+      }
+    })
+    expect(windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
+      pendingProviderInstallResult.preview
+    )
+    expect(requeueProviderInstallResult).toEqual({ queued: true })
+    expect(windowPresenter.sendToAllWindows).toHaveBeenCalledWith('dev:start-guided-onboarding')
+    expect(startGuidedOnboardingResult).toEqual({
+      started: true,
+      focused: true
+    })
   })
 
   it('dispatches phase3 device, project, file, and workspace routes', async () => {
@@ -1097,10 +3068,32 @@ describe('dispatchDeepchatRoute', () => {
         windowId: 7
       }
     )
+    const fileSelection = await dispatchDeepchatRoute(
+      runtime,
+      'device.selectFiles',
+      {
+        filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
     const restartResult = await dispatchDeepchatRoute(
       runtime,
       'device.restartApp',
       {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const resetDataResult = await dispatchDeepchatRoute(
+      runtime,
+      'device.resetDataByType',
+      {
+        resetType: 'chat'
+      },
       {
         webContentsId: 42,
         windowId: 7
@@ -1141,6 +3134,17 @@ describe('dispatchDeepchatRoute', () => {
     const openDirectoryResult = await dispatchDeepchatRoute(
       runtime,
       'project.openDirectory',
+      {
+        path: 'C:/workspace'
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const pathExistsResult = await dispatchDeepchatRoute(
+      runtime,
+      'project.pathExists',
       {
         path: 'C:/workspace'
       },
@@ -1384,8 +3388,17 @@ describe('dispatchDeepchatRoute', () => {
       canceled: false,
       filePaths: ['C:/workspace']
     })
+    expect(devicePresenter.selectFiles).toHaveBeenCalledWith({
+      filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
+    })
+    expect(fileSelection).toEqual({
+      canceled: false,
+      filePaths: ['C:/workspace/skill.zip']
+    })
     expect(devicePresenter.restartApp).toHaveBeenCalledTimes(1)
     expect(restartResult).toEqual({ restarted: true })
+    expect(devicePresenter.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(resetDataResult).toEqual({ reset: true })
     expect(sanitizeResult).toEqual({ content: '<svg />' })
 
     expect(projectPresenter.getRecentProjects).toHaveBeenCalledWith(5)
@@ -1413,6 +3426,8 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(projectPresenter.openDirectory).toHaveBeenCalledWith('C:/workspace')
     expect(openDirectoryResult).toEqual({ opened: true })
+    expect(projectPresenter.pathExists).toHaveBeenCalledWith('C:/workspace')
+    expect(pathExistsResult).toEqual({ exists: true })
     expect(selectedDirectory).toEqual({ path: 'C:/selected-workspace' })
 
     expect(filePresenter.getMimeType).toHaveBeenCalledWith('/workspace/demo.txt')
@@ -1591,6 +3606,15 @@ describe('dispatchDeepchatRoute', () => {
         windowId: 3
       }
     )
+    const clearSandboxResult = await dispatchDeepchatRoute(
+      runtime,
+      'browser.clearSandboxData',
+      {},
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
 
     expect(statusResult).toEqual({
       status: expect.objectContaining({
@@ -1636,6 +3660,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(detachResult).toEqual({ detached: true })
     expect(yoBrowserPresenter.destroySessionBrowser).toHaveBeenCalledWith('session-1')
     expect(destroyResult).toEqual({ destroyed: true })
+    expect(yoBrowserPresenter.clearSandboxData).toHaveBeenCalledTimes(1)
+    expect(clearSandboxResult).toEqual({ cleared: true })
   })
 
   it('dispatches phase3 tab routes through the renderer tab adapter', async () => {

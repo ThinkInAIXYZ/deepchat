@@ -32,6 +32,10 @@ export function getRuntimeWebContentsId(): number | null {
   return getRendererRuntimeApi().getWebContentsId?.() ?? null
 }
 
+export function getRuntimePlatform(): string | undefined {
+  return getRendererRuntimeApi().getPlatform?.()
+}
+
 export async function openRuntimeExternal(url: string): Promise<void> {
   const runtimeApi = getRendererRuntimeApi()
   if (!runtimeApi.openExternal) {

@@ -673,7 +673,7 @@ import {
 } from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSessionClient } from '@api/SessionClient'
 import UsageNostalgiaCard from './control-center/UsageNostalgiaCard.vue'
 
 type CalendarCell = UsageDashboardCalendarDay | null
@@ -700,7 +700,7 @@ type BreakdownChartRow = {
   barRatio: number
 }
 const { t, locale } = useI18n()
-const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
+const sessionClient = createSessionClient()
 const props = withDefaults(
   defineProps<{
     hideNostalgia?: boolean
@@ -957,7 +957,7 @@ async function loadDashboard(): Promise<void> {
   try {
     isLoading.value = true
     errorMessage.value = ''
-    const nextDashboard = await agentSessionPresenter.getUsageDashboard()
+    const nextDashboard = await sessionClient.getUsageDashboard()
     if (!isDashboardMounted) {
       return
     }
@@ -986,7 +986,7 @@ async function retryRtkHealthCheck(): Promise<void> {
 
   try {
     isRetryingRtk.value = true
-    await agentSessionPresenter.retryRtkHealthCheck()
+    await sessionClient.retryRtkHealthCheck()
     await loadDashboard()
   } catch (error) {
     errorMessage.value =

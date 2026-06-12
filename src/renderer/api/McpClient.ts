@@ -26,6 +26,12 @@ import {
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
+  mcpRouterGetApiKeyRoute,
+  mcpRouterInstallServerRoute,
+  mcpRouterIsServerInstalledRoute,
+  mcpRouterListServersRoute,
+  mcpRouterSetApiKeyRoute,
+  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -160,6 +166,33 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     await bridge.invoke(mcpClearNpmRegistryCacheRoute.name, {})
   }
 
+  async function listMcpRouterServers(page: number, limit: number) {
+    return await bridge.invoke(mcpRouterListServersRoute.name, { page, limit })
+  }
+
+  async function installMcpRouterServer(serverKey: string) {
+    const result = await bridge.invoke(mcpRouterInstallServerRoute.name, { serverKey })
+    return result.installed
+  }
+
+  async function getMcpRouterApiKey() {
+    const result = await bridge.invoke(mcpRouterGetApiKeyRoute.name, {})
+    return result.key
+  }
+
+  async function setMcpRouterApiKey(key: string) {
+    await bridge.invoke(mcpRouterSetApiKeyRoute.name, { key })
+  }
+
+  async function isServerInstalled(source: string, sourceId: string) {
+    const result = await bridge.invoke(mcpRouterIsServerInstalledRoute.name, { source, sourceId })
+    return result.installed
+  }
+
+  async function updateMcpRouterServersAuth(apiKey: string) {
+    await bridge.invoke(mcpRouterUpdateServersAuthRoute.name, { apiKey })
+  }
+
   function onServerStarted(listener: (payload: { serverName: string; version: number }) => void) {
     return bridge.on(mcpServerStartedEvent.name, listener)
   }
@@ -237,6 +270,12 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     setCustomNpmRegistry,
     setAutoDetectNpmRegistry,
     clearNpmRegistryCache,
+    listMcpRouterServers,
+    installMcpRouterServer,
+    getMcpRouterApiKey,
+    setMcpRouterApiKey,
+    isServerInstalled,
+    updateMcpRouterServersAuth,
     onServerStarted,
     onServerStopped,
     onConfigChanged,

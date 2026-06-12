@@ -20,7 +20,7 @@ import { BrowserWindow, webContents as electronWebContents } from 'electron'
 import { promises as fs } from 'fs'
 import { presenter } from '@/presenter'
 import { eventBus } from '@/eventbus'
-import { TAB_EVENTS, CONVERSATION_EVENTS } from '@/events'
+import { TAB_EVENTS } from '@/events'
 import type { ISessionPresenter } from './interface'
 import { MessageManager } from './managers/messageManager'
 import { buildUserMessageContext } from './messageFormatter'
@@ -437,7 +437,7 @@ export class SessionPresenter implements ISessionPresenter {
     messageId?: string
     childConversationId?: string
   }): Promise<number | null> {
-    const { conversationId, messageId, childConversationId } = payload
+    const { conversationId } = payload
 
     await this.sqlitePresenter.getConversation(conversationId)
 
@@ -445,17 +445,6 @@ export class SessionPresenter implements ISessionPresenter {
       await this.conversationManager.findWebContentsForConversation(conversationId)
     if (existingWebContentsId !== null) {
       this.focusWindowForWebContents(existingWebContentsId)
-      if (messageId || childConversationId) {
-        await presenter.windowPresenter.sendToWebContents(
-          existingWebContentsId,
-          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
-          {
-            conversationId,
-            messageId,
-            childConversationId
-          }
-        )
-      }
       return existingWebContentsId
     }
 
@@ -474,17 +463,6 @@ export class SessionPresenter implements ISessionPresenter {
 
     await this.conversationManager.setActiveConversation(conversationId, targetWebContentsId)
     this.focusWindowForWebContents(targetWebContentsId)
-    if (messageId || childConversationId) {
-      await presenter.windowPresenter.sendToWebContents(
-        targetWebContentsId,
-        CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
-        {
-          conversationId,
-          messageId,
-          childConversationId
-        }
-      )
-    }
 
     return targetWebContentsId
   }
@@ -501,33 +479,11 @@ export class SessionPresenter implements ISessionPresenter {
 
     if (existingWebContentsId !== null) {
       this.focusWindowForWebContents(existingWebContentsId)
-      if (messageId || childConversationId) {
-        await presenter.windowPresenter.sendToWebContents(
-          existingWebContentsId,
-          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
-          {
-            conversationId,
-            messageId,
-            childConversationId
-          }
-        )
-      }
       return existingWebContentsId
     }
 
     if (typeof tabId === 'number') {
       await this.conversationManager.setActiveConversation(conversationId, tabId)
-      if (messageId || childConversationId) {
-        await presenter.windowPresenter.sendToWebContents(
-          tabId,
-          CONVERSATION_EVENTS.SCROLL_TO_MESSAGE,
-          {
-            conversationId,
-            messageId,
-            childConversationId
-          }
-        )
-      }
       return tabId
     }
 

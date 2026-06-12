@@ -16,9 +16,9 @@ Renderer
   -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
 ```
 
-`useLegacyPresenter()`、`window.electron`、`window.api` 只允许作为兼容路径留在
-`src/renderer/api/legacy/**` quarantine 中。业务模块的新能力应从 `renderer/api/*Client`
-和 shared contracts 进入。
+`useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+`src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
+shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
 
 ## 当前必读
 

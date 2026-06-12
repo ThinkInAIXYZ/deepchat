@@ -6,6 +6,13 @@
       :data-guide-target="coachmarkTargetSurface"
       class="pointer-events-none fixed inset-0 z-70"
     >
+      <div
+        data-testid="welcome-guide-blocker"
+        aria-hidden="true"
+        class="pointer-events-auto absolute inset-0"
+        @click.stop
+      />
+
       <OnBoardingSpotlight
         :path-d="coachmarkPathD"
         :cutout-path-d="coachmarkCutoutPathD"

@@ -1,9 +1,13 @@
 import { z } from 'zod'
 import { EntityIdSchema, ProviderModelSummarySchema, defineRouteContract } from '../common'
 import {
+  AcpDebugActionSchema,
+  AcpDebugRunResultSchema,
   AcpConfigStateSchema,
+  EmbeddingDimensionsSchema,
   LlmProviderSchema,
   LlmProviderSummarySchema,
+  ModelScopeMcpSyncResultSchema,
   OllamaModelSchema,
   ProviderRateLimitStatusSchema
 } from '../domainSchemas'
@@ -128,6 +132,84 @@ export const providersGetRateLimitStatusRoute = defineRouteContract({
   }),
   output: z.object({
     status: ProviderRateLimitStatusSchema
+  })
+})
+
+const ProviderKeyStatusSchema = z.object({
+  remainNum: z.number().optional(),
+  limit_remaining: z.string().optional(),
+  usage: z.string().optional()
+})
+
+export const providersGetKeyStatusRoute = defineRouteContract({
+  name: 'providers.getKeyStatus',
+  input: z.object({
+    providerId: EntityIdSchema
+  }),
+  output: z.object({
+    status: ProviderKeyStatusSchema.nullable()
+  })
+})
+
+export const providersUpdateRateLimitRoute = defineRouteContract({
+  name: 'providers.updateRateLimit',
+  input: z.object({
+    providerId: EntityIdSchema,
+    enabled: z.boolean(),
+    qpsLimit: z.number().positive()
+  }),
+  output: z.object({
+    config: z.object({
+      enabled: z.boolean(),
+      qpsLimit: z.number().positive()
+    })
+  })
+})
+
+export const providersGetEmbeddingDimensionsRoute = defineRouteContract({
+  name: 'providers.getEmbeddingDimensions',
+  input: z.object({
+    providerId: EntityIdSchema,
+    modelId: z.string().min(1)
+  }),
+  output: z.object({
+    result: z.object({
+      data: EmbeddingDimensionsSchema,
+      errorMsg: z.string().optional()
+    })
+  })
+})
+
+export const providersSyncModelScopeMcpServersRoute = defineRouteContract({
+  name: 'providers.syncModelScopeMcpServers',
+  input: z.object({
+    providerId: EntityIdSchema,
+    syncOptions: z
+      .object({
+        page_number: z.number().int().positive().optional(),
+        page_size: z.number().int().positive().optional(),
+        timeout: z.number().int().positive().optional(),
+        retryCount: z.number().int().nonnegative().optional()
+      })
+      .optional()
+  }),
+  output: z.object({
+    result: ModelScopeMcpSyncResultSchema
+  })
+})
+
+export const providersRunAcpDebugActionRoute = defineRouteContract({
+  name: 'providers.runAcpDebugAction',
+  input: z.object({
+    agentId: z.string().min(1),
+    action: AcpDebugActionSchema,
+    payload: z.record(z.string(), z.unknown()).optional(),
+    sessionId: z.string().optional(),
+    workdir: z.string().optional(),
+    methodName: z.string().optional()
+  }),
+  output: z.object({
+    result: AcpDebugRunResultSchema
   })
 })
 

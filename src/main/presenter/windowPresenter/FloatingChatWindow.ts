@@ -63,7 +63,6 @@ export class FloatingChatWindow {
     try {
       const position = this.calculatePosition(floatingButtonPosition)
       const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
-      const isDev = is.dev
 
       this.window = new BrowserWindow({
         width: this.config.size.width,
@@ -92,7 +91,7 @@ export class FloatingChatWindow {
           contextIsolation: true,
           preload: path.join(__dirname, '../preload/index.mjs'),
           webSecurity: false,
-          devTools: isDev,
+          devTools: is.dev,
           sandbox: false
         }
       })
@@ -294,9 +293,10 @@ export class FloatingChatWindow {
       throw new Error('Window is not available for page loading')
     }
 
-    const isDev = is.dev
-    if (isDev) {
-      await this.window.loadURL('http://localhost:5173/')
+    const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+
+    if (is.dev && rendererUrl) {
+      await this.window.loadURL(`${rendererUrl}#/chat`)
     } else {
       await this.window.loadFile(path.join(__dirname, '../renderer/index.html'))
     }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { UPDATE_EVENTS, WINDOW_EVENTS } from '../../../src/main/events'
+import { WINDOW_EVENTS } from '../../../src/main/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const {
   autoUpdaterState,
@@ -128,7 +129,16 @@ describe('UpgradePresenter', () => {
     expect(sendToMainMock).toHaveBeenCalledWith(WINDOW_EVENTS.SET_APPLICATION_QUITTING, {
       isQuitting: true
     })
-    expect(sendToRendererMock).toHaveBeenCalledWith(UPDATE_EVENTS.WILL_RESTART, 'all_windows')
+    expect(sendToRendererMock).toHaveBeenCalledWith(
+      DEEPCHAT_EVENT_CHANNEL,
+      'all_windows',
+      expect.objectContaining({
+        name: 'upgrade.willRestart',
+        payload: expect.objectContaining({
+          version: expect.any(Number)
+        })
+      })
+    )
 
     await vi.advanceTimersByTimeAsync(500)
 

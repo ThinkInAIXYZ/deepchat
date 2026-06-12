@@ -215,11 +215,11 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('disables smooth streaming by default', async () => {
+  it('enables smooth streaming by default', async () => {
     const { wrapper } = await setup()
 
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
-      'false'
+      'true'
     )
   })
 

@@ -91,15 +91,7 @@ vi.mock('../../../src/main/eventbus', () => ({
   }
 }))
 
-vi.mock('../../../src/main/events', () => ({
-  WORKSPACE_EVENTS: {
-    INVALIDATED: 'workspace:files-changed',
-    FILES_CHANGED: 'workspace:files-changed'
-  }
-}))
-
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
-import { WORKSPACE_EVENTS } from '../../../src/main/events'
 import {
   createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
@@ -207,23 +199,10 @@ describe('WorkspacePresenter watchers', () => {
 
     await vi.advanceTimersByTimeAsync(120)
 
-    const legacyCalls = sendToRendererMock.mock.calls.filter(
-      ([channel]) => channel === WORKSPACE_EVENTS.INVALIDATED
-    )
     const typedCalls = sendToRendererMock.mock.calls.filter(
       ([channel]) => channel === DEEPCHAT_EVENT_CHANNEL
     )
 
-    expect(legacyCalls).toHaveLength(1)
-    expect(legacyCalls[0]).toEqual([
-      WORKSPACE_EVENTS.INVALIDATED,
-      'all_windows',
-      {
-        workspacePath,
-        kind: 'fs',
-        source: 'watcher'
-      }
-    ])
     expect(typedCalls).toHaveLength(1)
     expect(typedCalls[0]).toEqual([
       DEEPCHAT_EVENT_CHANNEL,
@@ -248,11 +227,7 @@ describe('WorkspacePresenter watchers', () => {
     await gitWatcher.emit('all', 'change', path.join(workspacePath, '.git', 'index'))
     await vi.advanceTimersByTimeAsync(120)
 
-    expect(sendToRendererMock).toHaveBeenCalledWith(WORKSPACE_EVENTS.INVALIDATED, 'all_windows', {
-      workspacePath,
-      kind: 'git',
-      source: 'watcher'
-    })
+    expect(sendToRendererMock).toHaveBeenCalledTimes(1)
     expect(sendToRendererMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, 'all_windows', {
       name: 'workspace.invalidated',
       payload: {

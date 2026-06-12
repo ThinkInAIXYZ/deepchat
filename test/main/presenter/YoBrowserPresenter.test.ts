@@ -186,18 +186,6 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    vi.doMock('@/events', () => ({
-      YO_BROWSER_EVENTS: {
-        OPEN_REQUESTED: 'yo-browser:open-requested',
-        WINDOW_CREATED: 'yo-browser:window-created',
-        WINDOW_UPDATED: 'yo-browser:window-updated',
-        WINDOW_CLOSED: 'yo-browser:window-closed',
-        WINDOW_FOCUSED: 'yo-browser:window-focused',
-        WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
-        WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
-      }
-    }))
-
     vi.doMock('@/presenter/browser/DownloadManager', () => ({
       DownloadManager: class {
         downloadFile = vi.fn()
@@ -342,9 +330,13 @@ describe('YoBrowserPresenter', () => {
       true
     )
 
-    const updatedEvents = sendToRendererMock.mock.calls.filter(
-      ([event]) => event === 'yo-browser:window-updated'
-    )
+    const updatedEvents = sendToRendererMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, , envelope]) => envelope)
+      .filter(
+        (envelope: any) =>
+          envelope.name === 'browser.status.changed' && envelope.payload.reason === 'updated'
+      )
     expect(updatedEvents).toHaveLength(0)
   })
 

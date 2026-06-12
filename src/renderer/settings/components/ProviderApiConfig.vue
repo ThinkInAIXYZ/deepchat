@@ -196,7 +196,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
@@ -211,7 +211,7 @@ interface ProviderWebsites {
 }
 
 const { t } = useI18n()
-const llmProviderPresenter = useLegacyPresenter('llmproviderPresenter', { safeCall: false })
+const providerClient = createProviderClient()
 const modelCheckStore = useModelCheckStore()
 const { toast } = useToast()
 
@@ -376,7 +376,7 @@ const getKeyStatus = async () => {
     props.provider.apiKey
   ) {
     try {
-      keyStatus.value = await llmProviderPresenter.getKeyStatus(props.provider.id)
+      keyStatus.value = await providerClient.getKeyStatus(props.provider.id)
     } catch (error) {
       console.error('Failed to get key status:', error)
       keyStatus.value = null
@@ -389,7 +389,7 @@ const refreshModels = async () => {
 
   isRefreshing.value = true
   try {
-    await llmProviderPresenter.refreshModels(props.provider.id)
+    await providerClient.refreshModels(props.provider.id)
     toast({
       title: t('settings.provider.toast.refreshModelsSuccessTitle'),
       description: t(

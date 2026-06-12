@@ -45,27 +45,27 @@ async function setup(options: { setRejects?: boolean } = {}) {
     updateServer: vi.fn().mockResolvedValue(true)
   })
   const toast = vi.fn()
+  const providerClient = {
+    getEmbeddingDimensions: vi.fn().mockResolvedValue({
+      data: {
+        dimensions: 1536,
+        normalized: true
+      }
+    })
+  }
+  const knowledgeClient = {
+    getSupportedLanguages: vi.fn().mockResolvedValue(['markdown']),
+    getSeparatorsForLanguage: vi.fn().mockResolvedValue(['\n\n', '\n', ' ', ''])
+  }
 
   vi.doMock('@api/ConfigClient', () => ({
     createConfigClient: () => configClient
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
-      if (name === 'llmproviderPresenter') {
-        return {
-          getDimensions: vi.fn().mockResolvedValue({
-            data: {
-              dimensions: 1536,
-              normalized: true
-            }
-          })
-        }
-      }
-      return {
-        getSupportedLanguages: vi.fn().mockResolvedValue(['markdown']),
-        getSeparatorsForLanguage: vi.fn().mockResolvedValue(['\n\n', '\n', ' ', ''])
-      }
-    }
+  vi.doMock('@api/ProviderClient', () => ({
+    createProviderClient: () => providerClient
+  }))
+  vi.doMock('@api/KnowledgeClient', () => ({
+    createKnowledgeClient: () => knowledgeClient
   }))
   vi.doMock('@/stores/mcp', () => ({
     useMcpStore: () => mcpStore
@@ -145,6 +145,8 @@ async function setup(options: { setRejects?: boolean } = {}) {
   return {
     wrapper,
     configClient,
+    providerClient,
+    knowledgeClient,
     mcpStore
   }
 }
@@ -181,5 +183,43 @@ describe('BuiltinKnowledgeSettings', () => {
     expect(vm.builtinConfigs).toEqual([])
     expect(vm.isBuiltinConfigDialogOpen).toBe(true)
     expect(mcpStore.updateServer).not.toHaveBeenCalled()
+  })
+
+  it('auto-detects embedding dimensions through ProviderClient before saving', async () => {
+    const { wrapper, configClient, providerClient } = await setup()
+    const vm = wrapper.vm as any
+    vm.builtinConfigs = []
+    vm.isEditing = false
+    vm.isBuiltinConfigDialogOpen = true
+    vm.autoDetectDimensionsSwitch = true
+    vm.fragmentsNumber = [6]
+    vm.editingBuiltinConfig = {
+      ...createKnowledgeConfig('knowledge-2'),
+      dimensions: Number.NaN,
+      normalized: false
+    }
+
+    await vm.saveBuiltinConfig()
+    await flushPromises()
+
+    expect(providerClient.getEmbeddingDimensions).toHaveBeenCalledWith(
+      'openai',
+      'text-embedding-3-small'
+    )
+    expect(configClient.setKnowledgeConfigs).toHaveBeenCalledWith([
+      createKnowledgeConfig('knowledge-2')
+    ])
+  })
+
+  it('loads supported separators through KnowledgeClient', async () => {
+    const { wrapper, knowledgeClient } = await setup()
+    const vm = wrapper.vm as any
+
+    await vm.handleLanguageSelect('markdown')
+    await flushPromises()
+
+    expect(knowledgeClient.getSupportedLanguages).toHaveBeenCalledTimes(1)
+    expect(knowledgeClient.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
+    expect(vm.separators).toBe('"\\n\\n", "\\n", " ", ""')
   })
 })

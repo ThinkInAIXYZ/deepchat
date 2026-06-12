@@ -203,10 +203,11 @@ import {
 import { toast } from '@/components/use-toast'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Input } from '@shadcn/components/ui/input'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createFileClient } from '@api/FileClient'
+import { createKnowledgeClient } from '@api/KnowledgeClient'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
 import { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/presenter'
-import { RAG_EVENTS } from '@/events'
 
 const props = defineProps<{
   builtinKnowledgeDetail: BuiltinKnowledgeConfig
@@ -235,7 +236,10 @@ const { t } = useI18n()
 const fileList = ref<KnowledgeFileMessage[]>([])
 // 允许的文件扩展名 - 动态加载
 const acceptExts = ref<string[]>([])
-const knowledgePresenter = useLegacyPresenter('knowledgePresenter')
+const deviceClient = createDeviceClient()
+const fileClient = createFileClient()
+const knowledgeClient = createKnowledgeClient()
+let stopFileUpdated: (() => void) | null = null
 // 弹窗状态
 const isSearchDialogOpen = ref(false)
 
@@ -264,7 +268,7 @@ const handleSearch = async () => {
   copyId.value = ''
   loading.value = true
   try {
-    const res = await knowledgePresenter.similarityQuery(
+    const res = await knowledgeClient.similarityQuery(
       props.builtinKnowledgeDetail.id,
       searchKey.value
     )
@@ -285,7 +289,7 @@ const handleSearch = async () => {
 // 复制文本
 const handleCopy = (content: string, id: string) => {
   copyId.value = id
-  window.api.copyText(content)
+  deviceClient.copyText(content)
 }
 
 const clearSearchKey = () => {
@@ -298,7 +302,7 @@ const defaultSupported = ['txt', 'md', 'markdown', 'docx', 'pptx', 'pdf']
 const loadSupportedExtensions = async () => {
   try {
     console.log('[KnowledgeFile] Loading supported extensions from backend')
-    const extensions = await knowledgePresenter.getSupportedFileExtensions()
+    const extensions = await knowledgeClient.getSupportedFileExtensions()
     // 保证 defaultSupported 排在最前，且不重复
     const uniqueExts = extensions.filter((ext) => !defaultSupported.includes(ext))
     acceptExts.value = [...defaultSupported, ...uniqueExts]
@@ -320,14 +324,14 @@ const handleChange = async (event: Event) => {
 
 // 加载文件列表
 const loadList = async () => {
-  fileList.value = (await knowledgePresenter.listFiles(props.builtinKnowledgeDetail.id)) || []
+  fileList.value = (await knowledgeClient.listFiles(props.builtinKnowledgeDetail.id)) || []
 }
 
 const toggleStatus = async (run: boolean) => {
   if (run) {
-    await knowledgePresenter.resumeAllPausedTasks(props.builtinKnowledgeDetail.id)
+    await knowledgeClient.resumeAllPausedTasks(props.builtinKnowledgeDetail.id)
   } else {
-    await knowledgePresenter.pauseAllRunningTasks(props.builtinKnowledgeDetail.id)
+    await knowledgeClient.pauseAllRunningTasks(props.builtinKnowledgeDetail.id)
   }
   loadList()
 }
@@ -337,10 +341,10 @@ const handleFileUpload = async (files: File[]) => {
   for (const file of files) {
     try {
       console.log(`[KnowledgeFile] Processing file: ${file.name}`)
-      const path = window.api.getPathForFile(file)
+      const path = fileClient.getPathForFile(file)
 
       // 使用后端验证而不是前端扩展名检查
-      const validationResult = await knowledgePresenter.validateFile(path)
+      const validationResult = await knowledgeClient.validateFile(path)
 
       if (!validationResult.isSupported) {
         console.warn(
@@ -361,7 +365,7 @@ const handleFileUpload = async (files: File[]) => {
       )
 
       // 如果验证通过，继续上传文件
-      const result = await knowledgePresenter.addFile(props.builtinKnowledgeDetail.id, path)
+      const result = await knowledgeClient.addFile(props.builtinKnowledgeDetail.id, path)
       if (result.error) {
         toast({
           title: `${file.name} ${t('settings.knowledgeBase.uploadError')}`,
@@ -403,7 +407,7 @@ const handleDrop = async (e: DragEvent) => {
 
 // 刪除文件
 const deleteFile = async (fileId: string) => {
-  await knowledgePresenter.deleteFile(props.builtinKnowledgeDetail.id, fileId)
+  await knowledgeClient.deleteFile(props.builtinKnowledgeDetail.id, fileId)
   toast({
     title: t('settings.knowledgeBase.deleteSuccess'),
     variant: 'default',
@@ -414,7 +418,7 @@ const deleteFile = async (fileId: string) => {
 
 // 重新上传文件
 const reAddFile = async (file: KnowledgeFileMessage) => {
-  const result = await knowledgePresenter.reAddFile(props.builtinKnowledgeDetail.id, file.id)
+  const result = await knowledgeClient.reAddFile(props.builtinKnowledgeDetail.id, file.id)
   file.status = 'processing' // 设置状态为加载中
   if (result.error) {
     toast({
@@ -432,7 +436,7 @@ onMounted(async () => {
   await Promise.all([loadList(), loadSupportedExtensions()])
 
   // 监听知识库文件更新事件
-  window.electron.ipcRenderer.on(RAG_EVENTS.FILE_UPDATED, (_, data) => {
+  stopFileUpdated = knowledgeClient.onFileUpdated((data) => {
     const file = fileList.value.find((file) => file.id === data.id)
     if (!file) {
       return
@@ -442,6 +446,7 @@ onMounted(async () => {
   })
 })
 onBeforeUnmount(() => {
-  window.electron.ipcRenderer.removeAllListeners(RAG_EVENTS.FILE_UPDATED)
+  stopFileUpdated?.()
+  stopFileUpdated = null
 })
 </script>

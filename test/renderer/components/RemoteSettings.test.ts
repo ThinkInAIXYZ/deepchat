@@ -586,7 +586,7 @@ const setup = async (options: SetupOptions = {}) => {
     restartWeixinIlinkAccount: vi.fn(async () => undefined)
   }
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     getAgents: vi.fn(async () => [
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'DeepChat Alt', type: 'deepchat', enabled: false },
@@ -595,6 +595,7 @@ const setup = async (options: SetupOptions = {}) => {
     ])
   }
   const projectPresenter = {
+    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
     selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
   }
 
@@ -697,13 +698,17 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
-      if (name === 'agentSessionPresenter') return agentSessionPresenter
-      if (name === 'projectPresenter') return projectPresenter
-      return null
-    },
-    useLegacyRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@api/RemoteControlClient', () => ({
+    createRemoteControlClient: () => remoteControlPresenter
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: () => sessionClient
+  }))
+  vi.doMock('@api/ProjectClient', () => ({
+    createProjectClient: () => ({
+      listRecent: projectPresenter.getRecentProjects,
+      selectDirectory: projectPresenter.selectDirectory
+    })
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
@@ -829,7 +834,7 @@ const setup = async (options: SetupOptions = {}) => {
     discordState,
     weixinIlinkState,
     remoteControlPresenter,
-    agentSessionPresenter,
+    sessionClient,
     projectPresenter,
     toast,
     tabsComponents

@@ -8,13 +8,16 @@
             {{ t('settings.deepchatAgents.description') }}
           </div>
         </div>
-        <Button size="sm" @click="startCreate">{{ t('common.add') }}</Button>
+        <Button data-testid="deepchat-agent-add-button" size="sm" @click="startCreate">
+          {{ t('common.add') }}
+        </Button>
       </div>
 
       <div class="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
         <button
           v-for="agent in sidebarAgents"
           :key="agent.id"
+          :data-testid="`deepchat-agent-row-${agent.id}`"
           class="w-full rounded-2xl border p-4 text-left transition-colors"
           :class="
             selectedAgentId === agent.id
@@ -91,13 +94,18 @@
             </Button>
             <Button
               v-if="form.id && !form.protected"
+              data-testid="deepchat-agent-delete-button"
               variant="destructive"
               :disabled="saving || deleting"
               @click="removeAgent"
             >
               {{ t('common.delete') }}
             </Button>
-            <Button :disabled="saving || !form.name.trim()" @click="saveAgent">
+            <Button
+              data-testid="deepchat-agent-save-button"
+              :disabled="saving || !form.name.trim()"
+              @click="saveAgent"
+            >
               {{ saving ? t('common.saving') : t('common.save') }}
             </Button>
           </div>
@@ -109,6 +117,7 @@
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
             <Input
+              data-testid="deepchat-agent-name-input"
               v-model="form.name"
               :placeholder="t('settings.deepchatAgents.namePlaceholder')"
             />
@@ -129,6 +138,7 @@
               {{ t('settings.deepchatAgents.descriptionLabel') }}
             </div>
             <Textarea
+              data-testid="deepchat-agent-description-input"
               v-model="form.description"
               class="min-h-[84px]"
               :placeholder="t('settings.deepchatAgents.descriptionPlaceholder')"
@@ -652,8 +662,10 @@ import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
+import { createProjectClient } from '@api/ProjectClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
 import { ModelType } from '@shared/model'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -739,9 +751,9 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
-const configPresenter = useLegacyPresenter('configPresenter')
-const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
-const toolPresenter = useLegacyPresenter('toolPresenter')
+const configClient = createConfigClient()
+const projectClient = createProjectClient()
+const toolClient = createToolClient()
 const modelStore = useModelStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
@@ -1229,7 +1241,7 @@ const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: stri
 const loadSystemPromptTemplates = async () => {
   loadingSystemPrompts.value = true
   try {
-    const prompts = await configPresenter.getSystemPrompts()
+    const prompts = await configClient.getSystemPrompts()
     systemPromptTemplates.value = Array.isArray(prompts)
       ? [...prompts].sort(
           (a, b) =>
@@ -1253,7 +1265,7 @@ const applySystemPromptTemplate = (prompt: SystemPrompt) => {
 }
 const pickDefaultProjectPath = async () => {
   try {
-    const selectedPath = await projectPresenter.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
       form.defaultProjectPath = selectedPath
     }
@@ -1292,7 +1304,7 @@ const setGroupEnabled = (group: ToolGroup, enabled: boolean) => {
 }
 const loadRecentProjects = async () => {
   try {
-    const result = await projectPresenter.getRecentProjects(8)
+    const result = await projectClient.listRecent(8)
     recentProjects.value = Array.isArray(result) ? result : []
   } catch {
     recentProjects.value = []
@@ -1300,7 +1312,7 @@ const loadRecentProjects = async () => {
 }
 const loadTools = async () => {
   try {
-    const definitions = await toolPresenter.getAllToolDefinitions({ chatMode: 'agent' })
+    const definitions = await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
     tools.value = Array.isArray(definitions)
       ? definitions
           .filter((tool) => tool.source === 'agent')
@@ -1311,7 +1323,7 @@ const loadTools = async () => {
   }
 }
 const loadAgents = async (preferredId?: string | null) => {
-  const list = await configPresenter.listAgents()
+  const list = await configClient.listAgents()
   allAgents.value = list
   const nextId =
     preferredId && deepchatAgents.value.some((agent) => agent.id === preferredId)
@@ -1377,10 +1389,10 @@ const saveAgent = async () => {
       }
     }
     if (form.id) {
-      const updated = await configPresenter.updateDeepChatAgent(form.id, payload)
+      const updated = await configClient.updateDeepChatAgent(form.id, payload)
       await loadAgents(updated?.id ?? form.id)
     } else {
-      const created = await configPresenter.createDeepChatAgent(payload)
+      const created = await configClient.createDeepChatAgent(payload)
       await loadAgents(created.id)
     }
   } finally {
@@ -1398,7 +1410,7 @@ const removeAgent = async () => {
     const sessionClient = createSessionClient()
     const [impact, list] = await Promise.all([
       sessionClient.getAgentTransferImpact(form.id),
-      configPresenter.listAgents()
+      configClient.listAgents()
     ])
     transferImpact.value = impact
     allAgents.value = list
@@ -1410,7 +1422,7 @@ const removeAgent = async () => {
 }
 
 const finishDeleteAgent = async (agentId: string) => {
-  const removed = await configPresenter.deleteDeepChatAgent(agentId)
+  const removed = await configClient.deleteDeepChatAgent(agentId)
   if (!removed) {
     throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
   }

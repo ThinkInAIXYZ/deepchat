@@ -5,7 +5,8 @@
 注意：
 
 - 当前 active renderer-main boundary 已经优先走 `renderer/api/*Client` + `window.deepchat` + typed contracts
-- 下文中涉及 `useLegacyPresenter()`、`window.api`、raw `window.electron` 的内容，应视为 legacy / compatibility 背景
+- 历史 `useLegacyPresenter()` / `presenter:call` transport 已退休；新调用不得重新引入该路径
+- raw `window.electron` 只能出现在明确 allowlist 的 preload/bridge 边界
 - 当前 single-track 规则见 `docs/ARCHITECTURE.md` 的 renderer-main boundary 章节
 
 ## 📋 核心组件
@@ -183,12 +184,8 @@ sendToTab(tabId: number, eventName: string, ...args) {
 
 ### 4. sendToWindow - 窗口级别通信
 
-```typescript
-// 发送到特定窗口的所有标签页
-eventBus.sendToWindow(windowId, TAB_EVENTS.TITLE_UPDATED, {
-  title: '新标题'
-})
-```
+当前新代码不应再通过 raw tab renderer channel 同步标签标题或标签列表；窗口/标签状态如需暴露给
+renderer，应先定义 shared typed event contract，再由 presenter 发布 typed envelope。
 
 **实现**：
 
@@ -428,7 +425,6 @@ eventBus.send(MCP_EVENTS.TOOL_CALL_RESULT, {
 
 ```typescript
 export const TAB_EVENTS = {
-  TITLE_UPDATED: 'tab:title-updated',              // 标签标题更新
   CONTENT_UPDATED: 'tab:content-updated',          // 标签内容更新
   STATE_CHANGED: 'tab:state-changed',              // 标签状态变化
   VISIBILITY_CHANGED: 'tab:visibility-changed',    // 标签可见性变化
@@ -455,27 +451,27 @@ eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, { tabId })
 eventBus.send(TAB_EVENTS.CLOSED, { tabId })
 ```
 
-### WINDOW_EVENTS - 窗口事件
+### WINDOW_EVENTS - 窗口内部事件
 
 ```typescript
 export const WINDOW_EVENTS = {
-  READY_TO_SHOW: 'window:ready-to-show',        // 窗口准备显示
-  WINDOW_FOCUSED: 'window:focused',            // 窗口获得焦点
-  WINDOW_BLURRED: 'window:blurred',            // 窗口失去焦点
-  WINDOW_MAXIMIZED: 'window:maximized',        // 窗口最大化
-  WINDOW_UNMAXIMIZED: 'window:unmaximized',    // 窗口还原
-  WINDOW_RESIZED: 'window:resized',            // 窗口大小变化
-  WINDOW_CLOSED: 'window:closed',              // 窗口关闭
-  ENTER_FULL_SCREEN: 'window:enter-full-screen',  // 进入全屏
-  LEAVE_FULL_SCREEN: 'window:leave-full-screen',  // 退出全屏
+  WINDOW_RESIZE: 'window:resize',              // main 内部：窗口大小变化
+  WINDOW_MAXIMIZED: 'window:maximized',        // main 内部：窗口最大化
+  WINDOW_UNMAXIMIZED: 'window:unmaximized',    // main 内部：窗口还原
+  WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
+  WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen',
+  WINDOW_CLOSED: 'window:closed'
 }
 ```
 
 **使用场景**：
 - 窗口生命周期管理
-- 窗口 UI 状态同步
+- TabPresenter 根据窗口尺寸、最大化、全屏和关闭事件调整 BrowserView bounds
+- 主窗口和设置窗口的 renderer UI 状态必须使用 typed `window.state.changed` 事件，不再直接监听
+  `window:maximized` / `window:unmaximized` / `window:enter-full-screen` /
+  `window:leave-full-screen` raw channel
 
-**文件位置**：`src/main/events.ts:88-107`
+**文件位置**：`src/main/events.ts`
 
 ### WORKSPACE_EVENTS - 工作区事件
 
@@ -660,151 +656,71 @@ sequenceDiagram
 - typed event contract
 - `renderer/api/*Client`
 
-下面的 `useLegacyPresenter()` 小节主要用于解释 legacy transport 是如何工作的，以及为什么它需要被继续收口。
-
-### useLegacyPresenter - legacy Presenter 兼容调用
-
-**文件位置**：`src/renderer/api/legacy/presenters.ts`
-
-| 组件 | 文件位置 | 职责 |
-|------|---------|------|
-| **useLegacyPresenter** | `src/renderer/api/legacy/presenters.ts` | 为兼容路径提供类型安全的 Presenter 方法调用代理 |
-
-### 工作原理
-
-`useLegacyPresenter()` 实现了渲染层到主进程的 legacy 双向代理调用系统：
-
-1. **类型安全** - 通过 TypeScript 泛型确保调用方法的类型正确
-2. **WebContentsId 映射** - 自动获取并缓存当前的 webContentsId，供主进程映射到 tabId/windowId
-3. **安全序列化** - `safeSerialize()` 处理不可序列化对象
-4. **统一 IPC 通道** - 所有调用通过 `presenter:call` 路由到主进程
+历史 `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+`src/renderer/api/legacy/**` 已删除。当前 request/response 调用统一通过 shared route
+contract、`window.deepchat.invoke()` 和 `renderer/api/*Client` 完成；主进程 route handler 再转接到
+对应 presenter 或 service。
 
 ```mermaid
 sequenceDiagram
-    participant UI as Vue Component
-    participant UP as useLegacyPresenter
-    participant IPC as electron.ipcRenderer
-    participant Router as presenter:call
-    participant P as Presenter
+    participant UI as Vue Component / Store
+    participant Client as renderer/api Client
+    participant Bridge as window.deepchat
+    participant Route as main route dispatcher
+    participant P as Presenter / Service
 
-    UI->>UP: useLegacyPresenter('agentSessionPresenter')
-    UI->>UP: sendMessage(...)
-    UP->>UP: safeSerialize(payloads)
-    UP->>UP: getLegacyWebContentsId()
-    UP->>IPC: invoke(presenter:call)
-    IPC->>Router: 路由到指定 Presenter
-    Router->>P: 调用 sendMessage
-    P-->>Router: 返回结果
-    Router-->>IPC: 返回结果
-    IPC-->>UP: Promise resolve
-    UP-->>UI: 返回结果
+    UI->>Client: method(input)
+    Client->>Bridge: invoke(route.name, input)
+    Bridge->>Route: validated route envelope
+    Route->>P: call presenter/service method
+    P-->>Route: result
+    Route-->>Bridge: validated output
+    Bridge-->>Client: typed result
+    Client-->>UI: domain-shaped result
 ```
 
-### 核心实现
+与 EventBus 的区别：
 
-```typescript
-export function useLegacyPresenter<T extends keyof IPresenter>(
-  name: T,
-  options?: LegacyPresenterOptions
-): IPresenter[T] {
-  return useLegacyPresenterTransport(name, options)
-}
-```
-
-通过 Proxy 机制，所有对 Presenter 方法的调用都会被拦截并转换为 IPC 调用：
-
-```typescript
-Proxy handler:
-  get(presenterName, functionName) {
-    return async (...payloads) => {
-      const webContentsId = getLegacyWebContentsId()
-      const rawPayloads = payloads.map((e) => safeSerialize(toRaw(e)))
-      return window.electron.ipcRenderer.invoke(
-        'presenter:call',
-        presenterName,
-        functionName,
-        ...rawPayloads
-      )
-    }
-  }
-```
-
-### WebContentsId 到 tabId/windowId 映射
-
-- legacy runtime 通过 `getLegacyWebContentsId()` 包装 `window.api.getWebContentsId()` 获取自己的 webContentsId
-- 主进程通过 IPC 调用携带的 webContentsId 自动映射到对应的 tabId 和 windowId
-- 这解决了渲染层不知道自己所属 tabId 的问题
-
-### 使用示例
-
-```typescript
-// Vue 组件中
-import { useLegacyPresenter } from '@api/legacy/presenters'
-
-const agentPresenter = useLegacyPresenter('agentSessionPresenter')
-const projectPresenter = useLegacyPresenter('projectPresenter')
-
-// 发送消息
-async function sendMessage(sessionId: string, content: string) {
-  await agentPresenter.sendMessage(sessionId, content)
-}
-
-// 打开项目目录
-async function openProject(path: string) {
-  await projectPresenter.openDirectory(path)
-}
-```
-
-### 与 EventBus 的区别
-
-| 特性 | EventBus | useLegacyPresenter (legacy IPC) |
-|------|----------|-------------------|
+| 特性 | EventBus / typed events | Typed route |
+|------|----------|-------------|
 | 模式 | pub/sub（发布/订阅） | request/response（请求/响应） |
 | 方向 | 主要主→渲染（广播） | 渲染→主（调用） |
 | 返回值 | 无返回值 | Promise |
 | 典型用途 | 状态通知、流式更新、UI 同步 | CRUD 操作、命令执行、数据查询 |
-| 监听方式 | renderer 监听事件 | renderer 调用方法 |
-| 通信通道 | `sendToRenderer()` / `on()` | `invoke('presenter:call')` |
+| 监听方式 | `window.deepchat.on()` 或 client 封装 | client 方法调用 |
+| 通信通道 | typed event envelope | typed route envelope |
 
-### 调试支持
-
-通过环境变量 `VITE_LOG_IPC_CALL=1` 可以开启 IPC 调用日志：
-
-```bash
-VITE_LOG_IPC_CALL=1 npm run dev
-```
-
-控制台输出：
-```
-[Renderer IPC] WebContents:42 -> agent.sendMessage
-```
+调试 renderer-main 调用时，优先看 `src/shared/contracts/routes*.ts`、`src/renderer/api/*Client.ts`
+和 `src/main/routes/*`；不要从已退休 legacy presenter transport 反推。
 
 ## 🔍 在渲染进程监听事件
 
 ### Vue 组件中监听事件
 
 ```typescript
-import { eventBus } from '@preload'
+import { chatStreamCompletedEvent, chatStreamUpdatedEvent } from '@shared/contracts/events'
 
 export default {
   setup() {
+    let stopChunk: (() => void) | null = null
+    let stopEnd: (() => void) | null = null
+
     onMounted(() => {
       // 监听流响应
-      window.api.on(STREAM_EVENTS.RESPONSE, (data) => {
+      stopChunk = window.deepchat.on(chatStreamUpdatedEvent.name, (data) => {
         console.log('收到流响应:', data)
-        // 更新 UI
       })
 
       // 监听流结束
-      window.api.on(STREAM_EVENTS.END, (data) => {
+      stopEnd = window.deepchat.on(chatStreamCompletedEvent.name, (data) => {
         console.log('流结束:', data)
       })
     })
 
     onUnmounted(() => {
       // 清理监听器
-      window.api.removeAllListeners(STREAM_EVENTS.RESPONSE)
-      window.api.removeAllListeners(STREAM_EVENTS.END)
+      stopChunk?.()
+      stopEnd?.()
     })
   }
 }
@@ -814,18 +730,25 @@ export default {
 
 ```typescript
 import { defineStore } from 'pinia'
-import { eventBus } from '@preload'
+import { chatStreamUpdatedEvent } from '@shared/contracts/events'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
-    messages: []
+    messages: [],
+    stopStreamListener: null as null | (() => void)
   }),
 
   actions: {
     initEventListener() {
-      window.api.on(STREAM_EVENTS.RESPONSE, (data) => {
+      this.stopStreamListener?.()
+      this.stopStreamListener = window.deepchat.on(chatStreamUpdatedEvent.name, (data) => {
         this.handleStreamResponse(data)
       })
+    },
+
+    disposeEventListener() {
+      this.stopStreamListener?.()
+      this.stopStreamListener = null
     },
 
     handleStreamResponse(data) {
@@ -842,7 +765,8 @@ export const useChatStore = defineStore('chat', {
 - **EventBus**: `src/main/eventbus.ts:1-152`
 - **事件常量**: `src/main/events.ts:1-263`
 - **Presenter 初始化**: `src/main/presenter/index.ts`
-- **useLegacyPresenter**: `src/renderer/api/legacy/presenters.ts`
+- **Typed route/event contracts**: `src/shared/contracts/routes.ts`, `src/shared/contracts/events.ts`
+- **Renderer clients**: `src/renderer/api/`
 
 ## 📚 相关阅读
 

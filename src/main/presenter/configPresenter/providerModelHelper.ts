@@ -1,12 +1,11 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import { ModelConfig, MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from './storeLike'
+import { emitModelsChanged } from './eventPublishers'
 
 export interface IModelStore {
   models: MODEL_META[]
@@ -302,7 +301,7 @@ export class ProviderModelHelper {
 
     this.setCustomModels(providerId, models)
     this.setModelStatus(providerId, model.id, true)
-    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
+    emitModelsChanged(providerId)
   }
 
   removeCustomModel(providerId: string, modelId: string): void {
@@ -310,7 +309,7 @@ export class ProviderModelHelper {
     const filteredModels = models.filter((model) => model.id !== modelId)
     this.setCustomModels(providerId, filteredModels)
     this.deleteModelStatus(providerId, modelId)
-    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
+    emitModelsChanged(providerId)
   }
 
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void {
@@ -319,7 +318,7 @@ export class ProviderModelHelper {
     if (index !== -1) {
       models[index] = { ...models[index], ...updates }
       this.setCustomModels(providerId, models)
-      eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, providerId)
+      emitModelsChanged(providerId)
     }
   }
 }

@@ -285,6 +285,7 @@ export interface IWindowPresenter {
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   focusMainWindow(): boolean
+  notifySettingsReady(senderWebContentsId: number): void
   setPendingSettingsProviderInstall(
     preview: import('@shared/providerDeeplink').ProviderInstallPreview
   ): void
@@ -296,6 +297,11 @@ export interface IWindowPresenter {
   isMaximized(windowId: number): boolean
   isMainWindowFocused(windowId: number): boolean
   sendToAllWindows(channel: string, ...args: unknown[]): void
+  sendSettingsNavigation(
+    windowId: number,
+    navigation: import('@shared/settingsNavigation').SettingsNavigationPayload
+  ): boolean
+  sendSettingsCheckForUpdates(windowId: number): boolean
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultWindow(
     channel: string,

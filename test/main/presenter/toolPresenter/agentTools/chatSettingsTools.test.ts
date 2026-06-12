@@ -1,5 +1,4 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { SETTINGS_EVENTS } from '@/events'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
@@ -24,7 +23,7 @@ describe('ChatSettingsToolHandler', () => {
 
   const windowPresenter = {
     createSettingsWindow: vi.fn(),
-    sendToWindow: vi.fn()
+    sendSettingsNavigation: vi.fn()
   } as any
 
   const buildHandler = () =>
@@ -42,7 +41,7 @@ describe('ChatSettingsToolHandler', () => {
     configPresenter.getSkillsEnabled.mockReturnValue(true)
     skillPresenter.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
-    windowPresenter.sendToWindow.mockReturnValue(true)
+    windowPresenter.sendSettingsNavigation.mockReturnValue(true)
   })
 
   it('rejects toggle when skill is inactive', async () => {
@@ -84,7 +83,7 @@ describe('ChatSettingsToolHandler', () => {
     const result = await handler.open({ section: 'mcp' }, 'conv-1')
 
     expect(windowPresenter.createSettingsWindow).toHaveBeenCalled()
-    expect(windowPresenter.sendToWindow).toHaveBeenCalledWith(1, SETTINGS_EVENTS.NAVIGATE, {
+    expect(windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(1, {
       routeName: 'settings-mcp',
       section: 'mcp'
     })

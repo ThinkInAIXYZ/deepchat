@@ -66,12 +66,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 const uiSettingsStore = useUiSettingsStore()
 const langStore = useLanguageStore()
 
@@ -94,6 +94,6 @@ const confirmLoggingChange = () => {
 }
 
 const openLogFolder = () => {
-  configPresenter.openLoggingFolder()
+  void configClient.openLoggingFolder()
 }
 </script>

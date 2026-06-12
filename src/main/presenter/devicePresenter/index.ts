@@ -9,11 +9,13 @@ import { app, dialog } from 'electron'
 import { nanoid } from 'nanoid'
 import axios from 'axios'
 import { is } from '@electron-toolkit/utils'
-import { eventBus, SendTarget } from '../../eventbus'
-import { NOTIFICATION_EVENTS } from '../../events'
 import { svgSanitizer } from '../../lib/svgSanitizer'
-import { presenter } from '../index'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 const execAsync = promisify(exec)
+
+async function getPresenterRuntime() {
+  return (await import('../index')).presenter
+}
 
 function toMimeType(value: unknown): string {
   if (typeof value === 'string') {
@@ -348,13 +350,15 @@ export class DevicePresenter implements IDevicePresenter {
         }
       }
 
+      const runtimePresenter = await getPresenterRuntime()
+
       switch (resetType) {
         case 'chat': {
           // 删除聊天数据
           logger.info('Resetting chat data...')
           try {
-            if (presenter.sqlitePresenter) {
-              presenter.sqlitePresenter.close()
+            if (runtimePresenter.sqlitePresenter) {
+              runtimePresenter.sqlitePresenter.close()
               logger.info('SQLite database connection closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
@@ -388,8 +392,8 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除知识库数据
           logger.info('Resetting knowledge base data...')
           try {
-            if (presenter.knowledgePresenter) {
-              await presenter.knowledgePresenter.destroy()
+            if (runtimePresenter.knowledgePresenter) {
+              await runtimePresenter.knowledgePresenter.destroy()
               logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
@@ -434,12 +438,12 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除整个用户数据目录
           logger.info('Performing complete reset of user data...')
           try {
-            if (presenter.sqlitePresenter) {
-              presenter.sqlitePresenter.close()
+            if (runtimePresenter.sqlitePresenter) {
+              runtimePresenter.sqlitePresenter.close()
               logger.info('SQLite database connection closed')
             }
-            if (presenter.knowledgePresenter) {
-              await presenter.knowledgePresenter.destroy()
+            if (runtimePresenter.knowledgePresenter) {
+              await runtimePresenter.knowledgePresenter.destroy()
               logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -466,7 +470,7 @@ export class DevicePresenter implements IDevicePresenter {
     try {
       if (is.dev) {
         logger.info('开发环境下数据重置完成，发送通知到渲染进程')
-        eventBus.sendToRenderer(NOTIFICATION_EVENTS.DATA_RESET_COMPLETE_DEV, SendTarget.ALL_WINDOWS)
+        publishDeepchatEvent('appRuntime.dataResetCompleteDev', {})
         return
       }
 

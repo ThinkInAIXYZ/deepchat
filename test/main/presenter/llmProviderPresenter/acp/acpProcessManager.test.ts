@@ -9,6 +9,8 @@ import {
   parseLoadSessionCapability
 } from '@/presenter/llmProviderPresenter/acp/acpProcessManager'
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@/eventbus', () => ({
   eventBus: {
     sendToRenderer: vi.fn()
@@ -16,6 +18,10 @@ vi.mock('@/eventbus', () => ({
   SendTarget: {
     ALL_WINDOWS: 'ALL_WINDOWS'
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('electron', () => ({
@@ -221,6 +227,43 @@ describe('AcpProcessManager config cache fallback', () => {
         { id: 'ask', name: 'ask', description: '' }
       ],
       currentModeId: 'ask'
+    })
+  })
+
+  it('publishes typed ready events for cached process modes and config options', () => {
+    const manager = createManager()
+    const configState = createConfigState('gpt-5-mini', 'ask')
+    const handle = {
+      agentId: 'agent-1',
+      workdir: '/tmp/workspace',
+      state: 'bound',
+      configState,
+      availableModes: [{ id: 'ask', name: 'Ask', description: '' }],
+      currentModeId: 'ask',
+      child: { killed: false, exitCode: null, signalCode: null },
+      connection: {},
+      readyAt: Date.now(),
+      providerId: 'acp',
+      status: 'ready'
+    }
+
+    ;(manager as any).notifyModesReady(handle, 'conv-1')
+    ;(manager as any).notifyConfigOptionsReady(handle, 'conv-1')
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.modes.ready', {
+      conversationId: 'conv-1',
+      agentId: 'agent-1',
+      workdir: '/tmp/workspace',
+      current: 'ask',
+      available: [{ id: 'ask', name: 'Ask', description: '' }],
+      version: expect.any(Number)
+    })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.acp.configOptions.ready', {
+      conversationId: 'conv-1',
+      agentId: 'agent-1',
+      workdir: '/tmp/workspace',
+      configState,
+      version: expect.any(Number)
     })
   })
 

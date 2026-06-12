@@ -81,10 +81,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  DATABASE_UNLOCK_CANCEL_CHANNEL,
-  DATABASE_UNLOCK_PROGRESS_CHANNEL,
-  DATABASE_UNLOCK_REQUEST_CHANNEL,
-  DATABASE_UNLOCK_SUBMIT_CHANNEL,
   type DatabaseUnlockProgressPayload,
   type DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
@@ -137,7 +133,7 @@ const getActivityLabel = (name: string) => {
     .join(' ')
 }
 
-const handleSplashUpdate = (_event: unknown, payload: SplashUpdatePayload) => {
+const handleSplashUpdate = (payload: SplashUpdatePayload) => {
   activities.value = payload.activities?.slice(0, 3) ?? []
 }
 
@@ -164,7 +160,7 @@ const focusPasswordInput = () => {
   })
 }
 
-const handleUnlockRequest = (_event: unknown, payload: DatabaseUnlockRequestPayload) => {
+const handleUnlockRequest = (payload: DatabaseUnlockRequestPayload) => {
   requestId.value = payload.requestId
   unlockReason.value = payload.reason
   safeStorageAvailable.value = payload.safeStorageAvailable
@@ -174,7 +170,7 @@ const handleUnlockRequest = (_event: unknown, payload: DatabaseUnlockRequestPayl
   focusPasswordInput()
 }
 
-const handleUnlockProgress = (_event: unknown, payload: DatabaseUnlockProgressPayload) => {
+const handleUnlockProgress = (payload: DatabaseUnlockProgressPayload) => {
   unlockSubmitting.value = false
   if (payload.active) {
     safeStorageAvailable.value = payload.safeStorageAvailable
@@ -191,7 +187,7 @@ const submitUnlock = () => {
     return
   }
   unlockSubmitting.value = true
-  window.electron?.ipcRenderer?.send?.(DATABASE_UNLOCK_SUBMIT_CHANNEL, {
+  window.deepchatSplash.submitUnlock({
     requestId: requestId.value,
     password: password.value
   })
@@ -204,7 +200,7 @@ const cancelUnlock = () => {
   }
   const canceledRequestId = requestId.value
   unlockSubmitting.value = false
-  window.electron?.ipcRenderer?.send?.(DATABASE_UNLOCK_CANCEL_CHANNEL, {
+  window.deepchatSplash.cancelUnlock({
     requestId: canceledRequestId
   })
   requestId.value = ''
@@ -214,22 +210,20 @@ const cancelUnlock = () => {
   mode.value = 'loading'
 }
 
+const cleanupListeners: Array<() => void> = []
+
 onMounted(() => {
-  window.electron?.ipcRenderer?.on?.('splash-update', handleSplashUpdate)
-  window.electron?.ipcRenderer?.on?.(DATABASE_UNLOCK_REQUEST_CHANNEL, handleUnlockRequest)
-  window.electron?.ipcRenderer?.on?.(DATABASE_UNLOCK_PROGRESS_CHANNEL, handleUnlockProgress)
+  cleanupListeners.push(
+    window.deepchatSplash.onUpdate(handleSplashUpdate),
+    window.deepchatSplash.onUnlockRequest(handleUnlockRequest),
+    window.deepchatSplash.onUnlockProgress(handleUnlockProgress)
+  )
 })
 
 onBeforeUnmount(() => {
-  window.electron?.ipcRenderer?.removeListener?.('splash-update', handleSplashUpdate)
-  window.electron?.ipcRenderer?.removeListener?.(
-    DATABASE_UNLOCK_REQUEST_CHANNEL,
-    handleUnlockRequest
-  )
-  window.electron?.ipcRenderer?.removeListener?.(
-    DATABASE_UNLOCK_PROGRESS_CHANNEL,
-    handleUnlockProgress
-  )
+  for (const cleanup of cleanupListeners.splice(0)) {
+    cleanup()
+  }
 })
 </script>
 

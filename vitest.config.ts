@@ -14,6 +14,9 @@ const vuePlugin = () =>
     }
   })
 
+const TEST_TIMEOUT_MS = 10000
+const TEST_MAX_WORKERS = 2
+
 export default defineConfig({
   test: {
     globals: true,
@@ -27,7 +30,10 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['test/renderer/**/*.{test,spec}.{js,ts}'],
           setupFiles: ['./test/setup.ts'],
-          globals: true
+          globals: true,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: TEST_TIMEOUT_MS,
+          maxWorkers: TEST_MAX_WORKERS
         },
         resolve: {
           alias: [
@@ -49,7 +55,10 @@ export default defineConfig({
           environment: 'node',
           include: ['test/main/**/*.{test,spec}.{js,ts}'],
           setupFiles: ['./test/setup.ts'],
-          globals: true
+          globals: true,
+          testTimeout: TEST_TIMEOUT_MS,
+          hookTimeout: TEST_TIMEOUT_MS,
+          maxWorkers: TEST_MAX_WORKERS
         },
         resolve: {
           alias: [
@@ -86,7 +95,8 @@ export default defineConfig({
         }
       }
     },
-    testTimeout: 10000,
-    hookTimeout: 10000
+    testTimeout: TEST_TIMEOUT_MS,
+    hookTimeout: TEST_TIMEOUT_MS,
+    maxWorkers: TEST_MAX_WORKERS
   }
 })

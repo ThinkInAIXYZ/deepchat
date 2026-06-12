@@ -22,13 +22,15 @@ const MAIN_GUARD_PATHS = [
 ]
 
 const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
+const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
+const RENDERER_BUSINESS_ROOTS = [RENDERER_SOURCE_ROOT, RENDERER_SETTINGS_ROOT]
 const RENDERER_TYPED_BOUNDARY_ROOT = path.join(ROOT, 'src/renderer/api')
 const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
-const RENDERER_QUARANTINE_ROOTS = [RENDERER_QUARANTINE_ROOT]
+const RENDERER_QUARANTINE_ROOTS = []
 const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
-  path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts')
+  path.join(ROOT, 'src/renderer/src/composables/usePresenter.ts'),
+  RENDERER_QUARANTINE_ROOT
 ]
-const RENDERER_QUARANTINE_MAX_SOURCE_FILES = 3
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -63,6 +65,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'src/renderer/settings'),
   path.join(ROOT, 'src/main/presenter/windowPresenter'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
@@ -99,6 +102,8 @@ const LEGACY_PRESENTER_HELPER_CALL_PATTERN =
   /(?<!function\s)\b(?:usePresenter|useLegacyPresenter|useLegacy[A-Z][A-Za-z]*Presenter)\s*\(/g
 const LEGACY_PRESENTER_IMPORT_PATTERN =
   /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]|\bimport\s*['"][^'"]*(?:composables\/usePresenter|legacy\/presenters)['"]/g
+const LEGACY_RUNTIME_IMPORT_PATTERN =
+  /\b(?:import|export)\b[\s\S]*?from\s*['"][^'"]*legacy\/runtime['"]|\bimport\s*['"][^'"]*legacy\/runtime['"]/g
 const WINDOW_ELECTRON_PATTERN = /window\.electron\b/g
 const WINDOW_API_PATTERN = /window\.api\b/g
 const IPC_RENDERER_LISTENER_PATTERN =
@@ -346,19 +351,6 @@ async function main() {
     violations.push(`[bridge-register-invalid] ${error instanceof Error ? error.message : String(error)}`)
   }
 
-  if (!(await pathExists(RENDERER_QUARANTINE_ROOT))) {
-    violations.push(
-      `[renderer-quarantine-missing] ${relativePath(RENDERER_QUARANTINE_ROOT)} must exist as the only allowed renderer legacy quarantine directory`
-    )
-  }
-
-  const quarantineFiles = await collectFiles(RENDERER_QUARANTINE_ROOT)
-  if (quarantineFiles.length > RENDERER_QUARANTINE_MAX_SOURCE_FILES) {
-    violations.push(
-      `[renderer-quarantine-growth] ${relativePath(RENDERER_QUARANTINE_ROOT)} expected <= ${RENDERER_QUARANTINE_MAX_SOURCE_FILES} source files, found ${quarantineFiles.length}`
-    )
-  }
-
   for (const retiredEntryPath of RETIRED_RENDERER_LEGACY_ENTRY_PATHS) {
     if (await pathExists(retiredEntryPath)) {
       violations.push(
@@ -371,13 +363,14 @@ async function main() {
     const source = await fs.readFile(filePath, 'utf8')
     const specifiers = extractModuleSpecifiers(source)
 
-    if (isUnder(filePath, RENDERER_SOURCE_ROOT)) {
+    if (RENDERER_BUSINESS_ROOTS.some((root) => isUnder(filePath, root))) {
       const file = relativePath(filePath)
       const legacyPresenterHelperCount = countMatches(
         source,
         LEGACY_PRESENTER_HELPER_CALL_PATTERN
       )
       const legacyPresenterImportCount = countMatches(source, LEGACY_PRESENTER_IMPORT_PATTERN)
+      const legacyRuntimeImportCount = countMatches(source, LEGACY_RUNTIME_IMPORT_PATTERN)
       const windowElectronCount = countMatches(source, WINDOW_ELECTRON_PATTERN)
       const windowApiCount = countMatches(source, WINDOW_API_PATTERN)
       const actualListenerCount = countMatches(source, IPC_RENDERER_LISTENER_PATTERN)
@@ -385,6 +378,12 @@ async function main() {
       if (legacyPresenterImportCount > 0) {
         violations.push(
           `[renderer-business-direct-use-presenter-import] ${file} must not import renderer legacy presenter helpers`
+        )
+      }
+
+      if (legacyRuntimeImportCount > 0) {
+        violations.push(
+          `[renderer-business-direct-legacy-runtime-import] ${file} must not import renderer legacy runtime helpers`
         )
       }
 

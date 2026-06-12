@@ -5,10 +5,24 @@ import {
   type Page,
   type TestInfo
 } from '@playwright/test'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { arch, homedir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
+import { arch, homedir, tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  GUIDED_ONBOARDING_REQUIRED_STEP_IDS,
+  GUIDED_ONBOARDING_STEP_IDS,
+  GUIDED_ONBOARDING_VERSION
+} from '../../../src/shared/guidedOnboarding'
 
 const FIXTURE_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(FIXTURE_DIR, '..', '..', '..')
@@ -27,20 +41,30 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const isMainAppWindow = async (page: Page): Promise<boolean> => {
   const url = page.url()
   if (
-    url.includes('/renderer/index.html') &&
-    !url.includes('/settings/index.html') &&
-    !url.includes('/splash/index.html') &&
-    !url.startsWith('devtools://')
+    url.startsWith('devtools://') ||
+    url.includes('/settings/index.html') ||
+    url.includes('/splash/index.html') ||
+    url.includes('/floating/index.html') ||
+    url.includes('/browser-overlay/index.html') ||
+    url.includes('/plugin-settings/index.html')
+  ) {
+    return false
+  }
+
+  if (
+    url.includes('/renderer/index.html') ||
+    (url.includes('/renderer/') && url.endsWith('/index.html')) ||
+    url.endsWith('/renderer/index.html')
   ) {
     return true
   }
 
   const title = await page.title().catch(() => '')
-  return title === 'DeepChat'
+  return title === 'DeepChat' && !url.includes('/renderer/')
 }
 
 const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<Page> => {
-  const deadline = Date.now() + 30_000
+  const deadline = Date.now() + 60_000
 
   while (Date.now() < deadline) {
     for (const candidate of electronApp.windows()) {
@@ -52,7 +76,7 @@ const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<P
     await delay(300)
   }
 
-  throw new Error('Main chat window did not become available within 30 seconds.')
+  throw new Error('Main chat window did not become available within 60 seconds.')
 }
 
 export type ElectronAppInstance = {
@@ -104,6 +128,10 @@ const attachDiagnostics = async (
 }
 
 const getDefaultUserDataDir = (): string => {
+  if (process.env.DEEPCHAT_E2E_USER_DATA_DIR) {
+    return resolve(process.env.DEEPCHAT_E2E_USER_DATA_DIR)
+  }
+
   if (process.platform === 'win32') {
     return resolve(process.env.APPDATA ?? resolve(homedir(), 'AppData', 'Roaming'), 'DeepChat')
   }
@@ -150,6 +178,45 @@ const readMainProcessLogs = (): string => {
   return files.map((filePath) => `== ${filePath} ==\n${readTextFileTail(filePath)}`).join('\n\n')
 }
 
+const seedE2eUserDataDir = (userDataDir: string): void => {
+  mkdirSync(userDataDir, { recursive: true })
+
+  const appSettingsPath = join(userDataDir, 'app-settings.json')
+  if (existsSync(appSettingsPath)) {
+    return
+  }
+
+  const now = Date.now()
+  const requiredStepIds = new Set<string>(GUIDED_ONBOARDING_REQUIRED_STEP_IDS)
+  writeFileSync(
+    appSettingsPath,
+    JSON.stringify(
+      {
+        init_complete: true,
+        guidedOnboardingState: {
+          version: GUIDED_ONBOARDING_VERSION,
+          status: 'completed',
+          startedAt: now,
+          completedAt: now,
+          lastActiveAt: now,
+          currentStepId: null,
+          steps: GUIDED_ONBOARDING_STEP_IDS.map((id) => ({
+            id,
+            required: requiredStepIds.has(id),
+            status: 'completed',
+            startedAt: now,
+            completedAt: now,
+            skippedAt: null
+          }))
+        }
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  )
+}
+
 const ensureLaunchTargetExists = (): void => {
   if (process.env.DEEPCHAT_E2E_APP_MODE === 'packaged') {
     const executablePath = resolvePackagedExecutable()
@@ -181,6 +248,12 @@ export const test = base.extend<ElectronFixtures>({
     const attachedPages = new WeakSet<Page>()
     const launchedApps = new Set<ElectronAppInstance>()
     let launchCount = 0
+    const originalE2eUserDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR
+    const userDataDir =
+      originalE2eUserDataDir ?? mkdtempSync(join(tmpdir(), 'deepchat-e2e-user-data-'))
+    const ownsUserDataDir = !originalE2eUserDataDir
+    seedE2eUserDataDir(userDataDir)
+    process.env.DEEPCHAT_E2E_USER_DATA_DIR = userDataDir
 
     const attachPageListeners = (page: Page, label: string) => {
       if (attachedPages.has(page)) {
@@ -213,7 +286,10 @@ export const test = base.extend<ElectronFixtures>({
               args: ['.']
             }),
         cwd: REPO_ROOT,
-        env: process.env,
+        env: {
+          ...process.env,
+          DEEPCHAT_E2E_USER_DATA_DIR: userDataDir
+        },
         timeout: 120_000
       })
 
@@ -261,6 +337,16 @@ export const test = base.extend<ElectronFixtures>({
       }
 
       await attachDiagnostics(testInfo, consoleLogs, pageErrors)
+
+      if (originalE2eUserDataDir === undefined) {
+        delete process.env.DEEPCHAT_E2E_USER_DATA_DIR
+      } else {
+        process.env.DEEPCHAT_E2E_USER_DATA_DIR = originalE2eUserDataDir
+      }
+
+      if (ownsUserDataDir) {
+        rmSync(userDataDir, { recursive: true, force: true })
+      }
     }
   },
 

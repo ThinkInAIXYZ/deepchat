@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { DevicePresenter } from '../../../src/main/presenter/devicePresenter/index'
 
-// Mock eventBus (imported by DevicePresenter via @/eventbus)
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    sendToRenderer: vi.fn(),
-    emit: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@electron-toolkit/utils', () => ({
+  is: {
+    dev: true
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 // Mock svgSanitizer (imported by DevicePresenter via @/lib/svgSanitizer)
@@ -34,6 +34,17 @@ describe('DevicePresenter', () => {
 
       expect(headers['HTTP-Referer']).toBe('https://deepchatai.cn')
       expect(headers['X-Title']).toBe('DeepChat')
+    })
+  })
+
+  describe('restartAppWithDelay', () => {
+    it('publishes a typed app runtime event in development', () => {
+      const presenter = new DevicePresenter()
+
+      ;(presenter as unknown as { restartAppWithDelay: () => void }).restartAppWithDelay()
+
+      expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith('appRuntime.dataResetCompleteDev', {})
     })
   })
 })

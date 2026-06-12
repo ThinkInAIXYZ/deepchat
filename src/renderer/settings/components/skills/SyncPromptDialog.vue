@@ -74,9 +74,8 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type { NewDiscovery } from '@shared/types/skillSync'
-import { SKILL_SYNC_EVENTS } from '@/events'
 
 const emit = defineEmits<{
   import: [toolIds: string[]]
@@ -84,7 +83,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 
 const isOpen = ref(false)
 const discoveries = ref<NewDiscovery[]>([])
@@ -104,7 +103,7 @@ const toggleTool = (toolId: string) => {
 const handleSkip = async () => {
   if (dontShowAgain.value) {
     // Acknowledge discoveries so they won't show again
-    await skillSyncPresenter.acknowledgeDiscoveries()
+    await skillSyncClient.acknowledgeDiscoveries()
   }
   isOpen.value = false
   emit('close')
@@ -112,7 +111,7 @@ const handleSkip = async () => {
 
 const handleImport = async () => {
   // Acknowledge discoveries after import
-  await skillSyncPresenter.acknowledgeDiscoveries()
+  await skillSyncClient.acknowledgeDiscoveries()
   isOpen.value = false
   emit('import', Array.from(selectedTools.value))
 }
@@ -152,10 +151,10 @@ const getToolIconBg = (toolId: string): string => {
 }
 
 // Listen for new discoveries event from main process
-const handleNewDiscoveries = (_event: unknown, data: { discoveries: NewDiscovery[] }) => {
-  if (data.discoveries && data.discoveries.length > 0) {
-    discoveries.value = data.discoveries
-    selectedTools.value = new Set(data.discoveries.map((d) => d.toolId))
+const handleNewDiscoveries = (nextDiscoveries: NewDiscovery[]) => {
+  if (nextDiscoveries.length > 0) {
+    discoveries.value = nextDiscoveries
+    selectedTools.value = new Set(nextDiscoveries.map((d) => d.toolId))
     isOpen.value = true
   }
 }
@@ -163,16 +162,7 @@ const handleNewDiscoveries = (_event: unknown, data: { discoveries: NewDiscovery
 let cleanup: (() => void) | null = null
 
 onMounted(() => {
-  // Listen for new discoveries event
-  if (window.electron?.ipcRenderer) {
-    window.electron.ipcRenderer.on(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, handleNewDiscoveries)
-    cleanup = () => {
-      window.electron.ipcRenderer.removeListener(
-        SKILL_SYNC_EVENTS.NEW_DISCOVERIES,
-        handleNewDiscoveries
-      )
-    }
-  }
+  cleanup = skillSyncClient.onDiscoveriesChanged(handleNewDiscoveries)
 })
 
 onUnmounted(() => {
@@ -182,7 +172,7 @@ onUnmounted(() => {
 // Expose method for parent component to trigger check
 defineExpose({
   checkAndShow: async () => {
-    const newDiscoveries = await skillSyncPresenter.getNewDiscoveries()
+    const newDiscoveries = await skillSyncClient.getNewDiscoveries()
     if (newDiscoveries.length > 0) {
       discoveries.value = newDiscoveries
       selectedTools.value = new Set(newDiscoveries.map((d) => d.toolId))

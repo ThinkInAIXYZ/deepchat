@@ -225,7 +225,10 @@
 </template>
 
 <script setup lang="ts">
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createBrowserClient } from '@api/BrowserClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createWindowClient } from '@api/WindowClient'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
@@ -251,7 +254,6 @@ import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/components/use-toast'
-import { DEV_EVENTS, SETTINGS_EVENTS } from '@/events'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
@@ -260,14 +262,16 @@ const { toast } = useToast()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const route = useRoute()
-const devicePresenter = useLegacyPresenter('devicePresenter')
-const configPresenter = useLegacyPresenter('configPresenter')
-const windowPresenter = useLegacyPresenter('windowPresenter')
+const browserClient = createBrowserClient()
+const configClient = createConfigClient()
+const deviceClient = createDeviceClient()
+const windowClient = createWindowClient()
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
 const isDisclaimerOpen = ref(false)
 const showMockUpdateControls = computed(() => import.meta.env.DEV)
+let cleanupCheckForUpdates: (() => void) | null = null
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
@@ -295,8 +299,11 @@ const showUpdateErrorToast = (message: string) => {
 }
 
 const setUpdateChannel = async (channel: AcceptableValue) => {
+  if (channel !== 'stable' && channel !== 'beta') {
+    return
+  }
   try {
-    await configPresenter.setUpdateChannel(channel as string)
+    await configClient.setUpdateChannel(channel)
   } catch (error) {
     console.error('updateChannelSetError:', error)
   }
@@ -339,8 +346,7 @@ const handleClearMockUpdate = async () => {
 }
 
 const handleStartMockOnboarding = async () => {
-  await windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
-  await windowPresenter.focusMainWindow()
+  await windowClient.startGuidedOnboarding()
 }
 
 const handleExternalCheckUpdate = async () => {
@@ -360,17 +366,17 @@ const syncUpdateStatus = async () => {
 }
 
 const openExternalLink = (url: string) => {
-  if (window.api?.openExternal) {
-    window.api.openExternal(url)
-  } else {
+  void browserClient.openExternal(url).catch(() => {
     window.open(url, '_blank', 'noopener,noreferrer')
-  }
+  })
 }
 
 onMounted(async () => {
-  window.electron?.ipcRenderer?.on(SETTINGS_EVENTS.CHECK_FOR_UPDATES, handleExternalCheckUpdate)
-  appVersion.value = await devicePresenter.getAppVersion()
-  updateChannel.value = await configPresenter.getUpdateChannel()
+  cleanupCheckForUpdates = windowClient.onSettingsCheckForUpdates(() => {
+    void handleExternalCheckUpdate()
+  })
+  appVersion.value = await deviceClient.getAppVersion()
+  updateChannel.value = await configClient.getUpdateChannel()
   await syncUpdateStatus()
 })
 
@@ -384,9 +390,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  window.electron?.ipcRenderer?.removeListener(
-    SETTINGS_EVENTS.CHECK_FOR_UPDATES,
-    handleExternalCheckUpdate
-  )
+  cleanupCheckForUpdates?.()
+  cleanupCheckForUpdates = null
 })
 </script>

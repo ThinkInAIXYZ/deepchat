@@ -1,6 +1,4 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import {
   checkRequiresRebuild,
   ProviderBatchUpdate,
@@ -8,6 +6,11 @@ import {
 } from '@shared/provider-operations'
 import { LLM_PROVIDER } from '@shared/presenter'
 import type { StoreLike } from './storeLike'
+import {
+  emitProviderAtomicUpdate,
+  emitProviderBatchUpdate,
+  emitProvidersChanged
+} from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void
 
@@ -112,7 +115,7 @@ export class ProviderHelper {
           `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
         )
         this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)
-        eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
+        emitProvidersChanged()
       }
       return repairedProviders
     }
@@ -145,7 +148,7 @@ export class ProviderHelper {
     }
 
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, validProviders)
-    eventBus.send(CONFIG_EVENTS.PROVIDER_CHANGED, SendTarget.ALL_WINDOWS)
+    emitProvidersChanged()
   }
 
   getProviderById(id: string): LLM_PROVIDER | undefined {
@@ -182,14 +185,14 @@ export class ProviderHelper {
       requiresRebuild,
       updates
     }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    emitProviderAtomicUpdate(change)
 
     return requiresRebuild
   }
 
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
-    eventBus.send(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, SendTarget.ALL_WINDOWS, batchUpdate)
+    emitProviderBatchUpdate(batchUpdate)
   }
 
   addProviderAtomic(provider: LLM_PROVIDER): void {
@@ -203,7 +206,7 @@ export class ProviderHelper {
       requiresRebuild: true,
       provider
     }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    emitProviderAtomicUpdate(change)
   }
 
   removeProviderAtomic(providerId: string): void {
@@ -228,7 +231,7 @@ export class ProviderHelper {
       providerId,
       requiresRebuild: true
     }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    emitProviderAtomicUpdate(change)
   }
 
   reorderProvidersAtomic(providers: LLM_PROVIDER[]): void {
@@ -239,7 +242,7 @@ export class ProviderHelper {
       providerId: '',
       requiresRebuild: false
     }
-    eventBus.send(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, SendTarget.ALL_WINDOWS, change)
+    emitProviderAtomicUpdate(change)
   }
 
   getDefaultProviders(): LLM_PROVIDER[] {

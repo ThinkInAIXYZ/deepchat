@@ -264,7 +264,7 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillSyncClient } from '@api/SkillSyncClient'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { storeToRefs } from 'pinia'
@@ -284,7 +284,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const skillSyncPresenter = useLegacyPresenter('skillSyncPresenter')
+const skillSyncClient = createSkillSyncClient()
 const skillsStore = useSkillsStore()
 const { skills: localSkills, loading: loadingSkills } = storeToRefs(skillsStore)
 
@@ -450,7 +450,7 @@ const handleNext = async () => {
 const loadTools = async () => {
   scanningTools.value = true
   try {
-    availableTools.value = await skillSyncPresenter.getRegisteredTools()
+    availableTools.value = await skillSyncClient.getRegisteredTools()
   } catch (error) {
     console.error('Load tools error:', error)
     toast({
@@ -468,7 +468,7 @@ const previewExport = async () => {
 
   loading.value = true
   try {
-    const previews = await skillSyncPresenter.previewExport(
+    const previews = await skillSyncClient.previewExport(
       selectedSkills.value,
       selectedToolId.value,
       exportOptions.value
@@ -500,7 +500,7 @@ const executeExport = async () => {
   exportProgress.value = { current: 0, total: exportPreviews.value.length, currentSkill: '' }
 
   try {
-    const result = await skillSyncPresenter.executeExport(
+    const result = await skillSyncClient.executeExport(
       exportPreviews.value,
       conflictStrategies.value
     )

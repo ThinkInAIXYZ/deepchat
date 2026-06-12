@@ -90,13 +90,13 @@ import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 
 const assistantModelSelectOpen = ref(false)
 const chatModelSelectOpen = ref(false)
@@ -111,7 +111,7 @@ const selectedChatModel = ref<SelectedModel | null>(null)
 let isSyncingModelDefaults = false
 
 const selectBySetting = (
-  setting: { providerId: string; modelId: string } | undefined,
+  setting: { providerId: string; modelId: string } | null | undefined,
   predicate?: (model: RENDERER_MODEL_META, providerId: string) => boolean
 ): SelectedModel | null => {
   if (!setting?.providerId || !setting?.modelId) {
@@ -134,7 +134,7 @@ const selectBySetting = (
 
 const persistModelSetting = async (
   key: 'assistantModel' | 'defaultModel',
-  previous: { providerId: string; modelId: string } | undefined,
+  previous: { providerId: string; modelId: string } | null | undefined,
   current: SelectedModel | null
 ): Promise<void> => {
   if (!current) {
@@ -143,7 +143,7 @@ const persistModelSetting = async (
   if (previous?.providerId === current.providerId && previous?.modelId === current.model.id) {
     return
   }
-  await configPresenter.setSetting(key, {
+  await configClient.setSetting(key, {
     providerId: current.providerId,
     modelId: current.model.id
   })
@@ -154,7 +154,7 @@ const handleAssistantModelSelect = async (
   providerId: string
 ): Promise<void> => {
   selectedAssistantModel.value = { providerId, model }
-  await configPresenter.setSetting('assistantModel', { providerId, modelId: model.id })
+  await configClient.setSetting('assistantModel', { providerId, modelId: model.id })
   assistantModelSelectOpen.value = false
 }
 
@@ -163,7 +163,7 @@ const handleChatModelSelect = async (
   providerId: string
 ): Promise<void> => {
   selectedChatModel.value = { providerId, model }
-  await configPresenter.setSetting('defaultModel', { providerId, modelId: model.id })
+  await configClient.setSetting('defaultModel', { providerId, modelId: model.id })
   chatModelSelectOpen.value = false
 }
 
@@ -173,10 +173,11 @@ const syncModelSelections = async (): Promise<void> => {
   }
   isSyncingModelDefaults = true
   try {
-    const assistantModelSetting = (await configPresenter.getSetting('assistantModel')) as
+    const assistantModelSetting = (await configClient.getSetting('assistantModel')) as
       | { providerId: string; modelId: string }
+      | null
       | undefined
-    const defaultModelSetting = (await configPresenter.getSetting('defaultModel')) as
+    const defaultModelSetting = (await configClient.getSetting('defaultModel')) as
       | { providerId: string; modelId: string }
       | undefined
 

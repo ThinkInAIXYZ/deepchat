@@ -68,6 +68,46 @@ const DropdownMenuItemStub = defineComponent({
     '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
 })
 
+const clientMocks = vi.hoisted(() => ({
+  projectClient: {
+    listRecent: vi.fn(),
+    selectDirectory: vi.fn()
+  },
+  toolClient: {
+    getAllToolDefinitions: vi.fn()
+  }
+}))
+
+type ProjectClientMockSource = {
+  getRecentProjects: (limit?: number) => Promise<unknown>
+  selectDirectory: () => Promise<unknown>
+}
+type ToolClientMockSource = {
+  getAllToolDefinitions: (context: unknown) => Promise<unknown>
+}
+
+const bindClientMocks = (
+  projectPresenter: ProjectClientMockSource,
+  toolPresenter: ToolClientMockSource
+) => {
+  clientMocks.projectClient.listRecent.mockImplementation((limit?: number) =>
+    projectPresenter.getRecentProjects(limit)
+  )
+  clientMocks.projectClient.selectDirectory.mockImplementation(() =>
+    projectPresenter.selectDirectory()
+  )
+  clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
+    toolPresenter.getAllToolDefinitions(context)
+  )
+}
+
+vi.mock('@api/ProjectClient', () => ({
+  createProjectClient: () => clientMocks.projectClient
+}))
+vi.mock('@api/ToolClient', () => ({
+  createToolClient: () => clientMocks.toolClient
+}))
+
 vi.mock('@/components/ModelSelect.vue', () => ({
   default: defineComponent({
     name: 'ModelSelect',
@@ -82,6 +122,9 @@ vi.mock('@/components/ModelSelect.vue', () => ({
 describe('DeepChatAgentsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clientMocks.projectClient.listRecent.mockReset()
+    clientMocks.projectClient.selectDirectory.mockReset()
+    clientMocks.toolClient.getAllToolDefinitions.mockReset()
   })
 
   it('mounts and saves DeepChat agents without advanced model overrides', async () => {
@@ -144,6 +187,7 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [
         {
@@ -167,13 +211,8 @@ describe('DeepChatAgentsSettings', () => {
       )
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -318,14 +357,10 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
@@ -417,18 +452,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -530,18 +561,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -658,18 +685,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -776,18 +799,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -918,18 +937,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1057,18 +1072,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue('/workspaces/selected')
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1231,18 +1242,14 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
+    bindClientMocks(projectPresenter, toolPresenter)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'configPresenter') return configPresenter
-        if (name === 'projectPresenter') return projectPresenter
-        if (name === 'toolPresenter') return toolPresenter
-        return {}
-      }
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore

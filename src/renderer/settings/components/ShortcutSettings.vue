@@ -13,13 +13,18 @@
     </template>
 
     <div class="flex flex-col gap-4">
-      <div v-for="shortcut in shortcuts" :key="shortcut.id" class="flex flex-row items-center">
+      <div
+        v-for="shortcut in shortcuts"
+        :key="shortcut.id"
+        :data-testid="`shortcut-row-${shortcut.id}`"
+        class="flex flex-row items-center"
+      >
         <span class="flex flex-row items-center gap-2 grow" :dir="languageStore.dir">
           <Icon :icon="shortcut.icon" class="w-4 h-4 text-muted-foreground" />
           <span class="text-sm font-medium">{{ t(shortcut.label) }}</span>
         </span>
 
-        <div class="shrink-0 min-w-[240px]">
+        <div class="shrink-0 min-w-[240px]" :data-testid="`shortcut-value-${shortcut.id}`">
           <div
             class="group flex items-center gap-3 rounded-md border bg-background/60 px-3 transition"
             :class="{
@@ -59,6 +64,7 @@
             >
               <Button
                 v-if="!shortcut.disabled"
+                :data-testid="`shortcut-edit-${shortcut.id}`"
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-primary"
@@ -69,6 +75,7 @@
               </Button>
               <Button
                 v-if="shortcut.key.length && !shortcut.disabled"
+                :data-testid="`shortcut-clear-${shortcut.id}`"
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-destructive"

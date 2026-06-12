@@ -95,8 +95,8 @@ const setup = async (query: Record<string, string> = {}) => {
       skipStep: vi.fn().mockResolvedValue(null)
     })
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => ({
+  vi.doMock('@api/WindowClient', () => ({
+    createWindowClient: () => ({
       focusMainWindow: vi.fn().mockResolvedValue(true)
     })
   }))

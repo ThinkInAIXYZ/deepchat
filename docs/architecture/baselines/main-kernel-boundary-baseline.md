@@ -1,59 +1,57 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-04-20.
+Generated on 2026-06-11.
 Current phase: P5.
 
 ## Metric Snapshot
 
 | Metric | Value |
 | --- | --- |
-| `renderer.usePresenter.count` | 1 |
+| `renderer.usePresenter.count` | 0 |
 | `renderer.business.usePresenter.count` | 0 |
-| `renderer.quarantine.usePresenter.count` | 1 |
-| `renderer.windowElectron.count` | 2 |
+| `renderer.quarantine.usePresenter.count` | 0 |
+| `renderer.windowElectron.count` | 0 |
 | `renderer.business.windowElectron.count` | 0 |
-| `renderer.quarantine.windowElectron.count` | 2 |
-| `renderer.windowApi.count` | 2 |
+| `renderer.quarantine.windowElectron.count` | 0 |
+| `renderer.windowApi.count` | 0 |
 | `renderer.business.windowApi.count` | 0 |
-| `renderer.quarantine.windowApi.count` | 2 |
-| `renderer.quarantine.sourceFile.count` | 3 |
+| `renderer.quarantine.windowApi.count` | 0 |
+| `renderer.quarantine.sourceFile.count` | 0 |
 | `hotpath.presenterEdge.count` | 10 |
-| `runtime.rawTimer.count` | 122 |
+| `runtime.rawTimer.count` | 157 |
 | `migrated.rawChannel.count` | 4 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
 
 ## Renderer Single-Track Split
 
-- Business layer: `src/renderer/src/**`
-- Quarantine layer: `src/renderer/api/legacy/**`
+- Business layer: `src/renderer/src/**`, `src/renderer/settings/**`
+- Retired quarantine layer: `src/renderer/api/legacy/**` must remain deleted
 
 | Legacy surface | Business layer | Quarantine layer | Total |
 | --- | --- | --- | --- |
-| legacy presenter helper | 0 | 1 | 1 |
-| `window.electron` | 0 | 2 | 2 |
-| `window.api` | 0 | 2 | 2 |
+| legacy presenter helper | 0 | 0 | 0 |
+| `window.electron` | 0 | 0 | 0 |
+| `window.api` | 0 | 0 | 0 |
 
 ## Quarantine Exit Snapshot
 
-- Retained capability family: `renderer legacy transport`
-- Source files: 3 / 3
-- Delete condition: remove after settings compatibility surfaces stop importing the quarantine adapters.
+- Retained capability family: none; `renderer legacy transport` is retired
+- Source files: 0 / 0
+- Delete condition: already satisfied; a recreated quarantine directory is a regression.
 
-- `src/renderer/api/legacy/presenterTransport.ts`
-- `src/renderer/api/legacy/presenters.ts`
-- `src/renderer/api/legacy/runtime.ts`
+- None
 
 ## Phase Gates
 
 | Phase | Gate indicator | Current signal | Status |
 | --- | --- | --- | --- |
-| `P0` | Fixed quarantine path `src/renderer/api/legacy/**` exists and baseline emits business/quarantine split metrics | `src/renderer/api/legacy/**` exists; split metrics emitted | ready |
+| `P0` | Retired quarantine path `src/renderer/api/legacy/**` must remain deleted and baseline emits business/retired split metrics | `src/renderer/api/legacy/**` deleted; split metrics emitted | ready |
 | `P1` | Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0` | legacyPresenter=0, window.electron=0, window.api=0 | ready |
 | `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=0, llmproviderPresenter=0 | ready |
 | `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 | ready |
 | `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 | ready |
-| `P5` | Business layer direct legacy access must be `0`, and quarantine source files must satisfy the exit standard (`<= 3` source files) | businessLegacy=0/0/0, quarantineSourceFiles=3/3 | ready |
+| `P5` | Business layer direct legacy access must be `0`, and retired quarantine source files must stay at `0` | businessLegacy=0/0/0, quarantineSourceFiles=0/0 | ready |
 
 ## Hot Path Direct Dependencies
 
@@ -72,39 +70,38 @@ Current phase: P5.
 
 ## Renderer legacy presenter helpers
 
-- Total count: 1
+- Total count: 0
 
-- `src/renderer/api/legacy/presenters.ts`: 1
+- None
 
 ## Renderer window.electron
 
-- Total count: 2
+- Total count: 0
 
-- `src/renderer/api/legacy/presenterTransport.ts`: 1
-- `src/renderer/api/legacy/runtime.ts`: 1
+- None
 
 ## Renderer window.api
 
-- Total count: 2
+- Total count: 0
 
-- `src/renderer/api/legacy/runtime.ts`: 2
+- None
 
 ## Raw Timers
 
-- Total count: 122
+- Total count: 157
 
 - `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
 - `src/main/presenter/browser/BrowserTab.ts`: 5
 - `src/main/presenter/devicePresenter/index.ts`: 5
+- `src/main/presenter/llmProviderPresenter/aiSdk/runtime.ts`: 5
 - `src/renderer/src/components/message/MessageToolbar.vue`: 4
 - `src/renderer/src/composables/message/useMessageScroll.ts`: 4
 - `src/main/lib/agentRuntime/backgroundExecSessionManager.ts`: 3
 - `src/main/presenter/configPresenter/acpInitHelper.ts`: 3
+- `src/main/presenter/lifecyclePresenter/SplashWindowManager.ts`: 3
 - `src/main/presenter/skillPresenter/skillExecutionService.ts`: 3
 - `src/main/presenter/tabPresenter.ts`: 3
 - `src/main/presenter/upgradePresenter/index.ts`: 3
-- `src/renderer/src/stores/mcp.ts`: 3
-- `src/main/lib/agentRuntime/rtkRuntimeService.ts`: 2
 
 ## Migrated Path Raw Channel Literals
 

@@ -27,11 +27,42 @@ export const deviceSelectDirectoryRoute = defineRouteContract({
   })
 })
 
+export const deviceSelectFilesRoute = defineRouteContract({
+  name: 'device.selectFiles',
+  input: z
+    .object({
+      filters: z
+        .array(
+          z.object({
+            name: z.string(),
+            extensions: z.array(z.string())
+          })
+        )
+        .optional(),
+      multiple: z.boolean().optional()
+    })
+    .default({}),
+  output: z.object({
+    canceled: z.boolean(),
+    filePaths: z.array(z.string())
+  })
+})
+
 export const deviceRestartAppRoute = defineRouteContract({
   name: 'device.restartApp',
   input: z.object({}).default({}),
   output: z.object({
     restarted: z.boolean()
+  })
+})
+
+export const deviceResetDataByTypeRoute = defineRouteContract({
+  name: 'device.resetDataByType',
+  input: z.object({
+    resetType: z.enum(['chat', 'knowledge', 'config', 'all'])
+  }),
+  output: z.object({
+    reset: z.boolean()
   })
 })
 

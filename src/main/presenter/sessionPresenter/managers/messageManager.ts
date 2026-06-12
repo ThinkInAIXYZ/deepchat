@@ -14,8 +14,6 @@ import {
   UserMessageMentionBlock,
   UserMessageCodeBlock
 } from '@shared/chat'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONVERSATION_EVENTS } from '@/events'
 
 export class MessageManager implements IMessageManager {
   private sqlitePresenter: ISQLitePresenter
@@ -130,19 +128,7 @@ export class MessageManager implements IMessageManager {
       throw new Error(`Message ${messageId} not found`)
     }
     const msg = this.convertToMessage(message)
-    const shouldEmit = options?.emit !== false
-    const shouldEmitParent = options?.emitParent !== false
-
-    if (shouldEmit) {
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.MESSAGE_EDITED, SendTarget.ALL_WINDOWS, messageId)
-      if (shouldEmitParent && msg.parentId) {
-        eventBus.sendToRenderer(
-          CONVERSATION_EVENTS.MESSAGE_EDITED,
-          SendTarget.ALL_WINDOWS,
-          msg.parentId
-        )
-      }
-    }
+    void options
     return msg
   }
 

@@ -56,8 +56,6 @@ import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
 import { LegacyChatImportService } from './legacyImportService'
-import { eventBus, SendTarget } from '@/eventbus'
-import { SESSION_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildConversationExportContent,
@@ -295,17 +293,6 @@ export class AgentSessionPresenter {
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       agentRuntimeAgent
     )
-
-    eventBus.on(
-      SESSION_EVENTS.STATUS_CHANGED,
-      (payload: { sessionId?: string; status?: SessionWithState['status'] }) => {
-        if (!payload?.sessionId || !payload?.status) {
-          return
-        }
-
-        this.sessionStatusSnapshots.set(payload.sessionId, payload.status)
-      }
-    )
   }
 
   // ---- IPC-facing methods ----
@@ -406,10 +393,6 @@ export class AgentSessionPresenter {
 
     // Bind to window and emit activated
     this.sessionManager.bindWindow(webContentsId, sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId,
-      sessionId
-    })
     this.emitSessionListUpdated({
       sessionIds: [sessionId],
       reason: 'created',
@@ -1764,10 +1747,6 @@ export class AgentSessionPresenter {
 
   async activateSession(webContentsId: number, sessionId: string): Promise<void> {
     this.sessionManager.bindWindow(webContentsId, sessionId)
-    eventBus.sendToRenderer(SESSION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId,
-      sessionId
-    })
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [sessionId],
       reason: 'activated',
@@ -1778,9 +1757,6 @@ export class AgentSessionPresenter {
 
   async deactivateSession(webContentsId: number): Promise<void> {
     this.sessionManager.unbindWindow(webContentsId)
-    eventBus.sendToRenderer(SESSION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-      webContentsId
-    })
     publishDeepchatEvent('sessions.updated', {
       sessionIds: [],
       reason: 'deactivated',
@@ -2457,7 +2433,6 @@ export class AgentSessionPresenter {
     )
     const reason = options.reason ?? (sessionIds.length > 0 ? 'updated' : 'list-refreshed')
 
-    eventBus.sendToRenderer(SESSION_EVENTS.LIST_UPDATED, SendTarget.ALL_WINDOWS)
     publishDeepchatEvent('sessions.updated', {
       sessionIds,
       reason,

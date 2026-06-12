@@ -23,8 +23,7 @@ vi.mock('@/eventbus', () => ({
 vi.mock('@/events', () => ({
   MCP_EVENTS: {
     CLIENT_LIST_UPDATED: 'client-list-updated',
-    CONFIG_CHANGED: 'config-changed',
-    TOOL_CALL_RESULT: 'tool-call-result'
+    CONFIG_CHANGED: 'config-changed'
   },
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'show-error'

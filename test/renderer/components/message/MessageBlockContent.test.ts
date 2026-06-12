@@ -5,22 +5,15 @@ import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
-const { syncArtifactMock, completeArtifactMock, getSearchResultsMock } = vi.hoisted(() => ({
+const { syncArtifactMock, completeArtifactMock } = vi.hoisted(() => ({
   syncArtifactMock: vi.fn(),
-  completeArtifactMock: vi.fn(),
-  getSearchResultsMock: vi.fn().mockResolvedValue([])
+  completeArtifactMock: vi.fn()
 }))
 
 vi.mock('@/stores/artifact', () => ({
   useArtifactStore: () => ({
     syncArtifact: syncArtifactMock,
     completeArtifact: completeArtifactMock
-  })
-}))
-
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyPresenter: () => ({
-    getSearchResults: getSearchResultsMock
   })
 }))
 
@@ -95,8 +88,6 @@ describe('MessageBlockContent', () => {
   beforeEach(() => {
     syncArtifactMock.mockReset()
     completeArtifactMock.mockReset()
-    getSearchResultsMock.mockReset()
-    getSearchResultsMock.mockResolvedValue([])
   })
 
   it('syncs loading artifact for unclosed artifact content', async () => {

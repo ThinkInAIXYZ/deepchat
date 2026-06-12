@@ -15,6 +15,7 @@ import {
   ReasoningVisibilitySchema,
   VerbositySchema
 } from '../types/model-db'
+import { ConflictStrategy } from '../types/skillSync'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -57,6 +58,359 @@ export const ProviderRateLimitStatusSchema = z.object({
   currentQps: z.number(),
   queueLength: z.number().int(),
   lastRequestTime: z.number().int()
+})
+
+export const EmbeddingDimensionsSchema = z.object({
+  dimensions: z.number(),
+  normalized: z.boolean()
+})
+
+export const ModelScopeMcpSyncResultSchema = z.object({
+  success: z.boolean().optional(),
+  message: z.string().optional(),
+  synced: z.number().int().nonnegative().optional(),
+  imported: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  errors: z.array(z.string())
+})
+
+export const AcpDebugActionSchema = z.enum([
+  'initialize',
+  'authenticate',
+  'newSession',
+  'loadSession',
+  'sessionList',
+  'sessionResume',
+  'sessionClose',
+  'sessionFork',
+  'prompt',
+  'cancel',
+  'setSessionMode',
+  'setSessionModel',
+  'extMethod',
+  'extNotification'
+])
+
+export const AcpDebugEventEntrySchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum([
+    'request',
+    'response',
+    'notification',
+    'permission',
+    'lifecycle',
+    'stderr',
+    'error'
+  ]),
+  action: z.string(),
+  agentId: z.string().min(1),
+  sessionId: z.string().optional(),
+  timestamp: z.number().int(),
+  payload: z.unknown().optional(),
+  message: z.string().optional()
+})
+
+export const AcpDebugRunResultSchema = z.object({
+  status: z.enum(['ok', 'error']),
+  sessionId: z.string().optional(),
+  error: z.string().optional(),
+  events: z.array(AcpDebugEventEntrySchema)
+})
+
+export const KnowledgeTaskStatusSchema = z.enum(['processing', 'completed', 'error', 'paused'])
+
+export const KnowledgeFileMessageSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  path: z.string(),
+  mimeType: z.string(),
+  status: KnowledgeTaskStatusSchema,
+  uploadedAt: z.number(),
+  metadata: z
+    .object({
+      size: z.number(),
+      totalChunks: z.number(),
+      errorReason: z.string().optional()
+    })
+    .passthrough()
+})
+
+export const KnowledgeFileResultSchema = z.object({
+  data: KnowledgeFileMessageSchema.optional(),
+  error: z.string().optional()
+})
+
+export const KnowledgeQueryResultSchema = z.object({
+  id: z.string(),
+  metadata: z
+    .object({
+      from: z.string(),
+      filePath: z.string(),
+      content: z.string()
+    })
+    .passthrough(),
+  distance: z.number()
+})
+
+export const KnowledgeFileValidationResultSchema = z.object({
+  isSupported: z.boolean(),
+  mimeType: z.string().optional(),
+  adapterType: z.string().optional(),
+  error: z.string().optional(),
+  suggestedExtensions: z.array(z.string()).optional()
+})
+
+export const KnowledgeFileProgressSchema = z.object({
+  fileId: z.string().min(1),
+  completed: z.number().int().nonnegative(),
+  error: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative()
+})
+
+export const SkillSyncConflictStrategySchema = z.nativeEnum(ConflictStrategy)
+
+export const SkillSyncExternalSkillInfoSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    path: z.string(),
+    format: z.string(),
+    lastModified: z.coerce.date()
+  })
+  .passthrough()
+
+export const SkillSyncScanResultSchema = z
+  .object({
+    toolId: z.string().min(1),
+    toolName: z.string(),
+    available: z.boolean(),
+    skillsDir: z.string(),
+    skills: z.array(SkillSyncExternalSkillInfoSchema),
+    error: z.string().optional()
+  })
+  .passthrough()
+
+export const SkillSyncCanonicalSkillSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string(),
+    instructions: z.string(),
+    allowedTools: z.array(z.string()).optional(),
+    model: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    references: z
+      .array(
+        z
+          .object({
+            name: z.string(),
+            content: z.string(),
+            relativePath: z.string()
+          })
+          .passthrough()
+      )
+      .optional(),
+    scripts: z
+      .array(
+        z
+          .object({
+            name: z.string(),
+            content: z.string(),
+            relativePath: z.string()
+          })
+          .passthrough()
+      )
+      .optional(),
+    source: z
+      .object({
+        tool: z.string(),
+        originalPath: z.string(),
+        originalFormat: z.string()
+      })
+      .passthrough()
+      .optional()
+  })
+  .passthrough()
+
+export const SkillSyncImportPreviewSchema = z
+  .object({
+    skill: SkillSyncCanonicalSkillSchema,
+    source: SkillSyncExternalSkillInfoSchema,
+    conflict: z
+      .object({
+        existingSkillName: z.string(),
+        strategy: SkillSyncConflictStrategySchema
+      })
+      .passthrough()
+      .optional(),
+    warnings: z.array(z.string())
+  })
+  .passthrough()
+
+export const SkillSyncExportPreviewSchema = z
+  .object({
+    skillName: z.string().min(1),
+    targetTool: z.string().min(1),
+    targetPath: z.string(),
+    convertedContent: z.string(),
+    warnings: z.array(z.string()),
+    conflict: z
+      .object({
+        existingPath: z.string(),
+        strategy: SkillSyncConflictStrategySchema
+      })
+      .passthrough()
+      .optional(),
+    exportOptions: z.record(z.unknown()).optional()
+  })
+  .passthrough()
+
+export const SkillSyncResultSchema = z
+  .object({
+    success: z.boolean(),
+    imported: z.number().int().nonnegative(),
+    exported: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    failed: z.array(
+      z
+        .object({
+          skill: z.string(),
+          reason: z.string()
+        })
+        .passthrough()
+    )
+  })
+  .passthrough()
+
+export const SkillSyncFormatCapabilitiesSchema = z
+  .object({
+    hasFrontmatter: z.boolean(),
+    supportsName: z.boolean(),
+    supportsDescription: z.boolean(),
+    supportsTools: z.boolean(),
+    supportsModel: z.boolean(),
+    supportsSubfolders: z.boolean(),
+    supportsReferences: z.boolean(),
+    supportsScripts: z.boolean()
+  })
+  .passthrough()
+
+export const SkillSyncExternalToolConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    skillsDir: z.string(),
+    filePattern: z.string(),
+    format: z.string(),
+    capabilities: SkillSyncFormatCapabilitiesSchema,
+    isProjectLevel: z.boolean().optional()
+  })
+  .passthrough()
+
+export const SkillSyncNewDiscoverySchema = z
+  .object({
+    toolId: z.string().min(1),
+    toolName: z.string(),
+    newSkills: z.array(SkillSyncExternalSkillInfoSchema)
+  })
+  .passthrough()
+
+export const SkillSyncOperationProgressSchema = z
+  .object({
+    current: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    skillName: z.string(),
+    status: z.enum(['success', 'failed', 'skipped'])
+  })
+  .passthrough()
+
+export const UsageStatsBackfillStatusSchema = z.object({
+  status: z.enum(['idle', 'running', 'completed', 'failed']),
+  startedAt: z.number().nullable(),
+  finishedAt: z.number().nullable(),
+  error: z.string().nullable(),
+  updatedAt: z.number()
+})
+
+export const UsageDashboardSummarySchema = z.object({
+  messageCount: z.number().int().nonnegative(),
+  sessionCount: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  totalTokens: z.number().nonnegative(),
+  cachedInputTokens: z.number().nonnegative(),
+  cacheHitRate: z.number(),
+  estimatedCostUsd: z.number().nullable(),
+  mostActiveDay: z.object({
+    date: z.string().nullable(),
+    messageCount: z.number().int().nonnegative()
+  })
+})
+
+export const UsageDashboardCalendarDaySchema = z.object({
+  date: z.string(),
+  messageCount: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  totalTokens: z.number().nonnegative(),
+  cachedInputTokens: z.number().nonnegative(),
+  estimatedCostUsd: z.number().nullable(),
+  level: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+})
+
+export const UsageDashboardBreakdownItemSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  messageCount: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  totalTokens: z.number().nonnegative(),
+  cachedInputTokens: z.number().nonnegative(),
+  estimatedCostUsd: z.number().nullable()
+})
+
+export const UsageDashboardRtkSummarySchema = z.object({
+  totalCommands: z.number().int().nonnegative(),
+  totalInputTokens: z.number().nonnegative(),
+  totalOutputTokens: z.number().nonnegative(),
+  totalSavedTokens: z.number().nonnegative(),
+  avgSavingsPct: z.number(),
+  totalTimeMs: z.number().nonnegative(),
+  avgTimeMs: z.number().nonnegative()
+})
+
+export const UsageDashboardRtkDaySchema = z.object({
+  date: z.string(),
+  commands: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  savedTokens: z.number().nonnegative(),
+  savingsPct: z.number(),
+  totalTimeMs: z.number().nonnegative(),
+  avgTimeMs: z.number().nonnegative()
+})
+
+export const UsageDashboardRtkDataSchema = z.object({
+  scope: z.literal('deepchat'),
+  enabled: z.boolean(),
+  effectiveEnabled: z.boolean(),
+  available: z.boolean(),
+  health: z.enum(['checking', 'healthy', 'unhealthy']),
+  checkedAt: z.number().nullable(),
+  source: z.enum(['bundled', 'system', 'none']),
+  failureStage: z.enum(['resolve', 'version', 'rewrite', 'smoke', 'gain', 'runtime']).nullable(),
+  failureMessage: z.string().nullable(),
+  summary: UsageDashboardRtkSummarySchema,
+  daily: z.array(UsageDashboardRtkDaySchema)
+})
+
+export const UsageDashboardDataSchema = z.object({
+  recordingStartedAt: z.number().nullable(),
+  backfillStatus: UsageStatsBackfillStatusSchema,
+  summary: UsageDashboardSummarySchema,
+  calendar: z.array(UsageDashboardCalendarDaySchema),
+  providerBreakdown: z.array(UsageDashboardBreakdownItemSchema),
+  modelBreakdown: z.array(UsageDashboardBreakdownItemSchema),
+  rtk: UsageDashboardRtkDataSchema
 })
 
 export const LlmProviderSchema = z

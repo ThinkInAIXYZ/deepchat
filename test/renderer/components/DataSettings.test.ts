@@ -28,7 +28,11 @@ const setup = async (
   vi.resetModules()
 
   const toast = vi.fn()
-  const openExternal = vi.fn()
+  const openExternal = vi.fn().mockResolvedValue(undefined)
+  const browserClient = {
+    openExternal,
+    clearSandboxData: vi.fn().mockResolvedValue(true)
+  }
   const syncStore = reactive({
     syncEnabled: true,
     syncFolderPath: '/tmp/deepchat-sync',
@@ -78,47 +82,40 @@ const setup = async (
       lastMigrationAt: Date.now()
     }),
     changePassword: vi.fn(),
-    disable: vi.fn()
+    disable: vi.fn(),
+    repairSchema: vi.fn().mockResolvedValue({
+      startedAt: Date.now(),
+      finishedAt: Date.now(),
+      status: 'healthy',
+      backupPath: null,
+      diagnosisBeforeRepair: {
+        checkedAt: Date.now(),
+        isHealthy: true,
+        issues: [],
+        repairableIssues: [],
+        manualIssues: []
+      },
+      diagnosisAfterRepair: {
+        checkedAt: Date.now(),
+        isHealthy: true,
+        issues: [],
+        repairableIssues: [],
+        manualIssues: []
+      },
+      repairedIssues: [],
+      remainingIssues: []
+    })
+  }
+  const deviceClient = {
+    resetDataByType: vi.fn().mockResolvedValue({ reset: true })
   }
 
-  const presenterMocks = {
-    configPresenter: {
-      refreshProviderDb: vi.fn().mockResolvedValue({
-        status: 'updated',
-        lastUpdated: Date.now(),
-        providersCount: 1
-      })
-    },
-    sqlitePresenter: {
-      repairSchema: vi.fn().mockResolvedValue({
-        startedAt: Date.now(),
-        finishedAt: Date.now(),
-        status: 'healthy',
-        backupPath: null,
-        diagnosisBeforeRepair: {
-          checkedAt: Date.now(),
-          isHealthy: true,
-          issues: [],
-          repairableIssues: [],
-          manualIssues: []
-        },
-        diagnosisAfterRepair: {
-          checkedAt: Date.now(),
-          isHealthy: true,
-          issues: [],
-          repairableIssues: [],
-          manualIssues: []
-        },
-        repairedIssues: [],
-        remainingIssues: []
-      })
-    },
-    devicePresenter: {
-      resetDataByType: vi.fn().mockResolvedValue(undefined)
-    },
-    yoBrowserPresenter: {
-      clearSandboxData: vi.fn().mockResolvedValue(undefined)
-    }
+  const configClient = {
+    refreshProviderDb: vi.fn().mockResolvedValue({
+      status: 'updated',
+      lastUpdated: Date.now(),
+      providersCount: 1
+    })
   }
 
   vi.doMock('@/stores/sync', () => ({
@@ -132,20 +129,23 @@ const setup = async (
       dir: 'ltr'
     })
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: keyof typeof presenterMocks) => presenterMocks[name]
-  }))
   vi.doMock('@api/DatabaseSecurityClient', () => ({
     createDatabaseSecurityClient: () => databaseSecurityClient
+  }))
+  vi.doMock('@api/BrowserClient', () => ({
+    createBrowserClient: () => browserClient
+  }))
+  vi.doMock('@api/ConfigClient', () => ({
+    createConfigClient: () => configClient
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => deviceClient
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
       toast
     })
   }))
-  ;(window as typeof window & { api: { openExternal: typeof openExternal } }).api = {
-    openExternal
-  }
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) =>
@@ -247,12 +247,14 @@ const setup = async (
 
   return {
     openExternal,
+    browserClient,
     wrapper,
     toast,
     syncStore,
     uiSettingsStore,
     databaseSecurityClient,
-    presenterMocks
+    deviceClient,
+    configClient
   }
 }
 
@@ -280,6 +282,9 @@ const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
 
 const findDatabaseEncryptionButton = (wrapper: ReturnType<typeof mount>, text: string) =>
   findButtonByText(wrapper, text, 'Database encryption')
+
+const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.yoBrowser.confirmAction', 'Clear YoBrowser sandbox')
 
 describe('DataSettings', () => {
   beforeEach(() => {
@@ -350,11 +355,8 @@ describe('DataSettings', () => {
     ).trigger('click')
     await nextTick()
 
-    const inputs = wrapper.findAll('input[type="password"]')
-    expect(inputs).toHaveLength(2)
-
-    await inputs[0].setValue('sqlite-pass')
-    await inputs[1].setValue('sqlite-pass')
+    await wrapper.get('#database-new-password').setValue('sqlite-pass')
+    await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
     await findDatabaseEncryptionButton(
       wrapper,
       'settings.data.databaseEncryption.enableButton'
@@ -408,12 +410,12 @@ describe('DataSettings', () => {
   })
 
   it('calls refreshProviderDb, shows loading state, then shows an updated toast', async () => {
-    const { wrapper, toast, presenterMocks } = await setup()
+    const { wrapper, toast, configClient } = await setup()
 
     let resolveRefresh:
       | ((value: { status: string; lastUpdated: number; providersCount: number }) => void)
       | null = null
-    presenterMocks.configPresenter.refreshProviderDb.mockReturnValueOnce(
+    configClient.refreshProviderDb.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveRefresh = resolve
       })
@@ -433,7 +435,7 @@ describe('DataSettings', () => {
     })
     await flushPromises()
 
-    expect(presenterMocks.configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
+    expect(configClient.refreshProviderDb).toHaveBeenCalledWith(true)
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.data.modelConfigUpdate.updatedTitle',
       description: 'settings.data.modelConfigUpdate.updatedDescription',
@@ -442,9 +444,9 @@ describe('DataSettings', () => {
   })
 
   it('shows an up-to-date toast when upstream metadata has not changed', async () => {
-    const { wrapper, toast, presenterMocks } = await setup()
+    const { wrapper, toast, configClient } = await setup()
 
-    presenterMocks.configPresenter.refreshProviderDb.mockResolvedValueOnce({
+    configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'not-modified',
       lastUpdated: Date.now(),
       providersCount: 2
@@ -461,9 +463,9 @@ describe('DataSettings', () => {
   })
 
   it('shows a destructive toast when refreshing provider metadata fails', async () => {
-    const { wrapper, toast, presenterMocks } = await setup()
+    const { wrapper, toast, configClient } = await setup()
 
-    presenterMocks.configPresenter.refreshProviderDb.mockResolvedValueOnce({
+    configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'error',
       lastUpdated: null,
       providersCount: 1,
@@ -482,12 +484,12 @@ describe('DataSettings', () => {
   })
 
   it('runs schema repair and shows a healthy toast summary', async () => {
-    const { wrapper, toast, presenterMocks } = await setup()
+    const { wrapper, toast, databaseSecurityClient } = await setup()
 
     await findRepairButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(presenterMocks.sqlitePresenter.repairSchema).toHaveBeenCalledTimes(1)
+    expect(databaseSecurityClient.repairSchema).toHaveBeenCalledTimes(1)
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.data.databaseRepair.toastHealthyTitle',
       description: 'settings.data.databaseRepair.toastHealthyDescription',
@@ -496,7 +498,7 @@ describe('DataSettings', () => {
   })
 
   it('disables schema repair during backup and blocks both click and auto-run paths', async () => {
-    const { wrapper, syncStore, presenterMocks } = await setup()
+    const { wrapper, syncStore, databaseSecurityClient } = await setup()
 
     syncStore.isBackingUp = true
     await nextTick()
@@ -511,13 +513,13 @@ describe('DataSettings', () => {
     )
     await flushPromises()
 
-    expect(presenterMocks.sqlitePresenter.repairSchema).not.toHaveBeenCalled()
+    expect(databaseSecurityClient.repairSchema).not.toHaveBeenCalled()
   })
 
   it('renders repair summary and manual hint after a repair run with remaining issues', async () => {
-    const { wrapper, presenterMocks } = await setup()
+    const { wrapper, databaseSecurityClient } = await setup()
 
-    presenterMocks.sqlitePresenter.repairSchema.mockResolvedValueOnce({
+    databaseSecurityClient.repairSchema.mockResolvedValueOnce({
       startedAt: Date.now(),
       finishedAt: Date.now(),
       status: 'repaired',
@@ -565,6 +567,20 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.databaseRepair.manualHint')
   })
 
+  it('clears YoBrowser sandbox data through BrowserClient', async () => {
+    const { wrapper, browserClient, toast } = await setup()
+
+    await findClearSandboxConfirmButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.data.yoBrowser.clearedTitle',
+      description: 'settings.data.yoBrowser.clearedDescription',
+      duration: 4000
+    })
+  })
+
   it('renders the PublicProviderConf link and opens it externally when clicked', async () => {
     const { wrapper, openExternal } = await setup()
 
@@ -589,7 +605,7 @@ describe('DataSettings', () => {
   })
 
   it('disables reset actions during import and blocks the reset handler', async () => {
-    const { wrapper, syncStore, presenterMocks } = await setup()
+    const { wrapper, syncStore, deviceClient } = await setup()
 
     syncStore.isImporting = true
     await nextTick()
@@ -600,28 +616,28 @@ describe('DataSettings', () => {
     findResetConfirmButton(wrapper).vm.$emit('click')
     await flushPromises()
 
-    expect(presenterMocks.devicePresenter.resetDataByType).not.toHaveBeenCalled()
+    expect(deviceClient.resetDataByType).not.toHaveBeenCalled()
   })
 
   it('defaults reset type to chat when opening the reset dialog', async () => {
-    const { wrapper, presenterMocks } = await setup()
+    const { wrapper, deviceClient } = await setup()
 
     await wrapper.find('[data-testid="danger-zone-reset-option-all"]').trigger('click')
     await findResetEntryButton(wrapper).trigger('click')
     await findResetConfirmButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(presenterMocks.devicePresenter.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(deviceClient.resetDataByType).toHaveBeenCalledWith('chat')
   })
 
   it('calls resetDataByType with the selected dialog reset type', async () => {
-    const { wrapper, presenterMocks } = await setup()
+    const { wrapper, deviceClient } = await setup()
 
     await findResetEntryButton(wrapper).trigger('click')
     await wrapper.find('[data-testid="danger-zone-reset-option-knowledge"]').trigger('click')
     await findResetConfirmButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(presenterMocks.devicePresenter.resetDataByType).toHaveBeenCalledWith('knowledge')
+    expect(deviceClient.resetDataByType).toHaveBeenCalledWith('knowledge')
   })
 })

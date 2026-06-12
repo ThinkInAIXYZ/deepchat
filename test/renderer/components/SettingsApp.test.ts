@@ -1,10 +1,91 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive, ref } from 'vue'
-import { DEEPLINK_EVENTS, SETTINGS_EVENTS } from '@/events'
+import { SETTINGS_EVENTS } from '@/events'
+
+const windowClientMock = vi.hoisted(() => ({
+  closeSettings: vi.fn().mockResolvedValue(true),
+  focusMainWindow: vi.fn().mockResolvedValue(true),
+  notifySettingsReady: vi.fn().mockImplementation(async () => {
+    window.electron?.ipcRenderer?.send('settings:ready')
+    return true
+  }),
+  consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null),
+  requeuePendingSettingsProviderInstall: vi.fn().mockResolvedValue(true),
+  startGuidedOnboarding: vi.fn().mockResolvedValue({ started: true, focused: true }),
+  onSettingsNavigate: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
+  }),
+  onSettingsProviderInstall: vi.fn().mockImplementation((listener: () => void) => {
+    const wrapped = () => listener()
+    window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
+  }),
+  onNotificationError: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
+  }),
+  onDatabaseRepairSuggested: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
+    return () =>
+      window.electron?.ipcRenderer?.removeListener(
+        'notification:database-repair-suggested',
+        wrapped
+      )
+  })
+}))
+
+const appRuntimeClientMock = vi.hoisted(() => ({
+  mcpInstallListener: undefined as ((payload: { mcpConfig: string }) => void) | undefined,
+  cleanupMcpInstall: vi.fn(),
+  onMcpInstallRequested: vi.fn((listener: (payload: { mcpConfig: string }) => void) => {
+    appRuntimeClientMock.mcpInstallListener = listener
+    return appRuntimeClientMock.cleanupMcpInstall
+  })
+}))
+
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => ({
+    getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
+  })
+}))
+
+vi.mock('@api/ConfigClient', () => ({
+  createConfigClient: () => ({
+    getLanguage: vi.fn().mockResolvedValue('zh-CN')
+  })
+}))
+
+vi.mock('@api/WindowClient', () => ({
+  createWindowClient: () => windowClientMock
+}))
+
+vi.mock('@api/AppRuntimeClient', () => ({
+  createAppRuntimeClient: () => appRuntimeClientMock
+}))
 
 afterEach(() => {
   vi.restoreAllMocks()
+  windowClientMock.closeSettings.mockReset().mockResolvedValue(true)
+  windowClientMock.focusMainWindow.mockReset().mockResolvedValue(true)
+  windowClientMock.notifySettingsReady.mockClear()
+  windowClientMock.consumePendingSettingsProviderInstall.mockReset().mockResolvedValue(null)
+  windowClientMock.requeuePendingSettingsProviderInstall.mockReset().mockResolvedValue(true)
+  windowClientMock.startGuidedOnboarding.mockReset().mockResolvedValue({
+    started: true,
+    focused: true
+  })
+  windowClientMock.onSettingsNavigate.mockClear()
+  windowClientMock.onSettingsProviderInstall.mockClear()
+  windowClientMock.onNotificationError.mockClear()
+  windowClientMock.onDatabaseRepairSuggested.mockClear()
+  appRuntimeClientMock.mcpInstallListener = undefined
+  appRuntimeClientMock.cleanupMcpInstall.mockClear()
+  appRuntimeClientMock.onMcpInstallRequested.mockClear()
 })
 
 describe('Settings App', () => {
@@ -55,27 +136,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null)
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -267,27 +327,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null)
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -498,27 +537,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null)
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -645,13 +663,13 @@ describe('Settings App', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    const navigateHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SETTINGS_EVENTS.NAVIGATE
-    )?.[1]
+    const navigateHandler = windowClientMock.onSettingsNavigate.mock.calls.at(-1)?.[0] as
+      | ((payload: { routeName: string }) => Promise<void>)
+      | undefined
 
     expect(navigateHandler).toBeTypeOf('function')
 
-    await navigateHandler?.({}, { routeName: 'settings-deepchat-agents' })
+    await navigateHandler?.({ routeName: 'settings-deepchat-agents' })
 
     expect(push).toHaveBeenCalledWith({
       name: 'settings-deepchat-agents',
@@ -719,27 +737,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null)
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -866,21 +863,18 @@ describe('Settings App', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    const navigateHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SETTINGS_EVENTS.NAVIGATE
-    )?.[1]
+    const navigateHandler = windowClientMock.onSettingsNavigate.mock.calls.at(-1)?.[0] as
+      | ((payload: { routeName: string; params?: { providerId: string } }) => Promise<void>)
+      | undefined
 
     expect(navigateHandler).toBeTypeOf('function')
 
-    await navigateHandler?.(
-      {},
-      {
-        routeName: 'settings-provider',
-        params: {
-          providerId: 'openai'
-        }
+    await navigateHandler?.({
+      routeName: 'settings-provider',
+      params: {
+        providerId: 'openai'
       }
-    )
+    })
 
     expect(push).toHaveBeenCalledWith({
       name: 'settings-provider',
@@ -919,8 +913,6 @@ describe('Settings App', () => {
       openPreview: vi.fn(),
       clearPreview: vi.fn()
     }
-    const consumePendingSettingsProviderInstall = vi.fn().mockResolvedValue(null)
-
     ;(window as any).electron = {
       ipcRenderer: {
         on: ipcOn,
@@ -966,27 +958,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -1108,9 +1079,9 @@ describe('Settings App', () => {
 
     expect(providerStore.ensureInitialized).not.toHaveBeenCalled()
 
-    const installHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SETTINGS_EVENTS.PROVIDER_INSTALL
-    )?.[1]
+    const installHandler = windowClientMock.onSettingsProviderInstall.mock.calls.at(-1)?.[0] as
+      | (() => Promise<void>)
+      | undefined
     const payload = {
       kind: 'builtin',
       id: 'openai',
@@ -1123,8 +1094,8 @@ describe('Settings App', () => {
 
     expect(installHandler).toBeTypeOf('function')
 
-    consumePendingSettingsProviderInstall.mockResolvedValueOnce(payload)
-    const installPromise = installHandler?.({})
+    windowClientMock.consumePendingSettingsProviderInstall.mockResolvedValueOnce(payload)
+    const installPromise = installHandler?.()
 
     resolveProviderInitialize?.()
     await installPromise
@@ -1202,27 +1173,6 @@ describe('Settings App', () => {
       }
     })
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: (name: string) => {
-        if (name === 'devicePresenter') {
-          return {
-            getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-          }
-        }
-        if (name === 'windowPresenter') {
-          return {
-            closeSettingsWindow: vi.fn(),
-            consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null)
-          }
-        }
-        if (name === 'configPresenter') {
-          return {
-            getLanguage: vi.fn().mockResolvedValue('zh-CN')
-          }
-        }
-        return {}
-      }
-    }))
     vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
       useUiSettingsStore: () => ({
         fontSizeClass: 'text-base',
@@ -1339,9 +1289,7 @@ describe('Settings App', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    const installHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === DEEPLINK_EVENTS.MCP_INSTALL
-    )?.[1]
+    const installHandler = appRuntimeClientMock.mcpInstallListener
 
     expect(installHandler).toBeTypeOf('function')
 
@@ -1353,7 +1301,8 @@ describe('Settings App', () => {
       }
     })
 
-    await installHandler?.({}, { mcpConfig: serializedConfig })
+    await installHandler?.({ mcpConfig: serializedConfig })
+    await flushPromises()
 
     expect(mcpStore.setMcpEnabled).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ name: 'settings-mcp' })

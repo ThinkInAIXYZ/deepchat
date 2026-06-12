@@ -114,7 +114,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createProviderClient } from '@api/ProviderClient'
 
 const { t } = useI18n()
 
@@ -122,7 +122,7 @@ const props = defineProps<{
   provider: LLM_PROVIDER
 }>()
 
-const llmP = useLegacyPresenter('llmproviderPresenter')
+const providerClient = createProviderClient()
 
 const isSyncing = ref(false)
 const errorMessage = ref('')
@@ -150,7 +150,7 @@ const handleSync = async () => {
 
   try {
     // 调用简化的同步API，所有的格式转换和导入都在服务端处理
-    const result = await llmP.syncModelScopeMcpServers(props.provider.id, syncOptions)
+    const result = await providerClient.syncModelScopeMcpServers(props.provider.id, syncOptions)
 
     syncResult.value = result
 

@@ -1545,7 +1545,9 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
-import { useLegacyPresenter, useLegacyRemoteControlPresenter } from '@api/legacy/presenters'
+import { createProjectClient } from '@api/ProjectClient'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { createSessionClient } from '@api/SessionClient'
 import { useToast } from '@/components/use-toast'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
@@ -1625,9 +1627,9 @@ const fallbackChannelDescriptors: RemoteChannelDescriptor[] = [
   }
 ]
 
-const remoteControlPresenter = useLegacyRemoteControlPresenter({ safeCall: false })
-const agentSessionPresenter = useLegacyPresenter('agentSessionPresenter')
-const projectPresenter = useLegacyPresenter('projectPresenter', { safeCall: false })
+const remoteControlClient = createRemoteControlClient()
+const projectClient = createProjectClient()
+const sessionClient = createSessionClient()
 const { t } = useI18n()
 const { toast } = useToast()
 
@@ -1751,55 +1753,6 @@ const defaultWeixinIlinkSettings = (): WeixinIlinkRemoteSettings => ({
   accounts: []
 })
 
-const defaultFeishuStatus = (): FeishuRemoteStatus => ({
-  channel: 'feishu',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedUserCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultQQBotStatus = (): QQBotRemoteStatus => ({
-  channel: 'qqbot',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedUserCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultDiscordStatus = (): DiscordRemoteStatus => ({
-  channel: 'discord',
-  enabled: false,
-  state: 'disabled',
-  bindingCount: 0,
-  pairedChannelCount: 0,
-  lastError: null,
-  botUser: null
-})
-
-const defaultFeishuPairingSnapshot = (): FeishuPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedUserOpenIds: []
-})
-
-const defaultQQBotPairingSnapshot = (): QQBotPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedUserIds: [],
-  pairedGroupIds: []
-})
-
-const defaultDiscordPairingSnapshot = (): DiscordPairingSnapshot => ({
-  pairCode: null,
-  pairCodeExpiresAt: null,
-  pairedChannelIds: []
-})
-
 const normalizeTelegramPairingSnapshot = (
   snapshot: Partial<TelegramPairingSnapshot> | null | undefined
 ): TelegramPairingSnapshot => ({
@@ -1833,38 +1786,8 @@ const normalizeDiscordPairingSnapshot = (
   pairedChannelIds: [...(snapshot?.pairedChannelIds ?? [])]
 })
 
-const presenterCompat = remoteControlPresenter as typeof remoteControlPresenter & {
-  listRemoteChannels?: () => Promise<RemoteChannelDescriptor[]>
-  getChannelSettings?: (channel: RemoteChannel) => Promise<RemoteChannelSettings>
-  saveChannelSettings?: (
-    channel: RemoteChannel,
-    input: RemoteChannelSettings
-  ) => Promise<RemoteChannelSettings>
-  getChannelStatus?: (channel: RemoteChannel) => Promise<RemoteChannelStatus>
-  getChannelBindings?: (channel: RemoteChannel) => Promise<RemoteBindingSummary[]>
-  removeChannelBinding?: (channel: RemoteChannel, endpointKey: string) => Promise<void>
-  removeChannelPrincipal?: (channel: PairableRemoteChannel, principalId: string) => Promise<void>
-  getChannelPairingSnapshot?: (channel: PairableRemoteChannel) => Promise<RemotePairingSnapshot>
-  createChannelPairCode?: (channel: PairableRemoteChannel) => Promise<{
-    code: string
-    expiresAt: number
-  }>
-  clearChannelPairCode?: (channel: PairableRemoteChannel) => Promise<void>
-  startWeixinIlinkLogin?: (input?: { force?: boolean }) => Promise<WeixinIlinkLoginSession>
-  waitForWeixinIlinkLogin?: (input: {
-    sessionKey: string
-    timeoutMs?: number
-  }) => Promise<WeixinIlinkLoginResult>
-  removeWeixinIlinkAccount?: (accountId: string) => Promise<void>
-  restartWeixinIlinkAccount?: (accountId: string) => Promise<void>
-}
-
 const listRemoteChannelsCompat = async (): Promise<RemoteChannelDescriptor[]> => {
-  if (presenterCompat.listRemoteChannels) {
-    return await presenterCompat.listRemoteChannels()
-  }
-
-  return fallbackChannelDescriptors
+  return await remoteControlClient.listRemoteChannels()
 }
 
 function getChannelSettingsCompat(channel: 'telegram'): Promise<TelegramRemoteSettings>
@@ -1873,27 +1796,7 @@ function getChannelSettingsCompat(channel: 'qqbot'): Promise<QQBotRemoteSettings
 function getChannelSettingsCompat(channel: 'discord'): Promise<DiscordRemoteSettings>
 function getChannelSettingsCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteSettings>
 async function getChannelSettingsCompat(channel: RemoteChannel): Promise<RemoteChannelSettings> {
-  if (presenterCompat.getChannelSettings) {
-    return await presenterCompat.getChannelSettings(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramSettings()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotSettings()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordSettings()
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.getWeixinIlinkSettings()
-  }
-
-  return defaultFeishuSettings()
+  return await remoteControlClient.getChannelSettings(channel)
 }
 
 function saveChannelSettingsCompat(
@@ -1920,27 +1823,7 @@ async function saveChannelSettingsCompat(
   channel: RemoteChannel,
   input: RemoteChannelSettings
 ): Promise<RemoteChannelSettings> {
-  if (presenterCompat.saveChannelSettings) {
-    return await presenterCompat.saveChannelSettings(channel, input)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.saveTelegramSettings(input as TelegramRemoteSettings)
-  }
-
-  if (channel === 'qqbot') {
-    return input as QQBotRemoteSettings
-  }
-
-  if (channel === 'discord') {
-    return input as DiscordRemoteSettings
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.saveWeixinIlinkSettings(input as WeixinIlinkRemoteSettings)
-  }
-
-  return input as FeishuRemoteSettings
+  return await remoteControlClient.saveChannelSettings(channel, input)
 }
 
 function getChannelStatusCompat(channel: 'telegram'): Promise<TelegramRemoteStatus>
@@ -1949,98 +1832,33 @@ function getChannelStatusCompat(channel: 'qqbot'): Promise<QQBotRemoteStatus>
 function getChannelStatusCompat(channel: 'discord'): Promise<DiscordRemoteStatus>
 function getChannelStatusCompat(channel: 'weixin-ilink'): Promise<WeixinIlinkRemoteStatus>
 async function getChannelStatusCompat(channel: RemoteChannel): Promise<RemoteChannelStatus> {
-  if (presenterCompat.getChannelStatus) {
-    return await presenterCompat.getChannelStatus(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramStatus()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotStatus()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordStatus()
-  }
-
-  if (channel === 'weixin-ilink') {
-    return await remoteControlPresenter.getWeixinIlinkStatus()
-  }
-
-  return defaultFeishuStatus()
+  return await remoteControlClient.getChannelStatus(channel)
 }
 
 const getChannelBindingsCompat = async (
   channel: RemoteChannel
 ): Promise<RemoteBindingSummary[]> => {
-  if (presenterCompat.getChannelBindings) {
-    return await presenterCompat.getChannelBindings(channel)
-  }
-
-  if (channel === 'telegram') {
-    const bindings = await remoteControlPresenter.getTelegramBindings()
-    return bindings.map((binding) => ({
-      channel: 'telegram',
-      endpointKey: binding.endpointKey,
-      sessionId: binding.sessionId,
-      chatId: String(binding.chatId),
-      threadId: binding.messageThreadId ? String(binding.messageThreadId) : null,
-      kind: binding.messageThreadId ? 'topic' : 'dm',
-      updatedAt: binding.updatedAt
-    }))
-  }
-
-  return []
+  return await remoteControlClient.getChannelBindings(channel)
 }
 
 const removeChannelBindingCompat = async (
   channel: RemoteChannel,
   endpointKey: string
 ): Promise<void> => {
-  if (presenterCompat.removeChannelBinding) {
-    await presenterCompat.removeChannelBinding(channel, endpointKey)
-    return
-  }
-
-  if (channel === 'telegram') {
-    await remoteControlPresenter.removeTelegramBinding(endpointKey)
-  }
+  await remoteControlClient.removeChannelBinding(channel, endpointKey)
 }
 
 const removeChannelPrincipalCompat = async (
   channel: PairableRemoteChannel,
   principalId: string
 ): Promise<void> => {
-  if (presenterCompat.removeChannelPrincipal) {
-    await presenterCompat.removeChannelPrincipal(channel, principalId)
-    return
-  }
-
-  throw new Error('removeChannelPrincipal is not available.')
+  await remoteControlClient.removeChannelPrincipal(channel, principalId)
 }
 
 const getChannelPairingSnapshotCompat = async (
   channel: PairableRemoteChannel
 ): Promise<RemotePairingSnapshot> => {
-  if (presenterCompat.getChannelPairingSnapshot) {
-    return await presenterCompat.getChannelPairingSnapshot(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.getTelegramPairingSnapshot()
-  }
-
-  if (channel === 'qqbot') {
-    return defaultQQBotPairingSnapshot()
-  }
-
-  if (channel === 'discord') {
-    return defaultDiscordPairingSnapshot()
-  }
-
-  return defaultFeishuPairingSnapshot()
+  return await remoteControlClient.getChannelPairingSnapshot(channel)
 }
 
 const createChannelPairCodeCompat = async (
@@ -2049,68 +1867,32 @@ const createChannelPairCodeCompat = async (
   code: string
   expiresAt: number
 }> => {
-  if (presenterCompat.createChannelPairCode) {
-    return await presenterCompat.createChannelPairCode(channel)
-  }
-
-  if (channel === 'telegram') {
-    return await remoteControlPresenter.createTelegramPairCode()
-  }
-
-  return {
-    code: '',
-    expiresAt: Date.now()
-  }
+  return await remoteControlClient.createChannelPairCode(channel)
 }
 
 const clearChannelPairCodeCompat = async (channel: PairableRemoteChannel): Promise<void> => {
-  if (presenterCompat.clearChannelPairCode) {
-    await presenterCompat.clearChannelPairCode(channel)
-    return
-  }
-
-  if (channel === 'telegram') {
-    await remoteControlPresenter.clearTelegramPairCode()
-  }
+  await remoteControlClient.clearChannelPairCode(channel)
 }
 
 const startWeixinIlinkLoginCompat = async (input?: {
   force?: boolean
 }): Promise<WeixinIlinkLoginSession> => {
-  if (presenterCompat.startWeixinIlinkLogin) {
-    return await presenterCompat.startWeixinIlinkLogin(input)
-  }
-
-  return await remoteControlPresenter.startWeixinIlinkLogin(input)
+  return await remoteControlClient.startWeixinIlinkLogin(input)
 }
 
 const waitForWeixinIlinkLoginCompat = async (input: {
   sessionKey: string
   timeoutMs?: number
 }): Promise<WeixinIlinkLoginResult> => {
-  if (presenterCompat.waitForWeixinIlinkLogin) {
-    return await presenterCompat.waitForWeixinIlinkLogin(input)
-  }
-
-  return await remoteControlPresenter.waitForWeixinIlinkLogin(input)
+  return await remoteControlClient.waitForWeixinIlinkLogin(input)
 }
 
 const removeWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
-  if (presenterCompat.removeWeixinIlinkAccount) {
-    await presenterCompat.removeWeixinIlinkAccount(accountId)
-    return
-  }
-
-  await remoteControlPresenter.removeWeixinIlinkAccount(accountId)
+  await remoteControlClient.removeWeixinIlinkAccount(accountId)
 }
 
 const restartWeixinIlinkAccountCompat = async (accountId: string): Promise<void> => {
-  if (presenterCompat.restartWeixinIlinkAccount) {
-    await presenterCompat.restartWeixinIlinkAccount(accountId)
-    return
-  }
-
-  await remoteControlPresenter.restartWeixinIlinkAccount(accountId)
+  await remoteControlClient.restartWeixinIlinkAccount(accountId)
 }
 
 const resolveWeixinIlinkLoginMessage = (input: {
@@ -2250,7 +2032,7 @@ const defaultWorkdirTitle = (channel: RemoteChannel) =>
 
 const pickDefaultWorkdir = async (channel: RemoteChannel) => {
   try {
-    const selectedPath = await projectPresenter.selectDirectory()
+    const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
       setChannelDefaultWorkdir(channel, selectedPath)
       void loadRecentProjects()
@@ -2420,12 +2202,12 @@ const refreshPairingSnapshot = async (
 }
 
 const loadAvailableAgents = async () => {
-  availableAgents.value = await agentSessionPresenter.getAgents()
+  availableAgents.value = await sessionClient.getAgents()
 }
 
 const loadRecentProjects = async () => {
   try {
-    const result = await projectPresenter.getRecentProjects(8)
+    const result = await projectClient.listRecent(8)
     recentProjects.value = Array.isArray(result) ? result : []
   } catch {
     recentProjects.value = []

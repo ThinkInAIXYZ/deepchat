@@ -71,7 +71,7 @@ async function setup(options?: {
   vi.resetModules()
 
   const toast = vi.fn()
-  const llmproviderPresenter = {
+  const providerClient = {
     getKeyStatus: vi.fn().mockResolvedValue(null),
     refreshModels: vi.fn().mockResolvedValue(undefined)
   }
@@ -97,11 +97,8 @@ async function setup(options?: {
     })
   }))
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string, options?: { safeCall?: boolean }) => {
-      if (name === 'llmproviderPresenter') return llmproviderPresenter
-      throw new Error(`Unexpected presenter: ${name}`)
-    }
+  vi.doMock('@api/ProviderClient', () => ({
+    createProviderClient: () => providerClient
   }))
 
   vi.doMock('@/stores/modelCheck', () => ({
@@ -162,7 +159,7 @@ async function setup(options?: {
   return {
     wrapper,
     toast,
-    llmproviderPresenter,
+    providerClient,
     modelCheckStore
   }
 }
@@ -177,13 +174,13 @@ describe('ProviderApiConfig', () => {
   })
 
   it('shows a locked Base URL display for built-in providers outside the allowlist', async () => {
-    const { wrapper, llmproviderPresenter } = await setup()
+    const { wrapper, providerClient } = await setup()
 
     expect(wrapper.find('input#deepseek-url').exists()).toBe(false)
     expect(wrapper.text()).toContain('This provider is pinned to the recommended Base URL.')
     expect(findButtonByText(wrapper, 'Modify')).toBeDefined()
     expect(wrapper.html()).not.toContain('Fill into API URL')
-    expect(llmproviderPresenter.getKeyStatus).toHaveBeenCalledWith('deepseek')
+    expect(providerClient.getKeyStatus).toHaveBeenCalledWith('deepseek')
   })
 
   it('switches directly into edit mode and hides the modify button', async () => {
@@ -241,8 +238,8 @@ describe('ProviderApiConfig', () => {
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
   })
 
-  it('shows the metadata sync hint for DB-backed providers and delegates refresh to the presenter', async () => {
-    const { wrapper, toast, llmproviderPresenter } = await setup({
+  it('shows the metadata sync hint for DB-backed providers and delegates refresh to the provider client', async () => {
+    const { wrapper, toast, providerClient } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -259,7 +256,7 @@ describe('ProviderApiConfig', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('doubao')
+    expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.provider.toast.refreshModelsSuccessTitle',
       description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata',
@@ -268,7 +265,7 @@ describe('ProviderApiConfig', () => {
   })
 
   it('refreshes only models for non DB-backed providers', async () => {
-    const { wrapper, toast, llmproviderPresenter } = await setup()
+    const { wrapper, toast, providerClient } = await setup()
 
     expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
 
@@ -278,7 +275,7 @@ describe('ProviderApiConfig', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('deepseek')
+    expect(providerClient.refreshModels).toHaveBeenCalledWith('deepseek')
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.provider.toast.refreshModelsSuccessTitle',
       description: 'settings.provider.toast.refreshModelsSuccessDescription',
@@ -317,7 +314,7 @@ describe('ProviderApiConfig', () => {
   })
 
   it('shows a destructive toast when metadata-backed refresh fails', async () => {
-    const { wrapper, toast, llmproviderPresenter } = await setup({
+    const { wrapper, toast, providerClient } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -325,7 +322,7 @@ describe('ProviderApiConfig', () => {
         baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
       })
     })
-    llmproviderPresenter.refreshModels.mockRejectedValueOnce(new Error('network down'))
+    providerClient.refreshModels.mockRejectedValueOnce(new Error('network down'))
 
     const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
     expect(refreshButton).toBeDefined()
@@ -333,7 +330,7 @@ describe('ProviderApiConfig', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(llmproviderPresenter.refreshModels).toHaveBeenCalledWith('doubao')
+    expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
     expect(toast).toHaveBeenCalledWith({
       title: 'settings.provider.toast.refreshModelsFailedTitle',
       description:
@@ -344,7 +341,7 @@ describe('ProviderApiConfig', () => {
   })
 
   it('extracts nested API error messages for refresh failures', async () => {
-    const { wrapper, toast, llmproviderPresenter } = await setup({
+    const { wrapper, toast, providerClient } = await setup({
       provider: createProvider({
         id: 'custom-anthropic',
         name: 'Custom Anthropic',
@@ -353,7 +350,7 @@ describe('ProviderApiConfig', () => {
         baseUrl: 'https://anthropic-proxy.example.com'
       })
     })
-    llmproviderPresenter.refreshModels.mockRejectedValueOnce(
+    providerClient.refreshModels.mockRejectedValueOnce(
       new Error('{"error":{"type":"Unauthorized","message":"Invalid API key"}}')
     )
 
@@ -371,11 +368,11 @@ describe('ProviderApiConfig', () => {
     })
   })
 
-  it('requests the presenter with safeCall disabled so refresh errors can surface', async () => {
-    const useLegacyPresenter = vi.fn((name: string) => {
-      if (name === 'llmproviderPresenter') return { getKeyStatus: vi.fn(), refreshModels: vi.fn() }
-      throw new Error(`Unexpected presenter: ${name}`)
-    })
+  it('creates ProviderClient for provider API actions', async () => {
+    const createProviderClient = vi.fn(() => ({
+      getKeyStatus: vi.fn().mockResolvedValue(null),
+      refreshModels: vi.fn().mockResolvedValue(undefined)
+    }))
 
     vi.resetModules()
     vi.doMock('vue-i18n', () => ({
@@ -383,8 +380,8 @@ describe('ProviderApiConfig', () => {
         t: (key: string) => key
       })
     }))
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter
+    vi.doMock('@api/ProviderClient', () => ({
+      createProviderClient
     }))
     vi.doMock('@/stores/modelCheck', () => ({
       useModelCheckStore: () => ({ openDialog: vi.fn() })
@@ -430,6 +427,6 @@ describe('ProviderApiConfig', () => {
       }
     })
 
-    expect(useLegacyPresenter).toHaveBeenCalledWith('llmproviderPresenter', { safeCall: false })
+    expect(createProviderClient).toHaveBeenCalledTimes(1)
   })
 })

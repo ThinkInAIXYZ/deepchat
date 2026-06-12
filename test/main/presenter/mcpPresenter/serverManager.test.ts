@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const eventBusMocks = vi.hoisted(() => ({
   send: vi.fn(),
+  sendToMain: vi.fn(),
   sendToRenderer: vi.fn()
 }))
 

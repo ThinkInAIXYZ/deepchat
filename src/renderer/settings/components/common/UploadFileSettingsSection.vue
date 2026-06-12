@@ -68,10 +68,10 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { useI18n } from 'vue-i18n'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 
 const { t } = useI18n()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 
 const minSize = 1
 const maxSize = 1024 // 1024MB
@@ -84,7 +84,7 @@ const handleChange = async (value: string | number) => {
   const numValue = typeof value === 'string' ? parseInt(value, 10) : value
   if (!isNaN(numValue) && numValue >= minSize && numValue <= maxSize) {
     try {
-      await configPresenter.setSetting('maxFileSize', numValue * 1024 * 1024)
+      await configClient.setSetting('maxFileSize', numValue * 1024 * 1024)
       fileMaxSize.value = numValue
     } catch (error) {
       console.error('Failed to set max file size:', error)
@@ -122,7 +122,7 @@ watch(
 
 onMounted(async () => {
   try {
-    const saved = await configPresenter.getSetting<number>('maxFileSize')
+    const saved = await configClient.getSetting('maxFileSize')
     if (saved !== undefined && saved !== null) {
       fileMaxSize.value = saved / 1024 / 1024
     }

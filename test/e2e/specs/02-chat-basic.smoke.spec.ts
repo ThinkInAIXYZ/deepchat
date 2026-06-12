@@ -17,6 +17,11 @@ import {
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('基础聊天流程 @smoke', async ({ app }, testInfo) => {
+  test.skip(
+    process.env.RUN_PROVIDER_INTEGRATION !== 'true',
+    'Set RUN_PROVIDER_INTEGRATION=true to run the live chat smoke check.'
+  )
+
   const firstReplyToken = createSmokeToken('E2E_CHAT_ONE')
   const secondReplyToken = createSmokeToken('E2E_CHAT_TWO')
 

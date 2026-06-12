@@ -16,6 +16,12 @@ vi.mock('@/eventbus', () => ({
   SendTarget: { ALL_WINDOWS: 'all' }
 }))
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()
   return {
@@ -50,8 +56,6 @@ vi.mock('@/presenter', () => ({
     }
   }
 }))
-
-import { eventBus } from '@/eventbus'
 
 function createMockSqlitePresenter() {
   // In-memory storage for integration-level testing
@@ -692,20 +696,20 @@ describe('Integration: createSession end-to-end', () => {
     // 4. Assistant message finalized with content
     expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalled()
 
-    // 5. Events emitted with conversationId
-    const activatedCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c: any[]) => c[0] === 'session:activated'
+    // 5. Typed events emitted with conversationId
+    const activatedCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'sessions.updated' && c[1]?.reason === 'created'
     )
     expect(activatedCalls.length).toBeGreaterThanOrEqual(1)
-    expect(activatedCalls[0][2].webContentsId).toBe(1)
-    expect(activatedCalls[0][2].sessionId).toBe(session.id)
+    expect(activatedCalls[0][1].webContentsId).toBe(1)
+    expect(activatedCalls[0][1].activeSessionId).toBe(session.id)
 
     // Stream events should carry conversationId (sessionId)
-    const streamEndCalls = (eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c: any[]) => c[0] === 'stream:end'
+    const streamEndCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'chat.stream.completed'
     )
     expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
-    expect(streamEndCalls[0][2].conversationId).toBe(session.id)
+    expect(streamEndCalls[0][1].sessionId).toBe(session.id)
   })
 
   it('session list returns enriched sessions', async () => {

@@ -102,6 +102,10 @@ export interface AgentToolRuntimePort {
     channel: string,
     ...args: unknown[]
   ): ReturnType<IWindowPresenter['sendToWindow']>
+  sendSettingsNavigation(
+    windowId: number,
+    navigation: Parameters<IWindowPresenter['sendSettingsNavigation']>[1]
+  ): ReturnType<IWindowPresenter['sendSettingsNavigation']>
   getApprovedFilePaths(
     conversationId: string,
     requiredPermission?: 'read' | 'write' | 'all'

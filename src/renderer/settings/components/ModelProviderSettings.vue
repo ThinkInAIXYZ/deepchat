@@ -319,13 +319,13 @@ import { useLanguageStore } from '@/stores/language'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const windowPresenter = useLegacyPresenter('windowPresenter')
+const windowClient = createWindowClient()
 const languageStore = useLanguageStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -374,7 +374,7 @@ const continueProviderGuide = async (
     state,
     router,
     currentRoute: route,
-    windowPresenter
+    windowClient
   })
 }
 

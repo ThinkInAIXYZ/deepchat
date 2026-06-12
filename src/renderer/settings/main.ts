@@ -9,8 +9,9 @@ import { createI18n } from 'vue-i18n'
 import locales, { pluralRules } from '@/i18n'
 import { getSettingsRouteItems } from '@shared/settingsNavigation'
 import { preloadIcons } from '../src/lib/iconLoader'
+import { getRuntimePlatform } from '@api/runtime'
 
-const settingsRouteItems = getSettingsRouteItems(window.electron?.process?.platform)
+const settingsRouteItems = getSettingsRouteItems(getRuntimePlatform())
 
 const settingsRouteComponents = {
   'settings-overview': () => import('./components/SettingsOverview.vue'),

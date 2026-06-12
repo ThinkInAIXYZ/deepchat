@@ -6,7 +6,8 @@ import {
   nativeImage,
   ipcMain,
   screen,
-  webContents as electronWebContents
+  webContents as electronWebContents,
+  type WebContents
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
@@ -22,9 +23,9 @@ import { eventBus } from '@/eventbus' // Event bus
 import {
   CONFIG_EVENTS,
   DEEPLINK_EVENTS,
+  DEV_EVENTS,
   SETTINGS_EVENTS,
   SHORTCUT_EVENTS,
-  SYSTEM_EVENTS,
   WINDOW_EVENTS
 } from '@/events' // System/Window/Config/Shortcut event constants
 import { presenter } from '../' // Global presenter registry
@@ -37,6 +38,8 @@ import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 type PendingSettingsMessage = {
   channel: string
@@ -63,6 +66,20 @@ export class WindowPresenter implements IWindowPresenter {
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
   private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
+
+  private publishWindowStateChanged(windowId: number, existsOverride?: boolean): void {
+    const window = BrowserWindow.fromId(windowId)
+    const exists = existsOverride ?? Boolean(window && !window.isDestroyed())
+
+    publishDeepchatEvent('window.state.changed', {
+      windowId,
+      exists,
+      isMaximized: exists ? window!.isMaximized() : false,
+      isFullScreen: exists ? window!.isFullScreen() : false,
+      isFocused: exists ? window!.isFocused() : false,
+      version: Date.now()
+    })
+  }
 
   constructor(
     configPresenter: IConfigPresenter,
@@ -127,19 +144,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     ipcMain.on(SETTINGS_EVENTS.READY, (event) => {
-      this.handleSettingsWindowReady(event.sender.id)
-    })
-
-    // 监听系统主题更新事件，通知所有窗口 Renderer
-    eventBus.on(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, (isDark: boolean) => {
-      logger.info('System theme updated, notifying all windows.')
-      this.windows.forEach((window) => {
-        if (!window.isDestroyed()) {
-          window.webContents.send('system-theme-updated', isDark)
-        } else {
-          console.warn(`Skipping theme update for destroyed window ${window.id}.`)
-        }
-      })
+      this.notifySettingsReady(event.sender.id)
     })
 
     // 监听内容保护设置变更事件，更新所有窗口并重启应用
@@ -412,7 +417,7 @@ export class WindowPresenter implements IWindowPresenter {
     for (const window of Array.from(this.windows.values())) {
       if (!window.isDestroyed()) {
         // 向窗口主 WebContents 发送
-        window.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(window.webContents, channel, args)
 
         // 向窗口内所有标签页的 WebContents 发送 (异步执行)
         try {
@@ -422,7 +427,7 @@ export class WindowPresenter implements IWindowPresenter {
             for (const tabData of tabsData) {
               const tab = await tabPresenterInstance.getTab(tabData.id)
               if (tab && !tab.webContents.isDestroyed()) {
-                tab.webContents.send(channel, ...args)
+                this.sendToWebContentsTarget(tab.webContents, channel, args)
               }
             }
           }
@@ -436,7 +441,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       try {
-        this.settingsWindow.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(this.settingsWindow.webContents, channel, args)
       } catch (error) {
         console.error(`Error sending message "${channel}" to settings window:`, error)
       }
@@ -446,7 +451,7 @@ export class WindowPresenter implements IWindowPresenter {
       const floatingWindow = this.floatingChatWindow.getWindow()
       if (floatingWindow && !floatingWindow.isDestroyed()) {
         try {
-          floatingWindow.webContents.send(channel, ...args)
+          this.sendToWebContentsTarget(floatingWindow.webContents, channel, args)
         } catch (error) {
           console.error(`Error sending message "${channel}" to floating chat window:`, error)
         }
@@ -461,6 +466,22 @@ export class WindowPresenter implements IWindowPresenter {
    * @param args 消息参数。
    * @returns 如果消息已尝试发送，返回 true，否则返回 false。
    */
+  sendSettingsNavigation(windowId: number, navigation: SettingsNavigationPayload): boolean {
+    return this.sendToWindow(
+      windowId,
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('settings.navigateRequested', navigation)
+    )
+  }
+
+  sendSettingsCheckForUpdates(windowId: number): boolean {
+    return this.sendToWindow(
+      windowId,
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('settings.checkForUpdatesRequested', {})
+    )
+  }
+
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean {
     logger.info(`Sending message "${channel}" to window ${windowId}.`)
 
@@ -478,7 +499,7 @@ export class WindowPresenter implements IWindowPresenter {
         return true
       }
       try {
-        this.settingsWindow.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(this.settingsWindow.webContents, channel, args)
         return true
       } catch (error) {
         console.error(`Error sending message "${channel}" to settings window ${windowId}:`, error)
@@ -489,7 +510,7 @@ export class WindowPresenter implements IWindowPresenter {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
       // 向窗口主 WebContents 发送
-      window.webContents.send(channel, ...args)
+      this.sendToWebContentsTarget(window.webContents, channel, args)
 
       // 向窗口内所有标签页的 WebContents 发送 (异步执行)
       const tabPresenterInstance = presenter.tabPresenter as TabPresenter
@@ -500,7 +521,7 @@ export class WindowPresenter implements IWindowPresenter {
             tabsData.forEach(async (tabData) => {
               const tab = await tabPresenterInstance.getTab(tabData.id)
               if (tab && !tab.webContents.isDestroyed()) {
-                tab.webContents.send(channel, ...args)
+                this.sendToWebContentsTarget(tab.webContents, channel, args)
               }
             })
           }
@@ -527,7 +548,7 @@ export class WindowPresenter implements IWindowPresenter {
       return false
     }
 
-    targetWindow.webContents.send(channel, ...args)
+    this.sendToWebContentsTarget(targetWindow.webContents, channel, args)
 
     if (switchToTarget) {
       targetWindow.show()
@@ -548,8 +569,67 @@ export class WindowPresenter implements IWindowPresenter {
       return false
     }
 
-    target.send(channel, ...args)
+    this.sendToWebContentsTarget(target, channel, args)
     return true
+  }
+
+  private sendToWebContentsTarget(target: WebContents, channel: string, args: unknown[]): void {
+    const typedEnvelope = this.createTypedEnvelopeForLegacyRendererChannel(channel, args)
+    if (typedEnvelope) {
+      target.send(DEEPCHAT_EVENT_CHANNEL, typedEnvelope)
+      return
+    }
+
+    target.send(channel, ...args)
+  }
+
+  private createTypedEnvelopeForLegacyRendererChannel(channel: string, args: unknown[]) {
+    const firstArg = args[0]
+
+    switch (channel) {
+      case DEEPLINK_EVENTS.START: {
+        const payload = firstArg && typeof firstArg === 'object' ? firstArg : {}
+        return createDeepchatEventEnvelope('appRuntime.startDeeplinkRequested', payload)
+      }
+      case DEEPLINK_EVENTS.MCP_INSTALL: {
+        const payload = firstArg && typeof firstArg === 'object' ? firstArg : {}
+        return createDeepchatEventEnvelope('appRuntime.mcpInstallRequested', payload)
+      }
+      case DEV_EVENTS.START_GUIDED_ONBOARDING:
+        return createDeepchatEventEnvelope('appRuntime.guidedOnboardingStartRequested', {})
+      case 'window-focused':
+        return createDeepchatEventEnvelope('appRuntime.windowFocused', {
+          windowId: typeof firstArg === 'number' ? firstArg : undefined
+        })
+      case 'window-blurred':
+        return createDeepchatEventEnvelope('appRuntime.windowBlurred', {
+          windowId: typeof firstArg === 'number' ? firstArg : undefined
+        })
+      case SHORTCUT_EVENTS.ZOOM_IN:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomIn' })
+      case SHORTCUT_EVENTS.ZOOM_OUT:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomOut' })
+      case SHORTCUT_EVENTS.ZOOM_RESUME:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomResume' })
+      case SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
+          action: 'createNewConversation'
+        })
+      case SHORTCUT_EVENTS.TOGGLE_SIDEBAR:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
+          action: 'toggleSidebar'
+        })
+      case SHORTCUT_EVENTS.TOGGLE_WORKSPACE:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
+          action: 'toggleWorkspace'
+        })
+      case SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT:
+        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
+          action: 'toggleSpotlight'
+        })
+      default:
+        return null
+    }
   }
 
   public async createAppWindow(options?: {
@@ -708,6 +788,7 @@ export class WindowPresenter implements IWindowPresenter {
           windowId,
           isMainWindow: windowId === this.mainWindowId
         })
+        this.publishWindowStateChanged(windowId)
       } else {
         console.warn(`Window ${windowId} was destroyed before ready-to-show.`)
       }
@@ -718,8 +799,9 @@ export class WindowPresenter implements IWindowPresenter {
       logger.info(`Window ${windowId} gained focus.`)
       this.focusedWindowId = windowId
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
+      this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send('window-focused', windowId)
+        this.sendToWebContentsTarget(appWindow.webContents, 'window-focused', [windowId])
       }
     })
 
@@ -730,8 +812,9 @@ export class WindowPresenter implements IWindowPresenter {
         this.focusedWindowId = null // 仅当失去焦点的窗口是当前记录的焦点窗口时才清空
       }
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
+      this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send('window-blurred', windowId)
+        this.sendToWebContentsTarget(appWindow.webContents, 'window-blurred', [windowId])
       }
     })
 
@@ -739,8 +822,8 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('maximize', () => {
       logger.info(`Window ${windowId} maximized.`)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_MAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
+        this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
           console.error(`Error handling restore logic after maximizing window ${windowId}:`, error)
@@ -752,8 +835,8 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('unmaximize', () => {
       logger.info(`Window ${windowId} unmaximized.`)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
+        this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
           console.error(
@@ -770,7 +853,6 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
-      appWindow.webContents.send(WINDOW_EVENTS.WINDOW_UNMAXIMIZED)
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
     appWindow.on('restore', handleRestore)
@@ -779,8 +861,8 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('enter-full-screen', () => {
       logger.info(`Window ${windowId} entered fullscreen.`)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
+        this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
           console.error(
@@ -795,8 +877,8 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('leave-full-screen', () => {
       logger.info(`Window ${windowId} left fullscreen.`)
       if (!appWindow.isDestroyed()) {
-        appWindow.webContents.send(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN)
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
+        this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
           console.error(
@@ -877,6 +959,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
       managedWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
+      this.publishWindowStateChanged(windowIdBeingClosed, false)
       logger.info(
         `Window ${windowIdBeingClosed} closed event handled. Map size AFTER delete: ${this.windows.size}`
       )
@@ -1028,7 +1111,7 @@ export class WindowPresenter implements IWindowPresenter {
     if (activeTabId) {
       const tab = await tabPresenterInstance.getTab(activeTabId)
       if (tab && !tab.webContents.isDestroyed()) {
-        tab.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(tab.webContents, channel, args)
         logger.info(`  - Event sent to tab ${activeTabId}.`)
         return true
       } else {
@@ -1040,7 +1123,7 @@ export class WindowPresenter implements IWindowPresenter {
       // Fallback: chat windows have no tabs, send directly to BrowserWindow webContents
       const targetWindow = BrowserWindow.fromId(windowId)
       if (targetWindow && !targetWindow.isDestroyed() && !targetWindow.webContents.isDestroyed()) {
-        targetWindow.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(targetWindow.webContents, channel, args)
         logger.info(`  - No active tab, sent event directly to window ${windowId} webContents.`)
         return true
       }
@@ -1093,7 +1176,7 @@ export class WindowPresenter implements IWindowPresenter {
           !targetWindow.isDestroyed() &&
           !targetWindow.webContents.isDestroyed()
         ) {
-          targetWindow.webContents.send(channel, ...args)
+          this.sendToWebContentsTarget(targetWindow.webContents, channel, args)
           logger.info(
             `  - Window ${windowId} has no tabs, sent message directly to window webContents.`
           )
@@ -1113,7 +1196,7 @@ export class WindowPresenter implements IWindowPresenter {
 
       if (targetTab && !targetTab.webContents.isDestroyed()) {
         // 向目标标签页发送消息
-        targetTab.webContents.send(channel, ...args)
+        this.sendToWebContentsTarget(targetTab.webContents, channel, args)
         logger.info(`  - Message sent to tab ${targetTabData.id} in window ${windowId}.`)
 
         // 如果需要，切换到目标窗口和标签页
@@ -1239,11 +1322,11 @@ export class WindowPresenter implements IWindowPresenter {
       activateAppOnMac()
       if (navigation) {
         if (this.settingsWindowReady) {
-          this.sendToWindow(this.settingsWindow.id, SETTINGS_EVENTS.NAVIGATE, navigation)
+          this.sendSettingsNavigation(this.settingsWindow.id, navigation)
         } else {
           this.pendingSettingsMessages.push({
-            channel: SETTINGS_EVENTS.NAVIGATE,
-            args: [navigation]
+            channel: DEEPCHAT_EVENT_CHANNEL,
+            args: [createDeepchatEventEnvelope('settings.navigateRequested', navigation)]
           })
 
           const targetUrl = this.getSettingsWindowTargetUrl(navigation)
@@ -1316,8 +1399,8 @@ export class WindowPresenter implements IWindowPresenter {
 
     if (navigation) {
       this.pendingSettingsMessages.push({
-        channel: SETTINGS_EVENTS.NAVIGATE,
-        args: [navigation]
+        channel: DEEPCHAT_EVENT_CHANNEL,
+        args: [createDeepchatEventEnvelope('settings.navigateRequested', navigation)]
       })
     }
 
@@ -1452,11 +1535,13 @@ export class WindowPresenter implements IWindowPresenter {
   private shouldQueueSettingsMessage(channel: string): boolean {
     return (
       !this.settingsWindowReady &&
-      (channel.startsWith('settings:') || channel === DEEPLINK_EVENTS.MCP_INSTALL)
+      (channel.startsWith('settings:') ||
+        channel === DEEPCHAT_EVENT_CHANNEL ||
+        channel === DEEPLINK_EVENTS.MCP_INSTALL)
     )
   }
 
-  private handleSettingsWindowReady(senderWebContentsId: number): void {
+  public notifySettingsReady(senderWebContentsId: number): void {
     if (
       !this.settingsWindow ||
       this.settingsWindow.isDestroyed() ||
@@ -1488,7 +1573,7 @@ export class WindowPresenter implements IWindowPresenter {
 
   private tryNavigateSettingsWindowByUrl(channel: string, args: unknown[]): boolean {
     if (
-      channel !== SETTINGS_EVENTS.NAVIGATE ||
+      (channel !== SETTINGS_EVENTS.NAVIGATE && channel !== DEEPCHAT_EVENT_CHANNEL) ||
       !this.settingsWindow ||
       this.settingsWindow.isDestroyed() ||
       this.settingsWindow.webContents.isDestroyed()
@@ -1496,7 +1581,10 @@ export class WindowPresenter implements IWindowPresenter {
       return false
     }
 
-    const navigation = this.toSettingsNavigationPayload(args[0])
+    const navigation =
+      channel === DEEPCHAT_EVENT_CHANNEL
+        ? this.toSettingsNavigationPayloadFromDeepchatEnvelope(args[0])
+        : this.toSettingsNavigationPayload(args[0])
     if (!navigation || navigation.routeName !== 'settings-provider') {
       return false
     }
@@ -1508,7 +1596,13 @@ export class WindowPresenter implements IWindowPresenter {
       return false
     }
 
-    this.pendingSettingsMessages.push({ channel, args: [navigation] })
+    this.pendingSettingsMessages.push({
+      channel,
+      args:
+        channel === DEEPCHAT_EVENT_CHANNEL
+          ? [createDeepchatEventEnvelope('settings.navigateRequested', navigation)]
+          : [navigation]
+    })
     logger.info(`Reloading settings window to target URL: ${targetUrl}`)
     console.info('[Startup][Settings][Main] loadURL start', targetUrl)
     void this.settingsWindow.webContents
@@ -1526,6 +1620,21 @@ export class WindowPresenter implements IWindowPresenter {
         console.error(`Failed to reload settings window for navigation: ${targetUrl}`, error)
       })
     return true
+  }
+
+  private toSettingsNavigationPayloadFromDeepchatEnvelope(
+    raw: unknown
+  ): SettingsNavigationPayload | null {
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
+
+    const envelope = raw as { name?: unknown; payload?: unknown }
+    if (envelope.name !== 'settings.navigateRequested') {
+      return null
+    }
+
+    return this.toSettingsNavigationPayload(envelope.payload)
   }
 
   private toSettingsNavigationPayload(raw: unknown): SettingsNavigationPayload | null {
@@ -1598,7 +1707,9 @@ export class WindowPresenter implements IWindowPresenter {
     this.pendingSettingsMessages = []
     pending.forEach(({ channel, args }) => {
       try {
-        this.settingsWindow?.webContents.send(channel, ...args)
+        if (this.settingsWindow?.webContents) {
+          this.sendToWebContentsTarget(this.settingsWindow.webContents, channel, args)
+        }
       } catch (error) {
         console.error(`Error flushing settings message "${channel}":`, error)
       }

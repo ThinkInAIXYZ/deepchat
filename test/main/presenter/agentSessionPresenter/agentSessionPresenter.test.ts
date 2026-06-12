@@ -23,6 +23,10 @@ vi.mock('@/events', async (importOriginal) => {
   }
 })
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
+}))
+
 vi.mock('@/presenter', () => ({
   presenter: {
     commandPermissionService: {
@@ -39,6 +43,14 @@ vi.mock('@/presenter', () => ({
 }))
 
 import { eventBus } from '@/eventbus'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+function expectSessionsUpdated(payload: Record<string, unknown>) {
+  expect(publishDeepchatEvent).toHaveBeenCalledWith(
+    'sessions.updated',
+    expect.objectContaining(payload)
+  )
+}
 
 function createMockDeepChatAgent() {
   return {
@@ -429,14 +441,16 @@ describe('AgentSessionPresenter', () => {
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
 
-    it('emits ACTIVATED and LIST_UPDATED events', async () => {
+    it('publishes typed created session update', async () => {
       await presenter.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:activated', 'all', {
-        webContentsId: 42,
-        sessionId: 'mock-session-id'
+      expectSessionsUpdated({
+        sessionIds: ['mock-session-id'],
+        reason: 'created',
+        activeSessionId: 'mock-session-id',
+        webContentsId: 42
       })
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
     })
 
     it('uses default provider/model from config when not specified', async () => {
@@ -826,7 +840,7 @@ describe('AgentSessionPresenter', () => {
           permissionMode: 'full_access'
         })
       )
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'created', sessionIds: ['mock-session-id'] })
       expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
         'session:activated',
         'all',
@@ -917,7 +931,7 @@ describe('AgentSessionPresenter', () => {
         is_draft: 0,
         title: 'Hello ACP'
       })
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s-draft'] })
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         's-draft',
         { text: 'Hello ACP', files: [] },
@@ -1374,8 +1388,8 @@ describe('AgentSessionPresenter', () => {
         })
 
       const sessionSnapshots: string[][] = []
-      ;(eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mockImplementation((event: string) => {
-        if (event === 'session:list-updated') {
+      ;(publishDeepchatEvent as ReturnType<typeof vi.fn>).mockImplementation((event: string) => {
+        if (event === 'sessions.updated') {
           sessionSnapshots.push(Array.from(sessionRows.keys()).sort())
         }
       })
@@ -1649,19 +1663,24 @@ describe('AgentSessionPresenter', () => {
   })
 
   describe('activateSession', () => {
-    it('binds window and emits ACTIVATED', async () => {
+    it('binds window and publishes typed activated update', async () => {
       await presenter.activateSession(42, 's1')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:activated', 'all', {
+      expectSessionsUpdated({
         webContentsId: 42,
-        sessionId: 's1'
+        sessionIds: ['s1'],
+        reason: 'activated',
+        activeSessionId: 's1'
       })
     })
   })
 
   describe('deactivateSession', () => {
-    it('unbinds window and emits DEACTIVATED', async () => {
+    it('unbinds window and publishes typed deactivated update', async () => {
       await presenter.deactivateSession(42)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:deactivated', 'all', {
+      expectSessionsUpdated({
+        sessionIds: [],
+        reason: 'deactivated',
+        activeSessionId: null,
         webContentsId: 42
       })
     })
@@ -1682,7 +1701,7 @@ describe('AgentSessionPresenter', () => {
       await presenter.deleteSession('s1')
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'deleted', sessionIds: ['s1'] })
     })
 
     it('no-ops for unknown session', async () => {
@@ -1924,7 +1943,7 @@ describe('AgentSessionPresenter', () => {
         subagent_enabled: 1
       })
       expect(row.subagent_enabled).toBe(1)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
   })
 
@@ -1955,7 +1974,7 @@ describe('AgentSessionPresenter', () => {
       )
       expect(updated.providerId).toBe('anthropic')
       expect(updated.modelId).toBe('claude-3-5-sonnet')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
     it('rejects ACP session model switching', async () => {
@@ -2106,7 +2125,7 @@ describe('AgentSessionPresenter', () => {
       ])
       expect(updated.agentId).toBe('deepchat-coder')
       expect(updated.providerId).toBe('anthropic')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
     it('moves an ACP conversation to a DeepChat agent and clears the ACP binding', async () => {
@@ -2186,7 +2205,7 @@ describe('AgentSessionPresenter', () => {
       )
       expect(updated.agentId).toBe('deepchat-coder')
       expect(updated.providerId).toBe('openai')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s-acp'] })
     })
 
     it('keeps the ACP binding when target ownership update fails', async () => {
@@ -2331,7 +2350,7 @@ describe('AgentSessionPresenter', () => {
 
       expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
       expect(rows.get('s-ready-2').agent_id).toBe('deepchat-writer')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated' })
     })
 
     it('rejects moving a DeepChat conversation to an ACP target', async () => {
@@ -2502,7 +2521,7 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         title: 'New Title'
       })
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
     it('toggles pinned state and emits list update', async () => {
@@ -2521,7 +2540,7 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
         is_pinned: 1
       })
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
     it('clears session messages and keeps session', async () => {
@@ -2539,7 +2558,7 @@ describe('AgentSessionPresenter', () => {
 
       expect(deepChatAgent.clearMessages).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith('session:list-updated', 'all')
+      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
     it('exports session in all supported formats', async () => {

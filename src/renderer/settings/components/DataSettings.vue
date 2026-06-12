@@ -5,7 +5,10 @@
     :description="t('settings.data.privacyDescription')"
   >
     <div class="flex w-full flex-col gap-4">
-      <div class="rounded-xl border border-border bg-card/30 p-4">
+      <div
+        data-testid="database-encryption-section"
+        class="rounded-xl border border-border bg-card/30 p-4"
+      >
         <div class="flex flex-col gap-4">
           <div
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -308,6 +311,7 @@
               </div>
             </div>
             <span
+              data-testid="database-encryption-status-badge"
               class="inline-flex w-fit items-center rounded-md border px-2 py-1 text-xs font-medium"
               :class="
                 hasDatabaseSecurityStatusError && !databaseSecurityStatus
@@ -510,6 +514,7 @@
           </div>
 
           <div
+            data-testid="database-repair-section"
             class="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
             :dir="languageStore.dir"
           >
@@ -533,6 +538,7 @@
               </div>
             </div>
             <Button
+              data-testid="database-repair-button"
               variant="outline"
               class="w-full shrink-0 lg:w-56"
               :disabled="isRepairActionDisabled"
@@ -730,6 +736,7 @@
           </div>
 
           <div
+            data-testid="yobrowser-sandbox-section"
             class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between"
             :dir="languageStore.dir"
           >
@@ -745,6 +752,7 @@
             <AlertDialog v-model:open="isClearSandboxDialogOpen">
               <AlertDialogTrigger as-child>
                 <Button
+                  data-testid="yobrowser-clear-sandbox-button"
                   variant="outline"
                   class="w-full shrink-0 lg:w-56"
                   :disabled="isClearingSandbox"
@@ -824,9 +832,8 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { DatabaseRepairReport } from '@shared/presenter'
 import type { ProviderImportApplyResult } from '@shared/providerImport'
-import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
+import type { DatabaseRepairReport, DatabaseSecurityStatus } from '@shared/contracts/routes'
 import {
   Dialog,
   DialogContent,
@@ -861,7 +868,9 @@ import {
 } from '@shadcn/components/ui/select'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createBrowserClient } from '@api/BrowserClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createDatabaseSecurityClient } from '@api/DatabaseSecurityClient'
 import { cn } from '@/lib/utils'
@@ -890,10 +899,9 @@ const isPresenterError = (value: unknown): value is PresenterErrorResult => {
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
-const devicePresenter = useLegacyPresenter('devicePresenter')
-const yoBrowserPresenter = useLegacyPresenter('yoBrowserPresenter')
-const configPresenter = useLegacyPresenter('configPresenter')
-const sqlitePresenter = useLegacyPresenter('sqlitePresenter')
+const browserClient = createBrowserClient()
+const configClient = createConfigClient()
+const deviceClient = createDeviceClient()
 const onboardingClient = createOnboardingClient()
 const databaseSecurityClient = createDatabaseSecurityClient()
 const {
@@ -1427,12 +1435,9 @@ const buildRepairToastDescription = (report: DatabaseRepairReport) => {
 }
 
 const openExternalLink = (url: string) => {
-  if (window.api?.openExternal) {
-    window.api.openExternal(url)
-    return
-  }
-
-  window.open(url, '_blank', 'noopener,noreferrer')
+  void browserClient.openExternal(url).catch(() => {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  })
 }
 
 const runSchemaRepair = async () => {
@@ -1443,7 +1448,7 @@ const runSchemaRepair = async () => {
   isRepairing.value = true
 
   try {
-    const result = await sqlitePresenter.repairSchema()
+    const result = await databaseSecurityClient.repairSchema()
     if (isPresenterError(result) || !result) {
       toast({
         title: t('settings.data.databaseRepair.toastFailedTitle'),
@@ -1574,7 +1579,7 @@ const handleRefreshProviderDb = async () => {
 
   isUpdatingModelConfig.value = true
   try {
-    const result = await configPresenter.refreshProviderDb(true)
+    const result = await configClient.refreshProviderDb(true)
 
     if (!result || result.status === 'error') {
       console.error('Failed to refresh provider DB:', result?.message)
@@ -1662,7 +1667,7 @@ const handleReset = async () => {
 
   isResetting.value = true
   try {
-    await devicePresenter.resetDataByType(resetType.value)
+    await deviceClient.resetDataByType(resetType.value)
     closeResetDialog()
   } catch (error) {
     console.error('Failed to reset data:', error)
@@ -1676,7 +1681,7 @@ const handleClearSandboxData = async () => {
 
   isClearingSandbox.value = true
   try {
-    await yoBrowserPresenter.clearSandboxData()
+    await browserClient.clearSandboxData()
     toast({
       title: t('settings.data.yoBrowser.clearedTitle'),
       description: t('settings.data.yoBrowser.clearedDescription'),

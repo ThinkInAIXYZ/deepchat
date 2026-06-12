@@ -20,8 +20,13 @@ vi.mock('@/events', () => ({
 }))
 
 import { cloneBlocksForRenderer, startEcho } from '@/presenter/agentRuntimePresenter/echo'
-import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+function getStreamUpdatedCalls() {
+  return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+    ([eventName]) => eventName === 'chat.stream.updated'
+  )
+}
 
 function createIo(): IoParams {
   return {
@@ -60,16 +65,6 @@ describe('echo', () => {
 
     vi.advanceTimersByTime(130)
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:response',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        blocks: expect.any(Array)
-      })
-    )
     expect(publishDeepchatEvent).toHaveBeenCalledWith(
       'chat.stream.updated',
       expect.objectContaining({
@@ -104,7 +99,7 @@ describe('echo', () => {
     echo.schedule()
     vi.advanceTimersByTime(1000)
 
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+    expect(publishDeepchatEvent).not.toHaveBeenCalled()
     expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
 
     echo.stop()
@@ -118,16 +113,6 @@ describe('echo', () => {
 
     echo.flush()
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-      'stream:response',
-      'all',
-      expect.objectContaining({
-        conversationId: 's1',
-        messageId: 'm1',
-        eventId: 'm1',
-        blocks: expect.any(Array)
-      })
-    )
     expect(publishDeepchatEvent).toHaveBeenCalledWith(
       'chat.stream.updated',
       expect.objectContaining({
@@ -155,7 +140,7 @@ describe('echo', () => {
     vi.advanceTimersByTime(1000)
 
     // Nothing should have been flushed after stop
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+    expect(publishDeepchatEvent).not.toHaveBeenCalled()
     expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
   })
 
@@ -171,7 +156,7 @@ describe('echo', () => {
 
     vi.advanceTimersByTime(130)
 
-    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+    expect(getStreamUpdatedCalls()).toHaveLength(1)
     echo.stop()
   })
 
@@ -183,16 +168,16 @@ describe('echo', () => {
 
     echo.schedule()
     vi.advanceTimersByTime(130)
-    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+    expect(getStreamUpdatedCalls()).toHaveLength(1)
 
     vi.advanceTimersByTime(40)
     echo.rescheduleRenderer()
 
     vi.advanceTimersByTime(119)
-    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(1)
+    expect(getStreamUpdatedCalls()).toHaveLength(1)
 
     vi.advanceTimersByTime(1)
-    expect(eventBus.sendToRenderer).toHaveBeenCalledTimes(2)
+    expect(getStreamUpdatedCalls()).toHaveLength(2)
 
     echo.stop()
   })

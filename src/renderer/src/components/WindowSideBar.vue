@@ -401,7 +401,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { createSettingsClient } from '@api/SettingsClient'
-import { createRemoteControlRuntime } from '@api/RemoteControlRuntime'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
@@ -442,7 +442,7 @@ type SessionItemRect = {
 }
 
 const settingsClient = createSettingsClient()
-const remoteControlRuntime = createRemoteControlRuntime()
+const remoteControlClient = createRemoteControlClient()
 const deviceClient = createDeviceClient()
 const { t } = useI18n()
 const agentStore = useAgentStore()
@@ -810,7 +810,7 @@ const openRemoteSettings = async () => {
 const refreshRemoteControlStatus = async () => {
   try {
     remoteChannelDescriptors.value =
-      (await remoteControlRuntime.listRemoteChannels()) ?? fallbackRemoteChannels
+      (await remoteControlClient.listRemoteChannels()) ?? fallbackRemoteChannels
 
     const channels = remoteChannelDescriptors.value
       .filter((descriptor) => descriptor.implemented)
@@ -818,7 +818,7 @@ const refreshRemoteControlStatus = async () => {
     const statuses = await Promise.all(
       channels.map(async (channel) => ({
         channel,
-        status: await remoteControlRuntime.getChannelStatus(channel)
+        status: await remoteControlClient.getChannelStatus(channel)
       }))
     )
 
@@ -835,8 +835,8 @@ const refreshRemoteControlStatus = async () => {
 
     remoteControlStatus.value = {
       ...createRemoteStatusMap(),
-      telegram: await remoteControlRuntime.getTelegramStatus(),
-      'weixin-ilink': await remoteControlRuntime.getWeixinIlinkStatus()
+      telegram: await remoteControlClient.getTelegramStatus(),
+      'weixin-ilink': await remoteControlClient.getWeixinIlinkStatus()
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)

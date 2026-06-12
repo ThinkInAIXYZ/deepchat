@@ -2,13 +2,19 @@ import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
+  IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
   IFilePresenter,
+  IKnowledgePresenter,
   ILlmProviderPresenter,
   IMCPPresenter,
+  IOAuthPresenter,
   IProjectPresenter,
+  IRemoteControlPresenter,
   ISQLitePresenter,
+  IShortcutPresenter,
+  ISkillSyncPresenter,
   ISkillPresenter,
   ISyncPresenter,
   ITabPresenter,
@@ -19,8 +25,12 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { DEV_EVENTS } from '../events'
 import {
+  acpTerminalInputRoute,
+  acpTerminalKillRoute,
   browserAttachCurrentWindowRoute,
+  browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
@@ -52,13 +62,16 @@ import {
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
+  databaseSecurityRepairSchemaRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
   deviceRestartAppRoute,
+  deviceResetDataByTypeRoute,
   deviceSanitizeSvgRoute,
   deviceSelectDirectoryRoute,
+  deviceSelectFilesRoute,
   fileCopyImageRoute,
   fileGetMimeTypeRoute,
   fileIsDirectoryRoute,
@@ -68,6 +81,18 @@ import {
   fileSaveImageRoute,
   fileWriteImageBase64Route,
   hasDeepchatRouteContract,
+  knowledgeAddFileRoute,
+  knowledgeDeleteFileRoute,
+  knowledgeGetSeparatorsForLanguageRoute,
+  knowledgeGetSupportedFileExtensionsRoute,
+  knowledgeGetSupportedLanguagesRoute,
+  knowledgeIsSupportedRoute,
+  knowledgeListFilesRoute,
+  knowledgePauseAllRunningTasksRoute,
+  knowledgeReAddFileRoute,
+  knowledgeResumeAllPausedTasksRoute,
+  knowledgeSimilarityQueryRoute,
+  knowledgeValidateFileRoute,
   mcpAddServerRoute,
   mcpCallToolRoute,
   mcpCancelSamplingRequestRoute,
@@ -84,6 +109,12 @@ import {
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
+  mcpRouterGetApiKeyRoute,
+  mcpRouterInstallServerRoute,
+  mcpRouterIsServerInstalledRoute,
+  mcpRouterListServersRoute,
+  mcpRouterSetApiKeyRoute,
+  mcpRouterUpdateServersAuthRoute,
   mcpSetAutoDetectNpmRegistryRoute,
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
@@ -98,6 +129,27 @@ import {
   onboardingResetRoute,
   onboardingSetStepStatusRoute,
   onboardingStartRoute,
+  nowledgeMemGetConfigRoute,
+  nowledgeMemTestConnectionRoute,
+  nowledgeMemUpdateConfigRoute,
+  oauthGithubCopilotStartDeviceFlowLoginRoute,
+  oauthGithubCopilotStartLoginRoute,
+  remoteControlClearChannelPairCodeRoute,
+  remoteControlCreateChannelPairCodeRoute,
+  remoteControlGetChannelBindingsRoute,
+  remoteControlGetChannelPairingSnapshotRoute,
+  remoteControlGetChannelSettingsRoute,
+  remoteControlGetChannelStatusRoute,
+  remoteControlGetTelegramStatusRoute,
+  remoteControlGetWeixinIlinkStatusRoute,
+  remoteControlListChannelsRoute,
+  remoteControlRemoveChannelBindingRoute,
+  remoteControlRemoveChannelPrincipalRoute,
+  remoteControlRemoveWeixinIlinkAccountRoute,
+  remoteControlRestartWeixinIlinkAccountRoute,
+  remoteControlSaveChannelSettingsRoute,
+  remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForWeixinIlinkLoginRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
@@ -106,6 +158,7 @@ import {
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
+  projectPathExistsRoute,
   projectSelectDirectoryRoute,
   modelsSetBatchStatusRoute,
   modelsSetStatusRoute,
@@ -142,6 +195,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
@@ -153,6 +207,7 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
+  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute,
   sessionsSearchHistoryRoute,
@@ -170,6 +225,9 @@ import {
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  shortcutDestroyRoute,
+  shortcutRegisterRoute,
+  shortcutUnregisterRoute,
   startupGetBootstrapRoute,
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
@@ -181,11 +239,20 @@ import {
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsReadFileRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute,
+  skillSyncAcknowledgeDiscoveriesRoute,
+  skillSyncExecuteExportRoute,
+  skillSyncExecuteImportRoute,
+  skillSyncGetNewDiscoveriesRoute,
+  skillSyncGetRegisteredToolsRoute,
+  skillSyncPreviewExportRoute,
+  skillSyncPreviewImportRoute,
+  skillSyncScanExternalToolsRoute,
   syncGetBackupStatusRoute,
   syncImportRoute,
   syncListBackupsRoute,
@@ -211,9 +278,15 @@ import {
   upgradeStartDownloadRoute,
   windowCloseCurrentRoute,
   windowCloseFloatingCurrentRoute,
+  windowCloseSettingsRoute,
+  windowConsumePendingSettingsProviderInstallRoute,
+  windowFocusMainRoute,
   windowGetCurrentStateRoute,
   windowMinimizeCurrentRoute,
+  windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
+  windowRequeuePendingSettingsProviderInstallRoute,
+  windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute,
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,
@@ -253,6 +326,7 @@ import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
+import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
 import {
   scheduledTasksDeleteRoute,
   scheduledTasksFireNowRoute,
@@ -266,7 +340,12 @@ export type MainKernelRouteRuntime = {
   llmProviderPresenter: ILlmProviderPresenter
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
+  exporter: IConversationExporter
+  oauthPresenter: IOAuthPresenter
   mcpPresenter: IMCPPresenter
+  remoteControlPresenter: IRemoteControlPresenter
+  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -281,6 +360,7 @@ export type MainKernelRouteRuntime = {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
+  knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
@@ -295,7 +375,12 @@ export function createMainKernelRouteRuntime(deps: {
   llmProviderPresenter: ILlmProviderPresenter
   agentSessionPresenter: IAgentSessionPresenter
   skillPresenter: ISkillPresenter
+  skillSyncPresenter: ISkillSyncPresenter
+  exporter: IConversationExporter
+  oauthPresenter: IOAuthPresenter
   mcpPresenter: IMCPPresenter
+  remoteControlPresenter: IRemoteControlPresenter
+  shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
@@ -305,6 +390,7 @@ export function createMainKernelRouteRuntime(deps: {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
+  knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
@@ -368,7 +454,12 @@ export function createMainKernelRouteRuntime(deps: {
     llmProviderPresenter: deps.llmProviderPresenter,
     agentSessionPresenter: deps.agentSessionPresenter,
     skillPresenter: deps.skillPresenter,
+    skillSyncPresenter: deps.skillSyncPresenter,
+    exporter: deps.exporter,
+    oauthPresenter: deps.oauthPresenter,
     mcpPresenter: deps.mcpPresenter,
+    remoteControlPresenter: deps.remoteControlPresenter,
+    shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
     dialogPresenter: deps.dialogPresenter,
@@ -404,6 +495,7 @@ export function createMainKernelRouteRuntime(deps: {
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
     filePresenter: deps.filePresenter,
+    knowledgePresenter: deps.knowledgePresenter,
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
@@ -1007,7 +1099,8 @@ export async function dispatchDeepchatRoute(
         providerImportService: runtime.providerImportService
       },
       routeName,
-      rawInput
+      rawInput,
+      context
     )
   })
   if (providerResult !== undefined) {
@@ -1031,6 +1124,36 @@ export async function dispatchDeepchatRoute(
   }
 
   switch (routeName) {
+    case acpTerminalInputRoute.name: {
+      const input = acpTerminalInputRoute.input.parse(rawInput)
+      writeToTerminal(input.data)
+      return acpTerminalInputRoute.output.parse({ sent: true })
+    }
+
+    case acpTerminalKillRoute.name: {
+      acpTerminalKillRoute.input.parse(rawInput)
+      killTerminal()
+      return acpTerminalKillRoute.output.parse({ killed: true })
+    }
+
+    case shortcutRegisterRoute.name: {
+      shortcutRegisterRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.registerShortcuts()
+      return shortcutRegisterRoute.output.parse({ registered: true })
+    }
+
+    case shortcutUnregisterRoute.name: {
+      shortcutUnregisterRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.unregisterShortcuts()
+      return shortcutUnregisterRoute.output.parse({ unregistered: true })
+    }
+
+    case shortcutDestroyRoute.name: {
+      shortcutDestroyRoute.input.parse(rawInput)
+      runtime.shortcutPresenter.destroy()
+      return shortcutDestroyRoute.output.parse({ destroyed: true })
+    }
+
     case windowGetCurrentStateRoute.name: {
       windowGetCurrentStateRoute.input.parse(rawInput)
       return windowGetCurrentStateRoute.output.parse({
@@ -1087,6 +1210,48 @@ export async function dispatchDeepchatRoute(
       return windowPreviewFileRoute.output.parse({ previewed: true })
     }
 
+    case windowCloseSettingsRoute.name: {
+      windowCloseSettingsRoute.input.parse(rawInput)
+      const hadSettingsWindow = runtime.windowPresenter.getSettingsWindowId() != null
+      runtime.windowPresenter.closeSettingsWindow()
+      return windowCloseSettingsRoute.output.parse({ closed: hadSettingsWindow })
+    }
+
+    case windowFocusMainRoute.name: {
+      windowFocusMainRoute.input.parse(rawInput)
+      return windowFocusMainRoute.output.parse({
+        focused: runtime.windowPresenter.focusMainWindow()
+      })
+    }
+
+    case windowNotifySettingsReadyRoute.name: {
+      windowNotifySettingsReadyRoute.input.parse(rawInput)
+      runtime.windowPresenter.notifySettingsReady(context.webContentsId)
+      return windowNotifySettingsReadyRoute.output.parse({ notified: true })
+    }
+
+    case windowConsumePendingSettingsProviderInstallRoute.name: {
+      windowConsumePendingSettingsProviderInstallRoute.input.parse(rawInput)
+      return windowConsumePendingSettingsProviderInstallRoute.output.parse({
+        preview: runtime.windowPresenter.consumePendingSettingsProviderInstall()
+      })
+    }
+
+    case windowRequeuePendingSettingsProviderInstallRoute.name: {
+      const input = windowRequeuePendingSettingsProviderInstallRoute.input.parse(rawInput)
+      runtime.windowPresenter.setPendingSettingsProviderInstall(input.preview)
+      return windowRequeuePendingSettingsProviderInstallRoute.output.parse({ queued: true })
+    }
+
+    case windowStartGuidedOnboardingRoute.name: {
+      windowStartGuidedOnboardingRoute.input.parse(rawInput)
+      await runtime.windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
+      return windowStartGuidedOnboardingRoute.output.parse({
+        started: true,
+        focused: runtime.windowPresenter.focusMainWindow()
+      })
+    }
+
     case deviceGetAppVersionRoute.name: {
       deviceGetAppVersionRoute.input.parse(rawInput)
       return deviceGetAppVersionRoute.output.parse({
@@ -1108,10 +1273,21 @@ export async function dispatchDeepchatRoute(
       )
     }
 
+    case deviceSelectFilesRoute.name: {
+      const input = deviceSelectFilesRoute.input.parse(rawInput)
+      return deviceSelectFilesRoute.output.parse(await runtime.devicePresenter.selectFiles(input))
+    }
+
     case deviceRestartAppRoute.name: {
       deviceRestartAppRoute.input.parse(rawInput)
       await runtime.devicePresenter.restartApp()
       return deviceRestartAppRoute.output.parse({ restarted: true })
+    }
+
+    case deviceResetDataByTypeRoute.name: {
+      const input = deviceResetDataByTypeRoute.input.parse(rawInput)
+      await runtime.devicePresenter.resetDataByType(input.resetType)
+      return deviceResetDataByTypeRoute.output.parse({ reset: true })
     }
 
     case deviceSanitizeSvgRoute.name: {
@@ -1180,6 +1356,13 @@ export async function dispatchDeepchatRoute(
       return projectOpenDirectoryRoute.output.parse({ opened: true })
     }
 
+    case projectPathExistsRoute.name: {
+      const input = projectPathExistsRoute.input.parse(rawInput)
+      return projectPathExistsRoute.output.parse({
+        exists: await runtime.projectPresenter.pathExists(input.path)
+      })
+    }
+
     case projectSelectDirectoryRoute.name: {
       projectSelectDirectoryRoute.input.parse(rawInput)
       return projectSelectDirectoryRoute.output.parse({
@@ -1237,6 +1420,90 @@ export async function dispatchDeepchatRoute(
     case fileCopyImageRoute.name: {
       const input = fileCopyImageRoute.input.parse(rawInput)
       return fileCopyImageRoute.output.parse(await runtime.filePresenter.copyImage(input))
+    }
+
+    case knowledgeIsSupportedRoute.name: {
+      knowledgeIsSupportedRoute.input.parse(rawInput)
+      return knowledgeIsSupportedRoute.output.parse({
+        supported: await runtime.knowledgePresenter.isSupported()
+      })
+    }
+
+    case knowledgeGetSupportedLanguagesRoute.name: {
+      knowledgeGetSupportedLanguagesRoute.input.parse(rawInput)
+      return knowledgeGetSupportedLanguagesRoute.output.parse({
+        languages: await runtime.knowledgePresenter.getSupportedLanguages()
+      })
+    }
+
+    case knowledgeGetSeparatorsForLanguageRoute.name: {
+      const input = knowledgeGetSeparatorsForLanguageRoute.input.parse(rawInput)
+      return knowledgeGetSeparatorsForLanguageRoute.output.parse({
+        separators: await runtime.knowledgePresenter.getSeparatorsForLanguage(input.language)
+      })
+    }
+
+    case knowledgeGetSupportedFileExtensionsRoute.name: {
+      knowledgeGetSupportedFileExtensionsRoute.input.parse(rawInput)
+      return knowledgeGetSupportedFileExtensionsRoute.output.parse({
+        extensions: await runtime.knowledgePresenter.getSupportedFileExtensions()
+      })
+    }
+
+    case knowledgeListFilesRoute.name: {
+      const input = knowledgeListFilesRoute.input.parse(rawInput)
+      return knowledgeListFilesRoute.output.parse({
+        files: await runtime.knowledgePresenter.listFiles(input.knowledgeBaseId)
+      })
+    }
+
+    case knowledgeSimilarityQueryRoute.name: {
+      const input = knowledgeSimilarityQueryRoute.input.parse(rawInput)
+      return knowledgeSimilarityQueryRoute.output.parse({
+        results: await runtime.knowledgePresenter.similarityQuery(
+          input.knowledgeBaseId,
+          input.query
+        )
+      })
+    }
+
+    case knowledgeValidateFileRoute.name: {
+      const input = knowledgeValidateFileRoute.input.parse(rawInput)
+      return knowledgeValidateFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.validateFile(input.filePath)
+      })
+    }
+
+    case knowledgeAddFileRoute.name: {
+      const input = knowledgeAddFileRoute.input.parse(rawInput)
+      return knowledgeAddFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.addFile(input.knowledgeBaseId, input.filePath)
+      })
+    }
+
+    case knowledgeDeleteFileRoute.name: {
+      const input = knowledgeDeleteFileRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.deleteFile(input.knowledgeBaseId, input.fileId)
+      return knowledgeDeleteFileRoute.output.parse({ deleted: true })
+    }
+
+    case knowledgeReAddFileRoute.name: {
+      const input = knowledgeReAddFileRoute.input.parse(rawInput)
+      return knowledgeReAddFileRoute.output.parse({
+        result: await runtime.knowledgePresenter.reAddFile(input.knowledgeBaseId, input.fileId)
+      })
+    }
+
+    case knowledgePauseAllRunningTasksRoute.name: {
+      const input = knowledgePauseAllRunningTasksRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.pauseAllRunningTasks(input.knowledgeBaseId)
+      return knowledgePauseAllRunningTasksRoute.output.parse({ paused: true })
+    }
+
+    case knowledgeResumeAllPausedTasksRoute.name: {
+      const input = knowledgeResumeAllPausedTasksRoute.input.parse(rawInput)
+      await runtime.knowledgePresenter.resumeAllPausedTasks(input.knowledgeBaseId)
+      return knowledgeResumeAllPausedTasksRoute.output.parse({ resumed: true })
     }
 
     case workspaceRegisterRoute.name: {
@@ -1425,6 +1692,12 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case browserClearSandboxDataRoute.name: {
+      browserClearSandboxDataRoute.input.parse(rawInput)
+      await runtime.yoBrowserPresenter.clearSandboxData()
+      return browserClearSandboxDataRoute.output.parse({ cleared: true })
+    }
+
     case tabNotifyRendererReadyRoute.name: {
       tabNotifyRendererReadyRoute.input.parse(rawInput)
       await runtime.tabPresenter.onRendererTabReady(context.webContentsId)
@@ -1575,6 +1848,13 @@ export async function dispatchDeepchatRoute(
       return databaseSecurityDisableRoute.output.parse({ status })
     }
 
+    case databaseSecurityRepairSchemaRoute.name: {
+      databaseSecurityRepairSchemaRoute.input.parse(rawInput)
+      return databaseSecurityRepairSchemaRoute.output.parse({
+        report: await runtime.sqlitePresenter.repairSchema()
+      })
+    }
+
     case onboardingGetStateRoute.name: {
       onboardingGetStateRoute.input.parse(rawInput)
       const state = readGuidedOnboardingState(runtime.configPresenter)
@@ -1605,6 +1885,42 @@ export async function dispatchDeepchatRoute(
       onboardingResetRoute.input.parse(rawInput)
       const state = resetGuidedOnboarding(runtime.configPresenter)
       return onboardingResetRoute.output.parse({ state })
+    }
+
+    case nowledgeMemGetConfigRoute.name: {
+      nowledgeMemGetConfigRoute.input.parse(rawInput)
+      return nowledgeMemGetConfigRoute.output.parse({
+        config: runtime.exporter.getNowledgeMemConfig()
+      })
+    }
+
+    case nowledgeMemUpdateConfigRoute.name: {
+      const input = nowledgeMemUpdateConfigRoute.input.parse(rawInput)
+      await runtime.exporter.updateNowledgeMemConfig(input.config)
+      return nowledgeMemUpdateConfigRoute.output.parse({
+        config: runtime.exporter.getNowledgeMemConfig()
+      })
+    }
+
+    case nowledgeMemTestConnectionRoute.name: {
+      nowledgeMemTestConnectionRoute.input.parse(rawInput)
+      return nowledgeMemTestConnectionRoute.output.parse({
+        result: await runtime.exporter.testNowledgeMemConnection()
+      })
+    }
+
+    case oauthGithubCopilotStartLoginRoute.name: {
+      const input = oauthGithubCopilotStartLoginRoute.input.parse(rawInput)
+      return oauthGithubCopilotStartLoginRoute.output.parse({
+        success: await runtime.oauthPresenter.startGitHubCopilotLogin(input.providerId)
+      })
+    }
+
+    case oauthGithubCopilotStartDeviceFlowLoginRoute.name: {
+      const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
+      return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
+        success: await runtime.oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
+      })
     }
 
     case scheduledTasksListRoute.name: {
@@ -1922,6 +2238,18 @@ export async function dispatchDeepchatRoute(
       return sessionsGetAgentsRoute.output.parse({ agents })
     }
 
+    case sessionsGetUsageDashboardRoute.name: {
+      sessionsGetUsageDashboardRoute.input.parse(rawInput)
+      const dashboard = await runtime.agentSessionPresenter.getUsageDashboard()
+      return sessionsGetUsageDashboardRoute.output.parse({ dashboard })
+    }
+
+    case sessionsRetryRtkHealthCheckRoute.name: {
+      sessionsRetryRtkHealthCheckRoute.input.parse(rawInput)
+      await runtime.agentSessionPresenter.retryRtkHealthCheck()
+      return sessionsRetryRtkHealthCheckRoute.output.parse({ retried: true })
+    }
+
     case sessionsRenameRoute.name: {
       const input = sessionsRenameRoute.input.parse(rawInput)
       await runtime.agentSessionPresenter.renameSession(input.sessionId, input.title)
@@ -2140,6 +2468,13 @@ export async function dispatchDeepchatRoute(
       return skillsUninstallRoute.output.parse({ result })
     }
 
+    case skillsReadFileRoute.name: {
+      const input = skillsReadFileRoute.input.parse(rawInput)
+      return skillsReadFileRoute.output.parse({
+        content: await runtime.skillPresenter.readSkillFile(input.name)
+      })
+    }
+
     case skillsUpdateFileRoute.name: {
       const input = skillsUpdateFileRoute.input.parse(rawInput)
       const result = await runtime.skillPresenter.updateSkillFile(input.name, input.content)
@@ -2217,6 +2552,67 @@ export async function dispatchDeepchatRoute(
         }
       })
       return skillsSetActiveRoute.output.parse({ skills })
+    }
+
+    case skillSyncScanExternalToolsRoute.name: {
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        skillSyncScanExternalToolsRoute.input.parse(rawInput)
+        return skillSyncScanExternalToolsRoute.output.parse({
+          results: await runtime.skillSyncPresenter.scanExternalTools()
+        })
+      })
+    }
+
+    case skillSyncGetNewDiscoveriesRoute.name: {
+      skillSyncGetNewDiscoveriesRoute.input.parse(rawInput)
+      return skillSyncGetNewDiscoveriesRoute.output.parse({
+        discoveries: await runtime.skillSyncPresenter.getNewDiscoveries()
+      })
+    }
+
+    case skillSyncAcknowledgeDiscoveriesRoute.name: {
+      skillSyncAcknowledgeDiscoveriesRoute.input.parse(rawInput)
+      await runtime.skillSyncPresenter.acknowledgeDiscoveries()
+      return skillSyncAcknowledgeDiscoveriesRoute.output.parse({ acknowledged: true })
+    }
+
+    case skillSyncGetRegisteredToolsRoute.name: {
+      skillSyncGetRegisteredToolsRoute.input.parse(rawInput)
+      return skillSyncGetRegisteredToolsRoute.output.parse({
+        tools: runtime.skillSyncPresenter.getRegisteredTools()
+      })
+    }
+
+    case skillSyncPreviewImportRoute.name: {
+      const input = skillSyncPreviewImportRoute.input.parse(rawInput)
+      return skillSyncPreviewImportRoute.output.parse({
+        previews: await runtime.skillSyncPresenter.previewImport(input.toolId, input.skillNames)
+      })
+    }
+
+    case skillSyncExecuteImportRoute.name: {
+      const input = skillSyncExecuteImportRoute.input.parse(rawInput)
+      return skillSyncExecuteImportRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeImport(input.previews, input.strategies)
+      })
+    }
+
+    case skillSyncPreviewExportRoute.name: {
+      const input = skillSyncPreviewExportRoute.input.parse(rawInput)
+      return skillSyncPreviewExportRoute.output.parse({
+        previews: await runtime.skillSyncPresenter.previewExport(
+          input.skillNames,
+          input.targetToolId,
+          input.options
+        )
+      })
+    }
+
+    case skillSyncExecuteExportRoute.name: {
+      const input = skillSyncExecuteExportRoute.input.parse(rawInput)
+      return skillSyncExecuteExportRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeExport(input.previews, input.strategies)
+      })
     }
 
     case mcpGetServersRoute.name: {
@@ -2480,6 +2876,147 @@ export async function dispatchDeepchatRoute(
       }
       await runtime.mcpPresenter.clearNpmRegistryCache()
       return mcpClearNpmRegistryCacheRoute.output.parse({ cleared: true })
+    }
+
+    case mcpRouterListServersRoute.name: {
+      const input = mcpRouterListServersRoute.input.parse(rawInput)
+      const data = await runtime.mcpPresenter.listMcpRouterServers?.(input.page, input.limit)
+      return mcpRouterListServersRoute.output.parse({
+        servers: data?.servers ?? []
+      })
+    }
+
+    case mcpRouterInstallServerRoute.name: {
+      const input = mcpRouterInstallServerRoute.input.parse(rawInput)
+      return mcpRouterInstallServerRoute.output.parse({
+        installed: (await runtime.mcpPresenter.installMcpRouterServer?.(input.serverKey)) ?? false
+      })
+    }
+
+    case mcpRouterGetApiKeyRoute.name: {
+      mcpRouterGetApiKeyRoute.input.parse(rawInput)
+      return mcpRouterGetApiKeyRoute.output.parse({
+        key: (await runtime.mcpPresenter.getMcpRouterApiKey?.()) ?? ''
+      })
+    }
+
+    case mcpRouterSetApiKeyRoute.name: {
+      const input = mcpRouterSetApiKeyRoute.input.parse(rawInput)
+      await runtime.mcpPresenter.setMcpRouterApiKey?.(input.key)
+      return mcpRouterSetApiKeyRoute.output.parse({ saved: true })
+    }
+
+    case mcpRouterIsServerInstalledRoute.name: {
+      const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
+      return mcpRouterIsServerInstalledRoute.output.parse({
+        installed:
+          (await runtime.mcpPresenter.isServerInstalled?.(input.source, input.sourceId)) ?? false
+      })
+    }
+
+    case mcpRouterUpdateServersAuthRoute.name: {
+      const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
+      await runtime.mcpPresenter.updateMcpRouterServersAuth?.(input.apiKey)
+      return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
+    }
+
+    case remoteControlListChannelsRoute.name: {
+      remoteControlListChannelsRoute.input.parse(rawInput)
+      const channels = await runtime.remoteControlPresenter.listRemoteChannels()
+      return remoteControlListChannelsRoute.output.parse({ channels })
+    }
+
+    case remoteControlGetChannelSettingsRoute.name: {
+      const input = remoteControlGetChannelSettingsRoute.input.parse(rawInput)
+      const settings = await runtime.remoteControlPresenter.getChannelSettings(input.channel)
+      return remoteControlGetChannelSettingsRoute.output.parse({ settings })
+    }
+
+    case remoteControlSaveChannelSettingsRoute.name: {
+      const input = remoteControlSaveChannelSettingsRoute.input.parse(rawInput)
+      const settings = await runtime.remoteControlPresenter.saveChannelSettings(
+        input.channel,
+        input.settings
+      )
+      return remoteControlSaveChannelSettingsRoute.output.parse({ settings })
+    }
+
+    case remoteControlGetChannelStatusRoute.name: {
+      const input = remoteControlGetChannelStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getChannelStatus(input.channel)
+      return remoteControlGetChannelStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlGetChannelBindingsRoute.name: {
+      const input = remoteControlGetChannelBindingsRoute.input.parse(rawInput)
+      const bindings = await runtime.remoteControlPresenter.getChannelBindings(input.channel)
+      return remoteControlGetChannelBindingsRoute.output.parse({ bindings })
+    }
+
+    case remoteControlRemoveChannelBindingRoute.name: {
+      const input = remoteControlRemoveChannelBindingRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeChannelBinding(input.channel, input.endpointKey)
+      return remoteControlRemoveChannelBindingRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlRemoveChannelPrincipalRoute.name: {
+      const input = remoteControlRemoveChannelPrincipalRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeChannelPrincipal(input.channel, input.principalId)
+      return remoteControlRemoveChannelPrincipalRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlGetChannelPairingSnapshotRoute.name: {
+      const input = remoteControlGetChannelPairingSnapshotRoute.input.parse(rawInput)
+      const snapshot = await runtime.remoteControlPresenter.getChannelPairingSnapshot(input.channel)
+      return remoteControlGetChannelPairingSnapshotRoute.output.parse({ snapshot })
+    }
+
+    case remoteControlCreateChannelPairCodeRoute.name: {
+      const input = remoteControlCreateChannelPairCodeRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.createChannelPairCode(input.channel)
+      return remoteControlCreateChannelPairCodeRoute.output.parse(result)
+    }
+
+    case remoteControlClearChannelPairCodeRoute.name: {
+      const input = remoteControlClearChannelPairCodeRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.clearChannelPairCode(input.channel)
+      return remoteControlClearChannelPairCodeRoute.output.parse({ cleared: true })
+    }
+
+    case remoteControlGetTelegramStatusRoute.name: {
+      remoteControlGetTelegramStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getTelegramStatus()
+      return remoteControlGetTelegramStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlGetWeixinIlinkStatusRoute.name: {
+      remoteControlGetWeixinIlinkStatusRoute.input.parse(rawInput)
+      const status = await runtime.remoteControlPresenter.getWeixinIlinkStatus()
+      return remoteControlGetWeixinIlinkStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlStartWeixinIlinkLoginRoute.name: {
+      const input = remoteControlStartWeixinIlinkLoginRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startWeixinIlinkLogin(input)
+      return remoteControlStartWeixinIlinkLoginRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForWeixinIlinkLoginRoute.name: {
+      const input = remoteControlWaitForWeixinIlinkLoginRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForWeixinIlinkLogin(input)
+      return remoteControlWaitForWeixinIlinkLoginRoute.output.parse({ result })
+    }
+
+    case remoteControlRemoveWeixinIlinkAccountRoute.name: {
+      const input = remoteControlRemoveWeixinIlinkAccountRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.removeWeixinIlinkAccount(input.accountId)
+      return remoteControlRemoveWeixinIlinkAccountRoute.output.parse({ removed: true })
+    }
+
+    case remoteControlRestartWeixinIlinkAccountRoute.name: {
+      const input = remoteControlRestartWeixinIlinkAccountRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.restartWeixinIlinkAccount(input.accountId)
+      return remoteControlRestartWeixinIlinkAccountRoute.output.parse({ restarted: true })
     }
 
     case syncGetBackupStatusRoute.name: {

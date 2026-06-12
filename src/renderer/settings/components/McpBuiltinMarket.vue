@@ -133,7 +133,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createMcpClient } from '@api/McpClient'
 import { useToast } from '@/components/use-toast'
 import { Separator } from '@shadcn/components/ui/separator'
 
@@ -152,7 +152,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
-const mcpP = useLegacyPresenter('mcpPresenter')
+const mcpClient = createMcpClient()
 
 type MarketItem = {
   uuid: string
@@ -182,7 +182,7 @@ const apiKeyInput = ref('')
 
 const loadApiKey = async () => {
   try {
-    const key = await mcpP.getMcpRouterApiKey?.()
+    const key = await mcpClient.getMcpRouterApiKey()
     apiKeyInput.value = key || ''
   } catch {}
 }
@@ -190,11 +190,11 @@ const loadApiKey = async () => {
 const saveApiKey = async () => {
   try {
     const newKey = apiKeyInput.value.trim()
-    await mcpP.setMcpRouterApiKey?.(newKey)
+    await mcpClient.setMcpRouterApiKey(newKey)
 
     // 更新现有 mcprouter 服务器的 Authorization header
     if (newKey) {
-      await mcpP.updateMcpRouterServersAuth?.(newKey)
+      await mcpClient.updateMcpRouterServersAuth(newKey)
     }
 
     toast({ title: t('common.saved') })
@@ -216,7 +216,7 @@ const checkInstalledServers = async () => {
   for (const item of items.value) {
     try {
       // 使用 server_key 作为 sourceId 检查安装状态，因为这是我们在安装时保存的标识符
-      const isInstalled = await mcpP.isServerInstalled?.('mcprouter', item.server_key)
+      const isInstalled = await mcpClient.isServerInstalled('mcprouter', item.server_key)
       if (isInstalled) {
         installed.add(item.server_key)
       }
@@ -233,7 +233,7 @@ const fetchPage = async (forcePull = false) => {
   showPullToLoad.value = false
 
   try {
-    const data = await mcpP.listMcpRouterServers?.(page.value, limit.value)
+    const data = await mcpClient.listMcpRouterServers(page.value, limit.value)
     const list = data?.servers || []
     if (list.length === 0) {
       hasMore.value = false
@@ -310,8 +310,8 @@ const install = async (item: MarketItem) => {
       })
       return
     }
-    await mcpP.setMcpRouterApiKey?.(apiKeyInput.value.trim())
-    const ok = await mcpP.installMcpRouterServer?.(item.server_key)
+    await mcpClient.setMcpRouterApiKey(apiKeyInput.value.trim())
+    const ok = await mcpClient.installMcpRouterServer(item.server_key)
     if (ok) {
       toast({ title: t('mcp.market.installSuccess') })
       // 更新安装状态 - 使用 server_key 作为标识符

@@ -183,6 +183,7 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import StatusMetricCard from './control-center/StatusMetricCard.vue'
 import DashboardSettings from './DashboardSettings.vue'
+import { getRuntimePlatform } from '@api/runtime'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -197,7 +198,7 @@ const agentStore = useAgentStore()
 const activities = ref<SettingsActivityRecord[]>([])
 const searchQuery = ref('')
 const usageDashboardRef = ref<HTMLElement | null>(null)
-const settingsItems = getSettingsNavigationItems(window.electron?.process?.platform)
+const settingsItems = getSettingsNavigationItems(getRuntimePlatform())
 type SettingsRouteName = SettingsNavigationItem['routeName']
 
 const enabledProvidersCount = computed(

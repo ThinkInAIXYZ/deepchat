@@ -218,7 +218,7 @@ import { useToast } from '@/components/use-toast'
 import { useRoute, useRouter } from 'vue-router'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 
 const { t } = useI18n()
@@ -227,7 +227,7 @@ const mcpStore = useMcpStore()
 const { toast } = useToast()
 const route = useRoute()
 const router = useRouter()
-const windowPresenter = useLegacyPresenter('windowPresenter')
+const windowClient = createWindowClient()
 const mcpServersRef = ref<{ openAddServerDialog: () => void } | null>(null)
 const guideRootRef = ref<HTMLElement | null>(null)
 const mcpActionsRef = ref<HTMLElement | null>(null)
@@ -279,7 +279,7 @@ const handleMcpGuidePrimary = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -292,7 +292,7 @@ const handleMcpGuideBack = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -301,7 +301,7 @@ const handleMcpGuideSkip = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -310,7 +310,7 @@ const handleMcpGuideExpert = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 

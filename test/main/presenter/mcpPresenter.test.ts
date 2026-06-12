@@ -18,6 +18,8 @@ const toolManagerMocks = vi.hoisted(() => ({
   getRunningClients: vi.fn().mockResolvedValue([])
 }))
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
 vi.mock('../../../src/main/presenter/mcpPresenter/serverManager', () => ({
   ServerManager: vi.fn().mockImplementation(() => ({
     startServer: serverManagerMocks.startServer,
@@ -47,6 +49,7 @@ vi.mock('../../../src/main/presenter/mcpPresenter/mcprouterManager', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send: vi.fn(),
+    sendToMain: vi.fn(),
     sendToRenderer: vi.fn()
   },
   SendTarget: {
@@ -58,6 +61,9 @@ vi.mock('@/events', () => ({
   MCP_EVENTS: {
     SERVER_STARTED: 'server-started',
     SERVER_STOPPED: 'server-stopped',
+    CONFIG_CHANGED: 'config-changed',
+    SERVER_STATUS_CHANGED: 'server-status-changed',
+    CLIENT_LIST_UPDATED: 'client-list-updated',
     INITIALIZED: 'initialized'
   },
   NOTIFICATION_EVENTS: {
@@ -71,6 +77,11 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
+import { eventBus } from '@/eventbus'
 import { McpPresenter } from '../../../src/main/presenter/mcpPresenter'
 
 describe('McpPresenter#setMcpServerEnabled', () => {
@@ -279,5 +290,81 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     await presenter.refreshNpmRegistry()
 
     expect(serverManagerMocks.refreshNpmRegistry).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('McpPresenter sampling events', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.clearAllMocks()
+    serverManagerMocks.getRunningClients.mockResolvedValue([])
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
+  const createConfigPresenter = () =>
+    ({
+      getMcpEnabled: vi.fn().mockResolvedValue(true),
+      getMcpServers: vi.fn().mockResolvedValue({}),
+      getEnabledMcpServers: vi.fn().mockResolvedValue([]),
+      getLanguage: vi.fn().mockReturnValue('en-US'),
+      getPrivacyModeEnabled: vi.fn(() => false)
+    }) as any
+
+  it('publishes typed sampling request and decision events without raw renderer channels', async () => {
+    const presenter = new McpPresenter(createConfigPresenter())
+    const request = {
+      requestId: 'sampling-request-1',
+      serverName: 'demo-server',
+      messages: [],
+      requiresVision: false
+    } as any
+    const decision = {
+      requestId: 'sampling-request-1',
+      approved: false,
+      reason: 'Rejected by test'
+    }
+
+    const pendingDecision = presenter.handleSamplingRequest(request)
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.request', {
+      request,
+      version: expect.any(Number)
+    })
+
+    await presenter.submitSamplingDecision(decision)
+    await expect(pendingDecision).resolves.toEqual(decision)
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.decision', {
+      decision,
+      version: expect.any(Number)
+    })
+    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+  })
+
+  it('publishes typed sampling cancellation without raw renderer channels', async () => {
+    const presenter = new McpPresenter(createConfigPresenter())
+    const request = {
+      requestId: 'sampling-request-2',
+      serverName: 'demo-server',
+      messages: [],
+      requiresVision: false
+    } as any
+
+    const pendingDecision = presenter.handleSamplingRequest(request)
+
+    await presenter.cancelSamplingRequest('sampling-request-2', 'Cancelled by test')
+    await expect(pendingDecision).rejects.toThrow('Cancelled by test')
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.cancelled', {
+      requestId: 'sampling-request-2',
+      reason: 'Cancelled by test',
+      version: expect.any(Number)
+    })
+    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })

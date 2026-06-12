@@ -151,8 +151,8 @@ const setup = async (options?: {
       forceComplete: vi.fn().mockResolvedValue(null)
     })
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => ({
+  vi.doMock('@api/WindowClient', () => ({
+    createWindowClient: () => ({
       focusMainWindow: vi.fn().mockResolvedValue(true)
     })
   }))

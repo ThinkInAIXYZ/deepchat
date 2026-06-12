@@ -2,6 +2,8 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   sessionsAcpCommandsReadyEvent,
   sessionsAcpConfigOptionsReadyEvent,
+  sessionsAcpModesReadyEvent,
+  sessionsCompactionChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
   sessionsUpdatedEvent
@@ -32,6 +34,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
   sessionsListRoute,
@@ -43,6 +46,7 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
+  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
 } from '@shared/contracts/routes'
@@ -248,6 +252,16 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.agents
   }
 
+  async function getUsageDashboard() {
+    const result = await bridge.invoke(sessionsGetUsageDashboardRoute.name, {})
+    return result.dashboard
+  }
+
+  async function retryRtkHealthCheck() {
+    const result = await bridge.invoke(sessionsRetryRtkHealthCheckRoute.name, {})
+    return result.retried
+  }
+
   async function renameSession(sessionId: string, title: string) {
     await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
   }
@@ -412,6 +426,18 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(sessionsStatusChangedEvent.name, listener)
   }
 
+  function onCompactionChanged(
+    listener: (payload: {
+      sessionId: string
+      status: 'idle' | 'compacting' | 'compacted'
+      cursorOrderSeq: number
+      summaryUpdatedAt: number | null
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsCompactionChangedEvent.name, listener)
+  }
+
   function onPendingInputsChanged(
     listener: (payload: { sessionId: string; version: number }) => void
   ) {
@@ -431,6 +457,19 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     }) => void
   ) {
     return bridge.on(sessionsAcpCommandsReadyEvent.name, listener)
+  }
+
+  function onAcpModesReady(
+    listener: (payload: {
+      conversationId?: string
+      agentId: string
+      workdir: string
+      current: string
+      available: Array<{ id: string; name: string; description: string }>
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsAcpModesReadyEvent.name, listener)
   }
 
   function onAcpConfigOptionsReady(
@@ -489,6 +528,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     listMessageTraces,
     translateText,
     getAgents,
+    getUsageDashboard,
+    retryRtkHealthCheck,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,
@@ -513,7 +554,9 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     updateSessionGenerationSettings,
     onUpdated,
     onStatusChanged,
+    onCompactionChanged,
     onPendingInputsChanged,
+    onAcpModesReady,
     onAcpCommandsReady,
     onAcpConfigOptionsReady
   }
