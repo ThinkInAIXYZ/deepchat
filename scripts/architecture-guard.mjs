@@ -81,8 +81,8 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
 ]
 
 const MIGRATED_RAW_CHANNEL_BASELINE = new Map([
-  ['src/main/presenter/windowPresenter/index.ts', 4],
-  ['src/renderer/src/App.vue', 1]
+  // Window identity and chrome coordination still use narrow main-process IPC.
+  ['src/main/presenter/windowPresenter/index.ts', 4]
 ])
 
 const HOT_PATH_FILES = [

@@ -32,9 +32,6 @@ declare global {
       ) => FloatingButtonUnsubscribe
       onLanguageChanged: (callback: (language: string) => void) => FloatingButtonUnsubscribe
       onThemeChanged: (callback: (theme: 'dark' | 'light') => void) => FloatingButtonUnsubscribe
-      onConfigUpdate: (
-        callback: (config: Record<string, unknown>) => void
-      ) => FloatingButtonUnsubscribe
     }
   }
 }

@@ -87,9 +87,6 @@ import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
-// 注意: 现在大部分事件已在各自的 presenter 中直接发送到渲染进程
-// 剩余的自动转发事件已在 EventBus 的 DEFAULT_RENDERER_EVENTS 中定义
-
 // 主 Presenter 类，负责协调其他 Presenter 并处理 IPC 通信
 export class Presenter implements IPresenter {
   // 私有静态实例
@@ -878,6 +875,8 @@ export class Presenter implements IPresenter {
 
 // Export presenter instance - will be initialized with database during lifecycle
 export let presenter: Presenter
+// The route runtime is cached against the process-wide Presenter singleton.
+// If Presenter ever supports reinitialization, this cache must be reset with it.
 let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
 
 const buildMainKernelRouteRuntime = () =>

@@ -67,9 +67,6 @@ const parseLanguage: FloatingEventParser<string> = (payload) =>
 const parseTheme: FloatingEventParser<FloatingTheme> = (payload) =>
   isTheme(payload) ? payload : null
 
-const parseRecord: FloatingEventParser<Record<string, unknown>> = (payload) =>
-  isRecord(payload) ? payload : null
-
 const warnInvalidPayload = (channel: string) => {
   console.warn(`FloatingPreload: Ignoring invalid payload for ${channel}`)
 }
@@ -213,10 +210,6 @@ const floatingButtonAPI = {
 
   onThemeChanged: (callback: (theme: FloatingTheme) => void) => {
     return onFloatingEvent(FLOATING_BUTTON_EVENTS.THEME_CHANGED, parseTheme, callback)
-  },
-
-  onConfigUpdate: (callback: (config: Record<string, unknown>) => void) => {
-    return onFloatingEvent(FLOATING_BUTTON_EVENTS.CONFIG_UPDATE, parseRecord, callback)
   }
 }
 

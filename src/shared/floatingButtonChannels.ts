@@ -17,8 +17,7 @@ export const FLOATING_BUTTON_EVENTS = {
   OPEN_SESSION: 'floating-button:open-session',
   DRAG_START: 'floating-button:drag-start',
   DRAG_MOVE: 'floating-button:drag-move',
-  DRAG_END: 'floating-button:drag-end',
-  CONFIG_UPDATE: 'floating-button-config-update'
+  DRAG_END: 'floating-button:drag-end'
 } as const
 
 export type FloatingButtonEventName =
