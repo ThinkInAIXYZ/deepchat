@@ -1515,7 +1515,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -2278,8 +2278,12 @@ const buildTelegramDraftSettings = (): TelegramRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(telegramSettings.value)
   return {
-    ...telegramSettings.value
+    botToken: settings.botToken,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir
   }
 }
 
@@ -2288,8 +2292,17 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(feishuSettings.value)
   return {
-    ...feishuSettings.value
+    brand: settings.brand,
+    appId: settings.appId,
+    appSecret: settings.appSecret,
+    verificationToken: settings.verificationToken,
+    encryptKey: settings.encryptKey,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedUserOpenIds: [...(settings.pairedUserOpenIds ?? [])]
   }
 }
 
@@ -2298,8 +2311,14 @@ const buildQQBotDraftSettings = (): QQBotRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(qqbotSettings.value)
   return {
-    ...qqbotSettings.value
+    appId: settings.appId,
+    clientSecret: settings.clientSecret,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedUserIds: [...(settings.pairedUserIds ?? [])]
   }
 }
 
@@ -2308,8 +2327,13 @@ const buildDiscordDraftSettings = (): DiscordRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(discordSettings.value)
   return {
-    ...discordSettings.value
+    botToken: settings.botToken,
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    pairedChannelIds: [...(settings.pairedChannelIds ?? [])]
   }
 }
 
@@ -2318,9 +2342,12 @@ const buildWeixinIlinkDraftSettings = (): WeixinIlinkRemoteSettings | null => {
     return null
   }
 
+  const settings = toRaw(weixinIlinkSettings.value)
   return {
-    ...weixinIlinkSettings.value,
-    accounts: weixinIlinkSettings.value.accounts.map((account) => ({
+    remoteEnabled: settings.remoteEnabled,
+    defaultAgentId: settings.defaultAgentId,
+    defaultWorkdir: settings.defaultWorkdir,
+    accounts: (settings.accounts ?? []).map((account) => ({
       accountId: String(account.accountId ?? '').trim(),
       ownerUserId: String(account.ownerUserId ?? '').trim(),
       baseUrl: String(account.baseUrl ?? '').trim(),
