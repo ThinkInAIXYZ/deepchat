@@ -26,6 +26,10 @@ Each active goal folder contains:
 
 If a change is tiny, keep all three files short.
 
+After implementation, delete `plan.md` and `tasks.md`. Keep `spec.md` only when it remains a
+durable contract, regression guard, platform policy, or architecture decision that helps maintain
+current code.
+
 ## Workflow
 
 1. **Feature Specification** - Define user stories, acceptance criteria, business value, non-goals
@@ -33,13 +37,13 @@ If a change is tiny, keep all three files short.
 3. **Task Breakdown** - Small tasks that can be reviewed independently
 4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
 
-Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep SDD folders active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs and delete the old goal folder. Delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep `plan.md` and `tasks.md` active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs, keep `spec.md` only if it remains a useful contract, and delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
 
 Retention policy:
 
-- Feature and architecture SDD folders stay only while the work is active.
-- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`.
-- Bug-fix issue SDD folders older than two weeks should be removed unless they still describe an active regression.
+- Feature and architecture SDD folders keep `plan.md` and `tasks.md` only while the work is active.
+- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`; keep a spec-only folder when the acceptance criteria still define a useful maintained contract.
+- Bug-fix issue SDD folders older than two weeks should be removed unless their `spec.md` still describes a useful regression contract.
 - Long-term history should be recovered from git history, not accumulated under `docs/archives/`.
 
 ## Six Core Principles
@@ -52,7 +56,8 @@ Write clear requirements with measurable acceptance criteria before writing code
 
 Follow DeepChat's existing architectural patterns:
 - **Presenter Pattern**: Add behavior in the appropriate module under `src/main/presenter/`
-- **Event-Driven Communication**: Use `EventBus` + event constants for main ↔ renderer flows
+- **Typed Event Communication**: Use `shared/contracts/events.ts` + `publishDeepchatEvent()` for
+  main → renderer state notifications; keep `EventBus` for main-internal and raw transport flows
 - **Secure IPC**: Prefer typed IPC via `src/preload/` (contextIsolation on); avoid ad-hoc channels
 - **Type Definitions**: Shared types live in `src/shared/`
 
@@ -114,7 +119,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] Implement Presenter method(s)
 - [ ] Implement UI component (if needed)
 - [ ] Add i18n keys (if user-facing)
-- [ ] Run: `pnpm run format && pnpm run lint && pnpm run typecheck`
+- [ ] Run: `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`
 
 ## Common Patterns
 
@@ -122,8 +127,8 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 // 1. Typed Route / Client Method Signature
 async methodName(params: InputType): Promise<OutputType>
 
-// 2. EventBus Communication (Main Process)
-eventBus.sendToRenderer(CONFIG_EVENTS.SETTING_CHANGED, SendTarget.ALL_WINDOWS, payload)
+// 2. Typed Event Publication (Main Process)
+publishDeepchatEvent('settings.changed', payload)
 
 // 3. Renderer-main Integration
 const settingsClient = new SettingsClient()
@@ -141,9 +146,10 @@ const settingsClient = new SettingsClient()
 Compatibility note:
 
 - 新 renderer-main 能力优先定义 `shared/contracts/*` 和 `renderer/api/*Client`
-- `useLegacyPresenter()` 不再是推荐模式
-- 如果必须临时保留 legacy transport，应先收口到 `src/renderer/api/legacy/**`，而不是直接进入业务模块
-- 不允许再创建第二个 quarantine 目录来承接 renderer-main legacy transport
+- `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+  `src/renderer/api/legacy/**` 已退休
+- copy、file、openExternal 等低层能力通过 dedicated preload API 和 renderer client 封装
+- `src/renderer/api/legacy/**` 保持删除，architecture guard 会阻止它回流
 
 ## Quick Reference
 
@@ -151,7 +157,8 @@ Compatibility note:
 - **Renderer clients**: `src/renderer/api/**`
 - **Tests**: `test/main/**/*`, `test/renderer/**/*`
 - **EventBus**: `src/main/eventbus.ts`
-- **Events**: `src/main/events.ts` (main) and `src/renderer/src/events.ts` (renderer)
+- **Typed events**: `src/shared/contracts/events.ts`
+- **Raw/internal events**: `src/main/events.ts` and `src/renderer/src/events.ts`
 - **IPC bridge**: `src/preload/`
 - **i18n**: `src/renderer/src/i18n/`
 - **Shared types**: `src/shared/presenter.d.ts`

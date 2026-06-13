@@ -5,7 +5,7 @@
 
 ## Problem
 
-`src/main/presenter/agentRuntimePresenter/index.ts` is 5681 lines with 209 methods
+`src/main/presenter/agentRuntimePresenter/index.ts` is 5656 lines with 209 methods
 (42 public, ~167 private). It is the core of the agent loop and the most frequently modified
 file in the codebase, which makes it:
 
@@ -45,7 +45,7 @@ From the 42 public methods:
 - [NEEDS CLARIFICATION] Shared mutable state audit: which private fields are touched by more
   than one cluster (e.g. generation tokens vs. pending-input state)? The split boundary may
   need a small shared `runtimeState` object instead of per-service ownership.
-- [NEEDS CLARIFICATION] `agentSessionPresenter` (3922 lines) holds a parallel structure; decide
+- [NEEDS CLARIFICATION] `agentSessionPresenter` (3898 lines) holds a parallel structure; decide
   whether to split it in the same effort or sequence it after.
 
 ## Success criteria

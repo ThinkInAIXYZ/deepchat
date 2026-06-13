@@ -1,7 +1,7 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-05-28` 的主架构。当前目标不是再做一次全量 main-kernel rewrite，
-而是维持 typed renderer-main boundary，并把新增能力接到既有 route/runtime owner 上。
+本文档描述 `2026-06-13` 的主架构。当前目标是维持 typed renderer-main boundary，
+并把新增能力接到既有 route/runtime owner 上。
 
 ## 主链路
 
@@ -27,8 +27,8 @@ flowchart LR
 
 - renderer 业务代码优先经过 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
 - `src/main/routes/index.ts` 是 typed route dispatcher，并装配 settings、sessions、chat、
-  providers、models、config、MCP、plugins、skills、sync、browser、database security、
-  scheduled tasks 等 route。
+  providers、models、config、MCP、plugins、skills、skill sync、sync、browser、workspace、
+  onboarding、OAuth、knowledge、upgrade、dialog、tools、database security、scheduled tasks 等 route。
 - presenter 仍是 runtime owner，但 route services 只通过窄 port 或明确 client 依赖使用它们。
 - `SessionPresenter` 仍保留为 legacy 数据访问、导出和兼容边界，不再是当前聊天主链路 owner。
 
@@ -59,8 +59,9 @@ flowchart LR
 - `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
 - `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
 - `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
-- raw IPC 只允许存在于 `createBridge` 和专用 preload API 这类明确边界内，业务层不得直接调用
-  `presenter:call`、`remoteControlPresenter:call` 或 `window.electron.ipcRenderer`。
+- raw IPC 只允许存在于 `createBridge`、`window.api` dedicated preload API 这类明确边界内，
+  业务层不得直接调用 `presenter:call`、`remoteControlPresenter:call` 或
+  `window.electron.ipcRenderer`。
 
 ### 2. Main Route Runtime
 

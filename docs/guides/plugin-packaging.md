@@ -40,7 +40,8 @@ pnpm run plugin:validate -- --name <plugin> --platform <platform> --arch <arch>
 
 ### Package
 
-Build (if the plugin has a native build step) and package into a `.dcplugin` under `dist/plugins/`.
+Package into a `.dcplugin` under `dist/plugins/`. Run a plugin's native build command first when the
+package needs native runtime payloads.
 
 ```bash
 pnpm run plugin:package -- --name <plugin> --platform <platform> --arch <arch>
@@ -75,8 +76,9 @@ pnpm run plugin:bundle:clean
 ## Plugins with Native Build Steps
 
 Some plugins (like CUA) include pre-compiled native binaries. These require an additional build
-step before packaging. The dispatcher script automatically detects and runs
-`scripts/build-<name>-plugin-runtime.mjs` when it exists.
+step before packaging. The `bundle` action automatically detects and runs
+`scripts/build-<name>-plugin-runtime.mjs` when it exists. Standalone `package` expects the native
+runtime payload to be built already.
 
 CUA native build commands (macOS-only, requires Swift toolchain):
 

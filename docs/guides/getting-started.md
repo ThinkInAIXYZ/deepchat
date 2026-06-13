@@ -49,10 +49,10 @@ Renderer
 那已经是退休实现。
 
 如果你在旧提交或历史文档里看到 `useLegacyPresenter()`、`presenter:call`、
-`remoteControlPresenter:call`、`window.electron`、`window.api`，请先把它理解为已退休兼容背景，
-而不是新功能默认入口。当前默认规则写在 `docs/ARCHITECTURE.md`：新 renderer-main 能力走
-`renderer/api/*Client` + `window.deepchat` + shared contracts；少数 runtime 能力只能封装在
-明确 allowlist 的 preload/API 边界内。
+`remoteControlPresenter:call`、`window.electron`，请先把它理解为已退休兼容背景。当前默认规则
+写在 `docs/ARCHITECTURE.md`：新 renderer-main 能力走 `renderer/api/*Client` +
+`window.deepchat` + shared contracts；copy/file/openExternal 等低层能力通过 dedicated
+`window.api` preload API 和 renderer client 封装。
 
 ## 项目目录速览
 
