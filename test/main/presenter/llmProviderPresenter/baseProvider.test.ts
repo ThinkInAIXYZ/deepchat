@@ -12,13 +12,9 @@ import { BaseLLMProvider } from '../../../../src/main/presenter/llmProviderPrese
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToRenderer: vi.fn(),
     sendToMain: vi.fn(),
     emit: vi.fn(),
     send: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 

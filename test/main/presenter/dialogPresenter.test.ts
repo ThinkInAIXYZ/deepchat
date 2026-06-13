@@ -1,25 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
-const { sendToRendererMock } = vi.hoisted(() => ({
-  sendToRendererMock: vi.fn()
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: sendToRendererMock
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all_windows',
-    DEFAULT_WINDOW: 'default_window'
-  }
+const { sendToAllWindowsMock, sendToWebContentsMock } = vi.hoisted(() => ({
+  sendToAllWindowsMock: vi.fn(),
+  sendToWebContentsMock: vi.fn()
 }))
 
 import { DialogPresenter } from '../../../src/main/presenter/dialogPresenter'
+import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
 describe('DialogPresenter', () => {
   beforeEach(() => {
-    sendToRendererMock.mockReset()
+    sendToAllWindowsMock.mockReset()
+    sendToWebContentsMock.mockReset()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: sendToAllWindowsMock,
+      sendToWebContents: sendToWebContentsMock
+    })
+  })
+
+  afterEach(() => {
+    setDeepchatEventWindowPresenter(null)
   })
 
   it('publishes dialog requests through the typed deepchat event channel only', async () => {
@@ -34,10 +35,9 @@ describe('DialogPresenter', () => {
       timeout: 1000
     })
 
-    expect(sendToRendererMock).toHaveBeenCalledTimes(1)
-    expect(sendToRendererMock).toHaveBeenCalledWith(
+    expect(sendToAllWindowsMock).toHaveBeenCalledTimes(1)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
       DEEPCHAT_EVENT_CHANNEL,
-      'all_windows',
       expect.objectContaining({
         name: 'dialog.requested',
         payload: expect.objectContaining({
@@ -50,7 +50,7 @@ describe('DialogPresenter', () => {
       })
     )
 
-    const envelope = sendToRendererMock.mock.calls[0][2] as {
+    const envelope = sendToAllWindowsMock.mock.calls[0][1] as {
       payload: {
         id: string
       }

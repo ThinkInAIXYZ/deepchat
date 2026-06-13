@@ -3,7 +3,6 @@ import logger from '@shared/logger'
  * Message dialog implemented via the renderer process
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
  * Only one message dialog can exist within a single active window. Repeated calls will trigger the callback of the previous dialog with null.
- * @see {@link SendTarget.DEFAULT_WINDOW}
  */
 import {
   DialogRequest,

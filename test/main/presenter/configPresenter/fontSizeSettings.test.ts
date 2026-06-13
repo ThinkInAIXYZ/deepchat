@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   send: vi.fn(),
-  sendToMain: vi.fn(),
-  sendToRenderer: vi.fn()
+  sendToMain: vi.fn()
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -13,11 +12,7 @@ vi.mock('@/eventbus', () => ({
   eventBus: {
     on: eventBusMocks.on,
     send: eventBusMocks.send,
-    sendToMain: eventBusMocks.sendToMain,
-    sendToRenderer: eventBusMocks.sendToRenderer
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: eventBusMocks.sendToMain
   }
 }))
 
@@ -64,7 +59,6 @@ describe('ConfigPresenter font size settings', () => {
         fontSizeLevel: 4
       }
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })
 
@@ -91,7 +85,6 @@ describe('ConfigPresenter NowledgeMem settings', () => {
     await presenter.setNowledgeMemConfig(config)
 
     expect(store.set).toHaveBeenCalledWith('nowledgeMemConfig', config)
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })
 
@@ -119,6 +112,5 @@ describe('ConfigPresenter ACP agent notifications', () => {
       reason: 'list-refreshed'
     })
     expect(eventBus.send).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })

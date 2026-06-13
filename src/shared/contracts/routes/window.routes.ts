@@ -31,6 +31,15 @@ export const windowGetCurrentStateRoute = defineRouteContract({
   })
 })
 
+export const windowGetRuntimeIdentityRoute = defineRouteContract({
+  name: 'window.getRuntimeIdentity',
+  input: z.object({}).default({}),
+  output: z.object({
+    windowId: z.number().int().nullable(),
+    webContentsId: z.number().int()
+  })
+})
+
 export const windowMinimizeCurrentRoute = defineRouteContract({
   name: 'window.minimizeCurrent',
   input: z.object({}).default({}),

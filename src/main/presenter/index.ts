@@ -84,6 +84,7 @@ import type {
   SessionUiPort
 } from './runtimePorts'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
+import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
@@ -597,11 +598,9 @@ export class Presenter implements IPresenter {
     return Presenter.instance
   }
 
-  // 设置事件总线监听和转发
+  // 设置事件监听和 typed renderer event 发送端
   setupEventBus() {
-    // 设置 WindowPresenter 和 TabPresenter 到 EventBus
-    eventBus.setWindowPresenter(this.windowPresenter)
-    eventBus.setTabPresenter(this.tabPresenter)
+    setDeepchatEventWindowPresenter(this.windowPresenter)
 
     // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()

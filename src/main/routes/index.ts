@@ -282,6 +282,7 @@ import {
   windowConsumePendingSettingsProviderInstallRoute,
   windowFocusMainRoute,
   windowGetCurrentStateRoute,
+  windowGetRuntimeIdentityRoute,
   windowMinimizeCurrentRoute,
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
@@ -1158,6 +1159,14 @@ export async function dispatchDeepchatRoute(
       windowGetCurrentStateRoute.input.parse(rawInput)
       return windowGetCurrentStateRoute.output.parse({
         state: readCurrentWindowState(runtime, context)
+      })
+    }
+
+    case windowGetRuntimeIdentityRoute.name: {
+      windowGetRuntimeIdentityRoute.input.parse(rawInput)
+      return windowGetRuntimeIdentityRoute.output.parse({
+        windowId: context.windowId,
+        webContentsId: context.webContentsId
       })
     }
 

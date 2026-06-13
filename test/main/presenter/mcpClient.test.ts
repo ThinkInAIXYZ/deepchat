@@ -38,9 +38,6 @@ vi.mock('../../../src/main/eventbus', () => ({
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all-windows'
   }
 }))
 

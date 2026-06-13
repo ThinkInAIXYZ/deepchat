@@ -15,10 +15,6 @@ const isDevHiddenApiEnabled =
   process.env.NODE_ENV === 'development' || Boolean(process.env.ELECTRON_RENDERER_URL)
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
-// Cache variables
-let cachedWindowId: number | undefined = undefined
-let cachedWebContentsId: number | undefined = undefined
-
 // Custom APIs for renderer
 const api = Object.freeze({
   copyText: (text: string) => {
@@ -33,20 +29,6 @@ const api = Object.freeze({
   },
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file)
-  },
-  getWindowId: () => {
-    if (cachedWindowId !== undefined) {
-      return cachedWindowId
-    }
-    cachedWindowId = ipcRenderer.sendSync('get-window-id')
-    return cachedWindowId
-  },
-  getWebContentsId: () => {
-    if (cachedWebContentsId !== undefined) {
-      return cachedWebContentsId
-    }
-    cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
-    return cachedWebContentsId
   },
   getPlatform: () => process.platform,
   openExternal: (url: string) => {
@@ -149,14 +131,6 @@ if (process.contextIsolated) {
   }
 }
 window.addEventListener('DOMContentLoaded', () => {
-  cachedWebContentsId = ipcRenderer.sendSync('get-web-contents-id')
-  cachedWindowId = ipcRenderer.sendSync('get-window-id')
-  console.log(
-    'Preload: Initialized with WebContentsId:',
-    cachedWebContentsId,
-    'WindowId:',
-    cachedWindowId
-  )
   webFrame.setVisualZoomLevelLimits(1, 1) // Disable trackpad zooming
   webFrame.setZoomFactor(1)
 })

@@ -5,11 +5,7 @@ vi.mock('@/eventbus', () => ({
     on: vi.fn(),
     send: vi.fn(),
     sendToMain: vi.fn(),
-    sendToRenderer: vi.fn(),
     emit: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 

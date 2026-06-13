@@ -2,19 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../../src/main/presenter/configPresenter/providerHelper'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 
-const { send, sendToRenderer } = vi.hoisted(() => ({
-  send: vi.fn(),
-  sendToRenderer: vi.fn()
+const { send } = vi.hoisted(() => ({
+  send: vi.fn()
 }))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send,
-    sendToMain: send,
-    sendToRenderer
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: send
   }
 }))
 
@@ -49,7 +44,6 @@ const createProvider = (id: string): LLM_PROVIDER => ({
 describe('ProviderHelper.removeProviderAtomic', () => {
   beforeEach(() => {
     send.mockReset()
-    sendToRenderer.mockReset()
   })
 
   it('cleans persisted model state when removing a provider', () => {

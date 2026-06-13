@@ -65,7 +65,7 @@ async function setup() {
     createDeviceClient: () => deviceClient
   }))
   vi.doMock('@api/runtime', () => ({
-    getRuntimeWebContentsId: () => 88
+    getRuntimeWebContentsId: () => Promise.resolve(88)
   }))
   vi.doMock('stream-monaco', () => ({
     useMonaco: () => ({

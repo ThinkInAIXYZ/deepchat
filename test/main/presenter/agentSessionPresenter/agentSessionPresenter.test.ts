@@ -5,8 +5,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
 }))
 
 vi.mock('@/events', async (importOriginal) => {
@@ -450,7 +449,6 @@ describe('AgentSessionPresenter', () => {
         activeSessionId: 'mock-session-id',
         webContentsId: 42
       })
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
     })
 
     it('uses default provider/model from config when not specified', async () => {
@@ -841,11 +839,6 @@ describe('AgentSessionPresenter', () => {
         })
       )
       expectSessionsUpdated({ reason: 'created', sessionIds: ['mock-session-id'] })
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        'session:activated',
-        'all',
-        expect.anything()
-      )
     })
 
     it('inherits deepchat agent defaults for detached sessions', async () => {

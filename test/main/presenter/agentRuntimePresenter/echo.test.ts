@@ -3,8 +3,7 @@ import type { StreamState, IoParams } from '@/presenter/agentRuntimePresenter/ty
 import { createState } from '@/presenter/agentRuntimePresenter/types'
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: {}
 }))
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({

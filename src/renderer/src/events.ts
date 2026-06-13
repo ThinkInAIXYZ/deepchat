@@ -38,11 +38,6 @@ export const CONFIG_EVENTS = {
   AGENTS_CHANGED: 'config:agents-changed'
 }
 
-export const APP_RUNTIME_EVENTS = {
-  WINDOW_FOCUSED: 'window-focused',
-  WINDOW_BLURRED: 'window-blurred'
-}
-
 // Settings related events
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',

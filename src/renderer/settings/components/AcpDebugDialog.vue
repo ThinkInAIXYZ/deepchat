@@ -224,7 +224,7 @@ const customMethod = ref('')
 const loading = ref(false)
 const events = ref<AcpDebugEventEntry[]>([])
 const seenIds = new Set<string>()
-const webContentsId = getRuntimeWebContentsId()
+const webContentsId = ref<number | null>(null)
 const debugSessionId = ref(createDebugSessionId())
 const processReady = ref(false)
 const payloadEditor = ref<HTMLElement | null>(null)
@@ -505,7 +505,7 @@ const handleDebugEvent = (payload: unknown) => {
     event?: AcpDebugEventEntry
   }
   if (!parsed?.event || parsed.agentId !== props.agentId) return
-  if (parsed.webContentsId && parsed.webContentsId !== webContentsId) return
+  if (parsed.webContentsId && parsed.webContentsId !== webContentsId.value) return
   appendEvents([parsed.event])
 }
 
@@ -709,6 +709,12 @@ watch(
 )
 
 onMounted(async () => {
+  try {
+    webContentsId.value = await getRuntimeWebContentsId()
+  } catch (error) {
+    console.warn('[AcpDebugDialog] Failed to resolve runtime webContents id:', error)
+  }
+
   if (props.open) {
     await nextTick()
     await ensureEditor()

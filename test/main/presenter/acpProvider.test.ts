@@ -16,12 +16,8 @@ vi.mock('electron', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToRenderer: vi.fn(),
     emit: vi.fn(),
     send: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
   }
 }))
 
@@ -619,7 +615,6 @@ describe('AcpProvider runDebugAction error handling', () => {
       commands: [{ name: 'review', description: 'run review', input: null }],
       version: expect.any(Number)
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('falls back when prepareSession receives an unavailable workdir', async () => {
@@ -700,7 +695,6 @@ describe('AcpProvider runDebugAction error handling', () => {
       available: [{ id: 'default', name: 'Default', description: '' }],
       version: expect.any(Number)
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('returns cached process config options from the warm process handle', () => {
@@ -814,7 +808,6 @@ describe('AcpProvider runDebugAction error handling', () => {
       configState: nextState,
       version: expect.any(Number)
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('preserves legacy mode options when setSessionConfigOption only returns config options', async () => {

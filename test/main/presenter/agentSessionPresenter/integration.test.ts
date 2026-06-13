@@ -12,8 +12,7 @@ vi.mock('nanoid', () => {
 })
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())

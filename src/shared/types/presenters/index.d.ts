@@ -84,6 +84,17 @@ export type {
 // Tool Presenter types
 export type { IToolPresenter } from './tool.presenter'
 
+export type { FloatingChatWindowLike, IWindowPresenter, TabData } from './window.presenter'
+
+export type {
+  AcpDebugActionType,
+  AcpDebugEventEntry,
+  AcpDebugEventKind,
+  AcpDebugRequest,
+  AcpDebugRunResult,
+  AcpWorkdirInfo
+} from './acp.presenter'
+
 // New agent architecture types
 export type {
   IAgentSessionPresenter,
@@ -132,5 +143,5 @@ export type {
   WeixinIlinkRemoteStatus
 } from './remote-control.presenter'
 
-// Re-export legacy types temporarily for compatibility
-export * from './legacy.presenters'
+// Compatibility presenter types that still await finer-grained extraction.
+export * from './core.presenter'

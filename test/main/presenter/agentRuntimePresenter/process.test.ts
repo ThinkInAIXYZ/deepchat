@@ -8,11 +8,15 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ProcessParams } from '@/presenter/agentRuntimePresenter/types'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
-import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: {}
 }))
 
 vi.mock('@/events', () => ({
@@ -38,17 +42,9 @@ vi.mock('@/presenter', () => ({
 }))
 
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
-import { eventBus } from '@/eventbus'
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
-  expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-    DEEPCHAT_EVENT_CHANNEL,
-    'all',
-    expect.objectContaining({
-      name: eventName,
-      payload: expect.objectContaining(payload)
-    })
-  )
+  expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
 }
 
 const DEFAULT_INTERLEAVED_REASONING = {
@@ -309,10 +305,9 @@ describe('processStream', () => {
     })
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      DEEPCHAT_EVENT_CHANNEL,
-      'all',
-      expect.objectContaining({ name: 'chat.stream.failed' })
+    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+      'chat.stream.failed',
+      expect.anything()
     )
   })
 
@@ -970,16 +965,12 @@ describe('processStream', () => {
 
     expect(result.status).toBe('aborted')
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-      DEEPCHAT_EVENT_CHANNEL,
-      'all',
+    expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+      'chat.stream.failed',
       expect.objectContaining({
-        name: 'chat.stream.failed',
-        payload: expect.objectContaining({
-          sessionId: 's1',
-          messageId: 'm1',
-          error: 'common.error.userCanceledGeneration'
-        })
+        sessionId: 's1',
+        messageId: 'm1',
+        error: 'common.error.userCanceledGeneration'
       })
     )
   })

@@ -46,11 +46,7 @@ vi.mock('electron-store', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send: vi.fn(),
-    sendToMain: vi.fn(),
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: vi.fn()
   }
 }))
 
@@ -271,6 +267,5 @@ describe('McpConfHelper', () => {
       version: expect.any(Number)
     })
     expect(eventBus.send).not.toHaveBeenCalled()
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })

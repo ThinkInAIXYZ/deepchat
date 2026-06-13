@@ -4,7 +4,6 @@ import {
   BrowserWindow,
   shell,
   nativeImage,
-  ipcMain,
   screen,
   webContents as electronWebContents,
   type WebContents
@@ -88,16 +87,6 @@ export class WindowPresenter implements IWindowPresenter {
     this.windows = new Map()
     this.configPresenter = configPresenter
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
-
-    // Synchronous preload identity lookups. These remain raw IPC because route calls are async.
-    ipcMain.on('get-window-id', (event) => {
-      const window = BrowserWindow.fromWebContents(event.sender)
-      event.returnValue = window ? window.id : null
-    })
-
-    ipcMain.on('get-web-contents-id', (event) => {
-      event.returnValue = event.sender.id
-    })
 
     // Listen for shortcut event: create new window
     eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
@@ -564,14 +553,6 @@ export class WindowPresenter implements IWindowPresenter {
       }
       case DEV_EVENTS.START_GUIDED_ONBOARDING:
         return createDeepchatEventEnvelope('appRuntime.guidedOnboardingStartRequested', {})
-      case 'window-focused':
-        return createDeepchatEventEnvelope('appRuntime.windowFocused', {
-          windowId: typeof firstArg === 'number' ? firstArg : undefined
-        })
-      case 'window-blurred':
-        return createDeepchatEventEnvelope('appRuntime.windowBlurred', {
-          windowId: typeof firstArg === 'number' ? firstArg : undefined
-        })
       case SHORTCUT_EVENTS.ZOOM_IN:
         return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomIn' })
       case SHORTCUT_EVENTS.ZOOM_OUT:
@@ -768,7 +749,10 @@ export class WindowPresenter implements IWindowPresenter {
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
       this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
-        this.sendToWebContentsTarget(appWindow.webContents, 'window-focused', [windowId])
+        appWindow.webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('appRuntime.windowFocused', { windowId })
+        )
       }
     })
 
@@ -781,7 +765,10 @@ export class WindowPresenter implements IWindowPresenter {
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
       this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
-        this.sendToWebContentsTarget(appWindow.webContents, 'window-blurred', [windowId])
+        appWindow.webContents.send(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('appRuntime.windowBlurred', { windowId })
+        )
       }
     })
 

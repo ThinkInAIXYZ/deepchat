@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BrowserWindow } from 'electron'
 import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
@@ -26,6 +25,8 @@ import type { ISkillSyncPresenter } from '../skillSync'
 import type { IAgentSessionPresenter } from './agent-session.presenter'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
+import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'
+import type { IWindowPresenter, TabData } from './window.presenter'
 import type {
   Agent,
   AgentType,
@@ -200,16 +201,6 @@ export interface ProviderModelConfigs {
   [modelId: string]: ModelConfig
 }
 
-export interface TabData {
-  id: number
-  title: string
-  isActive: boolean
-  position: number
-  closable: boolean
-  url: string
-  icon?: string
-}
-
 export interface IYoBrowserPresenter {
   initialize(): Promise<void>
   getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
@@ -253,81 +244,6 @@ export interface IYoBrowserPresenter {
       conversationId?: string
     ): Promise<string>
   }
-}
-
-export interface IWindowPresenter {
-  createAppWindow(options?: {
-    initialRoute?: string
-    x?: number
-    y?: number
-  }): Promise<number | null>
-  createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null>
-  createShellWindow(options?: {
-    activateTabId?: number
-    initialTab?: {
-      url: string
-      type?: string
-      icon?: string
-    }
-    forMovedTab?: boolean
-    windowType?: 'chat' | 'browser'
-    x?: number
-    y?: number
-  }): Promise<number | null>
-  mainWindow: BrowserWindow | undefined
-  previewFile(filePath: string): void
-  minimize(windowId: number): void
-  maximize(windowId: number): void
-  close(windowId: number): void
-  createSettingsWindow(
-    navigation?: import('@shared/settingsNavigation').SettingsNavigationPayload
-  ): Promise<number | null>
-  closeSettingsWindow(): void
-  getSettingsWindowId(): number | null
-  focusMainWindow(): boolean
-  notifySettingsReady(senderWebContentsId: number): void
-  setPendingSettingsProviderInstall(
-    preview: import('@shared/providerDeeplink').ProviderInstallPreview
-  ): void
-  consumePendingSettingsProviderInstall():
-    | import('@shared/providerDeeplink').ProviderInstallPreview
-    | null
-  hide(windowId: number): void
-  show(windowId?: number, shouldFocus?: boolean): void
-  isMaximized(windowId: number): boolean
-  isMainWindowFocused(windowId: number): boolean
-  sendToAllWindows(channel: string, ...args: unknown[]): void
-  sendSettingsNavigation(
-    windowId: number,
-    navigation: import('@shared/settingsNavigation').SettingsNavigationPayload
-  ): boolean
-  sendSettingsCheckForUpdates(windowId: number): boolean
-  sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
-  sendToDefaultWindow(
-    channel: string,
-    switchToTarget?: boolean,
-    ...args: unknown[]
-  ): Promise<boolean>
-  openOrFocusSettingsWindow(): Promise<void>
-  sendToDefaultTab(channel: string, switchToTarget?: boolean, ...args: unknown[]): Promise<boolean>
-  openOrFocusSettingsTab(windowId: number): Promise<void>
-  closeWindow(windowId: number, forceClose?: boolean): Promise<void>
-  isApplicationQuitting(): boolean
-  setApplicationQuitting(isQuitting: boolean): void
-  destroyFloatingChatWindow(): void
-  isFloatingChatWindowVisible(): boolean
-  getFloatingChatWindow(): FloatingChatWindow | null
-  getFocusedWindow(): BrowserWindow | undefined
-  sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
-  sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
-  getAllWindows(): BrowserWindow[]
-  toggleFloatingChatWindow(floatingButtonPosition?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }): Promise<void>
-  createFloatingChatWindow(): Promise<void>
 }
 
 export interface ITabPresenter {
@@ -929,59 +845,6 @@ export type StandaloneVideoGenerationResult = {
   videos: Array<{ data: string; mimeType: string }>
 }
 
-export type AcpDebugActionType =
-  | 'initialize'
-  | 'authenticate'
-  | 'newSession'
-  | 'loadSession'
-  | 'sessionList'
-  | 'sessionResume'
-  | 'sessionClose'
-  | 'sessionFork'
-  | 'prompt'
-  | 'cancel'
-  | 'setSessionMode'
-  | 'setSessionModel'
-  | 'extMethod'
-  | 'extNotification'
-
-export type AcpDebugEventKind =
-  | 'request'
-  | 'response'
-  | 'notification'
-  | 'permission'
-  | 'lifecycle'
-  | 'stderr'
-  | 'error'
-
-export interface AcpDebugRequest {
-  agentId: string
-  action: AcpDebugActionType
-  payload?: Record<string, unknown>
-  sessionId?: string
-  workdir?: string
-  methodName?: string
-  webContentsId?: number
-}
-
-export interface AcpDebugEventEntry {
-  id: string
-  kind: AcpDebugEventKind
-  action: string
-  agentId: string
-  sessionId?: string
-  timestamp: number
-  payload?: unknown
-  message?: string
-}
-
-export interface AcpDebugRunResult {
-  status: 'ok' | 'error'
-  sessionId?: string
-  error?: string
-  events: AcpDebugEventEntry[]
-}
-
 export type AcpLegacyBuiltinAgentId = 'kimi-cli' | 'claude-code-acp' | 'codex-acp' | 'dimcode-acp'
 
 export type AcpBuiltinAgentId = AcpLegacyBuiltinAgentId
@@ -1162,11 +1025,6 @@ export interface AcpTurnFinishPayload {
   status: Exclude<AcpTurnStatus, 'active'>
   stopReason?: string | null
   completedAt: number
-}
-
-export interface AcpWorkdirInfo {
-  path: string
-  isCustom: boolean
 }
 
 // Simplified ModelScope MCP sync options

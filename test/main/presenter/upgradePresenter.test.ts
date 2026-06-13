@@ -5,7 +5,8 @@ import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 const {
   autoUpdaterState,
   sendToMainMock,
-  sendToRendererMock,
+  sendToAllWindowsMock,
+  sendToWebContentsMock,
   floatingButtonDestroyMock,
   destroyFloatingChatWindowMock,
   setApplicationQuittingMock,
@@ -24,7 +25,8 @@ const {
   return {
     autoUpdaterState,
     sendToMainMock: vi.fn(),
-    sendToRendererMock: vi.fn(),
+    sendToAllWindowsMock: vi.fn(),
+    sendToWebContentsMock: vi.fn(),
     floatingButtonDestroyMock: vi.fn(),
     destroyFloatingChatWindowMock: vi.fn(),
     setApplicationQuittingMock: vi.fn(),
@@ -69,11 +71,7 @@ vi.mock('electron-updater', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     on: vi.fn(),
-    sendToMain: sendToMainMock,
-    sendToRenderer: sendToRendererMock
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all_windows'
+    sendToMain: sendToMainMock
   }
 }))
 
@@ -91,13 +89,19 @@ vi.mock('@/presenter', () => ({
 
 import electronUpdater from 'electron-updater'
 import { UpgradePresenter } from '../../../src/main/presenter/upgradePresenter'
+import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
 describe('UpgradePresenter', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     autoUpdaterState.reset()
     sendToMainMock.mockReset()
-    sendToRendererMock.mockReset()
+    sendToAllWindowsMock.mockReset()
+    sendToWebContentsMock.mockReset()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: sendToAllWindowsMock,
+      sendToWebContents: sendToWebContentsMock
+    })
     floatingButtonDestroyMock.mockReset()
     destroyFloatingChatWindowMock.mockReset()
     setApplicationQuittingMock.mockReset()
@@ -110,6 +114,7 @@ describe('UpgradePresenter', () => {
   })
 
   afterEach(async () => {
+    setDeepchatEventWindowPresenter(null)
     vi.clearAllTimers()
     vi.useRealTimers()
   })
@@ -129,9 +134,8 @@ describe('UpgradePresenter', () => {
     expect(sendToMainMock).toHaveBeenCalledWith(WINDOW_EVENTS.SET_APPLICATION_QUITTING, {
       isQuitting: true
     })
-    expect(sendToRendererMock).toHaveBeenCalledWith(
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
       DEEPCHAT_EVENT_CHANNEL,
-      'all_windows',
       expect.objectContaining({
         name: 'upgrade.willRestart',
         payload: expect.objectContaining({

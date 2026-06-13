@@ -108,15 +108,34 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
       version: number
     }) => void
   ) {
-    const currentWindowId = getRuntimeWindowId()
+    let disposed = false
+    let cleanup: (() => void) | null = null
 
-    return onStateChanged((payload) => {
-      if (currentWindowId != null && payload.windowId !== currentWindowId) {
-        return
-      }
+    void getRuntimeWindowId()
+      .then((currentWindowId) => {
+        if (disposed) {
+          return
+        }
 
-      listener(payload)
-    })
+        cleanup = onStateChanged((payload) => {
+          if (currentWindowId != null && payload.windowId !== currentWindowId) {
+            return
+          }
+
+          listener(payload)
+        })
+      })
+      .catch((error) => {
+        console.warn('[WindowClient] Failed to resolve runtime window id:', error)
+        if (!disposed) {
+          cleanup = onStateChanged(listener)
+        }
+      })
+
+    return () => {
+      disposed = true
+      cleanup?.()
+    }
   }
 
   function onSettingsNavigate(

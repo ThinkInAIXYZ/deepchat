@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const eventBusMocks = vi.hoisted(() => ({
   send: vi.fn(),
-  sendToMain: vi.fn(),
-  sendToRenderer: vi.fn()
+  sendToMain: vi.fn()
+}))
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 const clientMocks = vi.hoisted(() => ({
@@ -13,10 +18,7 @@ const clientMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMocks,
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
-  }
+  eventBus: eventBusMocks
 }))
 
 vi.mock('@/events', () => ({
@@ -88,7 +90,7 @@ describe('ServerManager plugin MCP errors', () => {
     await expect(manager.startServer('plugin')).rejects.toThrow('connect failed')
 
     expect(manager.getServerLastError('plugin')).toBe('connect failed')
-    expect(eventBusMocks.sendToRenderer).not.toHaveBeenCalled()
+    expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
 
   it('keeps global connection toasts for normal MCP servers', async () => {
@@ -107,6 +109,6 @@ describe('ServerManager plugin MCP errors', () => {
     await expect(manager.startServer('regular')).rejects.toThrow('connect failed')
 
     expect(manager.getServerLastError('regular')).toBe('connect failed')
-    expect(eventBusMocks.sendToRenderer).toHaveBeenCalledTimes(1)
+    expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
   })
 })

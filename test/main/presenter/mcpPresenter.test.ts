@@ -49,11 +49,7 @@ vi.mock('../../../src/main/presenter/mcpPresenter/mcprouterManager', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send: vi.fn(),
-    sendToMain: vi.fn(),
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: vi.fn()
   }
 }))
 
@@ -343,7 +339,6 @@ describe('McpPresenter sampling events', () => {
       decision,
       version: expect.any(Number)
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('publishes typed sampling cancellation without raw renderer channels', async () => {
@@ -365,6 +360,5 @@ describe('McpPresenter sampling events', () => {
       reason: 'Cancelled by test',
       version: expect.any(Number)
     })
-    expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
   })
 })

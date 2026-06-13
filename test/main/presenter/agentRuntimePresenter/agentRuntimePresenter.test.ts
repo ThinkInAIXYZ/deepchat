@@ -18,8 +18,7 @@ vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
 // Mock eventBus
 vi.mock('@/eventbus', () => ({
-  eventBus: { on: vi.fn(), sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: { on: vi.fn() }
 }))
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
@@ -98,7 +97,6 @@ vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
-import { eventBus } from '@/eventbus'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -3630,7 +3628,7 @@ describe('AgentRuntimePresenter', () => {
       expect(providerCoreStream.mock.calls[0][4]).toBe(8000)
       expect(llmProvider.generateText).not.toHaveBeenCalled()
       expect(
-        JSON.stringify((eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls)
+        JSON.stringify((publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls)
       ).not.toContain('Request was not sent')
       expect(
         JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
@@ -3766,7 +3764,7 @@ describe('AgentRuntimePresenter', () => {
       expect(providerCoreStream.mock.calls[0][5]).toEqual(oversizedTools)
       expect(llmProvider.generateText).not.toHaveBeenCalled()
       expect(
-        JSON.stringify((eventBus.sendToRenderer as ReturnType<typeof vi.fn>).mock.calls)
+        JSON.stringify((publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls)
       ).not.toContain('Request was not sent')
       expect(
         JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
@@ -4126,7 +4124,6 @@ describe('AgentRuntimePresenter', () => {
 
     it('treats aborted compaction signals as cancellation even for non-abort errors', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      vi.mocked(eventBus.sendToRenderer).mockClear()
       sqlitePresenter.deepchatMessagesTable.delete.mockClear()
 
       const abortController = new AbortController()

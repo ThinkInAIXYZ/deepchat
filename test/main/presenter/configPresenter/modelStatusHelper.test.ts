@@ -1,19 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelStatusHelper } from '../../../../src/main/presenter/configPresenter/modelStatusHelper'
 
-const { send, sendToRenderer } = vi.hoisted(() => ({
-  send: vi.fn(),
-  sendToRenderer: vi.fn()
+const { send } = vi.hoisted(() => ({
+  send: vi.fn()
 }))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send,
-    sendToMain: send,
-    sendToRenderer
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: send
   }
 }))
 
@@ -68,7 +63,6 @@ class MockElectronStoreWithoutSnapshot {
 describe('ModelStatusHelper.ensureModelStatus', () => {
   beforeEach(() => {
     send.mockReset()
-    sendToRenderer.mockReset()
   })
 
   it('writes the default value only when no status exists yet', () => {

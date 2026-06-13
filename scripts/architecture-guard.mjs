@@ -80,10 +80,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/main/routes')
 ]
 
-const MIGRATED_RAW_CHANNEL_BASELINE = new Map([
-  // Synchronous preload identity lookups still use raw IPC because route calls are async.
-  ['src/main/presenter/windowPresenter/index.ts', 2]
-])
+const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),

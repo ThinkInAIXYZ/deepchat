@@ -18,8 +18,7 @@ const storeStates = vi.hoisted(
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   send: vi.fn(),
-  sendToMain: vi.fn(),
-  sendToRenderer: vi.fn()
+  sendToMain: vi.fn()
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -75,11 +74,7 @@ vi.mock('@/eventbus', () => ({
   eventBus: {
     on: eventBusMocks.on,
     send: eventBusMocks.send,
-    sendToMain: eventBusMocks.sendToMain,
-    sendToRenderer: eventBusMocks.sendToRenderer
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: eventBusMocks.sendToMain
   }
 }))
 
@@ -136,7 +131,6 @@ describe('ProviderModelHelper cache', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   afterEach(() => {
@@ -274,7 +268,6 @@ describe('ConfigPresenter provider model cache invalidation', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   afterEach(() => {
@@ -416,7 +409,6 @@ describe('ConfigPresenter provider DB model mapping', () => {
     storeStates.clear()
     eventBusMocks.on.mockReset()
     eventBusMocks.send.mockReset()
-    eventBusMocks.sendToRenderer.mockReset()
   })
 
   it('preserves embedding and rerank types from provider DB models', async () => {

@@ -3,8 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const eventBusMocks = vi.hoisted(() => ({
   on: vi.fn(),
   off: vi.fn(),
-  send: vi.fn(),
-  sendToRenderer: vi.fn()
+  send: vi.fn()
 }))
 
 const presenterMocks = vi.hoisted(() => ({
@@ -14,10 +13,7 @@ const presenterMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMocks,
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
-  }
+  eventBus: eventBusMocks
 }))
 
 vi.mock('@/events', () => ({
@@ -240,7 +236,6 @@ describe('ToolManager', () => {
       'plugin-server',
       'tool list failed'
     )
-    expect(eventBusMocks.sendToRenderer).not.toHaveBeenCalled()
   })
 
   it('skips ACP session resolution when provider hint is non-ACP', async () => {

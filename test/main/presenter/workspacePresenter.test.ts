@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
-const { chokidarState, sendToRendererMock, execFileMock } = vi.hoisted(() => {
+const { chokidarState, sendToAllWindowsMock, execFileMock } = vi.hoisted(() => {
   const watchers: Array<{
     paths: unknown
     options: unknown
@@ -40,7 +40,7 @@ const { chokidarState, sendToRendererMock, execFileMock } = vi.hoisted(() => {
         return watcher
       }
     },
-    sendToRendererMock: vi.fn(),
+    sendToAllWindowsMock: vi.fn(),
     execFileMock: vi.fn()
   }
 })
@@ -82,15 +82,7 @@ vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
-vi.mock('../../../src/main/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: sendToRendererMock
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all_windows'
-  }
-}))
-
+import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
 import {
   createWorkspacePreviewFileUrl,
@@ -127,8 +119,12 @@ describe('WorkspacePresenter watchers', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     chokidarState.reset()
-    sendToRendererMock.mockReset()
+    sendToAllWindowsMock.mockReset()
     execFileMock.mockReset()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: sendToAllWindowsMock,
+      sendToWebContents: vi.fn()
+    })
 
     workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-'))
     fs.mkdirSync(path.join(workspacePath, '.git', 'refs'), { recursive: true })
@@ -162,6 +158,7 @@ describe('WorkspacePresenter watchers', () => {
 
   afterEach(async () => {
     presenter?.destroy()
+    setDeepchatEventWindowPresenter(null)
     await vi.runAllTimersAsync()
     vi.useRealTimers()
     fs.rmSync(workspacePath, { recursive: true, force: true })
@@ -195,18 +192,17 @@ describe('WorkspacePresenter watchers', () => {
     await contentWatcher.emit('all', 'add', path.join(workspacePath, 'a.ts'))
     await contentWatcher.emit('all', 'change', path.join(workspacePath, 'b.ts'))
 
-    expect(sendToRendererMock).not.toHaveBeenCalled()
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(120)
 
-    const typedCalls = sendToRendererMock.mock.calls.filter(
+    const typedCalls = sendToAllWindowsMock.mock.calls.filter(
       ([channel]) => channel === DEEPCHAT_EVENT_CHANNEL
     )
 
     expect(typedCalls).toHaveLength(1)
     expect(typedCalls[0]).toEqual([
       DEEPCHAT_EVENT_CHANNEL,
-      'all_windows',
       {
         name: 'workspace.invalidated',
         payload: {
@@ -227,8 +223,8 @@ describe('WorkspacePresenter watchers', () => {
     await gitWatcher.emit('all', 'change', path.join(workspacePath, '.git', 'index'))
     await vi.advanceTimersByTimeAsync(120)
 
-    expect(sendToRendererMock).toHaveBeenCalledTimes(1)
-    expect(sendToRendererMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, 'all_windows', {
+    expect(sendToAllWindowsMock).toHaveBeenCalledTimes(1)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
       name: 'workspace.invalidated',
       payload: {
         workspacePath,

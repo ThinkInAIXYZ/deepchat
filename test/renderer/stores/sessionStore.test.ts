@@ -302,12 +302,23 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       setCurrentSessionId
     })
   }))
-  ;(window as any).api = {
-    getWebContentsId: vi.fn(() => 1)
+  ;(window as any).deepchat = {
+    ...((window as any).deepchat ?? {}),
+    invoke: vi.fn(async (routeName: string) => {
+      if (routeName === 'window.getRuntimeIdentity') {
+        return {
+          windowId: 1,
+          webContentsId: 1
+        }
+      }
+
+      return {}
+    })
   }
 
   const { useSessionStore } = await import('@/stores/ui/session')
   const store = useSessionStore()
+  await new Promise((resolve) => setTimeout(resolve, 0))
   const emitSessionUpdate = (payload: unknown) => {
     for (const handler of sessionListeners) {
       handler(payload)

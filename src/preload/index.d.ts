@@ -8,8 +8,6 @@ declare global {
       copyImage(image: string): void
       readClipboardText(): string
       getPathForFile(file: File): string
-      getWindowId(): number | null
-      getWebContentsId(): number
       getPlatform(): string
       openExternal?(url: string): Promise<void>
       toRelativePath?(filePath: string, baseDir?: string): string
