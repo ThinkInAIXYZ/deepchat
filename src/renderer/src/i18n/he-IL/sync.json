@@ -24,6 +24,7 @@
     "cloudDownloadFailed": "נכשל בהורדת הגיבוי מהענן",
     "cloudOperationFailed": "פעולת הענן נכשלה",
     "noLocalBackup": "אין גיבוי מקומי להעלאה. הפעל גיבוי תחילה.",
-    "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; לא ניתן לאחסן את המפתח הסודי באופן מאובטח"
+    "safeStorageUnavailable": "מחזיק המפתחות של המערכת אינו זמין; אי אפשר לשמור את המפתח הסודי באופן מאובטח.",
+    "cloudUnauthorized": "אימות הענן נכשל. בדוק את Endpoint, bucket, Access Key ID, Secret Access Key והרשאות אסימון R2."
   }
 }

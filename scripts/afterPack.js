@@ -55,13 +55,25 @@ async function resolveInstalledPackageDir(projectDir, packageName) {
     path.join(projectDir, 'node_modules', '.pnpm', 'node_modules', ...packagePathParts)
   ]
 
+  const pnpmVirtualStoreDir = path.join(projectDir, 'node_modules', '.pnpm')
+  try {
+    const virtualStoreEntries = await fs.readdir(pnpmVirtualStoreDir, { withFileTypes: true })
+    for (const entry of virtualStoreEntries) {
+      if (entry.isDirectory()) {
+        candidates.push(path.join(pnpmVirtualStoreDir, entry.name, 'node_modules', ...packagePathParts))
+      }
+    }
+  } catch {
+    // Non-pnpm installs only need the direct node_modules candidates above.
+  }
+
   for (const candidate of candidates) {
     if (await pathExists(path.join(candidate, 'package.json'))) {
       return fs.realpath(candidate)
     }
   }
 
-  throw new Error(`Unable to find installed FFF native package: ${packageName}`)
+  throw new Error(`Unable to find installed native package: ${packageName}`)
 }
 
 function getResourcesDir(context) {

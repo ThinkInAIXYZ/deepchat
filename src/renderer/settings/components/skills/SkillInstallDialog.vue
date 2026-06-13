@@ -26,20 +26,29 @@
 
         <TabsContent value="folder" class="mt-4">
           <div
-            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
+            class="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
+            :class="
+              dragActive === 'folder'
+                ? 'border-primary bg-primary/5'
+                : 'hover:border-primary/50 cursor-pointer'
+            "
             @click="selectFolder"
+            @dragenter.prevent="onDragEnter('folder')"
+            @dragover.prevent
+            @dragleave.prevent="onDragLeave"
+            @drop.prevent="handleDrop($event)"
           >
             <Icon
               v-if="!installing"
               icon="lucide:folder-open"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2"
+              class="w-10 h-10 mx-auto text-muted-foreground mb-2 pointer-events-none"
             />
             <Icon
               v-else
               icon="lucide:loader-2"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin"
+              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin pointer-events-none"
             />
-            <p class="text-sm text-muted-foreground">
+            <p class="text-sm text-muted-foreground pointer-events-none">
               {{ t('settings.skills.install.folderHint') }}
             </p>
           </div>
@@ -50,20 +59,29 @@
 
         <TabsContent value="zip" class="mt-4">
           <div
-            class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors"
+            class="border-2 border-dashed rounded-lg p-8 text-center transition-colors"
+            :class="
+              dragActive === 'zip'
+                ? 'border-primary bg-primary/5'
+                : 'hover:border-primary/50 cursor-pointer'
+            "
             @click="selectZip"
+            @dragenter.prevent="onDragEnter('zip')"
+            @dragover.prevent
+            @dragleave.prevent="onDragLeave"
+            @drop.prevent="handleDrop($event)"
           >
             <Icon
               v-if="!installing"
               icon="lucide:file-archive"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2"
+              class="w-10 h-10 mx-auto text-muted-foreground mb-2 pointer-events-none"
             />
             <Icon
               v-else
               icon="lucide:loader-2"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin"
+              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin pointer-events-none"
             />
-            <p class="text-sm text-muted-foreground">
+            <p class="text-sm text-muted-foreground pointer-events-none">
               {{ t('settings.skills.install.zipHint') }}
             </p>
           </div>
@@ -145,6 +163,7 @@ import {
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { createDeviceClient } from '@api/DeviceClient'
+import { createFileClient } from '@api/FileClient'
 
 const props = defineProps<{
   open: boolean
@@ -159,6 +178,7 @@ const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
 const deviceClient = createDeviceClient()
+const fileClient = createFileClient()
 
 const isOpen = computed({
   get: () => props.open,
@@ -168,6 +188,9 @@ const isOpen = computed({
 const activeTab = ref('folder')
 const installUrl = ref('')
 const installing = ref(false)
+
+// Drag and drop state: which zone is currently being dragged over
+const dragActive = ref<'folder' | 'zip' | null>(null)
 
 // Conflict handling
 const conflictDialogOpen = ref(false)
@@ -180,6 +203,7 @@ watch(isOpen, (open) => {
     pendingInstallAction.value = null
     conflictDialogOpen.value = false
     conflictSkillName.value = ''
+    dragActive.value = null
   }
 })
 
@@ -229,6 +253,61 @@ const tryInstallFromZip = async (zipPath: string, overwrite = false) => {
   } finally {
     installing.value = false
   }
+}
+
+// Drag and drop handlers
+const onDragEnter = (zone: 'folder' | 'zip') => {
+  if (installing.value) return
+  dragActive.value = zone
+}
+
+const onDragLeave = () => {
+  dragActive.value = null
+}
+
+const handleDrop = async (event: DragEvent) => {
+  dragActive.value = null
+  if (installing.value) return
+
+  const items = event.dataTransfer?.items
+  const files = event.dataTransfer?.files
+  if (!items || items.length === 0) return
+
+  if (items.length > 1 || (files && files.length > 1)) {
+    showDropError()
+    return
+  }
+
+  const item = items[0]
+  const entry = item.webkitGetAsEntry?.()
+  const file = item.getAsFile?.()
+  if (!file) {
+    showDropError()
+    return
+  }
+
+  const path = fileClient.getPathForFile(file)
+  if (!path) {
+    showDropError()
+    return
+  }
+
+  // Route by dropped content type, independent of the active tab
+  if (entry?.isDirectory) {
+    await tryInstallFromFolder(path)
+  } else if (file.name.toLowerCase().endsWith('.zip')) {
+    await tryInstallFromZip(path)
+  } else {
+    showDropError()
+  }
+}
+
+const showDropError = () => {
+  toast({
+    title: t('settings.skills.install.failed'),
+    description: t('settings.skills.install.dragInvalid'),
+    variant: 'destructive'
+  })
 }
 
 // URL validation helper
