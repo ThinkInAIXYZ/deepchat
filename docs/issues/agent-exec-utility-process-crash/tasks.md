@@ -13,3 +13,6 @@
 - [x] Add tests for raw payload and MessageEvent payload handling.
 - [x] Run focused runtime tests and build/probe validation.
 - [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
+- [x] Replace `shellEnvHelper` shared logger import with a utility-host-safe logger.
+- [x] Add a build-output guard for background exec utility host `@electron-toolkit/utils` imports.
+- [x] Rebuild and probe the dedicated utility host entrypoint after the logger-chain fix.

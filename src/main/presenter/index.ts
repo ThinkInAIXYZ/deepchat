@@ -180,7 +180,8 @@ export class Presenter implements IPresenter {
     this.settingsPermissionService = new SettingsPermissionService()
     const messageManager = new MessageManager(this.sqlitePresenter)
     this.sessionMessageManager = messageManager
-    this.devicePresenter = new DevicePresenter()
+    const devicePresenter = new DevicePresenter()
+    this.devicePresenter = devicePresenter
     this.exporter = new ConversationExporterService({
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
@@ -207,6 +208,10 @@ export class Presenter implements IPresenter {
       dbDir,
       this.filePresenter
     )
+    devicePresenter.setResetRuntime({
+      closeSqlite: () => this.sqlitePresenter.close(),
+      destroyKnowledge: () => this.knowledgePresenter.destroy()
+    })
 
     // Initialize generic Workspace presenter (for all Agent modes)
     this.workspacePresenter = new WorkspacePresenter(this.filePresenter)

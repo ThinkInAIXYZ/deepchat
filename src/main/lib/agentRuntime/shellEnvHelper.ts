@@ -1,7 +1,7 @@
-import logger from '@shared/logger'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import * as path from 'path'
+import logger from './backgroundExecLogger'
 
 const PATH_ENV_KEYS = ['PATH', 'Path', 'path'] as const
 const NODE_ENV_KEYS = [

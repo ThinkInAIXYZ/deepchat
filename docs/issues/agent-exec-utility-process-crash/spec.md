@@ -16,6 +16,8 @@ long-running foreground command and get either normal output or a yielded backgr
 - The utility host starts without running the main app bootstrap.
 - The utility host entrypoint has no static dependency on Electron main-process-only exports such as
   `app` or `BrowserWindow`.
+- The utility host bundled chunks have no static dependency on `@electron-toolkit/utils` through
+  shared logger or shell environment helpers.
 - The host accepts Electron `process.parentPort` message events and handles the contained RPC
   payload.
 - A foreground exec command that completes quickly returns the command result instead of a utility

@@ -15,6 +15,11 @@ main-bundle utility entrypoint. A direct `utilityProcess.fork()` probe against t
 with code 1 while loading `@electron-toolkit/utils`, because utility processes do not expose
 main-process-only Electron exports such as `BrowserWindow`.
 
+A follow-up probe against the dedicated `out/main/backgroundExecUtilityHost.js` found another static
+dependency path: `backgroundExecSessionManager -> shellEnvHelper -> @shared/logger ->
+@electron-toolkit/utils`. The source manager already uses `backgroundExecLogger`, but importing
+`getUserShell` from `shellEnvHelper` still pulls the shared logger into the utility host bundle.
+
 ## Design
 
 - Move `appMain` side effects into an exported `startApp()` function.
@@ -27,9 +32,13 @@ main-process-only Electron exports such as `BrowserWindow`.
 - Keep the utility host event loop alive while it waits for parent-port RPC messages.
 - Remove utility-host imports of `@electron-toolkit/utils`, because it statically imports
   main-process-only Electron exports such as `BrowserWindow`.
+- Move shell environment helper logging to a utility-host-safe logger so the helper can be loaded by
+  both the main process and the background exec utility process.
 - Keep shell environment and session path helpers free of `electron.app` imports so the utility
   process can load the exec runtime.
 - Add focused unit coverage for the host message normalization.
+- Add a build-output guard that scans the background exec utility host entrypoint and chunks for
+  `@electron-toolkit/utils`.
 
 ## Validation
 

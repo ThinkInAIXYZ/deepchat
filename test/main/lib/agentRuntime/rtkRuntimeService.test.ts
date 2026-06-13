@@ -173,6 +173,29 @@ describe('RtkRuntimeService', () => {
     expect(result.rtkMode).toBe('rewrite')
   })
 
+  it('uses RTK 0.42.4 rewrite output when code 3 has no stderr', async () => {
+    const runCommand = vi.fn().mockResolvedValue({
+      code: 3,
+      stdout: 'rtk ls -la /Users/zerob13/Downloads/demo\n',
+      stderr: '',
+      signal: null,
+      timedOut: false
+    })
+    const service = createService(runCommand)
+
+    const result = await service.prepareShellCommand(
+      'ls -la /Users/zerob13/Downloads/demo',
+      {},
+      { getSetting: vi.fn().mockReturnValue(true) }
+    )
+
+    expect(result.originalCommand).toBe('ls -la /Users/zerob13/Downloads/demo')
+    expect(result.command).toBe('rtk ls -la /Users/zerob13/Downloads/demo')
+    expect(result.rewritten).toBe(true)
+    expect(result.rtkApplied).toBe(true)
+    expect(result.rtkMode).toBe('rewrite')
+  })
+
   it.each([
     'find . -type f -name "*.ts" -o -name "*.vue"',
     'find . -type f ! -name "*.test.ts"',

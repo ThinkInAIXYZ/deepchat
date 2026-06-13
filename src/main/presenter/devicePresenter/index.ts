@@ -13,8 +13,9 @@ import { svgSanitizer } from '../../lib/svgSanitizer'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 const execAsync = promisify(exec)
 
-async function getPresenterRuntime() {
-  return (await import('../index')).presenter
+type DeviceResetRuntime = {
+  closeSqlite?: () => void
+  destroyKnowledge?: () => Promise<void> | void
 }
 
 function toMimeType(value: unknown): string {
@@ -49,6 +50,16 @@ function getImageExtensionFromMimeType(value: unknown): string {
 }
 
 export class DevicePresenter implements IDevicePresenter {
+  private resetRuntime: DeviceResetRuntime | null = null
+
+  constructor(resetRuntime?: DeviceResetRuntime) {
+    this.resetRuntime = resetRuntime ?? null
+  }
+
+  setResetRuntime(resetRuntime: DeviceResetRuntime): void {
+    this.resetRuntime = resetRuntime
+  }
+
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
     return {
@@ -350,15 +361,13 @@ export class DevicePresenter implements IDevicePresenter {
         }
       }
 
-      const runtimePresenter = await getPresenterRuntime()
-
       switch (resetType) {
         case 'chat': {
           // 删除聊天数据
           logger.info('Resetting chat data...')
           try {
-            if (runtimePresenter.sqlitePresenter) {
-              runtimePresenter.sqlitePresenter.close()
+            if (this.resetRuntime?.closeSqlite) {
+              this.resetRuntime.closeSqlite()
               logger.info('SQLite database connection closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
@@ -392,8 +401,8 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除知识库数据
           logger.info('Resetting knowledge base data...')
           try {
-            if (runtimePresenter.knowledgePresenter) {
-              await runtimePresenter.knowledgePresenter.destroy()
+            if (this.resetRuntime?.destroyKnowledge) {
+              await this.resetRuntime.destroyKnowledge()
               logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 500))
@@ -438,12 +447,12 @@ export class DevicePresenter implements IDevicePresenter {
           // 删除整个用户数据目录
           logger.info('Performing complete reset of user data...')
           try {
-            if (runtimePresenter.sqlitePresenter) {
-              runtimePresenter.sqlitePresenter.close()
+            if (this.resetRuntime?.closeSqlite) {
+              this.resetRuntime.closeSqlite()
               logger.info('SQLite database connection closed')
             }
-            if (runtimePresenter.knowledgePresenter) {
-              await runtimePresenter.knowledgePresenter.destroy()
+            if (this.resetRuntime?.destroyKnowledge) {
+              await this.resetRuntime.destroyKnowledge()
               logger.info('Knowledge database connections closed')
             }
             await new Promise((resolve) => setTimeout(resolve, 1000))

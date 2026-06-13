@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import fs from 'fs'
 import { DevicePresenter } from '../../../src/main/presenter/devicePresenter/index'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -21,6 +22,12 @@ vi.mock('@/lib/svgSanitizer', () => ({
 }))
 
 describe('DevicePresenter', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    publishDeepchatEventMock.mockClear()
+  })
+
   describe('getDefaultHeaders', () => {
     it('should include User-Agent header with DeepChat/ prefix', () => {
       const headers = DevicePresenter.getDefaultHeaders()
@@ -44,6 +51,28 @@ describe('DevicePresenter', () => {
       ;(presenter as unknown as { restartAppWithDelay: () => void }).restartAppWithDelay()
 
       expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith('appRuntime.dataResetCompleteDev', {})
+    })
+  })
+
+  describe('resetDataByType', () => {
+    it('uses injected reset runtime before resetting all data', async () => {
+      vi.useFakeTimers()
+      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      const closeSqlite = vi.fn()
+      const destroyKnowledge = vi.fn()
+      const presenter = new DevicePresenter({
+        closeSqlite,
+        destroyKnowledge
+      })
+
+      const resetPromise = presenter.resetDataByType('all')
+      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(1000)
+      await resetPromise
+
+      expect(closeSqlite).toHaveBeenCalledTimes(1)
+      expect(destroyKnowledge).toHaveBeenCalledTimes(1)
       expect(publishDeepchatEventMock).toHaveBeenCalledWith('appRuntime.dataResetCompleteDev', {})
     })
   })
