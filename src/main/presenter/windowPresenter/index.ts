@@ -89,7 +89,7 @@ export class WindowPresenter implements IWindowPresenter {
     this.configPresenter = configPresenter
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
 
-    // Register IPC handlers for Renderer to call to get window and WebContents IDs
+    // Synchronous preload identity lookups. These remain raw IPC because route calls are async.
     ipcMain.on('get-window-id', (event) => {
       const window = BrowserWindow.fromWebContents(event.sender)
       event.returnValue = window ? window.id : null
@@ -97,26 +97,6 @@ export class WindowPresenter implements IWindowPresenter {
 
     ipcMain.on('get-web-contents-id', (event) => {
       event.returnValue = event.sender.id
-    })
-
-    // Chrome height reporting from browser windows (TabPresenter uses this for view bounds)
-    ipcMain.on('browser:chrome-height', (event, payload: { height?: number } | number) => {
-      const window = BrowserWindow.fromWebContents(event.sender)
-      if (!window || window.isDestroyed()) return
-      const height = typeof payload === 'number' ? payload : payload?.height
-      if (typeof height !== 'number' || Number.isNaN(height)) return
-      ;(presenter.tabPresenter as TabPresenter).updateChromeHeight(window.id, height)
-    })
-
-    ipcMain.on('close-floating-window', (event) => {
-      // Check if sender is the floating chat window
-      const webContentsId = event.sender.id
-      if (
-        this.floatingChatWindow &&
-        this.floatingChatWindow.getWindow()?.webContents.id === webContentsId
-      ) {
-        this.hideFloatingChatWindow()
-      }
     })
 
     // Listen for shortcut event: create new window
@@ -132,19 +112,6 @@ export class WindowPresenter implements IWindowPresenter {
       } catch (err) {
         console.error('Failed to open/focus settings window via eventBus:', err)
       }
-    })
-
-    // Allow renderer to request opening/focusing settings via IPC
-    ipcMain.on(SHORTCUT_EVENTS.GO_SETTINGS, async () => {
-      try {
-        await this.openOrFocusSettingsWindow()
-      } catch (err) {
-        console.error('Failed to open/focus settings window via IPC:', err)
-      }
-    })
-
-    ipcMain.on(SETTINGS_EVENTS.READY, (event) => {
-      this.notifySettingsReady(event.sender.id)
     })
 
     // 监听内容保护设置变更事件，更新所有窗口并重启应用
@@ -1553,7 +1520,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     this.settingsWindowReady = true
     console.info(
-      `[Startup][Settings][Main] SETTINGS_EVENTS.READY windowId=${this.settingsWindow.id}`
+      `[Startup][Settings][Main] window.notifySettingsReady windowId=${this.settingsWindow.id}`
     )
     this.startupWorkloadCoordinator?.replayTarget('settings')
     this.flushPendingSettingsMessages()

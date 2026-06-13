@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ipcMain } from 'electron'
 import { SETTINGS_EVENTS } from '@/events'
 
 vi.mock('electron-window-state', () => ({
@@ -59,13 +58,7 @@ describe('WindowPresenter settings navigation queue', () => {
     expect(send).not.toHaveBeenCalled()
     expect((presenter as any).pendingSettingsMessages).toHaveLength(2)
 
-    const readyHandler = vi
-      .mocked(ipcMain.on)
-      .mock.calls.find(([eventName]) => eventName === SETTINGS_EVENTS.READY)?.[1]
-
-    expect(readyHandler).toBeTypeOf('function')
-
-    readyHandler?.({ sender: { id: 99 } } as any)
+    presenter.notifySettingsReady(99)
 
     expect(send).toHaveBeenNthCalledWith(1, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-deepchat-agents'

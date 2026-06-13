@@ -81,8 +81,8 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
 ]
 
 const MIGRATED_RAW_CHANNEL_BASELINE = new Map([
-  // Window identity and chrome coordination still use narrow main-process IPC.
-  ['src/main/presenter/windowPresenter/index.ts', 4]
+  // Synchronous preload identity lookups still use raw IPC because route calls are async.
+  ['src/main/presenter/windowPresenter/index.ts', 2]
 ])
 
 const HOT_PATH_FILES = [

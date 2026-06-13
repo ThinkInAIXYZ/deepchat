@@ -60,20 +60,6 @@ export class TabPresenter implements ITabPresenter {
     return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
   }
 
-  updateChromeHeight(windowId: number, height: number): void {
-    const safeHeight = Math.max(0, Math.floor(height))
-    this.chromeHeights.set(windowId, safeHeight)
-    const window = BrowserWindow.fromId(windowId)
-    if (!window || window.isDestroyed()) return
-    const tabs = this.windowTabs.get(windowId) || []
-    tabs.forEach((tabId) => {
-      const view = this.tabs.get(tabId)
-      if (view) {
-        this.updateViewBounds(window, view)
-      }
-    })
-  }
-
   private onWindowSizeChange(windowId: number) {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
