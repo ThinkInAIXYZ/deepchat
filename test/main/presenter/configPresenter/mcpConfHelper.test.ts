@@ -46,10 +46,7 @@ vi.mock('electron-store', () => ({
 vi.mock('@/eventbus', () => ({
   eventBus: {
     send: vi.fn(),
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: vi.fn()
   }
 }))
 
@@ -59,6 +56,12 @@ vi.mock('@/events', () => ({
   }
 }))
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 vi.mock('../../../../src/main/presenter', () => ({
   presenter: {
     knowledgePresenter: {
@@ -66,6 +69,8 @@ vi.mock('../../../../src/main/presenter', () => ({
     }
   }
 }))
+
+import { eventBus } from '@/eventbus'
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
@@ -220,5 +225,47 @@ describe('McpConfHelper', () => {
 
     expect(configs).toEqual([realConfig])
     expect(mcpStore.get('mcpServers').builtinKnowledge.env).toEqual({})
+  })
+
+  it('emits batch import config changes through the main event bus only', async () => {
+    const { McpConfHelper } = await loadHelper('darwin')
+    const helper = new McpConfHelper()
+
+    const result = await helper.batchImportMcpServers([
+      {
+        name: 'Demo Server',
+        description: 'Demo server',
+        package: '@demo/server',
+        args: ['--demo'],
+        env: { DEMO: '1' },
+        source: 'modelscope'
+      }
+    ])
+
+    expect(result).toEqual({
+      imported: 1,
+      skipped: 0,
+      errors: []
+    })
+    expect(eventBus.sendToMain).toHaveBeenLastCalledWith('mcp-config-changed', {
+      action: 'batch_import',
+      result,
+      mcpServers: expect.any(Object),
+      mcpEnabled: expect.any(Boolean)
+    })
+    const configPayload = vi.mocked(eventBus.sendToMain).mock.calls.at(-1)?.[1] as {
+      mcpServers: Record<string, { package?: string }>
+    }
+    expect(Object.values(configPayload.mcpServers)).toContainEqual(
+      expect.objectContaining({
+        package: '@demo/server'
+      })
+    )
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.config.changed', {
+      mcpServers: configPayload.mcpServers,
+      mcpEnabled: expect.any(Boolean),
+      version: expect.any(Number)
+    })
+    expect(eventBus.send).not.toHaveBeenCalled()
   })
 })

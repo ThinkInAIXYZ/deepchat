@@ -74,8 +74,8 @@ import {
 import { nanoid } from 'nanoid'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
-import { eventBus, SendTarget } from '@/eventbus'
-import { MCP_EVENTS, SESSION_EVENTS, STREAM_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
+import { MCP_EVENTS } from '@/events'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -1257,12 +1257,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             this.updateToolCallResponse(blocks, toolCall.id, execution.terminalError, true)
             this.messageStore.setMessageError(messageId, blocks)
             this.emitMessageRefresh(sessionId, messageId)
-            eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-              conversationId: sessionId,
-              eventId: messageId,
-              messageId,
-              error: execution.terminalError
-            })
             publishDeepchatEvent('chat.stream.failed', {
               requestId: this.resolveStreamRequestId(sessionId, messageId),
               sessionId,
@@ -2888,12 +2882,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     const renderedBlocks = cloneBlocksForRenderer([block])
 
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-      conversationId: sessionId,
-      eventId: messageId,
-      messageId,
-      blocks: renderedBlocks
-    })
     publishDeepchatEvent('chat.stream.updated', {
       kind: 'snapshot',
       requestId,
@@ -2909,12 +2897,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     messageId: string,
     requestId: string
   ): void {
-    eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-      conversationId: sessionId,
-      eventId: messageId,
-      messageId,
-      blocks: []
-    })
     publishDeepchatEvent('chat.stream.updated', {
       kind: 'snapshot',
       requestId,
@@ -3093,12 +3075,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           this.updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
           this.messageStore.setMessageError(messageId, initialBlocks)
           this.emitMessageRefresh(sessionId, messageId)
-          eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-            conversationId: sessionId,
-            eventId: messageId,
-            messageId,
-            error: resumeBudget.message
-          })
           publishDeepchatEvent('chat.stream.failed', {
             requestId: this.resolveStreamRequestId(sessionId, messageId),
             sessionId,
@@ -5562,11 +5538,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private emitCompactionState(sessionId: string, state: SessionCompactionState): void {
     this.sessionCompactionStates.set(sessionId, { ...state })
-    eventBus.sendToRenderer(SESSION_EVENTS.COMPACTION_UPDATED, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('sessions.compaction.changed', {
       sessionId,
       status: state.status,
       cursorOrderSeq: state.cursorOrderSeq,
-      summaryUpdatedAt: state.summaryUpdatedAt
+      summaryUpdatedAt: state.summaryUpdatedAt,
+      version: Date.now()
     })
   }
 
@@ -5591,10 +5568,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
     current.status = status
-    eventBus.sendToRenderer(SESSION_EVENTS.STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-      sessionId,
-      status
-    })
     publishDeepchatEvent('sessions.status.changed', {
       sessionId,
       status,
@@ -5615,10 +5588,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {
-    eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-      conversationId: sessionId,
-      eventId: messageId,
-      messageId
+    publishDeepchatEvent('chat.stream.completed', {
+      requestId: this.resolveStreamRequestId(sessionId, messageId),
+      sessionId,
+      messageId,
+      completedAt: Date.now()
     })
 
     const message = this.messageStore.getMessage(messageId)

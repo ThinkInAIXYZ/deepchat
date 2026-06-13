@@ -1,5 +1,3 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { STREAM_EVENTS } from '@/events'
 import type {
   MCPToolCall,
   MCPContentItem,
@@ -870,12 +868,6 @@ function appendSkillDraftQuestionActionBlock(
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
   const renderedBlocks = cloneBlocksForRenderer(blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.RESPONSE, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    blocks: renderedBlocks
-  })
   publishDeepchatEvent('chat.stream.updated', {
     kind: 'snapshot',
     requestId: io.requestId,
@@ -1456,10 +1448,11 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks)
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId
+  publishDeepchatEvent('chat.stream.completed', {
+    requestId: io.requestId,
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    completedAt: Date.now()
   })
 }
 
@@ -1485,11 +1478,6 @@ export function finalize(state: StreamState, io: IoParams): void {
     JSON.stringify(state.metadata)
   )
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.END, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId
-  })
   publishDeepchatEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -1515,12 +1503,6 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
-  eventBus.sendToRenderer(STREAM_EVENTS.ERROR, SendTarget.ALL_WINDOWS, {
-    conversationId: io.sessionId,
-    eventId: io.messageId,
-    messageId: io.messageId,
-    error: errorMessage
-  })
   publishDeepchatEvent('chat.stream.failed', {
     requestId: io.requestId,
     sessionId: io.sessionId,

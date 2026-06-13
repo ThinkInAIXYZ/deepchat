@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const sendToRendererMock = vi.fn()
+const sendToAllWindowsMock = vi.fn()
 const overlayUpdateBoundsMock = vi.fn(async () => undefined)
 const overlaySendActivityMock = vi.fn()
 const overlayHideMock = vi.fn()
@@ -177,27 +177,6 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    vi.doMock('@/eventbus', () => ({
-      eventBus: {
-        sendToRenderer: sendToRendererMock
-      },
-      SendTarget: {
-        ALL_WINDOWS: 'all-windows'
-      }
-    }))
-
-    vi.doMock('@/events', () => ({
-      YO_BROWSER_EVENTS: {
-        OPEN_REQUESTED: 'yo-browser:open-requested',
-        WINDOW_CREATED: 'yo-browser:window-created',
-        WINDOW_UPDATED: 'yo-browser:window-updated',
-        WINDOW_CLOSED: 'yo-browser:window-closed',
-        WINDOW_FOCUSED: 'yo-browser:window-focused',
-        WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
-        WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
-      }
-    }))
-
     vi.doMock('@/presenter/browser/DownloadManager', () => ({
       DownloadManager: class {
         downloadFile = vi.fn()
@@ -219,6 +198,11 @@ describe('YoBrowserPresenter', () => {
     }))
 
     const { YoBrowserPresenter } = await import('@/presenter/browser/YoBrowserPresenter')
+    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: sendToAllWindowsMock,
+      sendToWebContents: vi.fn()
+    })
 
     const windowPresenter = {
       show: vi.fn((windowId: number) => {
@@ -327,7 +311,7 @@ describe('YoBrowserPresenter', () => {
     void presenter.loadUrl('session-a', 'https://example.com')
     await Promise.resolve()
     await presenter.attachSessionBrowser('session-a', 1)
-    sendToRendererMock.mockClear()
+    sendToAllWindowsMock.mockClear()
 
     await presenter.updateSessionBrowserBounds(
       'session-a',
@@ -342,9 +326,13 @@ describe('YoBrowserPresenter', () => {
       true
     )
 
-    const updatedEvents = sendToRendererMock.mock.calls.filter(
-      ([event]) => event === 'yo-browser:window-updated'
-    )
+    const updatedEvents = sendToAllWindowsMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, envelope]) => envelope)
+      .filter(
+        (envelope: any) =>
+          envelope.name === 'browser.status.changed' && envelope.payload.reason === 'updated'
+      )
     expect(updatedEvents).toHaveLength(0)
   })
 
@@ -415,9 +403,9 @@ describe('YoBrowserPresenter', () => {
     getSessionWebContents('session-a')?.emitDomReady()
     await loadPromise
 
-    const activityPayloads = sendToRendererMock.mock.calls
+    const activityPayloads = sendToAllWindowsMock.mock.calls
       .filter(([event]) => event === 'deepchat:event')
-      .map(([, , envelope]) => envelope)
+      .map(([, envelope]) => envelope)
       .filter((envelope: any) => envelope.name === 'browser.activity.changed')
       .map((envelope: any) => envelope.payload)
 
@@ -456,7 +444,7 @@ describe('YoBrowserPresenter', () => {
       true
     )
 
-    sendToRendererMock.mockClear()
+    sendToAllWindowsMock.mockClear()
     await presenter.sendCdpCommand(
       'session-a',
       'Input.dispatchMouseEvent',
@@ -471,9 +459,9 @@ describe('YoBrowserPresenter', () => {
     )
     await Promise.resolve()
 
-    const activityPayloads = sendToRendererMock.mock.calls
+    const activityPayloads = sendToAllWindowsMock.mock.calls
       .filter(([event]) => event === 'deepchat:event')
-      .map(([, , envelope]) => envelope)
+      .map(([, envelope]) => envelope)
       .filter((envelope: any) => envelope.name === 'browser.activity.changed')
       .map((envelope: any) => envelope.payload)
 
@@ -518,7 +506,7 @@ describe('YoBrowserPresenter', () => {
       true
     )
 
-    sendToRendererMock.mockClear()
+    sendToAllWindowsMock.mockClear()
     await presenter.sendCdpCommand(
       'session-a',
       'Runtime.evaluate',
@@ -532,9 +520,9 @@ describe('YoBrowserPresenter', () => {
       'agent'
     )
 
-    const activityPayloads = sendToRendererMock.mock.calls
+    const activityPayloads = sendToAllWindowsMock.mock.calls
       .filter(([event]) => event === 'deepchat:event')
-      .map(([, , envelope]) => envelope)
+      .map(([, envelope]) => envelope)
       .filter((envelope: any) => envelope.name === 'browser.activity.changed')
       .map((envelope: any) => envelope.payload)
 
@@ -604,7 +592,7 @@ describe('YoBrowserPresenter', () => {
       true
     )
 
-    sendToRendererMock.mockClear()
+    sendToAllWindowsMock.mockClear()
     await presenter.sendCdpCommand(
       'session-a',
       'Input.dispatchMouseEvent',
@@ -613,7 +601,7 @@ describe('YoBrowserPresenter', () => {
     )
     await Promise.resolve()
 
-    const activityEvents = sendToRendererMock.mock.calls.filter(
+    const activityEvents = sendToAllWindowsMock.mock.calls.filter(
       ([event]) => event === 'deepchat:event'
     )
     expect(activityEvents.length).toBeGreaterThan(0)

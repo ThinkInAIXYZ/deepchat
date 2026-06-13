@@ -32,6 +32,12 @@ export function readConfigEntries(
   if (shouldRead('init_complete')) {
     assignValue('init_complete', configPresenter.getSetting<boolean>('init_complete'))
   }
+  if (shouldRead('assistantModel')) {
+    assignValue(
+      'assistantModel',
+      configPresenter.getSetting<{ providerId: string; modelId: string } | null>('assistantModel')
+    )
+  }
   if (shouldRead('preferredModel')) {
     assignValue(
       'preferredModel',
@@ -49,6 +55,9 @@ export function readConfigEntries(
       'default_system_prompt',
       configPresenter.getSetting<string>('default_system_prompt')
     )
+  }
+  if (shouldRead('maxFileSize')) {
+    assignValue('maxFileSize', configPresenter.getSetting<number>('maxFileSize'))
   }
   if (shouldRead('input_deepThinking')) {
     assignValue('input_deepThinking', configPresenter.getSetting<boolean>('input_deepThinking'))
@@ -134,6 +143,18 @@ export function readSyncSettings(configPresenter: IConfigPresenter): {
   return {
     enabled: configPresenter.getSyncEnabled(),
     folderPath: configPresenter.getSyncFolderPath()
+  }
+}
+
+export function readProxySettings(configPresenter: IConfigPresenter): {
+  mode: 'system' | 'none' | 'custom'
+  customProxyUrl: string
+} {
+  const rawMode = configPresenter.getProxyMode()
+
+  return {
+    mode: rawMode === 'none' || rawMode === 'custom' ? rawMode : 'system',
+    customProxyUrl: configPresenter.getCustomProxyUrl()
   }
 }
 

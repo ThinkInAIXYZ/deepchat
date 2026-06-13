@@ -3,6 +3,18 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
 
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => ({
+    getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
+  })
+}))
+
+vi.mock('@api/ConfigClient', () => ({
+  createConfigClient: () => ({
+    getLanguage: vi.fn().mockResolvedValue('zh-CN')
+  })
+}))
+
 const createProviderDeeplinkImportStore = () => {
   const store = reactive({
     preview: null as Record<string, unknown> | null,
@@ -136,7 +148,7 @@ const mountSettingsApp = async (options?: {
 
     return pendingProviderInstallQueue.shift() ?? null
   })
-  const setPendingSettingsProviderInstall = vi
+  const requeuePendingSettingsProviderInstall = vi
     .fn()
     .mockImplementation(async (payload: Record<string, unknown>) => {
       if (options?.failRequeue) {
@@ -166,27 +178,46 @@ const mountSettingsApp = async (options?: {
       template: '<div />'
     }
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
-      if (name === 'devicePresenter') {
-        return {
-          getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-        }
-      }
-      if (name === 'windowPresenter') {
-        return {
-          closeSettingsWindow: vi.fn(),
-          consumePendingSettingsProviderInstall,
-          setPendingSettingsProviderInstall
-        }
-      }
-      if (name === 'configPresenter') {
-        return {
-          getLanguage: vi.fn().mockResolvedValue('zh-CN')
-        }
-      }
-      return {}
-    }
+  vi.doMock('@api/WindowClient', () => ({
+    createWindowClient: () => ({
+      closeSettings: vi.fn().mockResolvedValue(true),
+      focusMainWindow: vi.fn().mockResolvedValue(true),
+      notifySettingsReady: vi.fn().mockImplementation(async () => {
+        window.electron?.ipcRenderer?.send('settings:ready')
+        return true
+      }),
+      consumePendingSettingsProviderInstall,
+      requeuePendingSettingsProviderInstall,
+      startGuidedOnboarding: vi.fn().mockResolvedValue({ started: true, focused: true }),
+      onSettingsNavigate: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
+        const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+        window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
+        return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
+      }),
+      onSettingsProviderInstall: vi.fn().mockImplementation((listener: () => void) => {
+        const wrapped = () => listener()
+        window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
+        return () =>
+          window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
+      }),
+      onNotificationError: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
+        const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+        window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
+        return () =>
+          window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
+      }),
+      onDatabaseRepairSuggested: vi
+        .fn()
+        .mockImplementation((listener: (payload: unknown) => void) => {
+          const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+          window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
+          return () =>
+            window.electron?.ipcRenderer?.removeListener(
+              'notification:database-repair-suggested',
+              wrapped
+            )
+        })
+    })
   }))
   vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
     useUiSettingsStore: () => ({
@@ -321,7 +352,7 @@ const mountSettingsApp = async (options?: {
     installHandler,
     queuePendingProviderInstall,
     consumePendingSettingsProviderInstall,
-    setPendingSettingsProviderInstall,
+    requeuePendingSettingsProviderInstall,
     pendingProviderInstallQueue
   }
 }
@@ -605,7 +636,7 @@ describe('SettingsApp provider deeplink', () => {
       wrapper,
       installHandler,
       queuePendingProviderInstall,
-      setPendingSettingsProviderInstall,
+      requeuePendingSettingsProviderInstall,
       pendingProviderInstallQueue
     } = await mountSettingsApp({
       routeName: 'settings-common',
@@ -626,7 +657,7 @@ describe('SettingsApp provider deeplink', () => {
     await installHandler?.({})
     await flushPromises()
 
-    expect(setPendingSettingsProviderInstall).toHaveBeenCalledWith(payload)
+    expect(requeuePendingSettingsProviderInstall).toHaveBeenCalledWith(payload)
     expect(pendingProviderInstallQueue).toEqual([payload])
     expect(wrapper.find('[data-testid="provider-import-dialog"]').exists()).toBe(false)
   })
@@ -673,7 +704,7 @@ describe('SettingsApp provider deeplink', () => {
       wrapper,
       installHandler,
       queuePendingProviderInstall,
-      setPendingSettingsProviderInstall
+      requeuePendingSettingsProviderInstall
     } = await mountSettingsApp({
       routeName: 'settings-provider',
       providerId: 'deepseek',
@@ -704,7 +735,7 @@ describe('SettingsApp provider deeplink', () => {
     await installHandler?.({})
     await flushPromises()
 
-    expect(setPendingSettingsProviderInstall).toHaveBeenCalledWith(firstPayload)
+    expect(requeuePendingSettingsProviderInstall).toHaveBeenCalledWith(firstPayload)
     expect(wrapper.find('[data-testid="provider-import-dialog"]').exists()).toBe(false)
 
     queuePendingProviderInstall(secondPayload)

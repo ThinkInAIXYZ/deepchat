@@ -69,16 +69,6 @@ vi.mock('vue-i18n', () => ({
   })
 }))
 
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    SERVER_STARTED: 'server-started',
-    SERVER_STOPPED: 'server-stopped',
-    CONFIG_CHANGED: 'config-changed',
-    SERVER_STATUS_CHANGED: 'server-status-changed',
-    TOOL_CALL_RESULT: 'tool-call-result'
-  }
-}))
-
 const setupStore = async () => {
   vi.resetModules()
   vi.doUnmock('pinia')

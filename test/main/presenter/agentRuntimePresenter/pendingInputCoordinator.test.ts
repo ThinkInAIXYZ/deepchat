@@ -3,12 +3,7 @@ import { PendingInputCoordinator } from '@/presenter/agentRuntimePresenter/pendi
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
 vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all'
-  }
+  eventBus: {}
 }))
 
 vi.mock('@/events', () => ({

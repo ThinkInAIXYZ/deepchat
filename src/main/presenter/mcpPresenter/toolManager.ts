@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
-import { eventBus, SendTarget } from '@/eventbus'
-import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
+import { MCP_EVENTS } from '@/events'
 import {
   MCPToolCall,
   MCPToolDefinition,
@@ -16,6 +16,7 @@ import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -139,7 +140,7 @@ export class ToolManager {
               ?.replace('{serverName}', serverName)
               .replace('{errorMessage}', errorMessage) ||
             `Failed to get tool list from server '${serverName}': ${errorMessage}`
-          eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+          publishDeepchatEvent('notification.error', {
             title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
             message: formattedMessage,
             id: `mcp-error-pass1-${serverName}-${Date.now()}`,
@@ -627,8 +628,11 @@ export class ToolManager {
         isError: result.isError
       }
 
-      // Trigger event
-      eventBus.send(MCP_EVENTS.TOOL_CALL_RESULT, SendTarget.ALL_WINDOWS, response)
+      publishDeepchatEvent('mcp.toolCall.result', {
+        functionName: toolCall.function.name,
+        content: response.content,
+        version: Date.now()
+      })
 
       return response
     } catch (error: unknown) {

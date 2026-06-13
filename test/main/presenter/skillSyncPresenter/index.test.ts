@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
 import { SkillSyncPresenter } from '../../../../src/main/presenter/skillSyncPresenter'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { ConflictStrategy } from '../../../../src/shared/types/skillSync'
 import type { ISkillPresenter } from '../../../../src/shared/presenter'
 import type { ImportPreview, ExportPreview } from '../../../../src/shared/types/skillSync'
@@ -45,28 +46,8 @@ vi.mock('fs', () => ({
   realpathSync: vi.fn((p) => String(p))
 }))
 
-// Mock eventbus
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all'
-  }
-}))
-
-// Mock events
-vi.mock('@/events', () => ({
-  SKILL_SYNC_EVENTS: {
-    SCAN_STARTED: 'scan-started',
-    SCAN_COMPLETED: 'scan-completed',
-    IMPORT_STARTED: 'import-started',
-    IMPORT_PROGRESS: 'import-progress',
-    IMPORT_COMPLETED: 'import-completed',
-    EXPORT_STARTED: 'export-started',
-    EXPORT_PROGRESS: 'export-progress',
-    EXPORT_COMPLETED: 'export-completed'
-  }
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
 }))
 
 // Mock security module
@@ -115,6 +96,13 @@ vi.mock('../../../../src/main/presenter/skillSyncPresenter/formatConverter', () 
 }))
 
 vi.mock('../../../../src/main/presenter/skillSyncPresenter/scanWorker', () => scanWorkerMock)
+
+function getPublishedEventPayloads(eventName: string) {
+  return vi
+    .mocked(publishDeepchatEvent)
+    .mock.calls.filter(([name]) => name === eventName)
+    .map(([, payload]) => payload)
+}
 
 describe('SkillSyncPresenter', () => {
   let presenter: SkillSyncPresenter
@@ -187,6 +175,13 @@ describe('SkillSyncPresenter', () => {
       expect(results).toHaveLength(1)
       expect(results[0].toolId).toBe('claude-code')
       expect(toolScanner.scanExternalTools).toHaveBeenCalled()
+      expect(getPublishedEventPayloads('skillSync.scan.started')).toHaveLength(1)
+      expect(getPublishedEventPayloads('skillSync.scan.completed')).toContainEqual(
+        expect.objectContaining({
+          results,
+          version: expect.any(Number)
+        })
+      )
     })
 
     it('uses the worker scan when available', async () => {
@@ -253,6 +248,37 @@ describe('SkillSyncPresenter', () => {
         expect.any(Error)
       )
       consoleWarnSpy.mockRestore()
+    })
+
+    it('publishes new discoveries after comparing cache and local skills', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      vi.mocked(toolScanner.scanExternalTools).mockResolvedValue([
+        {
+          toolId: 'claude-code',
+          toolName: 'Claude Code',
+          available: true,
+          skillsDir: '/home/user/.claude/skills/',
+          skills: [
+            {
+              name: 'new-skill',
+              path: '/home/user/.claude/skills/new-skill/SKILL.md',
+              format: 'claude-code',
+              lastModified: new Date()
+            }
+          ]
+        }
+      ])
+
+      const discoveries = await presenter.scanAndDetectNewDiscoveries()
+
+      expect(discoveries).toHaveLength(1)
+      expect(getPublishedEventPayloads('skillSync.discoveries.changed')).toContainEqual(
+        expect.objectContaining({
+          discoveries,
+          version: expect.any(Number)
+        })
+      )
     })
   })
 
@@ -402,6 +428,27 @@ describe('SkillSyncPresenter', () => {
 
       expect(result.skipped).toBe(1)
       expect(result.imported).toBe(0)
+      expect(getPublishedEventPayloads('skillSync.import.started')).toContainEqual(
+        expect.objectContaining({
+          total: 1,
+          version: expect.any(Number)
+        })
+      )
+      expect(getPublishedEventPayloads('skillSync.import.progress')).toContainEqual(
+        expect.objectContaining({
+          current: 1,
+          total: 1,
+          skillName: 'skill1',
+          status: 'skipped',
+          version: expect.any(Number)
+        })
+      )
+      expect(getPublishedEventPayloads('skillSync.import.completed')).toContainEqual(
+        expect.objectContaining({
+          result,
+          version: expect.any(Number)
+        })
+      )
     })
 
     it('should import successfully with OVERWRITE strategy', async () => {
@@ -440,6 +487,15 @@ describe('SkillSyncPresenter', () => {
       expect(mockSkillPresenter.installFromFolder).toHaveBeenCalledWith(expect.any(String), {
         overwrite: true
       })
+      expect(getPublishedEventPayloads('skillSync.import.progress')).toContainEqual(
+        expect.objectContaining({
+          current: 1,
+          total: 1,
+          skillName: 'skill1',
+          status: 'success',
+          version: expect.any(Number)
+        })
+      )
     })
   })
 
@@ -558,6 +614,27 @@ describe('SkillSyncPresenter', () => {
 
       expect(result.skipped).toBe(1)
       expect(result.exported).toBe(0)
+      expect(getPublishedEventPayloads('skillSync.export.started')).toContainEqual(
+        expect.objectContaining({
+          total: 1,
+          version: expect.any(Number)
+        })
+      )
+      expect(getPublishedEventPayloads('skillSync.export.progress')).toContainEqual(
+        expect.objectContaining({
+          current: 1,
+          total: 1,
+          skillName: 'skill1',
+          status: 'skipped',
+          version: expect.any(Number)
+        })
+      )
+      expect(getPublishedEventPayloads('skillSync.export.completed')).toContainEqual(
+        expect.objectContaining({
+          result,
+          version: expect.any(Number)
+        })
+      )
     })
 
     it('should check write permission before exporting', async () => {
@@ -607,6 +684,15 @@ describe('SkillSyncPresenter', () => {
         '/project/.cursor/skills/skill1/SKILL.md',
         '# Skill1',
         'utf-8'
+      )
+      expect(getPublishedEventPayloads('skillSync.export.progress')).toContainEqual(
+        expect.objectContaining({
+          current: 1,
+          total: 1,
+          skillName: 'skill1',
+          status: 'success',
+          version: expect.any(Number)
+        })
       )
     })
   })

@@ -271,7 +271,7 @@ import {
 } from '@shadcn/components/ui/sheet'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createSkillClient } from '@api/SkillClient'
 import type {
   SkillExtensionConfig,
   SkillMetadata,
@@ -296,7 +296,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const skillPresenter = useLegacyPresenter('skillPresenter', { safeCall: false })
+const skillClient = createSkillClient()
 
 const isOpen = computed({
   get: () => props.open,
@@ -433,7 +433,7 @@ const loadSkill = async (skill: SkillMetadata) => {
   resetRuntimeForm()
 
   try {
-    const content = await skillPresenter.readSkillFile(skillName)
+    const content = await skillClient.readSkillFile(skillName)
     if (!isCurrentLoad(requestId, skillName)) {
       return
     }

@@ -10,7 +10,7 @@ const {
   electronState,
   floatingWindowState,
   presenterState,
-  sendToRendererMock,
+  webContentsSendMock,
   menuPopupMock,
   getAgentsMock,
   getSessionListMock
@@ -75,7 +75,7 @@ const {
     }
   }
 
-  const sendToRendererMock = vi.fn()
+  const webContentsSendMock = vi.fn()
   const menuPopupMock = vi.fn()
   const getAgentsMock = vi.fn(async () => presenterState.agents)
   const getSessionListMock = vi.fn(async () => presenterState.sessions)
@@ -92,7 +92,7 @@ const {
     },
     floatingWindowState,
     presenterState,
-    sendToRendererMock,
+    webContentsSendMock,
     menuPopupMock,
     getAgentsMock,
     getSessionListMock
@@ -154,7 +154,7 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
       isDestroyed: () => false,
       webContents: {
         id: 1,
-        send: sendToRendererMock
+        send: webContentsSendMock
       }
     }))
 
@@ -212,7 +212,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     electronState.reset()
     floatingWindowState.reset()
     presenterState.reset()
-    sendToRendererMock.mockReset()
+    webContentsSendMock.mockReset()
     menuPopupMock.mockReset()
     getAgentsMock.mockClear()
     getSessionListMock.mockClear()

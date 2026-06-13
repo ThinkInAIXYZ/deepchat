@@ -9,8 +9,6 @@ import type {
 import type { Message } from '@shared/chat'
 import { BrowserWindow, webContents as electronWebContents } from 'electron'
 import { presenter } from '@/presenter'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONVERSATION_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from '../const'
 import type { MessageManager } from './messageManager'
 
@@ -63,20 +61,13 @@ export class ConversationManager {
       return
     }
     this.activeConversationBindings.delete(webContentsId)
-    if (options.notify) {
-      eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-        webContentsId
-      })
-    }
+    void options.notify
   }
 
   clearConversationBindings(conversationId: string): void {
     for (const [webContentsId, activeId] of this.activeConversationBindings.entries()) {
       if (activeId === conversationId) {
         this.activeConversationBindings.delete(webContentsId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          webContentsId
-        })
       }
     }
   }
@@ -147,14 +138,7 @@ export class ConversationManager {
 
       if (currentWindowType !== existingWindowType) {
         this.activeConversationBindings.delete(existingWebContentsId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.DEACTIVATED, SendTarget.ALL_WINDOWS, {
-          webContentsId: existingWebContentsId
-        })
         this.activeConversationBindings.set(webContentsId, conversationId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          webContentsId
-        })
         return
       }
 
@@ -172,10 +156,6 @@ export class ConversationManager {
     }
 
     this.activeConversationBindings.set(webContentsId, conversationId)
-    eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-      conversationId,
-      webContentsId
-    })
   }
 
   async getActiveConversation(webContentsId: number): Promise<CONVERSATION | null> {
@@ -280,10 +260,6 @@ export class ConversationManager {
 
       if (options.forceNewAndActivate) {
         this.activeConversationBindings.set(webContentsId, conversationId)
-        eventBus.sendToRenderer(CONVERSATION_EVENTS.ACTIVATED, SendTarget.ALL_WINDOWS, {
-          conversationId,
-          webContentsId
-        })
       } else {
         await this.setActiveConversation(conversationId, webContentsId)
       }
@@ -377,9 +353,8 @@ export class ConversationManager {
   }
 
   async broadcastThreadListUpdate(): Promise<void> {
-    let result: { total: number; list: CONVERSATION[] }
     try {
-      result = await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
+      await this.sqlitePresenter.getConversationList(1, this.fetchThreadLength)
     } catch (error) {
       if (this.isLegacyTableMissingError(error)) {
         console.info(
@@ -389,45 +364,6 @@ export class ConversationManager {
       }
       throw error
     }
-
-    const pinnedConversations: CONVERSATION[] = []
-    const normalConversations: CONVERSATION[] = []
-
-    result.list.forEach((conv) => {
-      if (conv.is_pinned === 1) {
-        pinnedConversations.push(conv)
-      } else {
-        normalConversations.push(conv)
-      }
-    })
-
-    pinnedConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-    normalConversations.sort((a, b) => b.updatedAt - a.updatedAt)
-
-    const groupedThreads: Map<string, CONVERSATION[]> = new Map()
-
-    if (pinnedConversations.length > 0) {
-      groupedThreads.set('Pinned', pinnedConversations)
-    }
-
-    normalConversations.forEach((conv) => {
-      const date = new Date(conv.updatedAt).toISOString().split('T')[0]
-      if (!groupedThreads.has(date)) {
-        groupedThreads.set(date, [])
-      }
-      groupedThreads.get(date)!.push(conv)
-    })
-
-    const finalGroupedList = Array.from(groupedThreads.entries()).map(([dt, dtThreads]) => ({
-      dt,
-      dtThreads
-    }))
-
-    eventBus.sendToRenderer(
-      CONVERSATION_EVENTS.LIST_UPDATED,
-      SendTarget.ALL_WINDOWS,
-      finalGroupedList
-    )
   }
 
   async forkConversation(

@@ -3,10 +3,10 @@ import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
 import { McpClient } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
-import { eventBus, SendTarget } from '@/eventbus'
-import { NOTIFICATION_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -263,7 +263,7 @@ export class ServerManager {
 
       throw error
     } finally {
-      eventBus.send(MCP_EVENTS.CLIENT_LIST_UPDATED, SendTarget.ALL_WINDOWS)
+      eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
     }
   }
 
@@ -281,7 +281,7 @@ export class ServerManager {
       const formattedMessage = `${serverName}: ${errorMsg}`
 
       // Send global error notification
-      eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      publishDeepchatEvent('notification.error', {
         title: errorMessages.mcpConnectionErrorTitle,
         message: formattedMessage,
         id: `mcp-error-${serverName}-${Date.now()}`, // Add timestamp and server name to ensure unique ID for each error
@@ -308,7 +308,7 @@ export class ServerManager {
       this.clearServerLastError(name)
 
       console.info(`MCP server ${name} has been stopped`)
-      eventBus.send(MCP_EVENTS.CLIENT_LIST_UPDATED, SendTarget.ALL_WINDOWS)
+      eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
     } catch (error) {
       console.error(`Failed to stop MCP server ${name}:`, error)
       throw error

@@ -1,7 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { APP_RUNTIME_EVENTS, DEEPLINK_EVENTS, DEV_EVENTS, SHORTCUT_EVENTS } from '@/events'
 import {
   GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
   GUIDED_ONBOARDING_RESUME_STORAGE_KEY
@@ -265,7 +264,7 @@ const mountApp = async (options?: {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
   const toast = vi.fn(() => ({ dismiss: vi.fn() }))
-  const ipcOn = vi.fn()
+  const ipcOn = vi.fn(() => vi.fn())
   const ipcRemoveAllListeners = vi.fn()
 
   ;(window as any).electron = {
@@ -317,7 +316,7 @@ const mountApp = async (options?: {
           return Promise.resolve({})
       }
     }),
-    on: vi.fn(() => vi.fn())
+    on: ipcOn
   }
 
   vi.doMock('vue-router', async () => {
@@ -527,7 +526,7 @@ describe('App startup welcome flow', () => {
     })
 
     const devGuideHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === DEV_EVENTS.START_GUIDED_ONBOARDING
+      ([eventName]: [string]) => eventName === 'appRuntime.guidedOnboardingStartRequested'
     )?.[1]
 
     expect(devGuideHandler).toBeTypeOf('function')
@@ -634,7 +633,7 @@ describe('App startup welcome flow', () => {
     })
 
     const focusHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === APP_RUNTIME_EVENTS.WINDOW_FOCUSED
+      ([eventName]: [string]) => eventName === 'appRuntime.windowFocused'
     )?.[1]
 
     expect(focusHandler).toBeTypeOf('function')
@@ -740,21 +739,18 @@ describe('App startup welcome flow', () => {
     })
 
     const startHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === DEEPLINK_EVENTS.START
+      ([eventName]: [string]) => eventName === 'appRuntime.startDeeplinkRequested'
     )?.[1]
 
     expect(startHandler).toBeTypeOf('function')
 
-    await startHandler?.(
-      {},
-      {
-        msg: '你好，DeepChat',
-        modelId: 'deepseek-chat',
-        systemPrompt: 'Be concise',
-        mentions: ['README.md'],
-        autoSend: false
-      }
-    )
+    await startHandler?.({
+      msg: '你好，DeepChat',
+      modelId: 'deepseek-chat',
+      systemPrompt: 'Be concise',
+      mentions: ['README.md'],
+      autoSend: false
+    })
     await flushPromises()
 
     expect(draftStore.setPendingStartDeeplink).toHaveBeenCalledWith({
@@ -776,12 +772,12 @@ describe('App startup welcome flow', () => {
     })
 
     const shortcutHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT
+      ([eventName]: [string]) => eventName === 'appRuntime.shortcutRequested'
     )?.[1]
 
     expect(shortcutHandler).toBeTypeOf('function')
 
-    shortcutHandler?.()
+    shortcutHandler?.({ action: 'toggleSpotlight' })
 
     expect(spotlightStore.openSpotlight).toHaveBeenCalledTimes(1)
     expect(spotlightStore.toggleSpotlight).not.toHaveBeenCalled()
@@ -794,12 +790,12 @@ describe('App startup welcome flow', () => {
     })
 
     const shortcutHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_SIDEBAR
+      ([eventName]: [string]) => eventName === 'appRuntime.shortcutRequested'
     )?.[1]
 
     expect(shortcutHandler).toBeTypeOf('function')
 
-    shortcutHandler?.()
+    shortcutHandler?.({ action: 'toggleSidebar' })
 
     expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
   })
@@ -811,12 +807,12 @@ describe('App startup welcome flow', () => {
     })
 
     const shortcutHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION
+      ([eventName]: [string]) => eventName === 'appRuntime.shortcutRequested'
     )?.[1]
 
     expect(shortcutHandler).toBeTypeOf('function')
 
-    await shortcutHandler?.()
+    await shortcutHandler?.({ action: 'createNewConversation' })
 
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
@@ -830,12 +826,12 @@ describe('App startup welcome flow', () => {
     })
 
     const shortcutHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+      ([eventName]: [string]) => eventName === 'appRuntime.shortcutRequested'
     )?.[1]
 
     expect(shortcutHandler).toBeTypeOf('function')
 
-    shortcutHandler?.()
+    shortcutHandler?.({ action: 'toggleWorkspace' })
 
     expect(sidepanelStore.toggleWorkspace).toHaveBeenCalledWith('session-42')
   })
@@ -849,12 +845,12 @@ describe('App startup welcome flow', () => {
     })
 
     const shortcutHandler = ipcOn.mock.calls.find(
-      ([eventName]: [string]) => eventName === SHORTCUT_EVENTS.TOGGLE_WORKSPACE
+      ([eventName]: [string]) => eventName === 'appRuntime.shortcutRequested'
     )?.[1]
 
     expect(shortcutHandler).toBeTypeOf('function')
 
-    shortcutHandler?.()
+    shortcutHandler?.({ action: 'toggleWorkspace' })
 
     expect(sidepanelStore.toggleWorkspace).not.toHaveBeenCalled()
   })

@@ -1,6 +1,5 @@
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import type { StoreLike } from './storeLike'
+import { emitModelBatchStatusChanged, emitModelStatusChanged } from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void
 
@@ -155,7 +154,7 @@ export class ModelStatusHelper {
     this.setSetting(statusKey, enabled)
     this.cache.set(statusKey, enabled)
     this.statusSnapshot?.set(statusKey, enabled)
-    eventBus.send(CONFIG_EVENTS.MODEL_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    emitModelStatusChanged({
       providerId,
       modelId,
       enabled
@@ -229,7 +228,7 @@ export class ModelStatusHelper {
       this.statusSnapshot?.set(statusKey, enabled)
     }
 
-    eventBus.send(CONFIG_EVENTS.MODEL_BATCH_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    emitModelBatchStatusChanged({
       providerId,
       updates
     })

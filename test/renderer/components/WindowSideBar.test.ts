@@ -182,7 +182,7 @@ const setup = async (options: SetupOptions = {}) => {
       osVersionMetadata: []
     })
   }
-  const remoteControlRuntime = {
+  const remoteControlClient = {
     listRemoteChannels: vi.fn(async () => [
       { id: 'telegram', implemented: true },
       { id: 'feishu', implemented: true },
@@ -279,8 +279,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@api/DeviceClient', () => ({
     createDeviceClient: vi.fn(() => deviceClient)
   }))
-  vi.doMock('@api/RemoteControlRuntime', () => ({
-    createRemoteControlRuntime: vi.fn(() => remoteControlRuntime)
+  vi.doMock('@api/RemoteControlClient', () => ({
+    createRemoteControlClient: vi.fn(() => remoteControlClient)
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -363,7 +363,7 @@ const setup = async (options: SetupOptions = {}) => {
     sessionStore,
     settingsClient,
     deviceClient,
-    remoteControlRuntime,
+    remoteControlClient,
     spotlightStore,
     pageRouterStore,
     sidebarStore

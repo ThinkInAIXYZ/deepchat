@@ -44,6 +44,11 @@ const getDefaultDeepchatInvokeResult = (
       return {
         opened: true
       }
+    case 'window.getRuntimeIdentity':
+      return {
+        windowId: 1,
+        webContentsId: 1
+      }
     case 'config.getEntries':
       return {
         version: 0,
@@ -461,8 +466,6 @@ Object.defineProperty(window, 'api', {
     copyText: vi.fn(),
     formatPathForInput: vi.fn((value) => value),
     getPathForFile: vi.fn(() => ''),
-    getWebContentsId: vi.fn(() => 1),
-    getWindowId: vi.fn(() => 1),
     openExternal: vi.fn(),
     readClipboardText: vi.fn(() => ''),
     toRelativePath: vi.fn((filePath: string, basePath?: string) => {

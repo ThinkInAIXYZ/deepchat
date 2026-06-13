@@ -124,8 +124,8 @@ function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
   return (session.sessionKind ?? 'regular') === 'regular'
 }
 
-function getCurrentWebContentsId(): number {
-  return getRuntimeWebContentsId() ?? -1
+async function getCurrentWebContentsId(): Promise<number | null> {
+  return await getRuntimeWebContentsId()
 }
 
 function registerStoreCleanup(cleanup: () => void): void {
@@ -259,7 +259,7 @@ export const useSessionStore = defineStore('session', () => {
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
-  const myWebContentsId = getCurrentWebContentsId()
+  const myWebContentsId = ref<number | null>(null)
   let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
@@ -279,6 +279,14 @@ export const useSessionStore = defineStore('session', () => {
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
+
+  void getCurrentWebContentsId()
+    .then((webContentsId) => {
+      myWebContentsId.value = webContentsId
+    })
+    .catch((identityError) => {
+      console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
+    })
 
   const setActiveSessionId = (sessionId: string | null): void => {
     activeSessionId.value = sessionId
@@ -938,7 +946,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const cleanupIpcBindings = bindSessionStoreIpc({
-    webContentsId: myWebContentsId,
+    webContentsId: () => myWebContentsId.value,
     fetchSessions,
     refreshSessionsByIds,
     removeSessions,

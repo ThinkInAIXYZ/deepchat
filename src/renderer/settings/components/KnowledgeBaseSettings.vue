@@ -37,7 +37,7 @@ import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import { BuiltinKnowledgeConfig } from '@shared/presenter'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createKnowledgeClient } from '@api/KnowledgeClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
@@ -46,9 +46,9 @@ const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | n
 const nowledgeMemSettingsRef = ref<InstanceType<typeof NowledgeMemSettings> | null>(null)
 const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
 
-const knowledgePresenter = useLegacyPresenter('knowledgePresenter')
+const knowledgeClient = createKnowledgeClient()
 const enableBuiltinKnowledge = ref(false)
-knowledgePresenter.isSupported().then((res) => {
+knowledgeClient.isSupported().then((res) => {
   enableBuiltinKnowledge.value = res
 })
 

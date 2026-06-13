@@ -43,12 +43,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
-  }
+  eventBus: {}
 }))
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({

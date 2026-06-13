@@ -110,6 +110,19 @@ const AlertDialogActionStub = defineComponent({
   template: '<button :disabled="disabled" @click="handleClick"><slot /></button>'
 })
 
+const AgentTransferDialogStub = defineComponent({
+  name: 'AgentTransferDialogStub',
+  props: {
+    open: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['confirm-delete'],
+  template:
+    '<div v-if="open"><button data-testid="confirm-delete-agent" @click="$emit(\'confirm-delete\')">Confirm delete</button></div>'
+})
+
 afterEach(() => {
   vi.clearAllMocks()
 })
@@ -145,11 +158,32 @@ describe('AcpSettings', () => {
       listAcpRegistryAgents,
       listManualAcpAgents: vi.fn().mockResolvedValue([]),
       getAcpSharedMcpSelections: vi.fn().mockResolvedValue([]),
-      uninstallAcpRegistryAgent: vi.fn().mockResolvedValue(undefined)
+      listAgents: vi.fn().mockResolvedValue([
+        {
+          id: 'deepchat',
+          name: 'DeepChat',
+          type: 'deepchat',
+          enabled: true
+        }
+      ]),
+      uninstallAcpRegistryAgent: vi.fn().mockResolvedValue(undefined),
+      onAgentsChanged: vi.fn(() => vi.fn())
+    }
+    const sessionClient = {
+      getAgentTransferImpact: vi.fn().mockResolvedValue({
+        totalSessions: 0,
+        movableSessions: 0,
+        emptyDrafts: 0,
+        blockedSessions: 0
+      }),
+      deleteAgentSessions: vi.fn().mockResolvedValue(undefined)
     }
 
-    vi.doMock('@api/legacy/presenters', () => ({
-      useLegacyPresenter: () => configPresenter
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
+    }))
+    vi.doMock('@api/SessionClient', () => ({
+      createSessionClient: () => sessionClient
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -172,6 +206,9 @@ describe('AcpSettings', () => {
     }))
     vi.doMock('@/components/mcp-config/AgentMcpSelector.vue', () => ({
       default: passthrough('AgentMcpSelector')
+    }))
+    vi.doMock('@/components/agent/AgentTransferDialog.vue', () => ({
+      default: AgentTransferDialogStub
     }))
     vi.doMock('@/components/icons/AcpAgentIcon.vue', () => ({
       default: passthrough('AcpAgentIcon')
@@ -217,6 +254,7 @@ describe('AcpSettings', () => {
           DialogFooter: passthrough('DialogFooter'),
           DialogHeader: passthrough('DialogHeader'),
           DialogTitle: passthrough('DialogTitle'),
+          AgentTransferDialog: AgentTransferDialogStub,
           AcpDebugDialog: passthrough('AcpDebugDialog'),
           AgentMcpSelector: passthrough('AgentMcpSelector'),
           AcpAgentIcon: passthrough('AcpAgentIcon'),
@@ -236,18 +274,11 @@ describe('AcpSettings', () => {
     await uninstallButton!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('confirm:Codex ACP')
-    expect(wrapper.text()).toContain('desc')
-
-    const uninstallActions = wrapper
-      .findAll('button')
-      .filter((button) => button.text().includes('Uninstall'))
-
-    expect(uninstallActions).toHaveLength(2)
-
-    await uninstallActions[uninstallActions.length - 1].trigger('click')
+    const confirmDelete = wrapper.get('[data-testid="confirm-delete-agent"]')
+    await confirmDelete.trigger('click')
     await flushPromises()
 
+    expect(sessionClient.deleteAgentSessions).toHaveBeenCalledWith('codex-acp')
     expect(configPresenter.uninstallAcpRegistryAgent).toHaveBeenCalledWith('codex-acp')
     expect(configPresenter.listAcpRegistryAgents).toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith({

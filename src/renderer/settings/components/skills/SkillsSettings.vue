@@ -170,7 +170,9 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
+import { createSkillClient } from '@api/SkillClient'
+import { createWindowClient } from '@api/WindowClient'
 import type { SkillMetadata } from '@shared/types/skill'
 
 import SkillCard from './SkillCard.vue'
@@ -187,8 +189,9 @@ import { continueGuidedOnboardingFromSettings } from '../../lib/guidedOnboarding
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
-const configPresenter = useLegacyPresenter('configPresenter')
-const windowPresenter = useLegacyPresenter('windowPresenter')
+const configClient = createConfigClient()
+const skillClient = createSkillClient()
+const windowClient = createWindowClient()
 const guideRootRef = ref<HTMLElement | null>(null)
 const skillsSyncRef = ref<HTMLElement | null>(null)
 const skillsGuide = useGuidedOnboardingStep('skills')
@@ -244,7 +247,7 @@ const handleSkillsGuidePrimary = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -257,7 +260,7 @@ const handleSkillsGuideBack = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -266,7 +269,7 @@ const handleSkillsGuideSkip = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -275,7 +278,7 @@ const handleSkillsGuideExpert = async () => {
   await continueGuidedOnboardingFromSettings({
     state,
     router,
-    windowPresenter
+    windowClient
   })
 }
 
@@ -283,7 +286,7 @@ const handleSkillsGuideExpert = async () => {
 const eventCleanup = ref<(() => void) | null>(null)
 
 onMounted(async () => {
-  const enabled = await configPresenter.getSkillDraftSuggestionsEnabled?.()
+  const enabled = await configClient.getSkillDraftSuggestionsEnabled()
   draftSuggestionsEnabled.value = enabled ?? false
   await skillsStore.loadSkills()
   setupEventListeners()
@@ -300,15 +303,7 @@ const setupEventListeners = () => {
     skillsStore.loadSkills()
   }
 
-  window.electron?.ipcRenderer?.on('skill:installed', handleSkillEvent)
-  window.electron?.ipcRenderer?.on('skill:uninstalled', handleSkillEvent)
-  window.electron?.ipcRenderer?.on('skill:metadata-updated', handleSkillEvent)
-
-  eventCleanup.value = () => {
-    window.electron?.ipcRenderer?.removeListener('skill:installed', handleSkillEvent)
-    window.electron?.ipcRenderer?.removeListener('skill:uninstalled', handleSkillEvent)
-    window.electron?.ipcRenderer?.removeListener('skill:metadata-updated', handleSkillEvent)
-  }
+  eventCleanup.value = skillClient.onCatalogChanged(handleSkillEvent)
 }
 
 const openEditor = (skill: SkillMetadata) => {
@@ -351,7 +346,7 @@ const handleInstalled = () => {
 const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
   const normalized = typeof nextValue === 'string' ? nextValue === 'true' : Boolean(nextValue)
   draftSuggestionsEnabled.value = normalized
-  await configPresenter.setSkillDraftSuggestionsEnabled?.(normalized)
+  await configClient.setSkillDraftSuggestionsEnabled(normalized)
 }
 
 const handleSaved = () => {

@@ -8,8 +8,9 @@ import {
   sanitizeAggregate
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { PROVIDER_DB_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
@@ -20,6 +21,17 @@ type MetaFile = {
   lastUpdated: number
   ttlHours: number
   lastAttemptedAt?: number
+}
+
+function publishProviderDbCatalogChanged(reason: 'provider-db-loaded' | 'provider-db-updated') {
+  publishDeepchatEvent('providers.changed', {
+    reason,
+    version: Date.now()
+  })
+  publishDeepchatEvent('models.changed', {
+    reason,
+    version: Date.now()
+  })
 }
 
 export type ProviderDbRefreshResult = {
@@ -60,9 +72,10 @@ export class ProviderDbLoader {
     if (this.cache) {
       try {
         const providersCount = Object.keys(this.cache.providers || {}).length
-        eventBus.send(PROVIDER_DB_EVENTS.LOADED, SendTarget.ALL_WINDOWS, {
+        eventBus.sendToMain(PROVIDER_DB_EVENTS.LOADED, {
           providersCount
         })
+        publishProviderDbCatalogChanged('provider-db-loaded')
       } catch {}
     }
 
@@ -308,10 +321,11 @@ export class ProviderDbLoader {
       this.cache = sanitized
       try {
         const providersCount = Object.keys(this.cache.providers || {}).length
-        eventBus.send(PROVIDER_DB_EVENTS.UPDATED, SendTarget.ALL_WINDOWS, {
+        eventBus.sendToMain(PROVIDER_DB_EVENTS.UPDATED, {
           providersCount,
           lastUpdated: meta.lastUpdated
         })
+        publishProviderDbCatalogChanged('provider-db-updated')
       } catch {}
       return this.createResult('updated', meta)
     } catch (error) {

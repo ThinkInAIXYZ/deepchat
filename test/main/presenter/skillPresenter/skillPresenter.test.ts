@@ -26,6 +26,8 @@ const discoveryWorkerMock = vi.hoisted(() => ({
   logSkillDiscoveryWorkerWarnings: vi.fn()
 }))
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
 // Mock external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -131,24 +133,8 @@ vi.mock('node:crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
-vi.mock('../../../../src/main/eventbus', () => ({
-  eventBus: {
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all'
-  }
-}))
-
-vi.mock('../../../../src/main/events', () => ({
-  SKILL_EVENTS: {
-    DISCOVERED: 'skill:discovered',
-    METADATA_UPDATED: 'skill:metadata-updated',
-    INSTALLED: 'skill:installed',
-    UNINSTALLED: 'skill:uninstalled',
-    ACTIVATED: 'skill:activated',
-    DEACTIVATED: 'skill:deactivated'
-  }
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 vi.mock('@shared/logger', () => ({
@@ -173,8 +159,6 @@ import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
-import { eventBus } from '../../../../src/main/eventbus'
-import { SKILL_EVENTS } from '../../../../src/main/events'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
 
 function createDirEntry(name: string) {
@@ -417,10 +401,13 @@ describe('SkillPresenter', () => {
       const skills = await skillPresenter.discoverSkills()
 
       expect(skills.length).toBe(2)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.DISCOVERED,
-        'all',
-        expect.any(Array)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'discovered',
+          skills: expect.any(Array),
+          version: expect.any(Number)
+        })
       )
     })
 
@@ -840,7 +827,7 @@ describe('SkillPresenter', () => {
 
     it('activates a skill after viewing the main SKILL.md in a new-agent session', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-auto-activate'
@@ -856,15 +843,17 @@ describe('SkillPresenter', () => {
       expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([
         'test-skill'
       ])
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(SKILL_EVENTS.ACTIVATED, 'all', {
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith('skills.session.changed', {
         conversationId: 'conv-view-auto-activate',
-        skills: ['test-skill']
+        skills: ['test-skill'],
+        change: 'activated',
+        version: expect.any(Number)
       })
     })
 
     it('does not activate a skill when only viewing a linked file', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-file-only',
@@ -880,9 +869,8 @@ describe('SkillPresenter', () => {
         })
       )
       expect(await skillPresenter.getActiveSkills('conv-view-file-only')).toEqual([])
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.objectContaining({
           conversationId: 'conv-view-file-only'
         })
@@ -892,7 +880,7 @@ describe('SkillPresenter', () => {
     it('does not emit a second activation event when viewing an already pinned skill', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       await skillPresenter.setActiveSkills('conv-view-existing', ['test-skill'])
-      ;(eventBus.sendToRenderer as Mock).mockClear()
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.viewSkill('test-skill', {
         conversationId: 'conv-view-existing'
@@ -905,9 +893,8 @@ describe('SkillPresenter', () => {
           isPinned: true
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.objectContaining({
           conversationId: 'conv-view-existing'
         })
@@ -1127,8 +1114,9 @@ describe('SkillPresenter', () => {
         data: { name: 'draft-skill', description: 'Draft' },
         content: '# Draft body'
       })
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         return (
           target === draftPath ||
@@ -1143,15 +1131,12 @@ describe('SkillPresenter', () => {
         return 'test'
       })
 
-      const result = await skillPresenter.viewDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.viewDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'view',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        draftId,
         skillName: 'draft-skill',
         content: '---\nname: draft-skill\ndescription: Draft\n---\n\n# Draft body'
       })
@@ -1168,8 +1153,9 @@ describe('SkillPresenter', () => {
         data: { name: 'draft-skill', description: 'Draft' },
         content: '# Draft body'
       })
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         if (target === `${DEFAULT_SKILLS_DIR}/draft-skill`) return false
         return (
@@ -1190,15 +1176,12 @@ describe('SkillPresenter', () => {
         return []
       })
 
-      const result = await skillPresenter.installDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.installDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'install',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc',
+        draftId,
         skillName: 'draft-skill',
         installedSkillName: 'draft-skill'
       })
@@ -1210,9 +1193,10 @@ describe('SkillPresenter', () => {
     })
 
     it('discards draft content and removes empty conversation draft folder', async () => {
-      const draftPath =
-        '/mock/temp/deepchat-skill-drafts/conv-draft/draft-12345678-1234-1234-1234-123456789abc'
-      const conversationPath = '/mock/temp/deepchat-skill-drafts/conv-draft'
+      const draftId = 'draft-12345678-1234-1234-1234-123456789abc'
+      const draftPath = (skillPresenter as any).getDraftPathForId('conv-draft', draftId)
+      expect(draftPath).toBeTruthy()
+      const conversationPath = path.dirname(draftPath)
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         return target === draftPath || target === conversationPath
       })
@@ -1221,15 +1205,12 @@ describe('SkillPresenter', () => {
         return []
       })
 
-      const result = await skillPresenter.discardDraftSkill(
-        'conv-draft',
-        'draft-12345678-1234-1234-1234-123456789abc'
-      )
+      const result = await skillPresenter.discardDraftSkill('conv-draft', draftId)
 
       expect(result).toEqual({
         success: true,
         action: 'discard',
-        draftId: 'draft-12345678-1234-1234-1234-123456789abc'
+        draftId
       })
       expect(fs.rmSync).toHaveBeenCalledWith(draftPath, { recursive: true, force: true })
       expect(fs.rmSync).toHaveBeenCalledWith(conversationPath, { recursive: true, force: true })
@@ -1421,10 +1402,13 @@ describe('SkillPresenter', () => {
 
       expect(result.success).toBe(true)
       expect(result.skillName).toBe('new-skill')
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.INSTALLED,
-        'all',
-        expect.objectContaining({ name: 'new-skill' })
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'installed',
+          name: 'new-skill',
+          version: expect.any(Number)
+        })
       )
     })
   })
@@ -1487,10 +1471,13 @@ describe('SkillPresenter', () => {
       expect(result.success).toBe(true)
       expect(result.skillName).toBe('test-skill')
       expect(fs.rmSync).toHaveBeenCalled()
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.UNINSTALLED,
-        'all',
-        expect.objectContaining({ name: 'test-skill' })
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'uninstalled',
+          name: 'test-skill',
+          version: expect.any(Number)
+        })
       )
     })
   })
@@ -1929,21 +1916,21 @@ describe('SkillPresenter', () => {
     })
 
     it('does not emit activated event for retired raw legacy conversations', async () => {
+      publishDeepchatEventMock.mockClear()
       await skillPresenter.setActiveSkills('conv-123', ['skill-1'])
 
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.ACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.anything()
       )
     })
 
     it('does not emit deactivated event for retired raw legacy conversations', async () => {
+      publishDeepchatEventMock.mockClear()
       await skillPresenter.setActiveSkills('conv-123', ['skill-2'])
 
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalledWith(
-        SKILL_EVENTS.DEACTIVATED,
-        'all',
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
         expect.anything()
       )
     })
@@ -2105,7 +2092,7 @@ describe('SkillPresenter', () => {
           existingPath: existingDuplicate.path
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
 
     it('updates cached metadata when a changed skill is renamed without conflicts', async () => {
@@ -2123,10 +2110,14 @@ describe('SkillPresenter', () => {
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-c')).toEqual(renamedMetadata)
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        SKILL_EVENTS.METADATA_UPDATED,
-        'all',
-        renamedMetadata
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'metadata-updated',
+          name: 'skill-c',
+          skill: renamedMetadata,
+          version: expect.any(Number)
+        })
       )
     })
 
@@ -2152,7 +2143,7 @@ describe('SkillPresenter', () => {
           existingPath: existingMetadata.path
         })
       )
-      expect(eventBus.sendToRenderer).not.toHaveBeenCalled()
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 

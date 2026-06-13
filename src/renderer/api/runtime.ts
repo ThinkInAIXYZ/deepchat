@@ -1,4 +1,14 @@
+import { windowGetRuntimeIdentityRoute } from '@shared/contracts/routes'
+import { getDeepchatBridge } from './core'
+
 type RendererRuntimeApi = Window['api']
+
+type RuntimeIdentity = {
+  windowId: number | null
+  webContentsId: number
+}
+
+let runtimeIdentityPromise: Promise<RuntimeIdentity> | null = null
 
 function getRendererRuntimeApi(): RendererRuntimeApi {
   if (!window.api) {
@@ -6,6 +16,23 @@ function getRendererRuntimeApi(): RendererRuntimeApi {
   }
 
   return window.api
+}
+
+async function getRuntimeIdentity(): Promise<RuntimeIdentity> {
+  if (!runtimeIdentityPromise) {
+    runtimeIdentityPromise = getDeepchatBridge()
+      .invoke(windowGetRuntimeIdentityRoute.name, {})
+      .then((result) => ({
+        windowId: result.windowId,
+        webContentsId: result.webContentsId
+      }))
+      .catch((error) => {
+        runtimeIdentityPromise = null
+        throw error
+      })
+  }
+
+  return await runtimeIdentityPromise
 }
 
 export function copyRuntimeText(text: string): void {
@@ -24,12 +51,16 @@ export function getRuntimePathForFile(file: File): string {
   return getRendererRuntimeApi().getPathForFile(file) ?? ''
 }
 
-export function getRuntimeWindowId(): number | null {
-  return getRendererRuntimeApi().getWindowId() ?? null
+export async function getRuntimeWindowId(): Promise<number | null> {
+  return (await getRuntimeIdentity()).windowId
 }
 
-export function getRuntimeWebContentsId(): number | null {
-  return getRendererRuntimeApi().getWebContentsId?.() ?? null
+export async function getRuntimeWebContentsId(): Promise<number | null> {
+  return (await getRuntimeIdentity()).webContentsId
+}
+
+export function getRuntimePlatform(): string | undefined {
+  return getRendererRuntimeApi().getPlatform?.()
 }
 
 export async function openRuntimeExternal(url: string): Promise<void> {

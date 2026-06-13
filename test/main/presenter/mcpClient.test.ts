@@ -34,12 +34,10 @@ vi.mock('../../../src/main/eventbus', () => ({
   eventBus: {
     emit: vi.fn(),
     send: vi.fn(),
+    sendToMain: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'all-windows'
   }
 }))
 
@@ -82,6 +80,10 @@ vi.mock('../../../src/main/events', () => ({
   MCP_EVENTS: {
     SERVER_STATUS_CHANGED: 'server-status-changed'
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
 }))
 
 vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () => ({

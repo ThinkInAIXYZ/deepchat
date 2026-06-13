@@ -3,14 +3,10 @@ import { app, BrowserWindow } from 'electron'
 import { presenter } from '@/presenter'
 import { IDeeplinkPresenter, MCPServerConfig } from '@shared/presenter'
 import path from 'path'
-import {
-  NOTIFICATION_EVENTS,
-  SETTINGS_EVENTS,
-  DEEPLINK_EVENTS,
-  MCP_EVENTS,
-  WINDOW_EVENTS
-} from '@/events'
-import { eventBus, SendTarget } from '@/eventbus'
+import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
 import {
   PROVIDER_INSTALL_VERSION,
@@ -419,10 +415,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
       }
 
       presenter.windowPresenter.setPendingSettingsProviderInstall(preview)
-      presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
+      presenter.windowPresenter.sendSettingsNavigation(settingsWindowId, {
         routeName: 'settings-provider'
       })
-      presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.PROVIDER_INSTALL)
+      presenter.windowPresenter.sendToWindow(
+        settingsWindowId,
+        DEEPCHAT_EVENT_CHANNEL,
+        createDeepchatEventEnvelope('settings.providerInstallRequested', {})
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid provider deeplink.'
       console.error('Error parsing provider install deeplink:', error)
@@ -573,7 +573,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   private notifyProviderImportError(message: string): void {
-    eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('notification.error', {
       id: `provider-deeplink-${Date.now()}`,
       title: 'Provider Deeplink',
       message,

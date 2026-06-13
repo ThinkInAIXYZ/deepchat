@@ -725,8 +725,12 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   await nextTick()
 
+  const escapedMessageId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(pendingJump.messageId)
+      : pendingJump.messageId.replace(/["\\]/g, '\\$&')
   let target = messageSearchRoot.value?.querySelector<HTMLElement>(
-    `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
+    `[data-message-id="${escapedMessageId}"]`
   )
 
   if (!target) {
@@ -737,7 +741,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
       container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
       await nextTick()
       target = messageSearchRoot.value?.querySelector<HTMLElement>(
-        `[data-message-id="${CSS.escape(pendingJump.messageId)}"]`
+        `[data-message-id="${escapedMessageId}"]`
       )
     }
   }

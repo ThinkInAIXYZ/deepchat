@@ -9,11 +9,12 @@ import {
 
 import { presenter } from '.'
 import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
-import { eventBus, SendTarget } from '../eventbus'
+import { eventBus } from '../eventbus'
 import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const defaultMenuLabels: TranslationMap = {
   file: 'File',
@@ -176,15 +177,18 @@ export class ShortcutPresenter implements IShortcutPresenter {
             () => this.sendFocusedChatWindowShortcut(SHORTCUT_EVENTS.DELETE_CONVERSATION)
           ),
           { type: 'separator' },
-          this.createCommandItem(labels.zoomIn, this.shortcutKeys.ZoomIn, () =>
-            eventBus.send(SHORTCUT_EVENTS.ZOOM_IN, SendTarget.ALL_WINDOWS)
-          ),
-          this.createCommandItem(labels.zoomOut, this.shortcutKeys.ZoomOut, () =>
-            eventBus.send(SHORTCUT_EVENTS.ZOOM_OUT, SendTarget.ALL_WINDOWS)
-          ),
-          this.createCommandItem(labels.resetZoom, this.shortcutKeys.ZoomResume, () =>
-            eventBus.send(SHORTCUT_EVENTS.ZOOM_RESUME, SendTarget.ALL_WINDOWS)
-          ),
+          this.createCommandItem(labels.zoomIn, this.shortcutKeys.ZoomIn, () => {
+            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_IN)
+            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomIn' })
+          }),
+          this.createCommandItem(labels.zoomOut, this.shortcutKeys.ZoomOut, () => {
+            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_OUT)
+            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomOut' })
+          }),
+          this.createCommandItem(labels.resetZoom, this.shortcutKeys.ZoomResume, () => {
+            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_RESUME)
+            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomResume' })
+          }),
           ...(is.dev
             ? [
                 { type: 'separator' as const },

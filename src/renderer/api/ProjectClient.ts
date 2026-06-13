@@ -3,6 +3,7 @@ import {
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
+  projectPathExistsRoute,
   projectSelectDirectoryRoute
 } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
@@ -22,6 +23,11 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
     return await bridge.invoke(projectOpenDirectoryRoute.name, { path })
   }
 
+  async function pathExists(path: string) {
+    const result = await bridge.invoke(projectPathExistsRoute.name, { path })
+    return result.exists
+  }
+
   async function selectDirectory() {
     const result = await bridge.invoke(projectSelectDirectoryRoute.name, {})
     return result.path
@@ -31,6 +37,7 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
     listRecent,
     listEnvironments,
     openDirectory,
+    pathExists,
     selectDirectory
   }
 }

@@ -28,6 +28,19 @@ const NpmRegistryStatusSchema = z.custom<{
   autoDetectEnabled: boolean
   customRegistry?: string
 }>()
+export const McpRouterMarketItemSchema = z.object({
+  uuid: z.string().min(1),
+  created_at: z.string(),
+  updated_at: z.string(),
+  name: z.string(),
+  author_name: z.string(),
+  title: z.string(),
+  description: z.string(),
+  content: z.string().optional(),
+  server_key: z.string().min(1),
+  config_name: z.string().optional(),
+  server_url: z.string().optional()
+})
 
 export const mcpGetServersRoute = defineRouteContract({
   name: 'mcp.getServers',
@@ -258,3 +271,65 @@ export const mcpClearNpmRegistryCacheRoute = defineRouteContract({
     cleared: z.literal(true)
   })
 })
+
+export const mcpRouterListServersRoute = defineRouteContract({
+  name: 'mcp.router.listServers',
+  input: z.object({
+    page: z.number().int().positive(),
+    limit: z.number().int().positive().max(100)
+  }),
+  output: z.object({
+    servers: z.array(McpRouterMarketItemSchema)
+  })
+})
+
+export const mcpRouterInstallServerRoute = defineRouteContract({
+  name: 'mcp.router.installServer',
+  input: z.object({
+    serverKey: z.string().min(1)
+  }),
+  output: z.object({
+    installed: z.boolean()
+  })
+})
+
+export const mcpRouterGetApiKeyRoute = defineRouteContract({
+  name: 'mcp.router.getApiKey',
+  input: z.object({}).default({}),
+  output: z.object({
+    key: z.string()
+  })
+})
+
+export const mcpRouterSetApiKeyRoute = defineRouteContract({
+  name: 'mcp.router.setApiKey',
+  input: z.object({
+    key: z.string()
+  }),
+  output: z.object({
+    saved: z.literal(true)
+  })
+})
+
+export const mcpRouterIsServerInstalledRoute = defineRouteContract({
+  name: 'mcp.router.isServerInstalled',
+  input: z.object({
+    source: z.string().min(1),
+    sourceId: z.string().min(1)
+  }),
+  output: z.object({
+    installed: z.boolean()
+  })
+})
+
+export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
+  name: 'mcp.router.updateServersAuth',
+  input: z.object({
+    apiKey: z.string()
+  }),
+  output: z.object({
+    updated: z.literal(true)
+  })
+})
+
+export type McpRouterMarketItem = z.infer<typeof McpRouterMarketItemSchema>

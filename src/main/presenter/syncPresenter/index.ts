@@ -11,8 +11,9 @@ import {
   CloudSyncResult
 } from '@shared/presenter'
 import { CloudStorageService } from './cloudStorageService'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { SYNC_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -262,11 +263,10 @@ export class SyncPresenter implements ISyncPresenter {
       return await this.performBackup()
     } catch (error) {
       console.error('Backup failed:', error)
-      eventBus.send(
-        SYNC_EVENTS.BACKUP_ERROR,
-        SendTarget.ALL_WINDOWS,
-        (error as Error).message || 'sync.error.unknown'
-      )
+      publishDeepchatEvent('sync.backup.error', {
+        error: (error as Error).message || 'sync.error.unknown',
+        version: Date.now()
+      })
       throw error
     }
   }
@@ -312,7 +312,9 @@ export class SyncPresenter implements ISyncPresenter {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    eventBus.send(SYNC_EVENTS.IMPORT_STARTED, SendTarget.ALL_WINDOWS)
+    publishDeepchatEvent('sync.import.started', {
+      version: Date.now()
+    })
 
     const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
@@ -468,7 +470,9 @@ export class SyncPresenter implements ISyncPresenter {
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
       }
-      eventBus.send(SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS)
+      publishDeepchatEvent('sync.import.completed', {
+        version: Date.now()
+      })
       return {
         success: true,
         message: 'sync.success.importComplete',
@@ -497,7 +501,10 @@ export class SyncPresenter implements ISyncPresenter {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
       }
-      eventBus.send(SYNC_EVENTS.IMPORT_ERROR, SendTarget.ALL_WINDOWS, errorMessage)
+      publishDeepchatEvent('sync.import.error', {
+        error: errorMessage,
+        version: Date.now()
+      })
       return {
         success: false,
         message: KNOWN_IMPORT_ERRORS.has(errorMessage) ? errorMessage : 'sync.error.importFailed'
@@ -511,7 +518,9 @@ export class SyncPresenter implements ISyncPresenter {
   private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
     this.emitBackupStatus('preparing')
-    eventBus.send(SYNC_EVENTS.BACKUP_STARTED, SendTarget.ALL_WINDOWS)
+    publishDeepchatEvent('sync.backup.started', {
+      version: Date.now()
+    })
 
     const syncFolderPath = this.configPresenter.getSyncFolderPath()
     if (!fs.existsSync(syncFolderPath)) {
@@ -571,7 +580,10 @@ export class SyncPresenter implements ISyncPresenter {
 
       const backupStats = fs.statSync(finalZipPath)
       this.configPresenter.setLastSyncTime(timestamp)
-      eventBus.send(SYNC_EVENTS.BACKUP_COMPLETED, SendTarget.ALL_WINDOWS, timestamp)
+      publishDeepchatEvent('sync.backup.completed', {
+        timestamp,
+        version: Date.now()
+      })
       completedTimestamp = timestamp
 
       return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
@@ -624,10 +636,16 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private emitBackupStatus(status: BackupStatus, extra: Record<string, unknown> = {}): void {
-    eventBus.send(SYNC_EVENTS.BACKUP_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
+    publishDeepchatEvent('sync.backup.status.changed', {
       status,
       previousStatus: this.currentBackupStatus,
-      ...extra
+      lastSuccessfulBackupTime:
+        typeof extra.lastSuccessfulBackupTime === 'number'
+          ? extra.lastSuccessfulBackupTime
+          : undefined,
+      failed: typeof extra.failed === 'boolean' ? extra.failed : undefined,
+      message: typeof extra.message === 'string' ? extra.message : undefined,
+      version: Date.now()
     })
     this.currentBackupStatus = status
   }

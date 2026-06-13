@@ -64,6 +64,10 @@ This document defines the maintainer release flow for DeepChat without rewriting
    - the target release commit already exists on `origin/dev`
    - `origin/main` is an ancestor of the target commit
    - `main` can be updated with `git merge --ff-only`
+   - the requested tag is free locally and on `origin`
+
+   The `--tag` option validates tag availability and prints the tag command. Create and push the
+   tag in the next step.
 
    Windows maintainers should skip this helper and use the manual release sequence below.
 

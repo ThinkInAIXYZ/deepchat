@@ -86,6 +86,16 @@ export const skillsUpdateFileRoute = defineRouteContract({
   })
 })
 
+export const skillsReadFileRoute = defineRouteContract({
+  name: 'skills.readFile',
+  input: z.object({
+    name: z.string().min(1)
+  }),
+  output: z.object({
+    content: z.string()
+  })
+})
+
 export const skillsSaveWithExtensionRoute = defineRouteContract({
   name: 'skills.saveWithExtension',
   input: z.object({

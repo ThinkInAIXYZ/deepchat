@@ -488,8 +488,8 @@ describe('messageStore', () => {
 
     await store.loadMessages('s1')
 
-    expect(ipcListeners.end).toHaveLength(1)
-    expect(ipcListeners.error).toHaveLength(1)
+    expect(ipcListeners.end).toHaveLength(0)
+    expect(ipcListeners.error).toHaveLength(0)
 
     const completionHandler = streamListeners.completed[0]
     expect(typeof completionHandler).toBe('function')
@@ -507,8 +507,8 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.id).toBe('user-1')
   })
 
-  it('reloads persisted messages when a legacy stream-end refresh arrives before typed completion', async () => {
-    const { store, sessionClient, ipcListeners } = await setupStore()
+  it('reloads persisted messages when a typed stream failure arrives', async () => {
+    const { store, sessionClient, streamListeners, ipcListeners } = await setupStore()
     sessionClient.restore
       .mockResolvedValueOnce({
         session: { id: 's1' },
@@ -539,10 +539,21 @@ describe('messageStore', () => {
 
     await store.loadMessages('s1')
 
-    const endHandler = ipcListeners.end[0]
-    expect(typeof endHandler).toBe('function')
+    expect(ipcListeners.end).toHaveLength(0)
+    expect(ipcListeners.error).toHaveLength(0)
 
-    endHandler({}, { conversationId: 's1', messageId: 'user-1', eventId: 'user-1' })
+    const failedHandler = streamListeners.failed[0]
+    expect(typeof failedHandler).toBe('function')
+
+    failedHandler({
+      sessionId: 's1',
+      requestId: 'user-1',
+      messageId: 'user-1',
+      error: {
+        message: 'stream failed'
+      },
+      failedAt: 2
+    })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(sessionClient.restore).toHaveBeenCalledTimes(2)

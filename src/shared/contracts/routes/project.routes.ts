@@ -30,6 +30,16 @@ export const projectOpenDirectoryRoute = defineRouteContract({
   })
 })
 
+export const projectPathExistsRoute = defineRouteContract({
+  name: 'project.pathExists',
+  input: z.object({
+    path: z.string().min(1)
+  }),
+  output: z.object({
+    exists: z.boolean()
+  })
+})
+
 export const projectSelectDirectoryRoute = defineRouteContract({
   name: 'project.selectDirectory',
   input: z.object({}).default({}),

@@ -131,14 +131,15 @@ async function setup(overrides?: {
     setDefaultProject: vi.fn().mockResolvedValue(undefined),
     clearDefaultProject: vi.fn().mockResolvedValue(undefined)
   })
+  const projectClient = {
+    pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
+  }
 
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => ({
-      pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
-    })
+  vi.doMock('@api/ProjectClient', () => ({
+    createProjectClient: () => projectClient
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({ toast })
@@ -170,6 +171,7 @@ async function setup(overrides?: {
   return {
     wrapper,
     projectStore,
+    projectClient,
     toast
   }
 }

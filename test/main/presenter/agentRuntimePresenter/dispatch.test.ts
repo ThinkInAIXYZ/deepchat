@@ -15,15 +15,19 @@ import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
-import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: publishDeepchatEventMock
+}))
+
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: {}
 }))
 
 vi.mock('@/events', () => ({
@@ -55,7 +59,6 @@ import {
 } from '@/presenter/agentRuntimePresenter/dispatch'
 import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
-import { eventBus } from '@/eventbus'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
   return {
@@ -130,6 +133,10 @@ const DEFAULT_INTERLEAVED_REASONING: InterleavedReasoningConfig = {
   providerDbSourceUrl: 'https://example.com/provider-db.json'
 }
 
+function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
+  expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
 async function executeTools(
   state: StreamState,
   conversation: any[],
@@ -151,28 +158,34 @@ async function executeTools(
     rendererFlushHandle ??
     ({
       flush: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
       }),
       schedule: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
       }),
       rescheduleRenderer: vi.fn(() => {
-        eventBus.sendToRenderer('stream:response', 'all', {
-          conversationId: io.sessionId,
-          eventId: io.messageId,
+        publishDeepchatEventMock('chat.stream.updated', {
+          kind: 'snapshot',
+          requestId: io.requestId,
+          sessionId: io.sessionId,
           messageId: io.messageId,
+          updatedAt: Date.now(),
           blocks: state.blocks
         })
         io.messageStore.updateAssistantContent(io.messageId, state.blocks)
@@ -347,26 +360,17 @@ describe('dispatch', () => {
       expect(planBlock).toBeUndefined()
       expect(toolBlock?.extra?.internalTool).toBe(true)
 
-      const planEventCall = vi
-        .mocked(eventBus.sendToRenderer)
-        .mock.calls.find(
-          ([channel, _target, envelope]) =>
-            channel === DEEPCHAT_EVENT_CHANNEL &&
-            envelope &&
-            typeof envelope === 'object' &&
-            (envelope as { name?: string }).name === 'chat.plan.updated'
-        )
-      expect(planEventCall?.[2]).toMatchObject({
-        name: 'chat.plan.updated',
-        payload: {
-          sessionId: 's1',
-          messageId: 'm1',
-          toolCallId: 'tc-plan',
-          plan: snapshot.plan,
-          explanation: 'Repository inspected',
-          revision: 1,
-          updatedAt: snapshot.updatedAt
-        }
+      const planEventCall = publishDeepchatEventMock.mock.calls.find(
+        ([eventName]) => eventName === 'chat.plan.updated'
+      )
+      expect(planEventCall?.[1]).toMatchObject({
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc-plan',
+        plan: snapshot.plan,
+        explanation: 'Repository inspected',
+        revision: 1,
+        updatedAt: snapshot.updatedAt
       })
     })
 
@@ -1548,13 +1552,13 @@ describe('dispatch', () => {
         1024
       )
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:response',
-        'all',
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'chat.stream.updated',
         expect.objectContaining({
-          conversationId: 's1',
+          kind: 'snapshot',
+          requestId: 'req-1',
+          sessionId: 's1',
           messageId: 'm1',
-          eventId: 'm1',
           blocks: expect.any(Array)
         })
       )
@@ -2455,21 +2459,17 @@ describe('dispatch', () => {
       expect(metadata.tokensPerSecond).toBeDefined()
     })
 
-    it('emits END event', () => {
+    it('emits completed event', () => {
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:end',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1'
-        })
-      )
+      expectDeepchatEvent('chat.stream.completed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
     })
 
-    it('emits RESPONSE with blocks', () => {
+    it('emits updated event with blocks', () => {
       state.blocks.push({
         type: 'content',
         content: 'test',
@@ -2479,16 +2479,12 @@ describe('dispatch', () => {
 
       finalize(state, io)
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:response',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          blocks: expect.any(Array)
-        })
-      )
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        blocks: expect.any(Array)
+      })
     })
   })
 
@@ -2526,19 +2522,15 @@ describe('dispatch', () => {
       expect(metadata.model).toBe('gpt-4')
     })
 
-    it('emits ERROR event', () => {
+    it('emits failed event', () => {
       finalizeError(state, io, new Error('boom'))
 
-      expect(eventBus.sendToRenderer).toHaveBeenCalledWith(
-        'stream:error',
-        'all',
-        expect.objectContaining({
-          conversationId: 's1',
-          messageId: 'm1',
-          eventId: 'm1',
-          error: 'boom'
-        })
-      )
+      expectDeepchatEvent('chat.stream.failed', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1',
+        error: 'boom'
+      })
     })
 
     it('handles non-Error objects', () => {

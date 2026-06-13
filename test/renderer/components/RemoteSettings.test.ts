@@ -13,6 +13,7 @@ type SetupOptions = {
   feishuChannelSettingsOverride?: Record<string, unknown>
   qqbotChannelSettingsOverride?: Record<string, unknown>
   discordChannelSettingsOverride?: Record<string, unknown>
+  weixinIlinkChannelSettingsOverride?: Record<string, unknown>
   status?: {
     enabled: boolean
     state: 'disabled' | 'stopped' | 'starting' | 'running' | 'backoff' | 'error'
@@ -244,7 +245,11 @@ const setup = async (options: SetupOptions = {}) => {
 
   const weixinIlinkSettingsSnapshot = () => ({
     ...weixinIlinkState.settings,
-    accounts: [...weixinIlinkState.settings.accounts]
+    ...(options.weixinIlinkChannelSettingsOverride ?? {}),
+    accounts: [
+      ...((options.weixinIlinkChannelSettingsOverride?.accounts ??
+        weixinIlinkState.settings.accounts) as typeof weixinIlinkState.settings.accounts)
+    ]
   })
 
   const syncWeixinIlinkStatusFromSettings = () => {
@@ -308,33 +313,35 @@ const setup = async (options: SetupOptions = {}) => {
         channel: 'telegram' | 'feishu' | 'qqbot' | 'discord' | 'weixin-ilink',
         nextSettings: any
       ) => {
+        const clonedSettings = structuredClone(nextSettings)
+
         if (channel === 'telegram') {
-          remoteState.settings = { ...nextSettings }
-          remoteState.status.enabled = nextSettings.remoteEnabled
+          remoteState.settings = { ...clonedSettings }
+          remoteState.status.enabled = clonedSettings.remoteEnabled
           return { ...remoteState.settings }
         }
 
         if (channel === 'feishu') {
-          feishuState.settings = { ...nextSettings }
-          feishuState.status.enabled = nextSettings.remoteEnabled
+          feishuState.settings = { ...clonedSettings }
+          feishuState.status.enabled = clonedSettings.remoteEnabled
           return { ...feishuState.settings }
         }
 
         if (channel === 'qqbot') {
-          qqbotState.settings = { ...nextSettings }
-          qqbotState.status.enabled = nextSettings.remoteEnabled
+          qqbotState.settings = { ...clonedSettings }
+          qqbotState.status.enabled = clonedSettings.remoteEnabled
           return { ...qqbotState.settings }
         }
 
         if (channel === 'discord') {
-          discordState.settings = { ...nextSettings }
-          discordState.status.enabled = nextSettings.remoteEnabled
+          discordState.settings = { ...clonedSettings }
+          discordState.status.enabled = clonedSettings.remoteEnabled
           return { ...discordState.settings }
         }
 
         weixinIlinkState.settings = {
-          ...nextSettings,
-          accounts: [...nextSettings.accounts]
+          ...clonedSettings,
+          accounts: [...clonedSettings.accounts]
         }
         syncWeixinIlinkStatusFromSettings()
         return {
@@ -586,7 +593,7 @@ const setup = async (options: SetupOptions = {}) => {
     restartWeixinIlinkAccount: vi.fn(async () => undefined)
   }
 
-  const agentSessionPresenter = {
+  const sessionClient = {
     getAgents: vi.fn(async () => [
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'DeepChat Alt', type: 'deepchat', enabled: false },
@@ -595,6 +602,7 @@ const setup = async (options: SetupOptions = {}) => {
     ])
   }
   const projectPresenter = {
+    getRecentProjects: vi.fn(async () => options.recentProjects ?? []),
     selectDirectory: vi.fn(async () => options.selectedDirectory ?? null)
   }
 
@@ -697,13 +705,17 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }
 
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: (name: string) => {
-      if (name === 'agentSessionPresenter') return agentSessionPresenter
-      if (name === 'projectPresenter') return projectPresenter
-      return null
-    },
-    useLegacyRemoteControlPresenter: () => remoteControlPresenter
+  vi.doMock('@api/RemoteControlClient', () => ({
+    createRemoteControlClient: () => remoteControlPresenter
+  }))
+  vi.doMock('@api/SessionClient', () => ({
+    createSessionClient: () => sessionClient
+  }))
+  vi.doMock('@api/ProjectClient', () => ({
+    createProjectClient: () => ({
+      listRecent: projectPresenter.getRecentProjects,
+      selectDirectory: projectPresenter.selectDirectory
+    })
   }))
   vi.doMock('@/components/use-toast', () => ({
     useToast: () => ({
@@ -829,7 +841,7 @@ const setup = async (options: SetupOptions = {}) => {
     discordState,
     weixinIlinkState,
     remoteControlPresenter,
-    agentSessionPresenter,
+    sessionClient,
     projectPresenter,
     toast,
     tabsComponents
@@ -906,6 +918,89 @@ describe('RemoteSettings', () => {
       })
     )
     expect(wrapper.find('[data-testid="remote-bindings-button"]').exists()).toBe(true)
+  })
+
+  it('saves remote settings with cloneable array payloads', async () => {
+    const { wrapper, qqbotState, discordState, weixinIlinkState, remoteControlPresenter } =
+      await setup({
+        feishuChannelSettingsOverride: {
+          appId: 'feishu-app',
+          appSecret: 'feishu-secret',
+          remoteEnabled: false,
+          pairedUserOpenIds: ['ou_1']
+        },
+        qqbotChannelSettingsOverride: {
+          appId: 'qq-app',
+          clientSecret: 'qq-secret',
+          remoteEnabled: false,
+          pairedUserIds: ['user-openid-1']
+        },
+        discordChannelSettingsOverride: {
+          botToken: 'discord-token',
+          remoteEnabled: false,
+          pairedChannelIds: ['channel-1']
+        },
+        weixinIlinkChannelSettingsOverride: {
+          remoteEnabled: false,
+          accounts: [
+            {
+              accountId: 'wx-1',
+              ownerUserId: 'owner-1',
+              baseUrl: 'https://ilinkai.weixin.qq.com',
+              enabled: true
+            }
+          ]
+        }
+      })
+
+    await wrapper.find('[data-testid="remote-channel-toggle-feishu"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-qqbot"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-discord"]').setValue(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-channel-toggle-weixin-ilink"]').setValue(true)
+    await flushPromises()
+
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'feishu',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedUserOpenIds: ['ou_1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'qqbot',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedUserIds: ['user-openid-1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'discord',
+      expect.objectContaining({
+        remoteEnabled: true,
+        pairedChannelIds: ['channel-1']
+      })
+    )
+    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+      'weixin-ilink',
+      expect.objectContaining({
+        remoteEnabled: true,
+        accounts: [
+          {
+            accountId: 'wx-1',
+            ownerUserId: 'owner-1',
+            baseUrl: 'https://ilinkai.weixin.qq.com',
+            enabled: true
+          }
+        ]
+      })
+    )
+
+    expect(qqbotState.settings.remoteEnabled).toBe(true)
+    expect(discordState.settings.remoteEnabled).toBe(true)
+    expect(weixinIlinkState.settings.remoteEnabled).toBe(true)
   })
 
   it('shows enabled ACP agents in the default agent options', async () => {

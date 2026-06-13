@@ -1,8 +1,12 @@
 import {
   DEEPCHAT_EVENT_CATALOG,
+  appRuntimeShortcutRequestedEvent,
+  appRuntimeStartDeeplinkRequestedEvent,
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
   chatStreamUpdatedEvent,
+  contextMenuAskAiRequestedEvent,
+  contextMenuTranslateRequestedEvent,
   settingsChangedEvent,
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
@@ -19,6 +23,8 @@ import {
   providersTestConnectionRoute,
   modelsTranscribeAudioRoute,
   configListAgentsRoute,
+  oauthGithubCopilotStartDeviceFlowLoginRoute,
+  oauthGithubCopilotStartLoginRoute,
   sessionsActivateRoute,
   sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
@@ -31,7 +37,9 @@ import {
   sessionsListRoute,
   sessionsRestoreRoute,
   sessionsUpdateGenerationSettingsRoute,
-  systemOpenSettingsRoute
+  systemOpenSettingsRoute,
+  windowConsumePendingSettingsProviderInstallRoute,
+  windowRequeuePendingSettingsProviderInstallRoute
 } from '@shared/contracts/routes'
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
@@ -41,12 +49,57 @@ describe('main kernel contracts', () => {
 
     expect(routeKeys).toEqual(
       expect.arrayContaining([
+        'acpTerminal.input',
+        'acpTerminal.kill',
         'browser.attachCurrentWindow',
+        'browser.clearSandboxData',
+        'databaseSecurity.repairSchema',
+        'config.addManualAcpAgent',
+        'config.ensureAcpAgentInstalled',
+        'config.getProxySettings',
+        'config.getSkillDraftSuggestions',
+        'config.getHooksNotifications',
+        'config.getUpdateChannel',
+        'config.listAcpRegistryAgents',
+        'config.listManualAcpAgents',
+        'config.openLoggingFolder',
+        'config.createDeepChatAgent',
+        'config.deleteDeepChatAgent',
+        'config.refreshAcpRegistry',
+        'config.refreshProviderDb',
+        'config.removeManualAcpAgent',
+        'config.repairAcpAgent',
         'chat.sendMessage',
         'chat.steerActiveTurn',
         'config.resolveDeepChatAgentConfig',
+        'config.setAcpAgentEnabled',
+        'config.setAcpAgentEnvOverride',
+        'config.setAcpEnabled',
+        'config.setCustomProxyUrl',
+        'config.setProxyMode',
+        'config.setSkillDraftSuggestions',
+        'config.setHooksNotifications',
+        'config.setUpdateChannel',
+        'config.testHookCommand',
+        'config.uninstallAcpRegistryAgent',
+        'config.updateManualAcpAgent',
+        'config.updateDeepChatAgent',
+        'device.resetDataByType',
+        'device.selectFiles',
         'dialog.error',
         'dialog.respond',
+        'knowledge.addFile',
+        'knowledge.deleteFile',
+        'knowledge.getSeparatorsForLanguage',
+        'knowledge.getSupportedFileExtensions',
+        'knowledge.getSupportedLanguages',
+        'knowledge.isSupported',
+        'knowledge.listFiles',
+        'knowledge.pauseAllRunningTasks',
+        'knowledge.reAddFile',
+        'knowledge.resumeAllPausedTasks',
+        'knowledge.similarityQuery',
+        'knowledge.validateFile',
         'mcp.addServer',
         'mcp.callTool',
         'mcp.cancelSamplingRequest',
@@ -54,13 +107,46 @@ describe('main kernel contracts', () => {
         'mcp.getPrompt',
         'mcp.listToolDefinitions',
         'mcp.readResource',
+        'mcp.router.getApiKey',
+        'mcp.router.installServer',
+        'mcp.router.isServerInstalled',
+        'mcp.router.listServers',
+        'mcp.router.setApiKey',
+        'mcp.router.updateServersAuth',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
+        'nowledgeMem.getConfig',
+        'nowledgeMem.testConnection',
+        'nowledgeMem.updateConfig',
+        'oauth.githubCopilot.startDeviceFlowLogin',
+        'oauth.githubCopilot.startLogin',
         'plugins.get',
         'plugins.invokeAction',
+        'project.pathExists',
         'providers.getAcpProcessConfigOptions',
+        'providers.getEmbeddingDimensions',
+        'providers.getKeyStatus',
         'providers.listSummaries',
         'providers.pullOllamaModel',
+        'providers.runAcpDebugAction',
+        'providers.syncModelScopeMcpServers',
+        'providers.updateRateLimit',
+        'remoteControl.clearChannelPairCode',
+        'remoteControl.createChannelPairCode',
+        'remoteControl.getChannelBindings',
+        'remoteControl.getChannelPairingSnapshot',
+        'remoteControl.getChannelSettings',
+        'remoteControl.getChannelStatus',
+        'remoteControl.getTelegramStatus',
+        'remoteControl.getWeixinIlinkStatus',
+        'remoteControl.listChannels',
+        'remoteControl.removeChannelBinding',
+        'remoteControl.removeChannelPrincipal',
+        'remoteControl.removeWeixinIlinkAccount',
+        'remoteControl.restartWeixinIlinkAccount',
+        'remoteControl.saveChannelSettings',
+        'remoteControl.startWeixinIlinkLogin',
+        'remoteControl.waitForWeixinIlinkLogin',
         'sessions.activate',
         'sessions.clearMessages',
         'sessions.compact',
@@ -79,12 +165,14 @@ describe('main kernel contracts', () => {
         'sessions.getGenerationSettings',
         'sessions.getPermissionMode',
         'sessions.getSearchResults',
+        'sessions.getUsageDashboard',
         'sessions.listMessageTraces',
         'sessions.listPendingInputs',
         'sessions.moveQueuedInput',
         'sessions.queuePendingInput',
         'sessions.rename',
         'sessions.resumePendingQueue',
+        'sessions.retryRtkHealthCheck',
         'sessions.retryMessage',
         'sessions.searchHistory',
         'sessions.setAcpSessionConfigOption',
@@ -102,7 +190,19 @@ describe('main kernel contracts', () => {
         'skills.installFromUrl',
         'skills.listMetadata',
         'skills.openFolder',
+        'skills.readFile',
         'skills.setActive',
+        'shortcut.destroy',
+        'shortcut.register',
+        'shortcut.unregister',
+        'skillSync.acknowledgeDiscoveries',
+        'skillSync.executeExport',
+        'skillSync.executeImport',
+        'skillSync.getNewDiscoveries',
+        'skillSync.getRegisteredTools',
+        'skillSync.previewExport',
+        'skillSync.previewImport',
+        'skillSync.scanExternalTools',
         'sync.getBackupStatus',
         'sync.import',
         'sync.listBackups',
@@ -115,6 +215,12 @@ describe('main kernel contracts', () => {
         'upgrade.openDownload',
         'upgrade.restartToUpdate',
         'upgrade.startDownload',
+        'window.closeSettings',
+        'window.consumePendingSettingsProviderInstall',
+        'window.focusMain',
+        'window.notifySettingsReady',
+        'window.requeuePendingSettingsProviderInstall',
+        'window.startGuidedOnboarding',
         'workspace.watch'
       ])
     )
@@ -168,6 +274,253 @@ describe('main kernel contracts', () => {
       pluginsInvokeActionRoute.input.parse({
         pluginId: '',
         actionId: 'runtime.getStatus'
+      })
+    ).toThrow()
+  })
+
+  it('validates GitHub Copilot OAuth route payloads', () => {
+    expect(
+      oauthGithubCopilotStartLoginRoute.input.parse({
+        providerId: 'github-copilot'
+      })
+    ).toEqual({
+      providerId: 'github-copilot'
+    })
+    expect(
+      oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
+        success: true
+      })
+    ).toEqual({
+      success: true
+    })
+
+    expect(() =>
+      oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse({
+        providerId: ''
+      })
+    ).toThrow()
+  })
+
+  it('validates database repair and browser sandbox utility route payloads', () => {
+    expect(DEEPCHAT_ROUTE_CATALOG['browser.clearSandboxData'].input.parse({})).toEqual({})
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['databaseSecurity.repairSchema'].output.parse({
+        report: {
+          startedAt: 1,
+          finishedAt: 2,
+          status: 'healthy',
+          backupPath: null,
+          diagnosisBeforeRepair: {
+            checkedAt: 1,
+            isHealthy: true,
+            issues: [],
+            repairableIssues: [],
+            manualIssues: []
+          },
+          diagnosisAfterRepair: {
+            checkedAt: 2,
+            isHealthy: true,
+            issues: [],
+            repairableIssues: [],
+            manualIssues: []
+          },
+          repairedIssues: [],
+          remainingIssues: []
+        }
+      })
+    ).toEqual({
+      report: expect.objectContaining({
+        status: 'healthy',
+        repairedIssues: [],
+        remainingIssues: []
+      })
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['databaseSecurity.repairSchema'].output.parse({
+        report: {
+          status: 'unknown'
+        }
+      })
+    ).toThrow()
+  })
+
+  it('validates NowledgeMem route payloads', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.updateConfig'].input.parse({
+        config: {
+          baseUrl: 'http://127.0.0.1:14242',
+          apiKey: '',
+          timeout: 30000
+        }
+      })
+    ).toEqual({
+      config: {
+        baseUrl: 'http://127.0.0.1:14242',
+        apiKey: '',
+        timeout: 30000
+      }
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].output.parse({
+        result: {
+          success: true,
+          message: 'Connection successful'
+        }
+      })
+    ).toEqual({
+      result: {
+        success: true,
+        message: 'Connection successful'
+      }
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.updateConfig'].input.parse({
+        config: {}
+      })
+    ).toThrow()
+  })
+
+  it('validates skill file read route payloads', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        name: 'write-tests'
+      })
+    ).toEqual({
+      name: 'write-tests'
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.readFile'].output.parse({
+        content: '# Write tests'
+      })
+    ).toEqual({
+      content: '# Write tests'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        name: ''
+      })
+    ).toThrow()
+  })
+
+  it('validates MCP Router marketplace route payloads', () => {
+    const item = {
+      uuid: 'router-item-1',
+      created_at: '2026-06-11T00:00:00.000Z',
+      updated_at: '2026-06-11T00:00:00.000Z',
+      name: 'context7',
+      author_name: 'upstash',
+      title: 'Context7',
+      description: 'Fetch current docs',
+      content: 'Documentation helper',
+      server_key: 'context7',
+      config_name: 'Context7',
+      server_url: 'https://mcp.context7.com/mcp'
+    }
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.listServers'].input.parse({
+        page: 1,
+        limit: 20
+      })
+    ).toEqual({
+      page: 1,
+      limit: 20
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.listServers'].output.parse({
+        servers: [item]
+      })
+    ).toEqual({
+      servers: [item]
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.installServer'].output.parse({
+        installed: true
+      })
+    ).toEqual({
+      installed: true
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.getApiKey'].output.parse({
+        key: 'router-key'
+      })
+    ).toEqual({
+      key: 'router-key'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.installServer'].input.parse({
+        serverKey: ''
+      })
+    ).toThrow()
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['mcp.router.listServers'].input.parse({
+        page: 1,
+        limit: 101
+      })
+    ).toThrow()
+  })
+
+  it('validates remote control route payloads', () => {
+    expect(DEEPCHAT_ROUTE_CATALOG['remoteControl.listChannels'].input.parse({})).toEqual({})
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.getChannelSettings'].input.parse({
+        channel: 'telegram'
+      })
+    ).toEqual({
+      channel: 'telegram'
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.saveChannelSettings'].input.parse({
+        channel: 'telegram',
+        settings: {
+          botToken: 'telegram-token',
+          remoteEnabled: true,
+          defaultAgentId: 'deepchat',
+          defaultWorkdir: ''
+        }
+      })
+    ).toEqual({
+      channel: 'telegram',
+      settings: {
+        botToken: 'telegram-token',
+        remoteEnabled: true,
+        defaultAgentId: 'deepchat',
+        defaultWorkdir: ''
+      }
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.createChannelPairCode'].output.parse({
+        code: '654321',
+        expiresAt: 123456
+      })
+    ).toEqual({
+      code: '654321',
+      expiresAt: 123456
+    })
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.waitForWeixinIlinkLogin'].input.parse({
+        sessionKey: 'weixin-session',
+        timeoutMs: 480000
+      })
+    ).toEqual({
+      sessionKey: 'weixin-session',
+      timeoutMs: 480000
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.getChannelStatus'].input.parse({
+        channel: 'slack'
+      })
+    ).toThrow()
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['remoteControl.removeChannelPrincipal'].input.parse({
+        channel: 'weixin-ilink',
+        principalId: '123'
       })
     ).toThrow()
   })
@@ -331,6 +684,92 @@ describe('main kernel contracts', () => {
       generationSettings: {
         timeout: 5000
       }
+    })
+  })
+
+  it('validates agent usage dashboard route contracts', () => {
+    const dashboard = {
+      recordingStartedAt: null,
+      backfillStatus: {
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        updatedAt: 123
+      },
+      summary: {
+        messageCount: 1,
+        sessionCount: 1,
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheHitRate: 0,
+        estimatedCostUsd: null,
+        mostActiveDay: {
+          date: '2026-06-11',
+          messageCount: 1
+        }
+      },
+      calendar: [
+        {
+          date: '2026-06-11',
+          messageCount: 1,
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30,
+          cachedInputTokens: 0,
+          estimatedCostUsd: null,
+          level: 1
+        }
+      ],
+      providerBreakdown: [],
+      modelBreakdown: [],
+      rtk: {
+        scope: 'deepchat',
+        enabled: true,
+        effectiveEnabled: true,
+        available: true,
+        health: 'healthy',
+        checkedAt: 123,
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null,
+        summary: {
+          totalCommands: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalSavedTokens: 0,
+          avgSavingsPct: 0,
+          totalTimeMs: 0,
+          avgTimeMs: 0
+        },
+        daily: []
+      }
+    }
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
+        dashboard
+      })
+    ).toEqual({ dashboard })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
+        dashboard: {
+          ...dashboard,
+          rtk: {
+            ...dashboard.rtk,
+            health: 'unknown'
+          }
+        }
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['sessions.retryRtkHealthCheck'].output.parse({ retried: true })
+    ).toEqual({
+      retried: true
     })
   })
 
@@ -549,11 +988,218 @@ describe('main kernel contracts', () => {
     })
 
     expect(
+      DEEPCHAT_ROUTE_CATALOG['config.updateEntries'].input.parse({
+        changes: [
+          { key: 'assistantModel', value: null },
+          { key: 'maxFileSize', value: 30 * 1024 * 1024 }
+        ]
+      })
+    ).toEqual({
+      changes: [
+        { key: 'assistantModel', value: null },
+        { key: 'maxFileSize', value: 30 * 1024 * 1024 }
+      ]
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.setProxyMode'].input.parse({
+        mode: 'invalid'
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.setProxyMode'].input.parse({
+        mode: 'custom'
+      })
+    ).toEqual({
+      mode: 'custom'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.setUpdateChannel'].input.parse({
+        channel: 'nightly'
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.setUpdateChannel'].input.parse({
+        channel: 'beta'
+      })
+    ).toEqual({
+      channel: 'beta'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.createDeepChatAgent'].input.parse({
+        enabled: true
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.createDeepChatAgent'].input.parse({
+        name: 'Writer',
+        enabled: true,
+        config: {
+          systemPrompt: 'Write clearly',
+          permissionMode: 'default'
+        }
+      })
+    ).toEqual({
+      name: 'Writer',
+      enabled: true,
+      config: {
+        systemPrompt: 'Write clearly',
+        permissionMode: 'default'
+      }
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.setSkillDraftSuggestions'].input.parse({
+        enabled: 'true'
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.setSkillDraftSuggestions'].input.parse({
+        enabled: true
+      })
+    ).toEqual({
+      enabled: true
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.refreshProviderDb'].output.parse({
+        result: {
+          status: 'updated',
+          lastUpdated: 123,
+          providersCount: 2
+        }
+      })
+    ).toEqual({
+      result: {
+        status: 'updated',
+        lastUpdated: 123,
+        providersCount: 2
+      }
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.setHooksNotifications'].input.parse({
+        config: {
+          hooks: [
+            {
+              id: 'hook-1',
+              name: 'Hook 1',
+              enabled: true,
+              command: 'echo test',
+              events: ['NotRealEvent']
+            }
+          ]
+        }
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.setHooksNotifications'].input.parse({
+        config: {
+          hooks: [
+            {
+              id: 'hook-1',
+              name: 'Hook 1',
+              enabled: true,
+              command: 'echo test',
+              events: ['SessionStart']
+            }
+          ]
+        }
+      })
+    ).toEqual({
+      config: {
+        hooks: [
+          {
+            id: 'hook-1',
+            name: 'Hook 1',
+            enabled: true,
+            command: 'echo test',
+            events: ['SessionStart']
+          }
+        ]
+      }
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['config.setAcpAgentEnabled'].input.parse({
+        agentId: 'codex-acp',
+        enabled: 'true'
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['config.addManualAcpAgent'].input.parse({
+        name: 'Manual ACP',
+        command: 'node',
+        enabled: true
+      })
+    ).toEqual({
+      name: 'Manual ACP',
+      command: 'node',
+      enabled: true
+    })
+
+    expect(
       DEEPCHAT_ROUTE_CATALOG['providers.getRateLimitStatus'].input.parse({
         providerId: 'openai'
       })
     ).toEqual({
       providerId: 'openai'
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['providers.updateRateLimit'].input.parse({
+        providerId: 'openai',
+        enabled: true,
+        qpsLimit: 2
+      })
+    ).toEqual({
+      providerId: 'openai',
+      enabled: true,
+      qpsLimit: 2
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['providers.updateRateLimit'].input.parse({
+        providerId: 'openai',
+        enabled: true,
+        qpsLimit: 0
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['providers.syncModelScopeMcpServers'].input.parse({
+        providerId: 'modelscope',
+        syncOptions: {
+          page_number: 1,
+          page_size: 50
+        }
+      })
+    ).toEqual({
+      providerId: 'modelscope',
+      syncOptions: {
+        page_number: 1,
+        page_size: 50
+      }
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['providers.runAcpDebugAction'].input.parse({
+        agentId: 'codex-acp',
+        action: 'initialize',
+        payload: {}
+      })
+    ).toEqual({
+      agentId: 'codex-acp',
+      action: 'initialize',
+      payload: {}
     })
 
     expect(
@@ -637,11 +1283,180 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('validates knowledge route contracts', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['knowledge.listFiles'].input.parse({
+        knowledgeBaseId: 'knowledge-1'
+      })
+    ).toEqual({
+      knowledgeBaseId: 'knowledge-1'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['knowledge.listFiles'].input.parse({
+        knowledgeBaseId: ''
+      })
+    ).toThrow()
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['knowledge.similarityQuery'].input.parse({
+        knowledgeBaseId: 'knowledge-1',
+        query: ''
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['knowledge.validateFile'].output.parse({
+        result: {
+          isSupported: true,
+          mimeType: 'text/markdown',
+          adapterType: 'text'
+        }
+      })
+    ).toEqual({
+      result: {
+        isSupported: true,
+        mimeType: 'text/markdown',
+        adapterType: 'text'
+      }
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['knowledge.addFile'].output.parse({
+        result: {
+          data: {
+            id: 'file-1',
+            name: 'guide.md',
+            path: '/workspace/guide.md',
+            mimeType: 'text/markdown',
+            status: 'completed',
+            uploadedAt: 123,
+            metadata: {
+              size: 1024,
+              totalChunks: 3
+            }
+          }
+        }
+      })
+    ).toEqual({
+      result: {
+        data: {
+          id: 'file-1',
+          name: 'guide.md',
+          path: '/workspace/guide.md',
+          mimeType: 'text/markdown',
+          status: 'completed',
+          uploadedAt: 123,
+          metadata: {
+            size: 1024,
+            totalChunks: 3
+          }
+        }
+      }
+    })
+  })
+
+  it('validates skill sync route contracts', () => {
+    const source = {
+      name: 'write-tests',
+      description: 'Write tests',
+      path: '/tools/write-tests.md',
+      format: 'markdown',
+      lastModified: new Date('2024-01-01T00:00:00.000Z')
+    }
+    const importPreview = {
+      skill: {
+        name: 'write-tests',
+        description: 'Write tests',
+        instructions: 'Write useful tests'
+      },
+      source,
+      warnings: []
+    }
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
+        toolId: '',
+        skillNames: ['write-tests']
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
+        toolId: 'codex',
+        skillNames: ['write-tests']
+      })
+    ).toEqual({
+      toolId: 'codex',
+      skillNames: ['write-tests']
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
+        previews: [importPreview],
+        strategies: {
+          'write-tests': 'replace'
+        }
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
+        previews: [importPreview],
+        strategies: {
+          'write-tests': 'overwrite'
+        }
+      })
+    ).toEqual({
+      previews: [importPreview],
+      strategies: {
+        'write-tests': 'overwrite'
+      }
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skillSync.scanExternalTools'].output.parse({
+        results: [
+          {
+            toolId: 'codex',
+            toolName: 'Codex',
+            available: true,
+            skillsDir: '/tools',
+            skills: [source]
+          }
+        ]
+      })
+    ).toEqual({
+      results: [
+        {
+          toolId: 'codex',
+          toolName: 'Codex',
+          available: true,
+          skillsDir: '/tools',
+          skills: [source]
+        }
+      ]
+    })
+  })
+
   it('registers typed event catalog entries through phase4', () => {
     const eventKeys = Object.keys(DEEPCHAT_EVENT_CATALOG).sort()
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([
+        'acpTerminal.error',
+        'acpTerminal.exited',
+        'acpTerminal.externalDependenciesRequired',
+        'acpTerminal.output',
+        'acpTerminal.started',
+        'appRuntime.dataResetCompleteDev',
+        'appRuntime.guidedOnboardingStartRequested',
+        'appRuntime.mcpInstallRequested',
+        'appRuntime.shortcutRequested',
+        'appRuntime.startDeeplinkRequested',
+        'appRuntime.systemNotificationClicked',
+        'appRuntime.windowBlurred',
+        'appRuntime.windowFocused',
         'browser.activity.changed',
         'browser.open.requested',
         'browser.status.changed',
@@ -649,6 +1464,8 @@ describe('main kernel contracts', () => {
         'chat.stream.completed',
         'chat.stream.failed',
         'chat.stream.updated',
+        'contextMenu.askAiRequested',
+        'contextMenu.translateRequested',
         'config.agents.changed',
         'config.customPrompts.changed',
         'config.defaultProjectPath.changed',
@@ -659,7 +1476,10 @@ describe('main kernel contracts', () => {
         'config.systemPrompts.changed',
         'config.systemTheme.changed',
         'config.theme.changed',
+        'databaseSecurity.repairSuggested',
         'dialog.requested',
+        'knowledge.file.progress',
+        'knowledge.file.updated',
         'mcp.config.changed',
         'mcp.sampling.cancelled',
         'mcp.sampling.decision',
@@ -671,17 +1491,36 @@ describe('main kernel contracts', () => {
         'models.changed',
         'models.config.changed',
         'models.status.changed',
+        'notification.error',
+        'providers.acp.debug.event',
         'providers.changed',
         'providers.ollama.pull.progress',
+        'providers.rateLimit.configUpdated',
+        'providers.rateLimit.requestExecuted',
+        'providers.rateLimit.requestQueued',
         'sessions.acp.commands.ready',
         'sessions.acp.configOptions.ready',
+        'sessions.acp.modes.ready',
+        'sessions.compaction.changed',
         'sessions.pendingInputs.changed',
         'sessions.status.changed',
         'sessions.updated',
+        'settings.checkForUpdatesRequested',
         'settings.changed',
+        'settings.navigateRequested',
+        'settings.providerInstallRequested',
         'startup.workload.changed',
         'skills.catalog.changed',
         'skills.session.changed',
+        'skillSync.discoveries.changed',
+        'skillSync.export.completed',
+        'skillSync.export.progress',
+        'skillSync.export.started',
+        'skillSync.import.completed',
+        'skillSync.import.progress',
+        'skillSync.import.started',
+        'skillSync.scan.completed',
+        'skillSync.scan.started',
         'sync.backup.completed',
         'sync.backup.error',
         'sync.backup.started',
@@ -725,6 +1564,103 @@ describe('main kernel contracts', () => {
         sessionId: 'session-1',
         messageId: 'message-1',
         failedAt: Date.now()
+      })
+    ).toThrow()
+  })
+
+  it('validates typed context menu payloads', () => {
+    expect(
+      contextMenuTranslateRequestedEvent.payload.parse({
+        text: 'hello',
+        x: 10,
+        y: 20
+      })
+    ).toEqual({
+      text: 'hello',
+      x: 10,
+      y: 20
+    })
+
+    expect(
+      contextMenuAskAiRequestedEvent.payload.parse({
+        text: 'what is this?'
+      })
+    ).toEqual({
+      text: 'what is this?'
+    })
+
+    expect(() =>
+      contextMenuTranslateRequestedEvent.payload.parse({
+        text: ''
+      })
+    ).toThrow()
+  })
+
+  it('validates typed app runtime payloads', () => {
+    expect(
+      appRuntimeStartDeeplinkRequestedEvent.payload.parse({
+        msg: 'hello',
+        modelId: null,
+        systemPrompt: '',
+        mentions: ['README.md'],
+        autoSend: false
+      })
+    ).toEqual({
+      msg: 'hello',
+      modelId: null,
+      systemPrompt: '',
+      mentions: ['README.md'],
+      autoSend: false
+    })
+
+    expect(
+      appRuntimeShortcutRequestedEvent.payload.parse({
+        action: 'toggleSpotlight'
+      })
+    ).toEqual({
+      action: 'toggleSpotlight'
+    })
+
+    expect(() =>
+      appRuntimeShortcutRequestedEvent.payload.parse({
+        action: 'unknown'
+      })
+    ).toThrow()
+  })
+
+  it('validates pending provider install window route payloads', () => {
+    const preview = {
+      kind: 'builtin',
+      id: 'deepseek',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: 'sk-secret',
+      maskedApiKey: 'sk-s...cret',
+      iconModelId: 'deepseek-chat',
+      willOverwrite: true
+    }
+
+    expect(
+      windowConsumePendingSettingsProviderInstallRoute.output.parse({
+        preview
+      })
+    ).toEqual({
+      preview
+    })
+
+    expect(
+      windowRequeuePendingSettingsProviderInstallRoute.input.parse({
+        preview
+      })
+    ).toEqual({
+      preview
+    })
+
+    expect(() =>
+      windowRequeuePendingSettingsProviderInstallRoute.input.parse({
+        preview: {
+          ...preview,
+          id: ''
+        }
       })
     ).toThrow()
   })

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NOTIFICATION_EVENTS } from '../../../src/main/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const mocks = vi.hoisted(() => ({
   sendToWebContents: vi.fn()
@@ -37,10 +37,13 @@ describe('presenterCallErrorHandler', () => {
 
     expect(mocks.sendToWebContents).toHaveBeenCalledWith(
       7,
-      NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
+      DEEPCHAT_EVENT_CHANNEL,
       expect.objectContaining({
-        reason: 'missing-column',
-        dedupeKey: 'missing-column:reasoning_effort'
+        name: 'databaseSecurity.repairSuggested',
+        payload: expect.objectContaining({
+          reason: 'missing-column',
+          dedupeKey: 'missing-column:reasoning_effort'
+        })
       })
     )
   })

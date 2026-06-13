@@ -12,12 +12,11 @@ import {
 } from '@shared/presenter'
 import { DevicePresenter } from '../devicePresenter'
 import { jsonrepair } from 'jsonrepair'
-import { eventBus, SendTarget } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import type { ProviderMcpRuntimePort } from './runtimePorts'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
+import { emitModelsChanged } from '../configPresenter/eventPublishers'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
 
@@ -295,7 +294,7 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
-    eventBus.send(CONFIG_EVENTS.MODEL_LIST_CHANGED, SendTarget.ALL_WINDOWS, this.provider.id)
+    emitModelsChanged(this.provider.id)
   }
 
   /**

@@ -45,6 +45,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/compon
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { useToast } from '@/components/use-toast'
+import { createAcpTerminalClient } from '@api/AcpTerminalClient'
+import { createDeviceClient } from '@api/DeviceClient'
 
 const props = defineProps<{
   open: boolean
@@ -58,9 +60,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { toast } = useToast()
+const acpTerminalClient = createAcpTerminalClient()
+const deviceClient = createDeviceClient()
 
 const terminalContainer = ref<HTMLElement | null>(null)
 let terminal: Terminal | null = null
+let terminalEventCleanups: Array<() => void> = []
 
 const isRunning = ref(false)
 const status = ref<'idle' | 'running' | 'completed' | 'error'>('idle')
@@ -114,9 +119,9 @@ const handleOpenUpdate = (val: boolean) => {
   if (!val) {
     // Kill process if running
     if (isRunning.value) {
-      if (window.electron) {
-        window.electron.ipcRenderer.send('acp-terminal:kill')
-      }
+      void acpTerminalClient.kill().catch((error) => {
+        console.warn('[AcpTerminal] Failed to kill terminal:', error)
+      })
     }
     emit('update:open', false)
     emit('close')
@@ -156,9 +161,9 @@ const ensureTerminal = () => {
       // Send input to backend process
       // Don't echo locally - let the backend process handle all output
       // This avoids xterm.js parsing errors with control characters
-      if (window.electron) {
-        window.electron.ipcRenderer.send('acp-terminal:input', data)
-      }
+      void acpTerminalClient.sendInput(data).catch((error) => {
+        console.warn('[AcpTerminal] Failed to send terminal input:', error)
+      })
     })
   }
 }
@@ -172,7 +177,7 @@ const cleanupTerminal = () => {
   console.log('[AcpTerminal] Terminal cleaned up')
 }
 
-const handleOutput = (_event: unknown, data: string | { type: string; data: string }) => {
+const handleOutput = (data: string | { type: string; data: string }) => {
   if (!terminal) {
     console.warn('[AcpTerminal] Received output but terminal is not initialized')
     return
@@ -229,7 +234,7 @@ const handleOutput = (_event: unknown, data: string | { type: string; data: stri
   }
 }
 
-const handleStart = (_event: unknown) => {
+const handleStart = () => {
   isRunning.value = true
   status.value = 'running'
   if (terminal) {
@@ -237,7 +242,7 @@ const handleStart = (_event: unknown) => {
   }
 }
 
-const handleExit = (_event: unknown, data: { code: number | null; signal: string | null }) => {
+const handleExit = (data: { code: number | null; signal: string | null }) => {
   isRunning.value = false
   if (data.code === 0) {
     status.value = 'completed'
@@ -251,7 +256,7 @@ const handleExit = (_event: unknown, data: { code: number | null; signal: string
   }
 }
 
-const handleError = (_event: unknown, data: { message: string }) => {
+const handleError = (data: { message: string }) => {
   status.value = 'error'
   if (terminal) {
     terminal.writeln(`\r\n\x1b[31mError: ${data.message}\x1b[0m`)
@@ -260,14 +265,9 @@ const handleError = (_event: unknown, data: { message: string }) => {
 
 const handlePaste = async () => {
   try {
-    if (!window.api || typeof window.api.readClipboardText !== 'function') {
-      console.warn('[AcpTerminal] readClipboardText API not available')
-      return
-    }
-
-    const text = window.api.readClipboardText()
-    if (text && window.electron) {
-      window.electron.ipcRenderer.send('acp-terminal:input', text)
+    const text = deviceClient.readClipboardText()
+    if (text) {
+      await acpTerminalClient.sendInput(text)
       console.log('[AcpTerminal] Pasted text to terminal:', text.length, 'characters')
     }
   } catch (error) {
@@ -280,10 +280,10 @@ const handlePaste = async () => {
   }
 }
 
-const handleExternalDepsRequired = (
-  _event: unknown,
-  data: { agentId: string; missingDeps: ExternalDependency[] }
-) => {
+const handleExternalDepsRequired = (data: {
+  agentId: string
+  missingDeps: ExternalDependency[]
+}) => {
   console.log('[AcpTerminal] External dependencies required:', data)
 
   if (!data.missingDeps || data.missingDeps.length === 0) {
@@ -299,30 +299,20 @@ const handleExternalDepsRequired = (
 }
 
 const setupIpcListeners = () => {
-  if (typeof window === 'undefined' || !window.electron) {
-    console.warn('[AcpTerminal] Cannot setup IPC listeners - window.electron not available')
-    return
-  }
-
   console.log('[AcpTerminal] Setting up IPC listeners')
-  window.electron.ipcRenderer.on('acp-init:start', handleStart)
-  window.electron.ipcRenderer.on('acp-init:output', handleOutput)
-  window.electron.ipcRenderer.on('acp-init:exit', handleExit)
-  window.electron.ipcRenderer.on('acp-init:error', handleError)
-  window.electron.ipcRenderer.on('external-deps-required', handleExternalDepsRequired)
+  removeIpcListeners()
+  terminalEventCleanups = [
+    acpTerminalClient.onStarted(handleStart),
+    acpTerminalClient.onOutput(handleOutput),
+    acpTerminalClient.onExited(handleExit),
+    acpTerminalClient.onError(handleError),
+    acpTerminalClient.onExternalDependenciesRequired(handleExternalDepsRequired)
+  ]
   console.log('[AcpTerminal] IPC listeners set up successfully')
 }
 
 const removeIpcListeners = () => {
-  if (typeof window === 'undefined' || !window.electron) {
-    return
-  }
-
-  window.electron.ipcRenderer.removeAllListeners('acp-init:start')
-  window.electron.ipcRenderer.removeAllListeners('acp-init:output')
-  window.electron.ipcRenderer.removeAllListeners('acp-init:exit')
-  window.electron.ipcRenderer.removeAllListeners('acp-init:error')
-  window.electron.ipcRenderer.removeAllListeners('external-deps-required')
+  terminalEventCleanups.splice(0).forEach((cleanup) => cleanup())
 }
 
 watch(

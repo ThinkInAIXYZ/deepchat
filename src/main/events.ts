@@ -1,3 +1,5 @@
+export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
+
 /**
  * 事件系统常量定义
  *
@@ -40,10 +42,8 @@ export const CONFIG_EVENTS = {
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
   OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
   THEME_CHANGED: 'config:theme-changed', // 主题变更事件
-  FONT_SIZE_CHANGED: 'config:font-size-changed', // 字体大小变更事件
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed', // Default system prompt changed event
   CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed', // 自定义提示词变更事件
-  NOWLEDGE_MEM_CONFIG_UPDATED: 'config:nowledge-mem-config-updated', // Nowledge-mem configuration updated event
   DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
   AGENTS_CHANGED: 'config:agents-changed'
 }
@@ -54,36 +54,6 @@ export const PROVIDER_DB_EVENTS = {
   UPDATED: 'provider-db:updated' // 远端刷新成功
 }
 
-// 会话相关事件
-export const CONVERSATION_EVENTS = {
-  LIST_UPDATED: 'conversation:list-updated', // 用于推送完整的会话列表
-
-  ACTIVATED: 'conversation:activated', // 替代 conversation-activated
-  DEACTIVATED: 'conversation:deactivated', // 替代 active-conversation-cleared
-  MESSAGE_EDITED: 'conversation:message-edited', // 替代 message-edited
-  SCROLL_TO_MESSAGE: 'conversation:scroll-to-message',
-
-  MESSAGE_GENERATED: 'conversation:message-generated' // 主进程内部事件，一条完整的消息已生成
-}
-
-// 通信相关事件
-export const STREAM_EVENTS = {
-  RESPONSE: 'stream:response', // 替代 stream-response
-  END: 'stream:end', // 替代 stream-end
-  ERROR: 'stream:error', // 替代 stream-error
-  PERMISSION_UPDATED: 'stream:permission-updated' // 权限状态更新，通知前端刷新UI
-}
-
-// New agent session events
-export const SESSION_EVENTS = {
-  LIST_UPDATED: 'session:list-updated',
-  ACTIVATED: 'session:activated',
-  DEACTIVATED: 'session:deactivated',
-  STATUS_CHANGED: 'session:status-changed',
-  COMPACTION_UPDATED: 'session:compaction-updated',
-  PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
-}
-
 // 系统相关事件
 export const SYSTEM_EVENTS = {
   SYSTEM_THEME_UPDATED: 'system:theme-updated'
@@ -91,10 +61,6 @@ export const SYSTEM_EVENTS = {
 
 // 应用更新相关事件
 export const UPDATE_EVENTS = {
-  STATUS_CHANGED: 'update:status-changed', // 替代 update-status-changed
-  ERROR: 'update:error', // 替代 update-error
-  PROGRESS: 'update:progress', // 下载进度
-  WILL_RESTART: 'update:will-restart', // 准备重启
   STATE_CHANGED: 'update:state-changed' // 更新状态变化（用于生命周期管理通信）
 }
 
@@ -122,19 +88,11 @@ export const WINDOW_EVENTS = {
 
 // Settings related events
 export const SETTINGS_EVENTS = {
-  READY: 'settings:ready',
-  NAVIGATE: 'settings:navigate',
-  CHECK_FOR_UPDATES: 'settings:check-for-updates',
-  PROVIDER_INSTALL: 'settings:provider-install'
+  NAVIGATE: 'settings:navigate'
 }
 
 export const DEV_EVENTS = {
   START_GUIDED_ONBOARDING: 'dev:start-guided-onboarding'
-}
-
-// ollama 相关事件
-export const OLLAMA_EVENTS = {
-  PULL_MODEL_PROGRESS: 'ollama:pull-model-progress'
 }
 
 // MCP 相关事件
@@ -142,48 +100,20 @@ export const MCP_EVENTS = {
   SERVER_STARTED: 'mcp:server-started',
   SERVER_STOPPED: 'mcp:server-stopped',
   CONFIG_CHANGED: 'mcp:config-changed',
-  TOOL_CALL_RESULT: 'mcp:tool-call-result',
   SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
   CLIENT_LIST_UPDATED: 'mcp:client-list-updated',
-  INITIALIZED: 'mcp:initialized', // 新增：MCP初始化完成事件
-  SAMPLING_REQUEST: 'mcp:sampling-request',
-  SAMPLING_DECISION: 'mcp:sampling-decision',
-  SAMPLING_CANCELLED: 'mcp:sampling-cancelled'
+  INITIALIZED: 'mcp:initialized' // 新增：MCP初始化完成事件
 }
 
 // 同步相关事件
 export const SYNC_EVENTS = {
-  BACKUP_STARTED: 'sync:backup-started',
-  BACKUP_COMPLETED: 'sync:backup-completed',
-  BACKUP_ERROR: 'sync:backup-error',
-  BACKUP_STATUS_CHANGED: 'sync:backup-status-changed',
-  IMPORT_STARTED: 'sync:import-started',
-  IMPORT_COMPLETED: 'sync:import-completed',
-  IMPORT_ERROR: 'sync:import-error',
   DATA_CHANGED: 'sync:data-changed'
-}
-
-// 速率限制相关事件
-export const RATE_LIMIT_EVENTS = {
-  CONFIG_UPDATED: 'rate-limit:config-updated',
-  REQUEST_QUEUED: 'rate-limit:request-queued',
-  REQUEST_EXECUTED: 'rate-limit:request-executed',
-  LIMIT_EXCEEDED: 'rate-limit:limit-exceeded'
 }
 
 // DeepLink 相关事件
 export const DEEPLINK_EVENTS = {
-  PROTOCOL_RECEIVED: 'deeplink:protocol-received',
   START: 'deeplink:start',
   MCP_INSTALL: 'deeplink:mcp-install'
-}
-
-// 全局通知相关事件
-export const NOTIFICATION_EVENTS = {
-  SHOW_ERROR: 'notification:show-error', // 显示错误通知
-  DATABASE_REPAIR_SUGGESTED: 'notification:database-repair-suggested',
-  SYS_NOTIFY_CLICKED: 'notification:sys-notify-clicked', // 系统通知点击事件
-  DATA_RESET_COMPLETE_DEV: 'notification:data-reset-complete-dev' // 开发环境数据重置完成通知
 }
 
 export const SHORTCUT_EVENTS = {
@@ -202,7 +132,6 @@ export const SHORTCUT_EVENTS = {
 
 // 标签页相关事件
 export const TAB_EVENTS = {
-  TITLE_UPDATED: 'tab:title-updated', // 标签页标题更新
   CONTENT_UPDATED: 'tab:content-updated', // 标签页内容更新
   STATE_CHANGED: 'tab:state-changed', // 标签页状态变化
   VISIBILITY_CHANGED: 'tab:visibility-changed', // 标签页可见性变化
@@ -211,56 +140,10 @@ export const TAB_EVENTS = {
   CLOSED: 'tab:closed' // 标签页被关闭事件
 }
 
-// Yo Browser 相关事件
-export const YO_BROWSER_EVENTS = {
-  OPEN_REQUESTED: 'yo-browser:open-requested',
-  WINDOW_CREATED: 'yo-browser:window-created',
-  WINDOW_UPDATED: 'yo-browser:window-updated',
-  WINDOW_CLOSED: 'yo-browser:window-closed',
-  WINDOW_FOCUSED: 'yo-browser:window-focused',
-  WINDOW_COUNT_CHANGED: 'yo-browser:window-count-changed',
-  WINDOW_VISIBILITY_CHANGED: 'yo-browser:window-visibility-changed'
-}
-
 // 托盘相关事件
 export const TRAY_EVENTS = {
   SHOW_HIDDEN_WINDOW: 'tray:show-hidden-window', // 从托盘显示/隐藏窗口
   CHECK_FOR_UPDATES: 'tray:check-for-updates' // 托盘检查更新
-}
-
-// 悬浮按钮相关事件
-export const FLOATING_BUTTON_EVENTS = {
-  CLICKED: 'floating-button:clicked', // 悬浮按钮被点击
-  RIGHT_CLICKED: 'floating-button:right-clicked', // 悬浮按钮被右键点击
-  VISIBILITY_CHANGED: 'floating-button:visibility-changed', // 悬浮按钮显示状态改变
-  POSITION_CHANGED: 'floating-button:position-changed', // 悬浮按钮位置改变
-  ENABLED_CHANGED: 'floating-button:enabled-changed', // 悬浮按钮启用状态改变
-  HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
-  SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
-  SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',
-  LANGUAGE_REQUEST: 'floating-button:language-request',
-  LANGUAGE_CHANGED: 'floating-button:language-changed',
-  THEME_REQUEST: 'floating-button:theme-request',
-  THEME_CHANGED: 'floating-button:theme-changed',
-  ACP_REGISTRY_ICON_REQUEST: 'floating-button:acp-registry-icon-request',
-  TOGGLE_EXPANDED: 'floating-button:toggle-expanded',
-  SET_EXPANDED: 'floating-button:set-expanded',
-  OPEN_SESSION: 'floating-button:open-session',
-  DRAG_START: 'floating-button:drag-start', // 悬浮按钮开始拖拽
-  DRAG_MOVE: 'floating-button:drag-move', // 悬浮按钮拖拽移动
-  DRAG_END: 'floating-button:drag-end' // 悬浮按钮结束拖拽
-}
-
-// Dialog related events
-export const DIALOG_EVENTS = {
-  REQUEST: 'dialog:request', // Main -> Renderer: Request to show dialog
-  RESPONSE: 'dialog:response' // Renderer -> Main: Dialog result response
-}
-
-// Knowledge base events
-export const RAG_EVENTS = {
-  FILE_UPDATED: 'rag:file-updated', // File status update
-  FILE_PROGRESS: 'rag:file-progress' // File processing progress update
 }
 
 // Lifecycle management events
@@ -273,44 +156,4 @@ export const LIFECYCLE_EVENTS = {
   ERROR_OCCURRED: 'lifecycle:error-occurred', // Lifecycle error occurred
   PROGRESS_UPDATED: 'lifecycle:progress-updated', // Lifecycle progress updated
   SHUTDOWN_REQUESTED: 'lifecycle:shutdown-requested' // Application shutdown requested
-}
-
-// Workspace events
-export const WORKSPACE_EVENTS = {
-  INVALIDATED: 'workspace:files-changed', // Workspace invalidation event
-  FILES_CHANGED: 'workspace:files-changed' // Legacy alias
-}
-
-// ACP-specific workspace events
-export const ACP_WORKSPACE_EVENTS = {
-  SESSION_MODES_READY: 'acp-workspace:session-modes-ready', // Session modes available
-  SESSION_COMMANDS_READY: 'acp-workspace:session-commands-ready', // Session commands available
-  SESSION_CONFIG_OPTIONS_READY: 'acp-workspace:session-config-options-ready' // Session config options available
-}
-
-export const ACP_DEBUG_EVENTS = {
-  EVENT: 'acp-debug:event'
-}
-
-// Skills system events
-export const SKILL_EVENTS = {
-  DISCOVERED: 'skill:discovered', // Skills discovery completed
-  METADATA_UPDATED: 'skill:metadata-updated', // Metadata hot-reload updated
-  INSTALLED: 'skill:installed', // Skill installation completed
-  UNINSTALLED: 'skill:uninstalled', // Skill uninstallation completed
-  ACTIVATED: 'skill:activated', // Skill activated in session
-  DEACTIVATED: 'skill:deactivated' // Skill deactivated in session
-}
-
-// Skill sync events (cross-tool synchronization)
-export const SKILL_SYNC_EVENTS = {
-  SCAN_STARTED: 'skill-sync:scan-started', // Scan operation started
-  SCAN_COMPLETED: 'skill-sync:scan-completed', // Scan operation completed
-  NEW_DISCOVERIES: 'skill-sync:new-discoveries', // New skills discovered (after comparing with cache)
-  IMPORT_STARTED: 'skill-sync:import-started', // Import operation started
-  IMPORT_PROGRESS: 'skill-sync:import-progress', // Import progress update
-  IMPORT_COMPLETED: 'skill-sync:import-completed', // Import operation completed
-  EXPORT_STARTED: 'skill-sync:export-started', // Export operation started
-  EXPORT_PROGRESS: 'skill-sync:export-progress', // Export progress update
-  EXPORT_COMPLETED: 'skill-sync:export-completed' // Export operation completed
 }

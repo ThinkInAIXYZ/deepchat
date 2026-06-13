@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
+import { publishDeepchatEventToWebContents } from './routes/publishDeepchatEvent'
 
 interface ContextMenuOptions {
   webContents: WebContents
@@ -249,11 +250,14 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         id: 'translate',
         label: options.labels?.translate || '翻译',
         click: () => {
-          options.webContents.send(
-            'context-menu-translate',
-            params.selectionText,
-            params.x,
-            params.y
+          publishDeepchatEventToWebContents(
+            options.webContents.id,
+            'contextMenu.translateRequested',
+            {
+              text: params.selectionText,
+              x: params.x,
+              y: params.y
+            }
           )
         }
       })
@@ -263,7 +267,9 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         id: 'askAI',
         label: options.labels?.askAI || '询问AI',
         click: () => {
-          options.webContents.send('context-menu-ask-ai', params.selectionText)
+          publishDeepchatEventToWebContents(options.webContents.id, 'contextMenu.askAiRequested', {
+            text: params.selectionText
+          })
         }
       })
     }

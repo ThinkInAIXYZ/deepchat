@@ -1,5 +1,7 @@
 <template>
   <div
+    data-testid="skills-sync-tool-card"
+    :data-tool-id="tool.toolId"
     class="flex items-center justify-between p-2 border rounded-lg transition-colors"
     :class="{
       'hover:bg-accent': tool.available && skillCount > 0,

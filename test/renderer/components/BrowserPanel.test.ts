@@ -72,15 +72,15 @@ describe('BrowserPanel', () => {
       detach: vi.fn().mockResolvedValue(true),
       destroy: vi.fn().mockResolvedValue(true),
       onOpenRequestedForCurrentWindow: vi.fn((listener: IpcHandler) => {
-        handlers.set('yo-browser:open-requested', listener)
+        handlers.set('browser.open.requested', listener)
         return () => {
-          handlers.delete('yo-browser:open-requested')
+          handlers.delete('browser.open.requested')
         }
       }),
       onStatusChanged: vi.fn((listener: IpcHandler) => {
-        handlers.set('yo-browser:status-changed', listener)
+        handlers.set('browser.status.changed', listener)
         return () => {
-          handlers.delete('yo-browser:status-changed')
+          handlers.delete('browser.status.changed')
         }
       })
     }
@@ -234,7 +234,7 @@ describe('BrowserPanel', () => {
     browserClient.attachCurrentWindow.mockClear()
     browserClient.updateCurrentWindowBounds.mockClear()
 
-    const openRequestedHandler = handlers.get('yo-browser:open-requested')
+    const openRequestedHandler = handlers.get('browser.open.requested')
     expect(openRequestedHandler).toBeTypeOf('function')
 
     await openRequestedHandler?.({}, { sessionId: 'session-b', windowId: 1 })

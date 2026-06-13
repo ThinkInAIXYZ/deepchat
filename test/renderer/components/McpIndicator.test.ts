@@ -66,22 +66,17 @@ const setup = async (options?: {
         change: 'activated' | 'deactivated'
       }) => void)
     | undefined
-  const ipcRenderer = {
-    emit: (event: string, payload?: { conversationId?: string; skills?: string[] }) => {
-      if (event === 'skill:activated') {
-        skillSessionChangedHandler?.({
-          conversationId: payload?.conversationId ?? null,
-          skills: payload?.skills,
-          change: 'activated'
-        })
-      }
-      if (event === 'skill:deactivated') {
-        skillSessionChangedHandler?.({
-          conversationId: payload?.conversationId ?? null,
-          skills: payload?.skills,
-          change: 'deactivated'
-        })
-      }
+  const skillEvents = {
+    emitSessionChanged: (payload: {
+      conversationId?: string
+      skills?: string[]
+      change: 'activated' | 'deactivated'
+    }) => {
+      skillSessionChangedHandler?.({
+        conversationId: payload.conversationId ?? null,
+        skills: payload.skills,
+        change: payload.change
+      })
     }
   }
 
@@ -277,7 +272,7 @@ const setup = async (options?: {
     draftStore,
     toolPresenter,
     agentSessionPresenter,
-    ipcRenderer
+    skillEvents
   }
 }
 
@@ -447,15 +442,16 @@ describe('McpIndicator', () => {
   })
 
   it('reloads deepchat tools when the active session emits skill activation changes', async () => {
-    const { toolPresenter, ipcRenderer } = await setup({
+    const { toolPresenter, skillEvents } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
     toolPresenter.getAllToolDefinitions.mockClear()
-    ipcRenderer.emit('skill:activated', {
+    skillEvents.emitSessionChanged({
       conversationId: 's1',
-      skills: ['deepchat-settings']
+      skills: ['deepchat-settings'],
+      change: 'activated'
     })
     await flushPromises()
 

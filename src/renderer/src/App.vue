@@ -443,8 +443,8 @@ const handleGuidedOnboardingResumeRequested = (event: Event) => {
 }
 
 const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRuntime({
-  handleStartDeeplink: (event, payload) => {
-    handleStartDeeplink(event, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
+  handleStartDeeplink: (payload) => {
+    handleStartDeeplink(undefined, payload as Omit<StartDeeplinkPayload, 'token'> | undefined)
   },
   handleStartGuidedOnboardingDev,
   handleWindowFocused: () => handleResumeGuidedOnboarding('window-focus'),

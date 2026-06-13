@@ -117,18 +117,25 @@ function getErrorMessage(error: unknown): string {
   return String(error)
 }
 
+function isRtkRewriteCommand(command: string): boolean {
+  const token = command.match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/)
+  const firstToken = token?.[1] || token?.[2] || token?.[3] || ''
+  const normalized = path.basename(firstToken).toLowerCase()
+  return normalized === 'rtk' || normalized === 'rtk.exe'
+}
+
 function classifyRtkRewriteResult(result: CommandResult): RtkRewriteResult {
   const stdout = result.stdout.trim()
   const stderr = result.stderr.trim()
 
-  if (result.code === 0 && stdout) {
+  if (result.code === 0 && stdout && isRtkRewriteCommand(stdout)) {
     return {
       status: 'rewritten',
       command: stdout
     }
   }
 
-  if (result.code === 3 && stdout && /No hook installed/i.test(stderr)) {
+  if (result.code === 3 && stdout && isRtkRewriteCommand(stdout)) {
     return {
       status: 'rewritten',
       command: stdout

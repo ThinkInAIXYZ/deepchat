@@ -8,7 +8,7 @@ import { app } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS, SETTINGS_EVENTS } from '@/events'
+import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
@@ -78,16 +78,13 @@ export const eventListenerSetupHook: LifecycleHook = {
         }
 
         const navigateToAbout = () => {
-          presenter.windowPresenter.sendToWindow(settingsWindowId, SETTINGS_EVENTS.NAVIGATE, {
+          presenter.windowPresenter.sendSettingsNavigation(settingsWindowId, {
             routeName: 'settings-about'
           })
         }
 
         const triggerUpdateCheck = () => {
-          presenter.windowPresenter.sendToWindow(
-            settingsWindowId,
-            SETTINGS_EVENTS.CHECK_FOR_UPDATES
-          )
+          presenter.windowPresenter.sendSettingsCheckForUpdates(settingsWindowId)
         }
 
         navigateToAbout()

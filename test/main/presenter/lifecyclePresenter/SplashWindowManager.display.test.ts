@@ -107,6 +107,13 @@ class MockBrowserWindow {
 }
 
 vi.mock('electron', () => ({
+  app: {
+    setActivationPolicy: vi.fn(),
+    focus: vi.fn(),
+    dock: {
+      show: vi.fn()
+    }
+  },
   BrowserWindow: MockBrowserWindow,
   ipcMain: mockIpcMain,
   nativeImage: {

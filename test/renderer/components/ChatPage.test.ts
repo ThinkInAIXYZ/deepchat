@@ -145,15 +145,10 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }))
   })
+  const uiSettingsStore = reactive({
+    autoScrollEnabled: true
+  })
 
-  const agentSessionPresenter = {
-    respondToolInteraction: vi.fn().mockResolvedValue(undefined),
-    cancelGeneration: vi.fn().mockResolvedValue(undefined),
-    retryMessage: vi.fn().mockResolvedValue(undefined),
-    deleteMessage: vi.fn().mockResolvedValue(undefined),
-    editUserMessage: vi.fn().mockResolvedValue(undefined),
-    forkSession: vi.fn().mockResolvedValue({ id: 'forked' })
-  }
   const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({
@@ -209,8 +204,8 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
   }))
-  vi.doMock('@api/legacy/presenters', () => ({
-    useLegacyPresenter: () => agentSessionPresenter
+  vi.doMock('@/stores/uiSettingsStore', () => ({
+    useUiSettingsStore: () => uiSettingsStore
   }))
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     createChatClient: vi.fn(() => chatClient)
@@ -426,7 +421,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    agentSessionPresenter,
     chatClient,
     chatRespondToolInteraction,
     sessionClient,
@@ -553,7 +547,7 @@ describe('ChatPage', () => {
 
     await flushStartupDeferredTasks()
 
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
   })
 
@@ -579,7 +573,7 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
     expect(input.props('files')).toEqual([
       {
@@ -652,7 +646,7 @@ describe('ChatPage', () => {
   it('maps reasoning metadata into message usage for think duration fallback', async () => {
     const { wrapper, messageStore } = await setup()
 
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
 
     const messageList = wrapper.findComponent({ name: 'MessageList' })
     const messages = messageList.props('messages') as Array<{
@@ -845,7 +839,7 @@ describe('ChatPage', () => {
   })
 
   it('routes tool interaction responses through ChatClient and refreshes messages', async () => {
-    const { wrapper, chatClient, agentSessionPresenter, messageStore } = await setup({
+    const { wrapper, chatClient, messageStore } = await setup({
       messages: [
         buildAssistantMessage([
           {
@@ -878,7 +872,6 @@ describe('ChatPage', () => {
         granted: true
       }
     })
-    expect(agentSessionPresenter.respondToolInteraction).not.toHaveBeenCalled()
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
   })
 
@@ -1229,9 +1222,9 @@ describe('ChatPage', () => {
     })
   })
 
-  it('stops session restore bottom settling after manual scroll events', async () => {
+  it('stops session restore bottom settling after pointer scroll intent', async () => {
     await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
-      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      await wrapper.get('[data-testid="chat-page"]').trigger('pointerdown')
     })
   })
 

@@ -1769,7 +1769,9 @@ export class AgentToolManager {
         windowRuntime: {
           createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
           sendToWindow: (windowId, channel, ...args) =>
-            this.runtimePort.sendToWindow(windowId, channel, ...args)
+            this.runtimePort.sendToWindow(windowId, channel, ...args),
+          sendSettingsNavigation: (windowId, navigation) =>
+            this.runtimePort.sendSettingsNavigation(windowId, navigation)
         }
       })
     }

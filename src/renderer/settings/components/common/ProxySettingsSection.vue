@@ -52,7 +52,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
 import { Input } from '@shadcn/components/ui/input'
 import {
   Select,
@@ -64,14 +64,16 @@ import {
 import { useLanguageStore } from '@/stores/language'
 
 const { t } = useI18n()
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
 const langStore = useLanguageStore()
 
-const selectedProxyMode = ref('system')
+type ProxyMode = Awaited<ReturnType<typeof configClient.getProxyMode>>
+
+const selectedProxyMode = ref<ProxyMode>('system')
 const customProxyUrl = ref('')
 const showUrlError = ref(false)
 
-const proxyModes = [
+const proxyModes: Array<{ value: ProxyMode; label: string }> = [
   { value: 'system', label: t('settings.common.proxyModeSystem') },
   { value: 'none', label: t('settings.common.proxyModeNone') },
   { value: 'custom', label: t('settings.common.proxyModeCustom') }
@@ -93,7 +95,7 @@ const validateProxyUrl = () => {
   showUrlError.value = !isValid
 
   if (isValid || !customProxyUrl.value.trim()) {
-    configPresenter.setCustomProxyUrl(customProxyUrl.value)
+    void configClient.setCustomProxyUrl(customProxyUrl.value)
   }
 }
 
@@ -107,12 +109,13 @@ watch(customProxyUrl, () => {
 })
 
 watch(selectedProxyMode, (newValue) => {
-  configPresenter.setProxyMode(newValue)
+  void configClient.setProxyMode(newValue)
 })
 
 onMounted(async () => {
-  selectedProxyMode.value = await configPresenter.getProxyMode()
-  customProxyUrl.value = await configPresenter.getCustomProxyUrl()
+  const settings = await configClient.getProxySettings()
+  selectedProxyMode.value = settings.mode
+  customProxyUrl.value = settings.customProxyUrl
   if (selectedProxyMode.value === 'custom' && customProxyUrl.value) {
     validateProxyUrl()
   }

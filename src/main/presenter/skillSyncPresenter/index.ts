@@ -29,10 +29,30 @@ import type { ISkillPresenter, IConfigPresenter } from '@shared/presenter'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
-import { eventBus, SendTarget } from '@/eventbus'
-import { SKILL_SYNC_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { isValidToolId, isValidConflictStrategy, checkWritePermission } from './security'
 import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
+
+type SkillSyncEventName =
+  | 'skillSync.discoveries.changed'
+  | 'skillSync.scan.started'
+  | 'skillSync.scan.completed'
+  | 'skillSync.import.started'
+  | 'skillSync.import.progress'
+  | 'skillSync.import.completed'
+  | 'skillSync.export.started'
+  | 'skillSync.export.progress'
+  | 'skillSync.export.completed'
+
+function publishSkillSyncEvent(
+  name: SkillSyncEventName,
+  payload: Record<string, unknown> = {}
+): void {
+  publishDeepchatEvent(name, {
+    ...payload,
+    version: Date.now()
+  })
+}
 
 // ============================================================================
 // SkillSyncPresenter Implementation
@@ -125,7 +145,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       logger.info(
         `[SkillSync] Found ${totalNewSkills} new skills from ${newDiscoveries.length} tools`
       )
-      eventBus.sendToRenderer(SKILL_SYNC_EVENTS.NEW_DISCOVERIES, SendTarget.ALL_WINDOWS, {
+      publishSkillSyncEvent('skillSync.discoveries.changed', {
         discoveries: newDiscoveries
       })
     } else {
@@ -232,9 +252,9 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * Scan all registered external tools for skills
    */
   async scanExternalTools(): Promise<ScanResult[]> {
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_STARTED, SendTarget.ALL_WINDOWS, {})
+    publishSkillSyncEvent('skillSync.scan.started')
     const results = await this.scanExternalToolsWithFallback()
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.SCAN_COMPLETED, SendTarget.ALL_WINDOWS, { results })
+    publishSkillSyncEvent('skillSync.scan.completed', { results })
     return results
   }
 
@@ -371,7 +391,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       }
     }
 
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_STARTED, SendTarget.ALL_WINDOWS, {
+    publishSkillSyncEvent('skillSync.import.started', {
       total: previews.length
     })
 
@@ -392,7 +412,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         if (strategy === ConflictStrategy.SKIP) {
           result.skipped++
           processed++
-          eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+          publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -423,7 +443,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         if (installResult.success) {
           result.imported++
           processed++
-          eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+          publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -435,7 +455,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
             reason: installResult.error || 'Unknown error'
           })
           processed++
-          eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+          publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -448,7 +468,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
           reason: error instanceof Error ? error.message : String(error)
         })
         processed++
-        eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+        publishSkillSyncEvent('skillSync.import.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skill.name,
@@ -459,7 +479,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
     result.success = result.failed.length === 0
 
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.IMPORT_COMPLETED, SendTarget.ALL_WINDOWS, { result })
+    publishSkillSyncEvent('skillSync.import.completed', { result })
 
     return result
   }
@@ -592,7 +612,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       }
     }
 
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_STARTED, SendTarget.ALL_WINDOWS, {
+    publishSkillSyncEvent('skillSync.export.started', {
       total: previews.length
     })
 
@@ -615,7 +635,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
           reason: `Invalid export preview (path: ${preview.targetPath ? 'ok' : 'missing'}, content: ${preview.convertedContent ? 'ok' : 'missing'})`
         })
         processed++
-        eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+        publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -631,7 +651,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         if (strategy === ConflictStrategy.SKIP) {
           result.skipped++
           processed++
-          eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+          publishSkillSyncEvent('skillSync.export.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skillName,
@@ -670,7 +690,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
         result.exported++
         processed++
-        eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+        publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -684,7 +704,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
           reason
         })
         processed++
-        eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_PROGRESS, SendTarget.ALL_WINDOWS, {
+        publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -698,7 +718,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       `[SkillSync] Export completed: ${result.exported} exported, ${result.skipped} skipped, ${result.failed.length} failed`
     )
 
-    eventBus.sendToRenderer(SKILL_SYNC_EVENTS.EXPORT_COMPLETED, SendTarget.ALL_WINDOWS, { result })
+    publishSkillSyncEvent('skillSync.export.completed', { result })
 
     return result
   }

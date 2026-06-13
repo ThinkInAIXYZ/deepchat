@@ -37,8 +37,14 @@ vi.mock('@iconify/vue', () => ({
   })
 }))
 
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyPresenter: () => ({
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => ({
+    copyText: vi.fn()
+  })
+}))
+
+vi.mock('@api/WindowClient', () => ({
+  createWindowClient: () => ({
     previewFile: vi.fn()
   })
 }))

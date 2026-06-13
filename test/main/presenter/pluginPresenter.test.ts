@@ -318,6 +318,14 @@ describe('PluginPresenter', () => {
   })
 
   it('hides the CUA official plugin on unsupported platforms', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-platform-test-'))
+    tempRoots.push(root)
+    const userDataPath = path.join(root, 'userData')
+    await mkdir(userDataPath, { recursive: true })
+    vi.mocked(app.getPath).mockImplementation((name: string) =>
+      name === 'userData' ? userDataPath : path.join(root, name)
+    )
+
     const winPresenter = await createPluginPresenter('win32')
     const linuxPresenter = await createPluginPresenter('linux')
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
@@ -989,16 +997,24 @@ describe('PluginPresenter', () => {
     const packageScript = await readFile('scripts/package-plugin.mjs', 'utf8')
     const guide = await readFile('docs/guides/plugin-packaging.md', 'utf8')
 
-    expect(packageJson.scripts['plugin:cua:package:mac:arm64']).toContain('--target-arch arm64')
-    expect(packageJson.scripts['plugin:cua:package:mac:x64']).toContain('--target-arch x64')
+    expect(packageJson.scripts['plugin:cua:build:mac:arm64']).toContain('--arch arm64')
     expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
-    expect(packageJson.scripts['plugin:cua:bundle:mac:arm64']).toContain('--target-arch arm64')
-    expect(packageJson.scripts['plugin:cua:bundle:mac:x64']).toContain('--target-arch x64')
-    expect(packageJson.scripts['build:mac:arm64']).toContain('plugin:cua:bundle:mac:arm64')
-    expect(buildWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
-    expect(buildWorkflow).toContain('Verify bundled CUA plugin')
+    expect(packageJson.scripts['build:mac:arm64']).toContain(
+      'plugin:bundle -- --name cua --platform darwin --arch arm64'
+    )
+    expect(packageJson.scripts['build:mac:x64']).toContain(
+      'plugin:bundle -- --name cua --platform darwin --arch x64'
+    )
+    expect(buildWorkflow).toContain('pnpm run plugin:cua:build:mac:${{ matrix.arch }}')
+    expect(buildWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain('Verify bundled plugins')
     expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
-    expect(releaseWorkflow).toContain('pnpm run plugin:cua:bundle:mac:${{ matrix.arch }}')
+    expect(releaseWorkflow).toContain('pnpm run plugin:cua:build:mac:${{ matrix.arch }}')
+    expect(releaseWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
+    )
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")

@@ -5,9 +5,9 @@ import type {
   IThreadPresenter,
   MESSAGE_STATUS,
   MESSAGE_METADATA,
-  ParentSelection,
-  AcpWorkdirInfo
+  ParentSelection
 } from './thread.presenter'
+import type { AcpWorkdirInfo } from './acp.presenter'
 
 export type SessionStatus =
   | 'idle'

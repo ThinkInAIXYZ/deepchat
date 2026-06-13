@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEEPLINK_EVENTS, NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
+import { DEEPLINK_EVENTS } from '@/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import logger from '@shared/logger'
 
 const browserWindowFromIdMock = vi.hoisted(() => vi.fn())
@@ -12,6 +13,9 @@ const presenterMock = vi.hoisted(() => ({
     createSettingsWindow: vi.fn().mockResolvedValue(9),
     createAppWindow: vi.fn().mockResolvedValue(1),
     sendToWindow: vi.fn().mockReturnValue(true),
+    sendToAllWindows: vi.fn(),
+    sendToWebContents: vi.fn(),
+    sendSettingsNavigation: vi.fn().mockReturnValue(true),
     setPendingSettingsProviderInstall: vi.fn(),
     getAllWindows: vi.fn().mockReturnValue([]),
     getFocusedWindow: vi.fn().mockReturnValue(null)
@@ -27,8 +31,7 @@ const presenterMock = vi.hoisted(() => ({
 const eventBusMock = vi.hoisted(() => ({
   once: vi.fn(),
   on: vi.fn(),
-  off: vi.fn(),
-  sendToRenderer: vi.fn()
+  off: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -43,21 +46,21 @@ vi.mock('@/presenter', () => ({
 }))
 
 vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMock,
-  SendTarget: {
-    ALL_WINDOWS: 'all_windows'
-  }
+  eventBus: eventBusMock
 }))
 
 describe('DeeplinkPresenter', () => {
   const createProviderInstallBase64 = (payload: Record<string, string>) =>
     Buffer.from(JSON.stringify(payload)).toString('base64')
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks()
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
     presenterMock.windowPresenter.createAppWindow.mockResolvedValue(1)
     presenterMock.windowPresenter.sendToWindow.mockReturnValue(true)
+    presenterMock.windowPresenter.sendToAllWindows.mockReset()
+    presenterMock.windowPresenter.sendToWebContents.mockReset()
+    presenterMock.windowPresenter.sendSettingsNavigation.mockReturnValue(true)
     presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(null)
@@ -76,9 +79,16 @@ describe('DeeplinkPresenter', () => {
 
       return undefined
     })
+    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: presenterMock.windowPresenter.sendToAllWindows,
+      sendToWebContents: presenterMock.windowPresenter.sendToWebContents
+    })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
+    setDeepchatEventWindowPresenter(null)
     vi.restoreAllMocks()
   })
 
@@ -237,18 +247,15 @@ describe('DeeplinkPresenter', () => {
         willOverwrite: true
       })
     )
-    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
-      1,
+    expect(presenterMock.windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(9, {
+      routeName: 'settings-provider'
+    })
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
       9,
-      SETTINGS_EVENTS.NAVIGATE,
-      {
-        routeName: 'settings-provider'
-      }
-    )
-    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
-      2,
-      9,
-      SETTINGS_EVENTS.PROVIDER_INSTALL
+      DEEPCHAT_EVENT_CHANNEL,
+      expect.objectContaining({
+        name: 'settings.providerInstallRequested'
+      })
     )
   })
 
@@ -275,10 +282,15 @@ describe('DeeplinkPresenter', () => {
         iconModelId: 'openai-completions'
       })
     )
-    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
-      2,
+    expect(presenterMock.windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(9, {
+      routeName: 'settings-provider'
+    })
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
       9,
-      SETTINGS_EVENTS.PROVIDER_INSTALL
+      DEEPCHAT_EVENT_CHANNEL,
+      expect.objectContaining({
+        name: 'settings.providerInstallRequested'
+      })
     )
   })
 
@@ -302,10 +314,15 @@ describe('DeeplinkPresenter', () => {
         type: 'openai-completions'
       })
     )
-    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenNthCalledWith(
-      2,
+    expect(presenterMock.windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(9, {
+      routeName: 'settings-provider'
+    })
+    expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
       9,
-      SETTINGS_EVENTS.PROVIDER_INSTALL
+      DEEPCHAT_EVENT_CHANNEL,
+      expect.objectContaining({
+        name: 'settings.providerInstallRequested'
+      })
     )
   })
 
@@ -324,12 +341,14 @@ describe('DeeplinkPresenter', () => {
     await deeplinkPresenter.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
-    expect(eventBusMock.sendToRenderer).toHaveBeenCalledWith(
-      NOTIFICATION_EVENTS.SHOW_ERROR,
-      'all_windows',
+    expect(presenterMock.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
+      DEEPCHAT_EVENT_CHANNEL,
       expect.objectContaining({
-        title: 'Provider Deeplink',
-        type: 'error'
+        name: 'notification.error',
+        payload: expect.objectContaining({
+          title: 'Provider Deeplink',
+          type: 'error'
+        })
       })
     )
   })

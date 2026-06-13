@@ -30,12 +30,6 @@ vi.mock('@/composables/useGuidedOnboardingStep', () => ({
   })
 }))
 
-vi.mock('@api/legacy/presenters', () => ({
-  useLegacyPresenter: () => ({
-    focusMainWindow: vi.fn().mockResolvedValue(true)
-  })
-}))
-
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn()

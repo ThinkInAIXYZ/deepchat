@@ -17,8 +17,8 @@ import {
 import { ServerManager } from './serverManager'
 import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
-import { eventBus, SendTarget } from '@/eventbus'
-import { MCP_EVENTS, NOTIFICATION_EVENTS } from '@/events'
+import { eventBus } from '@/eventbus'
+import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -37,6 +37,26 @@ export class McpPresenter implements IMCPPresenter {
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
   >()
+
+  private emitServerStarted(serverName: string): void {
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STARTED, serverName)
+    publishDeepchatEvent('mcp.server.started', {
+      serverName,
+      version: Date.now()
+    })
+  }
+
+  private emitServerStopped(serverName: string): void {
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STOPPED, serverName)
+    publishDeepchatEvent('mcp.server.stopped', {
+      serverName,
+      version: Date.now()
+    })
+  }
+
+  private emitInitialized(): void {
+    eventBus.sendToMain(MCP_EVENTS.INITIALIZED)
+  }
 
   constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
     logger.info('Initializing MCP Presenter')
@@ -108,8 +128,7 @@ export class McpPresenter implements IMCPPresenter {
           await this.serverManager.startServer(customPromptsServerName)
           logger.info(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
 
-          // Notify renderer process that server has started
-          eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, customPromptsServerName)
+          this.emitServerStarted(customPromptsServerName)
         } catch (error) {
           console.error(
             `[MCP] Failed to start custom prompts server ${customPromptsServerName}:`,
@@ -128,8 +147,7 @@ export class McpPresenter implements IMCPPresenter {
               await this.serverManager.startServer(serverName)
               logger.info(`[MCP] Enabled server ${serverName} started successfully`)
 
-              // Notify renderer process that server has started
-              eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
+              this.emitServerStarted(serverName)
             } catch (error) {
               console.error(`[MCP] Failed to start enabled server ${serverName}:`, error)
             }
@@ -140,14 +158,14 @@ export class McpPresenter implements IMCPPresenter {
       // Mark initialization complete and emit event
       this.isInitialized = true
       logger.info('[MCP] Initialization completed')
-      eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
+      this.emitInitialized()
 
       this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // Mark as complete even if initialization fails to avoid system stuck in uninitialized state
       this.isInitialized = true
-      eventBus.send(MCP_EVENTS.INITIALIZED, SendTarget.ALL_WINDOWS)
+      this.emitInitialized()
     }
   }
 
@@ -371,7 +389,7 @@ export class McpPresenter implements IMCPPresenter {
       // Get current language and send notification
       const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
-      eventBus.sendToRenderer(NOTIFICATION_EVENTS.SHOW_ERROR, SendTarget.ALL_WINDOWS, {
+      publishDeepchatEvent('notification.error', {
         title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',
         message:
           errorMessages.addMcpServerDuplicateMessage?.replace('{serverName}', serverName) ||
@@ -400,7 +418,7 @@ export class McpPresenter implements IMCPPresenter {
       } catch (error) {
         console.error(`[MCP] Failed to restart server ${serverName}:`, error)
         // Even if restart fails, ensure correct state by marking as not running
-        eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
+        this.emitServerStopped(serverName)
       }
     }
   }
@@ -420,14 +438,12 @@ export class McpPresenter implements IMCPPresenter {
 
   async startServer(serverName: string): Promise<void> {
     await this.serverManager.startServer(serverName)
-    // Notify renderer process that server has started
-    eventBus.send(MCP_EVENTS.SERVER_STARTED, SendTarget.ALL_WINDOWS, serverName)
+    this.emitServerStarted(serverName)
   }
 
   async stopServer(serverName: string): Promise<void> {
     await this.serverManager.stopServer(serverName)
-    // Notify renderer process that server has stopped
-    eventBus.send(MCP_EVENTS.SERVER_STOPPED, SendTarget.ALL_WINDOWS, serverName)
+    this.emitServerStopped(serverName)
   }
 
   getServerLastError(serverName: string): string | undefined {
@@ -614,7 +630,6 @@ export class McpPresenter implements IMCPPresenter {
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
-        eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_REQUEST, SendTarget.DEFAULT_WINDOW, request)
         publishDeepchatEvent('mcp.sampling.request', {
           request,
           version: Date.now()
@@ -642,7 +657,6 @@ export class McpPresenter implements IMCPPresenter {
     this.pendingSamplingRequests.delete(decision.requestId)
     pending.resolve(decision)
 
-    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_DECISION, SendTarget.ALL_WINDOWS, decision)
     publishDeepchatEvent('mcp.sampling.decision', {
       decision,
       version: Date.now()
@@ -662,10 +676,6 @@ export class McpPresenter implements IMCPPresenter {
     this.pendingSamplingRequests.delete(requestId)
     pending.reject(new Error(reason ?? 'Sampling request cancelled'))
 
-    eventBus.sendToRenderer(MCP_EVENTS.SAMPLING_CANCELLED, SendTarget.ALL_WINDOWS, {
-      requestId,
-      reason: reason ?? 'cancelled'
-    })
     publishDeepchatEvent('mcp.sampling.cancelled', {
       requestId,
       reason: reason ?? 'cancelled',

@@ -82,7 +82,10 @@ import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTitle } from '@vueuse/core'
-import { useLegacyPresenter } from '@api/legacy/presenters'
+import { createConfigClient } from '@api/ConfigClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createWindowClient } from '@api/WindowClient'
+import { getRuntimePlatform } from '@api/runtime'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
@@ -92,7 +95,6 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import 'vue-sonner/style.css'
-import { NOTIFICATION_EVENTS, SETTINGS_EVENTS } from '@/events'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
@@ -103,11 +105,8 @@ import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
-import type {
-  DatabaseRepairSuggestedPayload,
-  LLM_PROVIDER,
-  ProviderInstallPreview
-} from '@shared/presenter'
+import type { DatabaseRepairSuggestedPayload, LLM_PROVIDER } from '@shared/presenter'
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
 import { nanoid } from 'nanoid'
 import {
@@ -126,9 +125,10 @@ type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
 }
 
-const devicePresenter = useLegacyPresenter('devicePresenter')
-const windowPresenter = useLegacyPresenter('windowPresenter')
-const configPresenter = useLegacyPresenter('configPresenter')
+const configClient = createConfigClient()
+const deviceClient = createDeviceClient()
+const windowClient = createWindowClient()
+const settingsEventCleanups: Array<() => void> = []
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
@@ -262,7 +262,7 @@ const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayloa
   })
 }
 
-const handleSettingsNavigate = async (_event: unknown, payload?: SettingsNavigationPayload) => {
+const handleSettingsNavigate = async (payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
   const params = normalizeRouteParams(payload?.params)
   if (!routeName || !router.hasRoute(routeName)) return
@@ -359,7 +359,7 @@ const syncPendingProviderInstall = async () => {
   let preview: ProviderInstallPreview | null = null
 
   try {
-    preview = await windowPresenter.consumePendingSettingsProviderInstall()
+    preview = await windowClient.consumePendingSettingsProviderInstall()
     if (!preview) {
       return
     }
@@ -368,7 +368,7 @@ const syncPendingProviderInstall = async () => {
   } catch (error) {
     if (preview) {
       try {
-        windowPresenter.setPendingSettingsProviderInstall(preview)
+        windowClient.requeuePendingSettingsProviderInstall(preview)
       } catch (requeueError) {
         console.error('Failed to requeue pending provider install preview:', requeueError)
       }
@@ -444,13 +444,13 @@ const confirmProviderImport = async () => {
   }
 }
 
-if (window?.electron?.ipcRenderer) {
-  window.electron.ipcRenderer.on(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
-  window.electron.ipcRenderer.on(SETTINGS_EVENTS.PROVIDER_INSTALL, handleProviderInstall)
-}
+const cleanupSettingsNavigate = windowClient.onSettingsNavigate(handleSettingsNavigate)
+const cleanupSettingsProviderInstall = windowClient.onSettingsProviderInstall(() => {
+  void handleProviderInstall()
+})
 
 const notifySettingsReady = () => {
-  window.electron?.ipcRenderer?.send(SETTINGS_EVENTS.READY)
+  void windowClient.notifySettingsReady()
 }
 const settings: Ref<
   {
@@ -460,7 +460,7 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  getSettingsRouteItems(window.electron?.process?.platform).map((item) => ({
+  getSettingsRouteItems(getRuntimePlatform()).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
@@ -469,7 +469,7 @@ const settings: Ref<
 )
 
 const settingGroups = ref(
-  getSettingsNavigationGroups(window.electron?.process?.platform).map((group) => ({
+  getSettingsNavigationGroups(getRuntimePlatform()).map((group) => ({
     key: group.key,
     titleKey: group.titleKey,
     items: group.items.map((item) => ({
@@ -535,7 +535,7 @@ const getSettingsTabTestId = (name: string) =>
 watch(
   () => languageStore.language,
   async () => {
-    locale.value = await configPresenter.getLanguage()
+    locale.value = await configClient.getLanguage()
     document.documentElement.dir = languageStore.dir
   }
 )
@@ -611,19 +611,17 @@ onMounted(async () => {
   startupWorkloadStore?.connect()
 
   // Listen for window maximize/unmaximize events
-  devicePresenter.getDeviceInfo().then((deviceInfo: any) => {
+  deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
 
-  window.electron.ipcRenderer.on(NOTIFICATION_EVENTS.SHOW_ERROR, (_event, error) => {
+  const cleanupNotificationError = windowClient.onNotificationError((error) => {
     showErrorToast(error)
   })
-  window.electron.ipcRenderer.on(
-    NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED,
-    (_event, payload) => {
-      showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
-    }
-  )
+  const cleanupDatabaseRepairSuggested = windowClient.onDatabaseRepairSuggested((payload) => {
+    showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
+  })
+  settingsEventCleanups.push(cleanupNotificationError, cleanupDatabaseRepairSuggested)
 
   const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
     uiSettingsStore.loadSettings(),
@@ -665,8 +663,8 @@ onMounted(async () => {
   logSettingsStartup('settings window ready IPC sent')
 })
 
-const closeWindow = () => {
-  windowPresenter.closeSettingsWindow()
+const closeWindow = async () => {
+  await windowClient.closeSettings()
 }
 
 onBeforeUnmount(() => {
@@ -675,13 +673,9 @@ onBeforeUnmount(() => {
     errorDisplayTimer.value = null
   }
 
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.SHOW_ERROR)
-  window.electron.ipcRenderer.removeAllListeners(NOTIFICATION_EVENTS.DATABASE_REPAIR_SUGGESTED)
-  window.electron.ipcRenderer.removeListener(SETTINGS_EVENTS.NAVIGATE, handleSettingsNavigate)
-  window.electron.ipcRenderer.removeListener(
-    SETTINGS_EVENTS.PROVIDER_INSTALL,
-    handleProviderInstall
-  )
+  cleanupSettingsNavigate()
+  cleanupSettingsProviderInstall()
+  settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
   window.removeEventListener('focus', handleWindowFocus)
   cleanupMcpDeeplink()
 })

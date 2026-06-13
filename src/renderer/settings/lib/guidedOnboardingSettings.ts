@@ -25,11 +25,11 @@ export async function continueGuidedOnboardingFromSettings(options: {
     name?: unknown
     params?: Record<string, unknown>
   }
-  windowPresenter: {
+  windowClient: {
     focusMainWindow?: () => Promise<boolean> | boolean
   }
 }) {
-  const { router, currentRoute, windowPresenter } = options
+  const { router, currentRoute, windowClient } = options
   let { state } = options
   let stepId = resolveGuidedOnboardingResumeStepId(state)
 
@@ -68,5 +68,5 @@ export async function continueGuidedOnboardingFromSettings(options: {
     })
   }
 
-  await windowPresenter.focusMainWindow?.()
+  await windowClient.focusMainWindow?.()
 }

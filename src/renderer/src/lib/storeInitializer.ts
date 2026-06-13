@@ -3,8 +3,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useMcpStore } from '@/stores/mcp'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
-import { DEEPLINK_EVENTS } from '@/events'
-import { createIpcSubscriptionScope } from '@/lib/ipcSubscription'
+import { createAppRuntimeClient } from '@api/AppRuntimeClient'
 
 export const initAppStores = async () => {
   const uiSettingsStore = useUiSettingsStore()
@@ -67,7 +66,7 @@ export const useMcpInstallDeeplinkHandler = () => {
     }
   }
 
-  const handleMcpInstall = async (_: unknown, data: Record<string, any>) => {
+  const handleMcpInstall = async (data: { mcpConfig?: string }) => {
     const { mcpConfig } = data ?? {}
     if (!mcpConfig) return
 
@@ -82,9 +81,10 @@ export const useMcpInstallDeeplinkHandler = () => {
 
   const setup = () => {
     cleanupIpcListeners?.()
-    const scope = createIpcSubscriptionScope()
-    scope.on(DEEPLINK_EVENTS.MCP_INSTALL, handleMcpInstall)
-    cleanupIpcListeners = scope.cleanup
+    const appRuntimeClient = createAppRuntimeClient()
+    cleanupIpcListeners = appRuntimeClient.onMcpInstallRequested((payload) => {
+      void handleMcpInstall(payload)
+    })
   }
 
   const cleanup = () => {

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { ACP_WORKSPACE_EVENTS } from '@/events'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
@@ -559,20 +558,16 @@ const setup = async (options: SetupOptions = {}) => {
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
 
-  const ipcRenderer = {
-    emit: (channel: string, payload?: unknown) => {
-      if (channel === ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY && payload) {
-        acpConfigOptionsReadyHandler?.({
-          ...(payload as {
-            conversationId?: string
-            agentId: string
-            workdir: string
-            configState: AcpConfigState
-          }),
-          version: Date.now()
-        })
-      }
-    }
+  const emitAcpConfigOptionsReady = (payload: {
+    conversationId?: string
+    agentId: string
+    workdir: string
+    configState: AcpConfigState
+  }) => {
+    acpConfigOptionsReadyHandler?.({
+      ...payload,
+      version: Date.now()
+    })
   }
   const startupDeferredTasks: Array<() => void | Promise<void>> = []
   const onboardingClient = {
@@ -726,7 +721,7 @@ const setup = async (options: SetupOptions = {}) => {
     draftStore,
     configPresenter,
     projectStore,
-    ipcRenderer,
+    emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -2281,10 +2276,11 @@ describe('ChatStatusBar model and session panels', () => {
   it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const processConfig = createAcpConfigState({}, 'gpt-5')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: false
-    })
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+      await setup({
+        agentId: 'deepchat',
+        hasActiveSession: false
+      })
 
     llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
@@ -2293,7 +2289,7 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'acp-agent',
       workdir: '/tmp/workspace',
       configState: processConfig
@@ -2311,10 +2307,11 @@ describe('ChatStatusBar model and session panels', () => {
   it('keeps ACP badge loading when an old agent warmup event arrives after switching agents', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, ipcRenderer } = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: false
-    })
+    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+      await setup({
+        agentId: 'deepchat',
+        hasActiveSession: false
+      })
 
     llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
@@ -2329,7 +2326,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'codex',
       workdir: '/tmp/workspace',
       configState: createAcpConfigState({}, 'gpt-5')
@@ -2339,7 +2336,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'claude',
       workdir: '/tmp/workspace',
       configState: claudeConfig
@@ -2435,7 +2432,7 @@ describe('ChatStatusBar model and session panels', () => {
     const codexConfig = createAcpConfigState({}, 'gpt-5')
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
     const pendingWarmup = createDeferred<AcpConfigState | null>()
-    const { wrapper, llmproviderPresenter, agentStore, ipcRenderer } = await setup({
+    const { wrapper, llmproviderPresenter, agentStore, emitAcpConfigOptionsReady } = await setup({
       agentId: 'codex',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
@@ -2456,7 +2453,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'codex',
       workdir: '/tmp/workspace',
       configState: codexConfig
@@ -2466,7 +2463,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
-    ipcRenderer?.emit(ACP_WORKSPACE_EVENTS.SESSION_CONFIG_OPTIONS_READY, {
+    emitAcpConfigOptionsReady({
       agentId: 'claude',
       workdir: '/tmp/workspace',
       configState: claudeConfig

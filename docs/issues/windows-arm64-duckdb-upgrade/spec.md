@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft on `2026-05-21`.
+Implemented in current code as of 2026-06-13.
 
 ## Goal
 
@@ -10,9 +10,10 @@ Restore Windows ARM64 desktop startup and smoke E2E coverage by upgrading DeepCh
 
 ## Background
 
-The Windows ARM64 E2E workflow currently fails during Electron main-process startup before the first window becomes available.
+The Windows ARM64 E2E startup failure was caused by DeepChat loading
+`@duckdb/node-api@1.3.2-alpha.25` during boot.
 
-The failure is caused by DeepChat loading `@duckdb/node-api@1.3.2-alpha.25` during boot. That package version only ships native bindings for:
+That package version only ships native bindings for:
 
 - `darwin-arm64`
 - `darwin-x64`
@@ -20,9 +21,12 @@ The failure is caused by DeepChat loading `@duckdb/node-api@1.3.2-alpha.25` duri
 - `linux-x64`
 - `win32-x64`
 
-It does not ship a `win32-arm64` binding, so the app crashes while loading the built-in knowledge base presenter on Windows ARM64.
+It does not ship a `win32-arm64` binding, so the app crashed while loading the built-in knowledge
+base presenter on Windows ARM64.
 
-The newer `@duckdb/node-api@1.5.3-r.1` release depends on `@duckdb/node-bindings@1.5.3-r.1`, which publishes `@duckdb/node-bindings-win32-arm64` in npm metadata. DuckDB's current `vss` documentation still describes the same `INSTALL vss`, `LOAD vss`, and `SET hnsw_enable_experimental_persistence = true` workflow that DeepChat already uses.
+DeepChat now depends on `@duckdb/node-api@1.5.3-r.1`. The matching lockfile includes
+`@duckdb/node-bindings-win32-arm64@1.5.3-r.1`, and the Windows ARM64 workflow runs
+`pnpm run smoke:duckdb:vss` before app launch smoke coverage.
 
 ## User Stories
 

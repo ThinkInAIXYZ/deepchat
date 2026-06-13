@@ -1,8 +1,8 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-05-28` 的当前代码结构。历史 SDD 已清理为“活跃目标才保留”的模型：
-已经落地的实现只在当前项目文档中保留维护信息，不再保留一次性 `spec/plan/tasks`
-过程文档。
+本文档反映 `2026-06-13` 的当前代码结构。历史 SDD 已清理为“活跃目标保留三件套、
+已落地目标只保留 durable spec”的模型：`plan.md` / `tasks.md` 只服务当前执行，已完成目标
+只在 `spec.md` 保留仍有维护价值的契约和回归语义。
 
 当前 renderer-main 默认路径是 typed client / typed event：
 
@@ -16,9 +16,9 @@ Renderer
   -> agentSessionPresenter / agentRuntimePresenter / toolPresenter / llmProviderPresenter
 ```
 
-`useLegacyPresenter()`、`window.electron`、`window.api` 只允许作为兼容路径留在
-`src/renderer/api/legacy/**` quarantine 中。业务模块的新能力应从 `renderer/api/*Client`
-和 shared contracts 进入。
+`useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+`src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
+shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
 
 ## 当前必读
 
@@ -39,14 +39,10 @@ Renderer
 
 | 文档 | 用途 |
 | --- | --- |
-| [architecture/baselines/dependency-report.md](./architecture/baselines/dependency-report.md) | 当前依赖与耦合基线 |
-| [architecture/baselines/main-kernel-boundary-baseline.md](./architecture/baselines/main-kernel-boundary-baseline.md) | renderer-main 边界指标与 hot path 快照 |
-| [architecture/baselines/main-kernel-bridge-register.md](./architecture/baselines/main-kernel-bridge-register.md) | legacy bridge 登记表 |
-| [architecture/baselines/main-kernel-migration-scoreboard.md](./architecture/baselines/main-kernel-migration-scoreboard.md) | typed-boundary migration scoreboard |
-| [architecture/baselines/test-failure-groups.md](./architecture/baselines/test-failure-groups.md) | 测试失败分组基线 |
+| [architecture/baselines/main-kernel-bridge-register.json](./architecture/baselines/main-kernel-bridge-register.json) | `architecture-guard` 读取的 legacy bridge 机器登记表 |
 
-这些基线由 `scripts/generate-architecture-baseline.mjs` 生成，`scripts/architecture-guard.mjs`
-会读取其中的 JSON 文件。它们不是历史 SDD，不应随 completed feature 文档一起删除。
+其它 dependency、scoreboard、test failure、zero-inbound 报表属于按需生成的审计快照。当前代码
+需要重新审计时，运行 `pnpm run architecture:baseline` 生成临时报表并按需提交。
 
 ## 当前代码地图
 
@@ -62,24 +58,24 @@ docs/
 │   ├── tool-system.md
 │   └── baselines/
 ├── features/
-│   └── <active-feature-goal>/
+│   └── <active-feature-goal-or-retained-contract-spec>/
 ├── issues/
-│   └── <recent-active-issue-goal>/
+│   └── <active-issue-goal-or-retained-regression-spec>/
 ├── guides/
 │   ├── getting-started.md
 │   ├── code-navigation.md
-│   ├── debugging.md
 │   └── plugin-packaging.md
 └── spec-driven-dev.md
 ```
 
 ## SDD 保留规则
 
-- `docs/features/**`、`docs/issues/**`、`docs/architecture/**` 下的 goal folder 只表示活跃目标。
-- 已实现能力要把当前维护事实并入 `README.md`、`ARCHITECTURE.md`、`FLOWS.md` 或对应 guide，
-  然后删除旧 SDD 文件夹。
-- bug 修复类 issue SDD 超过两周即清理；按当前日期 `2026-05-28`，本次清理 cutoff 为
-  `2026-05-14` 之前。
+- `docs/features/**`、`docs/issues/**`、`docs/architecture/**` 下的 active goal folder 保留
+  `spec.md`、`plan.md`、`tasks.md`。
+- 已实现能力只保留仍有维护价值的 `spec.md`；删除对应 `plan.md` / `tasks.md`。
+- 已实现能力的当前维护事实也要并入 `README.md`、`ARCHITECTURE.md`、`FLOWS.md` 或对应 guide。
+- bug 修复类 issue SDD 超过两周即清理；按当前日期 `2026-06-13`，本次清理 cutoff 为
+  `2026-05-30` 之前。
 - 过期、未开工、只描述旧实现或旧分支的 SDD 直接删除。
 
 ## 阅读建议

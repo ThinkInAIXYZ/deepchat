@@ -15,8 +15,9 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js'
 import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
-import { eventBus, SendTarget } from '@/eventbus'
+import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import path from 'path'
 import { presenter } from '@/presenter'
 import { app } from 'electron'
@@ -60,11 +61,6 @@ class SimpleOAuthProvider {
     }
     return null
   }
-}
-
-// Ensure TypeScript can recognize SERVER_STATUS_CHANGED property
-type MCPEventsType = typeof MCP_EVENTS & {
-  SERVER_STATUS_CHANGED: string
 }
 
 // Session management related types
@@ -144,6 +140,19 @@ export class McpClient {
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
     this.runtimeHelper.initializeRuntimes()
+  }
+
+  private emitServerStatusChanged(isRunning: boolean): void {
+    eventBus.sendToMain(MCP_EVENTS.SERVER_STATUS_CHANGED, {
+      name: this.serverName,
+      status: isRunning ? 'running' : 'stopped',
+      isRunning
+    })
+    publishDeepchatEvent('mcp.server.status.changed', {
+      serverName: this.serverName,
+      isRunning,
+      version: Date.now()
+    })
   }
 
   public processCommandWithArgs(
@@ -454,15 +463,7 @@ export class McpClient {
           this.isConnected = true
           console.info(`MCP server ${this.serverName} connected successfully`)
 
-          // 触发服务器状态变更事件
-          eventBus.send(
-            (MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED,
-            SendTarget.ALL_WINDOWS,
-            {
-              name: this.serverName,
-              status: 'running'
-            }
-          )
+          this.emitServerStatusChanged(true)
         })
         .catch((error) => {
           console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
@@ -483,11 +484,7 @@ export class McpClient {
 
       console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
 
-      // 触发服务器状态变更事件
-      eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-        name: this.serverName,
-        status: 'stopped'
-      })
+      this.emitServerStatusChanged(false)
 
       throw error
     }
@@ -955,11 +952,7 @@ export class McpClient {
 
     logger.info(logMessage)
 
-    // Trigger server status changed event to notify the system
-    eventBus.send((MCP_EVENTS as MCPEventsType).SERVER_STATUS_CHANGED, SendTarget.ALL_WINDOWS, {
-      name: this.serverName,
-      status: 'stopped'
-    })
+    this.emitServerStatusChanged(false)
   }
 
   // 调用 MCP 工具

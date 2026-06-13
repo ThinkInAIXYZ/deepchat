@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AWS_BEDROCK_PROVIDER, IConfigPresenter } from '../../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 
-const { mockBedrockSend, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
-  mockBedrockSend: vi.fn(),
-  mockRunAiSdkCoreStream: vi.fn(),
-  mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
-}))
+const { mockBedrockClient, mockBedrockSend, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } =
+  vi.hoisted(() => ({
+    mockBedrockClient: vi.fn(),
+    mockBedrockSend: vi.fn(),
+    mockRunAiSdkCoreStream: vi.fn(),
+    mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'ok' })
+  }))
 
 vi.mock('electron', () => ({
   app: {
@@ -20,11 +22,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
-    on: vi.fn(),
-    sendToRenderer: vi.fn()
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    on: vi.fn()
   }
 }))
 
@@ -39,12 +37,7 @@ vi.mock('@/events', () => ({
 }))
 
 vi.mock('@aws-sdk/client-bedrock', () => ({
-  BedrockClient: vi.fn().mockImplementation(() => ({
-    config: {
-      region: vi.fn().mockResolvedValue('us-east-1')
-    },
-    send: mockBedrockSend
-  })),
+  BedrockClient: mockBedrockClient,
   ListFoundationModelsCommand: class ListFoundationModelsCommand {
     input: unknown
 
@@ -97,10 +90,24 @@ const createProvider = (overrides?: Partial<AWS_BEDROCK_PROVIDER>): AWS_BEDROCK_
 describe('AiSdkProvider aws-bedrock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockBedrockClient.mockImplementation(() => ({
+      config: {
+        region: vi.fn().mockResolvedValue('us-east-1')
+      },
+      send: mockBedrockSend
+    }))
     mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
-  it('fails fast when credentials are missing', async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('uses the provider DB fallback when credentials are missing', async () => {
+    vi.stubEnv('AWS_ACCESS_KEY_ID', '')
+    vi.stubEnv('AWS_SECRET_ACCESS_KEY', '')
+    vi.stubEnv('AWS_REGION', '')
+
     const provider = new AiSdkProvider(
       createProvider({
         credential: undefined
@@ -108,10 +115,8 @@ describe('AiSdkProvider aws-bedrock', () => {
       createConfigPresenter()
     )
 
-    await expect(provider.check()).resolves.toEqual({
-      isOk: false,
-      errorMsg: 'Missing AWS Bedrock credentials'
-    })
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockBedrockSend).not.toHaveBeenCalled()
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
@@ -151,7 +156,17 @@ describe('AiSdkProvider aws-bedrock', () => {
     ])
   })
 
-  it('uses the AI SDK runtime for health checks', async () => {
+  it('uses the Bedrock catalog for health checks', async () => {
+    mockBedrockSend.mockResolvedValue({
+      modelSummaries: [
+        {
+          modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+          modelLifecycle: { status: 'ACTIVE' },
+          inferenceTypesSupported: ['ON_DEMAND']
+        }
+      ]
+    })
+
     const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     ;(provider as any).isInitialized = true
 
@@ -159,15 +174,7 @@ describe('AiSdkProvider aws-bedrock', () => {
       isOk: true,
       errorMsg: null
     })
-    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerKind: 'aws-bedrock'
-      }),
-      [{ role: 'user', content: 'Hi' }],
-      'anthropic.claude-3-5-sonnet-20240620-v1:0',
-      expect.any(Object),
-      0.2,
-      16
-    )
+    expect(mockBedrockSend).toHaveBeenCalledTimes(1)
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 })

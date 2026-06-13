@@ -31,11 +31,103 @@ const AgentSchema = AgentBootstrapItemSchema.extend({
   installState: AgentInstallStateSchema.nullable().optional()
 })
 
+const AgentAvatarSchema = z
+  .discriminatedUnion('kind', [
+    z
+      .object({
+        kind: z.literal('lucide'),
+        icon: z.string().min(1),
+        lightColor: z.string().nullable().optional(),
+        darkColor: z.string().nullable().optional()
+      })
+      .passthrough(),
+    z
+      .object({
+        kind: z.literal('monogram'),
+        text: z.string(),
+        backgroundColor: z.string().nullable().optional()
+      })
+      .passthrough()
+  ])
+  .nullable()
+
+const DeepChatAgentCreateInputSchema = z
+  .object({
+    name: z.string().min(1),
+    enabled: z.boolean().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    avatar: AgentAvatarSchema.optional(),
+    config: DeepChatAgentConfigSchema.nullable().optional()
+  })
+  .passthrough()
+
+const DeepChatAgentUpdateInputSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    avatar: AgentAvatarSchema.optional(),
+    config: DeepChatAgentConfigSchema.nullable().optional()
+  })
+  .passthrough()
+
+const AcpRegistryAgentSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    version: z.string(),
+    description: z.string().optional(),
+    repository: z.string().optional(),
+    website: z.string().optional(),
+    authors: z.array(z.string()).optional(),
+    license: z.string().optional(),
+    icon: z.string().optional(),
+    distribution: z.object({}).passthrough(),
+    source: z.literal('registry'),
+    enabled: z.boolean(),
+    envOverride: z.record(z.string(), z.string()).optional(),
+    installState: AgentInstallStateSchema.nullable().optional()
+  })
+  .passthrough()
+
+const AcpManualAgentSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string(),
+    command: z.string(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    enabled: z.boolean(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    source: z.literal('manual')
+  })
+  .passthrough()
+
+const AcpManualAgentInputSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    name: z.string().min(1),
+    command: z.string().min(1),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    enabled: z.boolean(),
+    description: z.string().optional(),
+    icon: z.string().optional()
+  })
+  .passthrough()
+
+const AcpManualAgentUpdateSchema = AcpManualAgentInputSchema.partial()
+
 export const CONFIG_ENTRY_KEYS = [
   'init_complete',
+  'assistantModel',
   'preferredModel',
   'defaultModel',
   'default_system_prompt',
+  'maxFileSize',
   'input_deepThinking',
   'input_chatMode',
   'think_collapse',
@@ -50,9 +142,11 @@ export const ConfigEntryKeySchema = z.enum(CONFIG_ENTRY_KEYS)
 
 export const ConfigEntryValuesSchema = z.object({
   init_complete: z.boolean(),
+  assistantModel: ModelSelectionSchema.nullable(),
   preferredModel: ModelSelectionSchema,
   defaultModel: ModelSelectionSchema,
   default_system_prompt: z.string(),
+  maxFileSize: z.number().int().positive(),
   input_deepThinking: z.boolean(),
   input_chatMode: z.string(),
   think_collapse: z.boolean(),
@@ -69,6 +163,10 @@ export const ConfigEntryChangeSchema = z.discriminatedUnion('key', [
     value: z.boolean()
   }),
   z.object({
+    key: z.literal('assistantModel'),
+    value: ModelSelectionSchema.nullable()
+  }),
+  z.object({
     key: z.literal('preferredModel'),
     value: ModelSelectionSchema
   }),
@@ -79,6 +177,10 @@ export const ConfigEntryChangeSchema = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('default_system_prompt'),
     value: z.string()
+  }),
+  z.object({
+    key: z.literal('maxFileSize'),
+    value: z.number().int().positive()
   }),
   z.object({
     key: z.literal('input_deepThinking'),
@@ -113,6 +215,9 @@ export const ConfigEntryChangeSchema = z.discriminatedUnion('key', [
     value: z.array(z.string())
   })
 ])
+
+export const ProxyModeSchema = z.enum(['system', 'none', 'custom'])
+export const UpdateChannelSchema = z.enum(['stable', 'beta'])
 
 export const configGetEntriesRoute = defineRouteContract({
   name: 'config.getEntries',
@@ -221,6 +326,162 @@ export const configUpdateSyncSettingsRoute = defineRouteContract({
   output: z.object({
     enabled: z.boolean(),
     folderPath: z.string()
+  })
+})
+
+export const configGetProxySettingsRoute = defineRouteContract({
+  name: 'config.getProxySettings',
+  input: z.object({}).default({}),
+  output: z.object({
+    mode: ProxyModeSchema,
+    customProxyUrl: z.string()
+  })
+})
+
+export const configSetProxyModeRoute = defineRouteContract({
+  name: 'config.setProxyMode',
+  input: z.object({
+    mode: ProxyModeSchema
+  }),
+  output: z.object({
+    mode: ProxyModeSchema,
+    customProxyUrl: z.string()
+  })
+})
+
+export const configSetCustomProxyUrlRoute = defineRouteContract({
+  name: 'config.setCustomProxyUrl',
+  input: z.object({
+    url: z.string()
+  }),
+  output: z.object({
+    mode: ProxyModeSchema,
+    customProxyUrl: z.string()
+  })
+})
+
+export const configOpenLoggingFolderRoute = defineRouteContract({
+  name: 'config.openLoggingFolder',
+  input: z.object({}).default({}),
+  output: z.object({
+    opened: z.boolean()
+  })
+})
+
+export const configGetUpdateChannelRoute = defineRouteContract({
+  name: 'config.getUpdateChannel',
+  input: z.object({}).default({}),
+  output: z.object({
+    channel: UpdateChannelSchema
+  })
+})
+
+export const configSetUpdateChannelRoute = defineRouteContract({
+  name: 'config.setUpdateChannel',
+  input: z.object({
+    channel: UpdateChannelSchema
+  }),
+  output: z.object({
+    channel: UpdateChannelSchema
+  })
+})
+
+export const configGetSkillDraftSuggestionsRoute = defineRouteContract({
+  name: 'config.getSkillDraftSuggestions',
+  input: z.object({}).default({}),
+  output: z.object({
+    enabled: z.boolean()
+  })
+})
+
+export const configSetSkillDraftSuggestionsRoute = defineRouteContract({
+  name: 'config.setSkillDraftSuggestions',
+  input: z.object({
+    enabled: z.boolean()
+  }),
+  output: z.object({
+    enabled: z.boolean()
+  })
+})
+
+const ProviderDbRefreshResultSchema = z.object({
+  status: z.enum(['updated', 'not-modified', 'skipped', 'error']),
+  lastUpdated: z.number().nullable(),
+  providersCount: z.number().int().nonnegative(),
+  message: z.string().optional()
+})
+
+const HookEventNameSchema = z.enum([
+  'SessionStart',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'PostToolUseFailure',
+  'PermissionRequest',
+  'Stop',
+  'SessionEnd'
+])
+
+const HookCommandItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  enabled: z.boolean(),
+  command: z.string(),
+  events: z.array(HookEventNameSchema)
+})
+
+const HooksNotificationsSettingsSchema = z.object({
+  hooks: z.array(HookCommandItemSchema)
+})
+
+const HookTestResultSchema = z.object({
+  success: z.boolean(),
+  durationMs: z.number().nonnegative(),
+  exitCode: z.number().int().nullable().optional(),
+  stdout: z.string().optional(),
+  stderr: z.string().optional(),
+  error: z.string().optional(),
+  statusCode: z.number().int().optional(),
+  retryAfterMs: z.number().optional()
+})
+
+export const configRefreshProviderDbRoute = defineRouteContract({
+  name: 'config.refreshProviderDb',
+  input: z
+    .object({
+      force: z.boolean().optional()
+    })
+    .default({}),
+  output: z.object({
+    result: ProviderDbRefreshResultSchema
+  })
+})
+
+export const configGetHooksNotificationsRoute = defineRouteContract({
+  name: 'config.getHooksNotifications',
+  input: z.object({}).default({}),
+  output: z.object({
+    config: HooksNotificationsSettingsSchema
+  })
+})
+
+export const configSetHooksNotificationsRoute = defineRouteContract({
+  name: 'config.setHooksNotifications',
+  input: z.object({
+    config: HooksNotificationsSettingsSchema
+  }),
+  output: z.object({
+    config: HooksNotificationsSettingsSchema
+  })
+})
+
+export const configTestHookCommandRoute = defineRouteContract({
+  name: 'config.testHookCommand',
+  input: z.object({
+    hookId: z.string().min(1)
+  }),
+  output: z.object({
+    result: HookTestResultSchema
   })
 })
 
@@ -430,6 +691,125 @@ export const configGetAcpStateRoute = defineRouteContract({
   })
 })
 
+export const configSetAcpEnabledRoute = defineRouteContract({
+  name: 'config.setAcpEnabled',
+  input: z.object({
+    enabled: z.boolean()
+  }),
+  output: z.object({
+    enabled: z.boolean()
+  })
+})
+
+export const configListAcpRegistryAgentsRoute = defineRouteContract({
+  name: 'config.listAcpRegistryAgents',
+  input: z.object({}).default({}),
+  output: z.object({
+    agents: z.array(AcpRegistryAgentSchema)
+  })
+})
+
+export const configRefreshAcpRegistryRoute = defineRouteContract({
+  name: 'config.refreshAcpRegistry',
+  input: z
+    .object({
+      force: z.boolean().optional()
+    })
+    .default({}),
+  output: z.object({
+    agents: z.array(AcpRegistryAgentSchema)
+  })
+})
+
+export const configSetAcpAgentEnabledRoute = defineRouteContract({
+  name: 'config.setAcpAgentEnabled',
+  input: z.object({
+    agentId: z.string().min(1),
+    enabled: z.boolean()
+  }),
+  output: z.object({
+    ok: z.boolean()
+  })
+})
+
+export const configSetAcpAgentEnvOverrideRoute = defineRouteContract({
+  name: 'config.setAcpAgentEnvOverride',
+  input: z.object({
+    agentId: z.string().min(1),
+    env: z.record(z.string(), z.string())
+  }),
+  output: z.object({
+    ok: z.boolean()
+  })
+})
+
+export const configEnsureAcpAgentInstalledRoute = defineRouteContract({
+  name: 'config.ensureAcpAgentInstalled',
+  input: z.object({
+    agentId: z.string().min(1)
+  }),
+  output: z.object({
+    installState: AgentInstallStateSchema
+  })
+})
+
+export const configRepairAcpAgentRoute = defineRouteContract({
+  name: 'config.repairAcpAgent',
+  input: z.object({
+    agentId: z.string().min(1)
+  }),
+  output: z.object({
+    installState: AgentInstallStateSchema
+  })
+})
+
+export const configUninstallAcpRegistryAgentRoute = defineRouteContract({
+  name: 'config.uninstallAcpRegistryAgent',
+  input: z.object({
+    agentId: z.string().min(1)
+  }),
+  output: z.object({
+    ok: z.boolean()
+  })
+})
+
+export const configListManualAcpAgentsRoute = defineRouteContract({
+  name: 'config.listManualAcpAgents',
+  input: z.object({}).default({}),
+  output: z.object({
+    agents: z.array(AcpManualAgentSchema)
+  })
+})
+
+export const configAddManualAcpAgentRoute = defineRouteContract({
+  name: 'config.addManualAcpAgent',
+  input: AcpManualAgentInputSchema,
+  output: z.object({
+    agent: AcpManualAgentSchema
+  })
+})
+
+export const configUpdateManualAcpAgentRoute = defineRouteContract({
+  name: 'config.updateManualAcpAgent',
+  input: z.object({
+    agentId: z.string().min(1),
+    updates: AcpManualAgentUpdateSchema
+  }),
+  output: z.object({
+    agent: AcpManualAgentSchema.nullable()
+  })
+})
+
+export const configRemoveManualAcpAgentRoute = defineRouteContract({
+  name: 'config.removeManualAcpAgent',
+  input: z.object({
+    agentId: z.string().min(1)
+  }),
+  output: z.object({
+    removed: z.boolean()
+  })
+})
+
 export const configListAgentsRoute = defineRouteContract({
   name: 'config.listAgents',
   input: z
@@ -440,6 +820,35 @@ export const configListAgentsRoute = defineRouteContract({
     .default({}),
   output: z.object({
     agents: z.array(AgentSchema)
+  })
+})
+
+export const configCreateDeepChatAgentRoute = defineRouteContract({
+  name: 'config.createDeepChatAgent',
+  input: DeepChatAgentCreateInputSchema,
+  output: z.object({
+    agent: AgentSchema
+  })
+})
+
+export const configUpdateDeepChatAgentRoute = defineRouteContract({
+  name: 'config.updateDeepChatAgent',
+  input: z.object({
+    agentId: z.string().min(1),
+    updates: DeepChatAgentUpdateInputSchema
+  }),
+  output: z.object({
+    agent: AgentSchema.nullable()
+  })
+})
+
+export const configDeleteDeepChatAgentRoute = defineRouteContract({
+  name: 'config.deleteDeepChatAgent',
+  input: z.object({
+    agentId: z.string().min(1)
+  }),
+  output: z.object({
+    removed: z.boolean()
   })
 })
 

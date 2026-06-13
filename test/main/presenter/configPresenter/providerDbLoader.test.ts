@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   getPath: vi.fn(),
   getAppPath: vi.fn(),
-  send: vi.fn()
+  sendToMain: vi.fn(),
+  publishDeepchatEvent: vi.fn()
 }))
 
 vi.mock('fs', async () => {
@@ -27,11 +28,12 @@ vi.mock('electron', () => ({
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
-    send: state.send
-  },
-  SendTarget: {
-    ALL_WINDOWS: 'ALL_WINDOWS'
+    sendToMain: state.sendToMain
   }
+}))
+
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: state.publishDeepchatEvent
 }))
 
 describe('ProviderDbLoader', () => {
@@ -101,7 +103,8 @@ describe('ProviderDbLoader', () => {
       return userDataRoot
     })
     state.getAppPath.mockReturnValue(appRoot)
-    state.send.mockReset()
+    state.sendToMain.mockReset()
+    state.publishDeepchatEvent.mockReset()
     vi.unstubAllGlobals()
     delete process.env.PROVIDER_DB_TTL_HOURS
   })
@@ -141,8 +144,16 @@ describe('ProviderDbLoader', () => {
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(state.send).toHaveBeenCalledWith('provider-db:loaded', 'ALL_WINDOWS', {
+    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:loaded', {
       providersCount: 1
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
+      reason: 'provider-db-loaded',
+      version: expect.any(Number)
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
+      reason: 'provider-db-loaded',
+      version: expect.any(Number)
     })
   })
 
@@ -245,9 +256,17 @@ describe('ProviderDbLoader', () => {
     expect(result.status).toBe('updated')
     expect(result.providersCount).toBe(2)
     expect(loader.getDb()?.providers).toHaveProperty('anthropic')
-    expect(state.send).toHaveBeenCalledWith('provider-db:updated', 'ALL_WINDOWS', {
+    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:updated', {
       providersCount: 2,
       lastUpdated: expect.any(Number)
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
+      reason: 'provider-db-updated',
+      version: expect.any(Number)
+    })
+    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
+      reason: 'provider-db-updated',
+      version: expect.any(Number)
     })
   })
 

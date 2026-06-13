@@ -4,8 +4,7 @@ import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageS
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 
 vi.mock('@/eventbus', () => ({
-  eventBus: { sendToRenderer: vi.fn(), sendToMain: vi.fn(), on: vi.fn() },
-  SendTarget: { ALL_WINDOWS: 'all' }
+  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
 }))
 
 vi.mock('@/events', async (importOriginal) => {

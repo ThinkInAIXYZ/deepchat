@@ -11,6 +11,7 @@ import {
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsReadFileRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
@@ -58,6 +59,11 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   async function uninstallSkill(name: string) {
     const result = await bridge.invoke(skillsUninstallRoute.name, { name })
     return result.result
+  }
+
+  async function readSkillFile(name: string) {
+    const result = await bridge.invoke(skillsReadFileRoute.name, { name })
+    return result.content
   }
 
   async function updateSkillFile(name: string, content: string) {
@@ -142,6 +148,7 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     installFromZip,
     installFromUrl,
     uninstallSkill,
+    readSkillFile,
     updateSkillFile,
     saveSkillWithExtension,
     getSkillFolderTree,

@@ -1,7 +1,7 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-05-28` 的主架构。当前目标不是再做一次全量 main-kernel rewrite，
-而是维持 typed renderer-main boundary，并把新增能力接到既有 route/runtime owner 上。
+本文档描述 `2026-06-13` 的主架构。当前目标是维持 typed renderer-main boundary，
+并把新增能力接到既有 route/runtime owner 上。
 
 ## 主链路
 
@@ -27,8 +27,8 @@ flowchart LR
 
 - renderer 业务代码优先经过 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
 - `src/main/routes/index.ts` 是 typed route dispatcher，并装配 settings、sessions、chat、
-  providers、models、config、MCP、plugins、skills、sync、browser、database security、
-  scheduled tasks 等 route。
+  providers、models、config、MCP、plugins、skills、skill sync、sync、browser、workspace、
+  onboarding、OAuth、knowledge、upgrade、dialog、tools、database security、scheduled tasks 等 route。
 - presenter 仍是 runtime owner，但 route services 只通过窄 port 或明确 client 依赖使用它们。
 - `SessionPresenter` 仍保留为 legacy 数据访问、导出和兼容边界，不再是当前聊天主链路 owner。
 
@@ -58,8 +58,10 @@ flowchart LR
 - `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的契约真源。
 - `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
 - `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
-- `src/renderer/api/legacy/**` 是唯一 legacy quarantine。当前保留 `presenters.ts`、
-  `presenterTransport.ts`、`runtime.ts` 三个兼容文件；新业务模块不应直接导入 legacy transport。
+- `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
+- raw IPC 只允许存在于 `createBridge`、`window.api` dedicated preload API 这类明确边界内，
+  业务层不得直接调用 `presenter:call`、`remoteControlPresenter:call` 或
+  `window.electron.ipcRenderer`。
 
 ### 2. Main Route Runtime
 
@@ -98,8 +100,9 @@ flowchart LR
 ## 防回归规则
 
 - 新 renderer-main 能力默认走 `renderer/api/*Client` + `window.deepchat` + shared contracts。
-- legacy transport 只能留在 `src/renderer/api/legacy/**`，不新增第二个 quarantine 目录。
-- `scripts/architecture-guard.mjs` 固定 quarantine 文件数、检测 direct legacy transport、
+- legacy transport 已退休；不要重新创建 `src/renderer/api/legacy/**`，也不要新增第二个
+  compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
+- `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
   并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
 - `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
 
