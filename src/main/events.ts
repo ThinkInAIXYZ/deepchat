@@ -89,9 +89,7 @@ export const WINDOW_EVENTS = {
 // Settings related events
 export const SETTINGS_EVENTS = {
   READY: 'settings:ready',
-  NAVIGATE: 'settings:navigate',
-  CHECK_FOR_UPDATES: 'settings:check-for-updates',
-  PROVIDER_INSTALL: 'settings:provider-install'
+  NAVIGATE: 'settings:navigate'
 }
 
 export const DEV_EVENTS = {
@@ -115,7 +113,6 @@ export const SYNC_EVENTS = {
 
 // DeepLink 相关事件
 export const DEEPLINK_EVENTS = {
-  PROTOCOL_RECEIVED: 'deeplink:protocol-received',
   START: 'deeplink:start',
   MCP_INSTALL: 'deeplink:mcp-install'
 }

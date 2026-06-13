@@ -9,6 +9,7 @@ window chrome coordination, floating-widget control, or the splash unlock flow.
 ## Changes
 
 - Remove a stale presenter comment that referenced `DEFAULT_RENDERER_EVENTS`.
+- Remove unused main-process event constants that no longer have runtime consumers.
 - Remove the unused floating-button `CONFIG_UPDATE` preload listener and exposed type.
 - Export the remaining renderer API clients from the barrel module.
 - Tighten the migrated raw-channel baseline by removing the obsolete `App.vue` allowance while

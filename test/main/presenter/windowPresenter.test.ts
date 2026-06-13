@@ -51,7 +51,11 @@ describe('WindowPresenter settings navigation queue', () => {
         routeName: 'settings-deepchat-agents'
       })
     ).toBe(true)
-    expect(presenter.sendToWindow(9, SETTINGS_EVENTS.CHECK_FOR_UPDATES)).toBe(true)
+    expect(
+      presenter.sendToWindow(9, SETTINGS_EVENTS.NAVIGATE, {
+        routeName: 'settings-about'
+      })
+    ).toBe(true)
     expect(send).not.toHaveBeenCalled()
     expect((presenter as any).pendingSettingsMessages).toHaveLength(2)
 
@@ -66,7 +70,9 @@ describe('WindowPresenter settings navigation queue', () => {
     expect(send).toHaveBeenNthCalledWith(1, SETTINGS_EVENTS.NAVIGATE, {
       routeName: 'settings-deepchat-agents'
     })
-    expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.CHECK_FOR_UPDATES)
+    expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.NAVIGATE, {
+      routeName: 'settings-about'
+    })
     expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
   })
 
