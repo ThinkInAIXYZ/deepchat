@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "有効な最大トークン数",
   "reserveTokens": "予約トークン",
   "toolReserveTokens": "ツール予約トークン",
-  "estimatedPromptTokens": "推定プロンプトトークン数"
+  "estimatedPromptTokens": "推定プロンプトトークン数",
+  "notAvailable": "-"
 }

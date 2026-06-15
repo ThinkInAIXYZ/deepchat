@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Số token tối đa hiệu dụng",
   "reserveTokens": "Token dự trữ",
   "toolReserveTokens": "Token dự trữ cho công cụ",
-  "estimatedPromptTokens": "Token prompt ước tính"
+  "estimatedPromptTokens": "Token prompt ước tính",
+  "notAvailable": "-"
 }

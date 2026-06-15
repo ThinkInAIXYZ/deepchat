@@ -2419,7 +2419,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
-    let requestSeq = 0
+    let requestSeq =
+      this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0
 
     try {
       this.dispatchHook('SessionStart', {

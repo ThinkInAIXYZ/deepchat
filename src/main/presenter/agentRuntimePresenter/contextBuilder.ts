@@ -923,13 +923,34 @@ function selectTurnHistoryTurns<T extends TokenizedTurn>(
   }
 
   const truncatedMessages = truncateContext(flattened, availableTokens)
-  return [
-    {
-      ...remainingTurns[0],
-      messages: truncatedMessages,
-      tokens: estimateMessagesTokens(truncatedMessages)
+  if (truncatedMessages.length === 0) {
+    return []
+  }
+
+  let droppedPrefixCount = flattened.length - truncatedMessages.length
+  const rebuiltTurns: T[] = []
+
+  for (const turn of remainingTurns) {
+    if (droppedPrefixCount >= turn.messages.length) {
+      droppedPrefixCount -= turn.messages.length
+      continue
     }
-  ]
+
+    if (droppedPrefixCount > 0) {
+      const keptMessages = turn.messages.slice(droppedPrefixCount)
+      droppedPrefixCount = 0
+      rebuiltTurns.push({
+        ...turn,
+        messages: keptMessages,
+        tokens: estimateMessagesTokens(keptMessages)
+      })
+      continue
+    }
+
+    rebuiltTurns.push(turn)
+  }
+
+  return rebuiltTurns
 }
 
 function filterRecordsFromCursor(

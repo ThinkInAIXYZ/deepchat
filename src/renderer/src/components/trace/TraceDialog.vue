@@ -39,11 +39,15 @@
           <div class="grid grid-cols-2 gap-4">
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
-              <span class="ml-2 break-words">{{ diagnosticProviderId || '-' }}</span>
+              <span class="ml-2 break-words">{{
+                diagnosticProviderId || t('traceDialog.notAvailable')
+              }}</span>
             </div>
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
-              <span class="ml-2 break-words">{{ diagnosticModelId || '-' }}</span>
+              <span class="ml-2 break-words">{{
+                diagnosticModelId || t('traceDialog.notAvailable')
+              }}</span>
             </div>
           </div>
         </div>
@@ -602,7 +606,7 @@ const resetState = () => {
 
 const formatNullable = (value: string | number | null): string => {
   if (value === null) {
-    return '-'
+    return t('traceDialog.notAvailable')
   }
   return String(value)
 }

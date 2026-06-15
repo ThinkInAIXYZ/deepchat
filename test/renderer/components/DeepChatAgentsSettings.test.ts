@@ -127,7 +127,7 @@ describe('DeepChatAgentsSettings', () => {
     clientMocks.toolClient.getAllToolDefinitions.mockReset()
   })
 
-  it('mounts and saves DeepChat agents without advanced model overrides', async () => {
+  it('mounts and saves DeepChat agents with cloneable model selections', async () => {
     vi.resetModules()
 
     const existingAgent = {
@@ -150,8 +150,8 @@ describe('DeepChatAgentsSettings', () => {
           verbosity: 'high',
           forceInterleavedThinkingCompat: true
         },
-        assistantModel: null,
-        visionModel: null,
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        visionModel: { providerId: 'openai', modelId: 'gpt-4.1-vision' },
         imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
         systemPrompt: 'system prompt',
         permissionMode: 'default',
@@ -194,8 +194,13 @@ describe('DeepChatAgentsSettings', () => {
           providerId: 'openai',
           models: [
             { id: 'gpt-4.1', name: 'GPT-4.1' },
+            { id: 'gpt-4.1-vision', name: 'GPT-4.1 Vision' },
             { id: 'gpt-image-1', name: 'GPT Image 1', type: ModelType.ImageGeneration }
           ]
+        },
+        {
+          providerId: 'anthropic',
+          models: [{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }]
         }
       ],
       findModelByIdOrName: vi.fn((modelId: string) =>
@@ -300,8 +305,8 @@ describe('DeepChatAgentsSettings', () => {
           providerId: 'openai',
           modelId: 'gpt-4.1'
         },
-        assistantModel: null,
-        visionModel: null,
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        visionModel: { providerId: 'openai', modelId: 'gpt-4.1-vision' },
         imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
         defaultProjectPath: null,
         systemPrompt: 'system prompt',
@@ -316,10 +321,19 @@ describe('DeepChatAgentsSettings', () => {
       providerId: 'openai',
       modelId: 'gpt-4.1'
     })
+    expect(payload.config.assistantModel).toEqual({
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet'
+    })
+    expect(payload.config.visionModel).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4.1-vision'
+    })
     expect(payload.config.imageGenerationModel).toEqual({
       providerId: 'openai',
       modelId: 'gpt-image-1'
     })
+    expect(() => structuredClone(payload)).not.toThrow()
   })
 
   it('filters the image generation model selector to image models', async () => {

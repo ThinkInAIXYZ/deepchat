@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Effektive maks. tokens",
   "reserveTokens": "Reserverede tokens",
   "toolReserveTokens": "Værktøjsreserverede tokens",
-  "estimatedPromptTokens": "Estimerede prompt-tokens"
+  "estimatedPromptTokens": "Estimerede prompt-tokens",
+  "notAvailable": "-"
 }

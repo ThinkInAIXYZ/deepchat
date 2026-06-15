@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Effective max tokens",
   "reserveTokens": "Reserve tokens",
   "toolReserveTokens": "Tool reserve tokens",
-  "estimatedPromptTokens": "Estimated prompt tokens"
+  "estimatedPromptTokens": "Estimated prompt tokens",
+  "notAvailable": "-"
 }

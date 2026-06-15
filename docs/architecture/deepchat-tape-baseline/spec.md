@@ -1,12 +1,12 @@
 # DeepChat Tape System - Implementation Baseline
 
 Status: current implementation direction. Active SDD goals are
-[deepchat-tape-view-manifest](deepchat-tape-view-manifest/spec.md),
-[deepchat-tape-replay-contract](deepchat-tape-replay-contract/spec.md), and
-[deepchat-tape-view-assembler](deepchat-tape-view-assembler/spec.md), and
-[deepchat-tape-view-policy](deepchat-tape-view-policy/spec.md), and
-[deepchat-tape-policy-provenance](deepchat-tape-policy-provenance/spec.md), and
-[deepchat-tape-policy-selector](deepchat-tape-policy-selector/spec.md).
+[deepchat-tape-view-manifest](../deepchat-tape-view-manifest/spec.md),
+[deepchat-tape-replay-contract](../deepchat-tape-replay-contract/spec.md), and
+[deepchat-tape-view-assembler](../deepchat-tape-view-assembler/spec.md), and
+[deepchat-tape-view-policy](../deepchat-tape-view-policy/spec.md), and
+[deepchat-tape-policy-provenance](../deepchat-tape-policy-provenance/spec.md), and
+[deepchat-tape-policy-selector](../deepchat-tape-policy-selector/spec.md).
 
 This document keeps the Tape vision aligned with the current DeepChat codebase. The implementation
 path is:
