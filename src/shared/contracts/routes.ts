@@ -456,7 +456,7 @@ export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'
 
-export const DEEPCHAT_ROUTE_CATALOG: Record<string, RouteContract> = {
+export const DEEPCHAT_ROUTE_CATALOG = {
   [acpTerminalInputRoute.name]: acpTerminalInputRoute,
   [acpTerminalKillRoute.name]: acpTerminalKillRoute,
   [shortcutRegisterRoute.name]: shortcutRegisterRoute,
@@ -827,7 +827,7 @@ export const DEEPCHAT_ROUTE_CATALOG: Record<string, RouteContract> = {
   [dialogErrorRoute.name]: dialogErrorRoute,
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute
-}
+} satisfies Record<string, RouteContract>
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG
 export type DeepchatRouteName = keyof DeepchatRouteCatalog

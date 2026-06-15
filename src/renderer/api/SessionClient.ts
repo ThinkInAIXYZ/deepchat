@@ -246,15 +246,17 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
 
   async function listMessageTraceDiagnostics(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return {
       traces: result.traces,
-      manifests: result.manifests as unknown as DeepChatTapeViewManifestRecord[]
+      manifests: manifests as DeepChatTapeViewManifestRecord[]
     }
   }
 
   async function listMessageViewManifests(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
-    return result.manifests as unknown as DeepChatTapeViewManifestRecord[]
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
+    return manifests as DeepChatTapeViewManifestRecord[]
   }
 
   async function exportMessageTapeReplaySlice(

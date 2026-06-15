@@ -1442,10 +1442,18 @@ export class AgentSessionPresenter {
     const session = this.sessionManager.get(message.session_id)
     if (!session) return []
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    if (!agent.listMessageViewManifests) return []
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.listMessageViewManifests) return []
 
-    return await agent.listMessageViewManifests(message.session_id, normalizedMessageId)
+      return await agent.listMessageViewManifests(message.session_id, normalizedMessageId)
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to list message view manifests', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return []
+    }
   }
 
   async exportMessageTapeReplaySlice(
@@ -1461,14 +1469,22 @@ export class AgentSessionPresenter {
     const session = this.sessionManager.get(message.session_id)
     if (!session) return null
 
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    if (!agent.exportMessageTapeReplaySlice) return null
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.exportMessageTapeReplaySlice) return null
 
-    return await agent.exportMessageTapeReplaySlice(
-      message.session_id,
-      normalizedMessageId,
-      options
-    )
+      return await agent.exportMessageTapeReplaySlice(
+        message.session_id,
+        normalizedMessageId,
+        options
+      )
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to export tape replay slice', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return null
+    }
   }
 
   async mergeSubagentTape(

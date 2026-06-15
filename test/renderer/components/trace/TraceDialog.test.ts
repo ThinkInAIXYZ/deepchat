@@ -101,6 +101,51 @@ vi.mock('vue-i18n', () => ({
 
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 
+const makeManifestRecord = (requestSeq: number, viewId: string) => ({
+  sessionId: 's1',
+  messageId: 'm1',
+  requestSeq,
+  entryId: requestSeq,
+  createdAt: 2000,
+  manifest: {
+    schemaVersion: 1,
+    viewId,
+    sessionId: 's1',
+    messageId: 'm1',
+    requestSeq,
+    taskType: 'chat',
+    policy: 'legacy_context_v1',
+    policyVersion: 1,
+    contextBuilderVersion: 'legacy-v1',
+    latestEntryId: 8,
+    anchorEntryIds: [1],
+    included: [],
+    excluded: [],
+    tokenBudget: {
+      contextLength: 1000,
+      requestedMaxTokens: 100,
+      effectiveMaxTokens: 100,
+      reserveTokens: 100,
+      toolReserveTokens: 0,
+      estimatedPromptTokens: 12
+    },
+    hashes: {
+      promptHash: 'prompt_hash',
+      toolDefinitionsHash: 'tool_hash',
+      manifestHash: 'manifest_hash'
+    },
+    meta: {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    },
+    assembledAt: 2000
+  }
+})
+
 const mountDialog = () =>
   mount(TraceDialog, {
     props: {
@@ -170,61 +215,7 @@ describe('TraceDialog', () => {
   it('shows view manifest diagnostics when request traces are empty', async () => {
     listMessageTraceDiagnosticsMock.mockResolvedValue({
       traces: [],
-      manifests: [
-        {
-          sessionId: 's1',
-          messageId: 'm1',
-          requestSeq: 1,
-          entryId: 9,
-          createdAt: 2000,
-          manifest: {
-            schemaVersion: 1,
-            viewId: 'view_abc',
-            sessionId: 's1',
-            messageId: 'm1',
-            requestSeq: 1,
-            taskType: 'chat',
-            policy: 'legacy_context_v1',
-            policyVersion: 1,
-            contextBuilderVersion: 'legacy-v1',
-            latestEntryId: 8,
-            anchorEntryIds: [1],
-            included: [
-              {
-                entryId: 2,
-                messageId: 'u1',
-                orderSeq: 1,
-                role: 'user',
-                source: 'tape',
-                reason: 'selected_history'
-              }
-            ],
-            excluded: [],
-            tokenBudget: {
-              contextLength: 1000,
-              requestedMaxTokens: 100,
-              effectiveMaxTokens: 100,
-              reserveTokens: 100,
-              toolReserveTokens: 0,
-              estimatedPromptTokens: 12
-            },
-            hashes: {
-              promptHash: 'prompt_hash',
-              toolDefinitionsHash: 'tool_hash',
-              manifestHash: 'manifest_hash'
-            },
-            meta: {
-              providerId: 'openai',
-              modelId: 'gpt-4o',
-              summaryCursorOrderSeq: 1,
-              supportsVision: true,
-              supportsAudioInput: false,
-              traceDebugEnabled: false
-            },
-            assembledAt: 2000
-          }
-        }
-      ]
+      manifests: [makeManifestRecord(1, 'view_abc')]
     })
 
     const wrapper = mountDialog()
@@ -237,5 +228,52 @@ describe('TraceDialog', () => {
     expect(wrapper.text()).toContain('legacy_context_v1')
     expect(wrapper.text()).toContain('traceDialog.policyVersion')
     expect(wrapper.text()).toContain('1')
+  })
+
+  it('does not fall back to a different request when selected manifest has no trace', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.example.com/second',
+          headersJson: '{"x":"2"}',
+          bodyJson: '{"b":2}',
+          truncated: false,
+          createdAt: 2000
+        }
+      ],
+      manifests: [makeManifestRecord(1, 'view_only_manifest')]
+    })
+
+    const wrapper = mountDialog()
+
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('https://api.example.com/second')
+
+    const manifestOnlyButton = wrapper.findAll('button').find((btn) => btn.text().trim() === '#1')
+    expect(manifestOnlyButton).toBeDefined()
+
+    await manifestOnlyButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.requestUnavailable')
+    expect(wrapper.text()).not.toContain('https://api.example.com/second')
+
+    const viewTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.view')
+    expect(viewTab).toBeDefined()
+
+    await viewTab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('view_only_manifest')
   })
 })

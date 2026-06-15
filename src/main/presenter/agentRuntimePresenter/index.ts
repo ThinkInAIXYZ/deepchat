@@ -2454,6 +2454,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             let providerMessages = requestMessages
             let providerMaxTokens = requestMaxTokens
             let recoveredFromContextPressure = false
+            let manifestSummaryCursorOrderSeq = viewContext?.summaryCursorOrderSeq ?? 1
             const isTtsRequest =
               isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
             const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
@@ -2485,6 +2486,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   signal: abortController.signal
                 })
                 recoveredFromContextPressure = true
+                if (recovered.summaryCursorOrderSeq !== undefined) {
+                  manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+                }
                 requestMessages.splice(0, requestMessages.length, ...recovered.messages)
                 if (recovered.systemPrompt) {
                   replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
@@ -2537,7 +2541,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                 isInitialViewRequest && !recoveredFromContextPressure
                   ? viewContext!.selection
                   : undefined,
-              summaryCursorOrderSeq: viewContext?.summaryCursorOrderSeq ?? 1,
+              summaryCursorOrderSeq: manifestSummaryCursorOrderSeq,
               supportsVision: viewContext?.supportsVision ?? supportsVision,
               supportsAudioInput: viewContext?.supportsAudioInput ?? supportsAudioInput,
               traceDebugEnabled: viewContext?.traceDebugEnabled ?? traceEnabled
@@ -2761,7 +2765,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
     signal: AbortSignal
-  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string }> {
+  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
     let messages = params.requestMessages
     const systemPromptBase =
       params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
@@ -2804,7 +2808,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         reserveTokens: params.requestedMaxTokens + estimateToolReserveTokens(params.tools),
         minimumProtectedTailCount: params.minimumProtectedTailCount
       }),
-      systemPrompt
+      systemPrompt,
+      summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq
     }
   }
 
@@ -3196,6 +3201,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           })
         : this.sessionStore.getSummaryState(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
+      const resumeTapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const systemPrompt = appendReconstructionAnchorStateSection(
         appendSummarySection(baseSystemPrompt, summaryState.summaryText),
         this.sessionStore.getReconstructionAnchorPromptState(sessionId)
@@ -3208,7 +3214,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         reserveTokens: maxTokens,
         messageStore: this.messageStore,
         supportsVision: this.supportsVision(state.providerId, state.modelId),
-        historyRecords: tapeReady.historyRecords,
+        historyRecords: resumeTapeReady.historyRecords,
         options: {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
           fallbackProtectedTurnCount: 1,

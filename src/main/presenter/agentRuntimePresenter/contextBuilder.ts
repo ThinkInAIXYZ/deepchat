@@ -172,7 +172,7 @@ function parseUserRecordContent(content: string): SendMessageInput {
   }
 }
 
-function isCompactionRecord(record: ChatMessageRecord): boolean {
+export function isCompactionRecord(record: ChatMessageRecord): boolean {
   try {
     const metadata = JSON.parse(record.metadata) as MessageMetadata
     return metadata.messageType === 'compaction'
@@ -1171,7 +1171,6 @@ export function buildResumeContextWithMetadata(
     messages.push({ role: 'system', content: systemPrompt })
   }
   messages.push(...selectedHistory)
-  const eligibleIds = new Set(historyRecords.map((record) => record.id))
   const excludedRecords: ContextExcludedRecord[] = [
     ...allMessages
       .filter(
@@ -1192,7 +1191,7 @@ export function buildResumeContextWithMetadata(
         reason: 'empty_after_formatting' as const
       })),
     ...historyRecords
-      .filter((record) => eligibleIds.has(record.id) && !selectedRecordIds.has(record.id))
+      .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
       .map((record) => ({
         record,
         reason: 'out_of_budget' as const

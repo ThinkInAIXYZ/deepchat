@@ -21,9 +21,9 @@ observer around the production context path. The next architecture step needs a 
 
 ## Non-Goals
 
-- Changing context selection policy.
-- Changing compaction policy.
-- Changing provider preflight or context-pressure recovery.
+- Context selection policy changes.
+- Compaction policy updates.
+- Provider preflight or context-pressure recovery modifications.
 - Adding embedding memory or cross-session recall.
 - Removing the legacy `contextBuilder.ts` implementation.
 

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ChatMessageRecord, MessageMetadata } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewEntryRef,
   DeepChatTapeViewExcludedRef,
@@ -11,6 +11,7 @@ import type {
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
 import { estimateMessagesTokens } from './contextBuilder'
+export { isCompactionRecord } from './contextBuilder'
 
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
 export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'legacy-v1' as const
@@ -258,13 +259,4 @@ export function buildSyntheticRequestRefs(messages: ChatMessage[]): DeepChatTape
     source: 'synthetic',
     reason: message.role === 'tool' ? 'tool_loop_message' : 'selected_history'
   }))
-}
-
-export function isCompactionRecord(record: ChatMessageRecord): boolean {
-  try {
-    const metadata = JSON.parse(record.metadata) as MessageMetadata
-    return metadata.messageType === 'compaction'
-  } catch {
-    return false
-  }
 }

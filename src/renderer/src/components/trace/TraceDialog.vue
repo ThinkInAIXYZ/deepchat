@@ -334,10 +334,7 @@ const selectedTrace = computed(() => {
   }
 
   if (selectedRequestSeq.value !== null) {
-    const matched = traceList.value.find((item) => item.requestSeq === selectedRequestSeq.value)
-    if (matched) {
-      return matched
-    }
+    return traceList.value.find((item) => item.requestSeq === selectedRequestSeq.value) ?? null
   }
 
   return traceList.value[0] ?? null
@@ -349,10 +346,7 @@ const selectedManifest = computed(() => {
   }
 
   if (selectedRequestSeq.value !== null) {
-    const matched = manifestList.value.find((item) => item.requestSeq === selectedRequestSeq.value)
-    if (matched) {
-      return matched
-    }
+    return manifestList.value.find((item) => item.requestSeq === selectedRequestSeq.value) ?? null
   }
 
   return manifestList.value[0] ?? null

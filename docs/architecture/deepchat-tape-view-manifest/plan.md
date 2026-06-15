@@ -143,9 +143,9 @@ states.
 ## Rollout
 
 1. Land shadow manifest assembly and tape persistence as headless runtime metadata.
-2. Add route/client and tests.
-3. Add trace-dialog tabs.
-4. Add context parity coverage.
+2. Implement route/client support and tests.
+3. Extend the trace dialog with diagnostic tabs.
+4. Establish context parity coverage.
 5. Use collected manifest data to design the later `TapeViewAssembler` production path.
 
 ## Risks and Mitigations
