@@ -14,22 +14,21 @@ metadata as tape events and leaves production message assembly unchanged.
 AgentRuntimePresenter.processMessage()
   -> tapeService.ensureSessionTapeReady()
   -> messageStore.createUserMessage()
-  -> buildContext()
-  -> tapeViewManifestService.assembleInitialManifest()
-  -> tapeService.appendViewManifest()
+  -> buildContextWithMetadata()
   -> messageStore.createAssistantMessage()
   -> runStreamForMessage()
        -> processStream()
        -> coreStream(requestMessages, requestTools)
             -> preflightRequestContext()
             -> optional recoverRequestContextPressure()
-            -> tapeViewManifestService.assembleRequestManifest()
+            -> tapeViewManifest.assembleRequestManifest()
             -> tapeService.appendViewManifest()
             -> provider.coreStream()
             -> optional request trace persists with matching requestSeq
 ```
 
-Resume flow uses the same service with `taskType = "resume"` and `policy = "resume_shadow"`.
+Resume flow uses the same service with `taskType = "resume"`, `policy = "legacy_context_v1"`, and
+`policyVersion = 1`.
 
 ## Module Changes
 
@@ -39,8 +38,8 @@ Resume flow uses the same service with `taskType = "resume"` and `policy = "resu
 | `src/main/presenter/agentRuntimePresenter/tapeViewManifest.ts` | New pure assembler for manifest metadata and hashes. |
 | `src/main/presenter/agentRuntimePresenter/tapeService.ts` | Append and list `view/assembled` events. |
 | `src/main/presenter/agentRuntimePresenter/index.ts` | Call manifest assembly at initial context and request-level preflight points. |
-| `src/shared/contracts/routes/sessions.routes.ts` | Add route for manifests by message ID. |
-| `src/renderer/api/SessionClient.ts` | Add `listMessageViewManifests(messageId)`. |
+| `src/shared/contracts/routes/sessions.routes.ts` | Extend the existing trace route output with manifest records. |
+| `src/renderer/api/SessionClient.ts` | Add diagnostics and manifest client methods for message ID lookups. |
 | `src/renderer/src/components/trace/TraceDialog.vue` | Add tabs for Request, View Manifest, Tape Entries, and Budget. |
 
 ## Data Model
@@ -59,7 +58,8 @@ deepchat_tape_entries
   payload_json.data.manifest = DeepChatTapeViewManifest
 ```
 
-The route resolves `messageId -> sessionId`, then reads matching tape events.
+The existing trace route resolves `messageId -> sessionId`, then returns both request traces and
+matching tape manifest events.
 
 ## Request Sequence
 
@@ -112,7 +112,7 @@ TraceDialog
 |   JSON editor                                                     |
 +-------------------------------------------------------------------+
 | View Manifest tab                                                 |
-|   View id / policy / request seq                                  |
+|   View id / policy / policy version / request seq                 |
 |   Included and excluded entry list                                |
 +-------------------------------------------------------------------+
 | Tape Entries tab                                                  |

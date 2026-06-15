@@ -1,7 +1,6 @@
 # DeepChat Tape ViewManifest Shadow Mode - Spec
 
-Status: active SDD. This goal prepares implementation. Code changes start only after this spec,
-plan, and task list are accepted.
+Status: implemented SDD. This goal records the shadow-mode architecture and implementation tasks.
 
 ## Problem
 
@@ -61,12 +60,12 @@ production path.
 3. A tool-loop provider request appends a request-level manifest with a monotonic `requestSeq` for
    the assistant message.
 4. If context-pressure recovery changes the provider request messages, a new manifest revision is
-   appended with `policy = "context_pressure_recovery_shadow"`.
+   appended with `policy = "context_pressure_recovery_shadow"` and `policyVersion = null`.
 5. The manifest records selected message IDs, source tape entry IDs when available, excluded message
    IDs, exclusion reasons, token-budget inputs, prompt hash, and tool-definition hash.
-6. The manifest stores IDs, hashes, token estimates, policies, and reasons. Raw user text, raw
-   assistant text, raw tool output, image data, audio data, file content, API headers, and API keys
-   stay in existing storage paths.
+6. The manifest stores IDs, hashes, token estimates, policies, policy versions, and reasons. Raw
+   user text, raw assistant text, raw tool output, image data, audio data, file content, API
+   headers, and API keys stay in existing storage paths.
 7. Trace UI can show Request and View Manifest tabs for a traced assistant message.
 8. Existing trace behavior remains compatible when a manifest is absent.
 9. Tests prove that the selected history represented by the manifest matches `buildContext()` for
@@ -87,10 +86,12 @@ export type DeepChatTapeViewManifest = {
 
   taskType: 'chat' | 'resume' | 'tool_loop'
   policy:
+    | 'legacy_context_v1'
     | 'legacy_context_shadow'
     | 'resume_shadow'
     | 'tool_loop_shadow'
     | 'context_pressure_recovery_shadow'
+  policyVersion: number | null
 
   contextBuilderVersion: 'legacy-v1'
   latestEntryId: number
@@ -186,7 +187,7 @@ The first UI increment extends the existing trace dialog.
 +-------------------------------------------------------------------+
 | Trace #1   Request | View Manifest | Tape Entries | Budget         |
 +-------------------------------------------------------------------+
-| View view_01        Policy legacy_context_shadow                   |
+| View view_01        Policy legacy_context_v1  Version 1            |
 | Anchor #42          Summary cursor 17                              |
 +------------------+------------------------------------------------+
 | Included         | #43 user order=17 selected_history              |
@@ -218,6 +219,7 @@ States:
 - Missing tape table remains a supported fallback for existing runtime code.
 - The manifest feature preserves chat generation behavior, request ordering, and token-budget
   decisions.
+- Manifest append failures are logged and request execution continues.
 
 ## Success Criteria
 
