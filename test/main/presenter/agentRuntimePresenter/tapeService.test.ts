@@ -629,7 +629,10 @@ describe('DeepChatTapeService', () => {
     })
     const manifestEntry = service.appendViewManifest(manifest)
 
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(2000)
     const slice = service.exportReplaySlice('s1', 'a1')
+    const secondSlice = service.exportReplaySlice('s1', 'a1')
+    nowSpy.mockRestore()
 
     expect(slice).toMatchObject({
       schemaVersion: 1,
@@ -647,6 +650,8 @@ describe('DeepChatTapeService', () => {
       }
     })
     expect(slice?.hashes.sliceHash).toHaveLength(64)
+    expect(secondSlice?.hashes.sliceHash).toBe(slice?.hashes.sliceHash)
+    expect(secondSlice?.createdAt).toBe(2000)
     expect(slice?.trace?.bodyHash).toHaveLength(64)
     expect(slice?.trace?.bodyJson).toBeUndefined()
     expect(slice?.entries.some((entry) => entry.entryId === manifestEntry.entry_id)).toBe(true)

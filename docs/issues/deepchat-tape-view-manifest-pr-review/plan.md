@@ -15,6 +15,9 @@ Apply the PR review fixes in place, keeping the existing Tape architecture and p
 | `TraceDialog.vue` | When a request sequence is selected, only show matching trace/manifest data. |
 | `routes.ts` | Replace broad route catalog annotation with `satisfies Record<string, RouteContract>`. |
 | i18n `traceDialog.json` | Translate new diagnostic keys for non-English locales and convert Traditional Chinese files. |
+| `contextBuilder.ts` | Preserve turn boundaries during emergency truncation. |
+| `tapeService.ts` | Exclude replay export timestamps from slice hash inputs. |
+| `tapeViewManifest.ts` | Copy included/excluded ref arrays into manifest snapshots. |
 | SDD docs | Keep this issue SDD current and address small doc nitpicks. |
 
 ## Compatibility
@@ -40,5 +43,7 @@ pnpm run typecheck
 pnpm vitest run test/main/presenter/agentRuntimePresenter/agentRuntimePresenter.test.ts
 pnpm vitest run test/main/presenter/agentRuntimePresenter/tapeViewAssembler.test.ts
 pnpm vitest run test/main/presenter/agentRuntimePresenter/tapeViewManifest.test.ts
+pnpm vitest run test/main/presenter/agentRuntimePresenter/tapeService.test.ts
+pnpm vitest run test/main/presenter/agentRuntimePresenter/contextBuilder.test.ts
 pnpm vitest run test/renderer/components/trace/TraceDialog.test.ts
 ```

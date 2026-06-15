@@ -27,7 +27,7 @@ TapeViewAssembler.buildTapeResumeView()
 | `src/main/presenter/agentRuntimePresenter/tapeViewAssembler.ts` | Delegate selection to `TapeViewPolicy`. |
 | `test/main/presenter/agentRuntimePresenter/tapeViewPolicy.test.ts` | Prove legacy policy parity. |
 | `test/main/presenter/agentRuntimePresenter/tapeViewAssembler.test.ts` | Assert policy metadata and policy delegation. |
-| `docs/architecture/deepchat_tape_spec_v1.md` | Record the new policy boundary. |
+| `docs/architecture/deepchat-tape-baseline/spec.md` | Record the new policy boundary. |
 
 ## Compatibility
 

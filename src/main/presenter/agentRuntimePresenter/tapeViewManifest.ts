@@ -171,8 +171,8 @@ export function createTapeViewManifest(
     contextBuilderVersion: TAPE_VIEW_CONTEXT_BUILDER_VERSION,
     latestEntryId: input.latestEntryId,
     anchorEntryIds: [...input.anchorEntryIds],
-    included: input.included,
-    excluded: input.excluded,
+    included: input.included.map((entry) => ({ ...entry })),
+    excluded: input.excluded.map((entry) => ({ ...entry })),
     tokenBudget: {
       ...input.tokenBudget,
       estimatedPromptTokens: estimateMessagesTokens(input.messages)

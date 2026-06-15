@@ -36,7 +36,7 @@ resumeAssistantMessage()
 | `src/main/presenter/agentRuntimePresenter/tapeViewPolicy.ts` | Selection policy boundary used by the assembler. |
 | `src/main/presenter/agentRuntimePresenter/index.ts` | Replace direct metadata builder calls with assembler calls. |
 | `test/main/presenter/agentRuntimePresenter/tapeViewAssembler.test.ts` | Add chat/resume parity tests. |
-| `docs/architecture/deepchat_tape_spec_v1.md` | Update current implementation path and owner table. |
+| `docs/architecture/deepchat-tape-baseline/spec.md` | Update current implementation path and owner table. |
 
 ## Compatibility
 

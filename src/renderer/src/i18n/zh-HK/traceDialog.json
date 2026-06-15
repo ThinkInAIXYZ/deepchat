@@ -13,7 +13,7 @@
   "notImplementedDesc": "此供應商暫時無法預覽",
   "provider": "供應商",
   "title": "請求參數預覽",
-  "model": "Model",
+  "model": "模型",
   "tabs": {
     "request": "要求",
     "view": "檢視",
@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "實際最大 Tokens",
   "reserveTokens": "預留 Tokens",
   "toolReserveTokens": "工具預留 Tokens",
-  "estimatedPromptTokens": "估算提示詞 Tokens"
+  "estimatedPromptTokens": "估算提示詞 Tokens",
+  "notAvailable": "-"
 }

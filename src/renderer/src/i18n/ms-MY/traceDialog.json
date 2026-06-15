@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Token maksimum berkesan",
   "reserveTokens": "Token simpanan",
   "toolReserveTokens": "Token simpanan alat",
-  "estimatedPromptTokens": "Anggaran token prompt"
+  "estimatedPromptTokens": "Anggaran token prompt",
+  "notAvailable": "-"
 }

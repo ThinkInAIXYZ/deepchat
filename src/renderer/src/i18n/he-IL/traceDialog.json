@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "מספר טוקנים מרבי בפועל",
   "reserveTokens": "טוקנים שמורים",
   "toolReserveTokens": "טוקנים שמורים לכלים",
-  "estimatedPromptTokens": "טוקני פרומפט משוערים"
+  "estimatedPromptTokens": "טוקני פרומפט משוערים",
+  "notAvailable": "-"
 }

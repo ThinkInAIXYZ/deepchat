@@ -65,13 +65,41 @@ vi.mock(
 vi.mock(
   '@shadcn/components/ui/tabs',
   () => ({
-    Tabs: { name: 'Tabs', template: '<div><slot /></div>' },
-    TabsContent: { name: 'TabsContent', template: '<div><slot /></div>' },
+    Tabs: {
+      name: 'Tabs',
+      props: ['modelValue', 'defaultValue'],
+      emits: ['update:modelValue'],
+      data() {
+        return { active: this.modelValue ?? this.defaultValue ?? null }
+      },
+      watch: {
+        modelValue(value) {
+          this.active = value
+        }
+      },
+      provide() {
+        return {
+          getActiveTab: () => this.active,
+          setActiveTab: (value: string) => {
+            this.active = value
+            this.$emit('update:modelValue', value)
+          }
+        }
+      },
+      template: '<div><slot /></div>'
+    },
+    TabsContent: {
+      name: 'TabsContent',
+      inject: ['getActiveTab'],
+      props: ['value'],
+      template: '<div v-if="!value || getActiveTab() === value"><slot /></div>'
+    },
     TabsList: { name: 'TabsList', template: '<div><slot /></div>' },
     TabsTrigger: {
       name: 'TabsTrigger',
+      inject: ['setActiveTab'],
       props: ['value'],
-      template: '<button @click="$emit(\'click\')"><slot /></button>'
+      template: '<button @click="setActiveTab(value)"><slot /></button>'
     }
   }),
   { virtual: true }

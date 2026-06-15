@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Tokens máximos efectivos",
   "reserveTokens": "Tokens reservados",
   "toolReserveTokens": "Tokens reservados para herramientas",
-  "estimatedPromptTokens": "Tokens estimados del prompt"
+  "estimatedPromptTokens": "Tokens estimados del prompt",
+  "notAvailable": "-"
 }

@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "生效 Max Tokens",
   "reserveTokens": "预留 Tokens",
   "toolReserveTokens": "工具预留 Tokens",
-  "estimatedPromptTokens": "估算 Prompt Tokens"
+  "estimatedPromptTokens": "估算 Prompt Tokens",
+  "notAvailable": "-"
 }

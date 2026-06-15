@@ -27,7 +27,7 @@ TapeViewAssembler.buildTapeResumeView()
 | `src/main/presenter/agentRuntimePresenter/tapeViewAssembler.ts` | Resolve default policy through selector. |
 | `test/main/presenter/agentRuntimePresenter/tapeViewPolicy.test.ts` | Cover registry and selector behavior. |
 | `test/main/presenter/agentRuntimePresenter/tapeViewAssembler.test.ts` | Assert selection reason and injected policy behavior. |
-| `docs/architecture/deepchat_tape_spec_v1.md` | Record the selector boundary. |
+| `docs/architecture/deepchat-tape-baseline/spec.md` | Record the selector boundary. |
 
 ## Compatibility
 

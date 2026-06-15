@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Geçerli en fazla token",
   "reserveTokens": "Ayrılmış tokenlar",
   "toolReserveTokens": "Araç için ayrılmış tokenlar",
-  "estimatedPromptTokens": "Tahmini prompt tokenları"
+  "estimatedPromptTokens": "Tahmini prompt tokenları",
+  "notAvailable": "-"
 }

@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "حداکثر توکن‌های مؤثر",
   "reserveTokens": "توکن‌های رزرو",
   "toolReserveTokens": "توکن‌های رزرو ابزار",
-  "estimatedPromptTokens": "توکن‌های تخمینی پرامپت"
+  "estimatedPromptTokens": "توکن‌های تخمینی پرامپت",
+  "notAvailable": "-"
 }

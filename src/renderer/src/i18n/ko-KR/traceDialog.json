@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "유효 최대 토큰",
   "reserveTokens": "예약 토큰",
   "toolReserveTokens": "도구 예약 토큰",
-  "estimatedPromptTokens": "예상 프롬프트 토큰"
+  "estimatedPromptTokens": "예상 프롬프트 토큰",
+  "notAvailable": "-"
 }

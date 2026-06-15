@@ -109,6 +109,63 @@ describe('tapeViewManifest', () => {
     expect(JSON.stringify(first)).not.toContain('secret prompt content')
   })
 
+  it('copies manifest refs so caller mutations cannot alter the hashed snapshot', () => {
+    const input = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [1],
+      included: [
+        {
+          entryId: 2,
+          messageId: 'u1',
+          orderSeq: 1,
+          role: 'user' as const,
+          source: 'tape' as const,
+          reason: 'selected_history' as const
+        }
+      ],
+      excluded: [
+        {
+          entryId: 3,
+          messageId: 'u0',
+          orderSeq: 0,
+          role: 'user' as const,
+          source: 'tape' as const,
+          reason: 'out_of_budget' as const
+        }
+      ],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 123
+    }
+
+    const manifest = createTapeViewManifest(input)
+    input.included[0].entryId = 99
+    input.excluded[0].reason = 'empty_after_formatting'
+
+    expect(manifest.included[0].entryId).toBe(2)
+    expect(manifest.excluded[0].reason).toBe('out_of_budget')
+    expect(manifest.hashes.manifestHash).not.toBe(createTapeViewManifest(input).hashes.manifestHash)
+  })
+
   it('resolves initial Tape policy provenance and request-level shadow policies', () => {
     expect(
       resolveTapeViewManifestPolicy({

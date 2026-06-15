@@ -346,11 +346,13 @@ function withReplaySliceHash(
     hashes: Omit<DeepChatTapeReplaySlice['hashes'], 'sliceHash'> & { sliceHash: '' }
   }
 ): DeepChatTapeReplaySlice {
+  const sliceForHash = { ...slice } as Partial<DeepChatTapeReplaySlice>
+  delete sliceForHash.createdAt
   return {
     ...slice,
     hashes: {
       ...slice.hashes,
-      sliceHash: hashJson(slice)
+      sliceHash: hashJson(sliceForHash)
     }
   }
 }

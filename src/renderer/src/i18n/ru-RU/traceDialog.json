@@ -48,5 +48,6 @@
   "effectiveMaxTokens": "Фактический максимум токенов",
   "reserveTokens": "Зарезервированные токены",
   "toolReserveTokens": "Токены, зарезервированные для инструментов",
-  "estimatedPromptTokens": "Оценка токенов промпта"
+  "estimatedPromptTokens": "Оценка токенов промпта",
+  "notAvailable": "-"
 }

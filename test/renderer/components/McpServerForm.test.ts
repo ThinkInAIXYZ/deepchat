@@ -35,6 +35,17 @@ const textareaStub = defineComponent({
     '<textarea v-bind="$attrs" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
 })
 
+const checkboxStub = defineComponent({
+  name: 'Checkbox',
+  props: {
+    checked: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false }
+  },
+  emits: ['update:checked'],
+  template:
+    '<input type="checkbox" data-testid="checkbox" :checked="checked" :disabled="disabled" @click="$emit(\'update:checked\', !checked)" />'
+})
+
 describe('McpServerForm', () => {
   it('renders editable auto approve checkboxes and submits selected permissions', async () => {
     vi.resetModules()
@@ -72,7 +83,7 @@ describe('McpServerForm', () => {
       }
     }))
 
-    const McpServerForm = (await import('@/components/mcp-config/mcpServerForm.vue')).default
+    const McpServerForm = (await import('@/components/mcp-config/McpServerForm.vue')).default
 
     const wrapper = mount(McpServerForm, {
       props: {
@@ -100,12 +111,13 @@ describe('McpServerForm', () => {
           SelectContent: passthrough('SelectContent'),
           SelectItem: passthrough('SelectItem'),
           SelectTrigger: passthrough('SelectTrigger'),
-          SelectValue: passthrough('SelectValue')
+          SelectValue: passthrough('SelectValue'),
+          Checkbox: checkboxStub
         }
       }
     })
 
-    const checkboxes = wrapper.findAll('[data-slot="checkbox"]')
+    const checkboxes = wrapper.findAll('[data-testid="checkbox"]')
     expect(checkboxes).toHaveLength(3)
 
     await checkboxes[1].trigger('click')
