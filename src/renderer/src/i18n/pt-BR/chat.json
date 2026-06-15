@@ -210,6 +210,10 @@
         "title": "Sem espaço de trabalho",
         "description": "Selecione ou arraste uma pasta para definir o espaço de trabalho",
         "button": "Selecionar pasta"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

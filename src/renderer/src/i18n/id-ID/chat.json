@@ -260,6 +260,10 @@
         "openFile": "membuka berkas",
         "revealInFolder": "Buka di pengelola file",
         "insertPath": "Masukkan ke dalam kotak masukan"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

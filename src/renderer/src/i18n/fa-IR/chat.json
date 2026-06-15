@@ -210,6 +210,10 @@
         "title": "بدون فضای کاری",
         "description": "پوشه‌ای را انتخاب یا بکشید تا فضای کاری را تنظیم کنید",
         "button": "انتخاب پوشه"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

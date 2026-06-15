@@ -210,7 +210,11 @@
         "description": "フォルダを選択してワークスペースを設定",
         "button": "フォルダを選択"
       },
-      "section": "書類"
+      "section": "書類",
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+      }
     },
     "git": {
       "empty": "表示できる diff はありません",

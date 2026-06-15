@@ -114,13 +114,6 @@ vi.mock('path', () => ({
   }
 }))
 
-vi.mock('chokidar', () => ({
-  watch: vi.fn(() => ({
-    on: vi.fn().mockReturnThis(),
-    close: vi.fn()
-  }))
-}))
-
 vi.mock('gray-matter', () => ({
   default: vi.fn()
 }))
@@ -155,11 +148,18 @@ vi.mock('../../../../src/main/presenter/skillPresenter/discoveryWorker', () => d
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
+import type {
+  IFileWatcherService,
+  WatchBatchListener,
+  WatcherEvent,
+  WatchMode,
+  WatchRequest,
+  WatchStatusListener
+} from '../../../../src/main/lib/fileWatcher'
 
 function createDirEntry(name: string) {
   return {
@@ -223,17 +223,58 @@ function createSkillMetadata(name: string, dirName: string): SkillMetadata {
   }
 }
 
-function getWatcherHandler(eventName: string) {
-  const watcherInstance = (watch as Mock).mock.results[(watch as Mock).mock.results.length - 1]
-    ?.value as { on: Mock } | undefined
-  return watcherInstance?.on.mock.calls.find((call: unknown[]) => call[0] === eventName)?.[1] as
-    | ((filePath: string) => Promise<void>)
-    | undefined
+type FakeWatcher = {
+  request: WatchRequest
+  close: ReturnType<typeof vi.fn>
+  emit(events: WatcherEvent[], mode?: WatchMode): Promise<void>
+}
+
+function createFakeWatcherService() {
+  const watchers: FakeWatcher[] = []
+  const service: IFileWatcherService = {
+    watch: vi.fn(async (request, onBatch: WatchBatchListener, _onStatus?: WatchStatusListener) => {
+      const watcher: FakeWatcher = {
+        request,
+        close: vi.fn().mockResolvedValue(undefined),
+        async emit(events, mode = 'native') {
+          const listener = onBatch as unknown as (batch: {
+            watchId: string
+            rootPath: string
+            purpose: WatchRequest['purpose']
+            hostKind: WatchRequest['hostKind']
+            mode: WatchMode
+            events: WatcherEvent[]
+            version: number
+          }) => unknown
+          await listener({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            mode,
+            events,
+            version: Date.now()
+          })
+        }
+      }
+      watchers.push(watcher)
+      return {
+        close: watcher.close
+      }
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined)
+  }
+
+  return {
+    service,
+    watchers
+  }
 }
 
 describe('SkillPresenter', () => {
   let skillPresenter: SkillPresenter
   let mockConfigPresenter: IConfigPresenter
+  let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -244,6 +285,7 @@ describe('SkillPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue(''),
       getSetting: vi.fn().mockReturnValue(undefined)
     } as unknown as IConfigPresenter
+    fakeWatcherService = createFakeWatcherService()
 
     // Setup default mocks
     ;(fs.existsSync as Mock).mockReturnValue(true)
@@ -284,13 +326,17 @@ describe('SkillPresenter', () => {
       async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
     )
 
-    skillPresenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+    skillPresenter = new SkillPresenter(
+      mockConfigPresenter,
+      skillSessionStatePort as any,
+      fakeWatcherService.service
+    )
     ;(skillPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
     ;(skillPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
   })
 
-  afterEach(() => {
-    skillPresenter.destroy()
+  afterEach(async () => {
+    await skillPresenter.destroy()
   })
 
   describe('constructor', () => {
@@ -2053,17 +2099,17 @@ describe('SkillPresenter', () => {
   })
 
   describe('watchSkillFiles', () => {
-    it('should start file watcher', () => {
-      skillPresenter.watchSkillFiles()
+    it('should start file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
 
-      expect(watch).toHaveBeenCalled()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalled()
     })
 
-    it('should not start watcher twice', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.watchSkillFiles()
+    it('should not start watcher twice', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.watchSkillFiles()
 
-      expect(watch).toHaveBeenCalledTimes(1)
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(1)
     })
 
     it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {
@@ -2077,10 +2123,10 @@ describe('SkillPresenter', () => {
         .fn()
         .mockResolvedValue(createSkillMetadata('skill-b', 'skill-a'))
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-b')).toEqual(existingDuplicate)
@@ -2103,10 +2149,10 @@ describe('SkillPresenter', () => {
       metadataCache.set(originalMetadata.name, originalMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(renamedMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-c')).toEqual(renamedMetadata)
@@ -2129,10 +2175,10 @@ describe('SkillPresenter', () => {
       metadataCache.set(existingMetadata.name, existingMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(duplicateMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const addHandler = getWatcherHandler('add')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await addHandler?.(duplicateMetadata.path)
+      await watcher?.emit([{ type: 'create', path: duplicateMetadata.path }])
 
       expect(metadataCache.get('skill-b')).toEqual(existingMetadata)
       expect(logger.warn).toHaveBeenCalledWith(
@@ -2148,24 +2194,24 @@ describe('SkillPresenter', () => {
   })
 
   describe('stopWatching', () => {
-    it('should stop the file watcher', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.stopWatching()
+    it('should stop the file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.stopWatching()
 
       // Watcher should be null after stopping
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 
   describe('destroy', () => {
-    it('should cleanup all resources', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.destroy()
+    it('should cleanup all resources', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.destroy()
 
       // Should be able to start watcher again after destroy
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 })

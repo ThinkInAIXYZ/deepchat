@@ -260,6 +260,10 @@
         "openFile": "Mở tập tin",
         "revealInFolder": "Hiển thị trong trình quản lý tập tin",
         "insertPath": "Chèn vào đầu vào"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

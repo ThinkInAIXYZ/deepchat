@@ -5,45 +5,10 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
-const { chokidarState, sendToAllWindowsMock, execFileMock } = vi.hoisted(() => {
-  const watchers: Array<{
-    paths: unknown
-    options: unknown
-    on: ReturnType<typeof vi.fn>
-    close: ReturnType<typeof vi.fn>
-    emit: (eventName: string, ...args: unknown[]) => Promise<void>
-  }> = []
-
-  return {
-    chokidarState: {
-      watchers,
-      reset() {
-        watchers.length = 0
-      },
-      createWatcher(paths: unknown, options: unknown) {
-        const handlers = new Map<string, Array<(...args: unknown[]) => unknown>>()
-        const watcher = {
-          paths,
-          options,
-          on: vi.fn((eventName: string, handler: (...args: unknown[]) => unknown) => {
-            handlers.set(eventName, [...(handlers.get(eventName) ?? []), handler])
-            return watcher
-          }),
-          close: vi.fn().mockResolvedValue(undefined),
-          async emit(eventName: string, ...args: unknown[]) {
-            for (const handler of handlers.get(eventName) ?? []) {
-              await handler(...args)
-            }
-          }
-        }
-        watchers.push(watcher)
-        return watcher
-      }
-    },
-    sendToAllWindowsMock: vi.fn(),
-    execFileMock: vi.fn()
-  }
-})
+const { sendToAllWindowsMock, execFileMock } = vi.hoisted(() => ({
+  sendToAllWindowsMock: vi.fn(),
+  execFileMock: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   shell: {
@@ -73,17 +38,21 @@ vi.mock('path', async () => {
   }
 })
 
-vi.mock('chokidar', () => ({
-  FSWatcher: class {},
-  watch: vi.fn((paths: unknown, options: unknown) => chokidarState.createWatcher(paths, options))
-}))
-
 vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
 import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
+import type {
+  IFileWatcherService,
+  WatchBatchListener,
+  WatcherEvent,
+  WatchMode,
+  WatchRequest,
+  WatcherStatus,
+  WatchStatusListener
+} from '../../../src/main/lib/fileWatcher'
 import {
   createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
@@ -104,6 +73,59 @@ function normalizeForAccess(value: string): string {
   }
 }
 
+type FakeWatcher = {
+  request: WatchRequest
+  close: ReturnType<typeof vi.fn>
+  emit(events: WatcherEvent[], mode?: WatchMode): void
+  emitStatus(status: Partial<WatcherStatus>): void
+}
+
+function createFakeWatcherService() {
+  const watchers: FakeWatcher[] = []
+  const service: IFileWatcherService = {
+    watch: vi.fn(async (request, onBatch: WatchBatchListener, onStatus?: WatchStatusListener) => {
+      const watcher: FakeWatcher = {
+        request,
+        close: vi.fn().mockResolvedValue(undefined),
+        emit(events, mode = 'native') {
+          onBatch({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            mode,
+            events,
+            version: Date.now()
+          })
+        },
+        emitStatus(status) {
+          onStatus?.({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            health: status.health ?? 'healthy',
+            mode: status.mode ?? 'native',
+            reason: status.reason ?? 'ready',
+            message: status.message,
+            version: status.version ?? Date.now()
+          })
+        }
+      }
+      watchers.push(watcher)
+      return {
+        close: watcher.close
+      }
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined)
+  }
+
+  return {
+    service,
+    watchers
+  }
+}
+
 beforeEach(() => {
   resetWorkspacePreviewProtocolState()
 })
@@ -115,10 +137,11 @@ afterEach(() => {
 describe('WorkspacePresenter watchers', () => {
   let workspacePath: string
   let presenter: WorkspacePresenter
+  let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
 
   beforeEach(() => {
     vi.useFakeTimers()
-    chokidarState.reset()
+    fakeWatcherService = createFakeWatcherService()
     sendToAllWindowsMock.mockReset()
     execFileMock.mockReset()
     setDeepchatEventWindowPresenter({
@@ -151,13 +174,16 @@ describe('WorkspacePresenter watchers', () => {
       }
     )
 
-    presenter = new WorkspacePresenter({
-      prepareFileCompletely: vi.fn()
-    } as any)
+    presenter = new WorkspacePresenter(
+      {
+        prepareFileCompletely: vi.fn()
+      } as any,
+      fakeWatcherService.service
+    )
   })
 
   afterEach(async () => {
-    presenter?.destroy()
+    await presenter?.destroy()
     setDeepchatEventWindowPresenter(null)
     await vi.runAllTimersAsync()
     vi.useRealTimers()
@@ -170,9 +196,9 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.watchWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    expect(chokidarState.watchers).toHaveLength(2)
+    expect(fakeWatcherService.watchers).toHaveLength(2)
 
-    const [contentWatcher, gitWatcher] = chokidarState.watchers
+    const [contentWatcher, gitWatcher] = fakeWatcherService.watchers
 
     await presenter.unwatchWorkspace(workspacePath)
     expect(contentWatcher.close).not.toHaveBeenCalled()
@@ -187,10 +213,12 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [contentWatcher] = chokidarState.watchers
+    const [contentWatcher] = fakeWatcherService.watchers
 
-    await contentWatcher.emit('all', 'add', path.join(workspacePath, 'a.ts'))
-    await contentWatcher.emit('all', 'change', path.join(workspacePath, 'b.ts'))
+    contentWatcher.emit([
+      { type: 'create', path: path.join(workspacePath, 'a.ts') },
+      { type: 'update', path: path.join(workspacePath, 'b.ts') }
+    ])
 
     expect(sendToAllWindowsMock).not.toHaveBeenCalled()
 
@@ -219,8 +247,8 @@ describe('WorkspacePresenter watchers', () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [, gitWatcher] = chokidarState.watchers
-    await gitWatcher.emit('all', 'change', path.join(workspacePath, '.git', 'index'))
+    const [, gitWatcher] = fakeWatcherService.watchers
+    gitWatcher.emit([{ type: 'update', path: path.join(workspacePath, '.git', 'index') }])
     await vi.advanceTimersByTimeAsync(120)
 
     expect(sendToAllWindowsMock).toHaveBeenCalledTimes(1)
@@ -235,14 +263,39 @@ describe('WorkspacePresenter watchers', () => {
     })
   })
 
+  it('emits watcher status updates for the active workspace', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    await presenter.watchWorkspace(workspacePath)
+
+    const [contentWatcher] = fakeWatcherService.watchers
+    contentWatcher.emitStatus({
+      health: 'degraded',
+      mode: 'snapshot-polling',
+      reason: 'fallback-started',
+      message: 'native watcher unavailable',
+      version: 123
+    })
+
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
+      name: 'workspace.watch.status.changed',
+      payload: {
+        workspacePath,
+        health: 'degraded',
+        mode: 'snapshot-polling',
+        reason: 'fallback-started',
+        message: 'native watcher unavailable',
+        version: 123
+      }
+    })
+  })
+
   it('closes remaining watchers during destroy', async () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)
 
-    const [contentWatcher, gitWatcher] = chokidarState.watchers
+    const [contentWatcher, gitWatcher] = fakeWatcherService.watchers
 
-    presenter.destroy()
-    await Promise.resolve()
+    await presenter.destroy()
 
     expect(contentWatcher.close).toHaveBeenCalledTimes(1)
     expect(gitWatcher.close).toHaveBeenCalledTimes(1)

@@ -25,6 +25,7 @@ const {
   isDirectoryMock,
   getPathForFileMock,
   workspaceInvalidationState,
+  workspaceWatchStatusState,
   setSessionProjectDirMock
 } = vi.hoisted(() => ({
   showArtifactMock: vi.fn(),
@@ -70,6 +71,50 @@ const {
         workspacePath: string
         kind: 'fs' | 'git' | 'full'
         source: 'watcher' | 'fallback' | 'lifecycle'
+        version: number
+      }) => void
+    ) {
+      this.listeners.push(listener)
+      return () => {
+        this.listeners = this.listeners.filter((currentListener) => currentListener !== listener)
+      }
+    }
+  },
+  workspaceWatchStatusState: {
+    listeners: [] as Array<
+      (payload: {
+        workspacePath: string
+        health: 'healthy' | 'degraded' | 'failed'
+        mode: 'native' | 'snapshot-polling' | 'git-metadata-polling'
+        reason:
+          | 'ready'
+          | 'native-error'
+          | 'utility-exit'
+          | 'fallback-started'
+          | 'overflow'
+          | 'root-deleted'
+          | 'shutdown'
+        message?: string
+        version: number
+      }) => void
+    >,
+    reset() {
+      this.listeners = []
+    },
+    subscribe(
+      listener: (payload: {
+        workspacePath: string
+        health: 'healthy' | 'degraded' | 'failed'
+        mode: 'native' | 'snapshot-polling' | 'git-metadata-polling'
+        reason:
+          | 'ready'
+          | 'native-error'
+          | 'utility-exit'
+          | 'fallback-started'
+          | 'overflow'
+          | 'root-deleted'
+          | 'shutdown'
+        message?: string
         version: number
       }) => void
     ) {
@@ -153,6 +198,30 @@ const emitWorkspaceInvalidated = async (payload: {
   await flushPromises()
 }
 
+const emitWorkspaceWatchStatusChanged = async (payload: {
+  workspacePath: string
+  health: 'healthy' | 'degraded' | 'failed'
+  mode: 'native' | 'snapshot-polling' | 'git-metadata-polling'
+  reason:
+    | 'ready'
+    | 'native-error'
+    | 'utility-exit'
+    | 'fallback-started'
+    | 'overflow'
+    | 'root-deleted'
+    | 'shutdown'
+  message?: string
+  version?: number
+}) => {
+  for (const listener of workspaceWatchStatusState.listeners) {
+    listener({
+      version: 1,
+      ...payload
+    })
+  }
+  await flushPromises()
+}
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
@@ -192,6 +261,9 @@ vi.mock('@api/WorkspaceClient', () => ({
     revealFileInFolder: revealFileInFolderMock,
     onInvalidated: vi.fn((listener: (payload: unknown) => void) =>
       workspaceInvalidationState.subscribe(listener as any)
+    ),
+    onWatchStatusChanged: vi.fn((listener: (payload: unknown) => void) =>
+      workspaceWatchStatusState.subscribe(listener as any)
     )
   }))
 }))
@@ -255,6 +327,7 @@ describe('WorkspacePanel', () => {
     vi.useFakeTimers()
 
     workspaceInvalidationState.reset()
+    workspaceWatchStatusState.reset()
     sidepanelStore.open = true
     sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
@@ -393,6 +466,39 @@ describe('WorkspacePanel', () => {
     await flushPromises()
 
     expect(unwatchWorkspaceMock).toHaveBeenCalledWith('C:/repo')
+  })
+
+  it('shows watcher fallback status and hides it when the watcher recovers', async () => {
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    await emitWorkspaceWatchStatusChanged({
+      workspacePath: 'C:/repo',
+      health: 'degraded',
+      mode: 'snapshot-polling',
+      reason: 'fallback-started'
+    })
+
+    expect(wrapper.find('[data-testid="workspace-watch-status"]').text()).toContain(
+      'chat.workspace.files.watchStatus.degraded'
+    )
+
+    await emitWorkspaceWatchStatusChanged({
+      workspacePath: 'C:/repo',
+      health: 'healthy',
+      mode: 'native',
+      reason: 'ready'
+    })
+
+    expect(wrapper.find('[data-testid="workspace-watch-status"]').exists()).toBe(false)
+
+    wrapper.unmount()
   })
 
   it('keeps expanded directories expanded after a full invalidation refresh', async () => {

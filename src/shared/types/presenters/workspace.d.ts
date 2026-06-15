@@ -98,6 +98,29 @@ export type WorkspaceInvalidationEvent = {
   workspacePath: string
   kind: WorkspaceInvalidationKind
   source: WorkspaceInvalidationSource
+  version?: number
+}
+
+export type WorkspaceWatchHealth = 'healthy' | 'degraded' | 'failed'
+
+export type WorkspaceWatchMode = 'native' | 'snapshot-polling' | 'git-metadata-polling'
+
+export type WorkspaceWatchStatusReason =
+  | 'ready'
+  | 'native-error'
+  | 'utility-exit'
+  | 'fallback-started'
+  | 'overflow'
+  | 'root-deleted'
+  | 'shutdown'
+
+export type WorkspaceWatchStatusEvent = {
+  workspacePath: string
+  health: WorkspaceWatchHealth
+  mode: WorkspaceWatchMode
+  reason: WorkspaceWatchStatusReason
+  message?: string
+  version: number
 }
 
 export type ResolveMarkdownLinkedFileInput = {

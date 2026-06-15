@@ -210,6 +210,10 @@
         "title": "워크스페이스 없음",
         "description": "폴더를 선택하거나 드래그하여 워크스페이스 설정",
         "button": "폴더 선택"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

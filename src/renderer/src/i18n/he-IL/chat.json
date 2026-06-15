@@ -210,6 +210,10 @@
         "title": "אין אזור עבודה",
         "description": "בחר או גרור תיקייה כדי להגדיר את אזור העבודה",
         "button": "בחר תיקייה"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

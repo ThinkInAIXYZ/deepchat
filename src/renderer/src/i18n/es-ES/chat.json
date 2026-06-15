@@ -260,6 +260,10 @@
         "openFile": "Abrir archivo",
         "revealInFolder": "Mostrar en el administrador de archivos",
         "insertPath": "Insertar en el campo de entrada"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

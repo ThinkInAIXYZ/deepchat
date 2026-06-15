@@ -260,6 +260,10 @@
         "openFile": "buka fail",
         "revealInFolder": "Buka dalam pengurus fail",
         "insertPath": "Masukkan ke dalam kotak input"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

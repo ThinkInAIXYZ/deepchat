@@ -39,6 +39,35 @@ function getFffBinaryPackages(platform, arch) {
   }
 }
 
+function getParcelWatcherBinaryPackages(platform, arch) {
+  const archName = getArchName(arch)
+
+  if (platform === 'darwin' && archName === 'universal') {
+    return ['@parcel/watcher-darwin-x64', '@parcel/watcher-darwin-arm64']
+  }
+
+  switch (`${platform}:${archName}`) {
+    case 'darwin:x64':
+      return ['@parcel/watcher-darwin-x64']
+    case 'darwin:arm64':
+      return ['@parcel/watcher-darwin-arm64']
+    case 'win32:x64':
+      return ['@parcel/watcher-win32-x64']
+    case 'win32:arm64':
+      return ['@parcel/watcher-win32-arm64']
+    case 'win32:ia32':
+      return ['@parcel/watcher-win32-ia32']
+    case 'linux:x64':
+      return ['@parcel/watcher-linux-x64-glibc']
+    case 'linux:arm64':
+      return ['@parcel/watcher-linux-arm64-glibc']
+    case 'linux:armv7l':
+      return ['@parcel/watcher-linux-arm-glibc']
+    default:
+      return []
+  }
+}
+
 async function pathExists(filePath) {
   try {
     await fs.access(filePath)
@@ -115,6 +144,34 @@ async function copyFffNativePackages(context) {
   }
 }
 
+async function copyParcelWatcherNativePackages(context) {
+  const { arch, electronPlatformName, packager } = context
+  const packageNames = getParcelWatcherBinaryPackages(electronPlatformName, arch)
+
+  if (packageNames.length === 0) {
+    return
+  }
+
+  const nodeModulesDir = path.join(getResourcesDir(context), 'app.asar.unpacked', 'node_modules')
+  const parcelWatcherDir = path.join(nodeModulesDir, '@parcel', 'watcher')
+
+  if (!(await pathExists(parcelWatcherDir))) {
+    throw new Error(
+      `Missing unpacked @parcel/watcher at ${parcelWatcherDir}. Check electron-builder asarUnpack configuration.`
+    )
+  }
+
+  const projectDir = packager?.projectDir ?? process.cwd()
+
+  for (const packageName of packageNames) {
+    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
+
+    await fs.mkdir(path.dirname(destinationDir), { recursive: true })
+    await fs.cp(sourceDir, destinationDir, { recursive: true, force: true, dereference: true })
+  }
+}
+
 function isLinux(targets) {
   const re = /AppImage|snap|deb|rpm|freebsd|pacman/i
   return !!targets.find((target) => re.test(target.name))
@@ -132,6 +189,7 @@ async function afterPack(context) {
   const { targets, appOutDir } = context
 
   await copyFffNativePackages(context)
+  await copyParcelWatcherNativePackages(context)
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })

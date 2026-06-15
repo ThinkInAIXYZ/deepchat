@@ -62,6 +62,14 @@
               <div v-else-if="loadingFiles" class="px-3 py-2 text-[11px] text-muted-foreground/70">
                 {{ t('chat.workspace.files.loading') }}
               </div>
+              <div
+                v-if="watchStatusBanner"
+                data-testid="workspace-watch-status"
+                class="mx-2 mb-1 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300"
+              >
+                <Icon icon="lucide:triangle-alert" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span class="min-w-0 flex-1 break-words">{{ watchStatusBanner }}</span>
+              </div>
               <WorkspaceFileNode
                 v-for="node in fileTree"
                 :key="node.path"
@@ -240,6 +248,7 @@ const {
   selectedFilePreview,
   selectedGitDiff,
   gitState,
+  watchStatus,
   loadingFiles,
   loadingFilePreview,
   loadingGitDiff,
@@ -251,6 +260,16 @@ const {
   sessionState,
   workspaceClient,
   sidepanelStore
+})
+
+const watchStatusBanner = computed(() => {
+  if (!props.workspacePath || !watchStatus.value || watchStatus.value.health === 'healthy') {
+    return null
+  }
+
+  return watchStatus.value.health === 'failed'
+    ? t('chat.workspace.files.watchStatus.failed')
+    : t('chat.workspace.files.watchStatus.degraded')
 })
 
 const artifactItems = computed<ArtifactItem[]>(() => {
