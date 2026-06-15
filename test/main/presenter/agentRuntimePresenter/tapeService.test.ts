@@ -544,6 +544,43 @@ describe('DeepChatTapeService', () => {
     ])
   })
 
+  it('filters malformed view manifest rows when listing by message', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: {
+        type: 'runtime_event',
+        id: 'a1',
+        seq: 1
+      },
+      data: {
+        manifest: {
+          schemaVersion: 1,
+          sessionId: 's1',
+          messageId: 'a1',
+          requestSeq: 1,
+          included: 'not-an-array'
+        }
+      }
+    })
+
+    expect(service.listViewManifestsByMessage('s1', 'a1')).toEqual([])
+  })
+
+  it('throws a clear error when appending live messages without a tape table', () => {
+    const service = new DeepChatTapeService({} as any)
+
+    expect(() => service.appendMessageRecord(createRecord({ id: 'u1' }))).toThrow(
+      'Tape table is not available.'
+    )
+  })
+
   it('exports replay slices with metadata-only payloads by default', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table, [createTraceRow()])
@@ -702,6 +739,15 @@ describe('DeepChatTapeService', () => {
     const service = createTapeService(table, [createTraceRow()])
 
     expect(service.exportReplaySlice('s1', 'a1')).toBeNull()
+  })
+
+  it('rejects non-positive replay request sequences', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table, [createTraceRow()])
+
+    expect(() => service.exportReplaySlice('s1', 'a1', { requestSeq: 0 })).toThrow(
+      'requestSeq must be a positive integer.'
+    )
   })
 
   it('keeps pending message records for resume but hides pending tool facts from search', () => {

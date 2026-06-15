@@ -257,6 +257,11 @@ export function buildSyntheticRequestRefs(messages: ChatMessage[]): DeepChatTape
     orderSeq: null,
     role: message.role,
     source: 'synthetic',
-    reason: message.role === 'tool' ? 'tool_loop_message' : 'selected_history'
+    reason:
+      message.role === 'system'
+        ? 'system_prompt'
+        : message.role === 'tool'
+          ? 'tool_loop_message'
+          : 'selected_history'
   }))
 }

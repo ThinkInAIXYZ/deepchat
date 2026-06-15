@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
   buildIncludedRefs,
+  buildSyntheticRequestRefs,
   createTapeViewManifest,
   hashJson,
   resolveTapeViewManifestPolicy
@@ -155,5 +156,19 @@ describe('tapeViewManifest', () => {
       policy: 'context_pressure_recovery_shadow',
       policyVersion: null
     })
+  })
+
+  it('builds synthetic request refs with role-specific reasons', () => {
+    expect(
+      buildSyntheticRequestRefs([
+        { role: 'system', content: 'system' },
+        { role: 'user', content: 'question' },
+        { role: 'tool', content: 'tool output' }
+      ])
+    ).toMatchObject([
+      { role: 'system', reason: 'system_prompt', source: 'synthetic' },
+      { role: 'user', reason: 'selected_history', source: 'synthetic' },
+      { role: 'tool', reason: 'tool_loop_message', source: 'synthetic' }
+    ])
   })
 })

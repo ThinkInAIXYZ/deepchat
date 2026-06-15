@@ -65,7 +65,6 @@ import {
   sessionsUpdateQueuedInputRoute
 } from '@shared/contracts/routes'
 import type { CreateSessionInput, SendMessageInput } from '@shared/types/agent-interface'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
@@ -249,14 +248,14 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return {
       traces: result.traces,
-      manifests: manifests as DeepChatTapeViewManifestRecord[]
+      manifests
     }
   }
 
   async function listMessageViewManifests(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
-    return manifests as DeepChatTapeViewManifestRecord[]
+    return manifests
   }
 
   async function exportMessageTapeReplaySlice(

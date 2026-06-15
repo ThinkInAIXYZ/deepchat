@@ -9,6 +9,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { HistorySearchHit } from '@shared/types/presenters/agent-session.presenter'
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
   SessionListItemSchema,
   SessionPageCursorSchema,
@@ -29,7 +30,7 @@ import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
-const DeepChatTapeViewManifestRecordSchema = z.record(z.unknown())
+const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
 const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
 const SearchResultSchema = z.custom<SearchResult>()

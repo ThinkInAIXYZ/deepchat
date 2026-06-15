@@ -1556,6 +1556,34 @@ describe('AgentRuntimePresenter', () => {
       expect(manifests[1].hashes.toolDefinitionsHash).toHaveLength(64)
     })
 
+    it('continues provider requests when view manifest persistence fails', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const loggerWarnMock = vi.mocked(logger.warn)
+      loggerWarnMock.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mockImplementation(() => {
+        throw new Error('manifest write failed')
+      })
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to persist tape view manifest')
+      )
+    })
+
     it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
       llmProvider.executeWithRateLimit.mockImplementation(
         async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
