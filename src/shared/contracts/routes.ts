@@ -293,6 +293,7 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
+  sessionsExportMessageTapeReplaySliceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -455,7 +456,7 @@ export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'
 
-export const DEEPCHAT_ROUTE_CATALOG = {
+export const DEEPCHAT_ROUTE_CATALOG: Record<string, RouteContract> = {
   [acpTerminalInputRoute.name]: acpTerminalInputRoute,
   [acpTerminalKillRoute.name]: acpTerminalKillRoute,
   [shortcutRegisterRoute.name]: shortcutRegisterRoute,
@@ -675,6 +676,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [sessionsSearchHistoryRoute.name]: sessionsSearchHistoryRoute,
   [sessionsGetSearchResultsRoute.name]: sessionsGetSearchResultsRoute,
   [sessionsListMessageTracesRoute.name]: sessionsListMessageTracesRoute,
+  [sessionsExportMessageTapeReplaySliceRoute.name]: sessionsExportMessageTapeReplaySliceRoute,
   [sessionsTranslateTextRoute.name]: sessionsTranslateTextRoute,
   [sessionsGetAgentsRoute.name]: sessionsGetAgentsRoute,
   [sessionsGetUsageDashboardRoute.name]: sessionsGetUsageDashboardRoute,
@@ -825,7 +827,7 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [dialogErrorRoute.name]: dialogErrorRoute,
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute
-} satisfies Record<string, RouteContract>
+}
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG
 export type DeepchatRouteName = keyof DeepchatRouteCatalog

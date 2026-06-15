@@ -183,6 +183,7 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
+  sessionsExportMessageTapeReplaySliceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -2228,7 +2229,19 @@ export async function dispatchDeepchatRoute(
     case sessionsListMessageTracesRoute.name: {
       const input = sessionsListMessageTracesRoute.input.parse(rawInput)
       const traces = await runtime.agentSessionPresenter.listMessageTraces(input.messageId)
-      return sessionsListMessageTracesRoute.output.parse({ traces })
+      const manifests = await runtime.agentSessionPresenter.listMessageViewManifests(
+        input.messageId
+      )
+      return sessionsListMessageTracesRoute.output.parse({ traces, manifests })
+    }
+
+    case sessionsExportMessageTapeReplaySliceRoute.name: {
+      const input = sessionsExportMessageTapeReplaySliceRoute.input.parse(rawInput)
+      const slice = await runtime.agentSessionPresenter.exportMessageTapeReplaySlice(
+        input.messageId,
+        input.options
+      )
+      return sessionsExportMessageTapeReplaySliceRoute.output.parse({ slice })
     }
 
     case sessionsTranslateTextRoute.name: {

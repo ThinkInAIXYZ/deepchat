@@ -27,6 +27,8 @@ import type {
   AgentTapeAnchorResult,
   AgentTransferImpact
 } from '../agent-interface'
+import type { DeepChatTapeViewManifestRecord } from '../tape-view-manifest'
+import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from '../tape-replay'
 import type { AcpConfigState } from './llmprovider.presenter'
 import type { SearchResult } from './thread.presenter'
 
@@ -137,6 +139,11 @@ export interface IAgentSessionPresenter {
   getLegacyImportStatus(): Promise<LegacyImportStatus>
   retryLegacyImport(): Promise<LegacyImportStatus>
   listMessageTraces(messageId: string): Promise<MessageTraceRecord[]>
+  listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]>
+  exportMessageTapeReplaySlice(
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null>
   getMessageTraceCount(messageId: string): Promise<number>
   getMessageIds(sessionId: string): Promise<string[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
