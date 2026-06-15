@@ -1,13 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const { listMessageTracesMock } = vi.hoisted(() => ({
-  listMessageTracesMock: vi.fn()
-}))
+const { listMessageTraceDiagnosticsMock, listMessageTracesMock, listMessageViewManifestsMock } =
+  vi.hoisted(() => ({
+    listMessageTraceDiagnosticsMock: vi.fn(),
+    listMessageTracesMock: vi.fn(),
+    listMessageViewManifestsMock: vi.fn()
+  }))
 
 vi.mock('@api/SessionClient', () => ({
   createSessionClient: vi.fn(() => ({
-    listMessageTraces: listMessageTracesMock
+    listMessageTraceDiagnostics: listMessageTraceDiagnosticsMock,
+    listMessageTraces: listMessageTracesMock,
+    listMessageViewManifests: listMessageViewManifestsMock
   }))
 }))
 
@@ -58,6 +63,21 @@ vi.mock(
 )
 
 vi.mock(
+  '@shadcn/components/ui/tabs',
+  () => ({
+    Tabs: { name: 'Tabs', template: '<div><slot /></div>' },
+    TabsContent: { name: 'TabsContent', template: '<div><slot /></div>' },
+    TabsList: { name: 'TabsList', template: '<div><slot /></div>' },
+    TabsTrigger: {
+      name: 'TabsTrigger',
+      props: ['value'],
+      template: '<button @click="$emit(\'click\')"><slot /></button>'
+    }
+  }),
+  { virtual: true }
+)
+
+vi.mock(
   '@shadcn/components/ui/spinner',
   () => ({
     Spinner: { name: 'Spinner', template: '<div class="spinner" />' }
@@ -81,6 +101,51 @@ vi.mock('vue-i18n', () => ({
 
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 
+const makeManifestRecord = (requestSeq: number, viewId: string) => ({
+  sessionId: 's1',
+  messageId: 'm1',
+  requestSeq,
+  entryId: requestSeq,
+  createdAt: 2000,
+  manifest: {
+    schemaVersion: 1,
+    viewId,
+    sessionId: 's1',
+    messageId: 'm1',
+    requestSeq,
+    taskType: 'chat',
+    policy: 'legacy_context_v1',
+    policyVersion: 1,
+    contextBuilderVersion: 'legacy-v1',
+    latestEntryId: 8,
+    anchorEntryIds: [1],
+    included: [],
+    excluded: [],
+    tokenBudget: {
+      contextLength: 1000,
+      requestedMaxTokens: 100,
+      effectiveMaxTokens: 100,
+      reserveTokens: 100,
+      toolReserveTokens: 0,
+      estimatedPromptTokens: 12
+    },
+    hashes: {
+      promptHash: 'prompt_hash',
+      toolDefinitionsHash: 'tool_hash',
+      manifestHash: 'manifest_hash'
+    },
+    meta: {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    },
+    assembledAt: 2000
+  }
+})
+
 const mountDialog = () =>
   mount(TraceDialog, {
     props: {
@@ -90,42 +155,52 @@ const mountDialog = () =>
   })
 
 describe('TraceDialog', () => {
+  beforeEach(() => {
+    listMessageTraceDiagnosticsMock.mockReset()
+    listMessageTracesMock.mockReset()
+    listMessageViewManifestsMock.mockReset()
+    listMessageTraceDiagnosticsMock.mockResolvedValue({ traces: [], manifests: [] })
+  })
+
   it('shows latest trace by default and supports switching trace history', async () => {
-    listMessageTracesMock.mockResolvedValue([
-      {
-        id: 't2',
-        messageId: 'm1',
-        sessionId: 's1',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        requestSeq: 2,
-        endpoint: 'https://api.example.com/second',
-        headersJson: '{"x":"2"}',
-        bodyJson: '{"b":2}',
-        truncated: false,
-        createdAt: 2000
-      },
-      {
-        id: 't1',
-        messageId: 'm1',
-        sessionId: 's1',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        requestSeq: 1,
-        endpoint: 'https://api.example.com/first',
-        headersJson: '{"x":"1"}',
-        bodyJson: '{"b":1}',
-        truncated: false,
-        createdAt: 1000
-      }
-    ])
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.example.com/second',
+          headersJson: '{"x":"2"}',
+          bodyJson: '{"b":2}',
+          truncated: false,
+          createdAt: 2000
+        },
+        {
+          id: 't1',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 1,
+          endpoint: 'https://api.example.com/first',
+          headersJson: '{"x":"1"}',
+          bodyJson: '{"b":1}',
+          truncated: false,
+          createdAt: 1000
+        }
+      ],
+      manifests: []
+    })
 
     const wrapper = mountDialog()
 
     await wrapper.setProps({ messageId: 'm1' })
     await flushPromises()
 
-    expect(listMessageTracesMock).toHaveBeenCalledWith('m1')
+    expect(listMessageTraceDiagnosticsMock).toHaveBeenCalledWith('m1')
     expect(wrapper.text()).toContain('https://api.example.com/second')
 
     const historyButton = wrapper.findAll('button').find((btn) => btn.text().trim() === '#1')
@@ -135,5 +210,70 @@ describe('TraceDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('https://api.example.com/first')
+  })
+
+  it('shows view manifest diagnostics when request traces are empty', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_abc')]
+    })
+
+    const wrapper = mountDialog()
+
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(listMessageTraceDiagnosticsMock).toHaveBeenCalledWith('m1')
+    expect(wrapper.text()).toContain('view_abc')
+    expect(wrapper.text()).toContain('legacy_context_v1')
+    expect(wrapper.text()).toContain('traceDialog.policyVersion')
+    expect(wrapper.text()).toContain('1')
+  })
+
+  it('does not fall back to a different request when selected manifest has no trace', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't2',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 2,
+          endpoint: 'https://api.example.com/second',
+          headersJson: '{"x":"2"}',
+          bodyJson: '{"b":2}',
+          truncated: false,
+          createdAt: 2000
+        }
+      ],
+      manifests: [makeManifestRecord(1, 'view_only_manifest')]
+    })
+
+    const wrapper = mountDialog()
+
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('https://api.example.com/second')
+
+    const manifestOnlyButton = wrapper.findAll('button').find((btn) => btn.text().trim() === '#1')
+    expect(manifestOnlyButton).toBeDefined()
+
+    await manifestOnlyButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.requestUnavailable')
+    expect(wrapper.text()).not.toContain('https://api.example.com/second')
+
+    const viewTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.view')
+    expect(viewTab).toBeDefined()
+
+    await viewTab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('view_only_manifest')
   })
 })

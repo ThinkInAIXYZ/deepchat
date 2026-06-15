@@ -5,18 +5,19 @@ const mocks = vi.hoisted(() => ({
   sendToWebContents: vi.fn()
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToWebContents: mocks.sendToWebContents
-  }
-}))
-
 const loadModule = async () => await import('../../../src/main/presenter/presenterCallErrorHandler')
+const loadEventPublisher = async () => await import('../../../src/main/routes/publishDeepchatEvent')
 
 describe('presenterCallErrorHandler', () => {
   beforeEach(async () => {
     vi.resetModules()
     mocks.sendToWebContents.mockReset()
+    mocks.sendToWebContents.mockResolvedValue(true)
+    const { setDeepchatEventWindowPresenter } = await loadEventPublisher()
+    setDeepchatEventWindowPresenter({
+      sendToAllWindows: vi.fn(),
+      sendToWebContents: mocks.sendToWebContents
+    })
     const { resetPresenterCallErrorStateForTests } = await loadModule()
     resetPresenterCallErrorStateForTests()
   })

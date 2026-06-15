@@ -1492,6 +1492,98 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('persists view manifests before each provider request with monotonic request sequences', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const appendEventCallsBeforeProviderTurn =
+        sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mock.calls.length
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      const firstManifestAppendOrder =
+        sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mock.invocationCallOrder[
+          appendEventCallsBeforeProviderTurn
+        ]
+      const firstProviderCallOrder = providerCoreStream.mock.invocationCallOrder[0]
+      expect(firstManifestAppendOrder).toBeLessThan(firstProviderCallOrder)
+
+      const manifestRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+      const manifests = manifestRows.map((row: any) => JSON.parse(row.payload_json).data.manifest)
+
+      expect(manifestRows).toHaveLength(2)
+      expect(manifestRows.map((row: any) => row.source_seq)).toEqual([1, 2])
+      expect(manifests.map((manifest: any) => manifest.requestSeq)).toEqual([1, 2])
+      expect(manifests[0]).toMatchObject({
+        taskType: 'chat',
+        policy: 'legacy_context_v1',
+        policyVersion: 1,
+        meta: {
+          traceDebugEnabled: true
+        }
+      })
+      expect(manifests[1]).toMatchObject({
+        taskType: 'tool_loop',
+        policy: 'tool_loop_shadow',
+        policyVersion: null
+      })
+      expect(manifests[0].hashes.promptHash).toHaveLength(64)
+      expect(manifests[1].hashes.toolDefinitionsHash).toHaveLength(64)
+    })
+
+    it('continues provider requests when view manifest persistence fails', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const loggerWarnMock = vi.mocked(logger.warn)
+      loggerWarnMock.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mockImplementation(() => {
+        throw new Error('manifest write failed')
+      })
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+      }
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to persist tape view manifest')
+      )
+    })
+
     it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
       llmProvider.executeWithRateLimit.mockImplementation(
         async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
@@ -3808,8 +3900,18 @@ describe('AgentRuntimePresenter', () => {
         estimateMessagesTokens(providerMessages) +
         estimateToolReserveTokens(providerTools) +
         providerMaxTokens
+      const manifestRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+      const pressureManifest = JSON.parse(manifestRows[0].payload_json).data.manifest
 
       expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(pressureManifest).toMatchObject({
+        taskType: 'chat',
+        requestSeq: 1,
+        policy: 'context_pressure_recovery_shadow',
+        policyVersion: null
+      })
       expect(providerMessages[0].content).toContain('## Conversation Summary')
       expect(providerMaxTokens).toBeLessThan(4096)
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))

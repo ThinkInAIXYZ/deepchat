@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   buildContext,
   buildResumeContext,
+  buildResumeContextWithMetadata,
   fitMessagesToContextWindow,
   truncateContext
 } from '@/presenter/agentRuntimePresenter/contextBuilder'
@@ -1159,6 +1160,62 @@ describe('buildResumeContext', () => {
         ]
       },
       { role: 'tool', tool_call_id: 'tc-resume', content: 'tool result' }
+    ])
+  })
+
+  it('does not duplicate empty formatted resume records as out of budget exclusions', () => {
+    const emptyRecord = {
+      id: 'empty-user',
+      sessionId: 's1',
+      orderSeq: 1,
+      role: 'user' as const,
+      content: JSON.stringify({ text: '', files: [], links: [], search: false, think: false }),
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    const messages = [
+      emptyRecord,
+      makeUserRecord(2, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 3,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial answer', status: 'success', timestamp: Date.now() }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]
+    const store = createMockMessageStore(messages)
+
+    const result = buildResumeContextWithMetadata(
+      's1',
+      'resume-target',
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        fallbackProtectedTurnCount: 1
+      }
+    )
+
+    expect(
+      result.metadata.excludedRecords.filter((item) => item.record.id === 'empty-user')
+    ).toEqual([
+      {
+        record: emptyRecord,
+        reason: 'empty_after_formatting'
+      }
     ])
   })
 

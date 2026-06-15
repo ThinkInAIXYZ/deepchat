@@ -8,6 +8,8 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { HistorySearchHit } from '@shared/types/presenters/agent-session.presenter'
+import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
   SessionListItemSchema,
   SessionPageCursorSchema,
@@ -23,10 +25,13 @@ import {
   SessionWithStateSchema,
   defineRouteContract
 } from '../common'
+import type { RouteContract } from '../common'
 import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
+const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
+const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
 const SearchResultSchema = z.custom<SearchResult>()
 const AgentSchema = z.custom<Agent>()
@@ -321,13 +326,32 @@ export const sessionsGetSearchResultsRoute = defineRouteContract({
   })
 })
 
-export const sessionsListMessageTracesRoute = defineRouteContract({
-  name: 'sessions.listMessageTraces',
+export const sessionsListMessageTracesRoute: RouteContract<'sessions.listMessageTraces'> =
+  defineRouteContract({
+    name: 'sessions.listMessageTraces',
+    input: z.object({
+      messageId: EntityIdSchema
+    }),
+    output: z.object({
+      traces: z.array(MessageTraceRecordSchema),
+      manifests: z.array(DeepChatTapeViewManifestRecordSchema)
+    })
+  })
+
+export const sessionsExportMessageTapeReplaySliceRoute = defineRouteContract({
+  name: 'sessions.exportMessageTapeReplaySlice',
   input: z.object({
-    messageId: EntityIdSchema
+    messageId: EntityIdSchema,
+    options: z
+      .object({
+        requestSeq: z.number().int().positive().optional(),
+        includeTapePayloads: z.boolean().optional(),
+        includeTracePayload: z.boolean().optional()
+      })
+      .optional()
   }),
   output: z.object({
-    traces: z.array(MessageTraceRecordSchema)
+    slice: DeepChatTapeReplaySliceSchema
   })
 })
 

@@ -1,22 +1,35 @@
 import { SQLitePresenter } from '../sqlitePresenter'
 import { nanoid } from 'nanoid'
+import { createHash } from 'crypto'
 import type {
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
   AgentTapeSearchOptions,
   ChatMessageRecord
 } from '@shared/types/agent-interface'
+import type {
+  DeepChatTapeViewManifest,
+  DeepChatTapeViewManifestRecord
+} from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatTapeReplayEntrySnapshot,
+  DeepChatTapeReplayExportOptions,
+  DeepChatTapeReplaySlice,
+  DeepChatTapeReplayTraceSnapshot
+} from '@shared/types/tape-replay'
 import type { DeepChatMessageStore } from './messageStore'
 import type {
   DeepChatTapeEntryRow,
   DeepChatTapeSearchInput
 } from '../sqlitePresenter/tables/deepchatTapeEntries'
+import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
 import { appendMessageRecordToTape } from './tapeFacts'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
   searchEffectiveTapeRows
 } from './tapeEffectiveView'
+import { hashJson, TAPE_VIEW_MANIFEST_EVENT_NAME } from './tapeViewManifest'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -55,6 +68,12 @@ export type TapeForkHandle = {
   parentSessionId: string
   forkId: string
   forkSessionId: string
+}
+
+export type TapeViewManifestSourceMaps = {
+  latestEntryId: number
+  anchorEntryIds: number[]
+  entryIdByMessageId: Map<string, number>
 }
 
 function parseJsonObject(raw: string): Record<string, unknown> {
@@ -168,6 +187,174 @@ function forkSessionId(parentSessionId: string, forkId: string): string {
   return `${parentSessionId}::fork::${forkId}`
 }
 
+function hashString(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+function isPositiveInteger(value: number): boolean {
+  return Number.isInteger(value) && value > 0
+}
+
+function collectEntryIds(values: Array<number | null>): number[] {
+  return [...new Set(values.filter((value): value is number => typeof value === 'number'))].sort(
+    (left, right) => left - right
+  )
+}
+
+const VIEW_POLICIES = new Set([
+  'legacy_context_v1',
+  'legacy_context_shadow',
+  'resume_shadow',
+  'tool_loop_shadow',
+  'context_pressure_recovery_shadow'
+])
+
+const VIEW_ENTRY_REASONS = new Set([
+  'system_prompt',
+  'selected_history',
+  'new_user_input',
+  'resume_target',
+  'tool_loop_message'
+])
+
+const VIEW_EXCLUDED_REASONS = new Set([
+  'before_summary_cursor',
+  'compaction_indicator',
+  'pending_not_context_history',
+  'out_of_budget',
+  'empty_after_formatting',
+  'superseded',
+  'retracted'
+])
+
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isNullableNumber(value: unknown): value is number | null {
+  return value === null || typeof value === 'number'
+}
+
+function isViewEntryRef(value: unknown): value is DeepChatTapeViewManifest['included'][number] {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return (
+    isNullableNumber(value.entryId) &&
+    isNullableString(value.messageId) &&
+    isNullableNumber(value.orderSeq) &&
+    (value.role === 'system' ||
+      value.role === 'user' ||
+      value.role === 'assistant' ||
+      value.role === 'tool' ||
+      value.role === null) &&
+    (value.source === 'tape' || value.source === 'synthetic') &&
+    typeof value.reason === 'string' &&
+    VIEW_ENTRY_REASONS.has(value.reason)
+  )
+}
+
+function isViewExcludedRef(value: unknown): value is DeepChatTapeViewManifest['excluded'][number] {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return (
+    isNullableNumber(value.entryId) &&
+    isNullableString(value.messageId) &&
+    isNullableNumber(value.orderSeq) &&
+    typeof value.reason === 'string' &&
+    VIEW_EXCLUDED_REASONS.has(value.reason)
+  )
+}
+
+function hasNumberFields(value: unknown, fields: string[]): value is Record<string, number> {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return fields.every((field) => typeof value[field] === 'number')
+}
+
+function hasStringFields(value: unknown, fields: string[]): value is Record<string, string> {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return fields.every((field) => typeof value[field] === 'string')
+}
+
+function isViewManifestMeta(value: unknown): value is DeepChatTapeViewManifest['meta'] {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return (
+    typeof value.providerId === 'string' &&
+    typeof value.modelId === 'string' &&
+    typeof value.summaryCursorOrderSeq === 'number' &&
+    typeof value.supportsVision === 'boolean' &&
+    typeof value.supportsAudioInput === 'boolean' &&
+    typeof value.traceDebugEnabled === 'boolean'
+  )
+}
+
+function isViewManifest(value: unknown, sessionId: string): value is DeepChatTapeViewManifest {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return (
+    value.schemaVersion === 1 &&
+    value.sessionId === sessionId &&
+    typeof value.viewId === 'string' &&
+    typeof value.messageId === 'string' &&
+    typeof value.requestSeq === 'number' &&
+    (value.taskType === 'chat' || value.taskType === 'resume' || value.taskType === 'tool_loop') &&
+    typeof value.policy === 'string' &&
+    VIEW_POLICIES.has(value.policy) &&
+    (typeof value.policyVersion === 'number' || value.policyVersion === null) &&
+    value.contextBuilderVersion === 'legacy-v1' &&
+    typeof value.latestEntryId === 'number' &&
+    Array.isArray(value.anchorEntryIds) &&
+    value.anchorEntryIds.every((entryId) => typeof entryId === 'number') &&
+    Array.isArray(value.included) &&
+    value.included.every(isViewEntryRef) &&
+    Array.isArray(value.excluded) &&
+    value.excluded.every(isViewExcludedRef) &&
+    hasNumberFields(value.tokenBudget, [
+      'contextLength',
+      'requestedMaxTokens',
+      'effectiveMaxTokens',
+      'reserveTokens',
+      'toolReserveTokens',
+      'estimatedPromptTokens'
+    ]) &&
+    hasStringFields(value.hashes, ['promptHash', 'toolDefinitionsHash', 'manifestHash']) &&
+    isViewManifestMeta(value.meta) &&
+    typeof value.assembledAt === 'number'
+  )
+}
+
+function withReplaySliceHash(
+  slice: Omit<DeepChatTapeReplaySlice, 'hashes'> & {
+    hashes: Omit<DeepChatTapeReplaySlice['hashes'], 'sliceHash'> & { sliceHash: '' }
+  }
+): DeepChatTapeReplaySlice {
+  return {
+    ...slice,
+    hashes: {
+      ...slice.hashes,
+      sliceHash: hashJson(slice)
+    }
+  }
+}
+
 export class DeepChatTapeService {
   constructor(private readonly sqlitePresenter: SQLitePresenter) {}
 
@@ -236,7 +423,12 @@ export class DeepChatTapeService {
   }
 
   appendMessageRecord(record: ChatMessageRecord): number {
-    return appendMessageRecordToTape(this.table, record, 'live')
+    const table = this.table
+    if (!table) {
+      throw new Error('Tape table is not available.')
+    }
+
+    return appendMessageRecordToTape(table, record, 'live')
   }
 
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
@@ -296,6 +488,165 @@ export class DeepChatTapeService {
     return table
       ? table.getAnchors(sessionId, options.limit).map((row) => this.toAnchorResult(row))
       : []
+  }
+
+  getViewManifestSourceMaps(sessionId: string): TapeViewManifestSourceMaps {
+    const table = this.table
+    if (!table) {
+      return {
+        latestEntryId: 0,
+        anchorEntryIds: [],
+        entryIdByMessageId: new Map()
+      }
+    }
+
+    const rows = table.getBySession(sessionId)
+    const entryIdByMessageId = new Map<string, number>()
+    let latestEntryId = 0
+    const anchorEntryIds: number[] = []
+
+    for (const row of rows) {
+      latestEntryId = Math.max(latestEntryId, row.entry_id)
+      if (row.kind === 'anchor') {
+        anchorEntryIds.push(row.entry_id)
+      }
+      if (row.kind === 'message' && row.source_type === 'message' && row.source_id) {
+        entryIdByMessageId.set(row.source_id, row.entry_id)
+      }
+    }
+
+    return {
+      latestEntryId,
+      anchorEntryIds,
+      entryIdByMessageId
+    }
+  }
+
+  appendViewManifest(manifest: DeepChatTapeViewManifest): DeepChatTapeEntryRow {
+    const table = this.table
+    if (!table) {
+      throw new Error('Tape table is not available.')
+    }
+
+    table.ensureBootstrapAnchor(manifest.sessionId)
+    return table.appendEvent({
+      sessionId: manifest.sessionId,
+      name: TAPE_VIEW_MANIFEST_EVENT_NAME,
+      source: {
+        type: 'runtime_event',
+        id: manifest.messageId,
+        seq: manifest.requestSeq
+      },
+      provenanceKey: `view:${manifest.sessionId}:${manifest.messageId}:${manifest.requestSeq}:${manifest.hashes.manifestHash}`,
+      data: {
+        manifest
+      },
+      meta: {
+        viewId: manifest.viewId,
+        requestSeq: manifest.requestSeq,
+        taskType: manifest.taskType,
+        policy: manifest.policy,
+        policyVersion: manifest.policyVersion
+      },
+      createdAt: manifest.assembledAt,
+      idempotent: true
+    })
+  }
+
+  listViewManifestsByMessage(
+    sessionId: string,
+    messageId: string
+  ): DeepChatTapeViewManifestRecord[] {
+    const table = this.table
+    if (!table) {
+      return []
+    }
+
+    return table
+      .getBySession(sessionId)
+      .filter(
+        (row) =>
+          row.kind === 'event' &&
+          row.name === TAPE_VIEW_MANIFEST_EVENT_NAME &&
+          row.source_type === 'runtime_event' &&
+          row.source_id === messageId
+      )
+      .map((row) => this.toViewManifestRecord(row))
+      .filter((record): record is DeepChatTapeViewManifestRecord => Boolean(record))
+      .sort((left, right) => right.requestSeq - left.requestSeq || right.entryId - left.entryId)
+  }
+
+  exportReplaySlice(
+    sessionId: string,
+    messageId: string,
+    options: DeepChatTapeReplayExportOptions = {}
+  ): DeepChatTapeReplaySlice | null {
+    if (options.requestSeq !== undefined && !isPositiveInteger(options.requestSeq)) {
+      throw new Error('requestSeq must be a positive integer.')
+    }
+
+    const table = this.table
+    if (!table) {
+      return null
+    }
+
+    const manifests = this.listViewManifestsByMessage(sessionId, messageId)
+    const manifestRecord =
+      options.requestSeq === undefined
+        ? manifests[0]
+        : manifests.find((record) => record.requestSeq === options.requestSeq)
+    if (!manifestRecord) {
+      return null
+    }
+
+    const manifest = manifestRecord.manifest
+    const includedEntryIds = collectEntryIds(manifest.included.map((ref) => ref.entryId))
+    const excludedEntryIds = collectEntryIds(manifest.excluded.map((ref) => ref.entryId))
+    const anchorEntryIds = collectEntryIds(manifest.anchorEntryIds)
+    const selectedEntryIds = new Set([
+      manifestRecord.entryId,
+      ...includedEntryIds,
+      ...excludedEntryIds,
+      ...anchorEntryIds
+    ])
+    const entries = table
+      .getBySession(sessionId)
+      .filter((row) => selectedEntryIds.has(row.entry_id))
+      .map((row) => this.toReplayEntrySnapshot(row, options.includeTapePayloads === true))
+
+    const trace = this.findReplayTrace(sessionId, messageId, manifestRecord.requestSeq)
+    const createdAt = Date.now()
+    const sliceBase: Omit<DeepChatTapeReplaySlice, 'hashes'> & {
+      hashes: Omit<DeepChatTapeReplaySlice['hashes'], 'sliceHash'> & { sliceHash: '' }
+    } = {
+      schemaVersion: 1 as const,
+      sliceId: `replay_${hashJson({
+        sessionId,
+        messageId,
+        requestSeq: manifestRecord.requestSeq,
+        manifestHash: manifest.hashes.manifestHash
+      }).slice(0, 16)}`,
+      sessionId,
+      messageId,
+      requestSeq: manifestRecord.requestSeq,
+      mode: trace ? 'trace_bound' : 'manifest_only',
+      manifestRecord,
+      trace: trace ? this.toReplayTraceSnapshot(trace, options.includeTracePayload === true) : null,
+      entries,
+      refs: {
+        manifestEntryId: manifestRecord.entryId,
+        includedEntryIds,
+        excludedEntryIds,
+        anchorEntryIds
+      },
+      hashes: {
+        manifestHash: manifest.hashes.manifestHash,
+        sliceHash: ''
+      },
+      createdAt
+    }
+
+    return withReplaySliceHash(sliceBase)
   }
 
   handoff(
@@ -585,5 +936,92 @@ export class DeepChatTapeService {
       meta: parseJsonObject(row.meta_json),
       createdAt: row.created_at
     }
+  }
+
+  private toViewManifestRecord(row: DeepChatTapeEntryRow): DeepChatTapeViewManifestRecord | null {
+    const payload = parseJsonObject(row.payload_json)
+    const data = payload.data
+    const manifest =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? (data as Record<string, unknown>).manifest
+        : undefined
+    if (!isViewManifest(manifest, row.session_id)) {
+      return null
+    }
+
+    return {
+      sessionId: row.session_id,
+      messageId: manifest.messageId,
+      requestSeq: manifest.requestSeq,
+      entryId: row.entry_id,
+      createdAt: row.created_at,
+      manifest
+    }
+  }
+
+  private findReplayTrace(
+    sessionId: string,
+    messageId: string,
+    requestSeq: number
+  ): DeepChatMessageTraceRow | null {
+    const traceTable = this.sqlitePresenter.deepchatMessageTracesTable
+    if (!traceTable) {
+      return null
+    }
+
+    return (
+      traceTable
+        .listByMessageId(messageId)
+        .find((row) => row.session_id === sessionId && row.request_seq === requestSeq) ?? null
+    )
+  }
+
+  private toReplayEntrySnapshot(
+    row: DeepChatTapeEntryRow,
+    includePayloads: boolean
+  ): DeepChatTapeReplayEntrySnapshot {
+    const snapshot: DeepChatTapeReplayEntrySnapshot = {
+      entryId: row.entry_id,
+      kind: row.kind,
+      name: row.name,
+      sourceType: row.source_type,
+      sourceId: row.source_id,
+      sourceSeq: row.source_seq,
+      provenanceKey: row.provenance_key,
+      payloadHash: hashString(row.payload_json),
+      metaHash: hashString(row.meta_json),
+      createdAt: row.created_at
+    }
+
+    if (includePayloads) {
+      snapshot.payload = parseJsonObject(row.payload_json)
+      snapshot.meta = parseJsonObject(row.meta_json)
+    }
+
+    return snapshot
+  }
+
+  private toReplayTraceSnapshot(
+    row: DeepChatMessageTraceRow,
+    includePayload: boolean
+  ): DeepChatTapeReplayTraceSnapshot {
+    const snapshot: DeepChatTapeReplayTraceSnapshot = {
+      id: row.id,
+      requestSeq: row.request_seq,
+      providerId: row.provider_id,
+      modelId: row.model_id,
+      endpoint: row.endpoint,
+      headersHash: hashString(row.headers_json),
+      bodyHash: hashString(row.body_json),
+      truncated: row.truncated === 1,
+      createdAt: row.created_at
+    }
+
+    if (includePayload) {
+      snapshot.headersJson = row.headers_json
+      snapshot.bodyJson = row.body_json
+    }
+
+    return snapshot
   }
 }
