@@ -673,6 +673,8 @@ import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
   AgentTransferImpact,
+  CreateDeepChatAgentInput,
+  DeepChatAgentModelSelection,
   DeepChatSubagentSlot,
   PermissionMode,
   Project
@@ -1061,6 +1063,15 @@ const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const buildModelSelection = (
+  selection: EditableModel | null | undefined
+): DeepChatAgentModelSelection | null =>
+  selection
+    ? {
+        providerId: selection.providerId,
+        modelId: selection.modelId
+      }
+    : null
 const normalizeNumericInput = (
   value: EditableNumberValue | null | undefined,
   options: { fallback: number; min: number; max: number; integer?: boolean }
@@ -1358,21 +1369,16 @@ const saveAgent = async () => {
   if (!form.name.trim()) return
   saving.value = true
   try {
-    const payload = {
+    const payload: CreateDeepChatAgentInput = {
       name: form.name.trim(),
       enabled: form.enabled,
       description: form.description.trim() || undefined,
       avatar: buildAvatar(),
       config: {
-        defaultModelPreset: form.chatModel
-          ? {
-              providerId: form.chatModel.providerId,
-              modelId: form.chatModel.modelId
-            }
-          : null,
-        assistantModel: form.assistantModel,
-        visionModel: form.visionModel,
-        imageGenerationModel: form.imageGenerationModel,
+        defaultModelPreset: buildModelSelection(form.chatModel),
+        assistantModel: buildModelSelection(form.assistantModel),
+        visionModel: buildModelSelection(form.visionModel),
+        imageGenerationModel: buildModelSelection(form.imageGenerationModel),
         defaultProjectPath: normalizePath(form.defaultProjectPath),
         systemPrompt: form.systemPrompt,
         permissionMode: form.permissionMode,
