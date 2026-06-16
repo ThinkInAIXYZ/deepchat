@@ -223,6 +223,12 @@ describe('MarkdownRenderer', () => {
     )
   })
 
+  it('marks the root for scoped code block scrollbar stabilization', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.classes()).toContain('markdown-renderer-root')
+  })
+
   it('passes explicit smooth streaming to NodeRenderer', async () => {
     const { wrapper } = await setup({
       smoothStreaming: true
