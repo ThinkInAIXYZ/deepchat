@@ -325,6 +325,10 @@ function canRunTarget(targetPlatform, targetArch) {
   return process.platform === targetPlatform && process.arch === targetArch
 }
 
+function isLinuxGlibcLoaderMismatch(output) {
+  return /libc\.so\.6/.test(output) && /GLIBC_\d+\.\d+/.test(output) && /not found/.test(output)
+}
+
 function smokeCheck(executable, targetPlatform, targetArch) {
   if (!canRunTarget(targetPlatform, targetArch)) {
     console.log(`Skipping CUA runtime smoke check for non-host target ${targetPlatform}/${targetArch}`)
@@ -340,6 +344,13 @@ function smokeCheck(executable, targetPlatform, targetArch) {
     throw result.error
   }
   if (result.status !== 0) {
+    const output = `${result.stderr || ''}${result.stdout || ''}`
+    if (targetPlatform === 'linux' && isLinuxGlibcLoaderMismatch(output)) {
+      console.warn(
+        `Skipping CUA runtime smoke check because the host glibc loader cannot execute ${targetPlatform}/${targetArch}: ${output.trim()}`
+      )
+      return
+    }
     throw new Error(
       `CUA runtime smoke check failed with exit code ${result.status}: ${result.stderr || result.stdout}`
     )
@@ -347,8 +358,8 @@ function smokeCheck(executable, targetPlatform, targetArch) {
   console.log((result.stdout || result.stderr).trim())
 }
 
-function validateDarwinArchitecture(executable, targetArch) {
-  if (process.platform !== 'darwin') {
+function validateDarwinArchitecture(executable, targetPlatform, targetArch) {
+  if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
     return
   }
   ensureTool('/usr/bin/lipo', ['-info', process.execPath])
@@ -359,8 +370,8 @@ function validateDarwinArchitecture(executable, targetArch) {
   }
 }
 
-async function signDarwinHelper(runtimeDir) {
-  if (process.platform !== 'darwin') {
+async function signDarwinHelper(runtimeDir, targetPlatform) {
+  if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
     return
   }
   ensureTool('codesign', ['--version'])
@@ -416,8 +427,8 @@ async function main() {
   await extractArchive(assetPath, extractDir)
 
   const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
-  validateDarwinArchitecture(executable, targetArch)
-  await signDarwinHelper(runtimeDir)
+  validateDarwinArchitecture(executable, targetPlatform, targetArch)
+  await signDarwinHelper(runtimeDir, targetPlatform)
   smokeCheck(executable, targetPlatform, targetArch)
 
   const relativeRuntimePath = path.relative(rootDir, runtimeDir)

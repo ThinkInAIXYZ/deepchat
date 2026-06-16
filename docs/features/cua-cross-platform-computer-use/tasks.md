@@ -18,7 +18,7 @@
   - Validate macOS helper app executable path and signing state.
   - Validate Windows `cua-driver.exe` plus `cua-driver-uia.exe`.
   - Validate Linux `cua-driver` and executable permissions.
-  - Add host-compatible `--version` smoke checks.
+  - Add host-compatible `--version` smoke checks with a loader-version guard.
 
 - [x] T04 - Update CUA plugin manifest
   - Expand support from macOS-only to the supported target matrix.
@@ -81,6 +81,8 @@
   - Bundle and verify the Windows x64 CUA plugin on the current Windows host.
   - Bundle and verify the Windows arm64 CUA plugin without running the non-host binary.
   - Inspect the generated `.dcplugin` archive contents.
+  - On Linux hosts with an older glibc loader than the pinned upstream binary requires, verify that
+    staging still validates checksum, layout, file presence, and executable permissions.
 
 - [ ] T14 - Verify CI-only targets
   - Use CI to validate macOS arm64/x64 packaging and signing.

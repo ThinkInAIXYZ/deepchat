@@ -876,10 +876,23 @@ describe('PluginPresenter', () => {
     expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.5.5-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
+    expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')
+    expect(buildScript).toContain('host glibc loader')
+    expect(buildScript).toContain("targetPlatform !== 'darwin'")
+    expect(buildScript).toContain('signDarwinHelper(runtimeDir, targetPlatform)')
     expect(buildScript).toContain('sourceKind')
     expect(buildScript).toContain('upstream-release')
     expect(buildScript).not.toContain('swift')
     expect(buildScript).not.toContain('--package-path')
+  })
+
+  it('keeps ACP registry build-time fetching compatible with Windows arm64', async () => {
+    const source = await readFile('scripts/fetch-acp-registry.mjs', 'utf8')
+
+    expect(source).toContain('node:https')
+    expect(source).toContain('for (const agent of iconAgents)')
+    expect(source).not.toContain('Promise.all(')
+    expect(source).not.toContain('fetch(')
   })
 
   it('keeps unreviewed CUA tools out of the policy surface', async () => {
@@ -1002,6 +1015,7 @@ describe('PluginPresenter', () => {
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
     )
+    expect(buildWorkflow).toContain('- name: Build Windows\n        shell: bash')
     expect(buildWorkflow).not.toContain('if ("${{ matrix.arch }}" -eq "x64")')
     expect(buildWorkflow).toContain('Verify bundled plugins')
     expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')

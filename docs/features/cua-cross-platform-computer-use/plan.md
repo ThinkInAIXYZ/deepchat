@@ -56,7 +56,8 @@ pipeline:
 6. Validate the extracted layout.
 7. Copy the normalized runtime files into `plugins/cua/runtime/<platform>/<arch>`.
 8. Set executable permissions for macOS and Linux.
-9. Run host-executable smoke checks where possible.
+9. Run host-executable smoke checks where the host platform and runtime loader can execute the
+   target binary.
 10. Run macOS app bundle and signing checks for darwin targets.
 
 The script should reject Linux arm64 and any other unsupported target with a clear message before

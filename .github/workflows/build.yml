@@ -77,6 +77,7 @@ jobs:
           GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
       - name: Build Windows
+        shell: bash
         run: |
           pnpm run build
           pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}

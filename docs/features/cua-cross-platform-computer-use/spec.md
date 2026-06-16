@@ -113,7 +113,7 @@ Every staged asset must be validated before packaging:
 - Validate required files exist after extraction.
 - Normalize executable permissions on POSIX targets.
 - Validate the driver can be executed for a low-risk command such as `--version` when the host
-  platform can run the target binary.
+  platform and runtime loader can run the target binary.
 - Keep macOS signing and helper-app validation in place where a `.app` bundle is staged.
 
 ## Runtime Layout
