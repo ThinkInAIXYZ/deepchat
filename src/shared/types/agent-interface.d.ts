@@ -641,6 +641,20 @@ export interface DeepChatSubagentMeta {
   targetAgentId?: string | null
 }
 
+export interface DeepChatAgentMemoryEmbedding {
+  providerId: string
+  modelId: string
+}
+
+export interface DeepChatAgentMemoryRetrieval {
+  topK?: number
+  weights?: {
+    similarity: number
+    recency: number
+    importance: number
+  }
+}
+
 export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
@@ -655,6 +669,9 @@ export interface DeepChatAgentConfig {
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number
   autoCompactionRetainRecentPairs?: number
+  memoryEnabled?: boolean
+  memoryEmbedding?: DeepChatAgentMemoryEmbedding | null
+  memoryRetrieval?: DeepChatAgentMemoryRetrieval | null
 }
 
 export interface CreateDeepChatAgentInput {

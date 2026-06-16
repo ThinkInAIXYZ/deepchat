@@ -2215,7 +2215,35 @@
     "subagentDescription": "スロットの説明",
     "subagentTargetAgentLabel": "対象エージェント",
     "subagentLimit": "{count}/{max} スロット",
-    "addSubagentSlot": "+ スロットを追加"
+    "addSubagentSlot": "+ スロットを追加",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "メモリを管理",
+      "title": "メモリを管理",
+      "description": "このエージェントが記憶した内容を確認・削除・消去し、進化する自己モデルを確認します。",
+      "degradedHint": "埋め込みモデルが未設定です — 想起はキーワード検索のみを使用します。",
+      "tabMemories": "メモリ",
+      "tabPersona": "ペルソナのタイムライン",
+      "memoriesCount": "{count} 件のメモリ",
+      "clearAll": "すべて消去",
+      "clearConfirmTitle": "すべてのメモリを消去しますか？",
+      "clearConfirmBody": "このエージェントのすべてのメモリを完全に削除します。元に戻せません。",
+      "emptyMemories": "まだメモリはありません。このエージェントと対話するにつれて蓄積されます。",
+      "emptyPersona": "自己モデルのバージョンはまだありません。",
+      "personaActive": "有効",
+      "rollback": "ロールバック",
+      "actionFailed": "操作に失敗しました",
+      "status": {
+        "pending_embedding": "埋め込み中",
+        "embedded": "インデックス済み",
+        "error": "エラー",
+        "fts_only": "キーワードのみ"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

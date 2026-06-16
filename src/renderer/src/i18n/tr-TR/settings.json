@@ -146,7 +146,35 @@
     "compactionDescription": "Bu varsayılanlar yalnızca gelecekteki DeepChat oturumlarını etkiler.",
     "compactionThreshold": "Tetik eşiği",
     "compactionRetainPairs": "Son çiftleri koru",
-    "deleteConfirm": "agent \"{name}\" silinsin mi? Geçmişi yerleşik DeepChat agent'e geri dönecektir."
+    "deleteConfirm": "agent \"{name}\" silinsin mi? Geçmişi yerleşik DeepChat agent'e geri dönecektir.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Anıları yönet",
+      "title": "Anıları yönet",
+      "description": "Bu aracının hatırladıklarını inceleyin, silin veya temizleyin ve gelişen öz-modelini görüntüleyin.",
+      "degradedHint": "Embedding modeli yapılandırılmadı — geri çağırma yalnızca anahtar kelime aramasını kullanır.",
+      "tabMemories": "Anılar",
+      "tabPersona": "Persona zaman çizelgesi",
+      "memoriesCount": "{count} anı",
+      "clearAll": "Tümünü temizle",
+      "clearConfirmTitle": "Tüm anılar temizlensin mi?",
+      "clearConfirmBody": "Bu, bu aracının tüm anılarını kalıcı olarak kaldırır. Geri alınamaz.",
+      "emptyMemories": "Henüz anı yok. Bu aracıyla sohbet ettikçe birikir.",
+      "emptyPersona": "Henüz öz-model sürümü yok.",
+      "personaActive": "Etkin",
+      "rollback": "Geri al",
+      "actionFailed": "İşlem başarısız",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Dizinlendi",
+        "error": "Hata",
+        "fts_only": "Yalnızca anahtar kelime"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Kancalar",

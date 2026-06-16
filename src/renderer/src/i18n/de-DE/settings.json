@@ -146,7 +146,35 @@
     "compactionDescription": "Diese Einstellungen wirken sich nur auf später neu erstellte DeepChat-Sitzungen aus.",
     "compactionThreshold": "Auslöseschwelle",
     "compactionRetainPairs": "Neueste Nachrichtenpaare behalten",
-    "deleteConfirm": "Agent „{name}“ wirklich löschen? Seine historischen Sitzungen fallen automatisch auf den integrierten DeepChat zurück."
+    "deleteConfirm": "Agent „{name}“ wirklich löschen? Seine historischen Sitzungen fallen automatisch auf den integrierten DeepChat zurück.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Erinnerungen verwalten",
+      "title": "Erinnerungen verwalten",
+      "description": "Überprüfen, löschen oder leeren Sie, was dieser Agent gespeichert hat, und betrachten Sie sein sich entwickelndes Selbstmodell.",
+      "degradedHint": "Kein Embedding-Modell konfiguriert — Abruf nutzt nur Stichwortsuche.",
+      "tabMemories": "Erinnerungen",
+      "tabPersona": "Persona-Zeitleiste",
+      "memoriesCount": "{count} Erinnerungen",
+      "clearAll": "Alle löschen",
+      "clearConfirmTitle": "Alle Erinnerungen löschen?",
+      "clearConfirmBody": "Dadurch werden alle Erinnerungen dieses Agenten dauerhaft entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "emptyMemories": "Noch keine Erinnerungen. Sie sammeln sich an, während Sie mit diesem Agenten chatten.",
+      "emptyPersona": "Noch keine Selbstmodell-Versionen.",
+      "personaActive": "Aktiv",
+      "rollback": "Zurücksetzen",
+      "actionFailed": "Aktion fehlgeschlagen",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indiziert",
+        "error": "Fehler",
+        "fts_only": "Nur Stichwort"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Hooks",

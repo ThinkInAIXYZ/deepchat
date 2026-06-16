@@ -90,7 +90,10 @@ const mergeDeepChatConfig = (
     autoCompactionRetainRecentPairs:
       overrideConfig.autoCompactionRetainRecentPairs ??
       baseConfig.autoCompactionRetainRecentPairs ??
-      2
+      2,
+    memoryEnabled: overrideConfig.memoryEnabled ?? baseConfig.memoryEnabled ?? false,
+    memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
+    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null
   })
 
 export class AgentRepository {

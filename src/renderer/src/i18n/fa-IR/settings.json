@@ -2215,7 +2215,35 @@
     "subagentDescription": "توضیح اسلات",
     "subagentTargetAgentLabel": "ایجنت مقصد",
     "subagentLimit": "{count}/{max} اسلات",
-    "addSubagentSlot": "+ افزودن اسلات"
+    "addSubagentSlot": "+ افزودن اسلات",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "مدیریت حافظه‌ها",
+      "title": "مدیریت حافظه‌ها",
+      "description": "آنچه این عامل به خاطر سپرده را مرور، حذف یا پاک کنید و مدل خودِ در حال تکامل آن را بررسی کنید.",
+      "degradedHint": "مدل embedding پیکربندی نشده — بازیابی فقط از جستجوی کلیدواژه استفاده می‌کند.",
+      "tabMemories": "حافظه‌ها",
+      "tabPersona": "خط زمانی شخصیت",
+      "memoriesCount": "{count} حافظه",
+      "clearAll": "پاک کردن همه",
+      "clearConfirmTitle": "همه حافظه‌ها پاک شوند؟",
+      "clearConfirmBody": "این کار همه حافظه‌های این عامل را برای همیشه حذف می‌کند. قابل بازگشت نیست.",
+      "emptyMemories": "هنوز حافظه‌ای نیست. با گفتگو با این عامل انباشته می‌شوند.",
+      "emptyPersona": "هنوز نسخه‌ای از مدل خود وجود ندارد.",
+      "personaActive": "فعال",
+      "rollback": "بازگردانی",
+      "actionFailed": "عملیات ناموفق بود",
+      "status": {
+        "pending_embedding": "در حال embedding",
+        "embedded": "نمایه‌شده",
+        "error": "خطا",
+        "fts_only": "فقط کلیدواژه"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

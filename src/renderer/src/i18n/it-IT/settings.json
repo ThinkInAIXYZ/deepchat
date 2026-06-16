@@ -146,7 +146,35 @@
     "compactionDescription": "Queste impostazioni influenzano solo le nuove sessioni DeepChat create in futuro.",
     "compactionThreshold": "Soglia di attivazione",
     "compactionRetainPairs": "Mantieni coppie messaggi recenti",
-    "deleteConfirm": "Eliminare l'Agent \"{name}\"? Le sue sessioni storiche passeranno automaticamente al DeepChat integrato."
+    "deleteConfirm": "Eliminare l'Agent \"{name}\"? Le sue sessioni storiche passeranno automaticamente al DeepChat integrato.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Gestisci memorie",
+      "title": "Gestisci memorie",
+      "description": "Esamina, elimina o cancella ciò che questo agente ha ricordato e ispeziona il suo automodello in evoluzione.",
+      "degradedHint": "Nessun modello di embedding configurato: il richiamo usa solo la ricerca per parole chiave.",
+      "tabMemories": "Memorie",
+      "tabPersona": "Cronologia persona",
+      "memoriesCount": "{count} memorie",
+      "clearAll": "Cancella tutto",
+      "clearConfirmTitle": "Cancellare tutte le memorie?",
+      "clearConfirmBody": "Questo rimuove permanentemente tutte le memorie di questo agente. Non può essere annullato.",
+      "emptyMemories": "Ancora nessuna memoria. Si accumulano mentre chatti con questo agente.",
+      "emptyPersona": "Ancora nessuna versione dell'automodello.",
+      "personaActive": "Attiva",
+      "rollback": "Ripristina",
+      "actionFailed": "Azione non riuscita",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indicizzato",
+        "error": "Errore",
+        "fts_only": "Solo parole chiave"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Hooks",

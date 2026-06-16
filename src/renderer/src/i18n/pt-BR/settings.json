@@ -2215,7 +2215,35 @@
     "subagentDescription": "Descrição do slot",
     "subagentTargetAgentLabel": "Agente de destino",
     "subagentLimit": "{count}/{max} slots",
-    "addSubagentSlot": "+ Adicionar slot"
+    "addSubagentSlot": "+ Adicionar slot",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Gerenciar memórias",
+      "title": "Gerenciar memórias",
+      "description": "Revise, exclua ou limpe o que este agente lembrou e inspecione seu automodelo em evolução.",
+      "degradedHint": "Nenhum modelo de embedding configurado — a recuperação usa apenas busca por palavras-chave.",
+      "tabMemories": "Memórias",
+      "tabPersona": "Linha do tempo da persona",
+      "memoriesCount": "{count} memórias",
+      "clearAll": "Limpar tudo",
+      "clearConfirmTitle": "Limpar todas as memórias?",
+      "clearConfirmBody": "Isso remove permanentemente todas as memórias deste agente. Não pode ser desfeito.",
+      "emptyMemories": "Ainda sem memórias. Elas se acumulam conforme você conversa com este agente.",
+      "emptyPersona": "Ainda sem versões do automodelo.",
+      "personaActive": "Ativa",
+      "rollback": "Reverter",
+      "actionFailed": "A ação falhou",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indexado",
+        "error": "Erro",
+        "fts_only": "Apenas palavras-chave"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

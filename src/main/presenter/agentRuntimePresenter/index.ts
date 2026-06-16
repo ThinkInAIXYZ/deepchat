@@ -120,6 +120,7 @@ import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
 import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
+import { appendMemorySection, type MemoryRuntimePort } from '../memoryPresenter/injectionPort'
 import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
@@ -299,6 +300,8 @@ const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, Sk
 }
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
+/** 兜底抽取的最小增量阈值（自上次记忆游标以来的新消息条数）。低于此值跳过、零调用。 */
+const MEMORY_FALLBACK_MIN_DELTA = 6
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
     return new DOMException('Aborted', 'AbortError')
@@ -356,6 +359,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   >
   private readonly sessionPermissionPort?: SessionPermissionPort
   private readonly sessionUiPort?: SessionUiPort
+  private readonly memoryPort?: MemoryRuntimePort
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -379,6 +383,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
       sessionPermissionPort?: SessionPermissionPort
       sessionUiPort?: SessionUiPort
+      memoryPort?: MemoryRuntimePort
       cacheImage?: (data: string) => Promise<string>
       skillPresenter?: Pick<
         ISkillPresenter,
@@ -422,6 +427,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
     this.sessionUiPort = runtimePorts?.sessionUiPort
+    this.memoryPort = runtimePorts?.memoryPort
     this.cacheImage = runtimePorts?.cacheImage
     this.skillPresenter = runtimePorts?.skillPresenter
 
@@ -802,6 +808,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           startedExternally: true,
           signal: preStreamAbortSignal
         })
+        // 通路①：compaction 搭车抽取（解耦的独立廉价调用，后台执行）
+        this.triggerMemoryExtractionFromCompaction(sessionId, compactionIntent)
       } else {
         summaryState = this.sessionStore.getSummaryState(sessionId)
         userMessageId = this.messageStore.createUserMessage(
@@ -825,9 +833,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir
       })
 
-      const systemPrompt = appendReconstructionAnchorStateSection(
-        appendSummarySection(baseSystemPrompt, summaryState.summaryText),
-        this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+      const systemPrompt = await this.appendMemoryInjection(
+        sessionId,
+        appendReconstructionAnchorStateSection(
+          appendSummarySection(baseSystemPrompt, summaryState.summaryText),
+          this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+        ),
+        normalizedInput.text
       )
       const contextBuild = buildTapeChatView({
         sessionId,
@@ -914,6 +926,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
+        // 通路②：会话兜底抽取（游标门控，覆盖从不触发 compaction 的短会话；后台执行）
+        this.triggerMemoryExtractionFallback(sessionId)
       }
       return {
         requestId: assistantMessageId,
@@ -1764,6 +1778,171 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     return undefined
+  }
+
+  /**
+   * Layer 4：在已构建的 systemPrompt 末尾追加记忆注入（自我模型 + 召回记忆）。
+   * 仅当该 agent 启用记忆层时生效；任何失败都退化为原 prompt，绝不阻塞对话。
+   */
+  private async appendMemoryInjection(
+    sessionId: string,
+    systemPrompt: string,
+    query: string
+  ): Promise<string> {
+    if (!this.memoryPort) {
+      return systemPrompt
+    }
+    try {
+      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+      if (!this.memoryPort.isEnabled(agentId)) {
+        return systemPrompt
+      }
+      const payload = await this.memoryPort.buildInjection(agentId, query)
+      return appendMemorySection(systemPrompt, payload)
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
+      return systemPrompt
+    }
+  }
+
+  /**
+   * compaction 搭车抽取（通路①）：用即将被摘要的 span 抽取记忆。
+   * 解耦自摘要的独立廉价调用；后台执行，绝不阻塞主流程。span 已是人类可读块。
+   */
+  private triggerMemoryExtractionFromCompaction(sessionId: string, intent: CompactionIntent): void {
+    const spanText = intent.summaryBlocks.join('\n\n').trim()
+    if (!spanText) return
+    void this.runMemoryExtraction(sessionId, {
+      spanText,
+      toOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+      reason: 'compaction'
+    })
+  }
+
+  /**
+   * 会话兜底抽取（通路②）：覆盖从不触发 compaction 的短会话。
+   * 游标门控：memory_cursor >= tail 或增量不足阈值时零调用。后台执行。
+   */
+  private triggerMemoryExtractionFallback(sessionId: string): void {
+    if (!this.memoryPort) return
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+    if (!this.memoryPort.isEnabled(agentId)) return
+
+    const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
+    const cursor =
+      this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+    // AC-2.2：游标已到末尾 → 零调用；增量不足阈值 → 跳过
+    if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) {
+      return
+    }
+    const records = this.messageStore
+      .getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
+      .filter((record) => record.orderSeq > cursor)
+    const spanText = this.buildMemorySpanFromRecords(records)
+    if (!spanText) return
+    void this.runMemoryExtraction(sessionId, {
+      spanText,
+      toOrderSeq: tailOrderSeq,
+      reason: 'fallback'
+    })
+  }
+
+  private async runMemoryExtraction(
+    sessionId: string,
+    options: { spanText: string; toOrderSeq: number; reason: 'compaction' | 'fallback' }
+  ): Promise<void> {
+    if (!this.memoryPort) return
+    try {
+      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+      if (!this.memoryPort.isEnabled(agentId)) return
+      const state = this.runtimeState.get(sessionId)
+      if (!state) return
+
+      const result = await this.memoryPort.extractAndStore({
+        agentId,
+        spanText: options.spanText,
+        model: { providerId: state.providerId, modelId: state.modelId },
+        sourceSession: sessionId
+      })
+
+      // 抽取失败（模型/解析异常）：保持游标不变，下次会重试这段消息，
+      // 避免一次临时 LLM 失败把消息标记为“已消费”而永久丢失记忆。
+      if (!result.ok) return
+      const createdIds = result.createdIds
+
+      // 推进游标（抽取成功；无论是否抽到记忆，这段都已"消费"）
+      this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(
+        sessionId,
+        options.toOrderSeq
+      )
+
+      // 仅在抽到记忆时落非重建审计 anchor（memory/* 不在重建白名单，不干扰上下文重建）
+      if (createdIds.length > 0) {
+        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+          sessionId,
+          name: 'memory/extract',
+          state: {
+            memoryIds: createdIds,
+            count: createdIds.length,
+            reason: options.reason,
+            toOrderSeq: options.toOrderSeq
+          }
+        })
+      }
+
+      // 通路③：反思演化人格（节流由 MemoryPresenter 决定；落 persona/evolve anchor）
+      const personaId = await this.memoryPort.maybeReflect(
+        agentId,
+        { providerId: state.providerId, modelId: state.modelId },
+        createdIds.length
+      )
+      if (personaId) {
+        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+          sessionId,
+          name: 'persona/evolve',
+          state: { personaId, reason: options.reason }
+        })
+      }
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
+    }
+  }
+
+  /** 把消息记录渲染成抽取用的纯文本 span（防御式解析两种 content 形态）。 */
+  private buildMemorySpanFromRecords(records: ChatMessageRecord[]): string {
+    const lines: string[] = []
+    for (const record of records) {
+      const text = this.extractPlainTextFromRecord(record)
+      if (text) {
+        lines.push(`${record.role === 'user' ? 'User' : 'Assistant'}: ${text}`)
+      }
+    }
+    return lines.join('\n').trim()
+  }
+
+  private extractPlainTextFromRecord(record: ChatMessageRecord): string {
+    try {
+      const parsed = JSON.parse(record.content) as unknown
+      if (record.role === 'user') {
+        const text = (parsed as { text?: unknown })?.text
+        return typeof text === 'string' ? text.trim() : ''
+      }
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((block) => {
+            const b = block as { type?: string; content?: unknown; text?: unknown }
+            if (b?.type === 'content' && typeof b.content === 'string') return b.content
+            if (typeof b?.text === 'string') return b.text
+            return ''
+          })
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+      }
+      return ''
+    } catch {
+      return ''
+    }
   }
 
   private isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean {

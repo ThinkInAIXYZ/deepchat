@@ -55,6 +55,7 @@ export interface DeepChatSessionRow {
   summary_text: string | null
   summary_cursor_order_seq: number | null
   summary_updated_at: number | null
+  memory_cursor_order_seq: number | null
 }
 
 export interface DeepChatSessionSummaryRow {
@@ -141,6 +142,10 @@ export class DeepChatSessionsTable extends BaseTable {
       columns.push('reasoning_visibility TEXT')
     }
 
+    if (version >= 31) {
+      columns.push('memory_cursor_order_seq INTEGER')
+    }
+
     return `
       CREATE TABLE IF NOT EXISTS deepchat_sessions (
         ${columns.join(',\n        ')}
@@ -211,6 +216,9 @@ export class DeepChatSessionsTable extends BaseTable {
         'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
       )
     }
+    if (!this.hasColumn('memory_cursor_order_seq')) {
+      statements.push('ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;')
+    }
 
     return statements
   }
@@ -260,11 +268,14 @@ export class DeepChatSessionsTable extends BaseTable {
     if (version === 29) {
       return 'ALTER TABLE deepchat_sessions ADD COLUMN top_p REAL;'
     }
+    if (version === 31) {
+      return 'ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 29
+    return 31
   }
 
   private serializeImageGenerationOptions(
@@ -577,6 +588,19 @@ export class DeepChatSessionsTable extends BaseTable {
       )
 
     return result.changes > 0
+  }
+
+  getMemoryCursorOrderSeq(id: string): number | null {
+    const row = this.db
+      .prepare('SELECT memory_cursor_order_seq FROM deepchat_sessions WHERE id = ?')
+      .get(id) as { memory_cursor_order_seq: number | null } | undefined
+    return row?.memory_cursor_order_seq ?? null
+  }
+
+  updateMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
+    this.db
+      .prepare('UPDATE deepchat_sessions SET memory_cursor_order_seq = ? WHERE id = ?')
+      .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
   }
 
   resetSummaryState(id: string): void {

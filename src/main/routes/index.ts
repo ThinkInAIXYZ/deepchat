@@ -63,6 +63,12 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  memoryClearRoute,
+  memoryDeleteRoute,
+  memoryGetStatusRoute,
+  memoryListPersonaVersionsRoute,
+  memoryListRoute,
+  memoryRollbackPersonaRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -326,6 +332,8 @@ import { SessionService } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import type { MemoryPresenter } from '@/presenter/memoryPresenter'
+import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMemory'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
@@ -369,7 +377,22 @@ export type MainKernelRouteRuntime = {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
+  memoryPresenter: MemoryPresenter
   scheduledTasks: ScheduledTasksService
+}
+
+function toMemoryItemDto(row: AgentMemoryRow) {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    kind: row.kind,
+    content: row.content,
+    importance: row.importance,
+    status: row.status,
+    sourceSession: row.source_session,
+    supersededBy: row.superseded_by,
+    createdAt: row.created_at
+  }
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -399,6 +422,7 @@ export function createMainKernelRouteRuntime(deps: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
+  memoryPresenter: MemoryPresenter
   scheduledTasks: ScheduledTasksService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
@@ -504,6 +528,7 @@ export function createMainKernelRouteRuntime(deps: {
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
+    memoryPresenter: deps.memoryPresenter,
     scheduledTasks: deps.scheduledTasks
   }
 }
@@ -1863,6 +1888,45 @@ export async function dispatchDeepchatRoute(
       return databaseSecurityRepairSchemaRoute.output.parse({
         report: await runtime.sqlitePresenter.repairSchema()
       })
+    }
+
+    case memoryListRoute.name: {
+      const input = memoryListRoute.input.parse(rawInput)
+      const memories = runtime.memoryPresenter.listMemories(input.agentId).map(toMemoryItemDto)
+      return memoryListRoute.output.parse({ memories })
+    }
+
+    case memoryGetStatusRoute.name: {
+      const input = memoryGetStatusRoute.input.parse(rawInput)
+      return memoryGetStatusRoute.output.parse({
+        status: runtime.memoryPresenter.getStatus(input.agentId)
+      })
+    }
+
+    case memoryDeleteRoute.name: {
+      const input = memoryDeleteRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.deleteMemory(input.agentId, input.memoryId)
+      return memoryDeleteRoute.output.parse({ ok })
+    }
+
+    case memoryClearRoute.name: {
+      const input = memoryClearRoute.input.parse(rawInput)
+      const removed = await runtime.memoryPresenter.clearMemories(input.agentId)
+      return memoryClearRoute.output.parse({ removed })
+    }
+
+    case memoryListPersonaVersionsRoute.name: {
+      const input = memoryListPersonaVersionsRoute.input.parse(rawInput)
+      const versions = runtime.memoryPresenter
+        .listPersonaVersions(input.agentId)
+        .map(toMemoryItemDto)
+      return memoryListPersonaVersionsRoute.output.parse({ versions })
+    }
+
+    case memoryRollbackPersonaRoute.name: {
+      const input = memoryRollbackPersonaRoute.input.parse(rawInput)
+      const ok = runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
+      return memoryRollbackPersonaRoute.output.parse({ ok })
     }
 
     case onboardingGetStateRoute.name: {

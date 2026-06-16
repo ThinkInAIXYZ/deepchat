@@ -67,6 +67,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.deepchatTapeEntriesTable = emptyTable
     presenter.legacyImportStatusTable = emptyTable
     presenter.agentsTable = emptyTable
+    presenter.agentMemoryTable = emptyTable
     presenter.configTables = emptyTable
     presenter.newSessionActiveSkillsTable = emptyTable
     presenter.newSessionDisabledAgentToolsTable = emptyTable

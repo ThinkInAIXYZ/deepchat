@@ -34,6 +34,7 @@ import {
 } from './events/context-menu.events'
 import { dialogRequestedEvent } from './events/dialog.events'
 import { knowledgeFileProgressEvent, knowledgeFileUpdatedEvent } from './events/knowledge.events'
+import { memoryUpdatedEvent } from './events/memory.events'
 import {
   configCustomPromptsChangedEvent,
   configAgentsChangedEvent,
@@ -125,6 +126,7 @@ export * from './events/config.events'
 export * from './events/context-menu.events'
 export * from './events/dialog.events'
 export * from './events/knowledge.events'
+export * from './events/memory.events'
 export * from './events/mcp.events'
 export * from './events/misc.providers.events'
 export * from './events/models.events'
@@ -192,6 +194,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [providersOllamaPullProgressEvent.name]: providersOllamaPullProgressEvent,
   [knowledgeFileUpdatedEvent.name]: knowledgeFileUpdatedEvent,
   [knowledgeFileProgressEvent.name]: knowledgeFileProgressEvent,
+  [memoryUpdatedEvent.name]: memoryUpdatedEvent,
   [modelsChangedEvent.name]: modelsChangedEvent,
   [modelsStatusChangedEvent.name]: modelsStatusChangedEvent,
   [modelBatchStatusChangedEvent.name]: modelBatchStatusChangedEvent,

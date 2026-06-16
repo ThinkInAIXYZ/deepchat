@@ -2215,7 +2215,35 @@
     "subagentDescription": "Slotbeskrivelse",
     "subagentTargetAgentLabel": "Målagent",
     "subagentLimit": "{count}/{max} pladser",
-    "addSubagentSlot": "+ Tilføj slot"
+    "addSubagentSlot": "+ Tilføj slot",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Administrer hukommelse",
+      "title": "Administrer hukommelse",
+      "description": "Gennemse, slet eller ryd det, agenten har husket, og inspicér dens selvmodel under udvikling.",
+      "degradedHint": "Ingen embedding-model konfigureret — genkald bruger kun nøgleordssøgning.",
+      "tabMemories": "Hukommelse",
+      "tabPersona": "Persona-tidslinje",
+      "memoriesCount": "{count} minder",
+      "clearAll": "Ryd alt",
+      "clearConfirmTitle": "Ryd al hukommelse?",
+      "clearConfirmBody": "Dette fjerner permanent alle minder for denne agent. Dette kan ikke fortrydes.",
+      "emptyMemories": "Ingen minder endnu. De samles, mens du chatter med denne agent.",
+      "emptyPersona": "Ingen selvmodel-versioner endnu.",
+      "personaActive": "Aktiv",
+      "rollback": "Rul tilbage",
+      "actionFailed": "Handling mislykkedes",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indekseret",
+        "error": "Fejl",
+        "fts_only": "Kun nøgleord"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

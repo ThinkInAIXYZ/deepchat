@@ -146,7 +146,35 @@
     "compactionDescription": "Các giá trị mặc định này chỉ ảnh hưởng đến các phiên DeepChat trong tương lai.",
     "compactionThreshold": "Ngưỡng kích hoạt",
     "compactionRetainPairs": "Giữ lại các cặp gần đây",
-    "deleteConfirm": "Xóa tác nhân \"{name}\"? Lịch sử của nó sẽ quay trở lại tác nhân DeepChat tích hợp sẵn."
+    "deleteConfirm": "Xóa tác nhân \"{name}\"? Lịch sử của nó sẽ quay trở lại tác nhân DeepChat tích hợp sẵn.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Quản lý ký ức",
+      "title": "Quản lý ký ức",
+      "description": "Xem lại, xóa hoặc xóa sạch những gì tác nhân này đã ghi nhớ và kiểm tra mô hình bản thân đang tiến hóa của nó.",
+      "degradedHint": "Chưa cấu hình mô hình embedding — việc gợi nhớ chỉ dùng tìm kiếm từ khóa.",
+      "tabMemories": "Ký ức",
+      "tabPersona": "Dòng thời gian persona",
+      "memoriesCount": "{count} ký ức",
+      "clearAll": "Xóa tất cả",
+      "clearConfirmTitle": "Xóa tất cả ký ức?",
+      "clearConfirmBody": "Thao tác này xóa vĩnh viễn mọi ký ức của tác nhân này. Không thể hoàn tác.",
+      "emptyMemories": "Chưa có ký ức. Chúng được tích lũy khi bạn trò chuyện với tác nhân này.",
+      "emptyPersona": "Chưa có phiên bản mô hình bản thân.",
+      "personaActive": "Đang dùng",
+      "rollback": "Khôi phục",
+      "actionFailed": "Hành động thất bại",
+      "status": {
+        "pending_embedding": "Đang embedding",
+        "embedded": "Đã lập chỉ mục",
+        "error": "Lỗi",
+        "fts_only": "Chỉ từ khóa"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "móc",

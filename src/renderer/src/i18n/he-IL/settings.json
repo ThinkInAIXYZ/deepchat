@@ -2215,7 +2215,35 @@
     "subagentDescription": "תיאור המשבצת",
     "subagentTargetAgentLabel": "סוכן יעד",
     "subagentLimit": "{count}/{max} משבצות",
-    "addSubagentSlot": "+ הוספת משבצת"
+    "addSubagentSlot": "+ הוספת משבצת",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "ניהול זיכרונות",
+      "title": "ניהול זיכרונות",
+      "description": "סקור, מחק או נקה את מה שהסוכן זכר, ובדוק את מודל-העצמי המתפתח שלו.",
+      "degradedHint": "לא הוגדר מודל embedding — האחזור משתמש בחיפוש מילות מפתח בלבד.",
+      "tabMemories": "זיכרונות",
+      "tabPersona": "ציר זמן של פרסונה",
+      "memoriesCount": "{count} זיכרונות",
+      "clearAll": "נקה הכול",
+      "clearConfirmTitle": "לנקות את כל הזיכרונות?",
+      "clearConfirmBody": "פעולה זו מסירה לצמיתות את כל הזיכרונות של סוכן זה. לא ניתן לבטל.",
+      "emptyMemories": "אין עדיין זיכרונות. הם נצברים תוך כדי שיחה עם סוכן זה.",
+      "emptyPersona": "אין עדיין גרסאות של מודל-עצמי.",
+      "personaActive": "פעיל",
+      "rollback": "שחזר",
+      "actionFailed": "הפעולה נכשלה",
+      "status": {
+        "pending_embedding": "מבצע embedding",
+        "embedded": "מאונדקס",
+        "error": "שגיאה",
+        "fts_only": "מילות מפתח בלבד"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

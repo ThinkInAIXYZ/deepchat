@@ -2215,7 +2215,35 @@
     "subagentDescription": "슬롯 설명",
     "subagentTargetAgentLabel": "대상 에이전트",
     "subagentLimit": "{count}/{max}개 슬롯",
-    "addSubagentSlot": "+ 슬롯 추가"
+    "addSubagentSlot": "+ 슬롯 추가",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "메모리 관리",
+      "title": "메모리 관리",
+      "description": "이 에이전트가 기억한 내용을 검토·삭제·지우고, 진화하는 자기 모델을 확인합니다.",
+      "degradedHint": "임베딩 모델이 구성되지 않음 — 회상은 키워드 검색만 사용합니다.",
+      "tabMemories": "메모리",
+      "tabPersona": "페르소나 타임라인",
+      "memoriesCount": "메모리 {count}개",
+      "clearAll": "모두 지우기",
+      "clearConfirmTitle": "모든 메모리를 지울까요?",
+      "clearConfirmBody": "이 에이전트의 모든 메모리를 영구적으로 제거합니다. 되돌릴 수 없습니다.",
+      "emptyMemories": "아직 메모리가 없습니다. 이 에이전트와 대화하면서 쌓입니다.",
+      "emptyPersona": "아직 자기 모델 버전이 없습니다.",
+      "personaActive": "활성",
+      "rollback": "롤백",
+      "actionFailed": "작업 실패",
+      "status": {
+        "pending_embedding": "임베딩 중",
+        "embedded": "색인됨",
+        "error": "오류",
+        "fts_only": "키워드만"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",
