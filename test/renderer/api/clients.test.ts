@@ -1291,6 +1291,147 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('serializes settings save payloads before invoking the config bridge', async () => {
+    const bridge = createBridge()
+    const configClient = createConfigClient(bridge)
+    const shortcutKeys = new Proxy(
+      {
+        toggleWindow: 'CommandOrControl+K'
+      },
+      {}
+    )
+    const promptParameters = new Proxy(
+      [
+        {
+          name: 'topic',
+          description: 'Topic',
+          required: true
+        }
+      ],
+      {}
+    )
+    const customPrompt = new Proxy(
+      {
+        id: 'prompt-1',
+        name: 'Writer',
+        description: 'Write clearly',
+        content: 'Write about {{topic}}',
+        parameters: promptParameters,
+        enabled: true
+      },
+      {}
+    )
+    const customPromptUpdate = new Proxy(
+      {
+        description: 'Updated',
+        parameters: promptParameters
+      },
+      {}
+    )
+    const systemPrompt = new Proxy(
+      {
+        id: 'system-1',
+        name: 'System',
+        content: 'Be concise'
+      },
+      {}
+    )
+    const modelSelection = new Proxy(
+      {
+        providerId: 'openai',
+        modelId: 'gpt-4.1'
+      },
+      {}
+    )
+    const deepChatAgentInput = new Proxy(
+      {
+        name: 'Writer Agent',
+        enabled: true,
+        config: new Proxy(
+          {
+            assistantModel: modelSelection
+          },
+          {}
+        )
+      },
+      {}
+    )
+
+    await configClient.setShortcutKey(shortcutKeys)
+    await configClient.addCustomPrompt(customPrompt)
+    await configClient.updateCustomPrompt('prompt-1', customPromptUpdate)
+    await configClient.setCustomPrompts(new Proxy([customPrompt], {}))
+    await configClient.addSystemPrompt(systemPrompt)
+    await configClient.updateSystemPrompt('system-1', new Proxy({ content: 'Updated' }, {}))
+    await configClient.setSystemPrompts(new Proxy([systemPrompt], {}))
+    await configClient.createDeepChatAgent(deepChatAgentInput)
+    await configClient.updateDeepChatAgent(
+      'writer',
+      new Proxy(
+        {
+          config: new Proxy(
+            {
+              visionModel: modelSelection
+            },
+            {}
+          )
+        },
+        {}
+      )
+    )
+
+    const calls = (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls
+    for (const [, payload] of calls) {
+      expect(() => structuredClone(payload)).not.toThrow()
+    }
+
+    expect(calls[0]).toEqual([
+      'config.setShortcutKeys',
+      {
+        shortcuts: {
+          toggleWindow: 'CommandOrControl+K'
+        }
+      }
+    ])
+    expect(calls[1][1].prompt).toEqual({
+      id: 'prompt-1',
+      name: 'Writer',
+      description: 'Write clearly',
+      content: 'Write about {{topic}}',
+      parameters: [
+        {
+          name: 'topic',
+          description: 'Topic',
+          required: true
+        }
+      ],
+      enabled: true
+    })
+    expect(calls[1][1].prompt).not.toBe(customPrompt)
+    expect(calls[1][1].prompt.parameters).not.toBe(promptParameters)
+    expect(calls[7][1]).toEqual({
+      name: 'Writer Agent',
+      enabled: true,
+      config: {
+        assistantModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4.1'
+        }
+      }
+    })
+    expect(calls[8][1]).toEqual({
+      agentId: 'writer',
+      updates: {
+        config: {
+          visionModel: {
+            providerId: 'openai',
+            modelId: 'gpt-4.1'
+          }
+        }
+      }
+    })
+  })
+
   it('routes ACP config calls through the shared registry names', async () => {
     const bridge = createBridge()
     const configClient = createConfigClient(bridge)

@@ -3,6 +3,8 @@ import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem } from './agent-plan'
+import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
+import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
 
 /**
  * Agent Interface Protocol
@@ -208,6 +210,19 @@ export interface IAgentImplementation {
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
+
+  /** List prompt view manifests associated with a message */
+  listMessageViewManifests?(
+    sessionId: string,
+    messageId: string
+  ): Promise<DeepChatTapeViewManifestRecord[]>
+
+  /** Export a deterministic tape replay slice for a message request */
+  exportMessageTapeReplaySlice?(
+    sessionId: string,
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null>
 
   /** Record a completed child session as a merged tape fork */
   mergeSubagentTape?(

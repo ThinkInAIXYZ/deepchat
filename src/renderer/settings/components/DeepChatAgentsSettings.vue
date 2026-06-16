@@ -771,6 +771,8 @@ import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
   AgentTransferImpact,
+  CreateDeepChatAgentInput,
+  DeepChatAgentModelSelection,
   DeepChatSubagentSlot,
   PermissionMode,
   Project
@@ -1173,6 +1175,15 @@ const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const buildModelSelection = (
+  selection: EditableModel | null | undefined
+): DeepChatAgentModelSelection | null =>
+  selection
+    ? {
+        providerId: selection.providerId,
+        modelId: selection.modelId
+      }
+    : null
 const normalizeNumericInput = (
   value: EditableNumberValue | null | undefined,
   options: { fallback: number; min: number; max: number; integer?: boolean }
@@ -1480,20 +1491,16 @@ const saveAgent = async () => {
   saving.value = true
   saveError.value = null
   try {
-    // 注意：表单里的模型选择是 Vue 响应式 Proxy，直接传过 IPC 会触发
-    // "An object could not be cloned"。这里统一重建为普通对象。
-    const plainModel = (model: EditableModel) =>
-      model ? { providerId: model.providerId, modelId: model.modelId } : null
-    const payload = {
+    const payload: CreateDeepChatAgentInput = {
       name: form.name.trim(),
       enabled: form.enabled,
       description: form.description.trim() || undefined,
       avatar: buildAvatar(),
       config: {
-        defaultModelPreset: plainModel(form.chatModel),
-        assistantModel: plainModel(form.assistantModel),
-        visionModel: plainModel(form.visionModel),
-        imageGenerationModel: plainModel(form.imageGenerationModel),
+        defaultModelPreset: buildModelSelection(form.chatModel),
+        assistantModel: buildModelSelection(form.assistantModel),
+        visionModel: buildModelSelection(form.visionModel),
+        imageGenerationModel: buildModelSelection(form.imageGenerationModel),
         defaultProjectPath: normalizePath(form.defaultProjectPath),
         systemPrompt: form.systemPrompt,
         permissionMode: form.permissionMode,
@@ -1508,7 +1515,7 @@ const saveAgent = async () => {
           form.autoCompactionRetainRecentPairs
         ),
         memoryEnabled: form.memoryEnabled,
-        memoryEmbedding: plainModel(form.memoryEmbedding)
+        memoryEmbedding: buildModelSelection(form.memoryEmbedding)
       }
     }
     if (form.id) {

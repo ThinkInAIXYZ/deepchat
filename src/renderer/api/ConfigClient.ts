@@ -161,6 +161,27 @@ function toPlainKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): BuiltinKnow
   })
 }
 
+function toPlainIpcValue<T>(value: T): T {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as T
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => toPlainIpcValue(item)) as T
+  }
+
+  const plain: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    plain[key] = toPlainIpcValue(nestedValue)
+  }
+
+  return plain as T
+}
+
 export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   const settingsClient = createSettingsClient(bridge)
 
@@ -321,7 +342,9 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   async function setShortcutKey(shortcuts: ShortcutKeySetting) {
-    return await bridge.invoke(configSetShortcutKeysRoute.name, { shortcuts })
+    return await bridge.invoke(configSetShortcutKeysRoute.name, {
+      shortcuts: toPlainIpcValue(shortcuts)
+    })
   }
 
   async function resetShortcutKeys() {
@@ -335,20 +358,20 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function setCustomPrompts(prompts: Prompt[]) {
     return await bridge.invoke(configSetCustomPromptsRoute.name, {
-      prompts: prompts as any
+      prompts: toPlainIpcValue(prompts) as any
     })
   }
 
   async function addCustomPrompt(prompt: Prompt) {
     return await bridge.invoke(configAddCustomPromptRoute.name, {
-      prompt: prompt as any
+      prompt: toPlainIpcValue(prompt) as any
     })
   }
 
   async function updateCustomPrompt(promptId: string, updates: Partial<Prompt>) {
     return await bridge.invoke(configUpdateCustomPromptRoute.name, {
       promptId,
-      updates: updates as any
+      updates: toPlainIpcValue(updates) as any
     })
   }
 
@@ -385,20 +408,20 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function setSystemPrompts(prompts: SystemPrompt[]) {
     return await bridge.invoke(configSetSystemPromptsRoute.name, {
-      prompts: prompts as any
+      prompts: toPlainIpcValue(prompts) as any
     })
   }
 
   async function addSystemPrompt(prompt: SystemPrompt) {
     return await bridge.invoke(configAddSystemPromptRoute.name, {
-      prompt: prompt as any
+      prompt: toPlainIpcValue(prompt) as any
     })
   }
 
   async function updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>) {
     return await bridge.invoke(configUpdateSystemPromptRoute.name, {
       promptId,
-      updates: updates as any
+      updates: toPlainIpcValue(updates) as any
     })
   }
 
@@ -495,7 +518,7 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent> {
     const result = await bridge.invoke(
       configCreateDeepChatAgentRoute.name,
-      input as DeepchatRouteInput<typeof configCreateDeepChatAgentRoute.name>
+      toPlainIpcValue(input) as DeepchatRouteInput<typeof configCreateDeepChatAgentRoute.name>
     )
     return result.agent
   }
@@ -506,7 +529,7 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   ): Promise<Agent | null> {
     const result = await bridge.invoke(configUpdateDeepChatAgentRoute.name, {
       agentId,
-      updates
+      updates: toPlainIpcValue(updates)
     } as DeepchatRouteInput<typeof configUpdateDeepChatAgentRoute.name>)
     return result.agent
   }

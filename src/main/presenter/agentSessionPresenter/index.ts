@@ -39,6 +39,11 @@ import type {
 } from '@shared/types/agent-interface'
 import type { Message } from '@shared/chat'
 import type { SearchResult } from '@shared/types/core/search'
+import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatTapeReplayExportOptions,
+  DeepChatTapeReplaySlice
+} from '@shared/types/tape-replay'
 import type {
   AcpConfigState,
   IConfigPresenter,
@@ -1425,6 +1430,61 @@ export class AgentSessionPresenter {
     }
 
     return await agent.handoffTape(sessionId, name, state)
+  }
+
+  async listMessageViewManifests(messageId: string): Promise<DeepChatTapeViewManifestRecord[]> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return []
+
+    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
+    if (!message) return []
+
+    const session = this.sessionManager.get(message.session_id)
+    if (!session) return []
+
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.listMessageViewManifests) return []
+
+      return await agent.listMessageViewManifests(message.session_id, normalizedMessageId)
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to list message view manifests', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return []
+    }
+  }
+
+  async exportMessageTapeReplaySlice(
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null> {
+    const normalizedMessageId = messageId?.trim()
+    if (!normalizedMessageId) return null
+
+    const message = this.sqlitePresenter.deepchatMessagesTable.get(normalizedMessageId)
+    if (!message) return null
+
+    const session = this.sessionManager.get(message.session_id)
+    if (!session) return null
+
+    try {
+      const agent = await this.resolveAgentImplementation(session.agentId)
+      if (!agent.exportMessageTapeReplaySlice) return null
+
+      return await agent.exportMessageTapeReplaySlice(
+        message.session_id,
+        normalizedMessageId,
+        options
+      )
+    } catch (error) {
+      logger.warn('[AgentSessionPresenter] Failed to export tape replay slice', {
+        messageId: normalizedMessageId,
+        error
+      })
+      return null
+    }
   }
 
   async mergeSubagentTape(

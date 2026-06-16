@@ -10,6 +10,10 @@ import type {
   MessageMetadata,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import type {
+  DeepChatTapeViewEntryReason,
+  DeepChatTapeViewExcludedReason
+} from '@shared/types/tape-view-manifest'
 import type { DeepChatMessageStore } from './messageStore'
 
 const IMAGE_TOKEN_ESTIMATE = 512
@@ -41,6 +45,27 @@ export type HistoryTurn = {
   records: ChatMessageRecord[]
   messages: ChatMessage[]
   tokens: number
+}
+
+export type ContextIncludedRecord = {
+  record: ChatMessageRecord
+  reason: DeepChatTapeViewEntryReason
+}
+
+export type ContextExcludedRecord = {
+  record: ChatMessageRecord
+  reason: DeepChatTapeViewExcludedReason
+}
+
+export type ContextBuildMetadata = {
+  includedRecords: ContextIncludedRecord[]
+  excludedRecords: ContextExcludedRecord[]
+  includesSystemPrompt: boolean
+}
+
+export type ContextBuildResult = {
+  messages: ChatMessage[]
+  metadata: ContextBuildMetadata
 }
 
 function parseProviderOptionsJson(
@@ -147,7 +172,7 @@ function parseUserRecordContent(content: string): SendMessageInput {
   }
 }
 
-function isCompactionRecord(record: ChatMessageRecord): boolean {
+export function isCompactionRecord(record: ChatMessageRecord): boolean {
   try {
     const metadata = JSON.parse(record.metadata) as MessageMetadata
     return metadata.messageType === 'compaction'
@@ -860,18 +885,26 @@ function selectTurnHistory(
   availableTokens: number,
   fallbackProtectedTurnCount: number
 ): ChatMessage[] {
+  return flattenTurns(selectTurnHistoryTurns(turns, availableTokens, fallbackProtectedTurnCount))
+}
+
+function selectTurnHistoryTurns<T extends TokenizedTurn>(
+  turns: T[],
+  availableTokens: number,
+  fallbackProtectedTurnCount: number
+): T[] {
   if (turns.length === 0) {
     return []
   }
 
   const protectedCount = Math.max(0, Math.min(fallbackProtectedTurnCount, turns.length))
   if (availableTokens <= 0) {
-    return protectedCount > 0 ? flattenTurns(turns.slice(-protectedCount)) : []
+    return protectedCount > 0 ? turns.slice(-protectedCount) : []
   }
 
   let total = turns.reduce((sum, turn) => sum + turn.tokens, 0)
   if (total <= availableTokens) {
-    return flattenTurns(turns)
+    return turns
   }
 
   const remainingTurns = [...turns]
@@ -886,10 +919,38 @@ function selectTurnHistory(
     estimateMessagesTokens(flattened) <= availableTokens ||
     remainingTurns.length <= protectedCount
   ) {
-    return flattened
+    return remainingTurns
   }
 
-  return truncateContext(flattened, availableTokens)
+  const truncatedMessages = truncateContext(flattened, availableTokens)
+  if (truncatedMessages.length === 0) {
+    return []
+  }
+
+  let droppedPrefixCount = flattened.length - truncatedMessages.length
+  const rebuiltTurns: T[] = []
+
+  for (const turn of remainingTurns) {
+    if (droppedPrefixCount >= turn.messages.length) {
+      droppedPrefixCount -= turn.messages.length
+      continue
+    }
+
+    if (droppedPrefixCount > 0) {
+      const keptMessages = turn.messages.slice(droppedPrefixCount)
+      droppedPrefixCount = 0
+      rebuiltTurns.push({
+        ...turn,
+        messages: keptMessages,
+        tokens: estimateMessagesTokens(keptMessages)
+      })
+      continue
+    }
+
+    rebuiltTurns.push(turn)
+  }
+
+  return rebuiltTurns
 }
 
 function filterRecordsFromCursor(
@@ -910,12 +971,33 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  return buildContextWithMetadata(
+    sessionId,
+    newUserContent,
+    systemPrompt,
+    contextLength,
+    reserveTokens,
+    messageStore,
+    supportsVision,
+    options
+  ).messages
+}
+
+export function buildContextWithMetadata(
+  sessionId: string,
+  newUserContent: string | SendMessageInput,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: DeepChatMessageStore,
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
+): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
   const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
-  const historyRecords = filterRecordsFromCursor(
-    candidateRecords.filter(isContextHistoryRecord),
-    options.summaryCursorOrderSeq ?? 1
-  )
+  const contextCandidateRecords = candidateRecords.filter(isContextHistoryRecord)
+  const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
+  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
   const historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
@@ -933,10 +1015,17 @@ export function buildContext(
     newUserTokens -
     reserveTokens -
     (options.extraReserveTokens ?? 0)
-  const selectedHistory = selectTurnHistory(
+  const selectedTurns = selectTurnHistoryTurns(
     historyTurns,
     available,
     options.fallbackProtectedTurnCount ?? 0
+  )
+  const selectedHistory = flattenTurns(selectedTurns)
+  const selectedRecordIds = new Set(
+    selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const emittedRecordIds = new Set(
+    historyTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
 
   const messages: ChatMessage[] = []
@@ -947,7 +1036,40 @@ export function buildContext(
   if (hasPromptMessageContent(newUserMessage)) {
     messages.push(newUserMessage)
   }
-  return messages
+  const excludedRecords: ContextExcludedRecord[] = [
+    ...contextCandidateRecords
+      .filter((record) => record.orderSeq < cursor)
+      .map((record) => ({
+        record,
+        reason: 'before_summary_cursor' as const
+      })),
+    ...historyRecords
+      .filter((record) => !emittedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'empty_after_formatting' as const
+      })),
+    ...historyRecords
+      .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'out_of_budget' as const
+      }))
+  ]
+
+  return {
+    messages,
+    metadata: {
+      includedRecords: selectedTurns.flatMap((turn) =>
+        turn.records.map((record) => ({
+          record,
+          reason: 'selected_history' as const
+        }))
+      ),
+      excludedRecords,
+      includesSystemPrompt: Boolean(systemPrompt)
+    }
+  }
 }
 
 export function fitMessagesToContextWindow(
@@ -1001,6 +1123,28 @@ export function buildResumeContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
+  return buildResumeContextWithMetadata(
+    sessionId,
+    assistantMessageId,
+    systemPrompt,
+    contextLength,
+    reserveTokens,
+    messageStore,
+    supportsVision,
+    options
+  ).messages
+}
+
+export function buildResumeContextWithMetadata(
+  sessionId: string,
+  assistantMessageId: string,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: DeepChatMessageStore,
+  supportsVision: boolean = false,
+  options: ContextBuildOptions = {}
+): ContextBuildResult {
   const supportsAudioInput = options.supportsAudioInput === true
   const allMessages = options.historyRecords ?? messageStore.getMessages(sessionId)
   const targetMessage = allMessages.find((message) => message.id === assistantMessageId)
@@ -1030,10 +1174,17 @@ export function buildResumeContext(
   const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
   const available =
     contextLength - systemPromptTokens - reserveTokens - (options.extraReserveTokens ?? 0)
-  const selectedHistory = selectTurnHistory(
+  const selectedTurns = selectTurnHistoryTurns(
     historyTurns,
     available,
     options.fallbackProtectedTurnCount ?? 1
+  )
+  const selectedHistory = flattenTurns(selectedTurns)
+  const selectedRecordIds = new Set(
+    selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const emittedRecordIds = new Set(
+    historyTurns.flatMap((turn) => turn.records.map((record) => record.id))
   )
 
   const messages: ChatMessage[] = []
@@ -1041,5 +1192,47 @@ export function buildResumeContext(
     messages.push({ role: 'system', content: systemPrompt })
   }
   messages.push(...selectedHistory)
-  return messages
+  const excludedRecords: ContextExcludedRecord[] = [
+    ...allMessages
+      .filter(
+        (record) =>
+          record.id !== assistantMessageId &&
+          isContextHistoryRecord(record) &&
+          record.orderSeq < cursor &&
+          (targetOrderSeq === undefined || record.orderSeq <= targetOrderSeq)
+      )
+      .map((record) => ({
+        record,
+        reason: 'before_summary_cursor' as const
+      })),
+    ...historyRecords
+      .filter((record) => !emittedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'empty_after_formatting' as const
+      })),
+    ...historyRecords
+      .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
+      .map((record) => ({
+        record,
+        reason: 'out_of_budget' as const
+      }))
+  ]
+
+  return {
+    messages,
+    metadata: {
+      includedRecords: selectedTurns.flatMap((turn) =>
+        turn.records.map((record) => ({
+          record,
+          reason:
+            record.id === assistantMessageId
+              ? ('resume_target' as const)
+              : ('selected_history' as const)
+        }))
+      ),
+      excludedRecords,
+      includesSystemPrompt: Boolean(systemPrompt)
+    }
+  }
 }

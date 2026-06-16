@@ -30,6 +30,10 @@ import type {
 import type { MCPToolCall, MCPToolResponse, ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
+  DeepChatTapeReplayExportOptions,
+  DeepChatTapeReplaySlice
+} from '@shared/types/tape-replay'
+import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
@@ -80,7 +84,12 @@ import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
 } from '@/lib/agentRuntime/systemEnvPromptBuilder'
-import { buildContext, buildResumeContext, isContextHistoryRecord } from './contextBuilder'
+import type { ContextBuildMetadata } from './contextBuilder'
+import {
+  buildTapeChatView,
+  buildTapeResumeView,
+  getTapeContextHistoryRecords
+} from './tapeViewAssembler'
 import {
   capAgentDefaultMaxTokens,
   capAgentRequestMaxTokens,
@@ -98,6 +107,14 @@ import {
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { DeepChatTapeService } from './tapeService'
+import {
+  buildExcludedRefs,
+  buildIncludedRefs,
+  buildSyntheticRequestRefs,
+  createTapeViewManifest,
+  resolveTapeViewManifestPolicy,
+  type TapeViewContextSelection
+} from './tapeViewManifest'
 import { PendingInputCoordinator } from './pendingInputCoordinator'
 import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
@@ -107,6 +124,12 @@ import { appendMemorySection, type MemoryRuntimePort } from '../memoryPresenter/
 import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
+import type {
+  DeepChatTapeViewPolicy,
+  DeepChatTapeViewManifestRecord,
+  DeepChatTapeViewTaskType,
+  DeepChatTapeViewTokenBudget
+} from '@shared/types/tape-view-manifest'
 import type { NewSessionHooksBridge } from '../hooksNotifications/newSessionBridge'
 import { providerDbLoader } from '../configPresenter/providerDbLoader'
 import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
@@ -130,6 +153,17 @@ type PendingInteractionEntry = {
 }
 
 type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
+
+type PendingTapeViewContext = {
+  taskType: DeepChatTapeViewTaskType
+  policy: DeepChatTapeViewPolicy
+  policyVersion?: number | null
+  selection: TapeViewContextSelection
+  summaryCursorOrderSeq: number
+  supportsVision: boolean
+  supportsAudioInput: boolean
+  traceDebugEnabled: boolean
+}
 
 type DeferredToolExecutionResult = {
   responseText: string
@@ -276,6 +310,18 @@ const createAbortError = (): Error => {
   const error = new Error('Aborted')
   error.name = 'AbortError'
   return error
+}
+
+function buildTapeViewSelection(
+  metadata: ContextBuildMetadata,
+  newUserMessageId?: string | null
+): TapeViewContextSelection {
+  return {
+    includedRecords: metadata.includedRecords,
+    excludedRecords: metadata.excludedRecords,
+    includesSystemPrompt: metadata.includesSystemPrompt,
+    newUserMessageId
+  }
 }
 
 export class AgentRuntimePresenter implements IAgentImplementation {
@@ -710,7 +756,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const historyRecords = tapeReady.historyRecords.filter(isContextHistoryRecord)
+      const historyRecords = getTapeContextHistoryRecords(tapeReady.historyRecords)
       const userContent: UserMessageContent = {
         text: normalizedInput.text,
         files: normalizedInput.files || [],
@@ -795,24 +841,25 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         ),
         normalizedInput.text
       )
-      const messages = buildContext(
+      const contextBuild = buildTapeChatView({
         sessionId,
-        normalizedInput,
+        newUserContent: normalizedInput,
         systemPrompt,
-        contextBudgetLength,
-        maxTokens,
-        this.messageStore,
+        contextLength: contextBudgetLength,
+        reserveTokens: maxTokens,
+        messageStore: this.messageStore,
         supportsVision,
-        {
+        historyRecords,
+        options: {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          historyRecords,
           supportsAudioInput,
           extraReserveTokens: toolReserveTokens,
           preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
           preserveEmptyInterleavedReasoning:
             interleavedReasoning.preserveEmptyReasoningContent === true
         }
-      )
+      })
+      const messages = contextBuild.messages
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
@@ -836,7 +883,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         promptPreview: normalizedInput.text,
         tools,
         baseSystemPrompt,
-        interleavedReasoning
+        interleavedReasoning,
+        viewContext: {
+          taskType: 'chat',
+          policy: contextBuild.policyId,
+          policyVersion: contextBuild.policyVersion,
+          selection: buildTapeViewSelection(contextBuild.metadata, userMessageId),
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          supportsVision,
+          supportsAudioInput,
+          traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+        }
       })
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
         if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
@@ -2131,6 +2188,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return this.toTapeAnchorResult(row)
   }
 
+  async listMessageViewManifests(
+    sessionId: string,
+    messageId: string
+  ): Promise<DeepChatTapeViewManifestRecord[]> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.listViewManifestsByMessage(sessionId, messageId)
+  }
+
+  async exportMessageTapeReplaySlice(
+    sessionId: string,
+    messageId: string,
+    options?: DeepChatTapeReplayExportOptions
+  ): Promise<DeepChatTapeReplaySlice | null> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.exportReplaySlice(sessionId, messageId, options)
+  }
+
   async mergeSubagentTape(
     parentSessionId: string,
     childSessionId: string,
@@ -2414,6 +2488,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     initialBlocks?: AssistantMessageBlock[]
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
+    viewContext?: PendingTapeViewContext
   }): Promise<{ runId: string; result: ProcessResult }> {
     const {
       sessionId,
@@ -2424,7 +2499,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       baseSystemPrompt,
       initialBlocks,
       promptPreview,
-      interleavedReasoning: providedInterleavedReasoning
+      interleavedReasoning: providedInterleavedReasoning,
+      viewContext
     } = args
     const state = this.runtimeState.get(sessionId)
     if (!state) {
@@ -2488,6 +2564,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const recoverContextPressure = this.recoverRequestContextPressure.bind(this)
     const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
+    const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
     if (traceEnabled) {
       const traceAwareConfig = modelConfig as ModelConfig & {
         requestTraceContext?: {
@@ -2521,6 +2598,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
+    let requestSeq =
+      this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0
 
     try {
       this.dispatchHook('SessionStart', {
@@ -2554,6 +2633,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           try {
             let providerMessages = requestMessages
             let providerMaxTokens = requestMaxTokens
+            let recoveredFromContextPressure = false
+            let manifestSummaryCursorOrderSeq = viewContext?.summaryCursorOrderSeq ?? 1
             const isTtsRequest =
               isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
             const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
@@ -2584,6 +2665,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
                   minimumProtectedTailCount: 0,
                   signal: abortController.signal
                 })
+                recoveredFromContextPressure = true
+                if (recovered.summaryCursorOrderSeq !== undefined) {
+                  manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+                }
                 requestMessages.splice(0, requestMessages.length, ...recovered.messages)
                 if (recovered.systemPrompt) {
                   replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
@@ -2605,6 +2690,42 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             if (providerMessages.length === 0) {
               throw new Error('Request was not sent because the prompt became empty.')
             }
+
+            requestSeq += 1
+            const isInitialViewRequest = requestSeq === 1 && Boolean(viewContext)
+            const manifestPolicy = resolveTapeViewManifestPolicy({
+              recoveredFromContextPressure,
+              isInitialViewRequest,
+              viewPolicy: viewContext?.policy,
+              viewPolicyVersion: viewContext?.policyVersion
+            })
+            appendTapeViewManifest({
+              sessionId,
+              messageId,
+              requestSeq,
+              taskType: isInitialViewRequest ? viewContext!.taskType : 'tool_loop',
+              policy: manifestPolicy.policy,
+              policyVersion: manifestPolicy.policyVersion,
+              messages: providerMessages,
+              tools: effectiveRequestTools,
+              tokenBudget: {
+                contextLength: requestModelConfig.contextLength ?? contextBudgetLength,
+                requestedMaxTokens: requestMaxTokens,
+                effectiveMaxTokens: providerMaxTokens,
+                reserveTokens: requestMaxTokens,
+                toolReserveTokens: estimateToolReserveTokens(effectiveRequestTools)
+              },
+              providerId: state.providerId,
+              modelId: requestModelId,
+              selection:
+                isInitialViewRequest && !recoveredFromContextPressure
+                  ? viewContext!.selection
+                  : undefined,
+              summaryCursorOrderSeq: manifestSummaryCursorOrderSeq,
+              supportsVision: viewContext?.supportsVision ?? supportsVision,
+              supportsAudioInput: viewContext?.supportsAudioInput ?? supportsAudioInput,
+              traceDebugEnabled: viewContext?.traceDebugEnabled ?? traceEnabled
+            })
 
             await llmProviderPresenter.executeWithRateLimit(state.providerId, {
               signal: abortController.signal,
@@ -2757,6 +2878,59 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
+  private appendTapeViewManifest(params: {
+    sessionId: string
+    messageId: string
+    requestSeq: number
+    taskType: DeepChatTapeViewTaskType
+    policy: DeepChatTapeViewPolicy
+    policyVersion?: number | null
+    messages: ChatMessage[]
+    tools: MCPToolDefinition[]
+    tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
+    providerId: string
+    modelId: string
+    selection?: TapeViewContextSelection
+    summaryCursorOrderSeq: number
+    supportsVision: boolean
+    supportsAudioInput: boolean
+    traceDebugEnabled: boolean
+  }): void {
+    try {
+      const sourceMaps = this.tapeService.getViewManifestSourceMaps(params.sessionId)
+      const manifest = createTapeViewManifest({
+        sessionId: params.sessionId,
+        messageId: params.messageId,
+        requestSeq: params.requestSeq,
+        taskType: params.taskType,
+        policy: params.policy,
+        policyVersion: params.policyVersion ?? null,
+        messages: params.messages,
+        tools: params.tools,
+        latestEntryId: sourceMaps.latestEntryId,
+        anchorEntryIds: sourceMaps.anchorEntryIds,
+        included: params.selection
+          ? buildIncludedRefs(params.selection, sourceMaps)
+          : buildSyntheticRequestRefs(params.messages),
+        excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
+        tokenBudget: params.tokenBudget,
+        providerId: params.providerId,
+        modelId: params.modelId,
+        summaryCursorOrderSeq: params.summaryCursorOrderSeq,
+        supportsVision: params.supportsVision,
+        supportsAudioInput: params.supportsAudioInput,
+        traceDebugEnabled: params.traceDebugEnabled
+      })
+      this.tapeService.appendViewManifest(manifest)
+    } catch (error) {
+      logger.warn(
+        `[DeepChatAgent] Failed to persist tape view manifest: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+  }
+
   private async recoverRequestContextPressure(params: {
     sessionId: string
     providerId: string
@@ -2771,7 +2945,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
     signal: AbortSignal
-  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string }> {
+  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
     let messages = params.requestMessages
     const systemPromptBase =
       params.baseSystemPrompt ?? this.getLeadingSystemPrompt(params.requestMessages) ?? ''
@@ -2814,7 +2988,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         reserveTokens: params.requestedMaxTokens + estimateToolReserveTokens(params.tools),
         minimumProtectedTailCount: params.minimumProtectedTailCount
       }),
-      systemPrompt
+      systemPrompt,
+      summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq
     }
   }
 
@@ -3206,21 +3381,22 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           })
         : this.sessionStore.getSummaryState(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
+      const resumeTapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const systemPrompt = appendReconstructionAnchorStateSection(
         appendSummarySection(baseSystemPrompt, summaryState.summaryText),
         this.sessionStore.getReconstructionAnchorPromptState(sessionId)
       )
-      let resumeContext = buildResumeContext(
+      const resumeContextBuild = buildTapeResumeView({
         sessionId,
-        messageId,
+        assistantMessageId: messageId,
         systemPrompt,
-        contextBudgetLength,
-        maxTokens,
-        this.messageStore,
-        this.supportsVision(state.providerId, state.modelId),
-        {
+        contextLength: contextBudgetLength,
+        reserveTokens: maxTokens,
+        messageStore: this.messageStore,
+        supportsVision: this.supportsVision(state.providerId, state.modelId),
+        historyRecords: resumeTapeReady.historyRecords,
+        options: {
           summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
-          historyRecords: tapeReady.historyRecords,
           fallbackProtectedTurnCount: 1,
           supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
           extraReserveTokens: toolReserveTokens,
@@ -3228,7 +3404,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           preserveEmptyInterleavedReasoning:
             interleavedReasoning.preserveEmptyReasoningContent === true
         }
-      )
+      })
+      let resumeContext = resumeContextBuild.messages
       if (budgetToolCall?.id && budgetToolCall.name && useContextBudget) {
         const resumeBudget = this.fitResumeBudgetForToolCall({
           resumeContext,
@@ -3275,7 +3452,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tools,
         baseSystemPrompt,
         initialBlocks,
-        interleavedReasoning
+        interleavedReasoning,
+        viewContext: {
+          taskType: 'resume',
+          policy: resumeContextBuild.policyId,
+          policyVersion: resumeContextBuild.policyVersion,
+          selection: buildTapeViewSelection(resumeContextBuild.metadata),
+          summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
+          supportsVision: this.supportsVision(state.providerId, state.modelId),
+          supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
+          traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+        }
       })
       try {
         this.applyProcessResultStatus(sessionId, result, runId)
