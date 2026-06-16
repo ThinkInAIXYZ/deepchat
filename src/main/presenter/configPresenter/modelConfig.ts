@@ -168,7 +168,17 @@ export class ModelConfigHelper {
       return config
     }
 
-    return applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+    const policyConfig = applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+
+    if (!isMiniMaxM3Model(providerId, modelId)) {
+      return policyConfig
+    }
+
+    return {
+      ...policyConfig,
+      contextLength: Math.max(policyConfig.contextLength ?? 0, MINIMAX_M3_CONTEXT_LENGTH),
+      forceInterleavedThinkingCompat: true
+    }
   }
 
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {

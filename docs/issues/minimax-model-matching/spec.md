@@ -3,7 +3,7 @@
 ## Problem
 
 MiniMax provider models with mixed-case IDs such as `MiniMax-M3` and `MiniMax-M2.5` can miss
-provider DB derived configuration because model config lookup lowercases the requested model ID but
+provider DB-derived configuration because model config lookup lowercases the requested model ID but
 compares it with the raw DB model ID.
 
 MiniMax-M3 also requires explicit Anthropic-compatible `thinking: { type: "adaptive" }` to emit
