@@ -2,10 +2,17 @@ import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'node:crypto'
-import { FSWatcher, watch } from 'chokidar'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
 import type { IConfigPresenter } from '@shared/presenter'
+import {
+  createWatcherRequestId,
+  getFileWatcherService,
+  type IFileWatcherService,
+  type WatcherEventBatch,
+  type WatcherStatus,
+  type WatchHandle
+} from '@/lib/fileWatcher'
 import {
   ISkillPresenter,
   SkillMetadata,
@@ -203,7 +210,8 @@ export class SkillPresenter implements ISkillPresenter {
     string,
     { ownerPluginId: string; skillRoot: string; pluginRoot?: string }
   > = new Map()
-  private watcher: FSWatcher | null = null
+  private watcher: WatchHandle | null = null
+  private watcherStartPromise: Promise<void> | null = null
   private initialized: boolean = false
   // Prevent concurrent discovery calls (race condition protection)
   private discoveryPromise: Promise<SkillMetadata[]> | null = null
@@ -211,7 +219,8 @@ export class SkillPresenter implements ISkillPresenter {
 
   constructor(
     private readonly configPresenter: IConfigPresenter,
-    private readonly sessionStatePort: SkillSessionStatePort
+    private readonly sessionStatePort: SkillSessionStatePort,
+    private readonly watcherService: IFileWatcherService = getFileWatcherService()
   ) {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
@@ -294,7 +303,7 @@ export class SkillPresenter implements ISkillPresenter {
     await this.installBuiltinSkills()
     this.cleanupExpiredDrafts()
     await this.discoverSkills()
-    this.watchSkillFiles()
+    await this.watchSkillFiles()
     this.initialized = true
   }
 
@@ -1884,133 +1893,212 @@ export class SkillPresenter implements ISkillPresenter {
     return result.tools
   }
 
+  private closeFailedWatcher(watcher: WatchHandle): void {
+    void watcher.close().catch((error) => {
+      logger.warn('[SkillPresenter] Failed to close failed file watcher.', { error })
+    })
+  }
+
+  private handleWatcherStartFailure(error: unknown): void {
+    this.watcher = null
+    logger.warn('[SkillPresenter] File watcher unavailable; skill hot reload disabled.', {
+      reason: 'start-failed',
+      error
+    })
+  }
+
   /**
    * Watch skill files for changes (hot-reload)
    */
-  watchSkillFiles(): void {
+  async watchSkillFiles(): Promise<void> {
     if (this.watcher) {
       return
     }
 
-    this.watcher = watch(this.skillsDir, {
-      ignoreInitial: true,
-      depth: SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH,
-      ignored: (watchPath) =>
-        watchPath.includes(`${path.sep}${SKILL_CONFIG.SIDECAR_DIR}${path.sep}`) ||
-        path.basename(watchPath) === SKILL_CONFIG.SIDECAR_DIR,
-      awaitWriteFinish: {
-        stabilityThreshold: SKILL_CONFIG.WATCHER_STABILITY_THRESHOLD,
-        pollInterval: SKILL_CONFIG.WATCHER_POLL_INTERVAL
-      }
-    })
+    if (this.watcherStartPromise) {
+      return await this.watcherStartPromise
+    }
 
-    this.watcher.on('change', async (filePath: string) => {
-      if (path.basename(filePath) === 'SKILL.md') {
-        const previousName =
-          this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
-        this.contentCache.delete(previousName)
+    this.watcherStartPromise = this.watcherService
+      .watch(
+        {
+          id: createWatcherRequestId('content', 'skills', this.skillsDir),
+          rootPath: this.skillsDir,
+          hostKind: 'content',
+          purpose: 'skills',
+          recursive: true,
+          excludes: this.createSkillWatchExcludes(),
+          fallbackMode: 'snapshot-polling'
+        },
+        (batch) => this.handleSkillWatchBatch(batch),
+        (status) => this.handleSkillWatchStatus(status)
+      )
+      .then((handle) => {
+        this.watcher = handle
+        logger.info('[SkillPresenter] File watcher started')
+      })
+      .catch((error) => {
+        this.handleWatcherStartFailure(error)
+      })
+      .finally(() => {
+        this.watcherStartPromise = null
+      })
 
-        // Re-parse metadata
-        const metadata = await this.parseSkillMetadata(
-          filePath,
-          path.basename(path.dirname(filePath))
-        )
-        if (metadata) {
-          const existingMetadata = this.metadataCache.get(metadata.name)
-          if (existingMetadata && existingMetadata.path !== metadata.path) {
-            logger.warn(
-              '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
-              {
-                name: metadata.name,
-                path: metadata.path,
-                existingPath: existingMetadata.path
-              }
-            )
-            const previousMetadata = this.metadataCache.get(previousName)
-            if (previousName !== metadata.name && previousMetadata?.path === metadata.path) {
-              this.metadataCache.delete(previousName)
-            }
-            return
-          }
-
-          if (previousName !== metadata.name) {
-            const previousMetadata = this.metadataCache.get(previousName)
-            if (previousMetadata?.path === metadata.path) {
-              this.metadataCache.delete(previousName)
-            }
-          }
-          this.metadataCache.set(metadata.name, metadata)
-          publishDeepchatEvent('skills.catalog.changed', {
-            reason: 'metadata-updated',
-            name: metadata.name,
-            skill: metadata,
-            version: Date.now()
-          })
-        }
-      }
-    })
-
-    this.watcher.on('add', async (filePath: string) => {
-      if (path.basename(filePath) === 'SKILL.md') {
-        const metadata = await this.parseSkillMetadata(
-          filePath,
-          path.basename(path.dirname(filePath))
-        )
-        if (metadata) {
-          const existingMetadata = this.metadataCache.get(metadata.name)
-          if (existingMetadata && existingMetadata.path !== metadata.path) {
-            logger.warn(
-              '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
-              {
-                name: metadata.name,
-                path: metadata.path,
-                existingPath: existingMetadata.path
-              }
-            )
-            return
-          }
-
-          this.metadataCache.set(metadata.name, metadata)
-          publishDeepchatEvent('skills.catalog.changed', {
-            reason: 'installed',
-            name: metadata.name,
-            skill: metadata,
-            version: Date.now()
-          })
-        }
-      }
-    })
-
-    this.watcher.on('unlink', (filePath: string) => {
-      if (path.basename(filePath) === 'SKILL.md') {
-        const skillName =
-          this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
-        this.metadataCache.delete(skillName)
-        this.contentCache.delete(skillName)
-        publishDeepchatEvent('skills.catalog.changed', {
-          reason: 'uninstalled',
-          name: skillName,
-          version: Date.now()
-        })
-      }
-    })
-
-    this.watcher.on('error', (error) => {
-      console.error('[SkillPresenter] File watcher error:', error)
-    })
-
-    logger.info('[SkillPresenter] File watcher started')
+    return await this.watcherStartPromise
   }
 
   /**
    * Stop watching skill files
    */
-  stopWatching(): void {
-    if (this.watcher) {
-      this.watcher.close()
-      this.watcher = null
-      logger.info('[SkillPresenter] File watcher stopped')
+  async stopWatching(): Promise<void> {
+    await this.watcherStartPromise
+
+    if (!this.watcher) {
+      return
     }
+
+    await this.watcher.close()
+    this.watcher = null
+    logger.info('[SkillPresenter] File watcher stopped')
+  }
+
+  private createSkillWatchExcludes(): string[] {
+    const root = this.skillsDir.split(path.sep).join('/')
+    return [`${root}/${SKILL_CONFIG.SIDECAR_DIR}/**`, `${root}/**/${SKILL_CONFIG.SIDECAR_DIR}/**`]
+  }
+
+  private async handleSkillWatchBatch(batch: WatcherEventBatch): Promise<void> {
+    if (batch.events.some((event) => event.type === 'overflow' || event.type === 'root-deleted')) {
+      await this.discoverSkills()
+      return
+    }
+
+    for (const event of batch.events) {
+      if (!this.isWatchedSkillMarkdownPath(event.path)) {
+        continue
+      }
+
+      if (event.type === 'create') {
+        await this.handleSkillFileAdded(event.path)
+      } else if (event.type === 'update') {
+        await this.handleSkillFileChanged(event.path)
+      } else if (event.type === 'delete') {
+        this.handleSkillFileDeleted(event.path)
+      }
+    }
+  }
+
+  private handleSkillWatchStatus(status: WatcherStatus): void {
+    if (status.health === 'healthy') {
+      return
+    }
+
+    logger.warn('[SkillPresenter] File watcher degraded.', {
+      health: status.health,
+      mode: status.mode,
+      reason: status.reason,
+      message: status.message
+    })
+
+    if (status.health !== 'failed' || !this.watcher) {
+      return
+    }
+
+    const watcher = this.watcher
+    this.watcher = null
+    this.closeFailedWatcher(watcher)
+  }
+
+  private isWatchedSkillMarkdownPath(filePath: string): boolean {
+    if (path.basename(filePath) !== 'SKILL.md') {
+      return false
+    }
+
+    const relativePath = path.relative(this.skillsDir, filePath)
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return false
+    }
+
+    const segments = relativePath.split(/[\\/]+/).filter(Boolean)
+    return (
+      !segments.includes(SKILL_CONFIG.SIDECAR_DIR) &&
+      segments.length - 1 <= SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
+    )
+  }
+
+  private async handleSkillFileChanged(filePath: string): Promise<void> {
+    const previousName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
+    this.contentCache.delete(previousName)
+
+    const metadata = await this.parseSkillMetadata(filePath, path.basename(path.dirname(filePath)))
+    if (!metadata) {
+      return
+    }
+
+    const existingMetadata = this.metadataCache.get(metadata.name)
+    if (existingMetadata && existingMetadata.path !== metadata.path) {
+      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        name: metadata.name,
+        path: metadata.path,
+        existingPath: existingMetadata.path
+      })
+      const previousMetadata = this.metadataCache.get(previousName)
+      if (previousName !== metadata.name && previousMetadata?.path === metadata.path) {
+        this.metadataCache.delete(previousName)
+      }
+      return
+    }
+
+    if (previousName !== metadata.name) {
+      const previousMetadata = this.metadataCache.get(previousName)
+      if (previousMetadata?.path === metadata.path) {
+        this.metadataCache.delete(previousName)
+      }
+    }
+
+    this.metadataCache.set(metadata.name, metadata)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'metadata-updated',
+      name: metadata.name,
+      skill: metadata,
+      version: Date.now()
+    })
+  }
+
+  private async handleSkillFileAdded(filePath: string): Promise<void> {
+    const metadata = await this.parseSkillMetadata(filePath, path.basename(path.dirname(filePath)))
+    if (!metadata) {
+      return
+    }
+
+    const existingMetadata = this.metadataCache.get(metadata.name)
+    if (existingMetadata && existingMetadata.path !== metadata.path) {
+      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        name: metadata.name,
+        path: metadata.path,
+        existingPath: existingMetadata.path
+      })
+      return
+    }
+
+    this.metadataCache.set(metadata.name, metadata)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'installed',
+      name: metadata.name,
+      skill: metadata,
+      version: Date.now()
+    })
+  }
+
+  private handleSkillFileDeleted(filePath: string): void {
+    const skillName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
+    this.metadataCache.delete(skillName)
+    this.contentCache.delete(skillName)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'uninstalled',
+      name: skillName,
+      version: Date.now()
+    })
   }
 
   /**
@@ -2041,8 +2129,8 @@ export class SkillPresenter implements ISkillPresenter {
   /**
    * Cleanup resources on shutdown
    */
-  destroy(): void {
-    this.stopWatching()
+  async destroy(): Promise<void> {
+    await this.stopWatching()
     this.metadataCache.clear()
     this.contentCache.clear()
     this.discoveryPromise = null

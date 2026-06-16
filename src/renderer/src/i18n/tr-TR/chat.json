@@ -260,6 +260,10 @@
         "openFile": "Dosyayı aç",
         "revealInFolder": "Dosya yöneticisinde göster",
         "insertPath": "Girişe ekle"
+      },
+      "watchStatus": {
+        "degraded": "İzleme yedek modda çalışıyor. Değişiklikler daha yavaş yenilenebilir.",
+        "failed": "Dosya izleme kullanılamıyor. Yenileyin veya çalışma alanını yeniden seçin."
       }
     },
     "git": {

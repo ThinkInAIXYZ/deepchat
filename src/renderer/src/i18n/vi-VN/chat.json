@@ -260,6 +260,10 @@
         "openFile": "Mở tập tin",
         "revealInFolder": "Hiển thị trong trình quản lý tập tin",
         "insertPath": "Chèn vào đầu vào"
+      },
+      "watchStatus": {
+        "degraded": "Đang theo dõi ở chế độ dự phòng. Thay đổi có thể được làm mới chậm hơn.",
+        "failed": "Tính năng theo dõi tệp không khả dụng. Hãy làm mới hoặc chọn lại không gian làm việc."
       }
     },
     "git": {

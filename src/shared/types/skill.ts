@@ -238,6 +238,6 @@ export interface ISkillPresenter {
   getActiveSkillsAllowedTools(conversationId: string): Promise<string[]>
 
   // Hot reload
-  watchSkillFiles(): void
-  stopWatching(): void
+  watchSkillFiles(): Promise<void>
+  stopWatching(): Promise<void>
 }

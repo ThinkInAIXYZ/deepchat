@@ -260,6 +260,10 @@
         "openFile": "Otwórz plik",
         "revealInFolder": "Pokaż w menedżerze plików",
         "insertPath": "Wstaw do wejścia"
+      },
+      "watchStatus": {
+        "degraded": "Obserwowanie działa w trybie awaryjnym. Zmiany mogą odświeżać się wolniej.",
+        "failed": "Obserwowanie plików jest niedostępne. Odśwież lub wybierz obszar roboczy ponownie."
       }
     },
     "git": {

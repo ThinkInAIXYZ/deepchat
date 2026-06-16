@@ -279,6 +279,10 @@
         "openFile": "打开文件",
         "revealInFolder": "在文件管理器中打开",
         "insertPath": "插入到输入框"
+      },
+      "watchStatus": {
+        "degraded": "正在使用降级监听模式，文件变化刷新会变慢。",
+        "failed": "文件监听暂不可用，请重新选择工作区或刷新。"
       }
     },
     "git": {

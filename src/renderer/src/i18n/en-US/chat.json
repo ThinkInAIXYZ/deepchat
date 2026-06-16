@@ -279,6 +279,10 @@
         "openFile": "Open file",
         "revealInFolder": "Show in file manager",
         "insertPath": "Insert into input"
+      },
+      "watchStatus": {
+        "degraded": "Watching in fallback mode. Changes may refresh slower.",
+        "failed": "File watching is unavailable. Refresh or reselect the workspace."
       }
     },
     "git": {

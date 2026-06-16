@@ -1,11 +1,12 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type {
   WorkspaceFileNode,
   WorkspaceFilePreview,
   WorkspaceGitDiff,
   WorkspaceGitState,
-  WorkspaceInvalidationKind
+  WorkspaceInvalidationKind,
+  WorkspaceWatchStatusEvent
 } from '@shared/presenter'
 import type { WorkspaceSessionState } from '@/stores/ui/sidepanel'
 
@@ -25,6 +26,7 @@ interface UseWorkspaceSyncOptions {
     | 'getGitStatus'
     | 'getGitDiff'
     | 'onInvalidated'
+    | 'onWatchStatusChanged'
   >
   sidepanelStore: {
     clearFile(sessionId: string): void
@@ -82,7 +84,9 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
   const loadingFiles = ref(false)
   const loadingFilePreview = ref(false)
   const loadingGitDiff = ref(false)
+  const watchStatus = ref<WorkspaceWatchStatusEvent | null>(null)
   let stopWorkspaceInvalidatedListener: (() => void) | null = null
+  let stopWorkspaceWatchStatusListener: (() => void) | null = null
 
   const normalizedWorkspacePath = computed(() =>
     normalizeWorkspaceKey(options.workspacePath.value?.trim() || null)
@@ -325,6 +329,20 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     scheduleRefresh(kind)
   }
 
+  const handleWorkspaceWatchStatusChanged = (payload: WorkspaceWatchStatusEvent) => {
+    const activeWorkspacePath = normalizedWorkspacePath.value
+    if (!activeWorkspacePath) {
+      return
+    }
+
+    const payloadWorkspacePath = normalizeWorkspaceKey(payload.workspacePath)
+    if (payloadWorkspacePath === null || payloadWorkspacePath !== activeWorkspacePath) {
+      return
+    }
+
+    watchStatus.value = payload
+  }
+
   const ensureWatcherState = async (
     workspacePath: string | null,
     active: boolean
@@ -334,6 +352,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
 
     if (previousWorkspacePath && previousWorkspacePath !== nextWorkspacePath) {
       watchedWorkspacePath = null
+      watchStatus.value = null
       await options.workspaceClient.unwatchWorkspace(previousWorkspacePath)
     }
 
@@ -343,11 +362,13 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
         gitState.value = null
         selectedFilePreview.value = null
         selectedGitDiff.value = null
+        watchStatus.value = null
       }
       return
     }
 
     if (watchedWorkspacePath !== nextWorkspacePath) {
+      watchStatus.value = null
       await options.workspaceClient.registerWorkspace(nextWorkspacePath)
       await options.workspaceClient.watchWorkspace(nextWorkspacePath)
       watchedWorkspacePath = nextWorkspacePath
@@ -373,6 +394,13 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     node.expanded = true
   }
 
+  stopWorkspaceInvalidatedListener = options.workspaceClient.onInvalidated(
+    handleWorkspaceInvalidated
+  )
+  stopWorkspaceWatchStatusListener = options.workspaceClient.onWatchStatusChanged(
+    handleWorkspaceWatchStatusChanged
+  )
+
   watch(
     [options.workspacePath, options.active] as const,
     ([workspacePath, active]) => {
@@ -397,12 +425,6 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     { immediate: true }
   )
 
-  onMounted(() => {
-    stopWorkspaceInvalidatedListener = options.workspaceClient.onInvalidated(
-      handleWorkspaceInvalidated
-    )
-  })
-
   onBeforeUnmount(() => {
     if (refreshTimer) {
       clearTimeout(refreshTimer)
@@ -411,6 +433,8 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
 
     stopWorkspaceInvalidatedListener?.()
     stopWorkspaceInvalidatedListener = null
+    stopWorkspaceWatchStatusListener?.()
+    stopWorkspaceWatchStatusListener = null
 
     if (watchedWorkspacePath) {
       const workspacePath = watchedWorkspacePath
@@ -424,6 +448,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     selectedFilePreview,
     selectedGitDiff,
     gitState,
+    watchStatus,
     loadingFiles,
     loadingFilePreview,
     loadingGitDiff,

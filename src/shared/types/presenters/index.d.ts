@@ -76,6 +76,10 @@ export type {
   WorkspaceInvalidationKind,
   WorkspaceInvalidationSource,
   WorkspaceInvalidationEvent,
+  WorkspaceWatchHealth,
+  WorkspaceWatchMode,
+  WorkspaceWatchStatusReason,
+  WorkspaceWatchStatusEvent,
   ResolveMarkdownLinkedFileInput,
   WorkspaceLinkedFileResolution,
   IWorkspacePresenter

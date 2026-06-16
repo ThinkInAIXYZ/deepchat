@@ -792,6 +792,21 @@ export const EnvironmentSummarySchema = z.object({
 
 export const WorkspaceInvalidationKindSchema = z.enum(['fs', 'git', 'full'])
 export const WorkspaceInvalidationSourceSchema = z.enum(['watcher', 'fallback', 'lifecycle'])
+export const WorkspaceWatchHealthSchema = z.enum(['healthy', 'degraded', 'failed'])
+export const WorkspaceWatchModeSchema = z.enum([
+  'native',
+  'snapshot-polling',
+  'git-metadata-polling'
+])
+export const WorkspaceWatchStatusReasonSchema = z.enum([
+  'ready',
+  'native-error',
+  'utility-exit',
+  'fallback-started',
+  'overflow',
+  'root-deleted',
+  'shutdown'
+])
 export const WorkspaceFilePreviewKindSchema = z.enum([
   'text',
   'markdown',

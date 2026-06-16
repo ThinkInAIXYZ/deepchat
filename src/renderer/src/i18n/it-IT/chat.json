@@ -260,6 +260,10 @@
         "openFile": "Apri file",
         "revealInFolder": "Mostra nel file manager",
         "insertPath": "Inserisci nell'input"
+      },
+      "watchStatus": {
+        "degraded": "Il monitoraggio è in modalità di fallback. Le modifiche potrebbero aggiornarsi più lentamente.",
+        "failed": "Il monitoraggio dei file non è disponibile. Aggiorna o seleziona di nuovo lo spazio di lavoro."
       }
     },
     "git": {

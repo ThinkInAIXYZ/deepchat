@@ -210,6 +210,10 @@
         "title": "Ingen arbejdsområde",
         "description": "Vælg eller træk en mappe for at definere arbejdsområdet",
         "button": "Vælg mappe"
+      },
+      "watchStatus": {
+        "degraded": "Overvågning kører i fallback-tilstand. Ændringer kan blive opdateret langsommere.",
+        "failed": "Filovervågning er ikke tilgængelig. Opdater eller vælg arbejdsområdet igen."
       }
     },
     "git": {

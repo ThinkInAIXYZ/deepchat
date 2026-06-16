@@ -114,13 +114,6 @@ vi.mock('path', () => ({
   }
 }))
 
-vi.mock('chokidar', () => ({
-  watch: vi.fn(() => ({
-    on: vi.fn().mockReturnThis(),
-    close: vi.fn()
-  }))
-}))
-
 vi.mock('gray-matter', () => ({
   default: vi.fn()
 }))
@@ -155,11 +148,19 @@ vi.mock('../../../../src/main/presenter/skillPresenter/discoveryWorker', () => d
 import fs from 'fs'
 import path from 'path'
 import matter from 'gray-matter'
-import { watch } from 'chokidar'
 import { unzipSync } from 'fflate'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
 import { SKILL_CONFIG, SkillPresenter } from '../../../../src/main/presenter/skillPresenter/index'
+import type {
+  IFileWatcherService,
+  WatchBatchListener,
+  WatcherEvent,
+  WatcherStatus,
+  WatchMode,
+  WatchRequest,
+  WatchStatusListener
+} from '../../../../src/main/lib/fileWatcher'
 
 function createDirEntry(name: string) {
   return {
@@ -223,17 +224,72 @@ function createSkillMetadata(name: string, dirName: string): SkillMetadata {
   }
 }
 
-function getWatcherHandler(eventName: string) {
-  const watcherInstance = (watch as Mock).mock.results[(watch as Mock).mock.results.length - 1]
-    ?.value as { on: Mock } | undefined
-  return watcherInstance?.on.mock.calls.find((call: unknown[]) => call[0] === eventName)?.[1] as
-    | ((filePath: string) => Promise<void>)
-    | undefined
+type FakeWatcher = {
+  request: WatchRequest
+  close: ReturnType<typeof vi.fn>
+  emit(events: WatcherEvent[], mode?: WatchMode): Promise<void>
+  emitStatus(status: Partial<WatcherStatus>): void
+}
+
+function createFakeWatcherService() {
+  const watchers: FakeWatcher[] = []
+  const service: IFileWatcherService = {
+    watch: vi.fn(async (request, onBatch: WatchBatchListener, _onStatus?: WatchStatusListener) => {
+      const watcher: FakeWatcher = {
+        request,
+        close: vi.fn().mockResolvedValue(undefined),
+        async emit(events, mode = 'native') {
+          const listener = onBatch as unknown as (batch: {
+            watchId: string
+            rootPath: string
+            purpose: WatchRequest['purpose']
+            hostKind: WatchRequest['hostKind']
+            mode: WatchMode
+            events: WatcherEvent[]
+            version: number
+          }) => unknown
+          await listener({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            mode,
+            events,
+            version: Date.now()
+          })
+        },
+        emitStatus(status) {
+          _onStatus?.({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            health: 'degraded',
+            mode: 'snapshot-polling',
+            reason: 'native-error',
+            version: Date.now(),
+            ...status
+          })
+        }
+      }
+      watchers.push(watcher)
+      return {
+        close: watcher.close
+      }
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined)
+  }
+
+  return {
+    service,
+    watchers
+  }
 }
 
 describe('SkillPresenter', () => {
   let skillPresenter: SkillPresenter
   let mockConfigPresenter: IConfigPresenter
+  let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -244,6 +300,7 @@ describe('SkillPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue(''),
       getSetting: vi.fn().mockReturnValue(undefined)
     } as unknown as IConfigPresenter
+    fakeWatcherService = createFakeWatcherService()
 
     // Setup default mocks
     ;(fs.existsSync as Mock).mockReturnValue(true)
@@ -284,13 +341,17 @@ describe('SkillPresenter', () => {
       async (conversationId: string) => newSessionActiveSkillsStore.get(conversationId) ?? []
     )
 
-    skillPresenter = new SkillPresenter(mockConfigPresenter, skillSessionStatePort as any)
+    skillPresenter = new SkillPresenter(
+      mockConfigPresenter,
+      skillSessionStatePort as any,
+      fakeWatcherService.service
+    )
     ;(skillPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
     ;(skillPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
   })
 
-  afterEach(() => {
-    skillPresenter.destroy()
+  afterEach(async () => {
+    await skillPresenter.destroy()
   })
 
   describe('constructor', () => {
@@ -364,6 +425,28 @@ describe('SkillPresenter', () => {
       const dir = await skillPresenter.getSkillsDir()
       expect(dir).toBeTruthy()
       expect(typeof dir).toBe('string')
+    })
+  })
+
+  describe('initialize', () => {
+    it('continues when the file watcher cannot start', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      const installSpy = vi.spyOn(skillPresenter, 'installBuiltinSkills').mockResolvedValue()
+      const discoverSpy = vi.spyOn(skillPresenter, 'discoverSkills').mockResolvedValue([])
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
+
+      await expect(skillPresenter.initialize()).resolves.toBeUndefined()
+      await skillPresenter.initialize()
+
+      expect(installSpy).toHaveBeenCalledTimes(1)
+      expect(discoverSpy).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
     })
   })
 
@@ -2053,17 +2136,77 @@ describe('SkillPresenter', () => {
   })
 
   describe('watchSkillFiles', () => {
-    it('should start file watcher', () => {
-      skillPresenter.watchSkillFiles()
+    it('should start file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
 
-      expect(watch).toHaveBeenCalled()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalled()
     })
 
-    it('should not start watcher twice', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.watchSkillFiles()
+    it('does not throw and remains retryable when watcher startup fails', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
 
-      expect(watch).toHaveBeenCalledTimes(1)
+      await expect(skillPresenter.watchSkillFiles()).resolves.toBeUndefined()
+      await skillPresenter.watchSkillFiles()
+
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
+    })
+
+    it('should not start watcher twice', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.watchSkillFiles()
+
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears failed watcher state so later calls can retry', async () => {
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      watcher?.emitStatus({
+        health: 'failed',
+        mode: 'snapshot-polling',
+        reason: 'native-error',
+        message: 'snapshot polling failed'
+      })
+      await skillPresenter.watchSkillFiles()
+
+      expect(watcher?.close).toHaveBeenCalledTimes(1)
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher degraded.',
+        expect.objectContaining({
+          health: 'failed',
+          mode: 'snapshot-polling',
+          reason: 'native-error',
+          message: 'snapshot polling failed'
+        })
+      )
+    })
+
+    it('publishes one catalog change when watcher overflow triggers rediscovery', async () => {
+      mockSkillTree(['skill-a'])
+      await skillPresenter.watchSkillFiles()
+      publishDeepchatEventMock.mockClear()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      await watcher?.emit([{ type: 'overflow', path: DEFAULT_SKILLS_DIR }])
+
+      expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'discovered',
+          version: expect.any(Number)
+        })
+      )
     })
 
     it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {
@@ -2077,10 +2220,10 @@ describe('SkillPresenter', () => {
         .fn()
         .mockResolvedValue(createSkillMetadata('skill-b', 'skill-a'))
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-b')).toEqual(existingDuplicate)
@@ -2103,10 +2246,10 @@ describe('SkillPresenter', () => {
       metadataCache.set(originalMetadata.name, originalMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(renamedMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const changeHandler = getWatcherHandler('change')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await changeHandler?.(originalMetadata.path)
+      await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
       expect(metadataCache.has('skill-a')).toBe(false)
       expect(metadataCache.get('skill-c')).toEqual(renamedMetadata)
@@ -2129,10 +2272,10 @@ describe('SkillPresenter', () => {
       metadataCache.set(existingMetadata.name, existingMetadata)
       ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(duplicateMetadata)
 
-      skillPresenter.watchSkillFiles()
-      const addHandler = getWatcherHandler('add')
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
 
-      await addHandler?.(duplicateMetadata.path)
+      await watcher?.emit([{ type: 'create', path: duplicateMetadata.path }])
 
       expect(metadataCache.get('skill-b')).toEqual(existingMetadata)
       expect(logger.warn).toHaveBeenCalledWith(
@@ -2148,24 +2291,24 @@ describe('SkillPresenter', () => {
   })
 
   describe('stopWatching', () => {
-    it('should stop the file watcher', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.stopWatching()
+    it('should stop the file watcher', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.stopWatching()
 
       // Watcher should be null after stopping
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 
   describe('destroy', () => {
-    it('should cleanup all resources', () => {
-      skillPresenter.watchSkillFiles()
-      skillPresenter.destroy()
+    it('should cleanup all resources', async () => {
+      await skillPresenter.watchSkillFiles()
+      await skillPresenter.destroy()
 
       // Should be able to start watcher again after destroy
-      skillPresenter.watchSkillFiles()
-      expect(watch).toHaveBeenCalledTimes(2)
+      await skillPresenter.watchSkillFiles()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
     })
   })
 })

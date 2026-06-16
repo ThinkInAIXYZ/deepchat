@@ -210,6 +210,10 @@
         "title": "Aucun espace de travail",
         "description": "Sélectionnez ou faites glisser un dossier pour définir l'espace de travail",
         "button": "Sélectionner un dossier"
+      },
+      "watchStatus": {
+        "degraded": "La surveillance fonctionne en mode de secours. Les changements peuvent s’actualiser plus lentement.",
+        "failed": "La surveillance des fichiers est indisponible. Actualisez ou resélectionnez l’espace de travail."
       }
     },
     "git": {

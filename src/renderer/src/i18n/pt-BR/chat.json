@@ -210,6 +210,10 @@
         "title": "Sem espaço de trabalho",
         "description": "Selecione ou arraste uma pasta para definir o espaço de trabalho",
         "button": "Selecionar pasta"
+      },
+      "watchStatus": {
+        "degraded": "O monitoramento está em modo de fallback. As alterações podem ser atualizadas mais lentamente.",
+        "failed": "O monitoramento de arquivos está indisponível. Atualize ou selecione novamente o espaço de trabalho."
       }
     },
     "git": {

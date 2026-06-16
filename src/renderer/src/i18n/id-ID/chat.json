@@ -260,6 +260,10 @@
         "openFile": "membuka berkas",
         "revealInFolder": "Buka di pengelola file",
         "insertPath": "Masukkan ke dalam kotak masukan"
+      },
+      "watchStatus": {
+        "degraded": "Pemantauan berjalan dalam mode cadangan. Perubahan mungkin dimuat ulang lebih lambat.",
+        "failed": "Pemantauan file tidak tersedia. Segarkan atau pilih ulang ruang kerja."
       }
     },
     "git": {

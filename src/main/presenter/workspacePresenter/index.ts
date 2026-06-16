@@ -4,8 +4,15 @@ import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
 import { shell } from 'electron'
-import { FSWatcher, watch } from 'chokidar'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import {
+  createWatcherRequestId,
+  getFileWatcherService,
+  type IFileWatcherService,
+  type WatcherEventBatch,
+  type WatcherStatus,
+  type WatchHandle
+} from '@/lib/fileWatcher'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
@@ -29,6 +36,7 @@ import type {
   WorkspaceInvalidationEvent,
   WorkspaceInvalidationKind,
   WorkspaceInvalidationSource,
+  WorkspaceWatchStatusEvent,
   WorkspaceLinkedFileResolution
 } from '@shared/presenter'
 
@@ -64,14 +72,12 @@ const WATCH_IGNORED_DIRS = [
 ] as const
 
 const WATCH_DEBOUNCE_MS = 120
-const WATCH_STABILITY_THRESHOLD_MS = 250
-const WATCH_POLL_INTERVAL_MS = 100
 
 type WorkspaceWatchRuntime = {
   workspacePath: string
   refCount: number
-  contentWatcher: FSWatcher
-  gitWatcher: FSWatcher | null
+  contentWatcher: WatchHandle | null
+  gitWatcher: WatchHandle | null
   gitWatchKey: string | null
   debounceTimer: NodeJS.Timeout | null
   pendingKind: WorkspaceInvalidationKind | null
@@ -103,10 +109,15 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   private readonly allowedPaths = new Set<string>()
   private readonly allowedExactPaths = new Set<string>()
   private readonly filePresenter: IFilePresenter
+  private readonly watcherService: IFileWatcherService
   private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
 
-  constructor(filePresenter: IFilePresenter) {
+  constructor(
+    filePresenter: IFilePresenter,
+    watcherService: IFileWatcherService = getFileWatcherService()
+  ) {
     this.filePresenter = filePresenter
+    this.watcherService = watcherService
   }
 
   async registerWorkspace(workspacePath: string): Promise<void> {
@@ -145,7 +156,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     const runtime: WorkspaceWatchRuntime = {
       workspacePath: normalized,
       refCount: 1,
-      contentWatcher: this.createContentWatcher(normalized),
+      contentWatcher: null,
       gitWatcher: null,
       gitWatchKey: null,
       debounceTimer: null,
@@ -155,7 +166,19 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
 
     this.watchRuntimes.set(normalized, runtime)
-    await this.refreshGitWatcher(runtime)
+    try {
+      runtime.contentWatcher = await this.createContentWatcher(normalized)
+      if (runtime.disposed || this.watchRuntimes.get(normalized) !== runtime) {
+        await runtime.contentWatcher.close()
+        runtime.contentWatcher = null
+        return
+      }
+      await this.refreshGitWatcher(runtime)
+    } catch (error) {
+      this.watchRuntimes.delete(normalized)
+      await this.disposeRuntime(runtime)
+      throw error
+    }
   }
 
   async unwatchWorkspace(workspacePath: string): Promise<void> {
@@ -174,12 +197,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     await this.disposeRuntime(runtime)
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     const runtimes = Array.from(this.watchRuntimes.values())
     this.watchRuntimes.clear()
-    for (const runtime of runtimes) {
-      void this.disposeRuntime(runtime)
-    }
+    await Promise.allSettled(runtimes.map((runtime) => this.disposeRuntime(runtime)))
 
     for (const exactPath of this.allowedExactPaths) {
       unregisterWorkspacePreviewFile(exactPath)
@@ -187,38 +208,75 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     this.allowedExactPaths.clear()
   }
 
-  private createContentWatcher(workspacePath: string): FSWatcher {
-    const watcher = watch(workspacePath, {
-      ignoreInitial: true,
-      atomic: true,
-      followSymlinks: false,
-      ignored: (watchPath) => this.shouldIgnoreContentWatchPath(watchPath),
-      awaitWriteFinish: {
-        stabilityThreshold: WATCH_STABILITY_THRESHOLD_MS,
-        pollInterval: WATCH_POLL_INTERVAL_MS
-      }
-    })
+  private async createContentWatcher(workspacePath: string): Promise<WatchHandle> {
+    return await this.watcherService.watch(
+      {
+        id: createWatcherRequestId('content', 'workspace-content', workspacePath),
+        rootPath: workspacePath,
+        hostKind: 'content',
+        purpose: 'workspace-content',
+        recursive: true,
+        excludes: this.createContentWatchExcludes(workspacePath),
+        fallbackMode: 'snapshot-polling'
+      },
+      (batch) => this.handleContentWatchBatch(workspacePath, batch),
+      (status) => this.emitWatchStatus(workspacePath, status)
+    )
+  }
 
-    watcher.on('all', (_eventName, targetPath) => {
-      const runtime = this.watchRuntimes.get(workspacePath)
-      if (!runtime || runtime.disposed) {
+  private handleContentWatchBatch(workspacePath: string, batch: WatcherEventBatch): void {
+    const runtime = this.watchRuntimes.get(workspacePath)
+    if (!runtime || runtime.disposed) {
+      return
+    }
+
+    const source = this.getInvalidationSourceForBatch(batch)
+    let shouldInvalidateFs = false
+
+    for (const event of batch.events) {
+      if (event.type === 'overflow' || event.type === 'root-deleted') {
+        void this.refreshGitWatcher(runtime).catch((error) => {
+          console.warn('[Workspace] Failed to refresh git watcher', {
+            workspacePath: runtime.workspacePath,
+            error
+          })
+        })
+        this.scheduleInvalidation(runtime, 'full', source)
         return
       }
 
-      if (this.isGitDirectoryEvent(targetPath)) {
-        void this.refreshGitWatcher(runtime)
-        this.scheduleInvalidation(runtime, 'full', 'watcher')
+      if (this.shouldIgnoreContentWatchPath(event.path)) {
+        continue
+      }
+
+      if (this.isGitDirectoryEvent(event.path)) {
+        void this.refreshGitWatcher(runtime).catch((error) => {
+          console.warn('[Workspace] Failed to refresh git watcher', {
+            workspacePath: runtime.workspacePath,
+            error
+          })
+        })
+        this.scheduleInvalidation(runtime, 'full', source)
         return
       }
 
-      this.scheduleInvalidation(runtime, 'fs', 'watcher')
-    })
+      shouldInvalidateFs = true
+    }
 
-    watcher.on('error', (error) => {
-      console.error(`[Workspace] Content watcher error for ${workspacePath}:`, error)
-    })
+    if (shouldInvalidateFs) {
+      this.scheduleInvalidation(runtime, 'fs', source)
+    }
+  }
 
-    return watcher
+  private createContentWatchExcludes(workspacePath: string): string[] {
+    const root = workspacePath.split(path.sep).join('/')
+    return [
+      `${root}/.git/**`,
+      ...WATCH_IGNORED_DIRS.flatMap((segment) => [
+        `${root}/${segment}/**`,
+        `${root}/**/${segment}/**`
+      ])
+    ]
   }
 
   private shouldIgnoreContentWatchPath(watchPath: string): boolean {
@@ -273,7 +331,8 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       const payload: WorkspaceInvalidationEvent = {
         workspacePath: runtime.workspacePath,
         kind: runtime.pendingKind ?? kind,
-        source: runtime.pendingSource ?? source
+        source: runtime.pendingSource ?? source,
+        version: Date.now()
       }
       runtime.pendingKind = null
       runtime.pendingSource = null
@@ -282,10 +341,23 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   }
 
   private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
-    publishDeepchatEvent('workspace.invalidated', {
-      ...payload,
-      version: Date.now()
-    })
+    publishDeepchatEvent('workspace.invalidated', payload)
+  }
+
+  private emitWatchStatus(workspacePath: string, status: WatcherStatus): void {
+    const payload: WorkspaceWatchStatusEvent = {
+      workspacePath,
+      health: status.health,
+      mode: status.mode,
+      reason: status.reason,
+      message: status.message,
+      version: status.version
+    }
+    publishDeepchatEvent('workspace.watch.status.changed', payload)
+  }
+
+  private getInvalidationSourceForBatch(batch: WatcherEventBatch): WorkspaceInvalidationSource {
+    return batch.mode === 'native' ? 'watcher' : 'fallback'
   }
 
   private async refreshGitWatcher(runtime: WorkspaceWatchRuntime): Promise<void> {
@@ -295,7 +367,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       return
     }
 
-    const nextWatchKey = metadata ? metadata.paths.join('\0') : null
+    const nextWatchKey = metadata ? `${metadata.watchRoot}\0${metadata.paths.join('\0')}` : null
     if (runtime.gitWatchKey === nextWatchKey) {
       return
     }
@@ -312,27 +384,36 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       return
     }
 
-    const gitWatcher = watch(metadata.paths, {
-      ignoreInitial: true,
-      atomic: true,
-      followSymlinks: false,
-      awaitWriteFinish: {
-        stabilityThreshold: WATCH_STABILITY_THRESHOLD_MS,
-        pollInterval: WATCH_POLL_INTERVAL_MS
-      }
-    })
+    const gitWatcher = await this.watcherService.watch(
+      {
+        id: createWatcherRequestId(
+          'git',
+          'workspace-git',
+          `${runtime.workspacePath}:${nextWatchKey}`
+        ),
+        rootPath: metadata.watchRoot,
+        hostKind: 'git',
+        purpose: 'workspace-git',
+        recursive: true,
+        includes: metadata.paths,
+        fallbackMode: 'git-metadata-polling'
+      },
+      (batch) => {
+        const currentRuntime = this.watchRuntimes.get(runtime.workspacePath)
+        if (!currentRuntime || currentRuntime !== runtime || runtime.disposed) {
+          return
+        }
 
-    gitWatcher.on('all', () => {
-      const currentRuntime = this.watchRuntimes.get(runtime.workspacePath)
-      if (!currentRuntime || currentRuntime !== runtime || runtime.disposed) {
-        return
-      }
-      this.scheduleInvalidation(runtime, 'git', 'watcher')
-    })
-
-    gitWatcher.on('error', (error) => {
-      console.error(`[Workspace] Git watcher error for ${runtime.workspacePath}:`, error)
-    })
+        const source = this.getInvalidationSourceForBatch(batch)
+        const kind = batch.events.some(
+          (event) => event.type === 'overflow' || event.type === 'root-deleted'
+        )
+          ? 'full'
+          : 'git'
+        this.scheduleInvalidation(runtime, kind, source)
+      },
+      (status) => this.emitWatchStatus(runtime.workspacePath, status)
+    )
 
     if (runtime.disposed || this.watchRuntimes.get(runtime.workspacePath) !== runtime) {
       await gitWatcher.close()
@@ -344,7 +425,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
   private async resolveGitWatchMetadata(
     workspacePath: string
-  ): Promise<{ repoRoot: string; paths: string[] } | null> {
+  ): Promise<{ repoRoot: string; watchRoot: string; paths: string[] } | null> {
     const repoRoot = await this.resolveGitWorkspace(workspacePath)
     if (!repoRoot) {
       return null
@@ -357,9 +438,12 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       this.resolveGitPath(workspacePath, 'refs')
     ])
 
+    const lockPaths = [headPath, indexPath, packedRefsPath]
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => `${value}.lock`)
     const paths = Array.from(
       new Set(
-        [headPath, indexPath, packedRefsPath, refsPath].filter(
+        [headPath, indexPath, packedRefsPath, refsPath, ...lockPaths].filter(
           (value): value is string => typeof value === 'string'
         )
       )
@@ -368,7 +452,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       return null
     }
 
-    return { repoRoot, paths }
+    return { repoRoot, watchRoot: repoRoot, paths }
   }
 
   private async resolveGitPath(workspacePath: string, key: string): Promise<string | null> {
@@ -395,7 +479,11 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       runtime.debounceTimer = null
     }
 
-    const closures: Array<Promise<void>> = [runtime.contentWatcher.close()]
+    const closures: Array<Promise<void>> = []
+    if (runtime.contentWatcher) {
+      closures.push(runtime.contentWatcher.close())
+      runtime.contentWatcher = null
+    }
     if (runtime.gitWatcher) {
       closures.push(runtime.gitWatcher.close())
       runtime.gitWatcher = null

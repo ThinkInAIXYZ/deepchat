@@ -116,7 +116,10 @@ import {
   upgradeWillRestartEvent
 } from './events/upgrade.events'
 import { windowStateChangedEvent } from './events/window.events'
-import { workspaceInvalidatedEvent } from './events/workspace.events'
+import {
+  workspaceInvalidatedEvent,
+  workspaceWatchStatusChangedEvent
+} from './events/workspace.events'
 
 export * from './events/browser.events'
 export * from './events/acp-terminal.events'
@@ -145,6 +148,7 @@ export * from './events/workspace.events'
 export const DEEPCHAT_EVENT_CATALOG = {
   [windowStateChangedEvent.name]: windowStateChangedEvent,
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
+  [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,

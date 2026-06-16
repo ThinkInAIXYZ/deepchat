@@ -260,6 +260,10 @@
         "openFile": "buka fail",
         "revealInFolder": "Buka dalam pengurus fail",
         "insertPath": "Masukkan ke dalam kotak input"
+      },
+      "watchStatus": {
+        "degraded": "Pemantauan berjalan dalam mod sandaran. Perubahan mungkin dimuat semula dengan lebih perlahan.",
+        "failed": "Pemantauan fail tidak tersedia. Muat semula atau pilih semula ruang kerja."
       }
     },
     "git": {

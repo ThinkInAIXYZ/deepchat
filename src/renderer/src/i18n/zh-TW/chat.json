@@ -218,7 +218,11 @@
         "description": "選擇或拖拽資料夾來設定工作區",
         "button": "選擇資料夾"
       },
-      "section": "文件"
+      "section": "文件",
+      "watchStatus": {
+        "degraded": "正以備援模式監看檔案，變更可能會較慢重新整理。",
+        "failed": "檔案監看暫不可用，請重新整理或重新選擇工作區。"
+      }
     },
     "git": {
       "empty": "暫無可顯示的 diff",

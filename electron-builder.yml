@@ -36,6 +36,8 @@ asarUnpack:
   - '**/node_modules/@opendal/**/*'
   - '**/node_modules/ffi-rs/**/*'
   - '**/node_modules/@yuuang/ffi-rs-*/**/*'
+  - '**/node_modules/@parcel/watcher/**/*'
+  - '**/node_modules/@parcel/watcher-*/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime

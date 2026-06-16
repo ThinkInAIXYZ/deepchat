@@ -1533,7 +1533,8 @@ describe('main kernel contracts', () => {
         'upgrade.status.changed',
         'upgrade.willRestart',
         'window.state.changed',
-        'workspace.invalidated'
+        'workspace.invalidated',
+        'workspace.watch.status.changed'
       ])
     )
     expect(new Set(eventKeys).size).toBe(eventKeys.length)

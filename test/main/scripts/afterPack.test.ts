@@ -61,55 +61,77 @@ describe('afterPack', () => {
   })
 
   it.each([
-    ['arm64', 3, 'fff-bin-darwin-arm64'],
-    ['x64', 1, 'fff-bin-darwin-x64']
-  ])('copies FFF native packages into unpacked mac %s app node_modules', async (_, arch, packageDir) => {
-    const afterPack = await loadAfterPack()
-    const projectDir = path.join(tmpDir, 'project')
-    const sourceDir = path.join(
-      projectDir,
-      'node_modules',
-      '.pnpm',
-      'node_modules',
-      '@ff-labs',
-      packageDir
-    )
-    const nodeModulesDir = path.join(
-      tmpDir,
-      'DeepChat.app',
-      'Contents',
-      'Resources',
-      'app.asar.unpacked',
-      'node_modules'
-    )
-
-    await writeFile(path.join(tmpDir, 'DeepChat'), 'launcher')
-    await mkdir(sourceDir, { recursive: true })
-    await mkdir(path.join(nodeModulesDir, '@ff-labs', 'fff-node'), { recursive: true })
-    await writeFile(path.join(sourceDir, 'package.json'), `{"name":"@ff-labs/${packageDir}"}`)
-    await writeFile(path.join(sourceDir, 'libfff_c.dylib'), 'native')
-    await writeFile(path.join(nodeModulesDir, '@ff-labs', 'fff-node', 'package.json'), '{}')
-
-    await afterPack({
-      targets: [],
-      appOutDir: tmpDir,
-      electronPlatformName: 'darwin',
-      arch,
-      packager: {
+    ['arm64', 3, 'fff-bin-darwin-arm64', 'watcher-darwin-arm64'],
+    ['x64', 1, 'fff-bin-darwin-x64', 'watcher-darwin-x64']
+  ])(
+    'copies native packages into unpacked mac %s app node_modules',
+    async (_, arch, fffPackageDir, parcelPackageDir) => {
+      const afterPack = await loadAfterPack()
+      const projectDir = path.join(tmpDir, 'project')
+      const fffSourceDir = path.join(
         projectDir,
-        appInfo: {
-          productFilename: 'DeepChat'
-        }
-      }
-    })
-
-    await expect(
-      readFile(
-        path.join(nodeModulesDir, '@ff-labs', packageDir, 'libfff_c.dylib'),
-        'utf8'
+        'node_modules',
+        '.pnpm',
+        'node_modules',
+        '@ff-labs',
+        fffPackageDir
       )
-    ).resolves.toBe('native')
-  })
+      const parcelSourceDir = path.join(
+        projectDir,
+        'node_modules',
+        '.pnpm',
+        'node_modules',
+        '@parcel',
+        parcelPackageDir
+      )
+      const nodeModulesDir = path.join(
+        tmpDir,
+        'DeepChat.app',
+        'Contents',
+        'Resources',
+        'app.asar.unpacked',
+        'node_modules'
+      )
+
+      await writeFile(path.join(tmpDir, 'DeepChat'), 'launcher')
+      await mkdir(fffSourceDir, { recursive: true })
+      await mkdir(parcelSourceDir, { recursive: true })
+      await mkdir(path.join(nodeModulesDir, '@ff-labs', 'fff-node'), { recursive: true })
+      await mkdir(path.join(nodeModulesDir, '@parcel', 'watcher'), { recursive: true })
+      await writeFile(
+        path.join(fffSourceDir, 'package.json'),
+        `{"name":"@ff-labs/${fffPackageDir}"}`
+      )
+      await writeFile(
+        path.join(parcelSourceDir, 'package.json'),
+        `{"name":"@parcel/${parcelPackageDir}"}`
+      )
+      await writeFile(path.join(fffSourceDir, 'libfff_c.dylib'), 'native')
+      await writeFile(path.join(parcelSourceDir, 'watcher.node'), 'parcel-native')
+      await writeFile(path.join(nodeModulesDir, '@ff-labs', 'fff-node', 'package.json'), '{}')
+      await writeFile(path.join(nodeModulesDir, '@parcel', 'watcher', 'package.json'), '{}')
+
+      await afterPack({
+        targets: [],
+        appOutDir: tmpDir,
+        electronPlatformName: 'darwin',
+        arch,
+        packager: {
+          projectDir,
+          appInfo: {
+            productFilename: 'DeepChat'
+          }
+        }
+      })
+
+      await expect(
+        readFile(path.join(nodeModulesDir, '@ff-labs', fffPackageDir, 'libfff_c.dylib'), 'utf8')
+      ).resolves.toBe('native')
+      await expect(
+        readFile(path.join(nodeModulesDir, '@parcel', parcelPackageDir, 'watcher.node'), 'utf8')
+      ).resolves.toBe('parcel-native')
+    }
+  )
 
   it('fails fast when FFF node output is missing for supported packages', async () => {
     const afterPack = await loadAfterPack()
