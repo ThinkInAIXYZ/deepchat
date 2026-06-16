@@ -175,6 +175,42 @@ describe('Provider DB strict matching + user overrides', () => {
               }
             }
           ]
+        },
+        minimax: {
+          id: 'minimax',
+          name: 'MiniMax',
+          models: [
+            {
+              id: 'MiniMax-M2.5',
+              limit: { context: 204800, output: 131072 },
+              modalities: { input: ['text'], output: ['text'] },
+              tool_call: true,
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true
+                }
+              }
+            },
+            {
+              id: 'MiniMax-M3',
+              limit: { context: 512000, output: 128000 },
+              modalities: { input: ['text', 'image', 'video'], output: ['text'] },
+              tool_call: true,
+              reasoning: {
+                supported: true,
+                default: true
+              },
+              extra_capabilities: {
+                reasoning: {
+                  supported: true
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -323,6 +359,63 @@ describe('Provider DB strict matching + user overrides', () => {
     // DB lookup lowercases internally
     expect(cfg.contextLength).toBe(10000)
     expect(cfg.maxTokens).toBe(2000)
+  })
+
+  it('matches mixed-case provider DB model IDs case-insensitively', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('minimax-m2.5', 'minimax')
+
+    expect(cfg.contextLength).toBe(204800)
+    expect(cfg.maxTokens).toBe(32000)
+    expect(cfg.functionCall).toBe(true)
+    expect(cfg.reasoning).toBe(true)
+  })
+
+  it('applies MiniMax-M3 provider defaults when the provider DB cache is stale', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+
+    const cfg = helper.getModelConfig('minimax-m3', 'minimax')
+
+    expect(cfg.contextLength).toBe(1_000_000)
+    expect(cfg.maxTokens).toBe(32000)
+    expect(cfg.vision).toBe(true)
+    expect(cfg.functionCall).toBe(true)
+    expect(cfg.reasoning).toBe(true)
+    expect(cfg.forceInterleavedThinkingCompat).toBe(true)
+  })
+
+  it('keeps MiniMax-M3 context floor after provider cache merge', () => {
+    const helper = new ModelConfigHelper('1.0.0')
+    const helperAny = helper as any
+    const providerCacheKey = helperAny.generateCacheKey('minimax', 'minimax-m3')
+
+    helper.importConfigs(
+      {
+        [providerCacheKey]: {
+          id: 'minimax-m3',
+          providerId: 'minimax',
+          source: 'provider',
+          config: {
+            maxTokens: 32000,
+            contextLength: 512000,
+            temperature: 0.6,
+            vision: true,
+            functionCall: true,
+            reasoning: true,
+            type: ModelType.Chat,
+            isUserDefined: false
+          }
+        }
+      },
+      false
+    )
+
+    const cfg = helper.getModelConfig('minimax-m3', 'minimax')
+
+    expect(cfg.contextLength).toBe(1_000_000)
+    expect(cfg.forceInterleavedThinkingCompat).toBe(true)
+    expect(cfg.isUserDefined).toBe(false)
   })
 
   it('prefers portrait defaults over legacy reasoning defaults', () => {

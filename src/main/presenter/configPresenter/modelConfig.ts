@@ -34,6 +34,20 @@ import type { StoreLike } from './storeLike'
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
+const MINIMAX_M3_CONTEXT_LENGTH = 1_000_000
+
+const normalizeProviderDbModelId = (modelId: string | undefined): string | undefined => {
+  const normalized = modelId ? modelId.toLowerCase() : modelId
+  return normalized ? normalized.replace(/^models\//, '') : normalized
+}
+
+const isMiniMaxProviderId = (providerId: string | undefined): boolean => {
+  const normalized = providerId?.trim().toLowerCase()
+  return normalized === 'minimax' || normalized === 'minimax-cn'
+}
+
+const isMiniMaxM3Model = (providerId: string | undefined, modelId: string): boolean =>
+  isMiniMaxProviderId(providerId) && modelId.trim().toLowerCase() === 'minimax-m3'
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null,
@@ -154,7 +168,17 @@ export class ModelConfigHelper {
       return config
     }
 
-    return applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+    const policyConfig = applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+
+    if (!isMiniMaxM3Model(providerId, modelId)) {
+      return policyConfig
+    }
+
+    return {
+      ...policyConfig,
+      contextLength: Math.max(policyConfig.contextLength ?? 0, MINIMAX_M3_CONTEXT_LENGTH),
+      forceInterleavedThinkingCompat: true
+    }
   }
 
   private buildConfigFromProviderModel(model: ProviderModel, providerId: string): ModelConfig {
@@ -178,10 +202,13 @@ export class ModelConfigHelper {
       portrait,
       portrait?.verbosity ?? model.reasoning?.verbosity
     )
+    const contextLimit = isMiniMaxM3Model(providerId, model.id)
+      ? Math.max(model.limit?.context ?? 0, MINIMAX_M3_CONTEXT_LENGTH)
+      : model.limit?.context
 
     return this.applyProviderSpecificPolicies(providerId, model.id, {
       maxTokens: resolveDerivedModelMaxTokens(model.limit?.output),
-      contextLength: resolveModelContextLength(model.limit?.context),
+      contextLength: resolveModelContextLength(contextLimit),
       timeout: DEFAULT_MODEL_TIMEOUT,
       temperature: 0.6,
       topP: undefined,
@@ -199,7 +226,9 @@ export class ModelConfigHelper {
               ? ApiEndpointType.AudioSpeech
               : ApiEndpointType.Chat,
       thinkingBudget,
-      forceInterleavedThinkingCompat,
+      forceInterleavedThinkingCompat: isMiniMaxM3Model(providerId, model.id)
+        ? true
+        : forceInterleavedThinkingCompat,
       reasoningEffort,
       reasoningVisibility,
       verbosity,
@@ -455,7 +484,7 @@ export class ModelConfigHelper {
     ) {
       for (let i = 0; i < providerEntry.models.length; i += 1) {
         const candidate = providerEntry.models[i]
-        if (candidate && candidate.id === normModelId) {
+        if (candidate && normalizeProviderDbModelId(candidate.id) === normModelId) {
           finalConfig = this.buildConfigFromProviderModel(candidate, resolvedProviderId)
           break
         }
@@ -472,7 +501,7 @@ export class ModelConfigHelper {
 
         for (let j = 0; j < candidateProvider.models.length; j += 1) {
           const candidateModel = candidateProvider.models[j]
-          if (candidateModel && candidateModel.id === normModelId) {
+          if (candidateModel && normalizeProviderDbModelId(candidateModel.id) === normModelId) {
             finalConfig = this.buildConfigFromProviderModel(candidateModel, candidateProvider.id)
             break
           }

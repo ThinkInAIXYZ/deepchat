@@ -313,6 +313,57 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
+  it('maps MiniMax-M3 reasoning to Anthropic-compatible adaptive thinking', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: true
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'minimax',
+      capabilityProviderId: 'minimax',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'MiniMax-M3',
+      modelConfig: {
+        reasoning: true
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toEqual({
+      toolStreaming: false,
+      thinking: {
+        type: 'adaptive'
+      }
+    })
+  })
+
+  it('does not send MiniMax-M3 adaptive thinking when reasoning is disabled', () => {
+    mockGetReasoningPortrait.mockReturnValue({
+      supported: true,
+      defaultEnabled: true
+    })
+
+    const result = buildProviderOptions({
+      providerId: 'minimax',
+      capabilityProviderId: 'minimax',
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic',
+      modelId: 'MiniMax-M3',
+      modelConfig: {
+        reasoning: false
+      } as any,
+      tools: [],
+      messages: []
+    })
+
+    expect(result.providerOptions?.anthropic).toEqual({
+      toolStreaming: false
+    })
+  })
+
   it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
     const result = buildProviderOptions({
       providerId: 'aws-bedrock',
