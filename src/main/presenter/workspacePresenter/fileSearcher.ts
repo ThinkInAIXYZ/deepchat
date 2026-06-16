@@ -23,6 +23,8 @@ const DEFAULT_CACHE_LIMIT = 200
 const MAX_CACHE_FILES = 500
 const FFF_GLOB_PAGE_SIZE = 500
 const FFF_UI_SCAN_TIMEOUT_MS = 2_500
+const FILESYSTEM_FALLBACK_SCAN_TIMEOUT_MS = 2_500
+const FILESYSTEM_FALLBACK_MAX_ENTRIES = 20_000
 const CACHE_TTL_MS = 30_000
 const MAX_CACHE_ENTRIES = 50
 const MTIME_CACHE_TTL_MS = 60_000
@@ -232,7 +234,9 @@ const scanFilesystemFiles = async (
 ): Promise<{ files: string[]; complete: boolean }> => {
   const files: string[] = []
   const queue = [workspacePath]
+  const startedAt = Date.now()
   let queueIndex = 0
+  let scannedEntries = 0
   let stoppedEarly = false
 
   while (queueIndex < queue.length) {
@@ -252,6 +256,15 @@ const scanFilesystemFiles = async (
     })
 
     for (const entry of entries) {
+      scannedEntries += 1
+      if (
+        scannedEntries > FILESYSTEM_FALLBACK_MAX_ENTRIES ||
+        Date.now() - startedAt > FILESYSTEM_FALLBACK_SCAN_TIMEOUT_MS
+      ) {
+        stoppedEarly = true
+        break
+      }
+
       const filePath = path.join(currentDir, entry.name)
       if (isExcluded(workspacePath, filePath, excludePatterns)) {
         continue
