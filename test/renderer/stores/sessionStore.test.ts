@@ -999,3 +999,60 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSession.value?.status).toBe('none')
   })
 })
+
+describe('sessionStore pagination', () => {
+  it('excludes subagent sessions from the initial sidebar page request', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    await store.fetchSessions()
+
+    expect(sessionClient.listLightweight).toHaveBeenCalledWith(
+      expect.objectContaining({ includeSubagents: false })
+    )
+  })
+
+  it('keeps excluding subagents when loading the next page', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
+      hasMore: true,
+      nextCursor: { updatedAt: 30, id: 'session-a' }
+    })
+    await store.fetchSessions()
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await store.loadNextPage()
+
+    const lastCall = sessionClient.listLightweight.mock.calls.at(-1)?.[0]
+    expect(lastCall).toMatchObject({
+      includeSubagents: false,
+      cursor: { updatedAt: 30, id: 'session-a' }
+    })
+    expect(store.hasMore.value).toBe(false)
+    expect(store.sessions.value.map((session: { id: string }) => session.id)).toEqual([
+      'session-a',
+      'session-b'
+    ])
+  })
+
+  it('does not request more pages once hasMore is false', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await store.fetchSessions()
+
+    const callsAfterInitial = sessionClient.listLightweight.mock.calls.length
+    await store.loadNextPage()
+
+    expect(sessionClient.listLightweight.mock.calls.length).toBe(callsAfterInitial)
+  })
+})
