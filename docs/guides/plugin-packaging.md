@@ -177,7 +177,7 @@ uploading artifacts.
 The release workflow (`.github/workflows/release.yml`) repeats the same steps. Final release
 uploads app artifacts only; `.dcplugin` files are not published as separate GitHub Release assets.
 
-Expected embedded files (macOS example):
+Expected embedded files across platform-specific app packages:
 
 ```text
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-x64.dcplugin

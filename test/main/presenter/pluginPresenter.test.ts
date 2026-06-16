@@ -793,7 +793,7 @@ describe('PluginPresenter', () => {
     const manifestTools = manifest.toolPolicies.find(
       (item: { serverId: string }) => item.serverId === 'cua-driver'
     ).tools
-    const expectedAllow = [
+    const EXPECTED_ALLOW = [
       'check_permissions',
       'list_apps',
       'list_windows',
@@ -809,7 +809,7 @@ describe('PluginPresenter', () => {
       'start_session',
       'end_session'
     ]
-    const expectedAsk = [
+    const EXPECTED_ASK = [
       'launch_app',
       'kill_app',
       'bring_to_front',
@@ -840,11 +840,11 @@ describe('PluginPresenter', () => {
       'page'
     ]
 
-    for (const tool of expectedAllow) {
+    for (const tool of EXPECTED_ALLOW) {
       expect(manifestTools[tool]).toBe('allow')
       expect(policy.tools[tool]).toBe('allow')
     }
-    for (const tool of expectedAsk) {
+    for (const tool of EXPECTED_ASK) {
       expect(manifestTools[tool]).toBe('ask')
       expect(policy.tools[tool]).toBe('ask')
     }

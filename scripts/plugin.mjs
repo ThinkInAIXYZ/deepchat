@@ -38,6 +38,8 @@ function parseArgs(argv) {
     console.error('Missing required --plugin-root <path> argument for verify')
     process.exit(1)
   }
+  args.platform = String(args.platform).toLowerCase()
+  args.arch = String(args.arch).toLowerCase()
   return args
 }
 
@@ -83,11 +85,14 @@ function discoverOfficialPlugins() {
 }
 
 function isPluginSupported(plugin, targetPlatform, targetArch) {
+  const normalizedPlatform = String(targetPlatform).toLowerCase()
+  const normalizedArch = String(targetArch).toLowerCase()
   const platforms = new Set(plugin.platforms.map((platform) => String(platform).toLowerCase()))
-  const aliases = targetPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [targetPlatform]
+  const aliases =
+    normalizedPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [normalizedPlatform]
   const targets = plugin.targets.map((target) => String(target).toLowerCase())
   if (targets.length > 0) {
-    return aliases.some((platform) => targets.includes(`${platform}/${targetArch}`))
+    return aliases.some((platform) => targets.includes(`${platform}/${normalizedArch}`))
   }
   return aliases.some((platform) => platforms.has(platform))
 }

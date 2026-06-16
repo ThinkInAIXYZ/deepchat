@@ -59,6 +59,8 @@ function parseArgs(argv) {
   if (!args.pluginDir) {
     throw new Error('Usage: node scripts/package-plugin.mjs [--validate] [--out <dir>] <pluginDir>')
   }
+  args.targetPlatform = String(args.targetPlatform).toLowerCase()
+  args.targetArch = String(args.targetArch).toLowerCase()
   return args
 }
 
@@ -218,11 +220,14 @@ function targetKey(targetPlatform, targetArch) {
 }
 
 function isManifestTargetSupported(manifest, targetPlatform, targetArch) {
-  const aliases = targetPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [targetPlatform]
+  const normalizedPlatform = String(targetPlatform).toLowerCase()
+  const normalizedArch = String(targetArch).toLowerCase()
+  const aliases =
+    normalizedPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [normalizedPlatform]
   const targets = manifest.engines?.targets ?? []
   if (targets.length > 0) {
     const supportedTargets = targets.map((target) => String(target).toLowerCase())
-    return aliases.some((platform) => supportedTargets.includes(`${platform}/${targetArch}`))
+    return aliases.some((platform) => supportedTargets.includes(`${platform}/${normalizedArch}`))
   }
 
   const platforms = new Set(

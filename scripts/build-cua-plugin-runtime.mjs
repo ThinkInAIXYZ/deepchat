@@ -153,13 +153,18 @@ async function downloadFile(url, outputPath) {
     return
   }
 
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`)
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`)
+    }
+    const buffer = Buffer.from(await response.arrayBuffer())
+    await fs.mkdir(path.dirname(outputPath), { recursive: true })
+    await fs.writeFile(outputPath, buffer)
+  } catch (error) {
+    await fs.rm(outputPath, { force: true })
+    throw error
   }
-  const buffer = Buffer.from(await response.arrayBuffer())
-  await fs.mkdir(path.dirname(outputPath), { recursive: true })
-  await fs.writeFile(outputPath, buffer)
 }
 
 async function sha256File(filePath) {
@@ -183,10 +188,12 @@ async function verifyChecksum(checksumsPath, assetPath, assetName) {
   const checksums = parseChecksums(await fs.readFile(checksumsPath, 'utf8'))
   const expected = checksums.get(assetName)
   if (!expected) {
+    await fs.rm(checksumsPath, { force: true })
     throw new Error(`checksums.txt does not contain ${assetName}`)
   }
   const actual = await sha256File(assetPath)
   if (actual !== expected) {
+    await fs.rm(assetPath, { force: true })
     throw new Error(`Checksum mismatch for ${assetName}. Expected ${expected}, got ${actual}`)
   }
 }
@@ -383,8 +390,12 @@ async function signDarwinHelper(runtimeDir) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const targetPlatform = args.get('platform') ?? process.env.TARGET_PLATFORM ?? process.platform
-  const targetArch = args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
+  const targetPlatform = String(
+    args.get('platform') ?? process.env.TARGET_PLATFORM ?? process.platform
+  ).toLowerCase()
+  const targetArch = String(
+    args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
+  ).toLowerCase()
   const metadata = await readUpstreamMetadata()
   const target = getTarget(targetPlatform, targetArch, metadata)
   const cacheDir = process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE
