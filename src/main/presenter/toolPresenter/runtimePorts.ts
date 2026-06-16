@@ -72,6 +72,21 @@ export interface AgentToolRuntimePort {
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
+  /** 当前对话所属 agent 是否启用了长期记忆。 */
+  isMemoryEnabled?(agentId: string): boolean
+  /** 写入长期记忆，返回新建记忆 id（已去重）。 */
+  rememberMemory?(
+    agentId: string,
+    input: { content: string; kind: 'semantic' | 'episodic'; importance?: number },
+    sourceSession?: string | null
+  ): Promise<string[]>
+  /** 召回与 query 相关的长期记忆。 */
+  recallMemory?(
+    agentId: string,
+    query: string
+  ): Promise<Array<{ id: string; kind: string; content: string }>>
+  /** 删除一条长期记忆。 */
+  forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
   mergeSubagentTape?(
     parentSessionId: string,

@@ -146,7 +146,35 @@
     "compactionDescription": "Pengaturan ini hanya memengaruhi sesi DeepChat berikutnya yang baru dibuat.",
     "compactionThreshold": "ambang batas pemicu",
     "compactionRetainPairs": "Simpan pesan terbaru",
-    "deleteConfirm": "Apakah Anda yakin ingin menghapus Agent \"{name}\"? Riwayat sesinya secara otomatis kembali ke DeepChat bawaan."
+    "deleteConfirm": "Apakah Anda yakin ingin menghapus Agent \"{name}\"? Riwayat sesinya secara otomatis kembali ke DeepChat bawaan.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Kelola memori",
+      "title": "Kelola memori",
+      "description": "Tinjau, hapus, atau bersihkan apa yang telah diingat agen ini, dan periksa model-diri yang berkembang.",
+      "degradedHint": "Tidak ada model embedding dikonfigurasi — pemanggilan hanya memakai pencarian kata kunci.",
+      "tabMemories": "Memori",
+      "tabPersona": "Linimasa persona",
+      "memoriesCount": "{count} memori",
+      "clearAll": "Bersihkan semua",
+      "clearConfirmTitle": "Bersihkan semua memori?",
+      "clearConfirmBody": "Ini menghapus permanen semua memori agen ini. Tidak dapat dibatalkan.",
+      "emptyMemories": "Belum ada memori. Memori terkumpul saat Anda mengobrol dengan agen ini.",
+      "emptyPersona": "Belum ada versi model-diri.",
+      "personaActive": "Aktif",
+      "rollback": "Kembalikan",
+      "actionFailed": "Tindakan gagal",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Terindeks",
+        "error": "Galat",
+        "fts_only": "Kata kunci saja"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Kait",

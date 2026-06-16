@@ -146,7 +146,35 @@
     "compactionDescription": "Tetapan ini hanya mempengaruhi sesi DeepChat yang baru dibuat berikutnya.",
     "compactionThreshold": "ambang pencetus",
     "compactionRetainPairs": "Simpan mesej terbaharu",
-    "deleteConfirm": "Adakah anda pasti mahu memadamkan Agent \"{name}\"? Sesi sejarahnya secara automatik kembali kepada DeepChat terbina dalam."
+    "deleteConfirm": "Adakah anda pasti mahu memadamkan Agent \"{name}\"? Sesi sejarahnya secara automatik kembali kepada DeepChat terbina dalam.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Urus ingatan",
+      "title": "Urus ingatan",
+      "description": "Semak, padam atau kosongkan apa yang ejen ini ingat, dan periksa model-diri yang berkembang.",
+      "degradedHint": "Tiada model embedding dikonfigurasi — ingatan semula hanya guna carian kata kunci.",
+      "tabMemories": "Ingatan",
+      "tabPersona": "Garis masa persona",
+      "memoriesCount": "{count} ingatan",
+      "clearAll": "Kosongkan semua",
+      "clearConfirmTitle": "Kosongkan semua ingatan?",
+      "clearConfirmBody": "Ini membuang secara kekal semua ingatan ejen ini. Tidak boleh dibatalkan.",
+      "emptyMemories": "Belum ada ingatan. Ia terkumpul semasa anda berbual dengan ejen ini.",
+      "emptyPersona": "Belum ada versi model-diri.",
+      "personaActive": "Aktif",
+      "rollback": "Undur",
+      "actionFailed": "Tindakan gagal",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Diindeks",
+        "error": "Ralat",
+        "fts_only": "Kata kunci sahaja"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Hooks",

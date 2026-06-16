@@ -39,6 +39,7 @@ import {
 import { AgentImageGenerationTool, IMAGE_GENERATE_TOOL_NAME } from './agentImageGenerationTool'
 import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
+import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
 import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
 
@@ -137,6 +138,7 @@ export class AgentToolManager {
   private imageGenerationTool: AgentImageGenerationTool | null = null
   private planTool: AgentPlanTool | null = null
   private tapeToolHandler: AgentTapeToolHandler | null = null
+  private memoryToolHandler: AgentMemoryToolHandler | null = null
   private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -306,6 +308,7 @@ export class AgentToolManager {
     })
     this.planTool = new AgentPlanTool()
     this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
+    this.memoryToolHandler = new AgentMemoryToolHandler(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -379,6 +382,17 @@ export class AgentToolManager {
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve tape tool availability', { error })
+      }
+    }
+
+    // 2.16. Long-term memory tools (only when the agent has memory enabled)
+    if (isAgentMode && this.memoryToolHandler) {
+      try {
+        if (await this.memoryToolHandler.canUse(context.conversationId)) {
+          defs.push(...this.memoryToolHandler.getToolDefinitions())
+        }
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to resolve memory tool availability', { error })
       }
     }
 
@@ -513,6 +527,10 @@ export class AgentToolManager {
 
     if (this.tapeToolHandler?.isTapeTool(toolName)) {
       return await this.tapeToolHandler.call(toolName, args, conversationId)
+    }
+
+    if (this.memoryToolHandler?.isMemoryTool(toolName)) {
+      return await this.memoryToolHandler.call(toolName, args, conversationId)
     }
 
     // Route to process tool

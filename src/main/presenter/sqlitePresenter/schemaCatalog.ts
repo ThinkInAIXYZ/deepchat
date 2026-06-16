@@ -21,6 +21,7 @@ import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { AgentMemoryTable } from './tables/agentMemory'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
@@ -134,7 +135,9 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       image_generation_options_json:
         'ALTER TABLE deepchat_sessions ADD COLUMN image_generation_options_json TEXT;',
       video_generation_options_json:
-        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;'
+        'ALTER TABLE deepchat_sessions ADD COLUMN video_generation_options_json TEXT;',
+      memory_cursor_order_seq:
+        'ALTER TABLE deepchat_sessions ADD COLUMN memory_cursor_order_seq INTEGER;'
     },
     typeCheckedColumns: [
       'summary_cursor_order_seq',
@@ -198,6 +201,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'agents',
     createTable: (db) => new AgentsTable(db)
+  },
+  {
+    name: 'agent_memory',
+    createTable: (db) => new AgentMemoryTable(db)
   },
   {
     name: 'new_session_active_skills',

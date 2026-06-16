@@ -68,6 +68,8 @@ import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { ScheduledTasksService } from './scheduledTasks'
 import { AgentSessionPresenter } from './agentSessionPresenter'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
+import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
+import { MemoryVectorStore } from './memoryPresenter/memoryVectorStore'
 import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
@@ -84,7 +86,10 @@ import type {
   SessionUiPort
 } from './runtimePorts'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
-import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
+import {
+  publishDeepchatEvent,
+  setDeepchatEventWindowPresenter
+} from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
@@ -120,6 +125,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   agentSessionPresenter: IAgentSessionPresenter
+  memoryPresenter: MemoryPresenter
   projectPresenter: IProjectPresenter
   remoteControlPresenter: IRemoteControlPresenter
   pluginPresenter: PluginPresenter
@@ -290,6 +296,18 @@ export class Presenter implements IPresenter {
       handoffTape: async (conversationId, name, state) => {
         return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
       },
+      isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
+      rememberMemory: async (agentId, input, sourceSession) =>
+        this.memoryPresenter.rememberMemory(
+          { kind: input.kind, content: input.content, importance: input.importance },
+          { agentId, sourceSession }
+        ),
+      recallMemory: async (agentId, query) => {
+        const items = await this.memoryPresenter.recall(agentId, query)
+        return items.map((item) => ({ id: item.id, kind: item.kind, content: item.content }))
+      },
+      forgetMemory: async (agentId, memoryId) =>
+        await this.memoryPresenter.deleteMemory(agentId, memoryId),
       createSubagentSession: async (input) => {
         const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           createSubagentSession?: (createInput: typeof input) => Promise<{
@@ -507,6 +525,31 @@ export class Presenter implements IPresenter {
         await this.llmproviderPresenter.clearAcpSession(conversationId)
     }
 
+    // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
+    const memoryDbDir = path.join(dbDir, 'AgentMemory')
+    this.memoryPresenter = new MemoryPresenter({
+      repository: (this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter)
+        .agentMemoryTable,
+      resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
+      // 严格存在性校验：仅真实存在的 DeepChat agent 才可被管理类记忆接口读写
+      isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
+      getEmbeddings: (providerId, modelId, texts) =>
+        this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts),
+      generateText: async (providerId, modelId, prompt) =>
+        (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
+        '',
+      createVectorStore: (agentId, dimensions) => {
+        // 防御路径穿越：agentId 会拼进 *.duckdb 文件名，必须先确认是 URL-safe 格式
+        if (!isSafeAgentId(agentId)) {
+          throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
+        }
+        return MemoryVectorStore.create(path.join(memoryDbDir, `${agentId}.duckdb`), dimensions)
+      },
+      // 记忆变更 → typed 事件广播，驱动渲染层记忆管理 UI 自动刷新
+      onMemoryChanged: (agentId, reason) =>
+        publishDeepchatEvent('memory.updated', { agentId, reason, version: Date.now() })
+    })
+
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
@@ -518,6 +561,7 @@ export class Presenter implements IPresenter {
         providerCatalogPort,
         sessionPermissionPort,
         sessionUiPort,
+        memoryPort: this.memoryPresenter,
         cacheImage: (data) => this.devicePresenter.cacheImage(data),
         skillPresenter: this.skillPresenter
       }
@@ -906,6 +950,7 @@ const buildMainKernelRouteRuntime = () =>
     startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
     pluginPresenter: presenter.pluginPresenter,
     databaseSecurityPresenter: presenter.databaseSecurityPresenter,
+    memoryPresenter: presenter.memoryPresenter,
     scheduledTasks: presenter.scheduledTasks
   })
 

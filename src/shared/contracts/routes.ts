@@ -27,6 +27,14 @@ import {
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
 import {
+  memoryClearRoute,
+  memoryDeleteRoute,
+  memoryGetStatusRoute,
+  memoryListPersonaVersionsRoute,
+  memoryListRoute,
+  memoryRollbackPersonaRoute
+} from './routes/memory.routes'
+import {
   configAddCustomPromptRoute,
   configAddManualAcpAgentRoute,
   configAddSystemPromptRoute,
@@ -432,6 +440,7 @@ export * from './routes/device.routes'
 export * from './routes/file.routes'
 export * from './routes/knowledge.routes'
 export * from './routes/mcp.routes'
+export * from './routes/memory.routes'
 export * from './routes/models.routes'
 export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
@@ -455,7 +464,10 @@ export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'
 
-export const DEEPCHAT_ROUTE_CATALOG = {
+// 路由目录按块拆分并各自导出：单个巨型对象的 `typeof` 在声明输出(.d.ts)时会超过
+// TS 的类型序列化上限触发 TS7056。拆成多块后每块单独序列化，合并类型只保存引用，
+// 既绕过上限又保留逐路由精确的输入/输出类型。新增路由追加到任意一块即可，保持各块体量适中。
+const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [acpTerminalInputRoute.name]: acpTerminalInputRoute,
   [acpTerminalKillRoute.name]: acpTerminalKillRoute,
   [shortcutRegisterRoute.name]: shortcutRegisterRoute,
@@ -523,7 +535,10 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,
   [pluginsDisableRoute.name]: pluginsDisableRoute,
-  [pluginsInvokeActionRoute.name]: pluginsInvokeActionRoute,
+  [pluginsInvokeActionRoute.name]: pluginsInvokeActionRoute
+} satisfies Record<string, RouteContract>
+
+const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [fileGetMimeTypeRoute.name]: fileGetMimeTypeRoute,
   [filePrepareFileRoute.name]: filePrepareFileRoute,
   [filePrepareDirectoryRoute.name]: filePrepareDirectoryRoute,
@@ -570,7 +585,10 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [tabNotifyRendererReadyRoute.name]: tabNotifyRendererReadyRoute,
   [tabNotifyRendererActivatedRoute.name]: tabNotifyRendererActivatedRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
-  [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute,
+  [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute
+} satisfies Record<string, RouteContract>
+
+const DEEPCHAT_ROUTE_CATALOG_PART_3 = {
   [configGetEntriesRoute.name]: configGetEntriesRoute,
   [configUpdateEntriesRoute.name]: configUpdateEntriesRoute,
   [configGetLanguageRoute.name]: configGetLanguageRoute,
@@ -650,7 +668,10 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [settingsListSystemFontsRoute.name]: settingsListSystemFontsRoute,
   [settingsUpdateRoute.name]: settingsUpdateRoute,
   [settingsActivityListRoute.name]: settingsActivityListRoute,
-  [startupGetBootstrapRoute.name]: startupGetBootstrapRoute,
+  [startupGetBootstrapRoute.name]: startupGetBootstrapRoute
+} satisfies Record<string, RouteContract>
+
+const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListMessagesPageRoute.name]: sessionsListMessagesPageRoute,
@@ -740,7 +761,10 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [modelsExportConfigsRoute.name]: modelsExportConfigsRoute,
   [modelsImportConfigsRoute.name]: modelsImportConfigsRoute,
   [modelsGetCapabilitiesRoute.name]: modelsGetCapabilitiesRoute,
-  [modelsTranscribeAudioRoute.name]: modelsTranscribeAudioRoute,
+  [modelsTranscribeAudioRoute.name]: modelsTranscribeAudioRoute
+} satisfies Record<string, RouteContract>
+
+const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
@@ -750,6 +774,12 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [databaseSecurityChangePasswordRoute.name]: databaseSecurityChangePasswordRoute,
   [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
   [databaseSecurityRepairSchemaRoute.name]: databaseSecurityRepairSchemaRoute,
+  [memoryListRoute.name]: memoryListRoute,
+  [memoryGetStatusRoute.name]: memoryGetStatusRoute,
+  [memoryDeleteRoute.name]: memoryDeleteRoute,
+  [memoryClearRoute.name]: memoryClearRoute,
+  [memoryListPersonaVersionsRoute.name]: memoryListPersonaVersionsRoute,
+  [memoryRollbackPersonaRoute.name]: memoryRollbackPersonaRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,
@@ -827,7 +857,21 @@ export const DEEPCHAT_ROUTE_CATALOG = {
   [systemOpenSettingsRoute.name]: systemOpenSettingsRoute
 } satisfies Record<string, RouteContract>
 
-export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG
+export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG_PART_1 &
+  typeof DEEPCHAT_ROUTE_CATALOG_PART_2 &
+  typeof DEEPCHAT_ROUTE_CATALOG_PART_3 &
+  typeof DEEPCHAT_ROUTE_CATALOG_PART_4 &
+  typeof DEEPCHAT_ROUTE_CATALOG_PART_5
+
+// 显式注解避免再次内联巨型推断类型；值由各块合并而成（路由名互不重叠）。
+export const DEEPCHAT_ROUTE_CATALOG: DeepchatRouteCatalog = {
+  ...DEEPCHAT_ROUTE_CATALOG_PART_1,
+  ...DEEPCHAT_ROUTE_CATALOG_PART_2,
+  ...DEEPCHAT_ROUTE_CATALOG_PART_3,
+  ...DEEPCHAT_ROUTE_CATALOG_PART_4,
+  ...DEEPCHAT_ROUTE_CATALOG_PART_5
+}
+
 export type DeepchatRouteName = keyof DeepchatRouteCatalog
 export type DeepchatRouteContract<T extends DeepchatRouteName> = DeepchatRouteCatalog[T]
 export type DeepchatRouteInput<T extends DeepchatRouteName> = z.input<

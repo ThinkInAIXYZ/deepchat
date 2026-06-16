@@ -34,6 +34,7 @@ import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
+import { AgentMemoryTable } from './tables/agentMemory'
 import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
@@ -226,6 +227,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
+  public agentMemoryTable!: AgentMemoryTable
   public configTables!: ConfigTables
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
@@ -401,6 +403,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
+    this.agentMemoryTable = new AgentMemoryTable(this.db)
     this.configTables = new ConfigTables(this.db)
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
@@ -426,6 +429,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatTapeEntriesTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
+    this.agentMemoryTable.createTable()
     this.configTables.createTable()
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
@@ -469,6 +473,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatTapeEntriesTable,
       this.legacyImportStatusTable,
       this.agentsTable,
+      this.agentMemoryTable,
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,

@@ -2215,7 +2215,35 @@
     "subagentDescription": "Описание слота",
     "subagentTargetAgentLabel": "Целевой агент",
     "subagentLimit": "{count}/{max} слотов",
-    "addSubagentSlot": "+ Добавить слот"
+    "addSubagentSlot": "+ Добавить слот",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Управление памятью",
+      "title": "Управление памятью",
+      "description": "Просматривайте, удаляйте или очищайте то, что запомнил этот агент, и изучайте его развивающуюся самомодель.",
+      "degradedHint": "Модель эмбеддингов не настроена — извлечение использует только поиск по ключевым словам.",
+      "tabMemories": "Память",
+      "tabPersona": "Хронология персоны",
+      "memoriesCount": "Воспоминаний: {count}",
+      "clearAll": "Очистить всё",
+      "clearConfirmTitle": "Очистить всю память?",
+      "clearConfirmBody": "Это навсегда удалит все воспоминания этого агента. Действие нельзя отменить.",
+      "emptyMemories": "Пока нет воспоминаний. Они накапливаются по мере общения с этим агентом.",
+      "emptyPersona": "Пока нет версий самомодели.",
+      "personaActive": "Активная",
+      "rollback": "Откатить",
+      "actionFailed": "Не удалось выполнить действие",
+      "status": {
+        "pending_embedding": "Эмбеддинг",
+        "embedded": "Проиндексировано",
+        "error": "Ошибка",
+        "fts_only": "Только ключевые слова"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

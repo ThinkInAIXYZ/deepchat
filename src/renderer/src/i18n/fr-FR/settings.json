@@ -2215,7 +2215,35 @@
     "subagentDescription": "Description de l'emplacement",
     "subagentTargetAgentLabel": "Agent cible",
     "subagentLimit": "{count}/{max} emplacements",
-    "addSubagentSlot": "+ Ajouter un emplacement"
+    "addSubagentSlot": "+ Ajouter un emplacement",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Gérer les mémoires",
+      "title": "Gérer les mémoires",
+      "description": "Consultez, supprimez ou effacez ce que cet agent a mémorisé, et examinez son modèle de soi en évolution.",
+      "degradedHint": "Aucun modèle d'embedding configuré — le rappel utilise uniquement la recherche par mots-clés.",
+      "tabMemories": "Mémoires",
+      "tabPersona": "Chronologie du persona",
+      "memoriesCount": "{count} mémoires",
+      "clearAll": "Tout effacer",
+      "clearConfirmTitle": "Effacer toutes les mémoires ?",
+      "clearConfirmBody": "Cela supprime définitivement toutes les mémoires de cet agent. Cette action est irréversible.",
+      "emptyMemories": "Aucune mémoire pour l'instant. Elles s'accumulent au fil de vos échanges avec cet agent.",
+      "emptyPersona": "Aucune version du modèle de soi pour le moment.",
+      "personaActive": "Active",
+      "rollback": "Restaurer",
+      "actionFailed": "Échec de l'action",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indexé",
+        "error": "Erreur",
+        "fts_only": "Mots-clés uniquement"
+      }
+    }
   },
   "plugins": {
     "title": "Plugins",

@@ -146,7 +146,35 @@
     "compactionDescription": "Te wartości domyślne mają wpływ tylko na przyszłe sesje DeepChat.",
     "compactionThreshold": "Próg wyzwalania",
     "compactionRetainPairs": "Zachowaj najnowsze pary",
-    "deleteConfirm": "Usunąć agenta „{name}”? Jego historia sięga wstecz do wbudowanego agenta DeepChat."
+    "deleteConfirm": "Usunąć agenta „{name}”? Jego historia sięga wstecz do wbudowanego agenta DeepChat.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Zarządzaj wspomnieniami",
+      "title": "Zarządzaj wspomnieniami",
+      "description": "Przeglądaj, usuwaj lub wyczyść to, co ten agent zapamiętał, i sprawdź jego ewoluujący model siebie.",
+      "degradedHint": "Nie skonfigurowano modelu embeddingu — przywoływanie używa tylko wyszukiwania słów kluczowych.",
+      "tabMemories": "Wspomnienia",
+      "tabPersona": "Oś czasu persony",
+      "memoriesCount": "Wspomnienia: {count}",
+      "clearAll": "Wyczyść wszystko",
+      "clearConfirmTitle": "Wyczyścić wszystkie wspomnienia?",
+      "clearConfirmBody": "To trwale usuwa wszystkie wspomnienia tego agenta. Tej operacji nie można cofnąć.",
+      "emptyMemories": "Brak wspomnień. Gromadzą się podczas rozmów z tym agentem.",
+      "emptyPersona": "Brak wersji modelu siebie.",
+      "personaActive": "Aktywna",
+      "rollback": "Przywróć",
+      "actionFailed": "Akcja nie powiodła się",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Zindeksowane",
+        "error": "Błąd",
+        "fts_only": "Tylko słowa kluczowe"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Haczyki",

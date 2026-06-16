@@ -146,7 +146,35 @@
     "compactionDescription": "Estos valores predeterminados solo afectan a las futuras sesiones de DeepChat.",
     "compactionThreshold": "Umbral de activación",
     "compactionRetainPairs": "Conservar pares recientes",
-    "deleteConfirm": "¿Eliminar el Agent “{name}”? Sus sesiones anteriores volverán automáticamente al DeepChat integrado."
+    "deleteConfirm": "¿Eliminar el Agent “{name}”? Sus sesiones anteriores volverán automáticamente al DeepChat integrado.",
+    "memoryTitle": "Long-term Memory",
+    "memoryEnabled": "Enable long-term memory",
+    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
+    "memoryEmbeddingModel": "Memory embedding model",
+    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryManager": {
+      "openButton": "Gestionar memorias",
+      "title": "Gestionar memorias",
+      "description": "Revisa, elimina o borra lo que este agente ha recordado e inspecciona su automodelo en evolución.",
+      "degradedHint": "Sin modelo de embedding configurado: la recuperación solo usa búsqueda por palabras clave.",
+      "tabMemories": "Memorias",
+      "tabPersona": "Cronología de persona",
+      "memoriesCount": "{count} memorias",
+      "clearAll": "Borrar todo",
+      "clearConfirmTitle": "¿Borrar todas las memorias?",
+      "clearConfirmBody": "Esto elimina permanentemente todas las memorias de este agente. No se puede deshacer.",
+      "emptyMemories": "Aún no hay memorias. Se acumulan a medida que chateas con este agente.",
+      "emptyPersona": "Aún no hay versiones del automodelo.",
+      "personaActive": "Activa",
+      "rollback": "Revertir",
+      "actionFailed": "La acción falló",
+      "status": {
+        "pending_embedding": "Embedding",
+        "embedded": "Indexado",
+        "error": "Error",
+        "fts_only": "Solo palabras clave"
+      }
+    }
   },
   "notificationsHooks": {
     "title": "Hooks",

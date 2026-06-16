@@ -2215,7 +2215,35 @@
     "subagentDescription": "槽位描述",
     "subagentTargetAgentLabel": "目標智能體",
     "subagentLimit": "{count}/{max} 個槽位",
-    "addSubagentSlot": "+ 新增槽位"
+    "addSubagentSlot": "+ 新增槽位",
+    "memoryTitle": "长期记忆",
+    "memoryEnabled": "启用长期记忆",
+    "memoryDescription": "让该助手跨会话记住稳定的事实，并演化出自我模型。出于隐私考虑默认关闭。",
+    "memoryEmbeddingModel": "记忆向量模型",
+    "memoryEmbeddingHint": "用于语义召回记忆。不选则降级为关键词检索（仍可用）。",
+    "memoryManager": {
+      "openButton": "管理記憶",
+      "title": "管理記憶",
+      "description": "查看、刪除或清空此助手記住的內容，並查看其演化中的自我模型。",
+      "degradedHint": "未配置向量模型——召回僅使用關鍵字檢索。",
+      "tabMemories": "記憶",
+      "tabPersona": "人格時間線",
+      "memoriesCount": "{count} 條記憶",
+      "clearAll": "清空全部",
+      "clearConfirmTitle": "清空全部記憶？",
+      "clearConfirmBody": "將永久刪除此助手的所有記憶，此操作無法復原。",
+      "emptyMemories": "尚無記憶。隨着與此助手對話會逐漸累積。",
+      "emptyPersona": "尚無自我模型版本。",
+      "personaActive": "目前生效",
+      "rollback": "回滾",
+      "actionFailed": "操作失敗",
+      "status": {
+        "pending_embedding": "向量化中",
+        "embedded": "已索引",
+        "error": "錯誤",
+        "fts_only": "僅關鍵字"
+      }
+    }
   },
   "plugins": {
     "title": "插件",
