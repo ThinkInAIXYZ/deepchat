@@ -1893,6 +1893,20 @@ export class SkillPresenter implements ISkillPresenter {
     return result.tools
   }
 
+  private closeFailedWatcher(watcher: WatchHandle): void {
+    void watcher.close().catch((error) => {
+      logger.warn('[SkillPresenter] Failed to close failed file watcher.', { error })
+    })
+  }
+
+  private handleWatcherStartFailure(error: unknown): void {
+    this.watcher = null
+    logger.warn('[SkillPresenter] File watcher unavailable; skill hot reload disabled.', {
+      reason: 'start-failed',
+      error
+    })
+  }
+
   /**
    * Watch skill files for changes (hot-reload)
    */
@@ -1922,6 +1936,9 @@ export class SkillPresenter implements ISkillPresenter {
       .then((handle) => {
         this.watcher = handle
         logger.info('[SkillPresenter] File watcher started')
+      })
+      .catch((error) => {
+        this.handleWatcherStartFailure(error)
       })
       .finally(() => {
         this.watcherStartPromise = null
@@ -1982,6 +1999,14 @@ export class SkillPresenter implements ISkillPresenter {
       reason: status.reason,
       message: status.message
     })
+
+    if (status.health !== 'failed' || !this.watcher) {
+      return
+    }
+
+    const watcher = this.watcher
+    this.watcher = null
+    this.closeFailedWatcher(watcher)
   }
 
   private isWatchedSkillMarkdownPath(filePath: string): boolean {

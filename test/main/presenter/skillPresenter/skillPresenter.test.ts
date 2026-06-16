@@ -156,6 +156,7 @@ import type {
   IFileWatcherService,
   WatchBatchListener,
   WatcherEvent,
+  WatcherStatus,
   WatchMode,
   WatchRequest,
   WatchStatusListener
@@ -227,6 +228,7 @@ type FakeWatcher = {
   request: WatchRequest
   close: ReturnType<typeof vi.fn>
   emit(events: WatcherEvent[], mode?: WatchMode): Promise<void>
+  emitStatus(status: Partial<WatcherStatus>): void
 }
 
 function createFakeWatcherService() {
@@ -254,6 +256,19 @@ function createFakeWatcherService() {
             mode,
             events,
             version: Date.now()
+          })
+        },
+        emitStatus(status) {
+          _onStatus?.({
+            watchId: request.id,
+            rootPath: request.rootPath,
+            purpose: request.purpose,
+            hostKind: request.hostKind,
+            health: 'degraded',
+            mode: 'snapshot-polling',
+            reason: 'native-error',
+            version: Date.now(),
+            ...status
           })
         }
       }
@@ -410,6 +425,28 @@ describe('SkillPresenter', () => {
       const dir = await skillPresenter.getSkillsDir()
       expect(dir).toBeTruthy()
       expect(typeof dir).toBe('string')
+    })
+  })
+
+  describe('initialize', () => {
+    it('continues when the file watcher cannot start', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      const installSpy = vi.spyOn(skillPresenter, 'installBuiltinSkills').mockResolvedValue()
+      const discoverSpy = vi.spyOn(skillPresenter, 'discoverSkills').mockResolvedValue([])
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
+
+      await expect(skillPresenter.initialize()).resolves.toBeUndefined()
+      await skillPresenter.initialize()
+
+      expect(installSpy).toHaveBeenCalledTimes(1)
+      expect(discoverSpy).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
     })
   })
 
@@ -2105,11 +2142,53 @@ describe('SkillPresenter', () => {
       expect(fakeWatcherService.service.watch).toHaveBeenCalled()
     })
 
+    it('does not throw and remains retryable when watcher startup fails', async () => {
+      const error = new Error('File watcher utility process exited with code 1.')
+      ;(fakeWatcherService.service.watch as Mock).mockRejectedValueOnce(error)
+
+      await expect(skillPresenter.watchSkillFiles()).resolves.toBeUndefined()
+      await skillPresenter.watchSkillFiles()
+
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher unavailable; skill hot reload disabled.',
+        {
+          reason: 'start-failed',
+          error
+        }
+      )
+    })
+
     it('should not start watcher twice', async () => {
       await skillPresenter.watchSkillFiles()
       await skillPresenter.watchSkillFiles()
 
       expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears failed watcher state so later calls can retry', async () => {
+      await skillPresenter.watchSkillFiles()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      watcher?.emitStatus({
+        health: 'failed',
+        mode: 'snapshot-polling',
+        reason: 'native-error',
+        message: 'snapshot polling failed'
+      })
+      await skillPresenter.watchSkillFiles()
+
+      expect(watcher?.close).toHaveBeenCalledTimes(1)
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(2)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillPresenter] File watcher degraded.',
+        expect.objectContaining({
+          health: 'failed',
+          mode: 'snapshot-polling',
+          reason: 'native-error',
+          message: 'snapshot polling failed'
+        })
+      )
     })
 
     it('publishes one catalog change when watcher overflow triggers rediscovery', async () => {
