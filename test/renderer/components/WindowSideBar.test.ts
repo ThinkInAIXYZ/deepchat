@@ -8,6 +8,11 @@ type SetupOptions = {
   enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   activeSession?: { id: string; agentId: string } | null
   hasActiveSession?: boolean
+  sessions?: Array<{ id: string }>
+  hasMore?: boolean
+  loading?: boolean
+  loadingMore?: boolean
+  nextPages?: Array<{ items: Array<{ id: string }>; hasMore: boolean }>
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
     id: string
@@ -124,6 +129,19 @@ const setup = async (options: SetupOptions = {}) => {
     activeSessionId: (options.activeSession?.id ?? 'session-1') as string | null,
     activeSession: options.activeSession ?? null,
     hasActiveSession: options.hasActiveSession ?? true,
+    sessions: (options.sessions ?? []) as Array<{ id: string }>,
+    hasMore: options.hasMore ?? false,
+    loading: options.loading ?? false,
+    loadingMore: options.loadingMore ?? false,
+    loadNextPage: vi.fn(async () => {
+      const nextPage = (options.nextPages ?? []).shift()
+      if (!nextPage) {
+        sessionStore.hasMore = false
+        return
+      }
+      sessionStore.sessions = [...sessionStore.sessions, ...nextPage.items]
+      sessionStore.hasMore = nextPage.hasMore
+    }),
     startNewConversation: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn(async (id: string) => {
       operations.push(`select:${id}`)
@@ -1250,4 +1268,52 @@ describe('WindowSideBar agent switch', () => {
 
     wrapper.unmount()
   })
+})
+
+describe('WindowSideBar viewport auto-fill', () => {
+  it(
+    'keeps loading pages until the session list viewport is filled',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        sessions: [{ id: 'session-1' }],
+        hasMore: true,
+        nextPages: [
+          { items: [{ id: 'session-2' }], hasMore: true },
+          { items: [{ id: 'session-3' }], hasMore: false }
+        ]
+      })
+
+      await flushPromises()
+
+      // jsdom 下 scrollHeight/clientHeight 均为 0（未填满视口），
+      // 自动填充应持续翻页直到 hasMore 收敛为 false。
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(2)
+      expect(sessionStore.hasMore).toBe(false)
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual([
+        'session-1',
+        'session-2',
+        'session-3'
+      ])
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not auto-load additional pages when there is nothing more to fetch',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        sessions: [{ id: 'session-1' }],
+        hasMore: false
+      })
+
+      await flushPromises()
+
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
 })

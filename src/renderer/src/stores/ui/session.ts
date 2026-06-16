@@ -509,7 +509,9 @@ export const useSessionStore = defineStore('session', () => {
         const result = await sessionClient.listLightweight({
           limit: DEFAULT_SESSION_PAGE_SIZE,
           cursor: null,
-          includeSubagents: true,
+          // 侧边栏只展示 regular 会话；携带子代理会话会占用分页名额，
+          // 导致一页 30 条里的可见 regular 会话被显示层过滤后所剩无几。
+          includeSubagents: false,
           prioritizeSessionId: options.prioritizeSessionId ?? undefined
         })
 
@@ -548,7 +550,8 @@ export const useSessionStore = defineStore('session', () => {
       const result = await sessionClient.listLightweight({
         limit: DEFAULT_SESSION_PAGE_SIZE,
         cursor: nextCursor.value,
-        includeSubagents: true
+        // 与首屏一致：仅分页 regular 会话，避免子代理会话占用页槽。
+        includeSubagents: false
       })
 
       if (requestId !== nextPageRequestId) {

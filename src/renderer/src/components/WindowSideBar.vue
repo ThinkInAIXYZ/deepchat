@@ -1124,6 +1124,60 @@ const handleSessionListScroll = () => {
   })
 }
 
+// 当首屏返回的 regular 会话不足以填满列表容器时，不会产生滚动条，
+// `@scroll` 永远不触发，`loadNextPage` 也就永远不会被调用（issue #1762）。
+// 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
+let isFillingSessionList = false
+const ensureSessionListFilled = async () => {
+  if (isFillingSessionList) {
+    return
+  }
+  isFillingSessionList = true
+  try {
+    // 轮数上限兜底，避免异常情况下（如 cursor 不推进）陷入死循环。
+    const MAX_FILL_ROUNDS = 50
+    for (let round = 0; round < MAX_FILL_ROUNDS; round += 1) {
+      await nextTick()
+      const listElement = sessionListRef.value
+      if (
+        !listElement ||
+        !sessionStore.hasMore ||
+        sessionStore.loadingMore ||
+        sessionStore.loading
+      ) {
+        return
+      }
+      // 内容高度已超过容器（存在可滚动空间），交还给滚动事件处理后续分页。
+      if (listElement.scrollHeight > listElement.clientHeight + 1) {
+        return
+      }
+      const beforeCount = sessionStore.sessions.length
+      await sessionStore.loadNextPage()
+      // 没有新增会话说明已到底或加载失败，停止以防空转。
+      if (sessionStore.sessions.length <= beforeCount) {
+        return
+      }
+    }
+  } finally {
+    isFillingSessionList = false
+  }
+}
+
+// 会话列表内容或 agent 过滤变化后，若视口未被填满则继续加载，
+// 保证「滚动加载更多」在首屏内容过少时也能启动（issue #1762）。
+watch(
+  [
+    () => sessionStore.sessions.length,
+    () => sessionStore.hasMore,
+    () => sessionStore.loading,
+    sidebarSelectedAgentId
+  ],
+  () => {
+    void ensureSessionListFilled()
+  },
+  { immediate: true }
+)
+
 const getSessionItemElement = (sessionId: string, region: SessionItemRegion) =>
   document.querySelector<HTMLElement>(
     `.session-item[data-session-id="${sessionId}"][data-session-region="${region}"]`
