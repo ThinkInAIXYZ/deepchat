@@ -1,9 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { unzipSync } from 'fflate'
 import { signMacHelperForRelease } from './sign-cua-helper.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -16,21 +18,22 @@ const pluginDir = process.env.DEEPCHAT_CUA_PLUGIN_DIR
 const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
   ? path.resolve(process.env.DEEPCHAT_CUA_VENDOR_ROOT)
   : path.join(pluginDir, 'vendor', 'cua-driver')
-const vendorSourceDir = path.join(vendorRoot, 'source')
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
-const helperAppName = 'DeepChat Computer Use'
-const helperAppDirName = `${helperAppName}.app`
 const helperBinaryName = 'cua-driver'
+const helperAppDirName = 'CuaDriver.app'
 
-const archMap = {
-  arm64: {
-    swift: 'arm64',
-    lipo: 'arm64'
-  },
-  x64: {
-    swift: 'x86_64',
-    lipo: 'x86_64'
-  }
+const targetAssetKeys = {
+  'darwin/arm64': 'darwin-arm64',
+  'darwin/x64': 'darwin-x64',
+  'win32/x64': 'windows-x64',
+  'win32/arm64': 'windows-arm64',
+  'linux/x64': 'linux-x64'
+}
+
+const executableByTarget = {
+  darwin: path.join(helperAppDirName, 'Contents', 'MacOS', helperBinaryName),
+  win32: `${helperBinaryName}.exe`,
+  linux: helperBinaryName
 }
 
 function parseArgs(argv) {
@@ -99,237 +102,321 @@ async function readUpstreamMetadata() {
   const requiredFields = [
     'sourceKind',
     'upstreamRepo',
-    'upstreamSubdir',
     'tag',
     'commit',
     'version',
     'updatedAt',
-    'forkPolicy'
+    'releaseUrl',
+    'checksumsAsset'
   ]
   for (const field of requiredFields) {
     if (typeof metadata[field] !== 'string' || metadata[field].length === 0) {
       throw new Error(`CUA upstream metadata is missing required string field: ${field}`)
     }
   }
-  if (metadata.sourceKind !== 'deepchat-owned-fork') {
-    throw new Error(`CUA vendor sourceKind must be deepchat-owned-fork, got ${metadata.sourceKind}`)
+  if (metadata.sourceKind !== 'upstream-release') {
+    throw new Error(`CUA vendor sourceKind must be upstream-release, got ${metadata.sourceKind}`)
+  }
+  if (!metadata.assets || typeof metadata.assets !== 'object') {
+    throw new Error('CUA upstream metadata must declare release assets')
   }
   return metadata
 }
 
-async function validateVendorSource(metadata) {
-  const packagePath = path.join(vendorSourceDir, 'Package.swift')
-  const sourcesPath = path.join(vendorSourceDir, 'Sources')
-  if (!(await pathExists(packagePath))) {
-    throw new Error(`Vendored CUA Driver source is missing Package.swift at ${packagePath}`)
-  }
-  if (!(await pathExists(sourcesPath))) {
-    throw new Error(`Vendored CUA Driver source is missing Sources at ${sourcesPath}`)
-  }
-
-  const packageContent = await fs.readFile(packagePath, 'utf8')
-  if (!packageContent.includes('name: "cua-driver"')) {
-    throw new Error('Vendored CUA Driver Package.swift does not look like the cua-driver package')
+function getTarget(platform, arch, metadata) {
+  const target = `${platform}/${arch}`
+  const assetKey = targetAssetKeys[target]
+  if (!assetKey) {
+    const unsupported = metadata.unsupportedTargets ?? []
+    const reason = unsupported.includes(target) ? 'unsupported' : 'unknown'
+    throw new Error(`CUA plugin runtime target ${target} is ${reason}`)
   }
 
-  const commandPath = path.join(
-    vendorSourceDir,
-    'Sources',
-    'CuaDriverCLI',
-    'CuaDriverCommand.swift'
-  )
-  const commandContent = await fs.readFile(commandPath, 'utf8')
-  if (!commandContent.includes('DeepChatPermissionProbeCommand')) {
-    throw new Error(
-      `Vendored CUA Driver source is missing DeepChat permission probe patch for ${metadata.commit}`
-    )
+  const asset = metadata.assets[assetKey]
+  if (!asset || typeof asset.name !== 'string') {
+    throw new Error(`CUA upstream metadata is missing asset mapping for ${target}`)
+  }
+
+  return {
+    target,
+    assetKey,
+    assetName: asset.name
   }
 }
 
-async function collectFiles(dir, extension) {
+function downloadUrl(metadata, assetName) {
+  return `https://github.com/trycua/cua/releases/download/${metadata.tag}/${assetName}`
+}
+
+async function downloadFile(url, outputPath) {
+  if (await pathExists(outputPath)) {
+    return
+  }
+
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`)
+  }
+  const buffer = Buffer.from(await response.arrayBuffer())
+  await fs.mkdir(path.dirname(outputPath), { recursive: true })
+  await fs.writeFile(outputPath, buffer)
+}
+
+async function sha256File(filePath) {
+  const hash = createHash('sha256')
+  hash.update(await fs.readFile(filePath))
+  return hash.digest('hex')
+}
+
+function parseChecksums(contents) {
+  const checksums = new Map()
+  for (const line of contents.split(/\r?\n/)) {
+    const match = line.trim().match(/^([a-f0-9]{64})\s+(.+)$/i)
+    if (match) {
+      checksums.set(match[2].trim(), match[1].toLowerCase())
+    }
+  }
+  return checksums
+}
+
+async function verifyChecksum(checksumsPath, assetPath, assetName) {
+  const checksums = parseChecksums(await fs.readFile(checksumsPath, 'utf8'))
+  const expected = checksums.get(assetName)
+  if (!expected) {
+    throw new Error(`checksums.txt does not contain ${assetName}`)
+  }
+  const actual = await sha256File(assetPath)
+  if (actual !== expected) {
+    throw new Error(`Checksum mismatch for ${assetName}. Expected ${expected}, got ${actual}`)
+  }
+}
+
+async function extractArchive(archivePath, outputDir) {
+  await fs.rm(outputDir, { recursive: true, force: true })
+  await fs.mkdir(outputDir, { recursive: true })
+  if (archivePath.endsWith('.zip')) {
+    const files = unzipSync(new Uint8Array(await fs.readFile(archivePath)))
+    for (const [relativePath, content] of Object.entries(files)) {
+      if (relativePath.endsWith('/')) {
+        continue
+      }
+      const normalized = relativePath.replace(/\\/g, '/')
+      if (normalized.startsWith('/') || normalized.includes('..') || /^[A-Za-z]:/.test(normalized)) {
+        throw new Error(`Unsafe CUA release archive path: ${relativePath}`)
+      }
+      const outputPath = path.resolve(outputDir, ...normalized.split('/').filter(Boolean))
+      const relativeToRoot = path.relative(outputDir, outputPath)
+      if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+        throw new Error(`CUA release archive path escapes extraction root: ${relativePath}`)
+      }
+      await fs.mkdir(path.dirname(outputPath), { recursive: true })
+      await fs.writeFile(outputPath, Buffer.from(content))
+    }
+    return
+  }
+
+  ensureTool('tar', ['--version'])
+  run('tar', ['-xzf', archivePath, '-C', outputDir])
+}
+
+async function collectFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true })
   const files = []
   for (const entry of entries) {
     const entryPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      files.push(...(await collectFiles(entryPath, extension)))
-    } else if (entry.isFile() && entry.name.endsWith(extension)) {
+      files.push(...(await collectFiles(entryPath)))
+    } else if (entry.isFile()) {
       files.push(entryPath)
     }
   }
   return files
 }
 
-async function findBuiltBinary(scratchPath) {
-  const candidates = await collectFiles(scratchPath, '')
-  const binaries = candidates.filter((candidate) => path.basename(candidate) === helperBinaryName)
-  for (const candidate of binaries) {
-    const stat = await fs.stat(candidate)
-    if ((stat.mode & 0o111) !== 0 && candidate.includes(`${path.sep}release${path.sep}`)) {
-      return candidate
+async function findFirst(root, predicate) {
+  const files = await collectFiles(root)
+  return files.find(predicate)
+}
+
+async function findDirectory(root, directoryName) {
+  const entries = await fs.readdir(root, { withFileTypes: true })
+  for (const entry of entries) {
+    const entryPath = path.join(root, entry.name)
+    if (entry.isDirectory() && entry.name === directoryName) {
+      return entryPath
+    }
+    if (entry.isDirectory()) {
+      const nested = await findDirectory(entryPath, directoryName)
+      if (nested) {
+        return nested
+      }
     }
   }
-  throw new Error('Built cua-driver binary was not found')
+  return undefined
 }
 
-function plistXml(version) {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key>
-  <string>com.wefonk.deepchat.computeruse</string>
-  <key>CFBundleName</key>
-  <string>${helperAppName}</string>
-  <key>CFBundleDisplayName</key>
-  <string>${helperAppName}</string>
-  <key>CFBundleExecutable</key>
-  <string>${helperBinaryName}</string>
-  <key>CFBundleIconFile</key>
-  <string>AppIcon</string>
-  <key>CFBundleIconName</key>
-  <string>AppIcon</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>${version}</string>
-  <key>CFBundleVersion</key>
-  <string>${version}</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>14.0</string>
-  <key>LSUIElement</key>
-  <true/>
-  <key>NSHighResolutionCapable</key>
-  <true/>
-  <key>NSSupportsAutomaticTermination</key>
-  <true/>
-</dict>
-</plist>
-`
+async function stageDarwinRuntime(extractDir, runtimeDir) {
+  const sourceApp = await findDirectory(extractDir, helperAppDirName)
+  if (!sourceApp) {
+    throw new Error(`CUA macOS archive is missing ${helperAppDirName}`)
+  }
+  await fs.cp(sourceApp, path.join(runtimeDir, helperAppDirName), {
+    recursive: true,
+    force: true
+  })
 }
 
-async function stageApp(sourceDir, builtBinary, targetArch, version) {
-  const runtimeDir = path.join(pluginDir, 'runtime', 'darwin', targetArch)
-  const helperAppPath = path.join(runtimeDir, helperAppDirName)
-  const contentsPath = path.join(helperAppPath, 'Contents')
-  const macosPath = path.join(contentsPath, 'MacOS')
-  const resourcesPath = path.join(contentsPath, 'Resources')
-  const stagedBinary = path.join(macosPath, helperBinaryName)
+async function stageWindowsRuntime(extractDir, runtimeDir) {
+  const driver = await findFirst(extractDir, (file) => path.basename(file) === 'cua-driver.exe')
+  const uia = await findFirst(extractDir, (file) => path.basename(file) === 'cua-driver-uia.exe')
+  if (!driver || !uia) {
+    throw new Error('CUA Windows archive must contain cua-driver.exe and cua-driver-uia.exe')
+  }
+  await fs.copyFile(driver, path.join(runtimeDir, 'cua-driver.exe'))
+  await fs.copyFile(uia, path.join(runtimeDir, 'cua-driver-uia.exe'))
+}
 
+async function stageLinuxRuntime(extractDir, runtimeDir) {
+  const driver = await findFirst(
+    extractDir,
+    (file) => path.basename(file) === 'cua-driver' && !file.endsWith('.exe')
+  )
+  if (!driver) {
+    throw new Error('CUA Linux archive is missing cua-driver')
+  }
+  const target = path.join(runtimeDir, 'cua-driver')
+  await fs.copyFile(driver, target)
+  await fs.chmod(target, 0o755)
+}
+
+async function stageRuntime(targetPlatform, targetArch, extractDir) {
+  const runtimeDir = path.join(pluginDir, 'runtime', targetPlatform, targetArch)
   await fs.rm(runtimeDir, { recursive: true, force: true })
-  await fs.mkdir(macosPath, { recursive: true })
-  await fs.mkdir(resourcesPath, { recursive: true })
-  await fs.copyFile(builtBinary, stagedBinary)
-  await fs.chmod(stagedBinary, 0o755)
-  await fs.writeFile(path.join(contentsPath, 'Info.plist'), plistXml(version))
+  await fs.mkdir(runtimeDir, { recursive: true })
 
-  const iconPath = path.join(sourceDir, 'App', 'CuaDriver', 'AppIcon.icns')
-  if (await pathExists(iconPath)) {
-    await fs.copyFile(iconPath, path.join(resourcesPath, 'AppIcon.icns'))
+  if (targetPlatform === 'darwin') {
+    await stageDarwinRuntime(extractDir, runtimeDir)
+  } else if (targetPlatform === 'win32') {
+    await stageWindowsRuntime(extractDir, runtimeDir)
+  } else if (targetPlatform === 'linux') {
+    await stageLinuxRuntime(extractDir, runtimeDir)
+  } else {
+    throw new Error(`Unsupported CUA runtime platform: ${targetPlatform}`)
   }
 
-  validateArchitecture(stagedBinary, targetArch)
-  await signHelper(helperAppPath)
-  return helperAppPath
+  const executable = path.join(runtimeDir, executableByTarget[targetPlatform])
+  if (!(await pathExists(executable))) {
+    throw new Error(`Staged CUA runtime is missing executable: ${executable}`)
+  }
+  if (targetPlatform !== 'win32') {
+    await fs.chmod(executable, 0o755)
+  }
+  return { runtimeDir, executable }
 }
 
-function validateArchitecture(binaryPath, targetArch) {
-  const expected = archMap[targetArch].lipo
-  const archs = read('/usr/bin/lipo', ['-archs', binaryPath]).split(/\s+/).filter(Boolean)
+function canRunTarget(targetPlatform, targetArch) {
+  return process.platform === targetPlatform && process.arch === targetArch
+}
+
+function smokeCheck(executable, targetPlatform, targetArch) {
+  if (!canRunTarget(targetPlatform, targetArch)) {
+    console.log(`Skipping CUA runtime smoke check for non-host target ${targetPlatform}/${targetArch}`)
+    return
+  }
+
+  const result = spawnSync(executable, ['--version'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  if (result.error) {
+    throw result.error
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `CUA runtime smoke check failed with exit code ${result.status}: ${result.stderr || result.stdout}`
+    )
+  }
+  console.log((result.stdout || result.stderr).trim())
+}
+
+function validateDarwinArchitecture(executable, targetArch) {
+  if (process.platform !== 'darwin') {
+    return
+  }
+  ensureTool('/usr/bin/lipo', ['-info', process.execPath])
+  const expected = targetArch === 'x64' ? 'x86_64' : targetArch
+  const archs = read('/usr/bin/lipo', ['-archs', executable]).split(/\s+/).filter(Boolean)
   if (!archs.includes(expected)) {
     throw new Error(`Helper arch mismatch. Expected ${expected}, got ${archs.join(', ')}`)
   }
 }
 
-async function signHelper(helperAppPath) {
+async function signDarwinHelper(runtimeDir) {
+  if (process.platform !== 'darwin') {
+    return
+  }
+  ensureTool('codesign', ['--version'])
+  const helperAppPath = path.join(runtimeDir, helperAppDirName)
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
   const signedForRelease = await signMacHelperForRelease({
     appPath: helperAppPath,
     entitlementsPath,
     cwd: rootDir
   })
-  if (signedForRelease) {
-    return
+  if (!signedForRelease) {
+    run('codesign', [
+      '--force',
+      '--deep',
+      '--sign',
+      '-',
+      '--entitlements',
+      entitlementsPath,
+      '--options',
+      'runtime',
+      '--timestamp=none',
+      helperAppPath
+    ])
   }
-
-  run('codesign', [
-    '--force',
-    '--deep',
-    '--sign',
-    '-',
-    '--entitlements',
-    entitlementsPath,
-    '--options',
-    'runtime',
-    '--timestamp=none',
-    helperAppPath
-  ])
   run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', helperAppPath])
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  const requestedArch = args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
-
-  if (process.platform !== 'darwin') {
-    throw new Error('CUA plugin runtime build requires macOS.')
-  }
-
-  if (!archMap[requestedArch]) {
-    throw new Error(`Unsupported CUA Driver arch: ${requestedArch}`)
-  }
-
-  ensureTool('swift')
-  ensureTool('/usr/bin/lipo', ['-info', process.execPath])
-  ensureTool('codesign', ['--version'])
-
+  const targetPlatform = args.get('platform') ?? process.env.TARGET_PLATFORM ?? process.platform
+  const targetArch = args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
   const metadata = await readUpstreamMetadata()
-  await validateVendorSource(metadata)
-
+  const target = getTarget(targetPlatform, targetArch, metadata)
+  const cacheDir = process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE
+    ? path.resolve(process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE)
+    : path.join(os.tmpdir(), 'deepchat-cua-driver-cache', metadata.tag)
   const workRoot = path.join(
     os.tmpdir(),
     'deepchat-cua-plugin-build',
-    `${metadata.tag}-${requestedArch}-${process.pid}`
+    `${metadata.tag}-${targetPlatform}-${targetArch}-${process.pid}`
   )
-  const scratchPath = path.join(workRoot, '.build', requestedArch)
+  const extractDir = path.join(workRoot, 'extract')
+  const assetPath = path.join(cacheDir, target.assetName)
+  const checksumsPath = path.join(cacheDir, metadata.checksumsAsset)
 
-  await fs.rm(workRoot, { recursive: true, force: true })
-  await fs.mkdir(workRoot, { recursive: true })
+  await downloadFile(downloadUrl(metadata, metadata.checksumsAsset), checksumsPath)
+  await downloadFile(downloadUrl(metadata, target.assetName), assetPath)
+  await verifyChecksum(checksumsPath, assetPath, target.assetName)
+  await extractArchive(assetPath, extractDir)
 
-  run(
-    'swift',
-    [
-      'build',
-      '-c',
-      'release',
-      '--arch',
-      archMap[requestedArch].swift,
-      '--product',
-      helperBinaryName,
-      '--package-path',
-      vendorSourceDir,
-      '--scratch-path',
-      scratchPath
-    ],
-    {
-      env: {
-        ...process.env,
-        CUA_DRIVER_TELEMETRY_ENABLED: '0',
-        CUA_DRIVER_AUTO_UPDATE_ENABLED: '0'
-      }
-    }
-  )
+  const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
+  validateDarwinArchitecture(executable, targetArch)
+  await signDarwinHelper(runtimeDir)
+  smokeCheck(executable, targetPlatform, targetArch)
 
-  const builtBinary = await findBuiltBinary(scratchPath)
-  const helperAppPath = await stageApp(vendorSourceDir, builtBinary, requestedArch, metadata.version)
-  const relativeHelperPath = path.relative(rootDir, helperAppPath)
-  const stat = await fs.stat(path.join(helperAppPath, 'Contents', 'MacOS', helperBinaryName))
-
-  if (!fsSync.existsSync(helperAppPath) || stat.size === 0) {
-    throw new Error('Staged helper app is invalid')
+  const relativeRuntimePath = path.relative(rootDir, runtimeDir)
+  const stat = await fs.stat(executable)
+  if (!fsSync.existsSync(executable) || stat.size === 0) {
+    throw new Error('Staged CUA runtime is invalid')
   }
 
-  console.log(`CUA Driver ${metadata.tag} staged at ${relativeHelperPath}`)
+  await fs.rm(workRoot, { recursive: true, force: true })
+  console.log(`CUA Driver ${metadata.tag} staged at ${relativeRuntimePath}`)
 }
 
 main().catch((error) => {

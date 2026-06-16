@@ -67,7 +67,7 @@ async function refreshStatus() {
   setText(runtimeStateNode, status.runtime?.state)
   setText(runtimeVersionNode, status.runtime?.version)
   setText(runtimeCommandNode, status.runtime?.command)
-  setText(runtimeHelperAppNode, status.runtime?.helperAppPath)
+  setText(runtimeHelperAppNode, status.runtime?.helperAppPath || 'Not required on this platform')
 
   const cuaMcp = status.mcpServers?.find((server) => server.serverId === 'cua-driver')
   if (!cuaMcp) {

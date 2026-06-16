@@ -17,7 +17,7 @@ function parseArgs(argv) {
     pluginDir: null,
     releaseVersionFromRoot: false,
     version: null,
-    targetPlatform: process.env.TARGET_PLATFORM ?? null,
+    targetPlatform: process.env.TARGET_PLATFORM ?? process.platform,
     targetArch: process.env.TARGET_ARCH ?? process.arch
   }
 
@@ -115,6 +115,12 @@ function validateManifest(pluginDir, manifest) {
   if (!Array.isArray(manifest.engines?.platforms) || manifest.engines.platforms.length === 0) {
     throw new Error('engines.platforms must declare at least one platform')
   }
+  if (
+    manifest.engines.targets !== undefined &&
+    (!Array.isArray(manifest.engines.targets) || manifest.engines.targets.length === 0)
+  ) {
+    throw new Error('engines.targets must be a non-empty array when declared')
+  }
 
   for (const skill of manifest.skills ?? []) {
     assertFile(pluginDir, skill.path, `skill ${skill.id}`)
@@ -132,8 +138,8 @@ function shouldSkipPackageEntry(relativePath, manifest, args) {
   }
 
   const parts = relativePath.split('/')
-  if (parts[0] === 'runtime' && parts[1] === 'darwin' && parts[2]) {
-    return parts[2] !== args.targetArch
+  if (parts[0] === 'runtime' && parts[1] && parts[2]) {
+    return parts[1] !== args.targetPlatform || parts[2] !== args.targetArch
   }
 
   return false
@@ -163,7 +169,11 @@ function collectFiles(pluginDir, currentDir = pluginDir, files = {}, manifest, a
       continue
     }
 
-    files[relativePath] = new Uint8Array(fs.readFileSync(absolutePath))
+    const stat = fs.statSync(absolutePath)
+    files[relativePath] = {
+      content: new Uint8Array(fs.readFileSync(absolutePath)),
+      mode: stat.mode
+    }
   }
   return files
 }
@@ -203,25 +213,62 @@ function createPackageManifest(manifest, args) {
   return next
 }
 
+function targetKey(targetPlatform, targetArch) {
+  return `${targetPlatform}/${targetArch}`
+}
+
+function isManifestTargetSupported(manifest, targetPlatform, targetArch) {
+  const aliases = targetPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [targetPlatform]
+  const targets = manifest.engines?.targets ?? []
+  if (targets.length > 0) {
+    const supportedTargets = targets.map((target) => String(target).toLowerCase())
+    return aliases.some((platform) => supportedTargets.includes(`${platform}/${targetArch}`))
+  }
+
+  const platforms = new Set(
+    (manifest.engines?.platforms ?? []).map((platform) => String(platform).toLowerCase())
+  )
+  return aliases.some((platform) => platforms.has(platform))
+}
+
 function validateCuaRuntime(pluginDir, manifest, args) {
   if (manifest.id !== 'com.deepchat.plugins.cua') {
     return
   }
-  const targetPlatform = args.targetPlatform ?? 'darwin'
-  if (targetPlatform !== 'darwin') {
-    throw new Error('CUA plugin packaging currently supports darwin runtime packages only')
+  const targetPlatform = args.targetPlatform ?? process.platform
+  const key = targetKey(targetPlatform, args.targetArch)
+  if (!isManifestTargetSupported(manifest, targetPlatform, args.targetArch)) {
+    throw new Error(`CUA plugin does not support ${key}`)
   }
-  assertFile(
-    pluginDir,
-    `runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
-    `CUA runtime binary ${targetPlatform}/${args.targetArch}`
-  )
+
+  const requiredByTarget = {
+    [`darwin/${args.targetArch}`]: [
+      `runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`
+    ],
+    [`win32/${args.targetArch}`]: [
+      `runtime/win32/${args.targetArch}/cua-driver.exe`,
+      `runtime/win32/${args.targetArch}/cua-driver-uia.exe`
+    ],
+    [`linux/${args.targetArch}`]: [`runtime/linux/${args.targetArch}/cua-driver`]
+  }
+  const requiredFiles = requiredByTarget[key]
+  if (!requiredFiles) {
+    throw new Error(`CUA plugin has no runtime validation rule for ${key}`)
+  }
+  for (const relativePath of requiredFiles) {
+    assertFile(pluginDir, relativePath, `CUA runtime binary ${key}`)
+  }
+
   const expectedDetect = [
-    `plugin:runtime/darwin/${args.targetArch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver`,
+    `plugin:runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`,
+    `plugin:runtime/win32/${args.targetArch}/cua-driver.exe`,
+    `plugin:runtime/linux/${args.targetArch}/cua-driver`,
     '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
   ]
-  if (JSON.stringify(manifest.runtime?.detect ?? []) !== JSON.stringify(expectedDetect)) {
-    throw new Error('CUA runtime detect paths must point to the bundled helper app first')
+  for (const detectPath of expectedDetect) {
+    if (!manifest.runtime?.detect?.includes(detectPath)) {
+      throw new Error(`CUA runtime detect paths must include ${detectPath}`)
+    }
   }
 
   const cuaServer = (manifest.mcpServers ?? []).find((server) => server.id === 'cua-driver')
@@ -250,21 +297,37 @@ function buildChecksums(files) {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([filePath, content]) => [
         filePath,
-        createHash('sha256').update(Buffer.from(content)).digest('hex')
+        createHash('sha256').update(Buffer.from(content.content)).digest('hex')
       ])
+  )
+}
+
+function createZipInput(files) {
+  return Object.fromEntries(
+    Object.entries(files).map(([filePath, file]) => {
+      const mode = file.mode & 0o777
+      if ((mode & 0o111) !== 0) {
+        return [filePath, [file.content, { os: 3, attrs: mode << 16 }]]
+      }
+      return [filePath, file.content]
+    })
   )
 }
 
 function packagePlugin(pluginDir, outDir, manifest, args) {
   const files = collectFiles(pluginDir, pluginDir, {}, manifest, args)
-  files['plugin.json'] = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
-  files['checksums.json'] = new TextEncoder().encode(
-    `${JSON.stringify(buildChecksums(files), null, 2)}\n`
-  )
+  files['plugin.json'] = {
+    content: new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`),
+    mode: 0o644
+  }
+  files['checksums.json'] = {
+    content: new TextEncoder().encode(`${JSON.stringify(buildChecksums(files), null, 2)}\n`),
+    mode: 0o644
+  }
 
   fs.mkdirSync(outDir, { recursive: true })
   const outPath = path.join(outDir, artifactFileName(manifest, args.targetPlatform, args.targetArch))
-  fs.writeFileSync(outPath, Buffer.from(zipSync(files, { level: 6 })))
+  fs.writeFileSync(outPath, Buffer.from(zipSync(createZipInput(files), { level: 6 })))
   return outPath
 }
 
@@ -273,6 +336,9 @@ try {
   const sourceManifest = readManifest(args.pluginDir)
   const manifest = createPackageManifest(sourceManifest, args)
   validateManifest(args.pluginDir, manifest)
+  if (!isManifestTargetSupported(manifest, args.targetPlatform, args.targetArch)) {
+    throw new Error(`Plugin ${manifest.id} does not support ${targetKey(args.targetPlatform, args.targetArch)}`)
+  }
   validateCuaRuntime(args.pluginDir, manifest, args)
   if (args.validateOnly) {
     console.log(`Plugin ${manifest.id}@${manifest.version} is valid`)

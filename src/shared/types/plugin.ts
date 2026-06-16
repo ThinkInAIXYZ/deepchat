@@ -20,6 +20,7 @@ export type PluginToolPolicyDecision = 'allow' | 'ask' | 'deny'
 export interface PluginEngineManifest {
   deepchat: string
   platforms: string[]
+  targets?: string[]
 }
 
 export interface PluginSourceManifest {

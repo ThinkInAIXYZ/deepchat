@@ -5,7 +5,8 @@
   "publisher": "DeepChat",
   "engines": {
     "deepchat": ">=${app.version}",
-    "platforms": ["darwin"]
+    "platforms": ["darwin", "win32", "linux"],
+    "targets": ["darwin/arm64", "darwin/x64", "win32/x64", "win32/arm64", "linux/x64"]
   },
   "activationEvents": ["onEnable"],
   "capabilities": [
@@ -18,7 +19,7 @@
   ],
   "source": {
     "type": "deepchat-official",
-    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-darwin-${arch}.dcplugin",
+    "url": "${github.release.download}/deepchat-plugin-cua-${app.version}-${target.platform}-${arch}.dcplugin",
     "publisher": "DeepChat"
   },
   "runtime": {
@@ -26,14 +27,16 @@
     "type": "external-helper",
     "displayName": "Cua Driver",
     "detect": [
-      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver",
+      "plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver",
+      "plugin:runtime/win32/${arch}/cua-driver.exe",
+      "plugin:runtime/linux/${arch}/cua-driver",
       "/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
     ],
     "install": {
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.1.0",
+      "minVersion": "0.5.5",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -77,24 +80,37 @@
         "list_windows": "allow",
         "get_screen_size": "allow",
         "get_window_state": "allow",
+        "get_accessibility_tree": "allow",
         "get_cursor_position": "allow",
         "get_config": "allow",
         "get_recording_state": "allow",
         "get_agent_cursor_state": "allow",
-        "screenshot": "allow",
+        "check_for_update": "allow",
+        "debug_window_info": "allow",
+        "start_session": "allow",
+        "end_session": "allow",
         "launch_app": "ask",
+        "kill_app": "ask",
+        "bring_to_front": "ask",
         "click": "ask",
         "right_click": "ask",
         "double_click": "ask",
         "drag": "ask",
+        "mouse_button_down": "ask",
+        "mouse_button_up": "ask",
+        "mouse_drag": "ask",
+        "parallel_mouse_drag": "ask",
         "scroll": "ask",
         "move_cursor": "ask",
         "type_text": "ask",
+        "type_text_chars": "ask",
         "press_key": "ask",
         "hotkey": "ask",
         "set_value": "ask",
         "set_config": "ask",
-        "set_recording": "ask",
+        "start_recording": "ask",
+        "stop_recording": "ask",
+        "install_ffmpeg": "ask",
         "set_agent_cursor_enabled": "ask",
         "set_agent_cursor_motion": "ask",
         "set_agent_cursor_style": "ask",

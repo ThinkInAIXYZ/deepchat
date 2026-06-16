@@ -71,7 +71,8 @@ function discoverOfficialPlugins() {
         return {
           name: entry.name,
           manifest,
-          platforms: manifest.engines?.platforms ?? []
+          platforms: manifest.engines?.platforms ?? [],
+          targets: manifest.engines?.targets ?? []
         }
       } catch {
         return null
@@ -81,9 +82,13 @@ function discoverOfficialPlugins() {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function isPluginSupported(plugin, targetPlatform) {
+function isPluginSupported(plugin, targetPlatform, targetArch) {
   const platforms = new Set(plugin.platforms.map((platform) => String(platform).toLowerCase()))
   const aliases = targetPlatform === 'darwin' ? ['darwin', 'macos', 'mac'] : [targetPlatform]
+  const targets = plugin.targets.map((target) => String(target).toLowerCase())
+  if (targets.length > 0) {
+    return aliases.some((platform) => targets.includes(`${platform}/${targetArch}`))
+  }
   return aliases.some((platform) => platforms.has(platform))
 }
 
@@ -109,7 +114,9 @@ function verifyArtifacts(options) {
     throw new Error(`Official plugin not found: ${options.name}`)
   }
 
-  const expected = selected.filter((plugin) => isPluginSupported(plugin, options.platform))
+  const expected = selected.filter((plugin) =>
+    isPluginSupported(plugin, options.platform, options.arch)
+  )
   if (expected.length === 0) {
     throw new Error(`No official plugins are expected for ${options.platform}/${options.arch}`)
   }
@@ -136,6 +143,7 @@ try {
   const nativeBuildScript = path.resolve(`scripts/build-${args.name}-plugin-runtime.mjs`)
   if (args.action === 'bundle' && existsSync(nativeBuildScript)) {
     const buildArgs = [nativeBuildScript]
+    if (args.platform) buildArgs.push('--platform', args.platform)
     if (args.arch) buildArgs.push('--arch', args.arch)
     execFileSync('node', buildArgs, { stdio: 'inherit' })
   }

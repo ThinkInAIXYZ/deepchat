@@ -17,9 +17,9 @@
 Update `plugins/cua/plugin.json`:
 
 - Change platform support from macOS-only to target-aware support for `darwin/arm64`,
-  `darwin/x64`, `win32/x64`, and `linux/x64`.
-- Add or enforce arch-aware visibility metadata so `win32/arm64` and `linux/arm64` do not show CUA
-  as an available official plugin.
+  `darwin/x64`, `win32/x64`, `win32/arm64`, and `linux/x64`.
+- Add or enforce arch-aware visibility metadata so `linux/arm64` does not show CUA as an available
+  official plugin.
 - Replace macOS-only runtime candidates with platform-specific candidates:
   - `plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver`
   - `plugin:runtime/win32/${arch}/cua-driver.exe`
@@ -40,7 +40,8 @@ Rust driver release:
 - `commit`: `d6dea4bc3c3a65ce821261752067cae8200fe5d6`.
 - `version`: `0.5.5`.
 - Include the expected asset map and checksums source.
-- Record Windows arm64 and Linux arm64 as unsupported for this pinned DeepChat integration.
+- Record Windows arm64 as supported and Linux arm64 as unsupported for this pinned DeepChat
+  integration.
 
 ### Runtime Staging
 
@@ -58,8 +59,8 @@ pipeline:
 9. Run host-executable smoke checks where possible.
 10. Run macOS app bundle and signing checks for darwin targets.
 
-The script should reject Windows arm64, Linux arm64, and any other unsupported target with a clear
-message before any partial runtime is staged.
+The script should reject Linux arm64 and any other unsupported target with a clear message before
+any partial runtime is staged.
 
 ### Plugin Packaging
 
@@ -78,24 +79,23 @@ Update `scripts/package-plugin.mjs`:
 
 Update `package.json` scripts so CUA can be staged, bundled, and verified on supported platforms:
 
-- Add Windows x64 CUA build scripts.
+- Add Windows x64 and arm64 CUA build scripts.
 - Add Linux x64 CUA build script.
-- Keep Windows arm64 and Linux arm64 unsupported unless they are explicitly validated for DeepChat.
+- Keep Linux arm64 unsupported unless it is explicitly validated for DeepChat.
 - Avoid duplicate runtime staging when `plugin:bundle` already invokes a build script. Either make
   the build script idempotent and cheap when the target runtime is current, or split staging from
   bundling explicitly.
 - Ensure supported Windows and Linux build scripts include the CUA bundle step without affecting
-  unsupported arm builds.
+  unsupported Linux arm64 builds.
 
 ### CI and Release Workflows
 
 Update `.github/workflows/build.yml` and `.github/workflows/release.yml`:
 
 - Bundle and verify CUA on macOS arm64/x64.
-- Bundle and verify CUA on Windows x64.
+- Bundle and verify CUA on Windows x64 and arm64.
 - Bundle and verify CUA on Linux x64.
-- Do not request Windows arm64 or Linux arm64 CUA artifacts until those targets are explicitly
-  supported.
+- Do not request Linux arm64 CUA artifacts until that target is explicitly supported.
 - Keep CUA verification next to Feishu verification so missing official plugin artifacts fail the
   build.
 
@@ -117,8 +117,7 @@ Update plugin settings/runtime status code where needed:
 - Keep macOS helper-app permission checks.
 - Show platform-neutral runtime status for Windows and Linux.
 - Avoid macOS-only permission copy on non-macOS platforms.
-- Ensure missing Windows arm64 and Linux arm64 runtimes are reported as unsupported, not as broken
-  installs.
+- Ensure missing Linux arm64 runtimes are reported as unsupported, not as broken installs.
 
 ### Tests
 
@@ -127,10 +126,10 @@ Update and add focused tests for:
 - Official plugin target metadata, visibility, and runtime candidate resolution.
 - CUA manifest hydration and visibility for supported platform/arch targets.
 - Runtime packaging validation per platform and arch.
-- Unsupported Windows arm64 and Linux arm64 behavior.
+- Unsupported Linux arm64 behavior.
 - Tool policy coverage for upstream v0.5.5 known tools.
 - Skill docs no longer asserting macOS-only or user-managed MCP-only language.
-- Build and release workflow assertions for CUA on Windows, macOS, and Linux x64.
+- Build and release workflow assertions for CUA on Windows x64/arm64, macOS, and Linux x64.
 
 ## Verification Plan
 
@@ -150,6 +149,8 @@ Run packaging checks on supported host/CI targets:
 ```bash
 pnpm run plugin:bundle -- --name cua --platform win32 --arch x64
 pnpm run plugin:verify -- --name cua --platform win32 --arch x64
+pnpm run plugin:bundle -- --name cua --platform win32 --arch arm64
+pnpm run plugin:verify -- --name cua --platform win32 --arch arm64
 pnpm run plugin:bundle -- --name cua --platform linux --arch x64
 pnpm run plugin:verify -- --name cua --platform linux --arch x64
 pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64

@@ -42,6 +42,7 @@ type PluginPresenterDeps = {
   mcpPresenter: IMCPPresenter
   skillPresenter: ISkillPresenter
   platform?: NodeJS.Platform
+  arch?: NodeJS.Architecture
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
@@ -80,6 +81,7 @@ export class PluginPresenter {
   private readonly mcpPresenter: IMCPPresenter
   private readonly skillPresenter: SkillContributionPort
   private readonly platform: NodeJS.Platform
+  private readonly arch: NodeJS.Architecture
   private readonly appPath: string
   private readonly isPackaged: boolean
   private readonly resourcesPath: string
@@ -99,6 +101,7 @@ export class PluginPresenter {
     this.mcpPresenter = deps.mcpPresenter
     this.skillPresenter = deps.skillPresenter as SkillContributionPort
     this.platform = deps.platform ?? process.platform
+    this.arch = deps.arch ?? process.arch
     this.appPath = deps.appPath ?? app.getAppPath()
     this.isPackaged = deps.isPackaged ?? app.isPackaged
     this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
@@ -583,6 +586,10 @@ export class PluginPresenter {
       }
     }
 
+    if (this.platform !== 'darwin') {
+      return await this.runRuntimePermissionToolFallback(pluginId, runtime.command)
+    }
+
     try {
       return await this.runRuntimePermissionProbe(pluginId, runtime.command)
     } catch (probeError) {
@@ -645,7 +652,7 @@ export class PluginPresenter {
   private async runRuntimePermissionToolFallback(
     pluginId: string,
     command: string,
-    probeError: unknown
+    probeError?: unknown
   ): Promise<RuntimePermissionCheckResult> {
     try {
       const { stdout, stderr } = await execFileAsync(command, ['check_permissions'], {
@@ -653,14 +660,17 @@ export class PluginPresenter {
         windowsHide: true
       })
       const output = `${stdout}\n${stderr}`
-      return {
+      const result: RuntimePermissionCheckResult = {
         accessibility: this.parsePermissionState(output, 'Accessibility'),
         screenRecording: this.parsePermissionState(output, 'Screen Recording'),
         command,
         stdout: this.truncateOutput(stdout),
-        stderr: this.truncateOutput(stderr),
-        error: `Permission probe failed; used fallback. ${this.describeError(probeError)}`
+        stderr: this.truncateOutput(stderr)
       }
+      if (probeError) {
+        result.error = `Permission probe failed; used fallback. ${this.describeError(probeError)}`
+      }
+      return result
     } catch (error) {
       console.warn('[PluginHost] Runtime permission fallback failed:', {
         pluginId,
@@ -986,13 +996,17 @@ export class PluginPresenter {
 
   private assertPlatformSupported(manifest: DeepChatPluginManifest): void {
     if (!this.isPluginPlatformSupported(manifest)) {
-      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}`)
+      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}/${this.arch}`)
     }
   }
 
   private isPluginPlatformSupported(manifest: DeepChatPluginManifest): boolean {
     const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
     const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
+    const targets = manifest.engines.targets?.map((target) => target.toLowerCase()) ?? []
+    if (targets.length > 0) {
+      return aliases.some((platform) => targets.includes(`${platform}/${this.arch}`))
+    }
     return aliases.some((platform) => platforms.has(platform))
   }
 
@@ -1361,7 +1375,7 @@ export class PluginPresenter {
   }
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
-    candidate = candidate.replaceAll('${arch}', process.arch)
+    candidate = candidate.replaceAll('${arch}', this.arch)
     if (candidate.startsWith('plugin:')) {
       return this.resolvePluginRelativePath(pluginRoot, candidate.slice('plugin:'.length))
     }
@@ -1448,7 +1462,7 @@ export class PluginPresenter {
     return JSON.parse(
       JSON.stringify(manifest)
         .replaceAll('${app.version}', app.getVersion())
-        .replaceAll('${arch}', process.arch)
+        .replaceAll('${arch}', this.arch)
         .replaceAll('${target.platform}', this.platform)
         .replaceAll(
           '${github.release.download}',

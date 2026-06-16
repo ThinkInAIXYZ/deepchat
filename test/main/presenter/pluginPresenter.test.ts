@@ -41,6 +41,7 @@ type CreatePluginPresenterOptions = {
   isPackaged?: boolean
   resourcesPath?: string
   mcpEnabled?: boolean
+  arch?: NodeJS.Architecture
 }
 
 const createPluginPresenter = async (
@@ -75,6 +76,7 @@ const createPluginPresenter = async (
   }
   const presenter = new PluginPresenter({
     platform,
+    arch: options.arch,
     appPath: options.appPath ?? process.cwd(),
     isPackaged: options.isPackaged,
     resourcesPath: options.resourcesPath,
@@ -106,7 +108,8 @@ const createBundledFixture = async (
   const userDataPath = path.join(root, 'userData')
   const packageRoot = options.packageRoot ?? path.join(appPath, 'plugins')
   const packagePath = path.join(packageRoot, 'deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin')
-  const runtimeRelativePath = `runtime/darwin/${process.arch}/fixture-runtime`
+  const runtimeFileName = process.platform === 'win32' ? 'fixture-runtime.cmd' : 'fixture-runtime'
+  const runtimeRelativePath = `runtime/darwin/${process.arch}/${runtimeFileName}`
   const pluginId = options.pluginId ?? 'com.deepchat.plugins.fixture'
   const includeSettings = options.includeSettings ?? false
   const manifest = {
@@ -131,7 +134,7 @@ const createBundledFixture = async (
       id: 'fixture-runtime',
       type: 'external-helper',
       displayName: 'Fixture Runtime',
-      detect: [`plugin:${runtimeRelativePath}`]
+      detect: [`PATH:${process.execPath}`]
     },
     mcpServers: [
       {
@@ -159,7 +162,11 @@ const createBundledFixture = async (
   }
   const files: Record<string, Uint8Array> = {
     'plugin.json': new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`),
-    [runtimeRelativePath]: new TextEncoder().encode('#!/bin/sh\necho fixture-runtime 1.0.0\n')
+    [runtimeRelativePath]: new TextEncoder().encode(
+      process.platform === 'win32'
+        ? '@echo off\r\necho fixture-runtime 1.0.0\r\n'
+        : '#!/bin/sh\necho fixture-runtime 1.0.0\n'
+    )
   }
   if (includeSettings) {
     files['settings/index.html'] = new TextEncoder().encode(
@@ -317,7 +324,7 @@ describe('PluginPresenter', () => {
     await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
 
-  it('hides the CUA official plugin on unsupported platforms', async () => {
+  it('uses CUA target metadata to show only supported platform and arch pairs', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-platform-test-'))
     tempRoots.push(root)
     const userDataPath = path.join(root, 'userData')
@@ -326,15 +333,30 @@ describe('PluginPresenter', () => {
       name === 'userData' ? userDataPath : path.join(root, name)
     )
 
-    const winPresenter = await createPluginPresenter('win32')
-    const linuxPresenter = await createPluginPresenter('linux')
+    const winX64Presenter = await createPluginPresenter('win32', { arch: 'x64' })
+    const winArmPresenter = await createPluginPresenter('win32', { arch: 'arm64' })
+    const linuxX64Presenter = await createPluginPresenter('linux', { arch: 'x64' })
+    const linuxArmPresenter = await createPluginPresenter('linux', { arch: 'arm64' })
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
 
-    expect(manifest.engines.platforms).toEqual(['darwin'])
-    expect((await winPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
+    expect(manifest.engines.platforms).toEqual(['darwin', 'win32', 'linux'])
+    expect(manifest.engines.targets).toEqual([
+      'darwin/arm64',
+      'darwin/x64',
+      'win32/x64',
+      'win32/arm64',
+      'linux/x64'
+    ])
+    expect((await winX64Presenter.listPlugins()).map((plugin) => plugin.id)).toContain(
       'com.deepchat.plugins.cua'
     )
-    expect((await linuxPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
+    expect((await linuxX64Presenter.listPlugins()).map((plugin) => plugin.id)).toContain(
+      'com.deepchat.plugins.cua'
+    )
+    expect((await winArmPresenter.listPlugins()).map((plugin) => plugin.id)).toContain(
+      'com.deepchat.plugins.cua'
+    )
+    expect((await linuxArmPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
       'com.deepchat.plugins.cua'
     )
   })
@@ -361,7 +383,7 @@ describe('PluginPresenter', () => {
       enabled: true,
       runtime: {
         state: 'installed',
-        version: 'fixture-runtime 1.0.0'
+        version: process.version
       }
     })
     expect(
@@ -579,11 +601,13 @@ describe('PluginPresenter', () => {
     expect(fs.existsSync(path.join(fixture.installedRoot, 'mcp', 'legacy.mjs'))).toBe(false)
     expect(configAfterRefresh).toMatchObject(config)
     expect(servers['fixture-tools']).toMatchObject({
-      args: [path.join(fixture.installedRoot, 'mcp', 'serve.mjs')],
       source: 'plugin',
       sourceId: fixture.pluginId,
       enabled: true
     })
+    expect(servers['fixture-tools'].args.map((arg: string) => path.normalize(arg))).toEqual([
+      path.join(fixture.installedRoot, 'mcp', 'serve.mjs')
+    ])
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-tools')
   })
 
@@ -744,16 +768,15 @@ describe('PluginPresenter', () => {
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
   })
 
-  it('declares the CUA MCP server with plugin helper context', async () => {
+  it('declares the CUA internal tool server with cross-platform helper context', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const mcpConfig = JSON.parse(await readFile('plugins/cua/mcp/cua-driver.json', 'utf8'))
     const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
 
-    expect(manifest.runtime.detect[0]).toBe(
-      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver'
-    )
     expect(manifest.runtime.detect).toEqual([
-      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
+      'plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver',
+      'plugin:runtime/win32/${arch}/cua-driver.exe',
+      'plugin:runtime/linux/${arch}/cua-driver',
       '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
     ])
     expect(server.env).toEqual({
@@ -764,139 +787,113 @@ describe('PluginPresenter', () => {
     expect(mcpConfig.env).toEqual(server.env)
   })
 
-  it('keeps new CUA cursor style controls permission-gated', async () => {
+  it('keeps CUA v0.5.5 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
-    const registrySource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/ToolRegistry.swift',
-      'utf8'
-    )
-    const styleToolSource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/SetAgentCursorStyleTool.swift',
-      'utf8'
-    )
     const manifestTools = manifest.toolPolicies.find(
       (item: { serverId: string }) => item.serverId === 'cua-driver'
     ).tools
+    const expectedAllow = [
+      'check_permissions',
+      'list_apps',
+      'list_windows',
+      'get_screen_size',
+      'get_window_state',
+      'get_accessibility_tree',
+      'get_cursor_position',
+      'get_config',
+      'get_recording_state',
+      'get_agent_cursor_state',
+      'check_for_update',
+      'debug_window_info',
+      'start_session',
+      'end_session'
+    ]
+    const expectedAsk = [
+      'launch_app',
+      'kill_app',
+      'bring_to_front',
+      'click',
+      'right_click',
+      'double_click',
+      'drag',
+      'mouse_button_down',
+      'mouse_button_up',
+      'mouse_drag',
+      'parallel_mouse_drag',
+      'scroll',
+      'move_cursor',
+      'type_text',
+      'type_text_chars',
+      'press_key',
+      'hotkey',
+      'set_value',
+      'set_config',
+      'start_recording',
+      'stop_recording',
+      'install_ffmpeg',
+      'set_agent_cursor_enabled',
+      'set_agent_cursor_motion',
+      'set_agent_cursor_style',
+      'replay_trajectory',
+      'zoom',
+      'page'
+    ]
 
-    expect(styleToolSource).toContain('name: "set_agent_cursor_style"')
-    expect(registrySource).toContain('SetAgentCursorStyleTool.handler')
-    expect(manifestTools.set_agent_cursor_style).toBe('ask')
-    expect(policy.tools.set_agent_cursor_style).toBe('ask')
+    for (const tool of expectedAllow) {
+      expect(manifestTools[tool]).toBe('allow')
+      expect(policy.tools[tool]).toBe('allow')
+    }
+    for (const tool of expectedAsk) {
+      expect(manifestTools[tool]).toBe('ask')
+      expect(policy.tools[tool]).toBe('ask')
+    }
+
+    expect(manifestTools.screenshot).toBeUndefined()
+    expect(manifestTools.set_recording).toBeUndefined()
+    expect(policy.tools.screenshot).toBeUndefined()
+    expect(policy.tools.set_recording).toBeUndefined()
   })
 
-  it('tracks CUA vendor source as a DeepChat-owned fork', async () => {
+  it('tracks CUA as a pinned upstream release asset set', async () => {
     const metadata = JSON.parse(
       await readFile('plugins/cua/vendor/cua-driver/upstream.json', 'utf8')
     )
     const buildScript = await readFile('scripts/build-cua-plugin-runtime.mjs', 'utf8')
 
     expect(metadata).toMatchObject({
-      sourceKind: 'deepchat-owned-fork',
+      sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
-      upstreamSubdir: 'libs/cua-driver'
+      upstreamSubdir: 'libs/cua-driver/rust',
+      tag: 'cua-driver-rs-v0.5.5',
+      commit: 'd6dea4bc3c3a65ce821261752067cae8200fe5d6',
+      version: '0.5.5',
+      supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
+      unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.forkPolicy).toContain('Cherry-pick upstream fixes')
-    expect(metadata.lastCherryPick).toMatchObject({
-      sourceTag: metadata.tag,
-      sourceCommit: metadata.commit
-    })
-    expect(buildScript).toContain('vendorSourceDir')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.5.5-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.5.5-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.5.5-linux-x86_64-binary.tar.gz')
+    expect(buildScript).toContain('verifyChecksum')
+    expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('sourceKind')
-    expect(buildScript).toContain('deepchat-owned-fork')
-    expect(buildScript).toContain('--package-path')
-    expect(buildScript).toContain('vendorSourceDir')
+    expect(buildScript).toContain('upstream-release')
+    expect(buildScript).not.toContain('swift')
+    expect(buildScript).not.toContain('--package-path')
   })
 
-  it('keeps CUA updates managed by DeepChat instead of upstream release checks', async () => {
-    const commandSource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCLI/CuaDriverCommand.swift',
-      'utf8'
-    )
-
-    expect(commandSource).toContain('DeepChat packages this cua-driver fork with the app.')
-    expect(commandSource).toContain('Update DeepChat to receive newer Computer Use helper builds.')
-    expect(commandSource).not.toContain('VersionCheck.fetchLatest')
-    expect(commandSource).not.toContain('Could not reach GitHub')
-    expect(commandSource).not.toContain('Checking for updates')
-  })
-
-  it('keeps CUA default pixel clicks on the upstream auth-signed path', async () => {
-    const mouseInput = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/Input/MouseInput.swift',
-      'utf8'
-    )
-
-    expect(mouseInput).toContain('try clickViaAuthSignedPost(')
-    expect(mouseInput).toContain('private static func clickViaAuthSignedPost')
-    expect(mouseInput).not.toContain('clickViaBackgroundPidPost')
-  })
-
-  it('scopes CUA zoom contexts to pid and window_id', async () => {
-    const registrySource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ImageResizeRegistry.swift',
-      'utf8'
-    )
-    const zoomTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ZoomTool.swift',
-      'utf8'
-    )
-    const clickTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ClickTool.swift',
-      'utf8'
-    )
-    const dragTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/DragTool.swift',
-      'utf8'
-    )
-    const stateTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/GetWindowStateTool.swift',
-      'utf8'
-    )
-
-    expect(registrySource).toContain('public struct ImageContextKey')
-    expect(registrySource).toContain('private var ratios: [ImageContextKey: Double]')
-    expect(registrySource).toContain('private var zooms: [ImageContextKey: ZoomContext]')
-    expect(zoomTool).toContain('"window_id"')
-    expect(zoomTool).toContain('capture.captureWindow')
-    expect(zoomTool).toContain('windowId: windowId')
-    expect(stateTool).toContain('setRatio(')
-    expect(stateTool).toContain('windowId: windowId')
-    for (const source of [clickTool, dragTool]) {
-      expect(source).toContain('from_zoom=true but no zoom context for pid')
-      expect(source).toContain('Call `zoom` with the same pid and window_id first.')
-      expect(source).toContain('windowId: windowId')
-    }
-  })
-
-  it('keeps Electron AX enablement internal instead of adding a public tool', async () => {
+  it('keeps unreviewed CUA tools out of the policy surface', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
-    const registrySource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/ToolRegistry.swift',
-      'utf8'
-    )
-    const stateSource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/AppState/AppState.swift',
-      'utf8'
-    )
-    const enablementSource = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCore/Focus/AXEnablementAssertion.swift',
-      'utf8'
-    )
     const manifestTools = manifest.toolPolicies.find(
       (item: { serverId: string }) => item.serverId === 'cua-driver'
     ).tools
 
-    expect(registrySource).not.toContain('SetElectronAccessibilityTool')
     expect(manifestTools.set_electron_accessibility).toBeUndefined()
     expect(policy.tools.set_electron_accessibility).toBeUndefined()
-    expect(stateSource).toContain('activateAccessibilityIfNeeded')
-    expect(enablementSource).toContain('AXManualAccessibility')
-    expect(enablementSource).toContain('AXEnhancedUserInterface')
   })
 
-  it('keeps the CUA skill instructions MCP-only', async () => {
+  it('keeps the CUA skill instructions aligned with DeepChat bundled tools', async () => {
     const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
     const contents = await Promise.all(
       files.map((file) => readFile(`plugins/cua/skills/cua-driver/${file}`, 'utf8'))
@@ -908,34 +905,20 @@ describe('PluginPresenter', () => {
     expect(combined).toContain('get_window_state')
     expect(combined).toContain('check_permissions')
     expect(combined).toContain('set_agent_cursor_style')
-    expect(combined).toContain('DeepChat Computer Use.app')
-    expect(combined).toContain('AXManualAccessibility')
-    expect(combined).toContain('electron_debugging_port: 9222')
-    expect(combined).toContain('screenshot({ window_id })')
+    expect(combined).toContain('CuaDriver.app')
+    expect(combined).toContain('win32/x64')
+    expect(combined).toContain('linux/x64')
+    expect(combined).toContain('win32/arm64')
+    expect(combined).toContain('start_recording')
+    expect(combined).toContain('stop_recording')
+    expect(combined).not.toContain('screenshot({ window_id })')
+    expect(combined).not.toContain('set_recording')
     expect(combined).toContain('zoom({ pid, window_id')
     expect(combined).toContain('Repeated zoom calls are a failure signal')
+    expect(combined).toContain('Do not ask the user to install CUA manually')
     expect(combined).not.toContain('Bash')
     expect(combined).not.toContain('cua-driver <tool')
-    expect(combined).not.toContain('PATH')
-    expect(combined).not.toMatch(/\bserve\b/)
     expect(combined).not.toContain('open -n -g -a')
-    expect(combined).not.toContain('daemon')
-  })
-
-  it('uses MCP-mode cache guidance in the CUA driver vendor source', async () => {
-    const clickTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/ClickTool.swift',
-      'utf8'
-    )
-    const rightClickTool = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverServer/Tools/RightClickTool.swift',
-      'utf8'
-    )
-
-    for (const source of [clickTool, rightClickTool]) {
-      expect(source).toContain('CUA_DRIVER_MCP_MODE')
-      expect(source).toContain('Call get_window_state with the same pid and window_id')
-    }
   })
 
   it('pins the Feishu MCP bootstrap package and keeps registry selection explicit', async () => {
@@ -979,18 +962,7 @@ describe('PluginPresenter', () => {
     expect(skill).toContain('Feishu plugin settings')
   })
 
-  it('skips install telemetry in the bundled CUA CLI entrypoint', async () => {
-    const source = await readFile(
-      'plugins/cua/vendor/cua-driver/source/Sources/CuaDriverCLI/CuaDriverCommand.swift',
-      'utf8'
-    )
-
-    expect(source).not.toContain('recordInstallation()')
-    expect(source).toContain('telemetryEntryEvent(for: original)')
-    expect(source).toContain('TelemetryClient.shared.record(event: entryEvent)')
-  })
-
-  it('wires CUA plugin packaging docs and release gates for both mac architectures', async () => {
+  it('wires CUA plugin packaging docs and release gates for supported targets', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
     const buildWorkflow = await readFile('.github/workflows/build.yml', 'utf8')
     const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
@@ -999,27 +971,58 @@ describe('PluginPresenter', () => {
 
     expect(packageJson.scripts['plugin:cua:build:mac:arm64']).toContain('--arch arm64')
     expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
+    expect(packageJson.scripts['plugin:cua:build:win:x64']).toContain('--platform win32 --arch x64')
+    expect(packageJson.scripts['plugin:cua:build:win:arm64']).toContain(
+      '--platform win32 --arch arm64'
+    )
+    expect(packageJson.scripts['plugin:cua:build:linux:x64']).toContain(
+      '--platform linux --arch x64'
+    )
     expect(packageJson.scripts['build:mac:arm64']).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch arm64'
     )
     expect(packageJson.scripts['build:mac:x64']).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch x64'
     )
-    expect(buildWorkflow).toContain('pnpm run plugin:cua:build:mac:${{ matrix.arch }}')
+    expect(packageJson.scripts['build:win:x64']).toContain(
+      'plugin:bundle -- --name cua --platform win32 --arch x64'
+    )
+    expect(packageJson.scripts['build:win:arm64']).toContain(
+      'plugin:bundle -- --name cua --platform win32 --arch arm64'
+    )
+    expect(packageJson.scripts['build:linux:x64']).toContain(
+      'plugin:bundle -- --name cua --platform linux --arch x64'
+    )
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
     )
+    expect(buildWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).not.toContain('if ("${{ matrix.arch }}" -eq "x64")')
     expect(buildWorkflow).toContain('Verify bundled plugins')
     expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
-    expect(releaseWorkflow).toContain('pnpm run plugin:cua:build:mac:${{ matrix.arch }}')
     expect(releaseWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
     )
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")
+    expect(packageScript).toContain('parts[1] !== args.targetPlatform')
     expect(packageScript).toContain('parts[2] !== args.targetArch')
+    expect(packageScript).toContain('CUA plugin does not support')
     expect(guide).toContain('build/bundled-plugins/')
     expect(guide).toContain('app.asar.unpacked/plugins/')
+    expect(guide).toContain('win32/arm64')
+    expect(guide).toContain('linux/arm64')
   })
 })

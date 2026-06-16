@@ -21,17 +21,17 @@ The current plugin is macOS-only:
 
 Upstream `trycua/cua` now publishes the Rust CUA driver as cross-platform release artifacts. The
 latest verified driver release for this plan is `cua-driver-rs-v0.5.5`, published on
-2026-06-16. DeepChat support for this feature is limited to the targets that have been validated
-for bundled plugin packaging:
+2026-06-16. DeepChat support for this feature is limited to the targets that have upstream release
+assets and have been validated for bundled plugin packaging:
 
 - macOS arm64 and x86_64, plus universal variants.
-- Windows x86_64.
+- Windows x86_64 and arm64.
 - Linux x86_64.
 
-Windows arm64 and Linux arm64 remain unsupported for this DeepChat integration until they are
-explicitly validated. Upstream documents Linux support as pre-release. DeepChat should expose Linux
-support where the runtime asset exists, while keeping Linux limitations explicit in docs and
-validation.
+Linux arm64 remains unsupported for this DeepChat integration until upstream publishes and DeepChat
+validates a matching release asset. Upstream documents Linux support as pre-release. DeepChat should
+expose Linux support where the runtime asset exists, while keeping Linux limitations explicit in
+docs and validation.
 
 ## Goal
 
@@ -46,8 +46,8 @@ on macOS, Windows, and Linux without requiring user-managed MCP setup or manual 
 - Do not run upstream install or uninstall scripts at app runtime.
 - Do not introduce auto-start services, scheduled tasks, or package-manager installation from
   inside DeepChat.
-- Do not claim Windows arm64 or Linux arm64 CUA support until those targets are explicitly
-  validated for DeepChat packaging.
+- Do not claim Linux arm64 CUA support until that target is explicitly validated for DeepChat
+  packaging.
 - Do not redesign the plugin host or the global tool permission model.
 
 ## Platform Scope
@@ -59,7 +59,7 @@ The implementation must support these packaged plugin targets:
 | `darwin` | `arm64` | Available | Bundle and verify CUA runtime |
 | `darwin` | `x64` | Available | Bundle and verify CUA runtime |
 | `win32` | `x64` | Available | Bundle and verify CUA runtime |
-| `win32` | `arm64` | Unsupported for DeepChat | Do not bundle or show CUA; fail clearly if requested directly |
+| `win32` | `arm64` | Available | Bundle and verify CUA runtime |
 | `linux` | `x64` | Available | Bundle and verify CUA runtime |
 | `linux` | `arm64` | Unsupported for DeepChat | Do not bundle or show CUA; fail clearly if requested directly |
 
@@ -71,17 +71,17 @@ runtime targets:
 - `darwin/arm64`
 - `darwin/x64`
 - `win32/x64`
+- `win32/arm64`
 - `linux/x64`
 
 The plugin must not be visible as an official usable plugin on:
 
-- `win32/arm64`
 - `linux/arm64`
 
 If the current plugin manifest can only express platform support, implementation must add an
 arch-aware gate through manifest metadata, official-plugin discovery, or runtime support checks.
-`engines.platforms` alone is not sufficient for CUA because Windows arm64 and Linux arm64 must stay
-hidden even though their operating systems are otherwise in scope.
+`engines.platforms` alone is not sufficient for CUA because Linux arm64 must stay hidden even though
+the operating system is otherwise in scope.
 
 ## Integration Contract
 
@@ -129,6 +129,9 @@ plugins/cua/runtime/
       CuaDriver.app/Contents/MacOS/cua-driver
   win32/
     x64/
+      cua-driver.exe
+      cua-driver-uia.exe
+    arm64/
       cua-driver.exe
       cua-driver-uia.exe
   linux/
@@ -201,13 +204,13 @@ The packaged app must keep CUA usable after Electron packaging:
 ## Acceptance Criteria
 
 - Official CUA plugin metadata or discovery logic allows only the supported target matrix:
-  `darwin/arm64`, `darwin/x64`, `win32/x64`, and `linux/x64`.
+  `darwin/arm64`, `darwin/x64`, `win32/x64`, `win32/arm64`, and `linux/x64`.
 - Packaged macOS, Windows, and Linux x64 builds include a CUA `.dcplugin` artifact.
-- Packaged Windows arm64 and Linux arm64 builds do not include a visible or usable CUA plugin.
-- Direct CUA runtime packaging for Windows arm64 or Linux arm64 fails with a clear unsupported-target
-  message.
-- Official plugin visibility is gated by platform and arch, so unsupported arm targets do not show
-  CUA as available.
+- Packaged Windows arm64 builds include a CUA `.dcplugin` artifact.
+- Packaged Linux arm64 builds do not include a visible or usable CUA plugin.
+- Direct CUA runtime packaging for Linux arm64 fails with a clear unsupported-target message.
+- Official plugin visibility is gated by platform and arch, so the unsupported Linux arm target does
+  not show CUA as available.
 - Runtime detection resolves the plugin-local binary on every supported target.
 - The plugin starts through DeepChat's internal tool path without user-managed MCP setup.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
