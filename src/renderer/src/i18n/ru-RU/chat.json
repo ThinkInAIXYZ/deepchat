@@ -212,8 +212,8 @@
         "button": "Выбрать папку"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Наблюдение работает в резервном режиме. Изменения могут обновляться медленнее.",
+        "failed": "Наблюдение за файлами недоступно. Обновите или выберите рабочую область заново."
       }
     },
     "git": {

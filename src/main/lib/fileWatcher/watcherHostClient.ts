@@ -20,6 +20,7 @@ type PendingRequest = {
 
 const MAX_RESTART_ATTEMPTS = 3
 const RESTART_DELAY_MS = 800
+const RPC_TIMEOUT_MS = 15000
 
 export class WatcherHostClient {
   private host: UtilityProcess | null = null
@@ -93,9 +94,20 @@ export class WatcherHostClient {
     const id = `watcher_rpc_${this.hostKind}_${++this.requestId}`
 
     return await new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(id)
+        reject(new Error(`File watcher RPC timed out: ${method} (${this.hostKind})`))
+      }, RPC_TIMEOUT_MS)
+
       this.pendingRequests.set(id, {
-        resolve: (value) => resolve(value as T),
-        reject
+        resolve: (value) => {
+          clearTimeout(timeout)
+          resolve(value as T)
+        },
+        reject: (error) => {
+          clearTimeout(timeout)
+          reject(error)
+        }
       })
 
       const payload: FileWatcherRpcRequest = {
@@ -108,8 +120,9 @@ export class WatcherHostClient {
       try {
         host.postMessage(payload)
       } catch (error) {
+        const pending = this.pendingRequests.get(id)
         this.pendingRequests.delete(id)
-        reject(error instanceof Error ? error : new Error(String(error)))
+        pending?.reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
   }

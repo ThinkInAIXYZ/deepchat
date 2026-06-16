@@ -212,8 +212,8 @@
         "button": "Sélectionner un dossier"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "La surveillance fonctionne en mode de secours. Les changements peuvent s’actualiser plus lentement.",
+        "failed": "La surveillance des fichiers est indisponible. Actualisez ou resélectionnez l’espace de travail."
       }
     },
     "git": {

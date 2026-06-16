@@ -31,8 +31,11 @@ export function getFileWatcherService(): FileWatcherService {
   return sharedWatcherService
 }
 
-export function resetFileWatcherServiceForTests(): void {
-  sharedWatcherService = null
+export async function resetFileWatcherServiceForTests(): Promise<void> {
+  if (sharedWatcherService) {
+    await sharedWatcherService.destroy()
+    sharedWatcherService = null
+  }
 }
 
 export function createWatcherRequestId(

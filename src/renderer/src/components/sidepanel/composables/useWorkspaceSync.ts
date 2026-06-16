@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type {
   WorkspaceFileNode,
@@ -394,6 +394,13 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     node.expanded = true
   }
 
+  stopWorkspaceInvalidatedListener = options.workspaceClient.onInvalidated(
+    handleWorkspaceInvalidated
+  )
+  stopWorkspaceWatchStatusListener = options.workspaceClient.onWatchStatusChanged(
+    handleWorkspaceWatchStatusChanged
+  )
+
   watch(
     [options.workspacePath, options.active] as const,
     ([workspacePath, active]) => {
@@ -417,15 +424,6 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     },
     { immediate: true }
   )
-
-  onMounted(() => {
-    stopWorkspaceInvalidatedListener = options.workspaceClient.onInvalidated(
-      handleWorkspaceInvalidated
-    )
-    stopWorkspaceWatchStatusListener = options.workspaceClient.onWatchStatusChanged(
-      handleWorkspaceWatchStatusChanged
-    )
-  })
 
   onBeforeUnmount(() => {
     if (refreshTimer) {

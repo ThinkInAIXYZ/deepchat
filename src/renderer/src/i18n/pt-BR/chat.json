@@ -212,8 +212,8 @@
         "button": "Selecionar pasta"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "O monitoramento está em modo de fallback. As alterações podem ser atualizadas mais lentamente.",
+        "failed": "O monitoramento de arquivos está indisponível. Atualize ou selecione novamente o espaço de trabalho."
       }
     },
     "git": {

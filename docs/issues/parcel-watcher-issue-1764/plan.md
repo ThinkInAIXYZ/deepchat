@@ -89,7 +89,7 @@ Use stable request and event types inside `src/main/lib/fileWatcher/watcherTypes
 ```typescript
 export type WatcherHostKind = 'content' | 'git'
 export type WatcherEventType = 'create' | 'update' | 'delete' | 'overflow' | 'root-deleted'
-export type WatcherMode = 'native' | 'snapshot-polling' | 'lifecycle'
+export type WatcherMode = 'native' | 'snapshot-polling' | 'git-metadata-polling'
 export type WatcherHealth = 'healthy' | 'degraded' | 'failed'
 
 export interface WatchRequest {
@@ -101,7 +101,7 @@ export interface WatchRequest {
   excludes: string[]
   owner: 'workspace' | 'skill'
   purpose: 'workspace-content' | 'workspace-git' | 'skill-hot-reload'
-  fallbackPolicy: 'snapshot-polling' | 'lifecycle'
+  fallbackMode?: 'snapshot-polling' | 'git-metadata-polling'
 }
 
 export interface WatchEventBatch {
@@ -213,7 +213,7 @@ Fallback modes:
   watcher host on a 5000 ms interval for workspace content.
 - `git-metadata-polling`: stat `HEAD`, `index`, `packed-refs`, and scan `refs` mtimes from the git
   watcher host on a 1000 ms interval.
-- `lifecycle`: emit a full fallback invalidation when the workspace panel activates or the
+- Lifecycle fallback: emit a full fallback invalidation when the workspace panel activates or the
   workspace path changes.
 
 Degraded mode emits a typed status event:
@@ -221,7 +221,7 @@ Degraded mode emits a typed status event:
 ```text
 workspace.watch.status.changed
   workspacePath
-  mode: native | snapshot-polling | lifecycle
+  mode: native | snapshot-polling | git-metadata-polling
   health: healthy | degraded | failed
   reason
 ```

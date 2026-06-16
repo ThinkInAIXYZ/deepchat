@@ -212,8 +212,8 @@
         "button": "Vælg mappe"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Overvågning kører i fallback-tilstand. Ændringer kan blive opdateret langsommere.",
+        "failed": "Filovervågning er ikke tilgængelig. Opdater eller vælg arbejdsområdet igen."
       }
     },
     "git": {

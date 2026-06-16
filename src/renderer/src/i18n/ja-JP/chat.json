@@ -212,8 +212,8 @@
       },
       "section": "書類",
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "フォールバックモードで監視しています。変更の反映が遅くなる場合があります。",
+        "failed": "ファイル監視を利用できません。更新するか、ワークスペースを選択し直してください。"
       }
     },
     "git": {

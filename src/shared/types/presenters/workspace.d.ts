@@ -98,7 +98,7 @@ export type WorkspaceInvalidationEvent = {
   workspacePath: string
   kind: WorkspaceInvalidationKind
   source: WorkspaceInvalidationSource
-  version?: number
+  version: number
 }
 
 export type WorkspaceWatchHealth = 'healthy' | 'degraded' | 'failed'

@@ -262,8 +262,8 @@
         "insertPath": "Girişe ekle"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "İzleme yedek modda çalışıyor. Değişiklikler daha yavaş yenilenebilir.",
+        "failed": "Dosya izleme kullanılamıyor. Yenileyin veya çalışma alanını yeniden seçin."
       }
     },
     "git": {

@@ -212,8 +212,8 @@
         "button": "בחר תיקייה"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "המעקב פועל במצב גיבוי. ייתכן שהשינויים יתרעננו לאט יותר.",
+        "failed": "מעקב אחר קבצים אינו זמין. רענן או בחר מחדש את סביבת העבודה."
       }
     },
     "git": {

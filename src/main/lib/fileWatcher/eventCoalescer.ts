@@ -56,14 +56,14 @@ export function coalesceWatcherEvents(events: WatcherEvent[]): WatcherEvent[] {
   const mergedEvents = Array.from(byPath.values())
   const deletedParents = mergedEvents
     .filter((event) => event.type === 'delete')
-    .map((event) => path.normalize(event.path))
+    .map((event) => normalizeEventKey(event.path))
 
   return mergedEvents.filter((event) => {
     if (event.type !== 'delete') {
       return true
     }
 
-    const normalized = path.normalize(event.path)
+    const normalized = normalizeEventKey(event.path)
     return !deletedParents.some(
       (deletedParent) => deletedParent !== normalized && isDescendantOf(normalized, deletedParent)
     )

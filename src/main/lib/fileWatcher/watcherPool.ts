@@ -126,7 +126,21 @@ export class WatcherPool {
       entry.statusListeners.add(onStatus)
     }
 
-    await entry.ready
+    try {
+      await entry.ready
+    } catch (error) {
+      entry.listeners.delete(onBatch)
+      if (onStatus) {
+        entry.statusListeners.delete(onStatus)
+      }
+      if (this.entriesByKey.get(entry.key) === entry) {
+        this.entriesByKey.delete(entry.key)
+      }
+      if (this.entriesByWatchId.get(entry.request.id) === entry) {
+        this.entriesByWatchId.delete(entry.request.id)
+      }
+      throw error
+    }
 
     return {
       close: async () => {

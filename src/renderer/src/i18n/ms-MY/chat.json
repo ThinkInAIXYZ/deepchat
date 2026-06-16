@@ -262,8 +262,8 @@
         "insertPath": "Masukkan ke dalam kotak input"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Pemantauan berjalan dalam mod sandaran. Perubahan mungkin dimuat semula dengan lebih perlahan.",
+        "failed": "Pemantauan fail tidak tersedia. Muat semula atau pilih semula ruang kerja."
       }
     },
     "git": {

@@ -262,8 +262,8 @@
         "insertPath": "Wstaw do wejścia"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Obserwowanie działa w trybie awaryjnym. Zmiany mogą odświeżać się wolniej.",
+        "failed": "Obserwowanie plików jest niedostępne. Odśwież lub wybierz obszar roboczy ponownie."
       }
     },
     "git": {

@@ -289,6 +289,18 @@ describe('WorkspacePresenter watchers', () => {
     })
   })
 
+  it('removes failed watcher startup state so later calls can retry', async () => {
+    await presenter.registerWorkspace(workspacePath)
+    vi.mocked(fakeWatcherService.service.watch).mockRejectedValueOnce(new Error('watch failed'))
+
+    await expect(presenter.watchWorkspace(workspacePath)).rejects.toThrow('watch failed')
+    expect(fakeWatcherService.watchers).toHaveLength(0)
+
+    await presenter.watchWorkspace(workspacePath)
+
+    expect(fakeWatcherService.watchers).toHaveLength(2)
+  })
+
   it('closes remaining watchers during destroy', async () => {
     await presenter.registerWorkspace(workspacePath)
     await presenter.watchWorkspace(workspacePath)

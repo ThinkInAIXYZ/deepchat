@@ -1952,12 +1952,7 @@ export class SkillPresenter implements ISkillPresenter {
 
   private async handleSkillWatchBatch(batch: WatcherEventBatch): Promise<void> {
     if (batch.events.some((event) => event.type === 'overflow' || event.type === 'root-deleted')) {
-      const skills = await this.discoverSkills()
-      publishDeepchatEvent('skills.catalog.changed', {
-        reason: 'discovered',
-        skills,
-        version: Date.now()
-      })
+      await this.discoverSkills()
       return
     }
 

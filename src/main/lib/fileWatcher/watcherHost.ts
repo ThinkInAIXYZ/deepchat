@@ -175,6 +175,10 @@ export class FileWatcherHost {
             mode: activeWatch.mode,
             reason: 'root-deleted'
           })
+          if (activeWatch.pollTimer) {
+            clearInterval(activeWatch.pollTimer)
+            activeWatch.pollTimer = null
+          }
           return
         }
 
@@ -212,10 +216,10 @@ export class FileWatcherHost {
       }
     }
 
-    void poll()
     activeWatch.pollTimer = setInterval(() => {
       void poll()
     }, SNAPSHOT_POLL_INTERVAL_MS)
+    void poll()
   }
 
   private enqueueEvents(activeWatch: ActiveWatch, events: WatcherEvent[]): void {

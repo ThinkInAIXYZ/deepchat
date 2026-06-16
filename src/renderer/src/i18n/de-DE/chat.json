@@ -262,8 +262,8 @@
         "insertPath": "In Eingabe einfügen"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Überwachung läuft im Fallback-Modus. Änderungen werden möglicherweise langsamer aktualisiert.",
+        "failed": "Dateiüberwachung ist nicht verfügbar. Aktualisiere oder wähle den Arbeitsbereich erneut aus."
       }
     },
     "git": {

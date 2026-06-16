@@ -17,7 +17,7 @@
 - `pnpm run format`
 - `pnpm run i18n`
 - `pnpm run lint`
-- `pnpm run typecheck`
+- `pnpm run typecheck:node`
 - `pnpm test`
 - `pnpm run build`
 - `pnpm exec playwright test -c test/e2e/playwright.config.ts test/e2e/specs/30-workspace-watcher-events.smoke.spec.ts`

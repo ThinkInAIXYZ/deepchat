@@ -135,7 +135,7 @@ Use the VS Code watcher model as the design reference:
 
 ## Review Decisions
 
-- Recommended dependency version: `@parcel/watcher@^2.5.6`, currently the latest npm release.
+- Recommended dependency version: `@parcel/watcher@^2.5.6`.
 - Recommended implementation shape: a main-process `WatcherService` facade backed by Electron
   utility process watcher hosts.
 - Recommended lifecycle change: model watcher startup and shutdown as async operations where the

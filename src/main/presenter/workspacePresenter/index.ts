@@ -166,13 +166,19 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
 
     this.watchRuntimes.set(normalized, runtime)
-    runtime.contentWatcher = await this.createContentWatcher(normalized)
-    if (runtime.disposed || this.watchRuntimes.get(normalized) !== runtime) {
-      await runtime.contentWatcher.close()
-      runtime.contentWatcher = null
-      return
+    try {
+      runtime.contentWatcher = await this.createContentWatcher(normalized)
+      if (runtime.disposed || this.watchRuntimes.get(normalized) !== runtime) {
+        await runtime.contentWatcher.close()
+        runtime.contentWatcher = null
+        return
+      }
+      await this.refreshGitWatcher(runtime)
+    } catch (error) {
+      this.watchRuntimes.delete(normalized)
+      await this.disposeRuntime(runtime)
+      throw error
     }
-    await this.refreshGitWatcher(runtime)
   }
 
   async unwatchWorkspace(workspacePath: string): Promise<void> {
@@ -229,7 +235,12 @@ export class WorkspacePresenter implements IWorkspacePresenter {
 
     for (const event of batch.events) {
       if (event.type === 'overflow' || event.type === 'root-deleted') {
-        void this.refreshGitWatcher(runtime)
+        void this.refreshGitWatcher(runtime).catch((error) => {
+          console.warn('[Workspace] Failed to refresh git watcher', {
+            workspacePath: runtime.workspacePath,
+            error
+          })
+        })
         this.scheduleInvalidation(runtime, 'full', source)
         return
       }
@@ -239,7 +250,12 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       }
 
       if (this.isGitDirectoryEvent(event.path)) {
-        void this.refreshGitWatcher(runtime)
+        void this.refreshGitWatcher(runtime).catch((error) => {
+          console.warn('[Workspace] Failed to refresh git watcher', {
+            workspacePath: runtime.workspacePath,
+            error
+          })
+        })
         this.scheduleInvalidation(runtime, 'full', source)
         return
       }
@@ -315,7 +331,8 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       const payload: WorkspaceInvalidationEvent = {
         workspacePath: runtime.workspacePath,
         kind: runtime.pendingKind ?? kind,
-        source: runtime.pendingSource ?? source
+        source: runtime.pendingSource ?? source,
+        version: Date.now()
       }
       runtime.pendingKind = null
       runtime.pendingSource = null
@@ -324,10 +341,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   }
 
   private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
-    publishDeepchatEvent('workspace.invalidated', {
-      ...payload,
-      version: Date.now()
-    })
+    publishDeepchatEvent('workspace.invalidated', payload)
   }
 
   private emitWatchStatus(workspacePath: string, status: WatcherStatus): void {

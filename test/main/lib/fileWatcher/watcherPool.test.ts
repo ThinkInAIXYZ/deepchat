@@ -13,7 +13,11 @@ class FakeWatcherHostClient {
   readonly requests: WatchRequest[] = []
   readonly batchListeners = new Set<WatchBatchListener>()
   readonly statusListeners = new Set<WatchStatusListener>()
+  watchError: Error | null = null
   readonly watch = vi.fn(async (request: WatchRequest) => {
+    if (this.watchError) {
+      throw this.watchError
+    }
     this.requests.push(request)
   })
   readonly unwatch = vi.fn(async (_watchId: string) => {})
@@ -148,5 +152,24 @@ describe('WatcherPool', () => {
         reason: 'fallback-started'
       })
     )
+  })
+
+  it('removes failed pooled watches so later callers can retry', async () => {
+    const { pool, content } = createPoolWithClients()
+    const request = createRequest()
+    const firstListener = vi.fn()
+    const secondListener = vi.fn()
+
+    content.watchError = new Error('native watcher failed')
+    await expect(pool.watch(request, firstListener)).rejects.toThrow('native watcher failed')
+
+    content.watchError = null
+    const handle = await pool.watch(request, secondListener)
+
+    expect(content.watch).toHaveBeenCalledTimes(2)
+    expect(content.requests).toHaveLength(1)
+
+    await handle.close()
+    expect(content.unwatch).toHaveBeenCalledWith(content.requests[0].id)
   })
 })

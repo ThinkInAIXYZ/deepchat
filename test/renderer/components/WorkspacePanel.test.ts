@@ -468,6 +468,32 @@ describe('WorkspacePanel', () => {
     expect(unwatchWorkspaceMock).toHaveBeenCalledWith('C:/repo')
   })
 
+  it('captures watch status emitted during initial watcher startup', async () => {
+    watchWorkspaceMock.mockImplementationOnce(async (workspacePath: string) => {
+      await emitWorkspaceWatchStatusChanged({
+        workspacePath,
+        health: 'degraded',
+        mode: 'snapshot-polling',
+        reason: 'fallback-started'
+      })
+    })
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="workspace-watch-status"]').text()).toContain(
+      'chat.workspace.files.watchStatus.degraded'
+    )
+
+    wrapper.unmount()
+  })
+
   it('shows watcher fallback status and hides it when the watcher recovers', async () => {
     const wrapper = mount(WorkspacePanel, {
       props: {

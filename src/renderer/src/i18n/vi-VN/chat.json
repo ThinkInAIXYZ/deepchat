@@ -262,8 +262,8 @@
         "insertPath": "Chèn vào đầu vào"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "Đang theo dõi ở chế độ dự phòng. Thay đổi có thể được làm mới chậm hơn.",
+        "failed": "Tính năng theo dõi tệp không khả dụng. Hãy làm mới hoặc chọn lại không gian làm việc."
       }
     },
     "git": {

@@ -2112,6 +2112,24 @@ describe('SkillPresenter', () => {
       expect(fakeWatcherService.service.watch).toHaveBeenCalledTimes(1)
     })
 
+    it('publishes one catalog change when watcher overflow triggers rediscovery', async () => {
+      mockSkillTree(['skill-a'])
+      await skillPresenter.watchSkillFiles()
+      publishDeepchatEventMock.mockClear()
+      const watcher = fakeWatcherService.watchers.at(-1)
+
+      await watcher?.emit([{ type: 'overflow', path: DEFAULT_SKILLS_DIR }])
+
+      expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+      expect(publishDeepchatEventMock).toHaveBeenCalledWith(
+        'skills.catalog.changed',
+        expect.objectContaining({
+          reason: 'discovered',
+          version: expect.any(Number)
+        })
+      )
+    })
+
     it('keeps the first cached entry when a changed skill renames to a duplicate name', async () => {
       const metadataCache = (skillPresenter as any).metadataCache as Map<string, SkillMetadata>
       const originalMetadata = createSkillMetadata('skill-a', 'skill-a')

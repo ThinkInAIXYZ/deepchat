@@ -262,8 +262,8 @@
         "insertPath": "Insertar en el campo de entrada"
       },
       "watchStatus": {
-        "degraded": "Watching in fallback mode. Changes may refresh slower.",
-        "failed": "File watching is unavailable. Refresh or reselect the workspace."
+        "degraded": "La supervisión está en modo de reserva. Los cambios pueden actualizarse más lentamente.",
+        "failed": "La supervisión de archivos no está disponible. Actualiza o vuelve a seleccionar el espacio de trabajo."
       }
     },
     "git": {
