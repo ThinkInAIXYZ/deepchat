@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.6-beta.6 (2026-06-16)
+- Added Agent Memory so agents can extract, manage, and reuse persistent memory in agent workflows
+- Added DeepChat Tape view manifests and richer trace inspection for replay and context provenance
+- Added drag-and-drop skill installation, MiniMax M3 handling, and refreshed provider/model and ACP registry data
+- Improved workspace watching with a Parcel watcher utility host for large workspace reliability
+- Fixed markdown code block scrollbar jitter, sidebar history pagination stalls, and cloned settings save payloads
+- 新增 Agent Memory，让 Agent 工作流可以提取、管理并复用持久记忆
+- 新增 DeepChat Tape view manifest 与更完整的 trace 检查，支持 replay 和上下文来源追踪
+- 新增技能拖放安装、MiniMax M3 处理，并刷新 Provider/模型与 ACP registry 数据
+- 使用 Parcel watcher utility host 改进工作区监听，提升大型工作区可靠性
+- 修复 Markdown 代码块滚动条抖动、侧边栏历史分页卡住，以及设置保存 payload clone 问题
+
 ## v1.0.6-beta.5 (2026-06-11)
 - Fixed packaged app startup by bundling the OpenDAL native binding needed by cloud sync
 - 修复打包应用启动问题，补齐云同步所需的 OpenDAL native binding
