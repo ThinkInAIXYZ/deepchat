@@ -118,6 +118,23 @@ function supportsGrokReasoningEffort(modelId: string): boolean {
   )
 }
 
+function normalizeMiniMaxModelId(modelId: string): string {
+  const normalized = modelId.trim().toLowerCase()
+  return normalized.includes('/') ? normalized.slice(normalized.lastIndexOf('/') + 1) : normalized
+}
+
+function supportsMiniMaxAdaptiveThinking(
+  providerId: string,
+  capabilityProviderId: string,
+  modelId: string
+): boolean {
+  const providerIds = [providerId, capabilityProviderId].map((id) => id.trim().toLowerCase())
+  return (
+    providerIds.some((id) => id === 'minimax' || id === 'minimax-cn') &&
+    normalizeMiniMaxModelId(modelId) === 'minimax-m3'
+  )
+}
+
 export function buildProviderOptions(
   params: BuildProviderOptionsParams
 ): ProviderOptionsMappingResult {
@@ -263,6 +280,17 @@ export function buildProviderOptions(
         config.thinking = {
           type: 'adaptive',
           display: resolvedVisibility
+        }
+      } else if (
+        supportsMiniMaxAdaptiveThinking(
+          params.providerId,
+          params.capabilityProviderId,
+          params.modelId
+        ) &&
+        reasoningEnabled
+      ) {
+        config.thinking = {
+          type: 'adaptive'
         }
       } else if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
         config.thinking = {
