@@ -1,5 +1,7 @@
 <template>
-  <div class="prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all">
+  <div
+    class="markdown-renderer-root prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all"
+  >
     <NodeRenderer
       :content="debouncedContent"
       :custom-id="customRendererId"
@@ -86,7 +88,8 @@ const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
 const codeBlockDarkTheme = codeBlockThemes[0]
 const codeBlockLightTheme = codeBlockThemes[1]
 const codeBlockMonacoOption = computed(() => ({
-  fontFamily: uiSettingsStore.formattedCodeFontFamily
+  fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  wordWrap: 'on' as const
 }))
 const { navigateLink } = useMarkdownLinkNavigation({
   linkContext: effectiveLinkContext
@@ -302,6 +305,14 @@ defineEmits(['copy'])
   .table-node-wrapper {
     @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
     contain: layout style paint;
+  }
+
+  .markstream-vue [data-markstream-code-block='1'],
+  .markstream-vue [data-markstream-code-block='1'] .code-editor-container,
+  .markstream-vue [data-markstream-code-block='1'] .code-pre-fallback,
+  .markstream-vue pre[class^='language-'],
+  .markstream-vue pre[class*=' language-'] {
+    scrollbar-gutter: stable;
   }
 
   table {
