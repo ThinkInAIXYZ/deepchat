@@ -108,6 +108,14 @@ function isSessionError(error: unknown): error is SessionError {
   return false
 }
 
+function isUnsupportedCapabilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  if (error instanceof McpError && error.code === ErrorCode.MethodNotFound) {
+    return true
+  }
+  return /method not found|unknown method|not supported|unsupported|mcp error -32601/i.test(message)
+}
+
 // MCP client class
 export class McpClient {
   private client: Client | null = null
@@ -1032,10 +1040,8 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
+      if (isUnsupportedCapabilityError(error)) {
         console.warn(`Server ${this.serverName} does not support listTools`)
         this.cachedTools = []
         return this.cachedTools
@@ -1095,11 +1101,9 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
-        console.warn(`Server ${this.serverName} does not support listPrompts`)
+      if (isUnsupportedCapabilityError(error)) {
+        console.info(`Server ${this.serverName} does not support listPrompts`)
         this.cachedPrompts = []
         return this.cachedPrompts
       } else {
@@ -1196,11 +1200,9 @@ export class McpClient {
       // 检查并处理session错误
       await this.checkAndHandleSessionError(error)
 
-      // 尝试从错误对象中提取更多信息
-      const errorMessage = error instanceof Error ? error.message : String(error)
       // 如果错误表明不支持，则缓存空数组
-      if (errorMessage.includes('Method not found') || errorMessage.includes('not supported')) {
-        console.warn(`Server ${this.serverName} does not support listResources`)
+      if (isUnsupportedCapabilityError(error)) {
+        console.info(`Server ${this.serverName} does not support listResources`)
         this.cachedResources = []
         return this.cachedResources
       } else {

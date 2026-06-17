@@ -1,5 +1,7 @@
-import fs from 'fs/promises'
-import path from 'path'
+import fs from 'node:fs/promises'
+import { request } from 'node:https'
+import path from 'node:path'
+import { URL } from 'node:url'
 
 const REGISTRY_URL = 'https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json'
 const OUTPUT_DIR = path.resolve(process.cwd(), 'resources', 'acp-registry')
@@ -8,6 +10,57 @@ const ICON_OUTPUT_DIR = path.join(OUTPUT_DIR, 'icons')
 const ICON_TMP_DIR = path.join(OUTPUT_DIR, '.icons-tmp')
 const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/registry/'
 const SAFE_ICON_ID_PATTERN = /^[A-Za-z0-9._-]+$/
+const REQUEST_TIMEOUT_MS = 30_000
+const MAX_REDIRECTS = 5
+const USER_AGENT = 'DeepChat build registry fetcher'
+
+const fetchText = (url, redirectCount = 0) =>
+  new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url)
+    const req = request(
+      parsedUrl,
+      {
+        headers: {
+          accept: 'application/json,image/svg+xml,text/plain,*/*',
+          'user-agent': USER_AGENT
+        }
+      },
+      (response) => {
+        const statusCode = response.statusCode ?? 0
+        const location = response.headers.location
+        if (statusCode >= 300 && statusCode < 400 && location) {
+          response.resume()
+          if (redirectCount >= MAX_REDIRECTS) {
+            reject(new Error(`Too many redirects while fetching ${url}`))
+            return
+          }
+          resolve(fetchText(new URL(location, parsedUrl).toString(), redirectCount + 1))
+          return
+        }
+
+        const chunks = []
+        response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+        response.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf-8')
+          if (statusCode < 200 || statusCode >= 300) {
+            reject(
+              new Error(
+                `Failed to fetch ${url}: ${statusCode} ${response.statusMessage ?? ''}`.trim()
+              )
+            )
+            return
+          }
+          resolve(text)
+        })
+      }
+    )
+
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Timed out fetching ${url}`))
+    })
+    req.on('error', reject)
+    req.end()
+  })
 
 const getCacheableIconAgents = (parsed) =>
   Array.isArray(parsed.agents)
@@ -51,18 +104,11 @@ const stageIcons = async (parsed) => {
   await fs.rm(ICON_TMP_DIR, { recursive: true, force: true })
   await fs.mkdir(ICON_TMP_DIR, { recursive: true })
 
-  await Promise.all(
-    iconAgents.map(async (agent) => {
-      const safeAgentId = sanitizeAgentId(agent.id)
-      const response = await fetch(agent.icon)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ACP icon ${agent.id}: ${response.status} ${response.statusText}`)
-      }
-
-      const text = await response.text()
-      await fs.writeFile(path.join(ICON_TMP_DIR, `${safeAgentId}.svg`), text, 'utf-8')
-    })
-  )
+  for (const agent of iconAgents) {
+    const safeAgentId = sanitizeAgentId(agent.id)
+    const text = await fetchText(agent.icon)
+    await fs.writeFile(path.join(ICON_TMP_DIR, `${safeAgentId}.svg`), text, 'utf-8')
+  }
 
   return iconAgents.length
 }
@@ -73,12 +119,8 @@ const commitStagedIcons = async () => {
 }
 
 const main = async () => {
-  const response = await fetch(REGISTRY_URL)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ACP registry: ${response.status} ${response.statusText}`)
-  }
-
-  const text = await response.text()
+  console.log(`[fetch-acp-registry] Fetching ${REGISTRY_URL}`)
+  const text = await fetchText(REGISTRY_URL)
   const parsed = JSON.parse(text)
 
   const iconCount = await stageIcons(parsed)

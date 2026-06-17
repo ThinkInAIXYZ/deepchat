@@ -20,6 +20,7 @@ export type PluginToolPolicyDecision = 'allow' | 'ask' | 'deny'
 export interface PluginEngineManifest {
   deepchat: string
   platforms: string[]
+  targets?: string[]
 }
 
 export interface PluginSourceManifest {
@@ -187,6 +188,8 @@ export interface PluginInvokeActionRequest {
 
 export interface PluginSettingsApiStatus {
   pluginId: string
+  platform: string
+  arch: string
   enabled: boolean
   runtime?: PluginRuntimeStatus
   mcpServers?: PluginMcpRuntimeStatus[]

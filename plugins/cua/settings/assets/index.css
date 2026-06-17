@@ -97,6 +97,17 @@ h1 {
   border-top: 0;
 }
 
+.section-title {
+  min-height: 36px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #e5e5df;
+  color: #52525b;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .row span {
   color: #52525b;
   font-size: 13px;
@@ -197,6 +208,11 @@ button.danger:hover {
 
   .row {
     border-color: #2f2f33;
+  }
+
+  .section-title {
+    border-color: #2f2f33;
+    color: #a1a1aa;
   }
 
   .row span,

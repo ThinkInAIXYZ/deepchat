@@ -42,6 +42,7 @@ type PluginPresenterDeps = {
   mcpPresenter: IMCPPresenter
   skillPresenter: ISkillPresenter
   platform?: NodeJS.Platform
+  arch?: NodeJS.Architecture
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
@@ -57,8 +58,12 @@ type ResolvedOfficialPlugin = {
 type RuntimePermissionState = 'granted' | 'missing' | 'unknown'
 
 type RuntimePermissionCheckResult = {
+  platform: NodeJS.Platform
   accessibility: RuntimePermissionState
   screenRecording: RuntimePermissionState
+  uia?: RuntimePermissionState
+  postMessage?: RuntimePermissionState
+  diagnostics?: Record<string, string | number | boolean | null>
   error?: string
   command?: string
   stdout?: string
@@ -80,6 +85,7 @@ export class PluginPresenter {
   private readonly mcpPresenter: IMCPPresenter
   private readonly skillPresenter: SkillContributionPort
   private readonly platform: NodeJS.Platform
+  private readonly arch: NodeJS.Architecture
   private readonly appPath: string
   private readonly isPackaged: boolean
   private readonly resourcesPath: string
@@ -99,6 +105,7 @@ export class PluginPresenter {
     this.mcpPresenter = deps.mcpPresenter
     this.skillPresenter = deps.skillPresenter as SkillContributionPort
     this.platform = deps.platform ?? process.platform
+    this.arch = deps.arch ?? process.arch
     this.appPath = deps.appPath ?? app.getAppPath()
     this.isPackaged = deps.isPackaged ?? app.isPackaged
     this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
@@ -577,10 +584,15 @@ export class PluginPresenter {
         lastError: runtime.lastError
       })
       return {
+        platform: this.platform,
         accessibility: 'unknown',
         screenRecording: 'unknown',
         error: runtime.lastError || 'Runtime is missing'
       }
+    }
+
+    if (this.platform !== 'darwin') {
+      return await this.runRuntimePermissionToolFallback(pluginId, runtime.command)
     }
 
     try {
@@ -620,6 +632,7 @@ export class PluginPresenter {
         screenRecording?: unknown
       }
       const result: RuntimePermissionCheckResult = {
+        platform: this.platform,
         accessibility: this.toPermissionState(status.accessibility),
         screenRecording: this.toPermissionState(status.screen_recording ?? status.screenRecording),
         command
@@ -645,22 +658,18 @@ export class PluginPresenter {
   private async runRuntimePermissionToolFallback(
     pluginId: string,
     command: string,
-    probeError: unknown
+    probeError?: unknown
   ): Promise<RuntimePermissionCheckResult> {
     try {
       const { stdout, stderr } = await execFileAsync(command, ['check_permissions'], {
         timeout: 10000,
         windowsHide: true
       })
-      const output = `${stdout}\n${stderr}`
-      return {
-        accessibility: this.parsePermissionState(output, 'Accessibility'),
-        screenRecording: this.parsePermissionState(output, 'Screen Recording'),
-        command,
-        stdout: this.truncateOutput(stdout),
-        stderr: this.truncateOutput(stderr),
-        error: `Permission probe failed; used fallback. ${this.describeError(probeError)}`
+      const result = this.parseRuntimePermissionToolResult(command, stdout, stderr)
+      if (probeError) {
+        result.error = `Permission probe failed; used fallback. ${this.describeError(probeError)}`
       }
+      return result
     } catch (error) {
       console.warn('[PluginHost] Runtime permission fallback failed:', {
         pluginId,
@@ -668,14 +677,84 @@ export class PluginPresenter {
         error
       })
       return {
+        platform: this.platform,
         accessibility: 'unknown',
         screenRecording: 'unknown',
         command,
-        error: `Permission check failed. Probe: ${this.describeError(probeError)}. Fallback: ${this.describeExecError(error)}`,
+        error: `Permission check failed.${probeError ? ` Probe: ${this.describeError(probeError)}.` : ''} Fallback: ${this.describeExecError(error)}`,
         stdout: this.extractExecOutput(error, 'stdout'),
         stderr: this.extractExecOutput(error, 'stderr')
       }
     }
+  }
+
+  private parseRuntimePermissionToolResult(
+    command: string,
+    stdout: string,
+    stderr: string
+  ): RuntimePermissionCheckResult {
+    const parsed =
+      this.parsePermissionJson(stdout) ?? this.parsePermissionJson(`${stdout}\n${stderr}`)
+    const result: RuntimePermissionCheckResult = {
+      platform: this.platform,
+      accessibility: 'unknown',
+      screenRecording: 'unknown',
+      command,
+      stdout: this.truncateOutput(stdout),
+      stderr: this.truncateOutput(stderr)
+    }
+
+    if (this.platform === 'win32' && parsed) {
+      result.uia = this.toPermissionState(parsed.uia)
+      result.postMessage = this.toPermissionState(parsed.post_message ?? parsed.postMessage)
+      result.diagnostics = this.toRuntimePermissionDiagnostics(parsed)
+      return result
+    }
+
+    const output = `${stdout}\n${stderr}`
+    result.accessibility = this.parsePermissionState(output, 'Accessibility')
+    result.screenRecording = this.parsePermissionState(output, 'Screen Recording')
+
+    if (this.platform === 'linux' && parsed) {
+      result.diagnostics = this.toRuntimePermissionDiagnostics(parsed)
+      if (typeof parsed.error === 'string' && parsed.error.trim()) {
+        result.error = parsed.error.trim()
+      }
+    }
+
+    return result
+  }
+
+  private parsePermissionJson(output: string): Record<string, unknown> | undefined {
+    const trimmed = output.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private toRuntimePermissionDiagnostics(
+    value: Record<string, unknown>
+  ): Record<string, string | number | boolean | null> {
+    const diagnostics: Record<string, string | number | boolean | null> = {}
+    for (const [key, entry] of Object.entries(value)) {
+      if (
+        typeof entry === 'string' ||
+        typeof entry === 'number' ||
+        typeof entry === 'boolean' ||
+        entry === null
+      ) {
+        diagnostics[key] = entry
+      }
+    }
+    return diagnostics
   }
 
   private toPermissionState(value: unknown): RuntimePermissionState {
@@ -684,6 +763,17 @@ export class PluginPresenter {
     }
     if (value === false) {
       return 'missing'
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (['granted', 'ok', 'true', 'available', 'enabled', 'yes'].includes(normalized)) {
+        return 'granted'
+      }
+      if (
+        ['missing', 'denied', 'deny', 'false', 'unavailable', 'disabled', 'no'].includes(normalized)
+      ) {
+        return 'missing'
+      }
     }
     return 'unknown'
   }
@@ -749,24 +839,42 @@ export class PluginPresenter {
 
   private async loadOfficialPlugins(): Promise<void> {
     this.officialPlugins.clear()
-
-    for (const plugin of [
+    const plugins = [
       ...this.resolveOfficialPluginPackages(),
       ...this.resolveOfficialPluginDirectories()
-    ]) {
+    ]
+    const usablePluginIds = new Set<string>()
+
+    for (const plugin of plugins) {
+      if (!this.isPluginPlatformSupported(plugin.manifest)) {
+        continue
+      }
+      try {
+        this.assertTrustedOfficialPlugin(plugin.manifest)
+        usablePluginIds.add(plugin.manifest.id)
+      } catch {
+        // The main discovery pass logs untrusted plugin details and performs cleanup.
+      }
+    }
+
+    for (const plugin of plugins) {
       if (this.officialPlugins.has(plugin.manifest.id)) {
         continue
       }
       if (!this.isPluginPlatformSupported(plugin.manifest)) {
         console.info(`[PluginHost] Skipping plugin ${plugin.manifest.id}: platform not supported`)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       try {
         this.assertTrustedOfficialPlugin(plugin.manifest)
       } catch (error) {
         console.warn(`[PluginHost] Skipping untrusted plugin ${plugin.manifest.id}:`, error)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)
@@ -986,13 +1094,17 @@ export class PluginPresenter {
 
   private assertPlatformSupported(manifest: DeepChatPluginManifest): void {
     if (!this.isPluginPlatformSupported(manifest)) {
-      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}`)
+      throw new Error(`Plugin ${manifest.id} does not support ${this.platform}/${this.arch}`)
     }
   }
 
   private isPluginPlatformSupported(manifest: DeepChatPluginManifest): boolean {
     const platforms = new Set(manifest.engines.platforms.map((platform) => platform.toLowerCase()))
     const aliases = this.platform === 'darwin' ? ['darwin', 'macos', 'mac'] : [this.platform]
+    const targets = manifest.engines.targets?.map((target) => target.toLowerCase()) ?? []
+    if (targets.length > 0) {
+      return aliases.some((platform) => targets.includes(`${platform}/${this.arch}`))
+    }
     return aliases.some((platform) => platforms.has(platform))
   }
 
@@ -1361,7 +1473,7 @@ export class PluginPresenter {
   }
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
-    candidate = candidate.replaceAll('${arch}', process.arch)
+    candidate = candidate.replaceAll('${arch}', this.arch)
     if (candidate.startsWith('plugin:')) {
       return this.resolvePluginRelativePath(pluginRoot, candidate.slice('plugin:'.length))
     }
@@ -1448,7 +1560,7 @@ export class PluginPresenter {
     return JSON.parse(
       JSON.stringify(manifest)
         .replaceAll('${app.version}', app.getVersion())
-        .replaceAll('${arch}', process.arch)
+        .replaceAll('${arch}', this.arch)
         .replaceAll('${target.platform}', this.platform)
         .replaceAll(
           '${github.release.download}',

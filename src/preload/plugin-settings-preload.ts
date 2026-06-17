@@ -28,6 +28,8 @@ const deepchatPluginApi = Object.freeze({
     const result = await bridge.invoke(pluginsGetRoute.name, { pluginId })
     return {
       pluginId,
+      platform: process.platform,
+      arch: process.arch,
       enabled: Boolean(result.plugin?.enabled),
       runtime: result.plugin?.runtime,
       mcpServers: result.plugin?.mcpServers

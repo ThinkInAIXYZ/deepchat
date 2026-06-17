@@ -173,6 +173,7 @@ jobs:
       - name: Build Windows
         run: |
           pnpm run build
+          pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}
           pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
           pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
         env:
@@ -185,6 +186,7 @@ jobs:
       - name: Verify bundled plugins
         shell: bash
         run: |
+          pnpm run plugin:verify -- --name cua --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
           pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
       - name: Upload artifacts
@@ -236,6 +238,7 @@ jobs:
       - name: Build Linux
         run: |
           pnpm run build
+          pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}
           pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
           pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
         env:
@@ -248,6 +251,7 @@ jobs:
       - name: Verify bundled plugins
         shell: bash
         run: |
+          pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
           pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
 
       - name: Upload artifacts
@@ -310,7 +314,6 @@ jobs:
       - name: Build Mac
         run: |
           pnpm run build
-          pnpm run plugin:cua:build:mac:${{ matrix.arch }}
           pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}
           pnpm run plugin:bundle -- --name feishu --platform darwin --arch ${{ matrix.arch }}
           pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never

@@ -405,7 +405,79 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(transportOptions.env.TOKEN).toBe('123')
       expect(transportOptions.env.EMPTY).toBe('')
       expect(transportOptions.env).not.toHaveProperty('SKIP')
-      expect(transportOptions.env.PATH).toContain('/custom/bin')
+      const pathEnv =
+        transportOptions.env.PATH ?? transportOptions.env.Path ?? transportOptions.env.path
+      expect(pathEnv).toContain('/custom/bin')
+    })
+  })
+
+  describe('Unsupported MCP capabilities', () => {
+    it('treats unknown prompts/list as an empty prompt list', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi
+          .fn()
+          .mockRejectedValue(
+            new McpError(ErrorCode.MethodNotFound, 'Unknown method: prompts/list')
+          ),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const client = new McpClient('cua-driver', {
+        type: 'stdio',
+        command: 'cua-driver',
+        args: ['mcp']
+      })
+
+      await expect(client.listPrompts()).resolves.toEqual([])
+      await expect(client.listPrompts()).resolves.toEqual([])
+
+      expect(sdkClient.listPrompts).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Failed to list MCP prompts:'),
+        expect.anything()
+      )
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('treats unknown resources/list as an empty resource list', async () => {
+      const sdkClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi
+          .fn()
+          .mockRejectedValue(new Error('MCP error -32601: Unknown method: resources/list')),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const client = new McpClient('cua-driver', {
+        type: 'stdio',
+        command: 'cua-driver',
+        args: ['mcp']
+      })
+
+      await expect(client.listResources()).resolves.toEqual([])
+      await expect(client.listResources()).resolves.toEqual([])
+
+      expect(sdkClient.listResources).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Failed to list MCP resources:'),
+        expect.anything()
+      )
+      consoleErrorSpy.mockRestore()
     })
   })
 

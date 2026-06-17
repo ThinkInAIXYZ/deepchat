@@ -31,6 +31,7 @@ const api = Object.freeze({
     return webUtils.getPathForFile(file)
   },
   getPlatform: () => process.platform,
+  getArch: () => process.arch,
   openExternal: (url: string) => {
     const externalUrl = normalizeExternalUrl(url)
     if (!externalUrl) {

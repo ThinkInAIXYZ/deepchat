@@ -8,6 +8,7 @@ import {
   MCPContentItem,
   MCPTextContent,
   IConfigPresenter,
+  MCPServerConfig,
   Resource
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
@@ -17,6 +18,8 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 
 export class ToolManager {
   private configPresenter: IConfigPresenter
@@ -52,6 +55,16 @@ export class ToolManager {
       source?: unknown
     }
     return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
+  }
+
+  private isCuaComputerUseServer(client: McpClient, serverConfig?: MCPServerConfig): boolean {
+    const clientConfig = client.serverConfig as {
+      ownerPluginId?: unknown
+      sourceId?: unknown
+    }
+    const ownerPluginId = serverConfig?.ownerPluginId ?? clientConfig.ownerPluginId
+    const sourceId = serverConfig?.sourceId ?? clientConfig.sourceId
+    return ownerPluginId === CUA_PLUGIN_ID || sourceId === CUA_PLUGIN_ID
   }
 
   public async getRunningClients(): Promise<McpClient[]> {
@@ -598,8 +611,22 @@ export class ToolManager {
         }
       }
 
+      const preparedArgs = await this.prepareToolArguments(
+        targetClient,
+        serverConfig,
+        originalName,
+        args || {}
+      )
+      if (!preparedArgs.ok) {
+        return {
+          toolCallId: toolCall.id,
+          content: `Error: ${preparedArgs.error}`,
+          isError: true
+        }
+      }
+
       // Call the tool on the target client using the ORIGINAL name
-      const result = await targetClient.callTool(originalName, args || {})
+      const result = await targetClient.callTool(originalName, preparedArgs.args)
 
       // Format response
       let formattedContent: string | MCPContentItem[] = ''
@@ -644,6 +671,169 @@ export class ToolManager {
         isError: true
       }
     }
+  }
+
+  private async prepareToolArguments(
+    client: McpClient,
+    serverConfig: MCPServerConfig,
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
+    if (
+      toolName !== 'launch_app' ||
+      process.platform !== 'win32' ||
+      !this.isCuaComputerUseServer(client, serverConfig)
+    ) {
+      return { ok: true, args }
+    }
+
+    return await this.prepareCuaWindowsLaunchArgs(client, args)
+  }
+
+  private async prepareCuaWindowsLaunchArgs(
+    client: McpClient,
+    args: Record<string, unknown>
+  ): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; error: string }> {
+    const normalizedArgs = { ...args }
+    const bundleId = this.readStringArg(normalizedArgs.bundle_id)
+    const name = this.readStringArg(normalizedArgs.name)
+
+    if (bundleId && !bundleId.includes('!') && this.isWindowsPathLike(bundleId)) {
+      delete normalizedArgs.bundle_id
+      if (
+        !this.readStringArg(normalizedArgs.path) &&
+        !this.readStringArg(normalizedArgs.launch_path)
+      ) {
+        normalizedArgs.path = bundleId
+      }
+      return { ok: true, args: normalizedArgs }
+    }
+
+    if (
+      this.readStringArg(normalizedArgs.path) ||
+      this.readStringArg(normalizedArgs.launch_path) ||
+      this.readStringArg(normalizedArgs.aumid) ||
+      (bundleId && bundleId.includes('!')) ||
+      this.hasUrlLaunchTargets(normalizedArgs)
+    ) {
+      return { ok: true, args: normalizedArgs }
+    }
+
+    const target = bundleId || name
+    if (!target) {
+      return { ok: true, args: normalizedArgs }
+    }
+
+    const apps = await this.listCuaWindowsApps(client)
+    if (!apps) {
+      return {
+        ok: false,
+        error:
+          'Unable to validate the Windows app target before launching. Call list_apps first, then retry with a Windows name, path, launch_path, or aumid.'
+      }
+    }
+
+    if (!this.matchesCuaWindowsApp(apps, target)) {
+      return {
+        ok: false,
+        error: `Windows app target '${target}' was not found. Call list_apps first and use a Windows app name, path, launch_path, or aumid. Do not use macOS bundle ids on Windows.`
+      }
+    }
+
+    return { ok: true, args: normalizedArgs }
+  }
+
+  private readStringArg(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+
+  private isWindowsPathLike(value: string): boolean {
+    return /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('\\\\') || /[\\/]/.test(value)
+  }
+
+  private hasUrlLaunchTargets(args: Record<string, unknown>): boolean {
+    return Array.isArray(args.urls) && args.urls.some((item) => this.readStringArg(item))
+  }
+
+  private async listCuaWindowsApps(
+    client: McpClient
+  ): Promise<Array<Record<string, unknown>> | null> {
+    try {
+      const result = (await client.callTool('list_apps', {})) as {
+        structuredContent?: unknown
+        content?: unknown
+      }
+      const structured = result.structuredContent
+      if (
+        structured &&
+        typeof structured === 'object' &&
+        Array.isArray((structured as { apps?: unknown }).apps)
+      ) {
+        return (structured as { apps: Array<Record<string, unknown>> }).apps
+      }
+
+      const parsed = this.parseToolResultJsonObject(result.content)
+      if (parsed && Array.isArray(parsed.apps)) {
+        return parsed.apps as Array<Record<string, unknown>>
+      }
+    } catch (error) {
+      console.warn('[MCP] Failed to preflight CUA Windows launch target:', error)
+    }
+    return null
+  }
+
+  private parseToolResultJsonObject(content: unknown): Record<string, unknown> | null {
+    const text = Array.isArray(content)
+      ? content
+          .map((item) =>
+            item && typeof item === 'object' && 'text' in item
+              ? String((item as { text?: unknown }).text ?? '')
+              : ''
+          )
+          .join('\n')
+      : typeof content === 'string'
+        ? content
+        : ''
+    if (!text.trim()) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(text)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  private matchesCuaWindowsApp(apps: Array<Record<string, unknown>>, target: string): boolean {
+    const normalizedTarget = this.normalizeWindowsAppIdentifier(target)
+    return apps.some((app) => {
+      const candidates = [app.name, app.bundle_id, app.launch_path, app.path, app.aumid].flatMap(
+        (value) => this.windowsAppIdentifierCandidates(value)
+      )
+      return candidates.some(
+        (candidate) =>
+          candidate === normalizedTarget ||
+          candidate.includes(normalizedTarget) ||
+          normalizedTarget.includes(candidate)
+      )
+    })
+  }
+
+  private windowsAppIdentifierCandidates(value: unknown): string[] {
+    const raw = this.readStringArg(value)
+    if (!raw) {
+      return []
+    }
+    const normalized = this.normalizeWindowsAppIdentifier(raw)
+    const basename = raw.split(/[\\/]/).pop()
+    return basename && basename !== raw
+      ? [normalized, this.normalizeWindowsAppIdentifier(basename)]
+      : [normalized]
+  }
+
+  private normalizeWindowsAppIdentifier(value: string): string {
+    return value.trim().replace(/^"|"$/g, '').toLowerCase()
   }
 
   // 根据客户端名称获取提示模板内容

@@ -85,7 +85,7 @@ import { useTitle } from '@vueuse/core'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
-import { getRuntimePlatform } from '@api/runtime'
+import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
@@ -452,6 +452,8 @@ const cleanupSettingsProviderInstall = windowClient.onSettingsProviderInstall(()
 const notifySettingsReady = () => {
   void windowClient.notifySettingsReady()
 }
+const runtimePlatform = getRuntimePlatform()
+const runtimeArch = getRuntimeArch()
 const settings: Ref<
   {
     title: string
@@ -460,23 +462,23 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  getSettingsRouteItems(getRuntimePlatform()).map((item) => ({
+  getSettingsRouteItems(runtimePlatform, runtimeArch).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
-    path: resolveSettingsNavigationPath(item.routeName)
+    path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
   }))
 )
 
 const settingGroups = ref(
-  getSettingsNavigationGroups(getRuntimePlatform()).map((group) => ({
+  getSettingsNavigationGroups(runtimePlatform, runtimeArch).map((group) => ({
     key: group.key,
     titleKey: group.titleKey,
     items: group.items.map((item) => ({
       title: item.titleKey,
       name: item.routeName,
       icon: item.icon,
-      path: resolveSettingsNavigationPath(item.routeName)
+      path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
     }))
   }))
 )

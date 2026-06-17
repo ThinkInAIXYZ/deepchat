@@ -80,31 +80,52 @@ step before packaging. The `bundle` action automatically detects and runs
 `scripts/build-<name>-plugin-runtime.mjs` when it exists. Standalone `package` expects the native
 runtime payload to be built already.
 
-CUA native build commands (macOS-only, requires Swift toolchain):
+CUA native runtime staging commands download pinned upstream release assets and verify their
+checksums. They do not run upstream installers and do not require a PATH-installed `cua-driver`.
 
 ```bash
-pnpm run plugin:cua:build              # host architecture
-pnpm run plugin:cua:build:mac:arm64    # explicit ARM64
-pnpm run plugin:cua:build:mac:x64      # explicit x64
+pnpm run plugin:cua:build              # host platform and architecture
+pnpm run plugin:cua:build:mac:arm64    # macOS arm64
+pnpm run plugin:cua:build:mac:x64      # macOS x64
+pnpm run plugin:cua:build:win:x64      # Windows x64
+pnpm run plugin:cua:build:win:arm64    # Windows arm64
+pnpm run plugin:cua:build:linux:x64    # Linux x64
 ```
 
 ## CUA Plugin Artifacts
 
-The CUA plugin ships one macOS helper app per CPU architecture. The bundled package filename
-includes both platform and architecture:
+The CUA plugin is target-gated by platform and architecture. Supported bundled targets:
+
+- `darwin/arm64`
+- `darwin/x64`
+- `win32/x64`
+- `win32/arm64`
+- `linux/x64`
+
+Unsupported targets:
+
+- `linux/arm64`
+
+The bundled package filename includes both platform and architecture:
 
 ```text
 deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
 deepchat-plugin-cua-<version>-darwin-x64.dcplugin
+deepchat-plugin-cua-<version>-win32-x64.dcplugin
+deepchat-plugin-cua-<version>-win32-arm64.dcplugin
+deepchat-plugin-cua-<version>-linux-x64.dcplugin
 ```
 
 Runtime detection inside the package uses architecture-specific paths:
 
 ```text
-plugin:runtime/darwin/<arch>/DeepChat Computer Use.app/Contents/MacOS/cua-driver
+plugin:runtime/darwin/<arch>/CuaDriver.app/Contents/MacOS/cua-driver
+plugin:runtime/win32/<arch>/cua-driver.exe
+plugin:runtime/linux/<arch>/cua-driver
 ```
 
-Each `.dcplugin` contains only the runtime directory for its target architecture.
+Each `.dcplugin` contains only the runtime directory for its target platform and architecture.
+Direct CUA packaging for unsupported targets fails before producing an artifact.
 
 ## Feishu Plugin Artifacts
 
@@ -138,9 +159,10 @@ build/bundled-plugins/
 The build matrix in `.github/workflows/build.yml` bundles plugins before running `electron-builder`
 on every platform:
 
-- **macOS**: bundles both CUA (with native build) and feishu plugins.
-- **Linux**: bundles feishu plugin only (CUA is macOS-only).
-- **Windows**: bundles feishu plugin only.
+- **macOS**: bundles both CUA and feishu plugins for arm64 and x64.
+- **Linux x64**: bundles both CUA and feishu plugins.
+- **Windows x64**: bundles both CUA and feishu plugins.
+- **Windows arm64**: bundles both CUA and feishu plugins.
 
 Electron Builder embeds `.dcplugin` files from `build/bundled-plugins/` into:
 
@@ -155,11 +177,14 @@ uploading artifacts.
 The release workflow (`.github/workflows/release.yml`) repeats the same steps. Final release
 uploads app artifacts only; `.dcplugin` files are not published as separate GitHub Release assets.
 
-Expected embedded files (macOS example):
+Expected embedded files across platform-specific app packages:
 
 ```text
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-win32-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-win32-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-linux-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
 ```
