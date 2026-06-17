@@ -69,6 +69,8 @@ Update `scripts/package-plugin.mjs`:
 
 - Remove the darwin-only CUA guard.
 - Keep only the selected `runtime/<platform>/<arch>` subtree in the `.dcplugin` artifact.
+- Narrow the packaged manifest's `engines.targets` to the selected `<platform>/<arch>` target so
+  target-specific artifacts cannot be discovered on the wrong architecture.
 - Validate required files per target:
   - macOS: helper app executable.
   - Windows: `cua-driver.exe` and `cua-driver-uia.exe`.

@@ -193,6 +193,8 @@ Platform permission behavior must be explicit:
 The packaged app must keep CUA usable after Electron packaging:
 
 - The `.dcplugin` artifact must contain the correct runtime subtree for its platform and arch.
+- The packaged `.dcplugin` manifest must narrow `engines.targets` to the artifact's own
+  platform/arch target, even though the source manifest keeps the full supported target matrix.
 - Runtime files must stay outside `app.asar`.
 - Supported Windows archives must include `cua-driver-uia.exe` next to `cua-driver.exe`.
 - Linux runtime files must retain executable permissions after package extraction.
@@ -205,6 +207,8 @@ The packaged app must keep CUA usable after Electron packaging:
 
 - Official CUA plugin metadata or discovery logic allows only the supported target matrix:
   `darwin/arm64`, `darwin/x64`, `win32/x64`, `win32/arm64`, and `linux/x64`.
+- Each target-specific CUA `.dcplugin` advertises only its own `engines.targets` entry, so
+  side-by-side artifacts cannot be selected on the wrong CPU architecture.
 - Packaged macOS, Windows, and Linux x64 builds include a CUA `.dcplugin` artifact.
 - Packaged Windows arm64 builds include a CUA `.dcplugin` artifact.
 - Packaged Linux arm64 builds do not include a visible or usable CUA plugin.

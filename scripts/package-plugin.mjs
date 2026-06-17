@@ -192,6 +192,10 @@ function artifactFileName(manifest, targetPlatform, targetArch) {
   return `${safeId}-${manifest.version}${targetSuffix}.dcplugin`
 }
 
+function targetKey(targetPlatform, targetArch) {
+  return `${targetPlatform}/${targetArch}`
+}
+
 function releaseTag(version) {
   return version.startsWith('v') ? version : `v${version}`
 }
@@ -208,15 +212,17 @@ function createPackageManifest(manifest, args) {
         `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}`
       )
   )
+  if (
+    Array.isArray(next.engines?.targets) &&
+    isManifestTargetSupported(next, args.targetPlatform, args.targetArch)
+  ) {
+    next.engines.targets = [targetKey(args.targetPlatform, args.targetArch)]
+  }
   if (next.source?.type === OFFICIAL_PLUGIN_SOURCE) {
     const assetName = artifactFileName(next, args.targetPlatform, args.targetArch)
     next.source.url = `https://github.com/ThinkInAIXYZ/deepchat/releases/download/${releaseTag(version)}/${assetName}`
   }
   return next
-}
-
-function targetKey(targetPlatform, targetArch) {
-  return `${targetPlatform}/${targetArch}`
 }
 
 function isManifestTargetSupported(manifest, targetPlatform, targetArch) {

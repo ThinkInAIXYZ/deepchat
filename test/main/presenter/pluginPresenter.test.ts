@@ -205,6 +205,46 @@ const createBundledFixture = async (
   }
 }
 
+const createOfficialPackage = async (options: {
+  packageRoot: string
+  packagePath: string
+  pluginId: string
+  name: string
+  targets: string[]
+}) => {
+  const manifest = {
+    id: options.pluginId,
+    name: options.name,
+    version: '0.2.3',
+    publisher: 'DeepChat',
+    engines: {
+      deepchat: '>=0.2.3',
+      platforms: ['win32'],
+      targets: options.targets
+    },
+    activationEvents: ['onEnable'],
+    capabilities: [],
+    source: {
+      type: 'deepchat-official',
+      url: `https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/${path.basename(options.packagePath)}`,
+      publisher: 'DeepChat'
+    }
+  }
+  const files: Record<string, Uint8Array> = {
+    'plugin.json': new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
+  }
+  const checksums = Object.fromEntries(
+    Object.entries(files).map(([filePath, content]) => [
+      filePath,
+      createHash('sha256').update(Buffer.from(content)).digest('hex')
+    ])
+  )
+  files['checksums.json'] = new TextEncoder().encode(`${JSON.stringify(checksums, null, 2)}\n`)
+
+  await mkdir(options.packageRoot, { recursive: true })
+  await writeFile(options.packagePath, Buffer.from(zipSync(files, { level: 6 })))
+}
+
 const createDirectoryFixture = async (
   options: {
     appPath?: string
@@ -359,6 +399,44 @@ describe('PluginPresenter', () => {
     expect((await linuxArmPresenter.listPlugins()).map((plugin) => plugin.id)).not.toContain(
       'com.deepchat.plugins.cua'
     )
+  })
+
+  it('selects the matching CUA package when target artifacts are side by side', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cua-package-target-test-'))
+    tempRoots.push(root)
+    const appPath = path.join(root, 'app')
+    const userDataPath = path.join(root, 'userData')
+    const packageRoot = path.join(root, 'build', 'bundled-plugins')
+    const pluginId = 'com.deepchat.plugins.cua'
+    const winX64Package = path.join(packageRoot, 'deepchat-plugin-cua-0.2.3-win32-x64.dcplugin')
+    const winArmPackage = path.join(packageRoot, 'deepchat-plugin-cua-0.2.3-win32-arm64.dcplugin')
+    await mkdir(userDataPath, { recursive: true })
+    await createOfficialPackage({
+      packageRoot,
+      packagePath: winArmPackage,
+      pluginId,
+      name: 'CUA Windows ARM64',
+      targets: ['win32/arm64']
+    })
+    await createOfficialPackage({
+      packageRoot,
+      packagePath: winX64Package,
+      pluginId,
+      name: 'CUA Windows X64',
+      targets: ['win32/x64']
+    })
+    vi.mocked(app.getPath).mockImplementation((name: string) =>
+      name === 'userData' ? userDataPath : path.join(root, name)
+    )
+    process.chdir(root)
+
+    const presenter = await createPluginPresenter('win32', { appPath, arch: 'x64' })
+
+    await (presenter as any).loadOfficialPlugins()
+
+    const resolvedPlugin = (presenter as any).officialPlugins.get(pluginId)
+    expect(resolvedPlugin.manifest.name).toBe('CUA Windows X64')
+    expect(resolvedPlugin.sourcePath).toBe(winX64Package)
   })
 
   it('lists bundled official plugins as installed and enables them by materializing the package', async () => {

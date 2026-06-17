@@ -37,6 +37,7 @@
 - [x] T06 - Update plugin packaging
   - Remove darwin-only CUA validation in `scripts/package-plugin.mjs`.
   - Package only the selected `runtime/<platform>/<arch>` subtree.
+  - Scope packaged target metadata to the selected `runtime/<platform>/<arch>` subtree.
   - Preserve POSIX executable permissions.
   - Verify the `.dcplugin` artifact contains the expected files for each supported target.
 
