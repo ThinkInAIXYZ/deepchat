@@ -49,5 +49,21 @@
   "reserveTokens": "预留 Tokens",
   "toolReserveTokens": "工具预留 Tokens",
   "estimatedPromptTokens": "估算 Prompt Tokens",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "完整性",
+    "valid": "有效",
+    "invalid": "已失效",
+    "unverified": "未验证",
+    "invalidWarning": "此视图清单与其哈希不匹配，请勿将重放的 Prompt 视为可信。",
+    "unverifiedNote": "此清单使用旧版哈希公式（hashVersion 1），无法验证其完整性。"
+  },
+  "reconstructionAnchor": "重建锚条目",
+  "anchorEntryIds": "重建血缘",
+  "schemaVersion": "Schema 版本",
+  "hashVersion": "Hash 版本",
+  "compactedRanges": "压缩区间",
+  "rangeFrom": "起始顺序号",
+  "rangeTo": "结束顺序号",
+  "rangeCount": "数量"
 }

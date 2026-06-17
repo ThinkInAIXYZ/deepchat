@@ -49,5 +49,21 @@
   "reserveTokens": "Tokens reservados",
   "toolReserveTokens": "Tokens reservados para ferramentas",
   "estimatedPromptTokens": "Tokens estimados do prompt",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integridade",
+    "valid": "Válido",
+    "invalid": "Inválido",
+    "unverified": "Não verificado",
+    "invalidWarning": "Este manifesto de visualização não corresponde ao seu hash; não trate o prompt reproduzido como autêntico.",
+    "unverifiedNote": "Este manifesto usa a fórmula de hash legada (hashVersion 1); não é possível verificar sua integridade."
+  },
+  "reconstructionAnchor": "Âncora de reconstrução vinculada",
+  "anchorEntryIds": "Linhagem de reconstrução",
+  "schemaVersion": "Versão do schema",
+  "hashVersion": "Versão do hash",
+  "compactedRanges": "Região compactada",
+  "rangeFrom": "Da ordem nº",
+  "rangeTo": "Até a ordem nº",
+  "rangeCount": "Contagem"
 }

@@ -49,5 +49,21 @@
   "reserveTokens": "Token cadangan",
   "toolReserveTokens": "Token cadangan alat",
   "estimatedPromptTokens": "Estimasi token prompt",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integritas",
+    "valid": "Valid",
+    "invalid": "Tidak valid",
+    "unverified": "Belum diverifikasi",
+    "invalidWarning": "Manifes tampilan ini tidak cocok dengan hash-nya; jangan anggap prompt yang diputar ulang sebagai tepercaya.",
+    "unverifiedNote": "Manifes ini menggunakan rumus hash versi lama (hashVersion 1); integritasnya tidak dapat diverifikasi."
+  },
+  "reconstructionAnchor": "Entri jangkar rekonstruksi",
+  "anchorEntryIds": "Silsilah rekonstruksi",
+  "schemaVersion": "Versi Schema",
+  "hashVersion": "Versi Hash",
+  "compactedRanges": "Rentang terkompaksi",
+  "rangeFrom": "Dari nomor urut",
+  "rangeTo": "Hingga nomor urut",
+  "rangeCount": "Jumlah"
 }

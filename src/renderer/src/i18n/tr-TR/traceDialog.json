@@ -49,5 +49,21 @@
   "reserveTokens": "Ayrılmış tokenlar",
   "toolReserveTokens": "Araç için ayrılmış tokenlar",
   "estimatedPromptTokens": "Tahmini prompt tokenları",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Bütünlük",
+    "valid": "Geçerli",
+    "invalid": "Geçersiz",
+    "unverified": "Doğrulanmamış",
+    "invalidWarning": "Bu görünüm bildirimi karmasıyla eşleşmiyor; yeniden oynatılan Prompt'u güvenilir olarak değerlendirmeyin.",
+    "unverifiedNote": "Bu bildirim eski karma formülünü (hashVersion 1) kullanıyor; bütünlüğü doğrulanamaz."
+  },
+  "reconstructionAnchor": "Sahip yeniden oluşturma çapası",
+  "anchorEntryIds": "Yeniden oluşturma soyağacı",
+  "schemaVersion": "Şema sürümü",
+  "hashVersion": "Karma sürümü",
+  "compactedRanges": "Sıkıştırılmış bölge",
+  "rangeFrom": "Başlangıç sıra no.",
+  "rangeTo": "Bitiş sıra no.",
+  "rangeCount": "Sayı"
 }

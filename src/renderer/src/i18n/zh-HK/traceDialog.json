@@ -49,5 +49,21 @@
   "reserveTokens": "預留 Tokens",
   "toolReserveTokens": "工具預留 Tokens",
   "estimatedPromptTokens": "估算提示詞 Tokens",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "完整性",
+    "valid": "有效",
+    "invalid": "已失效",
+    "unverified": "未驗證",
+    "invalidWarning": "此檢視清單與其雜湊不相符，請勿將重播的 Prompt 視為可信。",
+    "unverifiedNote": "此清單使用舊版雜湊公式（hashVersion 1），無法驗證其完整性。"
+  },
+  "reconstructionAnchor": "重建錨條目",
+  "anchorEntryIds": "重建血緣",
+  "schemaVersion": "Schema 版本",
+  "hashVersion": "Hash 版本",
+  "compactedRanges": "壓縮區間",
+  "rangeFrom": "起始順序號",
+  "rangeTo": "結束順序號",
+  "rangeCount": "數量"
 }

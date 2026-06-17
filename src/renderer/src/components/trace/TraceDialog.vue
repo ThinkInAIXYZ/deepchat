@@ -50,6 +50,20 @@
               }}</span>
             </div>
           </div>
+          <div v-if="integrityStatus" class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold">{{ t('traceDialog.integrity.label') }}:</span>
+              <Badge :variant="integrityVariant">
+                {{ t(`traceDialog.integrity.${integrityStatus}`) }}
+              </Badge>
+            </div>
+            <p v-if="integrityStatus === 'invalid'" class="text-xs text-destructive">
+              {{ t('traceDialog.integrity.invalidWarning') }}
+            </p>
+            <p v-else-if="integrityStatus === 'unverified'" class="text-xs text-muted-foreground">
+              {{ t('traceDialog.integrity.unverifiedNote') }}
+            </p>
+          </div>
         </div>
 
         <Tabs v-model="activeTab" class="flex-1 min-h-0 flex flex-col">
@@ -133,6 +147,34 @@
             class="flex-1 min-h-0 border rounded-b-lg overflow-auto p-4 mt-0"
           >
             <div v-if="selectedManifest" class="space-y-5">
+              <section v-if="excludedRanges.length">
+                <h3 class="text-sm font-semibold mb-2">{{ t('traceDialog.compactedRanges') }}</h3>
+                <div class="overflow-auto border rounded-md">
+                  <table class="w-full text-xs">
+                    <thead class="bg-muted text-muted-foreground">
+                      <tr>
+                        <th class="text-left px-3 py-2">{{ t('traceDialog.rangeFrom') }}</th>
+                        <th class="text-left px-3 py-2">{{ t('traceDialog.rangeTo') }}</th>
+                        <th class="text-left px-3 py-2">{{ t('traceDialog.rangeCount') }}</th>
+                        <th class="text-left px-3 py-2">{{ t('traceDialog.reason') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(range, index) in excludedRanges"
+                        :key="`range-${index}`"
+                        class="border-t"
+                      >
+                        <td class="px-3 py-2 font-mono">{{ range.fromOrderSeq }}</td>
+                        <td class="px-3 py-2 font-mono">{{ range.toOrderSeq }}</td>
+                        <td class="px-3 py-2 font-mono">{{ range.count }}</td>
+                        <td class="px-3 py-2">{{ range.reason }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
               <section>
                 <h3 class="text-sm font-semibold mb-2">{{ t('traceDialog.includedEntries') }}</h3>
                 <div class="overflow-auto border rounded-md">
@@ -252,6 +294,7 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { Button } from '@shadcn/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
+import { Badge } from '@shadcn/components/ui/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -260,7 +303,10 @@ import { createSessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+import type {
+  DeepChatTapeViewManifestIntegrity,
+  DeepChatTapeViewManifestRecord
+} from '@shared/types/tape-view-manifest'
 
 type DiagnosticTab = 'request' | 'view' | 'entries' | 'budget'
 
@@ -364,6 +410,22 @@ const diagnosticModelId = computed(
   () => selectedTrace.value?.modelId ?? selectedManifest.value?.manifest.meta.modelId ?? ''
 )
 
+const integrityStatus = computed<DeepChatTapeViewManifestIntegrity | null>(
+  () => selectedManifest.value?.integrity ?? null
+)
+
+const integrityVariant = computed<'secondary' | 'destructive' | 'outline'>(() => {
+  if (integrityStatus.value === 'invalid') {
+    return 'destructive'
+  }
+  if (integrityStatus.value === 'unverified') {
+    return 'outline'
+  }
+  return 'secondary'
+})
+
+const excludedRanges = computed(() => selectedManifest.value?.manifest.excludedRanges ?? [])
+
 const parsedHeaders = computed(() => {
   if (!selectedTrace.value) return {}
   try {
@@ -413,7 +475,8 @@ const activeJson = computed(() => {
     return JSON.stringify(
       {
         included: selectedManifest.value.manifest.included,
-        excluded: selectedManifest.value.manifest.excluded
+        excluded: selectedManifest.value.manifest.excluded,
+        excludedRanges: selectedManifest.value.manifest.excludedRanges ?? []
       },
       null,
       2
@@ -434,6 +497,18 @@ const manifestOverview = computed(() => {
     { label: t('traceDialog.taskType'), value: manifest.taskType },
     { label: t('traceDialog.requestSeq'), value: String(manifest.requestSeq) },
     { label: t('traceDialog.latestEntryId'), value: String(manifest.latestEntryId) },
+    {
+      label: t('traceDialog.reconstructionAnchor'),
+      value: formatNullable(manifest.reconstructionAnchorEntryId ?? null)
+    },
+    {
+      label: t('traceDialog.anchorEntryIds'),
+      value: manifest.anchorEntryIds.length
+        ? manifest.anchorEntryIds.join(', ')
+        : t('traceDialog.notAvailable')
+    },
+    { label: t('traceDialog.schemaVersion'), value: String(manifest.schemaVersion) },
+    { label: t('traceDialog.hashVersion'), value: String(manifest.hashVersion) },
     { label: t('traceDialog.promptHash'), value: manifest.hashes.promptHash },
     { label: t('traceDialog.toolDefinitionsHash'), value: manifest.hashes.toolDefinitionsHash },
     { label: t('traceDialog.manifestHash'), value: manifest.hashes.manifestHash }

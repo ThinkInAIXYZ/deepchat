@@ -49,5 +49,21 @@
   "reserveTokens": "Reserverede tokens",
   "toolReserveTokens": "Værktøjsreserverede tokens",
   "estimatedPromptTokens": "Estimerede prompt-tokens",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integritet",
+    "valid": "Gyldig",
+    "invalid": "Ugyldig",
+    "unverified": "Ikke verificeret",
+    "invalidWarning": "Dette visningsmanifest matcher ikke sin hash; betragt ikke den genafspillede prompt som autentisk.",
+    "unverifiedNote": "Dette manifest bruger den ældre hash-formel (hashVersion 1); dets integritet kan ikke verificeres."
+  },
+  "reconstructionAnchor": "Tilhørende rekonstruktionsanker",
+  "anchorEntryIds": "Rekonstruktionsslægt",
+  "schemaVersion": "Skemaversion",
+  "hashVersion": "Hash-version",
+  "compactedRanges": "Komprimeret område",
+  "rangeFrom": "Fra rækkefølgenr.",
+  "rangeTo": "Til rækkefølgenr.",
+  "rangeCount": "Antal"
 }

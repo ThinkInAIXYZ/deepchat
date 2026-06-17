@@ -49,5 +49,21 @@
   "reserveTokens": "Reservierte Tokens",
   "toolReserveTokens": "Für Werkzeuge reservierte Tokens",
   "estimatedPromptTokens": "Geschätzte Prompt-Tokens",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integrität",
+    "valid": "Gültig",
+    "invalid": "Ungültig",
+    "unverified": "Nicht verifiziert",
+    "invalidWarning": "Dieses Ansichtsmanifest stimmt nicht mit seinem Hash überein; behandeln Sie den wiedergegebenen Prompt nicht als authentisch.",
+    "unverifiedNote": "Dieses Manifest verwendet die alte Hash-Formel (hashVersion 1); seine Integrität kann nicht verifiziert werden."
+  },
+  "reconstructionAnchor": "Zugehöriger Rekonstruktionsanker",
+  "anchorEntryIds": "Rekonstruktionsabstammung",
+  "schemaVersion": "Schema-Version",
+  "hashVersion": "Hash-Version",
+  "compactedRanges": "Komprimierter Bereich",
+  "rangeFrom": "Von Reihenfolge-Nr.",
+  "rangeTo": "Bis Reihenfolge-Nr.",
+  "rangeCount": "Anzahl"
 }
