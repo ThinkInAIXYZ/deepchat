@@ -6,4 +6,5 @@
 - [x] Make Windows build workflow fail fast.
 - [x] Add focused regression coverage.
 - [x] Run local verification.
-- [ ] Push the branch to trigger a new Build Application workflow.
+- [x] Add stable `vuedraggable` type resolution for macOS arm64 CI.
+- [x] Push the branch to trigger a new Build Application workflow.

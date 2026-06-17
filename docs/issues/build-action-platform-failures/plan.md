@@ -8,6 +8,8 @@
   all file validation and skips only the host execution check when the runner cannot load the
   target binary.
 - Run the Windows build step under bash so each command exits immediately on failure.
+- Add a local `vuedraggable` module declaration so `vue-tsgo` has a stable type source on macOS
+  arm64 runners.
 - Add focused textual regression checks for the build scripts and workflow.
 
 ## Verification

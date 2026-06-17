@@ -19,6 +19,9 @@ GitHub Actions run `27634409921` failed on two jobs:
 - `build-linux (x64)` staged the CUA runtime but failed the executable smoke check because the
   upstream Linux binary requires `GLIBC_2.39`, while the Ubuntu 22.04 runner provides an older
   loader.
+- The follow-up run `27636722380` passed Windows x64, Windows arm64, and Linux x64, then failed
+  `build-mac (arm64)` during `vue-tsgo` because `vuedraggable` module typing was not resolved on
+  that runner.
 
 ## Acceptance Criteria
 
@@ -29,6 +32,7 @@ GitHub Actions run `27634409921` failed on two jobs:
   permissions.
 - Linux x64 CUA runtime smoke checks run when the host loader can execute the binary and skip only
   for a detected glibc loader-version mismatch.
+- macOS arm64 typecheck resolves `vuedraggable` for the existing draggable list components.
 - The Build Application workflow can be pushed again for maintainer validation.
 
 ## Non-Goals
