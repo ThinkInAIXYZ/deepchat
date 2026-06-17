@@ -7,7 +7,7 @@
 - Fixed deterministic Tape view hashing and trace sequence handling
 - 新增 Tape manifest 完整性与 lineage 详情，让 replay trace 审计更可靠
 - 新增工作区单项查看器，方便从工作区面板聚焦检查文件
-- 新增跨平台 CUA runtime 打包，并改进插件 runtime 构建流程
+- 支持了 Windows 和 Linux 平台的 Computer Use 能力
 - 修复 Tape view hash 与 trace sequence 的确定性处理
 
 ## v1.0.6-beta.6 (2026-06-16)
