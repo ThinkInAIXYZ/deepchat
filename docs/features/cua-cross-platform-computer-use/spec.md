@@ -221,6 +221,8 @@ The packaged app must keep CUA usable after Electron packaging:
   only on macOS, while keeping unsupported CUA targets hidden.
 - Runtime detection resolves the plugin-local binary on every supported target.
 - The plugin starts through DeepChat's internal tool path without user-managed MCP setup.
+- Optional MCP capabilities not implemented by the CUA driver, such as prompts and resources, are
+  treated as absent capabilities and must not produce error-level log spam.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
 - Tool policies cover all upstream v0.5.5 tools known to this integration.
 - Packaging docs and tests no longer describe CUA as macOS-only.

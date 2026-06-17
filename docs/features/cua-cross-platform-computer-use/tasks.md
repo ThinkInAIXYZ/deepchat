@@ -97,6 +97,11 @@
   - Add regression coverage for side-by-side CUA target artifacts with an active plugin-owned tool
     server.
 
+- [x] T16 - Quiet unsupported optional MCP capabilities
+  - Treat `-32601 Unknown method` from prompts and resources list requests as unsupported optional
+    capabilities.
+  - Cache empty prompts/resources lists so CUA does not repeatedly emit error stack traces.
+
 ## Implementation Order
 
 1. T01, T02, and T03 establish the runtime input and safety checks.
