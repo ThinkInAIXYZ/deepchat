@@ -319,6 +319,7 @@ function buildTapeViewSelection(
   return {
     includedRecords: metadata.includedRecords,
     excludedRecords: metadata.excludedRecords,
+    summaryCursor: metadata.summaryCursor,
     includesSystemPrompt: metadata.includesSystemPrompt,
     newUserMessageId
   }
@@ -2915,11 +2916,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         messages: params.messages,
         tools: params.tools,
         latestEntryId: sourceMaps.latestEntryId,
-        anchorEntryIds: sourceMaps.anchorEntryIds,
+        anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
+        reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
         included: params.selection
           ? buildIncludedRefs(params.selection, sourceMaps)
           : buildRequestRefs(params.messages, sourceMaps),
         excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
+        summaryCursor: params.selection?.summaryCursor,
         tokenBudget: params.tokenBudget,
         providerId: params.providerId,
         modelId: params.modelId,

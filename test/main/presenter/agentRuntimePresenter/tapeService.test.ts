@@ -833,6 +833,172 @@ describe('DeepChatTapeService', () => {
     expect(service.listViewManifestsByMessage('s1', 'a1')).toEqual([])
   })
 
+  it('annotates read records with hash integrity without dropping tampered manifests', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const messageStore = {
+      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+    }
+    service.ensureSessionTapeReady('s1', messageStore as any)
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    const baseInput = {
+      sessionId: 's1',
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: sourceMaps.latestEntryId,
+      anchorEntryIds: sourceMaps.anchorEntryIds,
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 200
+    }
+    const validManifest = createTapeViewManifest({ ...baseInput, messageId: 'a1', requestSeq: 1 })
+    service.appendViewManifest(validManifest)
+
+    const tamperedManifest = createTapeViewManifest({
+      ...baseInput,
+      messageId: 'a2',
+      requestSeq: 1
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a2', seq: 99 },
+      data: { manifest: { ...tamperedManifest, latestEntryId: tamperedManifest.latestEntryId + 1 } }
+    })
+
+    const [validRecord] = service.listViewManifestsByMessage('s1', 'a1')
+    const [tamperedRecord] = service.listViewManifestsByMessage('s1', 'a2')
+    expect(validRecord.integrity).toBe('valid')
+    expect(tamperedRecord).toBeDefined()
+    expect(tamperedRecord.integrity).toBe('invalid')
+  })
+
+  it('binds reconstruction lineage to the latest reconstruction anchor including handoffs', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('s1')
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/manual',
+      source: { type: 'summary', id: 's1', seq: 1 },
+      state: {}
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'handoff/phase_done',
+      source: { type: 'handoff', id: 's1', seq: 2 },
+      state: {}
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'child', seq: 3 },
+      state: {}
+    })
+
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    const entryIdByName = (name: string) =>
+      table.getBySession('s1').find((entry: any) => entry.name === name)?.entry_id
+
+    expect(sourceMaps.anchorEntryIds).toHaveLength(4)
+    expect(sourceMaps.reconstructionAnchorEntryId).toBe(entryIdByName('handoff/phase_done'))
+    expect(sourceMaps.reconstructionAnchorEntryIds).toEqual([
+      sourceMaps.reconstructionAnchorEntryId
+    ])
+    expect(sourceMaps.reconstructionAnchorEntryIds).not.toContain(
+      entryIdByName('compaction/manual')
+    )
+    expect(sourceMaps.reconstructionAnchorEntryIds).not.toContain(entryIdByName('fork/merge'))
+  })
+
+  it('bounds replay slices to the selected view instead of pre-cursor history', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    const messageStore = {
+      getMessages: vi.fn().mockReturnValue([createRecord({ id: 'u1', orderSeq: 1 })])
+    }
+
+    service.ensureSessionTapeReady('s1', messageStore as any)
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    const manifest = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat',
+      policy: 'legacy_context_v1',
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: sourceMaps.latestEntryId,
+      anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
+      included: [
+        {
+          entryId: sourceMaps.entryIdByMessageId.get('u1') ?? null,
+          messageId: 'u1',
+          orderSeq: 1,
+          role: 'user',
+          source: 'tape',
+          reason: 'selected_history'
+        }
+      ],
+      excluded: [],
+      summaryCursor: {
+        summaryCursorOrderSeq: 100,
+        preCursorOrderSeqMin: 1,
+        preCursorOrderSeqMax: 99,
+        preCursorCount: 99
+      },
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 100,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 200
+    })
+    service.appendViewManifest(manifest)
+
+    const slice = service.exportReplaySlice('s1', 'a1')
+
+    expect(slice?.refs.excludedEntryIds).toEqual([])
+    expect(slice?.refs.anchorEntryIds).toEqual(sourceMaps.reconstructionAnchorEntryIds)
+    expect(slice?.refs.anchorEntryIds).toHaveLength(1)
+    expect(slice?.manifestRecord.manifest.excludedRanges).toEqual([
+      { fromOrderSeq: 1, toOrderSeq: 99, count: 99, reason: 'before_summary_cursor' }
+    ])
+    expect(slice?.entries).toHaveLength(3)
+  })
+
   it('throws a clear error when appending live messages without a tape table', () => {
     const service = new DeepChatTapeService({} as any)
 

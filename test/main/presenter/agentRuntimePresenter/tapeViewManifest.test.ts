@@ -5,7 +5,8 @@ import {
   buildRequestRefs,
   createTapeViewManifest,
   hashJson,
-  resolveTapeViewManifestPolicy
+  resolveTapeViewManifestPolicy,
+  verifyTapeViewManifestHash
 } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 
 function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
@@ -145,9 +146,142 @@ describe('tapeViewManifest', () => {
     expect(late.assembledAt).toBe(999999)
     expect(early.hashes.manifestHash).toBe(late.hashes.manifestHash)
     expect(early.viewId).toBe(late.viewId)
-    expect(early.schemaVersion).toBe(1)
+    expect(early.schemaVersion).toBe(2)
     expect(early.hashVersion).toBe(2)
     expect(early.viewId).toBe(`view_${early.hashes.manifestHash.slice(0, 16)}`)
+  })
+
+  it('verifies the manifest hash by hashVersion', () => {
+    const manifest = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat',
+      policy: 'legacy_context_v1',
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [1],
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    })
+
+    expect(verifyTapeViewManifestHash(manifest)).toBe('valid')
+    expect(verifyTapeViewManifestHash({ ...manifest, latestEntryId: 999 })).toBe('invalid')
+    expect(verifyTapeViewManifestHash({ ...manifest, hashVersion: 1 })).toBe('unverified')
+  })
+
+  it('converts summary cursor metadata into a bounded excluded range', () => {
+    const baseInput = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [1],
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 3,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 123
+    }
+
+    const withCursor = createTapeViewManifest({
+      ...baseInput,
+      summaryCursor: {
+        summaryCursorOrderSeq: 3,
+        preCursorOrderSeqMin: 1,
+        preCursorOrderSeqMax: 2,
+        preCursorCount: 2
+      }
+    })
+    expect(withCursor.excludedRanges).toEqual([
+      { fromOrderSeq: 1, toOrderSeq: 2, count: 2, reason: 'before_summary_cursor' }
+    ])
+
+    const emptyCursor = createTapeViewManifest({
+      ...baseInput,
+      summaryCursor: {
+        summaryCursorOrderSeq: 1,
+        preCursorOrderSeqMin: null,
+        preCursorOrderSeqMax: null,
+        preCursorCount: 0
+      }
+    })
+    expect(emptyCursor.excludedRanges).toBeUndefined()
+  })
+
+  it('binds the reconstruction anchor lineage into the manifest hash', () => {
+    const baseInput = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [5],
+      reconstructionAnchorEntryId: 5,
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 123
+    }
+
+    const withAnchor = createTapeViewManifest(baseInput)
+    const withoutAnchor = createTapeViewManifest({
+      ...baseInput,
+      anchorEntryIds: [],
+      reconstructionAnchorEntryId: null
+    })
+
+    expect(withAnchor.anchorEntryIds).toEqual([5])
+    expect(withAnchor.reconstructionAnchorEntryId).toBe(5)
+    expect('diagnosticAnchorEntryIds' in withAnchor).toBe(false)
+    expect(withAnchor.hashes.manifestHash).not.toBe(withoutAnchor.hashes.manifestHash)
   })
 
   it('copies manifest refs so caller mutations cannot alter the hashed snapshot', () => {

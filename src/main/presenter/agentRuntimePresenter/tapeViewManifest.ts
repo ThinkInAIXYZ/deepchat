@@ -4,13 +4,16 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewEntryRef,
+  DeepChatTapeViewExcludedRange,
   DeepChatTapeViewExcludedRef,
   DeepChatTapeViewManifest,
+  DeepChatTapeViewManifestIntegrity,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
 import { estimateMessagesTokens } from './contextBuilder'
+import type { ContextSummaryCursorMetadata } from './contextBuilder'
 export { isCompactionRecord } from './contextBuilder'
 
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
@@ -33,8 +36,10 @@ export type TapeViewManifestBuildInput = {
   tools: MCPToolDefinition[]
   latestEntryId: number
   anchorEntryIds: number[]
+  reconstructionAnchorEntryId?: number | null
   included: DeepChatTapeViewEntryRef[]
   excluded: DeepChatTapeViewExcludedRef[]
+  summaryCursor?: ContextSummaryCursorMetadata
   tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
   providerId: string
   modelId: string
@@ -66,6 +71,7 @@ export type TapeViewContextSelection = {
     record: ChatMessageRecord
     reason: DeepChatTapeViewExcludedRef['reason']
   }>
+  summaryCursor?: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
   newUserMessageId?: string | null
 }
@@ -135,12 +141,43 @@ function buildManifestHash(manifest: DeepChatTapeViewManifest): string {
   return hashJson(hashable)
 }
 
+function buildExcludedRanges(
+  summaryCursor?: ContextSummaryCursorMetadata
+): DeepChatTapeViewExcludedRange[] {
+  if (
+    !summaryCursor ||
+    summaryCursor.preCursorCount === 0 ||
+    summaryCursor.preCursorOrderSeqMin === null ||
+    summaryCursor.preCursorOrderSeqMax === null
+  ) {
+    return []
+  }
+  return [
+    {
+      fromOrderSeq: summaryCursor.preCursorOrderSeqMin,
+      toOrderSeq: summaryCursor.preCursorOrderSeqMax,
+      count: summaryCursor.preCursorCount,
+      reason: 'before_summary_cursor'
+    }
+  ]
+}
+
+export function verifyTapeViewManifestHash(
+  manifest: DeepChatTapeViewManifest
+): DeepChatTapeViewManifestIntegrity {
+  if (manifest.hashVersion !== TAPE_VIEW_MANIFEST_HASH_VERSION) {
+    return 'unverified'
+  }
+  return buildManifestHash(manifest) === manifest.hashes.manifestHash ? 'valid' : 'invalid'
+}
+
 export function createTapeViewManifest(
   input: TapeViewManifestBuildInput
 ): DeepChatTapeViewManifest {
   const assembledAt = input.assembledAt ?? Date.now()
+  const excludedRanges = buildExcludedRanges(input.summaryCursor)
   const draft: DeepChatTapeViewManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     hashVersion: TAPE_VIEW_MANIFEST_HASH_VERSION,
     viewId: '',
     sessionId: input.sessionId,
@@ -152,8 +189,12 @@ export function createTapeViewManifest(
     contextBuilderVersion: TAPE_VIEW_CONTEXT_BUILDER_VERSION,
     latestEntryId: input.latestEntryId,
     anchorEntryIds: [...input.anchorEntryIds],
+    ...(input.reconstructionAnchorEntryId !== undefined
+      ? { reconstructionAnchorEntryId: input.reconstructionAnchorEntryId }
+      : {}),
     included: input.included.map((entry) => ({ ...entry })),
     excluded: input.excluded.map((entry) => ({ ...entry })),
+    ...(excludedRanges.length > 0 ? { excludedRanges } : {}),
     tokenBudget: {
       ...input.tokenBudget,
       estimatedPromptTokens: estimateMessagesTokens(input.messages)

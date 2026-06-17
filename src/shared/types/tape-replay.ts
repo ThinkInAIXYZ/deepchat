@@ -1,4 +1,7 @@
-import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
+import type {
+  DeepChatTapeViewManifestIntegrity,
+  DeepChatTapeViewManifestRecord
+} from './tape-view-manifest'
 
 export interface DeepChatTapeReplayExportOptions {
   requestSeq?: number
@@ -59,5 +62,6 @@ export interface DeepChatTapeReplaySlice {
   entries: DeepChatTapeReplayEntrySnapshot[]
   refs: DeepChatTapeReplaySliceRefs
   hashes: DeepChatTapeReplaySliceHashes
+  integrity?: DeepChatTapeViewManifestIntegrity
   createdAt: number
 }

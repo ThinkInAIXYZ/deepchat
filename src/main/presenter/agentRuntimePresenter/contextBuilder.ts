@@ -10,10 +10,6 @@ import type {
   MessageMetadata,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type {
-  DeepChatTapeViewEntryReason,
-  DeepChatTapeViewExcludedReason
-} from '@shared/types/tape-view-manifest'
 import type { DeepChatMessageStore } from './messageStore'
 
 const IMAGE_TOKEN_ESTIMATE = 512
@@ -47,19 +43,30 @@ export type HistoryTurn = {
   tokens: number
 }
 
+export type ContextIncludedReason = 'selected_history' | 'resume_target'
+export type ContextExcludedReason = 'empty_after_formatting' | 'out_of_budget'
+
 export type ContextIncludedRecord = {
   record: ChatMessageRecord
-  reason: DeepChatTapeViewEntryReason
+  reason: ContextIncludedReason
 }
 
 export type ContextExcludedRecord = {
   record: ChatMessageRecord
-  reason: DeepChatTapeViewExcludedReason
+  reason: ContextExcludedReason
+}
+
+export type ContextSummaryCursorMetadata = {
+  summaryCursorOrderSeq: number
+  preCursorOrderSeqMin: number | null
+  preCursorOrderSeqMax: number | null
+  preCursorCount: number
 }
 
 export type ContextBuildMetadata = {
   includedRecords: ContextIncludedRecord[]
   excludedRecords: ContextExcludedRecord[]
+  summaryCursor: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
 }
 
@@ -961,6 +968,32 @@ function filterRecordsFromCursor(
   return records.filter((record) => record.orderSeq >= cursor)
 }
 
+function buildSummaryCursorMetadata(
+  preCursorRecords: ChatMessageRecord[],
+  cursor: number
+): ContextSummaryCursorMetadata {
+  if (preCursorRecords.length === 0) {
+    return {
+      summaryCursorOrderSeq: cursor,
+      preCursorOrderSeqMin: null,
+      preCursorOrderSeqMax: null,
+      preCursorCount: 0
+    }
+  }
+  let min = preCursorRecords[0].orderSeq
+  let max = preCursorRecords[0].orderSeq
+  for (const record of preCursorRecords) {
+    if (record.orderSeq < min) min = record.orderSeq
+    if (record.orderSeq > max) max = record.orderSeq
+  }
+  return {
+    summaryCursorOrderSeq: cursor,
+    preCursorOrderSeqMin: min,
+    preCursorOrderSeqMax: max,
+    preCursorCount: preCursorRecords.length
+  }
+}
+
 export function buildContext(
   sessionId: string,
   newUserContent: string | SendMessageInput,
@@ -1036,13 +1069,8 @@ export function buildContextWithMetadata(
   if (hasPromptMessageContent(newUserMessage)) {
     messages.push(newUserMessage)
   }
+  const preCursorRecords = contextCandidateRecords.filter((record) => record.orderSeq < cursor)
   const excludedRecords: ContextExcludedRecord[] = [
-    ...contextCandidateRecords
-      .filter((record) => record.orderSeq < cursor)
-      .map((record) => ({
-        record,
-        reason: 'before_summary_cursor' as const
-      })),
     ...historyRecords
       .filter((record) => !emittedRecordIds.has(record.id))
       .map((record) => ({
@@ -1067,6 +1095,7 @@ export function buildContextWithMetadata(
         }))
       ),
       excludedRecords,
+      summaryCursor: buildSummaryCursorMetadata(preCursorRecords, cursor),
       includesSystemPrompt: Boolean(systemPrompt)
     }
   }
@@ -1192,19 +1221,14 @@ export function buildResumeContextWithMetadata(
     messages.push({ role: 'system', content: systemPrompt })
   }
   messages.push(...selectedHistory)
+  const preCursorRecords = allMessages.filter(
+    (record) =>
+      record.id !== assistantMessageId &&
+      isContextHistoryRecord(record) &&
+      record.orderSeq < cursor &&
+      (targetOrderSeq === undefined || record.orderSeq <= targetOrderSeq)
+  )
   const excludedRecords: ContextExcludedRecord[] = [
-    ...allMessages
-      .filter(
-        (record) =>
-          record.id !== assistantMessageId &&
-          isContextHistoryRecord(record) &&
-          record.orderSeq < cursor &&
-          (targetOrderSeq === undefined || record.orderSeq <= targetOrderSeq)
-      )
-      .map((record) => ({
-        record,
-        reason: 'before_summary_cursor' as const
-      })),
     ...historyRecords
       .filter((record) => !emittedRecordIds.has(record.id))
       .map((record) => ({
@@ -1232,6 +1256,7 @@ export function buildResumeContextWithMetadata(
         }))
       ),
       excludedRecords,
+      summaryCursor: buildSummaryCursorMetadata(preCursorRecords, cursor),
       includesSystemPrompt: Boolean(systemPrompt)
     }
   }
