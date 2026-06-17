@@ -122,6 +122,12 @@ Update plugin settings/runtime status code where needed:
 - Avoid macOS-only permission copy on non-macOS platforms.
 - Ensure missing Linux arm64 runtimes are reported as unsupported, not as broken installs.
 
+### Plugin Discovery Cleanup
+
+Update official plugin discovery so unsupported sibling artifacts for the same plugin id do not
+disable an already installed supported artifact. Only remove persisted plugin state when no trusted
+candidate for the current platform/arch exists in the discovery pass.
+
 ### Tests
 
 Update and add focused tests for:

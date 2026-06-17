@@ -431,12 +431,20 @@ describe('PluginPresenter', () => {
     process.chdir(root)
 
     const presenter = await createPluginPresenter('win32', { appPath, arch: 'x64' })
+    await presenter.__mocks.configPresenter.addMcpServer('cua-driver', {
+      ownerPluginId: pluginId,
+      source: 'plugin',
+      sourceId: pluginId
+    })
+    presenter.__mocks.mcpPresenter.isServerRunning.mockResolvedValue(true)
 
     await (presenter as any).loadOfficialPlugins()
 
     const resolvedPlugin = (presenter as any).officialPlugins.get(pluginId)
     expect(resolvedPlugin.manifest.name).toBe('CUA Windows X64')
     expect(resolvedPlugin.sourcePath).toBe(winX64Package)
+    expect(presenter.__mocks.mcpPresenter.stopServer).not.toHaveBeenCalled()
+    expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
   })
 
   it('lists bundled official plugins as installed and enables them by materializing the package', async () => {

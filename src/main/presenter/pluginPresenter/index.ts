@@ -759,24 +759,42 @@ export class PluginPresenter {
 
   private async loadOfficialPlugins(): Promise<void> {
     this.officialPlugins.clear()
-
-    for (const plugin of [
+    const plugins = [
       ...this.resolveOfficialPluginPackages(),
       ...this.resolveOfficialPluginDirectories()
-    ]) {
+    ]
+    const usablePluginIds = new Set<string>()
+
+    for (const plugin of plugins) {
+      if (!this.isPluginPlatformSupported(plugin.manifest)) {
+        continue
+      }
+      try {
+        this.assertTrustedOfficialPlugin(plugin.manifest)
+        usablePluginIds.add(plugin.manifest.id)
+      } catch {
+        // The main discovery pass logs untrusted plugin details and performs cleanup.
+      }
+    }
+
+    for (const plugin of plugins) {
       if (this.officialPlugins.has(plugin.manifest.id)) {
         continue
       }
       if (!this.isPluginPlatformSupported(plugin.manifest)) {
         console.info(`[PluginHost] Skipping plugin ${plugin.manifest.id}: platform not supported`)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       try {
         this.assertTrustedOfficialPlugin(plugin.manifest)
       } catch (error) {
         console.warn(`[PluginHost] Skipping untrusted plugin ${plugin.manifest.id}:`, error)
-        await this.removePersistedInstallation(plugin.manifest.id)
+        if (!usablePluginIds.has(plugin.manifest.id)) {
+          await this.removePersistedInstallation(plugin.manifest.id)
+        }
         continue
       }
       console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)

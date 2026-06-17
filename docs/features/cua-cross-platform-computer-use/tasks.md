@@ -91,6 +91,12 @@
   - Use CI to validate Windows x64/arm64 packaging.
   - Confirm Linux arm64 jobs do not ship or show CUA.
 
+- [x] T15 - Prevent unsupported sibling cleanup
+  - Keep unsupported target artifacts from clearing installed state when a supported artifact for
+    the same plugin id exists.
+  - Add regression coverage for side-by-side CUA target artifacts with an active plugin-owned tool
+    server.
+
 ## Implementation Order
 
 1. T01, T02, and T03 establish the runtime input and safety checks.

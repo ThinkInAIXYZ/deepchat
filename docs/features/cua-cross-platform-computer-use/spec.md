@@ -215,6 +215,8 @@ The packaged app must keep CUA usable after Electron packaging:
 - Direct CUA runtime packaging for Linux arm64 fails with a clear unsupported-target message.
 - Official plugin visibility is gated by platform and arch, so the unsupported Linux arm target does
   not show CUA as available.
+- Unsupported sibling artifacts for the same plugin id are ignored during discovery without
+  disabling or uninstalling an installed artifact that supports the current target.
 - The settings sidebar and settings routes expose the Plugins entry on supported CUA targets, not
   only on macOS, while keeping unsupported CUA targets hidden.
 - Runtime detection resolves the plugin-local binary on every supported target.
