@@ -61,7 +61,8 @@ function createMockMessageStore() {
     getMessage: vi.fn().mockReturnValue(null),
     updateAssistantContent: vi.fn(),
     finalizeAssistantMessage: vi.fn(),
-    setMessageError: vi.fn()
+    setMessageError: vi.fn(),
+    appendAssistantToolFactsSnapshot: vi.fn()
   } as any
 }
 

@@ -74,6 +74,8 @@ export type TapeViewManifestSourceMaps = {
   latestEntryId: number
   anchorEntryIds: number[]
   entryIdByMessageId: Map<string, number>
+  toolCallEntryIdByToolId: Map<string, number>
+  toolResultEntryIdByToolId: Map<string, number>
 }
 
 function parseJsonObject(raw: string): Record<string, unknown> {
@@ -84,6 +86,30 @@ function parseJsonObject(raw: string): Record<string, unknown> {
     }
   } catch {}
   return {}
+}
+
+function readToolFactStatus(row: DeepChatTapeEntryRow): string | null {
+  const status = parseJsonObject(row.meta_json).status
+  return typeof status === 'string' ? status : null
+}
+
+function readToolFactToolCallId(row: DeepChatTapeEntryRow): string | null {
+  const payload = parseJsonObject(row.payload_json)
+  if (row.kind === 'tool_call') {
+    const toolCall = payload.toolCall
+    if (toolCall && typeof toolCall === 'object' && !Array.isArray(toolCall)) {
+      const id = (toolCall as Record<string, unknown>).id
+      return typeof id === 'string' && id.length > 0 ? id : null
+    }
+    return null
+  }
+  const toolCallId = payload.toolCallId
+  return typeof toolCallId === 'string' && toolCallId.length > 0 ? toolCallId : null
+}
+
+function readToolFactMessageId(row: DeepChatTapeEntryRow): string | null {
+  const messageId = parseJsonObject(row.payload_json).messageId
+  return typeof messageId === 'string' && messageId.length > 0 ? messageId : null
 }
 
 function parseSearchBoundary(value: string | undefined, name: string): number | undefined {
@@ -492,18 +518,22 @@ export class DeepChatTapeService {
       : []
   }
 
-  getViewManifestSourceMaps(sessionId: string): TapeViewManifestSourceMaps {
+  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps {
     const table = this.table
     if (!table) {
       return {
         latestEntryId: 0,
         anchorEntryIds: [],
-        entryIdByMessageId: new Map()
+        entryIdByMessageId: new Map(),
+        toolCallEntryIdByToolId: new Map(),
+        toolResultEntryIdByToolId: new Map()
       }
     }
 
     const rows = table.getBySession(sessionId)
     const entryIdByMessageId = new Map<string, number>()
+    const toolCallEntryIdByToolId = new Map<string, number>()
+    const toolResultEntryIdByToolId = new Map<string, number>()
     let latestEntryId = 0
     const anchorEntryIds: number[] = []
 
@@ -511,16 +541,32 @@ export class DeepChatTapeService {
       latestEntryId = Math.max(latestEntryId, row.entry_id)
       if (row.kind === 'anchor') {
         anchorEntryIds.push(row.entry_id)
+        continue
       }
       if (row.kind === 'message' && row.source_type === 'message' && row.source_id) {
         entryIdByMessageId.set(row.source_id, row.entry_id)
+        continue
+      }
+      if (row.kind === 'tool_call' || row.kind === 'tool_result') {
+        if (messageId && readToolFactMessageId(row) !== messageId) {
+          continue
+        }
+        const toolCallId = readToolFactToolCallId(row)
+        if (!toolCallId || readToolFactStatus(row) === 'pending') {
+          continue
+        }
+        const target =
+          row.kind === 'tool_call' ? toolCallEntryIdByToolId : toolResultEntryIdByToolId
+        target.set(toolCallId, row.entry_id)
       }
     }
 
     return {
       latestEntryId,
       anchorEntryIds,
-      entryIdByMessageId
+      entryIdByMessageId,
+      toolCallEntryIdByToolId,
+      toolResultEntryIdByToolId
     }
   }
 

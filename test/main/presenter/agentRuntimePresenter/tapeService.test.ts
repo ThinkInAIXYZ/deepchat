@@ -4,8 +4,10 @@ import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeServi
 import { createTapeViewManifest } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import {
   appendMessageReplacementToTape,
-  appendMessageRetractionToTape
+  appendMessageRetractionToTape,
+  appendToolFactsToTape
 } from '@/presenter/agentRuntimePresenter/tapeFacts'
+import { buildRequestRefs } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
 function createTapeTableMock() {
@@ -544,6 +546,161 @@ describe('DeepChatTapeService', () => {
     ])
   })
 
+  it('indexes effective tool facts so tool-loop manifests reference real entries', () => {
+    const { table } = createTapeTableMock()
+    const assistantRecord = createRecord({
+      id: 'a1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 120,
+          tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}', response: 'result' }
+        }
+      ])
+    })
+    appendToolFactsToTape(table as any, assistantRecord, 'live', 'tool_loop')
+
+    const service = createTapeService(table)
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    expect(sourceMaps.toolCallEntryIdByToolId.get('tc1')).toBeGreaterThan(0)
+    expect(sourceMaps.toolResultEntryIdByToolId.get('tc1')).toBeGreaterThan(0)
+
+    const refs = buildRequestRefs(
+      [
+        { role: 'system', content: 'system' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'tc1', type: 'function', function: { name: 'search', arguments: '{"q":"x"}' } }
+          ]
+        },
+        { role: 'tool', content: 'result', tool_call_id: 'tc1' }
+      ],
+      sourceMaps
+    )
+    expect(refs).toMatchObject([
+      { role: 'system', source: 'synthetic' },
+      {
+        role: 'assistant',
+        source: 'tape',
+        reason: 'tool_loop_message',
+        entryId: sourceMaps.toolCallEntryIdByToolId.get('tc1')
+      },
+      {
+        role: 'tool',
+        source: 'tape',
+        reason: 'tool_loop_message',
+        entryId: sourceMaps.toolResultEntryIdByToolId.get('tc1')
+      }
+    ])
+  })
+
+  it('scopes tool source maps to the in-flight message so reused tool ids do not collide', () => {
+    const { table } = createTapeTableMock()
+    const blocks = (response: string) =>
+      JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 120,
+          tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}', response }
+        }
+      ])
+    appendToolFactsToTape(
+      table as any,
+      createRecord({ id: 'a1', orderSeq: 2, role: 'assistant', content: blocks('first') }),
+      'live',
+      'tool_loop'
+    )
+    appendToolFactsToTape(
+      table as any,
+      createRecord({ id: 'a2', orderSeq: 4, role: 'assistant', content: blocks('second') }),
+      'live',
+      'tool_loop'
+    )
+
+    const service = createTapeService(table)
+    const scopedToA1 = service.getViewManifestSourceMaps('s1', 'a1')
+    const scopedToA2 = service.getViewManifestSourceMaps('s1', 'a2')
+
+    expect(scopedToA1.toolCallEntryIdByToolId.get('tc1')).toBeLessThan(
+      scopedToA2.toolCallEntryIdByToolId.get('tc1')!
+    )
+    expect(scopedToA1.toolResultEntryIdByToolId.get('tc1')).not.toBe(
+      scopedToA2.toolResultEntryIdByToolId.get('tc1')
+    )
+  })
+
+  it('exports tool_call and tool_result entries in a tool-loop replay slice', () => {
+    const { table } = createTapeTableMock()
+    const assistantRecord = createRecord({
+      id: 'a1',
+      orderSeq: 2,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 120,
+          tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}', response: 'result' }
+        }
+      ])
+    })
+    appendToolFactsToTape(table as any, assistantRecord, 'live', 'tool_loop')
+
+    const service = createTapeService(table)
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    const messages = [
+      { role: 'system' as const, content: 'system' },
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          { id: 'tc1', type: 'function' as const, function: { name: 'search', arguments: '{}' } }
+        ]
+      },
+      { role: 'tool' as const, content: 'result', tool_call_id: 'tc1' }
+    ]
+    const manifest = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 2,
+      taskType: 'tool_loop',
+      policy: 'tool_loop_shadow',
+      policyVersion: 1,
+      messages,
+      tools: [],
+      latestEntryId: sourceMaps.latestEntryId,
+      anchorEntryIds: sourceMaps.anchorEntryIds,
+      included: buildRequestRefs(messages, sourceMaps),
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 200
+    })
+    service.appendViewManifest(manifest)
+
+    const slice = service.exportReplaySlice('s1', 'a1', { requestSeq: 2 })
+    const kinds = slice?.entries.map((entry) => entry.kind) ?? []
+    expect(kinds).toContain('tool_call')
+    expect(kinds).toContain('tool_result')
+  })
+
   it('filters malformed view manifest rows when listing by message', () => {
     const { table } = createTapeTableMock()
     const service = new DeepChatTapeService({
@@ -866,7 +1023,7 @@ describe('DeepChatTapeService', () => {
     expect(
       entries.filter((entry) => entry.kind === 'message' && entry.name === 'message/assistant')
     ).toHaveLength(2)
-    expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(2)
+    expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(1)
     const finalToolResult = entries.filter((entry) => entry.kind === 'tool_result').at(-1)!
     expect(JSON.parse(finalToolResult.payload_json).response).toBe('final result')
     expect(service.info('s1').lastTokenUsage).toBe(7)

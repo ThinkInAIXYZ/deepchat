@@ -2,6 +2,7 @@ import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/age
 import type { DeepChatTapeEntriesTable } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { buildEffectiveTapeView } from './tapeEffectiveView'
+import { hashJson } from './tapeViewManifest'
 
 export type TapeFactSource = 'live' | 'backfill' | 'repair'
 
@@ -54,31 +55,50 @@ function buildMessageProvenanceKey(
 }
 
 function buildToolFactProvenanceKey(
-  record: ChatMessageRecord,
-  source: TapeFactSource,
   kind: 'tool_call' | 'tool_result',
+  messageId: string,
   toolCallId: string,
-  index: number
-): string | undefined {
-  if (!shouldUseRevisionProvenance(record, source)) {
-    return undefined
-  }
-  return `${kind}:${record.id}:${toolCallId}:revision:${record.status}:${record.updatedAt}:${index}`
+  payload: Record<string, unknown>
+): string {
+  return `${kind}:${messageId}:${toolCallId}:${hashJson(payload)}`
 }
 
-function appendToolFacts(
-  table: DeepChatTapeEntriesTable,
+function collectPendingInteractionToolIds(blocks: AssistantMessageBlock[]): Set<string> {
+  const ids = new Set<string>()
+  for (const block of blocks) {
+    if (
+      block.type === 'action' &&
+      (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
+      block.status === 'pending' &&
+      typeof block.tool_call?.id === 'string' &&
+      block.tool_call.id.length > 0
+    ) {
+      ids.add(block.tool_call.id)
+    }
+  }
+  return ids
+}
+
+export function appendToolFactsToTape(
+  table: DeepChatTapeEntriesTable | undefined,
   record: ChatMessageRecord,
-  source: TapeFactSource
+  source: TapeFactSource,
+  reason?: string
 ): number {
-  if (record.role !== 'assistant') {
+  if (!table || typeof table.append !== 'function' || record.role !== 'assistant') {
     return 0
   }
 
+  table.ensureBootstrapAnchor?.(record.sessionId)
+
   let appended = 0
   const blocks = parseAssistantBlocks(record.content)
+  const pendingInteractionToolIds = collectPendingInteractionToolIds(blocks)
   blocks.forEach((block, index) => {
     if (block.type !== 'tool_call' || !block.tool_call) {
+      return
+    }
+    if (block.status !== 'success' && block.status !== 'error') {
       return
     }
 
@@ -87,7 +107,26 @@ function appendToolFacts(
       return
     }
     const toolCallId = toolCall.id
+    if (pendingInteractionToolIds.has(toolCallId)) {
+      return
+    }
     const sourceId = `${record.id}:${toolCallId}`
+    const meta = reason
+      ? { source, role: record.role, status: block.status, reason }
+      : { source, role: record.role, status: block.status }
+
+    const callPayload = {
+      messageId: record.id,
+      orderSeq: record.orderSeq,
+      toolCall: {
+        id: toolCallId,
+        name: toolCall.name,
+        params: toolCall.params,
+        serverName: toolCall.server_name,
+        serverIcons: toolCall.server_icons,
+        serverDescription: toolCall.server_description
+      }
+    }
     table.append({
       sessionId: record.sessionId,
       kind: 'tool_call',
@@ -97,24 +136,9 @@ function appendToolFacts(
         id: sourceId,
         seq: index
       },
-      provenanceKey: buildToolFactProvenanceKey(record, source, 'tool_call', toolCallId, index),
-      payload: {
-        messageId: record.id,
-        orderSeq: record.orderSeq,
-        toolCall: {
-          id: toolCallId,
-          name: toolCall.name,
-          params: toolCall.params,
-          serverName: toolCall.server_name,
-          serverIcons: toolCall.server_icons,
-          serverDescription: toolCall.server_description
-        }
-      },
-      meta: {
-        source,
-        role: record.role,
-        status: record.status
-      },
+      provenanceKey: buildToolFactProvenanceKey('tool_call', record.id, toolCallId, callPayload),
+      payload: callPayload,
+      meta,
       createdAt: block.timestamp ?? record.updatedAt,
       idempotent: true
     })
@@ -124,6 +148,16 @@ function appendToolFacts(
       return
     }
 
+    const resultPayload = {
+      messageId: record.id,
+      orderSeq: record.orderSeq,
+      toolCallId,
+      response: toolCall.response,
+      rtkApplied: toolCall.rtkApplied,
+      rtkMode: toolCall.rtkMode,
+      rtkFallbackReason: toolCall.rtkFallbackReason,
+      imagePreviews: toolCall.imagePreviews
+    }
     table.append({
       sessionId: record.sessionId,
       kind: 'tool_result',
@@ -133,22 +167,14 @@ function appendToolFacts(
         id: sourceId,
         seq: index
       },
-      provenanceKey: buildToolFactProvenanceKey(record, source, 'tool_result', toolCallId, index),
-      payload: {
-        messageId: record.id,
-        orderSeq: record.orderSeq,
+      provenanceKey: buildToolFactProvenanceKey(
+        'tool_result',
+        record.id,
         toolCallId,
-        response: toolCall.response,
-        rtkApplied: toolCall.rtkApplied,
-        rtkMode: toolCall.rtkMode,
-        rtkFallbackReason: toolCall.rtkFallbackReason,
-        imagePreviews: toolCall.imagePreviews
-      },
-      meta: {
-        source,
-        role: record.role,
-        status: record.status
-      },
+        resultPayload
+      ),
+      payload: resultPayload,
+      meta,
       createdAt: block.timestamp ?? record.updatedAt,
       idempotent: true
     })
@@ -238,7 +264,7 @@ export function appendMessageRecordToTape(
     idempotent: true
   })
 
-  return 1 + appendToolFacts(table, record, source)
+  return 1 + appendToolFactsToTape(table, record, source)
 }
 
 export function appendMessageReplacementToTape(
@@ -288,7 +314,7 @@ export function appendMessageReplacementToTape(
     idempotent: true
   })
 
-  return 1 + appendToolFacts(table, record, 'repair')
+  return 1 + appendToolFactsToTape(table, record, 'repair')
 }
 
 export function appendMessageRetractionToTape(

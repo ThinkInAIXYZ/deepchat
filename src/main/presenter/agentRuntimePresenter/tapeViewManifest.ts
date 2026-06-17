@@ -18,6 +18,8 @@ export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'legacy-v1' as const
 
 export type TapeViewManifestSourceMaps = {
   entryIdByMessageId?: Map<string, number>
+  toolCallEntryIdByToolId?: Map<string, number>
+  toolResultEntryIdByToolId?: Map<string, number>
 }
 
 export type TapeViewManifestBuildInput = {
@@ -250,18 +252,72 @@ export function buildExcludedRefs(
   }))
 }
 
-export function buildSyntheticRequestRefs(messages: ChatMessage[]): DeepChatTapeViewEntryRef[] {
-  return messages.map((message) => ({
-    entryId: null,
-    messageId: null,
-    orderSeq: null,
-    role: message.role,
-    source: 'synthetic',
-    reason:
-      message.role === 'system'
-        ? 'system_prompt'
-        : message.role === 'tool'
-          ? 'tool_loop_message'
-          : 'selected_history'
-  }))
+export function buildRequestRefs(
+  messages: ChatMessage[],
+  sourceMaps: TapeViewManifestSourceMaps = {}
+): DeepChatTapeViewEntryRef[] {
+  const lastToolCallIndex = new Map<string, number>()
+  const lastToolResultIndex = new Map<string, number>()
+  messages.forEach((message, index) => {
+    if (message.role === 'assistant' && message.tool_calls?.length) {
+      for (const toolCall of message.tool_calls) {
+        lastToolCallIndex.set(toolCall.id, index)
+      }
+    } else if (message.role === 'tool' && message.tool_call_id) {
+      lastToolResultIndex.set(message.tool_call_id, index)
+    }
+  })
+
+  const refs: DeepChatTapeViewEntryRef[] = []
+  messages.forEach((message, index) => {
+    if (message.role === 'assistant' && message.tool_calls?.length) {
+      for (const toolCall of message.tool_calls) {
+        const entryId =
+          lastToolCallIndex.get(toolCall.id) === index
+            ? (sourceMaps.toolCallEntryIdByToolId?.get(toolCall.id) ?? null)
+            : null
+        refs.push({
+          entryId,
+          messageId: null,
+          orderSeq: null,
+          role: 'assistant',
+          source: entryId === null ? 'synthetic' : 'tape',
+          reason: 'tool_loop_message'
+        })
+      }
+      return
+    }
+
+    if (message.role === 'tool' && message.tool_call_id) {
+      const entryId =
+        lastToolResultIndex.get(message.tool_call_id) === index
+          ? (sourceMaps.toolResultEntryIdByToolId?.get(message.tool_call_id) ?? null)
+          : null
+      refs.push({
+        entryId,
+        messageId: null,
+        orderSeq: null,
+        role: 'tool',
+        source: entryId === null ? 'synthetic' : 'tape',
+        reason: 'tool_loop_message'
+      })
+      return
+    }
+
+    refs.push({
+      entryId: null,
+      messageId: null,
+      orderSeq: null,
+      role: message.role,
+      source: 'synthetic',
+      reason:
+        message.role === 'system'
+          ? 'system_prompt'
+          : message.role === 'tool'
+            ? 'tool_loop_message'
+            : 'selected_history'
+    })
+  })
+
+  return refs
 }

@@ -110,7 +110,7 @@ import { DeepChatTapeService } from './tapeService'
 import {
   buildExcludedRefs,
   buildIncludedRefs,
-  buildSyntheticRequestRefs,
+  buildRequestRefs,
   createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
@@ -2897,7 +2897,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     traceDebugEnabled: boolean
   }): void {
     try {
-      const sourceMaps = this.tapeService.getViewManifestSourceMaps(params.sessionId)
+      const sourceMaps = this.tapeService.getViewManifestSourceMaps(
+        params.sessionId,
+        params.messageId
+      )
       const manifest = createTapeViewManifest({
         sessionId: params.sessionId,
         messageId: params.messageId,
@@ -2911,7 +2914,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         anchorEntryIds: sourceMaps.anchorEntryIds,
         included: params.selection
           ? buildIncludedRefs(params.selection, sourceMaps)
-          : buildSyntheticRequestRefs(params.messages),
+          : buildRequestRefs(params.messages, sourceMaps),
         excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
         tokenBudget: params.tokenBudget,
         providerId: params.providerId,

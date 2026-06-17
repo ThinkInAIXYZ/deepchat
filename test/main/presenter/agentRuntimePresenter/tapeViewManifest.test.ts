@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
   buildIncludedRefs,
-  buildSyntheticRequestRefs,
+  buildRequestRefs,
   createTapeViewManifest,
   hashJson,
   resolveTapeViewManifestPolicy
@@ -215,17 +215,70 @@ describe('tapeViewManifest', () => {
     })
   })
 
-  it('builds synthetic request refs with role-specific reasons', () => {
+  it('builds synthetic request refs when no tape entries resolve', () => {
     expect(
-      buildSyntheticRequestRefs([
+      buildRequestRefs([
         { role: 'system', content: 'system' },
         { role: 'user', content: 'question' },
-        { role: 'tool', content: 'tool output' }
+        { role: 'tool', content: 'tool output', tool_call_id: 'call_missing' }
       ])
     ).toMatchObject([
       { role: 'system', reason: 'system_prompt', source: 'synthetic' },
       { role: 'user', reason: 'selected_history', source: 'synthetic' },
-      { role: 'tool', reason: 'tool_loop_message', source: 'synthetic' }
+      { role: 'tool', reason: 'tool_loop_message', source: 'synthetic', entryId: null }
+    ])
+  })
+
+  it('grounds tool-loop refs to real tape entries via source maps', () => {
+    const refs = buildRequestRefs(
+      [
+        { role: 'system', content: 'system' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: 'search', arguments: '{}' } }
+          ]
+        },
+        { role: 'tool', content: 'result', tool_call_id: 'call_1' }
+      ],
+      {
+        toolCallEntryIdByToolId: new Map([['call_1', 41]]),
+        toolResultEntryIdByToolId: new Map([['call_1', 42]])
+      }
+    )
+
+    expect(refs).toMatchObject([
+      { role: 'system', reason: 'system_prompt', source: 'synthetic', entryId: null },
+      { role: 'assistant', reason: 'tool_loop_message', source: 'tape', entryId: 41 },
+      { role: 'tool', reason: 'tool_loop_message', source: 'tape', entryId: 42 }
+    ])
+  })
+
+  it('grounds only the last occurrence of a reused tool id, keeping history synthetic', () => {
+    const toolCall = (id: string) => ({
+      id,
+      type: 'function' as const,
+      function: { name: 'search', arguments: '{}' }
+    })
+    const refs = buildRequestRefs(
+      [
+        { role: 'assistant', content: '', tool_calls: [toolCall('tc1')] },
+        { role: 'tool', content: 'old', tool_call_id: 'tc1' },
+        { role: 'assistant', content: '', tool_calls: [toolCall('tc1')] },
+        { role: 'tool', content: 'new', tool_call_id: 'tc1' }
+      ],
+      {
+        toolCallEntryIdByToolId: new Map([['tc1', 91]]),
+        toolResultEntryIdByToolId: new Map([['tc1', 92]])
+      }
+    )
+
+    expect(refs).toMatchObject([
+      { role: 'assistant', source: 'synthetic', entryId: null },
+      { role: 'tool', source: 'synthetic', entryId: null },
+      { role: 'assistant', source: 'tape', entryId: 91 },
+      { role: 'tool', source: 'tape', entryId: 92 }
     ])
   })
 })
