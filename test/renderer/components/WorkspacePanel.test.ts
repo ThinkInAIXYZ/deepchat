@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkspacePanel from '@/components/sidepanel/WorkspacePanel.vue'
 
@@ -127,7 +127,7 @@ const {
   setSessionProjectDirMock: vi.fn().mockResolvedValue(undefined)
 }))
 
-const sessionState = {
+const sessionState = reactive({
   selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
@@ -137,9 +137,9 @@ const sessionState = {
     git: true,
     artifacts: true
   }
-}
+})
 
-const sidepanelStore = {
+const sidepanelStore = reactive({
   open: true,
   toggleSection: toggleSectionMock,
   clearArtifact: clearArtifactMock,
@@ -148,7 +148,7 @@ const sidepanelStore = {
   selectFile: selectFileMock,
   selectDiff: selectDiffMock,
   getSessionState: () => sessionState
-}
+})
 
 const artifactStore = {
   currentArtifact: null,
@@ -302,6 +302,9 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
         <button class="node-toggle" type="button" @click="$emit('toggle', node)">
           {{ node.name }}
         </button>
+        <button class="node-preview" type="button" @click="$emit('append-path', node.path)">
+          Preview
+        </button>
         <button class="node-insert" type="button" @click="$emit('insert-path', node.path)">
           Insert
         </button>
@@ -317,8 +320,8 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
 
 vi.mock('@/components/sidepanel/WorkspaceViewer.vue', () => ({
   default: defineComponent({
-    name: 'WorkspaceViewer',
-    template: '<div class="workspace-viewer-stub" />'
+    emits: ['toggle-fullscreen', 'back'],
+    template: '<button class="workspace-viewer-stub" type="button" @click="$emit(\'back\')" />'
   })
 }))
 
@@ -419,6 +422,187 @@ describe('WorkspacePanel', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('chat.workspace.sections.subagents')
+
+    wrapper.unmount()
+  })
+
+  it('switches from workspace list to a single file viewer and back', async () => {
+    readDirectoryMock.mockResolvedValueOnce([
+      {
+        name: 'README.md',
+        path: 'C:/repo/README.md',
+        isDirectory: false
+      }
+    ])
+
+    selectFileMock.mockImplementationOnce((_sessionId, filePath) => {
+      sessionState.selectedFilePath = filePath
+    })
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(true)
+    expect(wrapper.find('.workspace-viewer-stub').exists()).toBe(false)
+
+    await wrapper.find('.node-preview').trigger('click')
+
+    expect(selectFileMock).toHaveBeenCalledWith('s1', 'C:/repo/README.md', {
+      open: false,
+      viewMode: 'preview'
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(false)
+    expect(wrapper.find('.workspace-viewer-stub').exists()).toBe(true)
+
+    await wrapper.find('.workspace-viewer-stub').trigger('click')
+
+    expect(clearFileMock).toHaveBeenCalledWith('s1')
+
+    wrapper.unmount()
+  })
+
+  it('switches from workspace git list to a single diff viewer and back', async () => {
+    readDirectoryMock.mockResolvedValueOnce([
+      {
+        name: 'README.md',
+        path: 'C:/repo/README.md',
+        isDirectory: false
+      }
+    ])
+    getGitStatusMock.mockResolvedValueOnce({
+      workspacePath: 'C:/repo',
+      branch: 'main',
+      ahead: 0,
+      behind: 0,
+      changes: [
+        {
+          path: 'C:/repo/src/changed.ts',
+          relativePath: 'src/changed.ts',
+          stagedStatus: null,
+          unstagedStatus: 'M',
+          type: 'modified'
+        }
+      ]
+    })
+    selectDiffMock.mockImplementationOnce((_sessionId, filePath) => {
+      sessionState.selectedDiffPath = filePath
+    })
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    const gitButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('src/changed.ts'))
+    expect(gitButton).toBeTruthy()
+
+    await gitButton!.trigger('click')
+
+    expect(selectDiffMock).toHaveBeenCalledWith('s1', 'C:/repo/src/changed.ts', { open: false })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(false)
+    expect(wrapper.find('.workspace-viewer-stub').exists()).toBe(true)
+
+    await wrapper.find('.workspace-viewer-stub').trigger('click')
+
+    expect(clearDiffMock).toHaveBeenCalledWith('s1')
+
+    wrapper.unmount()
+  })
+
+  it('keeps workspace list visible for artifact selections', async () => {
+    readDirectoryMock.mockResolvedValueOnce([
+      {
+        name: 'README.md',
+        path: 'C:/repo/README.md',
+        isDirectory: false
+      }
+    ])
+
+    sessionState.selectedArtifactContext = {
+      threadId: 's1',
+      messageId: 'm1',
+      artifactId: 'artifact-1'
+    }
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(true)
+    expect(wrapper.find('.workspace-viewer-stub').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('keeps existing file list visible while reopening refreshes in the background', async () => {
+    readDirectoryMock
+      .mockResolvedValueOnce([
+        {
+          name: 'README.md',
+          path: 'C:/repo/README.md',
+          isDirectory: false
+        }
+      ])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve([
+                {
+                  name: 'README.md',
+                  path: 'C:/repo/README.md',
+                  isDirectory: false
+                }
+              ])
+            }, 50)
+          })
+      )
+
+    const wrapper = mount(WorkspacePanel, {
+      props: {
+        sessionId: 's1',
+        workspacePath: 'C:/repo'
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('chat.workspace.files.loading')
+
+    sidepanelStore.open = false
+    await wrapper.vm.$nextTick()
+    sidepanelStore.open = true
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('chat.workspace.files.loading')
+
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
 
     wrapper.unmount()
   })
@@ -757,8 +941,8 @@ describe('WorkspacePanel', () => {
 
     await flushPromises()
 
-    expect(clearFileMock).not.toHaveBeenCalled()
-    expect(clearDiffMock).not.toHaveBeenCalled()
+    clearFileMock.mockClear()
+    clearDiffMock.mockClear()
 
     await emitWorkspaceInvalidated({
       workspacePath: 'C:/repo',
