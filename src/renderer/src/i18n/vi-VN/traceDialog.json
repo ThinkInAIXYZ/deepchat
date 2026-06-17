@@ -49,5 +49,21 @@
   "reserveTokens": "Token dự trữ",
   "toolReserveTokens": "Token dự trữ cho công cụ",
   "estimatedPromptTokens": "Token prompt ước tính",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Tính toàn vẹn",
+    "valid": "Hợp lệ",
+    "invalid": "Không hợp lệ",
+    "unverified": "Chưa xác minh",
+    "invalidWarning": "Bản kê chế độ xem này không khớp với Hash của nó; đừng coi Prompt được phát lại là đáng tin cậy.",
+    "unverifiedNote": "Bản kê này dùng công thức Hash cũ (hashVersion 1); không thể xác minh tính toàn vẹn của nó."
+  },
+  "reconstructionAnchor": "Mục neo tái dựng",
+  "anchorEntryIds": "Nguồn gốc tái dựng",
+  "schemaVersion": "Phiên bản Schema",
+  "hashVersion": "Phiên bản Hash",
+  "compactedRanges": "Vùng đã nén",
+  "rangeFrom": "Từ thứ tự",
+  "rangeTo": "Đến thứ tự",
+  "rangeCount": "Số lượng"
 }

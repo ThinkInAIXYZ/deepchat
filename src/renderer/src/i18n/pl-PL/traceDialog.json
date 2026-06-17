@@ -49,5 +49,21 @@
   "reserveTokens": "Zarezerwowane tokeny",
   "toolReserveTokens": "Tokeny zarezerwowane dla narzędzi",
   "estimatedPromptTokens": "Szacowane tokeny promptu",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integralność",
+    "valid": "Ważny",
+    "invalid": "Nieważny",
+    "unverified": "Niezweryfikowany",
+    "invalidWarning": "Ten manifest widoku nie zgadza się ze swoim hashem; nie traktuj odtworzonego promptu jako wiarygodnego.",
+    "unverifiedNote": "Ten manifest używa starej formuły hasha (hashVersion 1); nie można zweryfikować jego integralności."
+  },
+  "reconstructionAnchor": "Nadrzędna kotwica rekonstrukcji",
+  "anchorEntryIds": "Pochodzenie rekonstrukcji",
+  "schemaVersion": "Wersja schematu",
+  "hashVersion": "Wersja hasha",
+  "compactedRanges": "Skompaktowany zakres",
+  "rangeFrom": "Od nr kolejności",
+  "rangeTo": "Do nr kolejności",
+  "rangeCount": "Liczba"
 }

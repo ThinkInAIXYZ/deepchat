@@ -53,7 +53,7 @@ export interface DeepChatTapeSearchInput {
   endCreatedAt?: number
 }
 
-const SUMMARY_ANCHOR_NAMES = [
+export const SUMMARY_ANCHOR_NAMES = [
   'compaction/auto',
   'compaction/manual',
   'compaction/context_pressure',

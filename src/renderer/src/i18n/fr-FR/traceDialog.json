@@ -49,5 +49,21 @@
   "reserveTokens": "Tokens réservés",
   "toolReserveTokens": "Tokens réservés aux outils",
   "estimatedPromptTokens": "Tokens estimés du prompt",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Intégrité",
+    "valid": "Valide",
+    "invalid": "Invalide",
+    "unverified": "Non vérifiée",
+    "invalidWarning": "Ce manifeste de vue ne correspond pas à son hash ; ne considérez pas le prompt rejoué comme authentique.",
+    "unverifiedNote": "Ce manifeste utilise l'ancienne formule de hachage (hashVersion 1) ; son intégrité ne peut pas être vérifiée."
+  },
+  "reconstructionAnchor": "Ancre de reconstruction associée",
+  "anchorEntryIds": "Lignée de reconstruction",
+  "schemaVersion": "Version du schéma",
+  "hashVersion": "Version du hash",
+  "compactedRanges": "Région compactée",
+  "rangeFrom": "N° d'ordre de début",
+  "rangeTo": "N° d'ordre de fin",
+  "rangeCount": "Nombre"
 }

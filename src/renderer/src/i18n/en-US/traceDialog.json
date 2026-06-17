@@ -49,5 +49,21 @@
   "reserveTokens": "Reserve tokens",
   "toolReserveTokens": "Tool reserve tokens",
   "estimatedPromptTokens": "Estimated prompt tokens",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integrity",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "unverified": "Unverified",
+    "invalidWarning": "This view manifest does not match its hash; do not treat the replayed prompt as authentic.",
+    "unverifiedNote": "This manifest uses the legacy hash formula (hashVersion 1); its integrity cannot be verified."
+  },
+  "reconstructionAnchor": "Owning reconstruction anchor",
+  "anchorEntryIds": "Reconstruction lineage",
+  "schemaVersion": "Schema version",
+  "hashVersion": "Hash version",
+  "compactedRanges": "Compacted region",
+  "rangeFrom": "From order seq",
+  "rangeTo": "To order seq",
+  "rangeCount": "Count"
 }

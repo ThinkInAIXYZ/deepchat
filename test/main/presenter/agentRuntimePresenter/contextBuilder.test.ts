@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   buildContext,
+  buildContextWithMetadata,
   buildResumeContext,
   buildResumeContextWithMetadata,
   fitMessagesToContextWindow,
@@ -749,6 +750,44 @@ describe('buildContext', () => {
     ])
   })
 
+  it('emits summary cursor metadata instead of per-record before_summary_cursor refs', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'recent user'),
+      makeAssistantRecord(4, 'recent reply')
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store, false, {
+      summaryCursorOrderSeq: 3
+    })
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 3,
+      preCursorOrderSeqMin: 1,
+      preCursorOrderSeqMax: 2,
+      preCursorCount: 2
+    })
+    expect(
+      result.metadata.excludedRecords.some(
+        (item) => (item.reason as string) === 'before_summary_cursor'
+      )
+    ).toBe(false)
+  })
+
+  it('reports zero pre-cursor records when the cursor is at the start', () => {
+    const messages = [makeUserRecord(1, 'a'), makeAssistantRecord(2, 'b')]
+    const store = createMockMessageStore(messages)
+    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store)
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 1,
+      preCursorOrderSeqMin: null,
+      preCursorOrderSeqMax: null,
+      preCursorCount: 0
+    })
+  })
+
   it('builds from provided history records without rereading newer persisted messages', () => {
     const messages = [
       makeUserRecord(1, 'old user'),
@@ -1217,6 +1256,51 @@ describe('buildResumeContext', () => {
         reason: 'empty_after_formatting'
       }
     ])
+  })
+
+  it('emits resume summary cursor metadata without before_summary_cursor refs', () => {
+    const messages = [
+      makeUserRecord(1, 'old user'),
+      makeAssistantRecord(2, 'old reply'),
+      makeUserRecord(3, 'recent user'),
+      {
+        id: 'resume-target',
+        sessionId: 's1',
+        orderSeq: 4,
+        role: 'assistant' as const,
+        content: JSON.stringify([
+          { type: 'content', content: 'partial', status: 'success', timestamp: 100 }
+        ]),
+        status: 'pending' as const,
+        isContextEdge: 0,
+        metadata: '{}',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ]
+    const store = createMockMessageStore(messages)
+    const result = buildResumeContextWithMetadata(
+      's1',
+      'resume-target',
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      { summaryCursorOrderSeq: 3, fallbackProtectedTurnCount: 1 }
+    )
+
+    expect(result.metadata.summaryCursor).toEqual({
+      summaryCursorOrderSeq: 3,
+      preCursorOrderSeqMin: 1,
+      preCursorOrderSeqMax: 2,
+      preCursorCount: 2
+    })
+    expect(
+      result.metadata.excludedRecords.some(
+        (item) => (item.reason as string) === 'before_summary_cursor'
+      )
+    ).toBe(false)
   })
 
   it('includes prior assistant error records when building resume context', () => {

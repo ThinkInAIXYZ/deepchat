@@ -8,6 +8,7 @@ import type {
   ChatMessageRecord
 } from '@shared/types/agent-interface'
 import type {
+  DeepChatTapeViewExcludedRange,
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
@@ -18,9 +19,10 @@ import type {
   DeepChatTapeReplayTraceSnapshot
 } from '@shared/types/tape-replay'
 import type { DeepChatMessageStore } from './messageStore'
-import type {
-  DeepChatTapeEntryRow,
-  DeepChatTapeSearchInput
+import {
+  SUMMARY_ANCHOR_NAMES,
+  type DeepChatTapeEntryRow,
+  type DeepChatTapeSearchInput
 } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
 import { appendMessageRecordToTape } from './tapeFacts'
@@ -29,7 +31,11 @@ import {
   getLastEffectiveTokenUsage,
   searchEffectiveTapeRows
 } from './tapeEffectiveView'
-import { hashJson, TAPE_VIEW_MANIFEST_EVENT_NAME } from './tapeViewManifest'
+import {
+  hashJson,
+  TAPE_VIEW_MANIFEST_EVENT_NAME,
+  verifyTapeViewManifestHash
+} from './tapeViewManifest'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -73,7 +79,26 @@ export type TapeForkHandle = {
 export type TapeViewManifestSourceMaps = {
   latestEntryId: number
   anchorEntryIds: number[]
+  reconstructionAnchorEntryIds: number[]
+  reconstructionAnchorEntryId: number | null
   entryIdByMessageId: Map<string, number>
+  toolCallEntryIdByToolId: Map<string, number>
+  toolResultEntryIdByToolId: Map<string, number>
+}
+
+const BOOTSTRAP_ANCHOR_NAME = 'session/start'
+
+// Mirrors getLatestReconstructionAnchor: the anchor set that owns the summary
+// cursor and prompt-visible reconstruction state (summaries, handoffs).
+function isReconstructionAnchorName(name: string | null): boolean {
+  if (name === null) {
+    return false
+  }
+  return (
+    (SUMMARY_ANCHOR_NAMES as readonly string[]).includes(name) ||
+    name.startsWith('handoff/') ||
+    name.startsWith('auto_handoff/')
+  )
 }
 
 function parseJsonObject(raw: string): Record<string, unknown> {
@@ -84,6 +109,30 @@ function parseJsonObject(raw: string): Record<string, unknown> {
     }
   } catch {}
   return {}
+}
+
+function readToolFactStatus(row: DeepChatTapeEntryRow): string | null {
+  const status = parseJsonObject(row.meta_json).status
+  return typeof status === 'string' ? status : null
+}
+
+function readToolFactToolCallId(row: DeepChatTapeEntryRow): string | null {
+  const payload = parseJsonObject(row.payload_json)
+  if (row.kind === 'tool_call') {
+    const toolCall = payload.toolCall
+    if (toolCall && typeof toolCall === 'object' && !Array.isArray(toolCall)) {
+      const id = (toolCall as Record<string, unknown>).id
+      return typeof id === 'string' && id.length > 0 ? id : null
+    }
+    return null
+  }
+  const toolCallId = payload.toolCallId
+  return typeof toolCallId === 'string' && toolCallId.length > 0 ? toolCallId : null
+}
+
+function readToolFactMessageId(row: DeepChatTapeEntryRow): string | null {
+  const messageId = parseJsonObject(row.payload_json).messageId
+  return typeof messageId === 'string' && messageId.length > 0 ? messageId : null
 }
 
 function parseSearchBoundary(value: string | undefined, name: string): number | undefined {
@@ -273,6 +322,20 @@ function isViewExcludedRef(value: unknown): value is DeepChatTapeViewManifest['e
   )
 }
 
+function isViewExcludedRange(value: unknown): value is DeepChatTapeViewExcludedRange {
+  if (!isRecordObject(value)) {
+    return false
+  }
+
+  return (
+    typeof value.fromOrderSeq === 'number' &&
+    typeof value.toOrderSeq === 'number' &&
+    typeof value.count === 'number' &&
+    typeof value.reason === 'string' &&
+    VIEW_EXCLUDED_REASONS.has(value.reason)
+  )
+}
+
 function hasNumberFields(value: unknown, fields: string[]): value is Record<string, number> {
   if (!isRecordObject(value)) {
     return false
@@ -310,7 +373,8 @@ function isViewManifest(value: unknown, sessionId: string): value is DeepChatTap
   }
 
   return (
-    value.schemaVersion === 1 &&
+    (value.schemaVersion === 1 || value.schemaVersion === 2) &&
+    typeof value.hashVersion === 'number' &&
     value.sessionId === sessionId &&
     typeof value.viewId === 'string' &&
     typeof value.messageId === 'string' &&
@@ -323,6 +387,10 @@ function isViewManifest(value: unknown, sessionId: string): value is DeepChatTap
     typeof value.latestEntryId === 'number' &&
     Array.isArray(value.anchorEntryIds) &&
     value.anchorEntryIds.every((entryId) => typeof entryId === 'number') &&
+    (value.reconstructionAnchorEntryId === undefined ||
+      isNullableNumber(value.reconstructionAnchorEntryId)) &&
+    (value.excludedRanges === undefined ||
+      (Array.isArray(value.excludedRanges) && value.excludedRanges.every(isViewExcludedRange))) &&
     Array.isArray(value.included) &&
     value.included.every(isViewEntryRef) &&
     Array.isArray(value.excluded) &&
@@ -348,6 +416,7 @@ function withReplaySliceHash(
 ): DeepChatTapeReplaySlice {
   const sliceForHash = { ...slice } as Partial<DeepChatTapeReplaySlice>
   delete sliceForHash.createdAt
+  delete sliceForHash.integrity
   return {
     ...slice,
     hashes: {
@@ -492,35 +561,75 @@ export class DeepChatTapeService {
       : []
   }
 
-  getViewManifestSourceMaps(sessionId: string): TapeViewManifestSourceMaps {
+  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps {
     const table = this.table
     if (!table) {
       return {
         latestEntryId: 0,
         anchorEntryIds: [],
-        entryIdByMessageId: new Map()
+        reconstructionAnchorEntryIds: [],
+        reconstructionAnchorEntryId: null,
+        entryIdByMessageId: new Map(),
+        toolCallEntryIdByToolId: new Map(),
+        toolResultEntryIdByToolId: new Map()
       }
     }
 
     const rows = table.getBySession(sessionId)
     const entryIdByMessageId = new Map<string, number>()
+    const toolCallEntryIdByToolId = new Map<string, number>()
+    const toolResultEntryIdByToolId = new Map<string, number>()
     let latestEntryId = 0
     const anchorEntryIds: number[] = []
+    let reconstructionAnchorEntryId: number | null = null
+    let bootstrapAnchorEntryId: number | null = null
 
     for (const row of rows) {
       latestEntryId = Math.max(latestEntryId, row.entry_id)
       if (row.kind === 'anchor') {
         anchorEntryIds.push(row.entry_id)
+        if (isReconstructionAnchorName(row.name)) {
+          if (reconstructionAnchorEntryId === null || row.entry_id > reconstructionAnchorEntryId) {
+            reconstructionAnchorEntryId = row.entry_id
+          }
+        } else if (row.name === BOOTSTRAP_ANCHOR_NAME) {
+          bootstrapAnchorEntryId = row.entry_id
+        }
+        continue
       }
       if (row.kind === 'message' && row.source_type === 'message' && row.source_id) {
         entryIdByMessageId.set(row.source_id, row.entry_id)
+        continue
+      }
+      if (row.kind === 'tool_call' || row.kind === 'tool_result') {
+        if (messageId && readToolFactMessageId(row) !== messageId) {
+          continue
+        }
+        const toolCallId = readToolFactToolCallId(row)
+        if (!toolCallId || readToolFactStatus(row) === 'pending') {
+          continue
+        }
+        const target =
+          row.kind === 'tool_call' ? toolCallEntryIdByToolId : toolResultEntryIdByToolId
+        target.set(toolCallId, row.entry_id)
       }
     }
+
+    const reconstructionAnchorEntryIds =
+      reconstructionAnchorEntryId !== null
+        ? [reconstructionAnchorEntryId]
+        : bootstrapAnchorEntryId !== null
+          ? [bootstrapAnchorEntryId]
+          : []
 
     return {
       latestEntryId,
       anchorEntryIds,
-      entryIdByMessageId
+      reconstructionAnchorEntryIds,
+      reconstructionAnchorEntryId,
+      entryIdByMessageId,
+      toolCallEntryIdByToolId,
+      toolResultEntryIdByToolId
     }
   }
 
@@ -645,6 +754,7 @@ export class DeepChatTapeService {
         manifestHash: manifest.hashes.manifestHash,
         sliceHash: ''
       },
+      integrity: manifestRecord.integrity,
       createdAt
     }
 
@@ -943,10 +1053,14 @@ export class DeepChatTapeService {
   private toViewManifestRecord(row: DeepChatTapeEntryRow): DeepChatTapeViewManifestRecord | null {
     const payload = parseJsonObject(row.payload_json)
     const data = payload.data
-    const manifest =
+    const rawManifest =
       data && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>).manifest
         : undefined
+    const manifest =
+      isRecordObject(rawManifest) && rawManifest.hashVersion === undefined
+        ? { ...rawManifest, hashVersion: 1 }
+        : rawManifest
     if (!isViewManifest(manifest, row.session_id)) {
       return null
     }
@@ -957,6 +1071,7 @@ export class DeepChatTapeService {
       requestSeq: manifest.requestSeq,
       entryId: row.entry_id,
       createdAt: row.created_at,
+      integrity: verifyTapeViewManifestHash(manifest),
       manifest
     }
   }

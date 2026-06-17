@@ -49,5 +49,21 @@
   "reserveTokens": "Token simpanan",
   "toolReserveTokens": "Token simpanan alat",
   "estimatedPromptTokens": "Anggaran token prompt",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integriti",
+    "valid": "Sah",
+    "invalid": "Tidak sah",
+    "unverified": "Belum disahkan",
+    "invalidWarning": "Manifes paparan ini tidak sepadan dengan hashnya; jangan anggap prompt yang dimainkan semula sebagai sahih.",
+    "unverifiedNote": "Manifes ini menggunakan formula hash lama (hashVersion 1); integritinya tidak dapat disahkan."
+  },
+  "reconstructionAnchor": "Sauh pembinaan semula pemilik",
+  "anchorEntryIds": "Salasilah pembinaan semula",
+  "schemaVersion": "Versi Schema",
+  "hashVersion": "Versi Hash",
+  "compactedRanges": "Kawasan dipadatkan",
+  "rangeFrom": "Dari no. urutan",
+  "rangeTo": "Hingga no. urutan",
+  "rangeCount": "Bilangan"
 }

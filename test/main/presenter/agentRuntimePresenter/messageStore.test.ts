@@ -74,6 +74,7 @@ function createMockSqlitePresenter() {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
       countByMessageId: vi.fn().mockReturnValue(0),
+      maxRequestSeqByMessageId: vi.fn().mockReturnValue(0),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },

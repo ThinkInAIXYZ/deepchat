@@ -401,6 +401,7 @@ function createMockSqlitePresenter() {
       insert: vi.fn().mockReturnValue(1),
       listByMessageId: vi.fn().mockReturnValue([]),
       countByMessageId: vi.fn().mockReturnValue(0),
+      maxRequestSeqByMessageId: vi.fn().mockReturnValue(0),
       deleteByMessageIds: vi.fn(),
       deleteBySessionId: vi.fn()
     },
@@ -1584,6 +1585,43 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('recovers requestSeq from persisted traces when a prior manifest write was lost', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+      sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId.mockReturnValue(1)
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+        void _event
+      }
+
+      const manifests = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+        .map((row: any) => JSON.parse(row.payload_json).data.manifest)
+      expect(manifests.at(-1).requestSeq).toBe(2)
+
+      await callArgs.modelConfig.requestTraceContext.persist({
+        endpoint: 'https://api.openai.com/v1/responses',
+        headers: {},
+        body: {}
+      })
+      const inserted = sqlitePresenter.deepchatMessageTracesTable.insert.mock.calls.at(-1)?.[0]
+      expect(inserted.requestSeq).toBe(2)
+    })
+
     it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
       llmProvider.executeWithRateLimit.mockImplementation(
         async (_providerId: string, options?: { onQueued?: (snapshot: any) => void }) => {
@@ -2536,6 +2574,7 @@ describe('AgentRuntimePresenter', () => {
       }
 
       expect(inserted.endpoint).toBe('deepchat://interleaved-reasoning-gap')
+      expect(inserted.requestSeq).toBe(0)
       expect(body).toEqual({
         providerId: 'zenmux',
         modelId: 'moonshotai/kimi-k2.5',
@@ -2543,6 +2582,37 @@ describe('AgentRuntimePresenter', () => {
         reasoningContentLength: 42,
         toolCallCount: 1
       })
+    })
+
+    it('binds request trace requestSeq to the incremented runtime sequence', async () => {
+      configPresenter.getSetting.mockImplementation((key: string) =>
+        key === 'traceDebugEnabled' ? true : undefined
+      )
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.tools
+      )) {
+        void _event
+      }
+
+      await callArgs.modelConfig.requestTraceContext.persist({
+        endpoint: 'https://api.openai.com/v1/responses',
+        headers: {},
+        body: {}
+      })
+
+      const inserted = sqlitePresenter.deepchatMessageTracesTable.insert.mock.calls.at(-1)?.[0]
+      expect(inserted.requestSeq).toBe(1)
     })
   })
 

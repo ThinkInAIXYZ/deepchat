@@ -423,6 +423,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       )
       toolCallCount += executed.executed
       echo.flush()
+      io.messageStore.appendAssistantToolFactsSnapshot(io.messageId, 'tool_loop')
 
       if (executed.terminalError) {
         finalizeError(state, io, executed.terminalError)

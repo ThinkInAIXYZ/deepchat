@@ -4,13 +4,16 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewEntryRef,
+  DeepChatTapeViewExcludedRange,
   DeepChatTapeViewExcludedRef,
   DeepChatTapeViewManifest,
+  DeepChatTapeViewManifestIntegrity,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
 import { estimateMessagesTokens } from './contextBuilder'
+import type { ContextSummaryCursorMetadata } from './contextBuilder'
 export { isCompactionRecord } from './contextBuilder'
 
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
@@ -18,10 +21,11 @@ export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'legacy-v1' as const
 
 export type TapeViewManifestSourceMaps = {
   entryIdByMessageId?: Map<string, number>
+  toolCallEntryIdByToolId?: Map<string, number>
+  toolResultEntryIdByToolId?: Map<string, number>
 }
 
 export type TapeViewManifestBuildInput = {
-  viewId?: string
   sessionId: string
   messageId: string
   requestSeq: number
@@ -32,8 +36,10 @@ export type TapeViewManifestBuildInput = {
   tools: MCPToolDefinition[]
   latestEntryId: number
   anchorEntryIds: number[]
+  reconstructionAnchorEntryId?: number | null
   included: DeepChatTapeViewEntryRef[]
   excluded: DeepChatTapeViewExcludedRef[]
+  summaryCursor?: ContextSummaryCursorMetadata
   tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
   providerId: string
   modelId: string
@@ -65,6 +71,7 @@ export type TapeViewContextSelection = {
     record: ChatMessageRecord
     reason: DeepChatTapeViewExcludedRef['reason']
   }>
+  summaryCursor?: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
   newUserMessageId?: string | null
 }
@@ -121,47 +128,58 @@ export function hashJson(value: unknown): string {
   return createHash('sha256').update(stableJsonStringify(value)).digest('hex')
 }
 
-function buildViewId(input: TapeViewManifestBuildInput, assembledAt: number): string {
-  return `view_${hashJson({
-    sessionId: input.sessionId,
-    messageId: input.messageId,
-    requestSeq: input.requestSeq,
-    policy: input.policy,
-    assembledAt
-  }).slice(0, 16)}`
+export const TAPE_VIEW_MANIFEST_HASH_VERSION = 2
+
+function buildManifestHash(manifest: DeepChatTapeViewManifest): string {
+  const hashable: Record<string, unknown> = { ...manifest }
+  delete hashable.assembledAt
+  delete hashable.viewId
+  hashable.hashes = {
+    promptHash: manifest.hashes.promptHash,
+    toolDefinitionsHash: manifest.hashes.toolDefinitionsHash
+  }
+  return hashJson(hashable)
 }
 
-function attachManifestHash(
-  manifest: Omit<DeepChatTapeViewManifest, 'hashes'> & {
-    hashes: Omit<DeepChatTapeViewManifest['hashes'], 'manifestHash'> & { manifestHash: '' }
+function buildExcludedRanges(
+  summaryCursor?: ContextSummaryCursorMetadata
+): DeepChatTapeViewExcludedRange[] {
+  if (
+    !summaryCursor ||
+    summaryCursor.preCursorCount === 0 ||
+    summaryCursor.preCursorOrderSeqMin === null ||
+    summaryCursor.preCursorOrderSeqMax === null
+  ) {
+    return []
   }
-): DeepChatTapeViewManifest {
-  const manifestForHash = {
-    ...manifest,
-    hashes: {
-      ...manifest.hashes,
-      manifestHash: ''
+  return [
+    {
+      fromOrderSeq: summaryCursor.preCursorOrderSeqMin,
+      toOrderSeq: summaryCursor.preCursorOrderSeqMax,
+      count: summaryCursor.preCursorCount,
+      reason: 'before_summary_cursor'
     }
+  ]
+}
+
+export function verifyTapeViewManifestHash(
+  manifest: DeepChatTapeViewManifest
+): DeepChatTapeViewManifestIntegrity {
+  if (manifest.hashVersion !== TAPE_VIEW_MANIFEST_HASH_VERSION) {
+    return 'unverified'
   }
-  return {
-    ...manifest,
-    hashes: {
-      ...manifest.hashes,
-      manifestHash: hashJson(manifestForHash)
-    }
-  }
+  return buildManifestHash(manifest) === manifest.hashes.manifestHash ? 'valid' : 'invalid'
 }
 
 export function createTapeViewManifest(
   input: TapeViewManifestBuildInput
 ): DeepChatTapeViewManifest {
   const assembledAt = input.assembledAt ?? Date.now()
-  const viewId = input.viewId ?? buildViewId(input, assembledAt)
-  const manifest: Omit<DeepChatTapeViewManifest, 'hashes'> & {
-    hashes: Omit<DeepChatTapeViewManifest['hashes'], 'manifestHash'> & { manifestHash: '' }
-  } = {
-    schemaVersion: 1 as const,
-    viewId,
+  const excludedRanges = buildExcludedRanges(input.summaryCursor)
+  const draft: DeepChatTapeViewManifest = {
+    schemaVersion: 2,
+    hashVersion: TAPE_VIEW_MANIFEST_HASH_VERSION,
+    viewId: '',
     sessionId: input.sessionId,
     messageId: input.messageId,
     requestSeq: input.requestSeq,
@@ -171,8 +189,12 @@ export function createTapeViewManifest(
     contextBuilderVersion: TAPE_VIEW_CONTEXT_BUILDER_VERSION,
     latestEntryId: input.latestEntryId,
     anchorEntryIds: [...input.anchorEntryIds],
+    ...(input.reconstructionAnchorEntryId !== undefined
+      ? { reconstructionAnchorEntryId: input.reconstructionAnchorEntryId }
+      : {}),
     included: input.included.map((entry) => ({ ...entry })),
     excluded: input.excluded.map((entry) => ({ ...entry })),
+    ...(excludedRanges.length > 0 ? { excludedRanges } : {}),
     tokenBudget: {
       ...input.tokenBudget,
       estimatedPromptTokens: estimateMessagesTokens(input.messages)
@@ -193,7 +215,12 @@ export function createTapeViewManifest(
     assembledAt
   }
 
-  return attachManifestHash(manifest)
+  const manifestHash = buildManifestHash(draft)
+  return {
+    ...draft,
+    viewId: `view_${manifestHash.slice(0, 16)}`,
+    hashes: { ...draft.hashes, manifestHash }
+  }
 }
 
 export function buildIncludedRefs(
@@ -250,18 +277,72 @@ export function buildExcludedRefs(
   }))
 }
 
-export function buildSyntheticRequestRefs(messages: ChatMessage[]): DeepChatTapeViewEntryRef[] {
-  return messages.map((message) => ({
-    entryId: null,
-    messageId: null,
-    orderSeq: null,
-    role: message.role,
-    source: 'synthetic',
-    reason:
-      message.role === 'system'
-        ? 'system_prompt'
-        : message.role === 'tool'
-          ? 'tool_loop_message'
-          : 'selected_history'
-  }))
+export function buildRequestRefs(
+  messages: ChatMessage[],
+  sourceMaps: TapeViewManifestSourceMaps = {}
+): DeepChatTapeViewEntryRef[] {
+  const lastToolCallIndex = new Map<string, number>()
+  const lastToolResultIndex = new Map<string, number>()
+  messages.forEach((message, index) => {
+    if (message.role === 'assistant' && message.tool_calls?.length) {
+      for (const toolCall of message.tool_calls) {
+        lastToolCallIndex.set(toolCall.id, index)
+      }
+    } else if (message.role === 'tool' && message.tool_call_id) {
+      lastToolResultIndex.set(message.tool_call_id, index)
+    }
+  })
+
+  const refs: DeepChatTapeViewEntryRef[] = []
+  messages.forEach((message, index) => {
+    if (message.role === 'assistant' && message.tool_calls?.length) {
+      for (const toolCall of message.tool_calls) {
+        const entryId =
+          lastToolCallIndex.get(toolCall.id) === index
+            ? (sourceMaps.toolCallEntryIdByToolId?.get(toolCall.id) ?? null)
+            : null
+        refs.push({
+          entryId,
+          messageId: null,
+          orderSeq: null,
+          role: 'assistant',
+          source: entryId === null ? 'synthetic' : 'tape',
+          reason: 'tool_loop_message'
+        })
+      }
+      return
+    }
+
+    if (message.role === 'tool' && message.tool_call_id) {
+      const entryId =
+        lastToolResultIndex.get(message.tool_call_id) === index
+          ? (sourceMaps.toolResultEntryIdByToolId?.get(message.tool_call_id) ?? null)
+          : null
+      refs.push({
+        entryId,
+        messageId: null,
+        orderSeq: null,
+        role: 'tool',
+        source: entryId === null ? 'synthetic' : 'tape',
+        reason: 'tool_loop_message'
+      })
+      return
+    }
+
+    refs.push({
+      entryId: null,
+      messageId: null,
+      orderSeq: null,
+      role: message.role,
+      source: 'synthetic',
+      reason:
+        message.role === 'system'
+          ? 'system_prompt'
+          : message.role === 'tool'
+            ? 'tool_loop_message'
+            : 'selected_history'
+    })
+  })
+
+  return refs
 }

@@ -49,5 +49,21 @@
   "reserveTokens": "Token riservati",
   "toolReserveTokens": "Token riservati agli strumenti",
   "estimatedPromptTokens": "Token stimati del prompt",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "Integrità",
+    "valid": "Valido",
+    "invalid": "Non valido",
+    "unverified": "Non verificato",
+    "invalidWarning": "Questo manifesto della vista non corrisponde al suo hash; non considerare attendibile il prompt riprodotto.",
+    "unverifiedNote": "Questo manifesto utilizza la vecchia formula di hash (hashVersion 1); non è possibile verificarne l'integrità."
+  },
+  "reconstructionAnchor": "Ancora di ricostruzione di appartenenza",
+  "anchorEntryIds": "Lignaggio di ricostruzione",
+  "schemaVersion": "Versione Schema",
+  "hashVersion": "Versione Hash",
+  "compactedRanges": "Regione compattata",
+  "rangeFrom": "Da ordine sequenza",
+  "rangeTo": "A ordine sequenza",
+  "rangeCount": "Conteggio"
 }

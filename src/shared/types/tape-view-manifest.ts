@@ -43,6 +43,13 @@ export interface DeepChatTapeViewExcludedRef {
   reason: DeepChatTapeViewExcludedReason
 }
 
+export interface DeepChatTapeViewExcludedRange {
+  fromOrderSeq: number
+  toOrderSeq: number
+  count: number
+  reason: DeepChatTapeViewExcludedReason
+}
+
 export interface DeepChatTapeViewTokenBudget {
   contextLength: number
   requestedMaxTokens: number
@@ -68,7 +75,8 @@ export interface DeepChatTapeViewMeta {
 }
 
 export interface DeepChatTapeViewManifest {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
+  hashVersion: number
   viewId: string
   sessionId: string
   messageId: string
@@ -79,13 +87,17 @@ export interface DeepChatTapeViewManifest {
   contextBuilderVersion: 'legacy-v1'
   latestEntryId: number
   anchorEntryIds: number[]
+  reconstructionAnchorEntryId?: number | null
   included: DeepChatTapeViewEntryRef[]
   excluded: DeepChatTapeViewExcludedRef[]
+  excludedRanges?: DeepChatTapeViewExcludedRange[]
   tokenBudget: DeepChatTapeViewTokenBudget
   hashes: DeepChatTapeViewHashes
   meta: DeepChatTapeViewMeta
   assembledAt: number
 }
+
+export type DeepChatTapeViewManifestIntegrity = 'valid' | 'invalid' | 'unverified'
 
 export interface DeepChatTapeViewManifestRecord {
   sessionId: string
@@ -94,4 +106,5 @@ export interface DeepChatTapeViewManifestRecord {
   entryId: number
   createdAt: number
   manifest: DeepChatTapeViewManifest
+  integrity?: DeepChatTapeViewManifestIntegrity
 }

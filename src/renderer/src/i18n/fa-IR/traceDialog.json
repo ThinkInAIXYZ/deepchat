@@ -49,5 +49,21 @@
   "reserveTokens": "توکن‌های رزرو",
   "toolReserveTokens": "توکن‌های رزرو ابزار",
   "estimatedPromptTokens": "توکن‌های تخمینی پرامپت",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "یکپارچگی",
+    "valid": "معتبر",
+    "invalid": "نامعتبر",
+    "unverified": "تأییدنشده",
+    "invalidWarning": "این مانیفست نما با هش خود مطابقت ندارد؛ پرامپت بازپخش‌شده را معتبر تلقی نکنید.",
+    "unverifiedNote": "این مانیفست از فرمول هش قدیمی (hashVersion 1) استفاده می‌کند؛ یکپارچگی آن قابل تأیید نیست."
+  },
+  "reconstructionAnchor": "لنگر بازسازی مالک",
+  "anchorEntryIds": "تبار بازسازی",
+  "schemaVersion": "نسخهٔ طرح‌واره",
+  "hashVersion": "نسخهٔ هش",
+  "compactedRanges": "محدودهٔ فشرده‌شده",
+  "rangeFrom": "از شمارهٔ ترتیب",
+  "rangeTo": "تا شمارهٔ ترتیب",
+  "rangeCount": "تعداد"
 }

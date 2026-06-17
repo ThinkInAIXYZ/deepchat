@@ -113,6 +113,18 @@ vi.mock(
   { virtual: true }
 )
 
+vi.mock(
+  '@shadcn/components/ui/badge',
+  () => ({
+    Badge: {
+      name: 'Badge',
+      props: ['variant'],
+      template: '<span class="badge" :data-variant="variant"><slot /></span>'
+    }
+  }),
+  { virtual: true }
+)
+
 vi.mock('@iconify/vue', () => ({
   Icon: {
     name: 'Icon',
@@ -129,14 +141,30 @@ vi.mock('vue-i18n', () => ({
 
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 
-const makeManifestRecord = (requestSeq: number, viewId: string) => ({
+const makeManifestRecord = (
+  requestSeq: number,
+  viewId: string,
+  overrides: {
+    integrity?: 'valid' | 'invalid' | 'unverified'
+    reconstructionAnchorEntryId?: number | null
+    anchorEntryIds?: number[]
+    excludedRanges?: Array<{
+      fromOrderSeq: number
+      toOrderSeq: number
+      count: number
+      reason: string
+    }>
+  } = {}
+) => ({
   sessionId: 's1',
   messageId: 'm1',
   requestSeq,
   entryId: requestSeq,
   createdAt: 2000,
+  ...(overrides.integrity ? { integrity: overrides.integrity } : {}),
   manifest: {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    hashVersion: 2,
     viewId,
     sessionId: 's1',
     messageId: 'm1',
@@ -146,9 +174,13 @@ const makeManifestRecord = (requestSeq: number, viewId: string) => ({
     policyVersion: 1,
     contextBuilderVersion: 'legacy-v1',
     latestEntryId: 8,
-    anchorEntryIds: [1],
+    anchorEntryIds: overrides.anchorEntryIds ?? [1],
+    ...(overrides.reconstructionAnchorEntryId !== undefined
+      ? { reconstructionAnchorEntryId: overrides.reconstructionAnchorEntryId }
+      : {}),
     included: [],
     excluded: [],
+    ...(overrides.excludedRanges ? { excludedRanges: overrides.excludedRanges } : {}),
     tokenBudget: {
       contextLength: 1000,
       requestedMaxTokens: 100,
@@ -303,5 +335,169 @@ describe('TraceDialog', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('view_only_manifest')
+  })
+
+  it('surfaces an invalid integrity badge with a warning', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_invalid', { integrity: 'invalid' })]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.integrity.label')
+    expect(wrapper.text()).toContain('traceDialog.integrity.invalid')
+    expect(wrapper.text()).toContain('traceDialog.integrity.invalidWarning')
+    expect(wrapper.find('[data-variant="destructive"]').exists()).toBe(true)
+  })
+
+  it('explains an unverified manifest without alarming', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_unverified', { integrity: 'unverified' })]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.integrity.unverified')
+    expect(wrapper.text()).toContain('traceDialog.integrity.unverifiedNote')
+    expect(wrapper.text()).not.toContain('traceDialog.integrity.invalidWarning')
+    expect(wrapper.find('[data-variant="outline"]').exists()).toBe(true)
+  })
+
+  it('shows a non-alarming badge for a valid manifest', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_valid', { integrity: 'valid' })]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.integrity.label')
+    expect(wrapper.text()).toContain('traceDialog.integrity.valid')
+    expect(wrapper.find('[data-variant="secondary"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('traceDialog.integrity.invalidWarning')
+    expect(wrapper.text()).not.toContain('traceDialog.integrity.unverifiedNote')
+  })
+
+  it('omits the integrity badge when integrity is absent', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_plain')]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('traceDialog.integrity.label')
+    expect(wrapper.find('.badge').exists()).toBe(false)
+  })
+
+  it('keeps the invalid warning visible when a trace defaults to the request tab', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't1',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 1,
+          endpoint: 'https://api.example.com/first',
+          headersJson: '{"x":"1"}',
+          bodyJson: '{"b":1}',
+          truncated: false,
+          createdAt: 2000
+        }
+      ],
+      manifests: [makeManifestRecord(1, 'view_invalid_with_trace', { integrity: 'invalid' })]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    // A trace is present, so the dialog defaults to the request tab, not view.
+    expect(wrapper.text()).not.toContain('view_invalid_with_trace')
+    // The invalid warning is still visible from the always-on summary header.
+    expect(wrapper.text()).toContain('traceDialog.integrity.invalidWarning')
+    expect(wrapper.find('[data-variant="destructive"]').exists()).toBe(true)
+  })
+
+  it('shows reconstruction lineage in the view overview', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [
+        makeManifestRecord(1, 'view_lineage', {
+          reconstructionAnchorEntryId: 5,
+          anchorEntryIds: [5]
+        })
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.reconstructionAnchor')
+    expect(wrapper.text()).toContain('traceDialog.anchorEntryIds')
+    expect(wrapper.text()).toContain('traceDialog.schemaVersion')
+    expect(wrapper.text()).toContain('traceDialog.hashVersion')
+    expect(wrapper.text()).toContain('5')
+  })
+
+  it('renders the compacted region from excludedRanges in the entries tab', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [
+        makeManifestRecord(1, 'view_ranges', {
+          excludedRanges: [
+            { fromOrderSeq: 1, toOrderSeq: 9, count: 9, reason: 'before_summary_cursor' }
+          ]
+        })
+      ]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    const entriesTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.entries')
+    expect(entriesTab).toBeDefined()
+    await entriesTab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('traceDialog.compactedRanges')
+    expect(wrapper.text()).toContain('before_summary_cursor')
+    expect(wrapper.text()).toContain('9')
+  })
+
+  it('omits the compacted region when there are no excludedRanges', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [],
+      manifests: [makeManifestRecord(1, 'view_no_ranges')]
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    const entriesTab = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().trim() === 'traceDialog.tabs.entries')
+    expect(entriesTab).toBeDefined()
+    await entriesTab!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('traceDialog.compactedRanges')
   })
 })

@@ -26,7 +26,8 @@ import {
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
-  appendMessageRetractionToTape
+  appendMessageRetractionToTape,
+  appendToolFactsToTape
 } from './tapeFacts'
 
 function shouldConvertPendingBlockToError(
@@ -520,6 +521,7 @@ export class DeepChatMessageStore {
     bodyJson: string
     truncated: boolean
     createdAt?: number
+    requestSeq?: number
   }): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.insert(row)
   }
@@ -543,6 +545,10 @@ export class DeepChatMessageStore {
 
   getMessageTraceCount(messageId: string): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
+  }
+
+  getMaxMessageTraceRequestSeq(messageId: string): number {
+    return this.sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId(messageId)
   }
 
   cloneSentMessagesToSession(
@@ -670,6 +676,28 @@ export class DeepChatMessageStore {
       return
     }
     appendMessageRecordToTape(this.sqlitePresenter.deepchatTapeEntriesTable, record, 'live')
+  }
+
+  appendAssistantToolFactsSnapshot(messageId: string, reason: string): void {
+    const table = this.sqlitePresenter.deepchatTapeEntriesTable
+    if (!table) {
+      return
+    }
+
+    const record = this.getMessage(messageId)
+    if (!record || record.role !== 'assistant') {
+      return
+    }
+
+    try {
+      appendToolFactsToTape(table, record, 'live', reason)
+    } catch (error) {
+      logger.warn(
+        `[DeepChatMessageStore] Failed to snapshot tool facts: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
   }
 
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {

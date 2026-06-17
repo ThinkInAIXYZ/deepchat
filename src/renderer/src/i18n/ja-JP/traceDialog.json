@@ -49,5 +49,21 @@
   "reserveTokens": "予約トークン",
   "toolReserveTokens": "ツール予約トークン",
   "estimatedPromptTokens": "推定プロンプトトークン数",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "整合性",
+    "valid": "有効",
+    "invalid": "無効",
+    "unverified": "未検証",
+    "invalidWarning": "このビューマニフェストはハッシュと一致しません。再生されたプロンプトを正規のものとして扱わないでください。",
+    "unverifiedNote": "このマニフェストは旧形式のハッシュ計算式（hashVersion 1）を使用しているため、整合性を検証できません。"
+  },
+  "reconstructionAnchor": "所属する再構築アンカー",
+  "anchorEntryIds": "再構築系譜",
+  "schemaVersion": "スキーマバージョン",
+  "hashVersion": "ハッシュバージョン",
+  "compactedRanges": "圧縮された範囲",
+  "rangeFrom": "開始順序番号",
+  "rangeTo": "終了順序番号",
+  "rangeCount": "件数"
 }

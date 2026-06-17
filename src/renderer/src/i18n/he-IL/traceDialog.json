@@ -49,5 +49,21 @@
   "reserveTokens": "טוקנים שמורים",
   "toolReserveTokens": "טוקנים שמורים לכלים",
   "estimatedPromptTokens": "טוקני פרומפט משוערים",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "תקינות",
+    "valid": "תקין",
+    "invalid": "לא תקין",
+    "unverified": "לא מאומת",
+    "invalidWarning": "מניפסט תצוגה זה אינו תואם לגיבוב שלו; אין להתייחס לפרומפט המשוחזר כאל אמין.",
+    "unverifiedNote": "מניפסט זה משתמש בנוסחת הגיבוב הישנה (hashVersion 1); לא ניתן לאמת את תקינותו."
+  },
+  "reconstructionAnchor": "עוגן שחזור משויך",
+  "anchorEntryIds": "שושלת שחזור",
+  "schemaVersion": "גרסת Schema",
+  "hashVersion": "גרסת גיבוב",
+  "compactedRanges": "אזור מכווץ",
+  "rangeFrom": "מסדר התחלה",
+  "rangeTo": "עד סדר סיום",
+  "rangeCount": "כמות"
 }

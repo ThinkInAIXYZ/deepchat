@@ -49,5 +49,21 @@
   "reserveTokens": "예약 토큰",
   "toolReserveTokens": "도구 예약 토큰",
   "estimatedPromptTokens": "예상 프롬프트 토큰",
-  "notAvailable": "-"
+  "notAvailable": "-",
+  "integrity": {
+    "label": "무결성",
+    "valid": "유효",
+    "invalid": "무효",
+    "unverified": "미검증",
+    "invalidWarning": "이 보기 매니페스트가 해시와 일치하지 않습니다. 재생된 프롬프트를 신뢰할 수 있는 것으로 간주하지 마세요.",
+    "unverifiedNote": "이 매니페스트는 구버전 해시 공식(hashVersion 1)을 사용하므로 무결성을 검증할 수 없습니다."
+  },
+  "reconstructionAnchor": "재구성 앵커 항목",
+  "anchorEntryIds": "재구성 계보",
+  "schemaVersion": "스키마 버전",
+  "hashVersion": "해시 버전",
+  "compactedRanges": "압축된 구간",
+  "rangeFrom": "시작 순서 번호",
+  "rangeTo": "끝 순서 번호",
+  "rangeCount": "개수"
 }
