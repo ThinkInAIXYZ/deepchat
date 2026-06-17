@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.6-beta.7 (2026-06-17)
+- Added Tape manifest integrity and lineage details so replay traces can be audited more reliably
+- Added a workspace single item viewer for focused file inspection from the workspace panel
+- Added cross-platform CUA runtime packaging and plugin runtime build improvements
+- Fixed deterministic Tape view hashing and trace sequence handling
+- 新增 Tape manifest 完整性与 lineage 详情，让 replay trace 审计更可靠
+- 新增工作区单项查看器，方便从工作区面板聚焦检查文件
+- 新增跨平台 CUA runtime 打包，并改进插件 runtime 构建流程
+- 修复 Tape view hash 与 trace sequence 的确定性处理
+
 ## v1.0.6-beta.6 (2026-06-16)
 - Added Agent Memory so agents can extract, manage, and reuse persistent memory in agent workflows
 - Added DeepChat Tape view manifests and richer trace inspection for replay and context provenance
