@@ -337,6 +337,7 @@ function isViewManifest(value: unknown, sessionId: string): value is DeepChatTap
 
   return (
     value.schemaVersion === 1 &&
+    typeof value.hashVersion === 'number' &&
     value.sessionId === sessionId &&
     typeof value.viewId === 'string' &&
     typeof value.messageId === 'string' &&
@@ -989,10 +990,14 @@ export class DeepChatTapeService {
   private toViewManifestRecord(row: DeepChatTapeEntryRow): DeepChatTapeViewManifestRecord | null {
     const payload = parseJsonObject(row.payload_json)
     const data = payload.data
-    const manifest =
+    const rawManifest =
       data && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>).manifest
         : undefined
+    const manifest =
+      isRecordObject(rawManifest) && rawManifest.hashVersion === undefined
+        ? { ...rawManifest, hashVersion: 1 }
+        : rawManifest
     if (!isViewManifest(manifest, row.session_id)) {
       return null
     }

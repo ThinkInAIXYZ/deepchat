@@ -2565,6 +2565,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const replaceLeadingSystemPromptInPlace = this.replaceLeadingSystemPromptInPlace.bind(this)
     const persistMessageTrace = this.persistMessageTrace.bind(this)
     const appendTapeViewManifest = this.appendTapeViewManifest.bind(this)
+    let requestSeq = Math.max(
+      this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
+      this.messageStore.getMaxMessageTraceRequestSeq(messageId)
+    )
     if (traceEnabled) {
       const traceAwareConfig = modelConfig as ModelConfig & {
         requestTraceContext?: {
@@ -2580,7 +2584,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             messageId,
             providerId: state.providerId,
             modelId: state.modelId,
-            payload
+            payload,
+            requestSeq
           })
         }
       }
@@ -2598,8 +2603,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
-    let requestSeq =
-      this.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0
 
     try {
       this.dispatchHook('SessionStart', {
@@ -2838,6 +2841,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               messageId,
               providerId: state.providerId,
               modelId: state.modelId,
+              requestSeq: 0,
               payload: {
                 endpoint: 'deepchat://interleaved-reasoning-gap',
                 headers: {},
@@ -3987,8 +3991,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     providerId: string
     modelId: string
     payload: ProviderRequestTracePayload
+    requestSeq?: number
   }): void {
-    const { sessionId, messageId, providerId, modelId, payload } = args
+    const { sessionId, messageId, providerId, modelId, payload, requestSeq } = args
     const persistable = buildPersistableMessageTracePayload(payload)
 
     this.messageStore.insertMessageTrace({
@@ -4000,7 +4005,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       endpoint: persistable.endpoint,
       headersJson: persistable.headersJson,
       bodyJson: persistable.bodyJson,
-      truncated: persistable.truncated
+      truncated: persistable.truncated,
+      requestSeq
     })
   }
 

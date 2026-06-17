@@ -109,6 +109,47 @@ describe('tapeViewManifest', () => {
     expect(JSON.stringify(first)).not.toContain('secret prompt content')
   })
 
+  it('excludes wall-clock assembledAt from the manifest hash and viewId', () => {
+    const baseInput = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'secret prompt content' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [1],
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: true,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    }
+
+    const early = createTapeViewManifest({ ...baseInput, assembledAt: 100 })
+    const late = createTapeViewManifest({ ...baseInput, assembledAt: 999999 })
+
+    expect(early.assembledAt).toBe(100)
+    expect(late.assembledAt).toBe(999999)
+    expect(early.hashes.manifestHash).toBe(late.hashes.manifestHash)
+    expect(early.viewId).toBe(late.viewId)
+    expect(early.schemaVersion).toBe(1)
+    expect(early.hashVersion).toBe(2)
+    expect(early.viewId).toBe(`view_${early.hashes.manifestHash.slice(0, 16)}`)
+  })
+
   it('copies manifest refs so caller mutations cannot alter the hashed snapshot', () => {
     const input = {
       sessionId: 's1',

@@ -69,6 +69,7 @@ export interface DeepChatTapeViewMeta {
 
 export interface DeepChatTapeViewManifest {
   schemaVersion: 1
+  hashVersion: number
   viewId: string
   sessionId: string
   messageId: string

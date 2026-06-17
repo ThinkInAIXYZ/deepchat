@@ -64,15 +64,18 @@ export class DeepChatMessageTracesTable extends BaseTable {
     bodyJson: string
     truncated: boolean
     createdAt?: number
+    requestSeq?: number
   }): number {
     const tx = this.db.transaction((insertRow: typeof row) => {
-      const nextSeqRow = this.db
-        .prepare(
-          'SELECT COALESCE(MAX(request_seq), 0) + 1 AS next_seq FROM deepchat_message_traces WHERE message_id = ?'
-        )
-        .get(insertRow.messageId) as { next_seq: number }
-
-      const requestSeq = nextSeqRow.next_seq
+      let requestSeq = insertRow.requestSeq
+      if (requestSeq === undefined) {
+        const nextSeqRow = this.db
+          .prepare(
+            'SELECT COALESCE(MAX(request_seq), 0) + 1 AS next_seq FROM deepchat_message_traces WHERE message_id = ?'
+          )
+          .get(insertRow.messageId) as { next_seq: number }
+        requestSeq = nextSeqRow.next_seq
+      }
       this.db
         .prepare(
           `INSERT INTO deepchat_message_traces (
@@ -123,6 +126,15 @@ export class DeepChatMessageTracesTable extends BaseTable {
       .prepare('SELECT COUNT(*) AS count FROM deepchat_message_traces WHERE message_id = ?')
       .get(messageId) as { count: number }
     return row.count
+  }
+
+  maxRequestSeqByMessageId(messageId: string): number {
+    const row = this.db
+      .prepare(
+        'SELECT COALESCE(MAX(request_seq), 0) AS max_seq FROM deepchat_message_traces WHERE message_id = ?'
+      )
+      .get(messageId) as { max_seq: number }
+    return row.max_seq
   }
 
   deleteByMessageId(messageId: string): void {

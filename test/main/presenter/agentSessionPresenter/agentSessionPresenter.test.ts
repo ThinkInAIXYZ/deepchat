@@ -305,7 +305,8 @@ function createMockSqlitePresenter() {
     },
     deepchatMessageTracesTable: {
       listByMessageId: vi.fn().mockReturnValue([]),
-      countByMessageId: vi.fn().mockReturnValue(0)
+      countByMessageId: vi.fn().mockReturnValue(0),
+      maxRequestSeqByMessageId: vi.fn().mockReturnValue(0)
     },
     deepchatSearchDocumentsTable: {
       upsert: vi.fn(),

@@ -521,6 +521,7 @@ export class DeepChatMessageStore {
     bodyJson: string
     truncated: boolean
     createdAt?: number
+    requestSeq?: number
   }): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.insert(row)
   }
@@ -544,6 +545,10 @@ export class DeepChatMessageStore {
 
   getMessageTraceCount(messageId: string): number {
     return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
+  }
+
+  getMaxMessageTraceRequestSeq(messageId: string): number {
+    return this.sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId(messageId)
   }
 
   cloneSentMessagesToSession(

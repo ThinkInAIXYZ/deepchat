@@ -23,7 +23,6 @@ export type TapeViewManifestSourceMaps = {
 }
 
 export type TapeViewManifestBuildInput = {
-  viewId?: string
   sessionId: string
   messageId: string
   requestSeq: number
@@ -123,47 +122,27 @@ export function hashJson(value: unknown): string {
   return createHash('sha256').update(stableJsonStringify(value)).digest('hex')
 }
 
-function buildViewId(input: TapeViewManifestBuildInput, assembledAt: number): string {
-  return `view_${hashJson({
-    sessionId: input.sessionId,
-    messageId: input.messageId,
-    requestSeq: input.requestSeq,
-    policy: input.policy,
-    assembledAt
-  }).slice(0, 16)}`
-}
+export const TAPE_VIEW_MANIFEST_HASH_VERSION = 2
 
-function attachManifestHash(
-  manifest: Omit<DeepChatTapeViewManifest, 'hashes'> & {
-    hashes: Omit<DeepChatTapeViewManifest['hashes'], 'manifestHash'> & { manifestHash: '' }
+function buildManifestHash(manifest: DeepChatTapeViewManifest): string {
+  const hashable: Record<string, unknown> = { ...manifest }
+  delete hashable.assembledAt
+  delete hashable.viewId
+  hashable.hashes = {
+    promptHash: manifest.hashes.promptHash,
+    toolDefinitionsHash: manifest.hashes.toolDefinitionsHash
   }
-): DeepChatTapeViewManifest {
-  const manifestForHash = {
-    ...manifest,
-    hashes: {
-      ...manifest.hashes,
-      manifestHash: ''
-    }
-  }
-  return {
-    ...manifest,
-    hashes: {
-      ...manifest.hashes,
-      manifestHash: hashJson(manifestForHash)
-    }
-  }
+  return hashJson(hashable)
 }
 
 export function createTapeViewManifest(
   input: TapeViewManifestBuildInput
 ): DeepChatTapeViewManifest {
   const assembledAt = input.assembledAt ?? Date.now()
-  const viewId = input.viewId ?? buildViewId(input, assembledAt)
-  const manifest: Omit<DeepChatTapeViewManifest, 'hashes'> & {
-    hashes: Omit<DeepChatTapeViewManifest['hashes'], 'manifestHash'> & { manifestHash: '' }
-  } = {
-    schemaVersion: 1 as const,
-    viewId,
+  const draft: DeepChatTapeViewManifest = {
+    schemaVersion: 1,
+    hashVersion: TAPE_VIEW_MANIFEST_HASH_VERSION,
+    viewId: '',
     sessionId: input.sessionId,
     messageId: input.messageId,
     requestSeq: input.requestSeq,
@@ -195,7 +174,12 @@ export function createTapeViewManifest(
     assembledAt
   }
 
-  return attachManifestHash(manifest)
+  const manifestHash = buildManifestHash(draft)
+  return {
+    ...draft,
+    viewId: `view_${manifestHash.slice(0, 16)}`,
+    hashes: { ...draft.hashes, manifestHash }
+  }
 }
 
 export function buildIncludedRefs(
