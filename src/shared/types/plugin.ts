@@ -188,6 +188,8 @@ export interface PluginInvokeActionRequest {
 
 export interface PluginSettingsApiStatus {
   pluginId: string
+  platform: string
+  arch: string
   enabled: boolean
   runtime?: PluginRuntimeStatus
   mcpServers?: PluginMcpRuntimeStatus[]

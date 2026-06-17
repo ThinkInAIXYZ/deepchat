@@ -830,6 +830,38 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('Runtime permission probe failed')
   })
 
+  it('parses Windows CUA permission JSON diagnostics', async () => {
+    const presenter = await createPluginPresenter('win32')
+
+    const result = (presenter as any).parseRuntimePermissionToolResult(
+      'cua-driver.exe',
+      JSON.stringify({
+        elevated: false,
+        integrity_level: 'Medium',
+        integrity_level_rid: 8192,
+        post_message: true,
+        uia: true
+      }),
+      ''
+    )
+
+    expect(result).toMatchObject({
+      platform: 'win32',
+      accessibility: 'unknown',
+      screenRecording: 'unknown',
+      postMessage: 'granted',
+      uia: 'granted',
+      diagnostics: {
+        elevated: false,
+        integrity_level: 'Medium',
+        integrity_level_rid: 8192,
+        post_message: true,
+        uia: true
+      }
+    })
+    expect(result.error).toBeUndefined()
+  })
+
   it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
 

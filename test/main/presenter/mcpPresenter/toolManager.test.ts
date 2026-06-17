@@ -310,6 +310,60 @@ describe('ToolManager', () => {
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 
+  it('normalizes CUA Windows launch bundle paths before dispatch', async () => {
+    const client = createClient('cua-driver', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.plugins.cua'
+    })
+    const configPresenter = createConfigPresenter('cua-driver')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
+      bundle_id: 'C:\\Windows\\System32\\notepad.exe'
+    })
+
+    expect(prepared).toEqual({
+      ok: true,
+      args: {
+        path: 'C:\\Windows\\System32\\notepad.exe'
+      }
+    })
+  })
+
+  it('fails CUA Windows launch quickly for unresolved macOS bundle ids', async () => {
+    const client = createClient('cua-driver', [], {
+      source: 'plugin',
+      ownerPluginId: 'com.deepchat.plugins.cua'
+    })
+    client.callTool.mockResolvedValue({
+      structuredContent: {
+        apps: [
+          {
+            name: 'Notepad',
+            aumid: 'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App'
+          }
+        ]
+      },
+      content: [],
+      isError: false
+    })
+    const configPresenter = createConfigPresenter('cua-driver')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([client]) as never
+    )
+
+    const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
+      bundle_id: 'com.apple.TextEdit'
+    })
+
+    expect(prepared.error).toContain("Windows app target 'com.apple.TextEdit' was not found")
+    expect(client.callTool).toHaveBeenCalledWith('list_apps', {})
+  })
+
   it('treats missing provider hint as a fallback to new session resolution', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')

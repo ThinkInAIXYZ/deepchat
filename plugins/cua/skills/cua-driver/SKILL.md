@@ -49,8 +49,9 @@ Re-snapshot when an index is missing, stale, or from another window.
 
 - macOS: use `check_permissions` for Accessibility and Screen Recording status. If a grant is
   missing, ask the user to grant it to the staged `CuaDriver.app` helper.
-- Windows: prefer background dispatch when available. Use `bring_to_front` only when foreground
-  interaction is necessary for the task.
+- Windows: prefer background dispatch when available. Resolve targets with `list_apps`, then call
+  `launch_app` with a Windows `name`, `path`, `launch_path`, or `aumid`. Do not use macOS bundle
+  ids on Windows. Use `bring_to_front` only when foreground interaction is necessary for the task.
 - Linux: support is pre-release. Some compositors, sessions, and background interactions may be
   unavailable. Use extra snapshots and report platform limits clearly when a tool cannot complete.
 
