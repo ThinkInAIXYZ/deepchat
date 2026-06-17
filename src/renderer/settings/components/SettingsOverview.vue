@@ -183,7 +183,7 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import StatusMetricCard from './control-center/StatusMetricCard.vue'
 import DashboardSettings from './DashboardSettings.vue'
-import { getRuntimePlatform } from '@api/runtime'
+import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -198,7 +198,9 @@ const agentStore = useAgentStore()
 const activities = ref<SettingsActivityRecord[]>([])
 const searchQuery = ref('')
 const usageDashboardRef = ref<HTMLElement | null>(null)
-const settingsItems = getSettingsNavigationItems(getRuntimePlatform())
+const runtimePlatform = getRuntimePlatform()
+const runtimeArch = getRuntimeArch()
+const settingsItems = getSettingsNavigationItems(runtimePlatform, runtimeArch)
 type SettingsRouteName = SettingsNavigationItem['routeName']
 
 const enabledProvidersCount = computed(
@@ -282,7 +284,9 @@ const searchResults = computed(() => {
 })
 
 const openRoute = (routeName: SettingsRouteName) => {
-  void router.push(resolveSettingsNavigationPath(routeName))
+  void router.push(
+    resolveSettingsNavigationPath(routeName, undefined, runtimePlatform, runtimeArch)
+  )
 }
 
 const openActivity = (activity: SettingsActivityRecord) => {

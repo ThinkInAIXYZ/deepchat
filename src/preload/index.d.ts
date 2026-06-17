@@ -9,6 +9,7 @@ declare global {
       readClipboardText(): string
       getPathForFile(file: File): string
       getPlatform(): string
+      getArch(): string
       openExternal?(url: string): Promise<void>
       toRelativePath?(filePath: string, baseDir?: string): string
       formatPathForInput?(filePath: string): string

@@ -1627,7 +1627,12 @@ export class WindowPresenter implements IWindowPresenter {
 
   private getSettingsWindowTargetUrl(navigation?: SettingsNavigationPayload): string {
     const initialNavigationPath = navigation
-      ? resolveSettingsNavigationPath(navigation.routeName, navigation.params, process.platform)
+      ? resolveSettingsNavigationPath(
+          navigation.routeName,
+          navigation.params,
+          process.platform,
+          process.arch
+        )
       : null
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {

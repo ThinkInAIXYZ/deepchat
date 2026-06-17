@@ -63,6 +63,10 @@ export function getRuntimePlatform(): string | undefined {
   return getRendererRuntimeApi().getPlatform?.()
 }
 
+export function getRuntimeArch(): string | undefined {
+  return getRendererRuntimeApi().getArch?.()
+}
+
 export async function openRuntimeExternal(url: string): Promise<void> {
   const runtimeApi = getRendererRuntimeApi()
   if (!runtimeApi.openExternal) {

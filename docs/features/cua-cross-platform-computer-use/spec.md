@@ -211,6 +211,8 @@ The packaged app must keep CUA usable after Electron packaging:
 - Direct CUA runtime packaging for Linux arm64 fails with a clear unsupported-target message.
 - Official plugin visibility is gated by platform and arch, so the unsupported Linux arm target does
   not show CUA as available.
+- The settings sidebar and settings routes expose the Plugins entry on supported CUA targets, not
+  only on macOS, while keeping unsupported CUA targets hidden.
 - Runtime detection resolves the plugin-local binary on every supported target.
 - The plugin starts through DeepChat's internal tool path without user-managed MCP setup.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
