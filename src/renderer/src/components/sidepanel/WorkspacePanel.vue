@@ -1,40 +1,25 @@
 <template>
   <div class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
     <aside
-      class="workspace-nav relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r bg-muted/20"
-      :class="{ 'workspace-nav--resizing': isNavResizing }"
-      :style="navStyle"
+      v-if="!isSingleItemViewerActive"
+      class="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-muted/20"
     >
-      <div class="flex h-full min-h-0 shrink-0 flex-col" :style="{ width: expandedNavWidth }">
-        <button
-          class="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-muted-foreground transition-colors hover:text-foreground"
-          type="button"
-          :title="navCollapsed ? t('chat.workspace.expand') : t('chat.workspace.collapse')"
-          @click="sidepanelStore.toggleNavCollapsed()"
-        >
-          <Icon
-            :icon="navCollapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
-            class="h-3.5 w-3.5 shrink-0"
-          />
-        </button>
+      <div class="flex h-full min-h-0 flex-col">
         <div class="min-h-0 flex-1 overflow-auto pb-2">
           <section>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
-              @click="handleSectionClick('files')"
+              @click="sidepanelStore.toggleSection(props.sessionId, 'files')"
             >
               <Icon icon="lucide:folder-tree" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span v-show="!navCollapsed" class="flex-1 truncate">{{
-                t('chat.workspace.sections.files')
-              }}</span>
+              <span class="flex-1 truncate">{{ t('chat.workspace.sections.files') }}</span>
               <Icon
-                v-show="!navCollapsed"
                 :icon="sessionState.sections.files ? 'lucide:chevron-down' : 'lucide:chevron-right'"
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="!navCollapsed && sessionState.sections.files" class="pb-2">
+            <div v-if="sessionState.sections.files" class="pb-2">
               <div
                 v-if="!props.workspacePath"
                 class="mx-2 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-4 text-center"
@@ -86,22 +71,17 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
-              @click="handleSectionClick('git')"
+              @click="sidepanelStore.toggleSection(props.sessionId, 'git')"
             >
               <Icon icon="lucide:git-branch" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span v-show="!navCollapsed" class="flex-1 truncate">{{
-                t('chat.workspace.sections.git')
-              }}</span>
-              <span v-show="!navCollapsed" class="text-[11px] text-muted-foreground">{{
-                gitState.changes.length
-              }}</span>
+              <span class="flex-1 truncate">{{ t('chat.workspace.sections.git') }}</span>
+              <span class="text-[11px] text-muted-foreground">{{ gitState.changes.length }}</span>
               <Icon
-                v-show="!navCollapsed"
                 :icon="sessionState.sections.git ? 'lucide:chevron-down' : 'lucide:chevron-right'"
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="!navCollapsed && sessionState.sections.git" class="pb-2">
+            <div v-if="sessionState.sections.git" class="pb-2">
               <button
                 v-for="change in gitState.changes"
                 :key="change.path"
@@ -132,24 +112,19 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
-              @click="handleSectionClick('artifacts')"
+              @click="sidepanelStore.toggleSection(props.sessionId, 'artifacts')"
             >
               <Icon icon="lucide:box" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span v-show="!navCollapsed" class="flex-1 truncate">{{
-                t('chat.workspace.sections.artifacts')
-              }}</span>
-              <span v-show="!navCollapsed" class="text-[11px] text-muted-foreground">{{
-                artifactItems.length
-              }}</span>
+              <span class="flex-1 truncate">{{ t('chat.workspace.sections.artifacts') }}</span>
+              <span class="text-[11px] text-muted-foreground">{{ artifactItems.length }}</span>
               <Icon
-                v-show="!navCollapsed"
                 :icon="
                   sessionState.sections.artifacts ? 'lucide:chevron-down' : 'lucide:chevron-right'
                 "
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="!navCollapsed && sessionState.sections.artifacts" class="pb-2">
+            <div v-if="sessionState.sections.artifacts" class="pb-2">
               <button
                 v-for="item in artifactItems"
                 :key="item.key"
@@ -169,17 +144,10 @@
           </section>
         </div>
       </div>
-
-      <button
-        v-if="!navCollapsed"
-        data-testid="workspace-nav-resize-handle"
-        class="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize"
-        type="button"
-        @mousedown="startNavResize"
-      ></button>
     </aside>
 
     <WorkspaceViewer
+      v-if="isWorkspaceViewerVisible"
       :session-id="props.sessionId"
       :artifact="selectedArtifact"
       :file-preview="selectedFilePreview"
@@ -187,13 +155,15 @@
       :loading-file-preview="loadingFilePreview"
       :loading-git-diff="loadingGitDiff"
       :is-fullscreen="props.isFullscreen"
+      :show-back-button="isSingleItemViewerActive"
+      @back="handleViewerBack"
       @toggle-fullscreen="emit('toggle-fullscreen')"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { useI18n } from 'vue-i18n'
@@ -208,7 +178,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
-import type { WorkspaceGitFileChange, WorkspaceNavSection } from '@shared/presenter'
+import type { WorkspaceGitFileChange } from '@shared/presenter'
 
 const props = defineProps<{
   sessionId: string
@@ -364,96 +334,39 @@ watch(
   { immediate: true }
 )
 
-// px-3 (12) + icon (14) + px-3 (12) so the leading icons sit centered in the collapsed rail
-const NAV_COLLAPSED_WIDTH = 38
-
-const navCollapsed = computed(() => sidepanelStore.navCollapsed)
-const isNavResizing = ref(false)
-
-const expandedNavWidth = computed(() => `${sidepanelStore.navWidth}px`)
-
-const navStyle = computed(() => ({
-  width: navCollapsed.value ? `${NAV_COLLAPSED_WIDTH}px` : expandedNavWidth.value
-}))
-
-const expandNavToSection = (section: WorkspaceNavSection) => {
-  sidepanelStore.setNavCollapsed(false)
-  const state = sidepanelStore.ensureSessionState(props.sessionId)
-  state.sections[section] = true
-}
-
-const handleSectionClick = (section: WorkspaceNavSection) => {
-  if (navCollapsed.value) {
-    expandNavToSection(section)
-    return
-  }
-  sidepanelStore.toggleSection(props.sessionId, section)
-}
-
-let navResizeCleanup: (() => void) | null = null
-let pendingNavWidth: number | null = null
-let navResizeFrame: number | null = null
-
-const applyPendingNavResize = () => {
-  navResizeFrame = null
-  if (pendingNavWidth === null) {
-    return
-  }
-  sidepanelStore.setNavWidth(pendingNavWidth)
-  pendingNavWidth = null
-}
-
-const stopNavResize = () => {
-  navResizeCleanup?.()
-  navResizeCleanup = null
-  if (navResizeFrame !== null) {
-    window.cancelAnimationFrame(navResizeFrame)
-    navResizeFrame = null
-  }
-  if (pendingNavWidth !== null) {
-    sidepanelStore.setNavWidth(pendingNavWidth)
-    pendingNavWidth = null
-  }
-}
-
-const startNavResize = (event: MouseEvent) => {
-  event.preventDefault()
-  stopNavResize()
-  isNavResizing.value = true
-
-  const startX = event.clientX
-  const startWidth = sidepanelStore.navWidth
-
-  const onMouseMove = (moveEvent: MouseEvent) => {
-    pendingNavWidth = startWidth + (moveEvent.clientX - startX)
-    if (navResizeFrame === null) {
-      navResizeFrame = window.requestAnimationFrame(applyPendingNavResize)
-    }
-  }
-
-  const onMouseUp = () => {
-    isNavResizing.value = false
-    stopNavResize()
-  }
-
-  window.addEventListener('mousemove', onMouseMove, { passive: true })
-  window.addEventListener('mouseup', onMouseUp, { once: true })
-  navResizeCleanup = () => {
-    window.removeEventListener('mousemove', onMouseMove)
-    window.removeEventListener('mouseup', onMouseUp)
-    isNavResizing.value = false
-  }
-}
-
-onBeforeUnmount(() => {
-  stopNavResize()
-})
-
 const handleFileSelect = (filePath: string) => {
   sidepanelStore.selectFile(props.sessionId, filePath, {
     open: false,
     viewMode: 'preview'
   })
+}
+
+const isSingleItemViewerActive = computed(() => {
+  const state = sessionState.value
+  return Boolean(state.selectedFilePath || state.selectedDiffPath)
+})
+
+const isWorkspaceViewerVisible = computed(() => {
+  const state = sessionState.value
+  return Boolean(state.selectedFilePath || state.selectedDiffPath || state.selectedArtifactContext)
+})
+
+const handleViewerBack = () => {
+  const state = sessionState.value
+
+  if (state.selectedFilePath) {
+    sidepanelStore.clearFile(props.sessionId)
+    return
+  }
+
+  if (state.selectedDiffPath) {
+    sidepanelStore.clearDiff(props.sessionId)
+    return
+  }
+
+  if (state.selectedArtifactContext) {
+    sidepanelStore.clearArtifact(props.sessionId)
+  }
 }
 
 const handleInsertFileReference = (filePath: string) => {

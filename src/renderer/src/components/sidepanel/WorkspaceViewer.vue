@@ -1,11 +1,24 @@
 <template>
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
     <div class="flex h-11 shrink-0 items-center justify-between border-b px-3">
-      <div class="min-w-0">
-        <h3 class="truncate text-sm font-medium">{{ viewerTitle }}</h3>
-        <p v-if="viewerSubtitle" class="truncate text-xs text-muted-foreground">
-          {{ viewerSubtitle }}
-        </p>
+      <div class="flex min-w-0 items-center gap-2">
+        <Button
+          v-if="props.showBackButton"
+          variant="ghost"
+          size="icon"
+          class="h-7 w-7 shrink-0"
+          :title="t('common.back')"
+          :aria-label="t('common.back')"
+          @click="emit('back')"
+        >
+          <Icon icon="lucide:arrow-left" class="h-4 w-4" />
+        </Button>
+        <div class="min-w-0">
+          <h3 class="truncate text-sm font-medium">{{ viewerTitle }}</h3>
+          <p v-if="viewerSubtitle" class="truncate text-xs text-muted-foreground">
+            {{ viewerSubtitle }}
+          </p>
+        </div>
       </div>
 
       <div class="flex items-center gap-2">
@@ -167,10 +180,12 @@ const props = defineProps<{
   loadingFilePreview: boolean
   loadingGitDiff: boolean
   isFullscreen?: boolean
+  showBackButton?: boolean
 }>()
 
 const emit = defineEmits<{
   'toggle-fullscreen': []
+  back: []
 }>()
 
 const { t } = useI18n()

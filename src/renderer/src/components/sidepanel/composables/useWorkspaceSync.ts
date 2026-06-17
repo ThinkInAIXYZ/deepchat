@@ -235,7 +235,8 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     }
 
     const requestId = ++syncRequestId
-    if (kind !== 'git') {
+    const shouldShowInitialLoading = kind !== 'git' && fileTree.value.length === 0
+    if (shouldShowInitialLoading) {
       loadingFiles.value = true
     }
 
@@ -270,7 +271,7 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
 
       await refreshSelectedDiff(true, nextGitState)
     } finally {
-      if (kind !== 'git' && isCurrentRequest(requestId, workspacePath)) {
+      if (shouldShowInitialLoading && isCurrentRequest(requestId, workspacePath)) {
         loadingFiles.value = false
       }
     }
@@ -370,7 +371,14 @@ export function useWorkspaceSync(options: UseWorkspaceSyncOptions) {
     if (watchedWorkspacePath !== nextWorkspacePath) {
       watchStatus.value = null
       await options.workspaceClient.registerWorkspace(nextWorkspacePath)
-      await options.workspaceClient.watchWorkspace(nextWorkspacePath)
+      try {
+        await options.workspaceClient.watchWorkspace(nextWorkspacePath)
+      } catch (error) {
+        console.warn(
+          '[Workspace] Failed to start workspace watcher; continuing without live updates.',
+          error
+        )
+      }
       watchedWorkspacePath = nextWorkspacePath
     }
 
