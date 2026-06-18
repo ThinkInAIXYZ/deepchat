@@ -14,7 +14,7 @@
     "voiceRecognitionErrorTitle": "音频转写失败",
     "voiceRecognitionErrorDescription": "未能完成音频转写，请稍后重试。",
     "send": "发送",
-    "steer": "引导",
+    "steer": "打断",
     "queue": "加入队列",
     "stop": "停止",
     "fileSelect": "选择文件",
@@ -90,16 +90,18 @@
     }
   },
   "pendingInput": {
-    "steer": "引导",
+    "steer": "打断",
     "queueCount": "待发 {count}/{max}",
-    "resumeQueue": "继续发送",
-    "toSteer": "转为引导",
+    "toSteer": "打断并发送",
     "locked": "已锁定",
     "reorder": "调整顺序",
     "files": "{count} 个文件",
     "attachmentsOnly": "{count} 个附件",
     "empty": "空消息",
-    "limitReached": "等待区已满（最多 {max} 条）。"
+    "limitReached": "等待区已满（最多 {max} 条）。",
+    "remove": "删除",
+    "steerUnavailable": "当前无法打断",
+    "steerFailed": "打断失败"
   },
   "features": {
     "webSearch": "联网搜索",

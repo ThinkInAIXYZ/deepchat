@@ -93,3 +93,66 @@ describe('PendingInputCoordinator claimed input ownership', () => {
     expect(store.consumeSteerInput).not.toHaveBeenCalled()
   })
 })
+
+describe('PendingInputCoordinator pending steer recovery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function createPending(
+    id: string,
+    sessionId: string,
+    mode: 'queue' | 'steer'
+  ): PendingSessionInputRecord {
+    return {
+      id,
+      sessionId,
+      mode,
+      state: 'pending',
+      payload: { text: id, files: [] },
+      queueOrder: mode === 'queue' ? 1 : null,
+      claimedAt: null,
+      consumedAt: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
+  }
+
+  it('deletes a pending steer item (recovery escape hatch for a stranded promotion)', () => {
+    const steer = createPending('steer-1', 'session-1', 'steer')
+    const store = {
+      listPendingInputs: vi.fn(() => [steer]),
+      deleteInput: vi.fn()
+    }
+    const coordinator = new PendingInputCoordinator(store as any)
+
+    expect(() => coordinator.deletePendingInput('session-1', 'steer-1')).not.toThrow()
+    expect(store.deleteInput).toHaveBeenCalledWith('steer-1')
+  })
+
+  it('restores a pending steer item back to the queue', () => {
+    const steer = createPending('steer-1', 'session-1', 'steer')
+    const store = {
+      listPendingInputs: vi.fn(() => [steer]),
+      convertSteerInputToQueue: vi.fn(() => ({ ...steer, mode: 'queue' as const, queueOrder: 1 }))
+    }
+    const coordinator = new PendingInputCoordinator(store as any)
+
+    const result = coordinator.restoreSteerInputToQueue('session-1', 'steer-1')
+    expect(store.convertSteerInputToQueue).toHaveBeenCalledWith('steer-1')
+    expect(result.mode).toBe('queue')
+  })
+
+  it('rejects deleting a pending input that does not exist', () => {
+    const store = {
+      listPendingInputs: vi.fn(() => []),
+      deleteInput: vi.fn()
+    }
+    const coordinator = new PendingInputCoordinator(store as any)
+
+    expect(() => coordinator.deletePendingInput('session-1', 'missing')).toThrow(
+      'Pending input not found'
+    )
+    expect(store.deleteInput).not.toHaveBeenCalled()
+  })
+})

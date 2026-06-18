@@ -158,8 +158,9 @@ export interface IAgentImplementation {
     toIndex: number
   ): Promise<PendingSessionInputRecord[]>
   convertPendingInputToSteer?(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  /** Promote a queued input to steer and interrupt the active turn so it runs next */
+  steerPendingInput?(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   deletePendingInput?(sessionId: string, itemId: string): Promise<void>
-  resumePendingQueue?(sessionId: string): Promise<void>
 
   /** Cancel an in-progress generation */
   cancelGeneration(sessionId: string): Promise<void>

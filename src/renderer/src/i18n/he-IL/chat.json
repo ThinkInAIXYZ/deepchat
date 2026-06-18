@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "הכוונה",
     "queueCount": "ממתין לשליחה {count}/{max}",
-    "resumeQueue": "המשך שליחה",
-    "toSteer": "הפוך להכוונה",
+    "toSteer": "להפסיק ולשלוח",
     "locked": "נעול",
     "reorder": "שנה סדר",
     "files": "{count} קבצים",
     "attachmentsOnly": "{count} קבצים מצורפים",
     "empty": "הודעה ריקה",
-    "limitReached": "אזור ההמתנה מלא (מקסימום {max})."
+    "limitReached": "אזור ההמתנה מלא (מקסימום {max}).",
+    "remove": "הסר",
+    "steerUnavailable": "לא ניתן להפסיק כעת",
+    "steerFailed": "לא ניתן היה להפסיק את התור הזה"
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",

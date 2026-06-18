@@ -18,15 +18,6 @@
             {{ t('chat.pendingInput.queueCount', { count: queueItems.length, max: activeLimit }) }}
           </span>
         </div>
-        <Button
-          v-if="showResumeQueue"
-          variant="ghost"
-          size="sm"
-          class="h-6 shrink-0 rounded-full px-2.5 text-[11px] text-muted-foreground"
-          @click="emit('resume-queue')"
-        >
-          {{ t('chat.pendingInput.resumeQueue') }}
-        </Button>
       </div>
 
       <div
@@ -68,6 +59,18 @@
             >
               {{ t('chat.pendingInput.locked') }}
             </span>
+            <Button
+              v-if="item.state === 'pending'"
+              variant="ghost"
+              size="icon"
+              data-testid="pending-steer-delete"
+              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+              :title="t('chat.pendingInput.remove')"
+              :aria-label="t('chat.pendingInput.remove')"
+              @click.stop="emit('delete-queue', item.id)"
+            >
+              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
 
@@ -177,7 +180,28 @@
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-testid="pending-row-steer"
+                    class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                    :title="
+                      disableQueueSteerAction
+                        ? t('chat.pendingInput.steerUnavailable')
+                        : t('chat.pendingInput.toSteer')
+                    "
+                    :aria-label="
+                      disableQueueSteerAction
+                        ? t('chat.pendingInput.steerUnavailable')
+                        : t('chat.pendingInput.toSteer')
+                    "
+                    :disabled="disableQueueSteerAction"
+                    @click.stop="emit('steer-queue', element.id)"
+                  >
+                    <Icon icon="lucide:compass" class="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     class="h-6 w-6 rounded-full text-muted-foreground"
+                    :title="t('chat.pendingInput.remove')"
                     @click.stop="emit('delete-queue', element.id)"
                   >
                     <Icon icon="lucide:x" class="h-3.5 w-3.5" />
@@ -210,20 +234,20 @@ const props = withDefaults(
     queueItems: PendingSessionInputRecord[]
     activeLimit?: number
     disableSteerAction?: boolean
-    showResumeQueue?: boolean
+    disableQueueSteerAction?: boolean
   }>(),
   {
     activeLimit: 5,
     disableSteerAction: false,
-    showResumeQueue: false
+    disableQueueSteerAction: false
   }
 )
 
 const emit = defineEmits<{
   'update-queue': [payload: { itemId: string; text: string }]
   'move-queue': [payload: { itemId: string; toIndex: number }]
+  'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
-  'resume-queue': []
 }>()
 const { t } = useI18n()
 

@@ -122,9 +122,8 @@ const setup = async (options: SetupOptions = {}) => {
     queueInput: vi.fn().mockResolvedValue(undefined),
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
     moveQueueInput: vi.fn().mockResolvedValue(undefined),
-    convertToSteer: vi.fn().mockResolvedValue(undefined),
+    steerPendingInput: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
-    resumeQueue: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn(),
     ...options.pendingInputStorePatch
   })
@@ -359,12 +358,14 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'PendingInputLane',
       props: {
-        showResumeQueue: {
-          type: Boolean,
-          default: false
+        queueItems: {
+          type: Array,
+          default: () => []
         }
       },
-      template: '<div class="pending-input-lane-stub" />'
+      emits: ['steer-queue'],
+      template:
+        '<button class="pending-input-lane-stub" data-testid="pending-lane-steer" @click="$emit(\'steer-queue\', queueItems[0]?.id ?? \'queue-1\')" />'
     })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
@@ -898,32 +899,14 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
   })
 
-  it('hides resume queue while waiting for a tool follow-up answer', async () => {
-    const { wrapper } = await setup({
-      messages: [
-        buildAssistantMessage([
-          {
-            type: 'action',
-            action_type: 'question_request',
-            status: 'success',
-            tool_call: {
-              id: 'tool-1',
-              name: 'question',
-              params: '{}'
-            },
-            extra: {
-              needsUserAction: false,
-              questionResolution: 'replied'
-            }
-          }
-        ])
-      ],
+  it('clears the active plan after queued steer succeeds', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore } = await setup({
+      isStreaming: true,
       pendingInputStorePatch: {
         items: [
           {
@@ -942,7 +925,46 @@ describe('ChatPage', () => {
       }
     })
 
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(false)
+    agentPlanStore.clear.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.clear).toHaveBeenCalledWith('s1')
+  })
+
+  it('keeps the active plan when queued steer fails', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore, toast } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        steerPendingInput: vi.fn().mockRejectedValue(new Error('boom'))
+      }
+    })
+
+    agentPlanStore.clear.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.clear).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.pendingInput.steerFailed',
+      variant: 'destructive'
+    })
   })
 
   it('allows sending attachment-only drafts', async () => {

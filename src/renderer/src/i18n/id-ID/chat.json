@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "panduan",
     "queueCount": "Siap dikirim {count}/{max}",
-    "resumeQueue": "terus mengirim",
-    "toSteer": "giliran untuk boot",
+    "toSteer": "Sela & kirim",
     "locked": "terkunci",
     "reorder": "Sesuaikan pesanan",
     "files": "{count} file",
     "attachmentsOnly": "{count} lampiran",
     "empty": "pesan kosong",
-    "limitReached": "Ruang tunggu penuh (maks {max} entri)."
+    "limitReached": "Ruang tunggu penuh (maks {max} entri).",
+    "remove": "Hapus",
+    "steerUnavailable": "Tidak bisa menyela saat ini",
+    "steerFailed": "Gagal menyela giliran ini"
   },
   "features": {
     "webSearch": "Pencarian internet",

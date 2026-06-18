@@ -11,8 +11,6 @@ vi.mock('vue-i18n', () => ({
           return 'Steer'
         case 'chat.pendingInput.queueCount':
           return `Queue ${params?.count}/${params?.max}`
-        case 'chat.pendingInput.resumeQueue':
-          return 'Resume queue'
         case 'chat.pendingInput.toSteer':
           return 'Steer'
         case 'chat.pendingInput.locked':
@@ -27,6 +25,12 @@ vi.mock('vue-i18n', () => ({
           return 'Empty message'
         case 'chat.pendingInput.limitReached':
           return `Waiting lane is full (${params?.max}).`
+        case 'chat.pendingInput.remove':
+          return 'Remove'
+        case 'chat.pendingInput.steerUnavailable':
+          return "Can't interrupt right now"
+        case 'chat.pendingInput.steerFailed':
+          return 'Steer failed'
         case 'common.cancel':
           return 'Cancel'
         case 'common.save':
@@ -174,20 +178,51 @@ describe('PendingInputLane', () => {
     expect(wrapper.get('[data-testid="draggable"]').attributes('data-disabled')).toBe('true')
   })
 
-  it('shows resume queue action only when requested and emits the event', async () => {
+  it('emits steer-queue with the item id when the queue row interrupt button is clicked', async () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        steerItems: [],
+        queueItems: [buildPendingInput('queue-1', 'queue')]
+      }
+    })
+
+    const steerButtons = wrapper.findAll('[data-testid="pending-row-steer"]')
+    expect(steerButtons).toHaveLength(1)
+    expect(steerButtons[0].attributes('aria-label')).toBe('Steer')
+
+    await steerButtons[0].trigger('click')
+
+    expect(wrapper.emitted('steer-queue')).toEqual([['queue-1']])
+  })
+
+  it('lets a stranded pending steer item be removed via delete-queue', async () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        steerItems: [buildPendingInput('steer-1', 'steer')],
+        queueItems: []
+      }
+    })
+
+    const deleteButton = wrapper.find('[data-testid="pending-steer-delete"]')
+    expect(deleteButton.exists()).toBe(true)
+    expect(deleteButton.attributes('aria-label')).toBe('Remove')
+
+    await deleteButton.trigger('click')
+
+    expect(wrapper.emitted('delete-queue')).toEqual([['steer-1']])
+  })
+
+  it('disables the queue row interrupt button when disableQueueSteerAction is set', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
         steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue')],
-        showResumeQueue: true
+        disableQueueSteerAction: true
       }
     })
 
-    const buttons = wrapper.findAll('button')
-    const resumeButton = buttons.find((button) => button.text() === 'Resume queue')
-
-    expect(resumeButton).toBeTruthy()
-    await resumeButton!.trigger('click')
-    expect(wrapper.emitted('resume-queue')).toHaveLength(1)
+    const steerButton = wrapper.get('[data-testid="pending-row-steer"]')
+    expect((steerButton.element as HTMLButtonElement).disabled).toBe(true)
+    expect(steerButton.attributes('aria-label')).toBe("Can't interrupt right now")
   })
 })

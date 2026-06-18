@@ -905,6 +905,18 @@ export class AgentSessionPresenter {
     return await agent.convertPendingInputToSteer(sessionId, itemId)
   }
 
+  async steerPendingInput(sessionId: string, itemId: string) {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.steerPendingInput) {
+      throw new Error(`Agent ${session.agentId} does not support steering queued inputs.`)
+    }
+    return await agent.steerPendingInput(sessionId, itemId)
+  }
+
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     const session = this.sessionManager.get(sessionId)
     if (!session) {
@@ -915,18 +927,6 @@ export class AgentSessionPresenter {
       throw new Error(`Agent ${session.agentId} does not support pending input deletion.`)
     }
     await agent.deletePendingInput(sessionId, itemId)
-  }
-
-  async resumePendingQueue(sessionId: string): Promise<void> {
-    const session = this.sessionManager.get(sessionId)
-    if (!session) {
-      throw new Error(`Session not found: ${sessionId}`)
-    }
-    const agent = await this.resolveAgentImplementation(session.agentId)
-    if (!agent.resumePendingQueue) {
-      throw new Error(`Agent ${session.agentId} does not support pending queue resume.`)
-    }
-    await agent.resumePendingQueue(sessionId)
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {

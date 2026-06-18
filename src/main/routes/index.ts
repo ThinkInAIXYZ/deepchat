@@ -213,7 +213,6 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
-  sessionsResumePendingQueueRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute,
@@ -223,6 +222,7 @@ import {
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
   sessionsSetSubagentEnabledRoute,
+  sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
   sessionsUpdateDisabledAgentToolsRoute,
@@ -2231,16 +2231,19 @@ export async function dispatchDeepchatRoute(
       return sessionsConvertPendingInputToSteerRoute.output.parse({ item })
     }
 
+    case sessionsSteerPendingInputRoute.name: {
+      const input = sessionsSteerPendingInputRoute.input.parse(rawInput)
+      const item = await runtime.agentSessionPresenter.steerPendingInput(
+        input.sessionId,
+        input.itemId
+      )
+      return sessionsSteerPendingInputRoute.output.parse({ item })
+    }
+
     case sessionsDeletePendingInputRoute.name: {
       const input = sessionsDeletePendingInputRoute.input.parse(rawInput)
       await runtime.agentSessionPresenter.deletePendingInput(input.sessionId, input.itemId)
       return sessionsDeletePendingInputRoute.output.parse({ deleted: true })
-    }
-
-    case sessionsResumePendingQueueRoute.name: {
-      const input = sessionsResumePendingQueueRoute.input.parse(rawInput)
-      await runtime.agentSessionPresenter.resumePendingQueue(input.sessionId)
-      return sessionsResumePendingQueueRoute.output.parse({ resumed: true })
     }
 
     case sessionsRetryMessageRoute.name: {

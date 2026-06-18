@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "panduan",
     "queueCount": "Sedia untuk menghantar {count}/{max}",
-    "resumeQueue": "terus hantar",
-    "toSteer": "beralih kepada but",
+    "toSteer": "Ganggu & hantar",
     "locked": "terkunci",
     "reorder": "Laraskan pesanan",
     "files": "Fail {count}",
     "attachmentsOnly": "Lampiran {count}",
     "empty": "mesej kosong",
-    "limitReached": "Ruang menunggu penuh (maksimum {max} penyertaan)."
+    "limitReached": "Ruang menunggu penuh (maksimum {max} penyertaan).",
+    "remove": "Buang",
+    "steerUnavailable": "Tidak boleh mengganggu sekarang",
+    "steerFailed": "Gagal mengganggu giliran ini"
   },
   "features": {
     "webSearch": "carian internet",

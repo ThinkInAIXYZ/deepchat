@@ -176,7 +176,6 @@ declare module 'vue-i18n' {
     pendingInput: {
       steer: string
       queueCount: string
-      resumeQueue: string
       toSteer: string
       locked: string
       reorder: string
@@ -184,6 +183,9 @@ declare module 'vue-i18n' {
       attachmentsOnly: string
       empty: string
       limitReached: string
+      remove: string
+      steerUnavailable: string
+      steerFailed: string
     }
     features: {
       webSearch: string
@@ -559,6 +561,10 @@ declare module 'vue-i18n' {
           openFile: string
           revealInFolder: string
           insertPath: string
+        }
+        watchStatus: {
+          degraded: string
+          failed: string
         }
       }
       git: {
@@ -992,6 +998,10 @@ declare module 'vue-i18n' {
     tabs: {
       servers: string
       tools: string
+      request: string
+      view: string
+      entries: string
+      budget: string
     }
     serverList: string
     addServer: string
@@ -1565,6 +1575,34 @@ declare module 'vue-i18n' {
       compactionTitle: string
       compactionEnabled: string
       compactionDescription: string
+      memoryTitle: string
+      memoryEnabled: string
+      memoryDescription: string
+      memoryEmbeddingModel: string
+      memoryEmbeddingHint: string
+      memoryManager: {
+        openButton: string
+        title: string
+        description: string
+        degradedHint: string
+        tabMemories: string
+        tabPersona: string
+        memoriesCount: string
+        clearAll: string
+        clearConfirmTitle: string
+        clearConfirmBody: string
+        emptyMemories: string
+        emptyPersona: string
+        personaActive: string
+        rollback: string
+        actionFailed: string
+        status: {
+          pending_embedding: string
+          embedded: string
+          error: string
+          fts_only: string
+        }
+      }
       compactionThreshold: string
       compactionRetainPairs: string
       deleteConfirm: string
@@ -1669,6 +1707,25 @@ declare module 'vue-i18n' {
         uploadSuccessTitle: string
         uploadFailedTitle: string
         pullSuccessTitle: string
+        providerR2: string
+        providerCustom: string
+        r2GuideTitle: string
+        r2EndpointHint: string
+        r2AccessKeyHint: string
+        r2SecretHint: string
+        r2DocsLink: string
+        endpointR2Description: string
+        endpointCustomDescription: string
+        r2AccessKeyAccountIdWarning: string
+        r2SecretApiTokenError: string
+        secretStoredDescription: string
+        secretInputDescription: string
+        advancedTitle: string
+        r2RegionDescription: string
+        prefixDescription: string
+        saveAndTest: string
+        saveOnly: string
+        saveAndTestFirst: string
       }
       backupSelectLabel: string
       backupSelectDescription: string
@@ -2987,6 +3044,51 @@ declare module 'vue-i18n' {
     notImplemented: string
     notImplementedDesc: string
     mayNotMatch: string
+    empty: string
+    emptyDesc: string
+    requestUnavailable: string
+    requestUnavailableDesc: string
+    manifestUnavailable: string
+    manifestUnavailableDesc: string
+    viewId: string
+    policy: string
+    policyVersion: string
+    taskType: string
+    requestSeq: string
+    latestEntryId: string
+    promptHash: string
+    toolDefinitionsHash: string
+    manifestHash: string
+    includedEntries: string
+    excludedEntries: string
+    entryId: string
+    messageId: string
+    orderSeq: string
+    role: string
+    reason: string
+    contextLength: string
+    requestedMaxTokens: string
+    effectiveMaxTokens: string
+    reserveTokens: string
+    toolReserveTokens: string
+    estimatedPromptTokens: string
+    notAvailable: string
+    integrity: {
+      label: string
+      valid: string
+      invalid: string
+      unverified: string
+      invalidWarning: string
+      unverifiedNote: string
+    }
+    reconstructionAnchor: string
+    anchorEntryIds: string
+    schemaVersion: string
+    hashVersion: string
+    compactedRanges: string
+    rangeFrom: string
+    rangeTo: string
+    rangeCount: string
     newVersion: string
     version: string
     releaseDate: string
