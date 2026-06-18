@@ -18,10 +18,8 @@ export type {
   AgentMemoryListOptions
 }
 
-/**
- * SQLite 侧记忆仓储端口。AgentMemoryTable 结构上即满足此接口；
- * 抽象出来是为了让 MemoryPresenter 的打分/去重/阶段逻辑可脱离原生模块单测。
- */
+// SQLite repository port. AgentMemoryTable satisfies it structurally; the abstraction lets
+// the presenter's scoring/dedup/staging logic be unit-tested without the native module.
 export interface MemoryRepositoryPort {
   insert(input: AgentMemoryInsertInput): AgentMemoryRow
   getById(id: string): AgentMemoryRow | undefined
@@ -30,7 +28,7 @@ export interface MemoryRepositoryPort {
   getActivePersona(agentId: string): AgentMemoryRow | undefined
   listPersonaVersions(agentId: string): AgentMemoryRow[]
   search(agentId: string, query: string, limit?: number): AgentMemoryRow[]
-  listPendingEmbedding(limit?: number): AgentMemoryRow[]
+  listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
   updateStatus(
     id: string,
     status: AgentMemoryStatus,
@@ -58,9 +56,7 @@ export interface MemoryVectorQueryOptions {
   threshold?: number
 }
 
-/**
- * 记忆向量存储端口（DuckDB 实现），按 agent 维度隔离（每 agent 一个库，维度独立）。
- */
+// Vector store port (DuckDB), isolated per agent: one database each, with independent dimensions.
 export interface IMemoryVectorStore {
   upsert(records: MemoryVectorRecord[]): Promise<void>
   query(embedding: number[], options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
@@ -69,9 +65,6 @@ export interface IMemoryVectorStore {
   isUsable(): boolean
 }
 
-/**
- * 抽取候选：来自 compaction 搭车或会话结束兜底。
- */
 export interface MemoryCandidate {
   kind: Extract<AgentMemoryKind, 'episodic' | 'semantic'>
   content: string
@@ -82,6 +75,8 @@ export interface WriteMemoriesOptions {
   agentId: string
   sourceSession?: string | null
   userScope?: string | null
+  /** Tape entry_id lineage; only persisted when sourceSession scopes them. */
+  sourceEntryIds?: number[] | null
 }
 
 export type { MemoryInjectionPayload, MemoryInjectionPort } from './injectionPort'
@@ -102,36 +97,29 @@ export interface MemoryStatus {
 
 export interface MemoryPresenterDeps {
   repository: MemoryRepositoryPort
-  /** 解析后的 agent 配置（含 memoryEnabled / memoryEmbedding / memoryRetrieval）。 */
   resolveAgentConfig: (agentId: string) => DeepChatAgentConfig | null
-  /**
-   * 严格存在性校验：仅当 agentId 对应一个真实存在的 DeepChat agent 时返回 true。
-   * 用于管理类接口防止对任意/不存在的 agent 读写记忆。缺省时（如单测）跳过该校验。
-   */
+  // True only for a real, existing DeepChat agent. Management surfaces use it to refuse
+  // reads/writes against arbitrary or nonexistent agents; skipped when absent (e.g. tests).
   isManagedAgent?: (agentId: string) => boolean
-  /** 计算 embedding；返回每条文本的向量。 */
   getEmbeddings: (providerId: string, modelId: string, texts: string[]) => Promise<number[][]>
-  /** 廉价模型文本生成，用于记忆抽取（独立于摘要调用）。 */
   generateText: (providerId: string, modelId: string, prompt: string) => Promise<string>
-  /** 为指定 agent 创建/打开向量存储；embedding 身份用于校验，dimensions 用于首次初始化。 */
+  // Creates/opens the agent's vector store: embedding identity validates it, dimensions seed
+  // the first initialization.
   createVectorStore: (
     agentId: string,
     embedding: { providerId: string; modelId: string },
     dimensions: number
   ) => Promise<IMemoryVectorStore>
-  /**
-   * 删除指定 agent 的磁盘向量库（含 wal），与缓存是否存在无关。
-   * 用于清空记忆时彻底重置：重启后缓存为空也能删掉老库，下次写入会以当前 embedding 身份重建。
-   */
+  // Deletes the agent's on-disk vector database (including wal) regardless of cache state, so a
+  // restart with an empty cache still drops the old store and the next write rebuilds it under
+  // the current embedding identity.
   resetVectorStore: (agentId: string) => Promise<void>
-  /**
-   * 记忆数据变更回调（写入/删除/清空/人格演化/回滚后触发），由宿主接 typed 事件广播给 UI。
-   * 可选——单测不注入时为纯 presenter，无副作用。
-   */
+  // Fires after write/delete/clear/persona changes; the host bridges it to typed UI events.
+  // Optional — without it the presenter is side-effect free (tests).
   onMemoryChanged?: (agentId: string, reason: MemoryUpdateReason) => void
 }
 
-/** 记忆变更原因，与 shared/contracts memory.events 的 MemoryUpdateReasonSchema 对应。 */
+// Mirrors MemoryUpdateReasonSchema in shared/contracts memory.events.
 export type MemoryUpdateReason =
   | 'extract'
   | 'delete'
@@ -144,18 +132,15 @@ export interface MemoryExtractionInput {
   spanText: string
   model: { providerId: string; modelId: string }
   sourceSession?: string | null
+  sourceEntryIds?: number[] | null
 }
 
-/**
- * 抽取结果：区分“成功（可能抽到 0 条）”与“失败（模型/解析异常）”。
- * 调用方据此决定是否推进记忆游标——失败时不应推进，以便下次重试。
- */
+// Distinguishes success (possibly 0 memories) from failure (model/parse error). The caller
+// advances the memory cursor only on success, so a failure is retried next time.
 export type MemoryExtractionResult = { ok: true; createdIds: string[] } | { ok: false }
 
-/**
- * agent id 安全格式：仅允许 URL-safe 字符（与 nanoid 生成的 `deepchat-xxxx` 一致）。
- * 用于杜绝把外部传入的 id 直接拼进文件路径造成的路径穿越，以及异常键写入。
- */
+// URL-safe ids only (matching nanoid's `deepchat-xxxx`). Guards against path traversal when an
+// externally supplied id is used in a file path, and against malformed keys.
 const SAFE_AGENT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
 export function isSafeAgentId(agentId: unknown): agentId is string {
   return typeof agentId === 'string' && SAFE_AGENT_ID_PATTERN.test(agentId)
@@ -169,7 +154,7 @@ export const DEFAULT_RETRIEVAL: Required<Omit<DeepChatAgentMemoryRetrieval, 'wei
 }
 
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.2
-/** recency 指数衰减半衰期（毫秒），默认 14 天。 */
+// Half-life (ms) for recency exponential decay; 14 days.
 export const DEFAULT_RECENCY_HALF_LIFE_MS = 14 * 24 * 60 * 60 * 1000
-/** FTS-only 命中（无向量相似度）时的相似度基线。 */
+// Similarity baseline for FTS-only hits that have no vector distance.
 export const FTS_SIMILARITY_BASELINE = 0.5

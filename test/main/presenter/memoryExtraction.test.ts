@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   buildExtractionPrompt,
-  parseMemoryCandidates
+  buildTriagePrompt,
+  parseMemoryCandidates,
+  parseTriageDecision
 } from '@/presenter/memoryPresenter/extraction'
 
 describe('parseMemoryCandidates', () => {
@@ -66,7 +68,7 @@ describe('buildExtractionPrompt', () => {
   })
 })
 
-// extractAndStore 端到端（用假 LLM + 假仓储），验证解耦抽取链路
+// extractAndStore end-to-end (fake LLM + fake repo): exercises the decoupled extraction chain.
 describe('MemoryPresenter.extractAndStore', () => {
   it('extracts, dedupes, and writes pending memories; no-op when disabled', async () => {
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
@@ -107,7 +109,8 @@ describe('MemoryPresenter.extractAndStore', () => {
     })
     if (!created.ok) throw new Error('expected extraction to succeed')
     expect(created.createdIds).toHaveLength(1)
-    expect(generateText).toHaveBeenCalledTimes(1)
+    // triage (KEEP) + extraction
+    expect(generateText).toHaveBeenCalledTimes(2)
     expect(repo.countByAgent('on')).toBe(1)
 
     // second identical extraction succeeds but dedupes → no new ids
@@ -146,8 +149,203 @@ describe('MemoryPresenter.extractAndStore', () => {
       model: { providerId: 'p', modelId: 'm' }
     })
     expect(result).toEqual({ ok: false })
-    expect(generateText).toHaveBeenCalledTimes(1)
+    // triage throws (non-fatal, falls through) + extraction throws → ok:false
+    expect(generateText).toHaveBeenCalledTimes(2)
     expect(repo.countByAgent('on')).toBe(0)
+  })
+})
+
+describe('triage prompt + decision', () => {
+  it('triage prompt embeds the span and asks for a KEEP/SKIP verdict on untrusted data', () => {
+    const prompt = buildTriagePrompt('User: I live in Berlin')
+    expect(prompt).toContain('I live in Berlin')
+    expect(prompt).toContain('KEEP')
+    expect(prompt).toContain('SKIP')
+    expect(prompt).toContain('untrusted')
+  })
+
+  it('parseTriageDecision keeps unless SKIP is the clear, sole verdict', () => {
+    expect(parseTriageDecision('KEEP')).toBe(true)
+    expect(parseTriageDecision('skip')).toBe(false)
+    expect(parseTriageDecision('SKIP — nothing durable here')).toBe(false)
+    expect(parseTriageDecision('KEEP, then SKIP the chit-chat')).toBe(true)
+    expect(parseTriageDecision('')).toBe(true)
+    expect(parseTriageDecision('unsure, maybe')).toBe(true)
+  })
+})
+
+describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', () => {
+  async function build(config: any, generateText: any) {
+    const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
+    const repo = makeFakeRepo()
+    const presenter = new MemoryPresenter({
+      repository: repo as any,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async () => [],
+      generateText,
+      createVectorStore: async () => ({
+        upsert: async () => {},
+        query: async () => [],
+        deleteByMemoryIds: async () => {},
+        close: async () => {},
+        isUsable: () => true
+      }),
+      resetVectorStore: async () => {}
+    } as any)
+    return { presenter, repo }
+  }
+
+  it('skips the extraction call when triage returns SKIP, still ok (cursor advances)', async () => {
+    const generateText = vi.fn(async () => 'SKIP')
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: lol nice weather today',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    expect(result).toEqual({ ok: true, createdIds: [] })
+    expect(generateText).toHaveBeenCalledTimes(1) // triage only, no full extraction
+    expect(repo.countByAgent('a')).toBe(0)
+  })
+
+  it('falls through to extraction when triage itself fails', async () => {
+    let call = 0
+    const generateText = vi.fn(async () => {
+      call += 1
+      if (call === 1) throw new Error('triage unavailable')
+      return '[{"kind":"semantic","content":"user prefers redis"}]'
+    })
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(1)
+    expect(generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the configured memoryExtractionModel for both triage and extraction', async () => {
+    const generateText = vi.fn(async () => 'KEEP\n[{"kind":"semantic","content":"x"}]')
+    const { presenter } = await build(
+      {
+        memoryEnabled: true,
+        memoryExtractionModel: { providerId: 'cheap-p', modelId: 'cheap-m' }
+      },
+      generateText
+    )
+    await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I live in Berlin',
+      model: { providerId: 'main-p', modelId: 'main-m' }
+    })
+    expect(generateText.mock.calls.length).toBeGreaterThanOrEqual(2)
+    for (const call of generateText.mock.calls) {
+      expect(call[0]).toBe('cheap-p')
+      expect(call[1]).toBe('cheap-m')
+    }
+  })
+
+  it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
+    const generateText = vi.fn(async () => 'KEEP\n[{"kind":"semantic","content":"x"}]')
+    const { presenter } = await build({ memoryEnabled: true }, generateText)
+    await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I live in Berlin',
+      model: { providerId: 'main-p', modelId: 'main-m' }
+    })
+    expect(generateText.mock.calls[0][0]).toBe('main-p')
+    expect(generateText.mock.calls[0][1]).toBe('main-m')
+  })
+
+  it('persists sourceEntryIds lineage scoped by sourceSession', async () => {
+    const generateText = vi.fn(
+      async () => 'KEEP\n[{"kind":"semantic","content":"user prefers redis"}]'
+    )
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'p', modelId: 'm' },
+      sourceSession: 's1',
+      sourceEntryIds: [11, 12]
+    })
+    if (!result.ok) throw new Error('expected ok')
+    const row = repo.getById(result.createdIds[0])
+    expect(row.source_session).toBe('s1')
+    expect(JSON.parse(row.source_entry_ids)).toEqual([11, 12])
+  })
+
+  it('drops lineage when there is no sourceSession to scope the entry ids', async () => {
+    const generateText = vi.fn(
+      async () => 'KEEP\n[{"kind":"semantic","content":"user prefers vue"}]'
+    )
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer vue',
+      model: { providerId: 'p', modelId: 'm' },
+      sourceSession: null,
+      sourceEntryIds: [11, 12]
+    })
+    if (!result.ok) throw new Error('expected ok')
+    const row = repo.getById(result.createdIds[0])
+    expect(row.source_session).toBe(null)
+    expect(row.source_entry_ids).toBe(null)
+  })
+})
+
+describe('MemoryPresenter.maybeReflect cheap model', () => {
+  async function buildWithMemories(config: any, generateText: any, count = 3) {
+    const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
+    const repo = makeFakeRepo()
+    for (let i = 0; i < count; i += 1) {
+      repo.insert({ id: `m${i}`, agentId: 'a', kind: 'semantic', content: `fact ${i}` })
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo as any,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async () => [],
+      generateText,
+      createVectorStore: async () => ({
+        upsert: async () => {},
+        query: async () => [],
+        deleteByMemoryIds: async () => {},
+        close: async () => {},
+        isUsable: () => true
+      }),
+      resetVectorStore: async () => {}
+    } as any)
+    return { presenter, repo }
+  }
+
+  it('reflects through the configured memoryExtractionModel', async () => {
+    const generateText = vi.fn(async () => 'I am a concise, technical assistant.')
+    const { presenter } = await buildWithMemories(
+      {
+        memoryEnabled: true,
+        memoryExtractionModel: { providerId: 'cheap-p', modelId: 'cheap-m' }
+      },
+      generateText
+    )
+    const personaId = await presenter.maybeReflect(
+      'a',
+      { providerId: 'main-p', modelId: 'main-m' },
+      3
+    )
+    expect(personaId).toBeTruthy()
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(generateText.mock.calls[0][0]).toBe('cheap-p')
+    expect(generateText.mock.calls[0][1]).toBe('cheap-m')
+  })
+
+  it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
+    const generateText = vi.fn(async () => 'I am a concise, technical assistant.')
+    const { presenter } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' }, 3)
+    expect(generateText.mock.calls[0][0]).toBe('main-p')
+    expect(generateText.mock.calls[0][1]).toBe('main-m')
   })
 })
 
@@ -180,7 +378,8 @@ function makeFakeRepo() {
         user_scope: null,
         last_accessed: null,
         access_count: 0,
-        decay_score: null
+        decay_score: null,
+        source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null
       }
       rows.set(row.id, row)
       return row
@@ -195,8 +394,10 @@ function makeFakeRepo() {
     getActivePersona: () => undefined,
     listPersonaVersions: () => [],
     search: () => [],
-    listPendingEmbedding: (limit = 50) =>
-      [...rows.values()].filter((r) => r.status === 'pending_embedding').slice(0, limit),
+    listPendingEmbedding: (limit = 50, agentId?: string) =>
+      [...rows.values()]
+        .filter((r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId))
+        .slice(0, limit),
     updateStatus: (id: string, status: string) => {
       const r = rows.get(id)
       if (r) r.status = status

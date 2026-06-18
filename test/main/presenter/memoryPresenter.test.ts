@@ -51,7 +51,8 @@ class FakeRepository implements MemoryRepositoryPort {
       created_at: input.createdAt ?? 1000,
       last_accessed: null,
       access_count: 0,
-      decay_score: null
+      decay_score: null,
+      source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null
     }
     this.rows.set(row.id, row)
     return row
@@ -95,9 +96,9 @@ class FakeRepository implements MemoryRepositoryPort {
       .slice(0, limit)
   }
 
-  listPendingEmbedding(limit = 50) {
+  listPendingEmbedding(limit = 50, agentId?: string) {
     return [...this.rows.values()]
-      .filter((row) => row.status === 'pending_embedding')
+      .filter((row) => row.status === 'pending_embedding' && (!agentId || row.agent_id === agentId))
       .slice(0, limit)
   }
 
@@ -202,7 +203,7 @@ function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeReposi
   return { presenter, repo, store, getEmbeddings, resetVectorStore }
 }
 
-// 把文本映射成与关键词相关的玩具向量，便于断言相似度排序。
+// Maps text to a keyword-correlated toy vector so similarity ordering is assertable.
 function textToVector(text: string): number[] {
   const t = text.toLowerCase()
   return [t.includes('redis') ? 1 : 0, t.includes('vue') ? 1 : 0, t.includes('简洁') ? 1 : 0, 0.01]
@@ -536,6 +537,126 @@ describe('MemoryPresenter management', () => {
   })
 })
 
+describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
+  it('embeds all pending rows in one getEmbeddings call and one upsert', async () => {
+    const { presenter, repo, store, getEmbeddings } = makePresenter(enabledConfig)
+    const contents = ['redis one', 'vue two', '简洁 three']
+    for (const content of contents) {
+      repo.insert({
+        id: `m-${content}`,
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content,
+        status: 'pending_embedding'
+      })
+    }
+    const upsertSpy = vi.spyOn(store, 'upsert')
+
+    await presenter.processPendingEmbeddings('deepchat')
+
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    expect(getEmbeddings.mock.calls[0][2]).toHaveLength(contents.length)
+    expect(upsertSpy).toHaveBeenCalledTimes(1)
+    expect(upsertSpy.mock.calls[0][0]).toHaveLength(contents.length)
+    for (const content of contents) {
+      expect(repo.getById(`m-${content}`)?.status).toBe('embedded')
+    }
+  })
+
+  it('embeds only the queried agent rows so a backlog cannot starve another agent', async () => {
+    const { presenter, repo, getEmbeddings } = makePresenter(enabledConfig)
+    for (let i = 0; i < 100; i += 1) {
+      repo.insert({
+        id: `a-${i}`,
+        agentId: 'agent-a',
+        kind: 'semantic',
+        content: `a${i} redis`,
+        status: 'pending_embedding'
+      })
+    }
+    repo.insert({
+      id: 'b-1',
+      agentId: 'agent-b',
+      kind: 'semantic',
+      content: 'b redis',
+      status: 'pending_embedding'
+    })
+
+    await presenter.processPendingEmbeddings('agent-b')
+
+    expect(repo.getById('b-1')?.status).toBe('embedded')
+    expect(repo.getById('a-0')?.status).toBe('pending_embedding')
+    expect(getEmbeddings.mock.calls[0][2]).toEqual(['b redis'])
+  })
+
+  it('serializes same-agent drains so concurrent triggers embed each row once', async () => {
+    const { presenter, repo, getEmbeddings } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis',
+      status: 'pending_embedding'
+    })
+    repo.insert({
+      id: 'm2',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'vue',
+      status: 'pending_embedding'
+    })
+
+    // Two background triggers fire for the same agent before the first drain settles.
+    await Promise.all([
+      presenter.processPendingEmbeddings('a'),
+      presenter.processPendingEmbeddings('a')
+    ])
+
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    expect(repo.getById('m1')?.status).toBe('embedded')
+    expect(repo.getById('m2')?.status).toBe('embedded')
+  })
+
+  it('marks the batch error (never embedded) when the vector store upsert fails', async () => {
+    const repo = new FakeRepository()
+    const failingStore: IMemoryVectorStore = {
+      upsert: vi.fn(async () => {
+        throw new Error('INSERT failed')
+      }),
+      query: async () => [],
+      deleteByMemoryIds: async () => {},
+      close: async () => {},
+      isUsable: () => true
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => failingStore,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis',
+      status: 'pending_embedding'
+    })
+    repo.insert({
+      id: 'm2',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'vue',
+      status: 'pending_embedding'
+    })
+
+    await presenter.processPendingEmbeddings('a')
+
+    expect(repo.getById('m1')?.status).toBe('error')
+    expect(repo.getById('m2')?.status).toBe('error')
+  })
+})
+
 describe('MemoryPresenter change events (onMemoryChanged)', () => {
   function makeWithSpy(config: DeepChatAgentConfig = enabledConfig) {
     const repo = new FakeRepository()
@@ -594,7 +715,7 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     expect(created).toHaveLength(1)
     expect(onMemoryChanged).toHaveBeenCalledWith('a', 'extract')
 
-    // 去重命中（同内容）不再发事件
+    // A dedupe hit (same content) emits no event.
     onMemoryChanged.mockClear()
     const again = await presenter.rememberMemory(
       { kind: 'semantic', content: 'user prefers redis' },
@@ -659,10 +780,10 @@ describe('MemoryPresenter agentId safety guards', () => {
       generateText: async () => '[]',
       createVectorStore: async () => store
     })
-    // 内部写入路径（extraction）不受管理类守卫限制，使用受信任的 agentId
+    // The internal write path (extraction) bypasses the management guard with a trusted agentId.
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'real' })
 
-    // 格式合法但非真实 agent：读取为空、变更无效
+    // Well-formed but not a real agent: reads come back empty and mutations are no-ops.
     expect(presenter.listMemories('ghost')).toEqual([])
     expect(presenter.getStatus('ghost')).toEqual({
       total: 0,
@@ -672,7 +793,7 @@ describe('MemoryPresenter agentId safety guards', () => {
     expect(await presenter.clearMemories('ghost')).toBe(0)
     expect(presenter.rollbackPersona('ghost', 'v')).toBe(false)
 
-    // 真实 agent 正常工作
+    // A real agent works normally.
     expect(presenter.listMemories('real')).toHaveLength(1)
     expect(repo.countByAgent('real')).toBe(1)
   })

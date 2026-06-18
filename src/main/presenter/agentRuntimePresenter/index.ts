@@ -107,6 +107,7 @@ import {
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
 import { DeepChatTapeService } from './tapeService'
+import { buildEffectiveTapeView } from './tapeEffectiveView'
 import {
   buildExcludedRefs,
   buildIncludedRefs,
@@ -300,7 +301,7 @@ const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, Sk
 }
 
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
-/** 兜底抽取的最小增量阈值（自上次记忆游标以来的新消息条数）。低于此值跳过、零调用。 */
+// Minimum new-message delta (since the memory cursor) before the fallback extracts.
 const MEMORY_FALLBACK_MIN_DELTA = 6
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -810,7 +811,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           startedExternally: true,
           signal: preStreamAbortSignal
         })
-        // 通路①：compaction 搭车抽取（解耦的独立廉价调用，后台执行）
         this.triggerMemoryExtractionFromCompaction(sessionId, compactionIntent)
       } else {
         summaryState = this.sessionStore.getSummaryState(sessionId)
@@ -928,7 +928,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
-        // 通路②：会话兜底抽取（游标门控，覆盖从不触发 compaction 的短会话；后台执行）
         this.triggerMemoryExtractionFallback(sessionId)
       }
       return {
@@ -1782,10 +1781,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return undefined
   }
 
-  /**
-   * Layer 4：在已构建的 systemPrompt 末尾追加记忆注入（自我模型 + 召回记忆）。
-   * 仅当该 agent 启用记忆层时生效；任何失败都退化为原 prompt，绝不阻塞对话。
-   */
+  // Appends the memory section (self-model + recalled memories) to the system prompt.
+  // No-op when the agent has memory disabled; any failure falls back to the original prompt.
   private async appendMemoryInjection(
     sessionId: string,
     systemPrompt: string,
@@ -1807,20 +1804,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  /**
-   * compaction 搭车抽取（通路①）：用即将被摘要的 span 抽取记忆。
-   * 解耦自摘要的独立廉价调用；后台执行，绝不阻塞主流程。span 已是人类可读块。
-   */
   private triggerMemoryExtractionFromCompaction(sessionId: string, intent: CompactionIntent): void {
-    const spanText = intent.summaryBlocks.join('\n\n').trim()
-    if (!spanText) return
-    this.enqueueSessionExtraction(sessionId, () =>
-      this.runMemoryExtraction(sessionId, {
-        spanText,
-        toOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+    if (!this.memoryPort) return
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+    if (!this.memoryPort.isEnabled(agentId)) return
+    const toOrderSeq = Math.max(1, intent.targetCursorOrderSeq)
+    this.enqueueSessionExtraction(sessionId, async () => {
+      const cursor =
+        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+      const span = this.buildMemorySpanFromTape(sessionId, cursor, toOrderSeq)
+      if (!span) return
+      await this.runMemoryExtraction(sessionId, {
+        spanText: span.spanText,
+        sourceEntryIds: span.sourceEntryIds,
+        toOrderSeq,
         reason: 'compaction'
       })
-    )
+    })
   }
 
   // Serializes extraction per session; sibling sessions never block each other.
@@ -1847,10 +1847,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return ''
   }
 
-  /**
-   * 会话兜底抽取（通路②）：覆盖从不触发 compaction 的短会话。
-   * 游标门控：memory_cursor >= tail 或增量不足阈值时零调用。后台执行。
-   */
+  // Fallback for sessions that never trigger compaction; cursor-gated so it is a no-op
+  // once the tail is caught up or the unseen delta is below the threshold.
   private triggerMemoryExtractionFallback(sessionId: string): void {
     if (!this.memoryPort) return
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
@@ -1863,13 +1861,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
       if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) return
-      const records = this.messageStore
-        .getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
-        .filter((record) => record.orderSeq > cursor)
-      const spanText = this.buildMemorySpanFromRecords(records)
-      if (!spanText) return
+      const span = this.buildMemorySpanFromTape(sessionId, cursor, tailOrderSeq)
+      if (!span) return
       await this.runMemoryExtraction(sessionId, {
-        spanText,
+        spanText: span.spanText,
+        sourceEntryIds: span.sourceEntryIds,
         toOrderSeq: tailOrderSeq,
         reason: 'fallback'
       })
@@ -1878,7 +1874,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private async runMemoryExtraction(
     sessionId: string,
-    options: { spanText: string; toOrderSeq: number; reason: 'compaction' | 'fallback' }
+    options: {
+      spanText: string
+      toOrderSeq: number
+      reason: 'compaction' | 'fallback'
+      sourceEntryIds?: number[]
+    }
   ): Promise<void> {
     if (!this.memoryPort) return
     try {
@@ -1896,21 +1897,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         agentId,
         spanText: options.spanText,
         model: { providerId: state.providerId, modelId: state.modelId },
-        sourceSession: sessionId
+        sourceSession: sessionId,
+        sourceEntryIds: options.sourceEntryIds ?? null
       })
 
-      // 抽取失败（模型/解析异常）：保持游标不变，下次会重试这段消息，
-      // 避免一次临时 LLM 失败把消息标记为“已消费”而永久丢失记忆。
+      // Leave the cursor unchanged on failure so this span is retried; a transient LLM or
+      // parse error must not mark the span consumed and lose its memories permanently.
       if (!result.ok) return
       const createdIds = result.createdIds
 
-      // 推进游标（抽取成功；无论是否抽到记忆，这段都已"消费"）
+      // Success consumes the span even when nothing was extracted.
       this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(
         sessionId,
         options.toOrderSeq
       )
 
-      // 仅在抽到记忆时落非重建审计 anchor（memory/* 不在重建白名单，不干扰上下文重建）
+      // Audit-only anchor, written only when memories were created; memory/* is not a
+      // reconstruction anchor, so it never affects context rebuild.
       if (createdIds.length > 0) {
         this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
           sessionId,
@@ -1924,7 +1927,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         })
       }
 
-      // 通路③：反思演化人格（节流由 MemoryPresenter 决定；落 persona/evolve anchor）
       const personaId = await this.memoryPort.maybeReflect(
         agentId,
         { providerId: state.providerId, modelId: state.modelId },
@@ -1942,16 +1944,32 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
   }
 
-  /** 把消息记录渲染成抽取用的纯文本 span（防御式解析两种 content 形态）。 */
-  private buildMemorySpanFromRecords(records: ChatMessageRecord[]): string {
+  // Builds the extraction span from the effective tape view (retractions, replacements and
+  // tool-dedup already applied) over (from, to]. Span text and lineage are gathered from the
+  // same pass so a message that contributes no text never leaks into sourceEntryIds.
+  private buildMemorySpanFromTape(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number
+  ): { spanText: string; sourceEntryIds: number[] } | null {
+    if (toOrderSeqInclusive <= fromOrderSeqExclusive) return null
+    const rows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
+    const selected = buildEffectiveTapeView(rows).messageEntries.filter(
+      (entry) =>
+        entry.record.orderSeq > fromOrderSeqExclusive &&
+        entry.record.orderSeq <= toOrderSeqInclusive
+    )
     const lines: string[] = []
-    for (const record of records) {
-      const text = this.extractPlainTextFromRecord(record)
-      if (text) {
-        lines.push(`${record.role === 'user' ? 'User' : 'Assistant'}: ${text}`)
-      }
+    const sourceEntryIds: number[] = []
+    for (const entry of selected) {
+      const text = this.extractPlainTextFromRecord(entry.record)
+      if (!text) continue
+      lines.push(`${entry.record.role === 'user' ? 'User' : 'Assistant'}: ${text}`)
+      sourceEntryIds.push(entry.entryId)
     }
-    return lines.join('\n').trim()
+    const spanText = lines.join('\n').trim()
+    if (!spanText) return null
+    return { spanText, sourceEntryIds }
   }
 
   private extractPlainTextFromRecord(record: ChatMessageRecord): string {
@@ -3018,6 +3036,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const summaryState = await this.applyCompactionIntent(params.sessionId, intent, {
       signal: params.signal
     })
+    this.triggerMemoryExtractionFromCompaction(params.sessionId, intent)
     const systemPrompt = await this.appendMemoryInjection(
       params.sessionId,
       appendReconstructionAnchorStateSection(

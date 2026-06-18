@@ -98,6 +98,52 @@ describe('AgentRepository', () => {
     })
   })
 
+  it('inherits memoryExtractionModel from the builtin agent and lets a custom agent override it', () => {
+    const now = Date.now()
+    const makeRow = (id: string, source: string, config: object) => ({
+      id,
+      agent_type: 'deepchat',
+      source,
+      name: id,
+      enabled: 1,
+      protected: source === 'builtin' ? 1 : 0,
+      description: null,
+      icon: null,
+      avatar_json: null,
+      config_json: JSON.stringify(config),
+      state_json: null,
+      created_at: now,
+      updated_at: now
+    })
+    const rows = new Map<string, any>([
+      [
+        'deepchat',
+        makeRow('deepchat', 'builtin', {
+          memoryExtractionModel: { providerId: 'openai', modelId: 'gpt-4o-mini' }
+        })
+      ],
+      ['inheriting-agent', makeRow('inheriting-agent', 'manual', {})],
+      [
+        'overriding-agent',
+        makeRow('overriding-agent', 'manual', {
+          memoryExtractionModel: { providerId: 'anthropic', modelId: 'claude-haiku-4-5' }
+        })
+      ]
+    ])
+    const repository = new AgentRepository({
+      agentsTable: {
+        get: (id: string) => rows.get(id)
+      }
+    } as never)
+
+    expect(repository.resolveDeepChatAgentConfig('inheriting-agent').memoryExtractionModel).toEqual(
+      { providerId: 'openai', modelId: 'gpt-4o-mini' }
+    )
+    expect(repository.resolveDeepChatAgentConfig('overriding-agent').memoryExtractionModel).toEqual(
+      { providerId: 'anthropic', modelId: 'claude-haiku-4-5' }
+    )
+  })
+
   it('clears registry ACP installation state without deleting the row', () => {
     const row = {
       id: 'codex-acp',

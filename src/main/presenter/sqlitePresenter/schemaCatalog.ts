@@ -204,7 +204,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   },
   {
     name: 'agent_memory',
-    createTable: (db) => new AgentMemoryTable(db)
+    createTable: (db) => new AgentMemoryTable(db),
+    repairableColumns: {
+      source_entry_ids: 'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;'
+    }
   },
   {
     name: 'new_session_active_skills',

@@ -671,6 +671,7 @@ export interface DeepChatAgentConfig {
   autoCompactionRetainRecentPairs?: number
   memoryEnabled?: boolean
   memoryEmbedding?: DeepChatAgentMemoryEmbedding | null
+  memoryExtractionModel?: DeepChatAgentModelSelection | null
   memoryRetrieval?: DeepChatAgentMemoryRetrieval | null
 }
 

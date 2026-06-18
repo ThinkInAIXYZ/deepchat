@@ -6,36 +6,29 @@ export interface MemoryInjectionPayload {
   memories: Array<{ id: string; kind: AgentMemoryKind; content: string }>
 }
 
-/**
- * 运行时只需要的最小记忆注入端口。独立于 MemoryPresenter 具体实现（DuckDB/electron），
- * 让 AgentRuntimePresenter 不被原生依赖污染，也便于单测注入假实现。
- */
+// Minimal injection-only surface so AgentRuntimePresenter stays free of native deps
+// and tests can supply a fake implementation.
 export interface MemoryInjectionPort {
   isEnabled(agentId: string): boolean
   buildInjection(agentId: string, query: string): Promise<MemoryInjectionPayload | null>
 }
 
-/**
- * 运行时记忆端口：在注入之外，新增抽取入口（compaction 搭车 / 会话兜底）。
- * 抽取是独立廉价 LLM 调用，不改动摘要逻辑。
- */
+// Adds extraction entry points on top of injection. Extraction is an independent cheap
+// LLM call that never touches summarization.
 export interface MemoryRuntimePort extends MemoryInjectionPort {
-  /**
-   * 从对话片段抽取记忆并写入（status=pending_embedding）。
-   * 返回 { ok:true, createdIds }（成功，createdIds 可能为空）或 { ok:false }（抽取失败）。
-   * 绝不抛出、绝不阻塞调用方；调用方应在 ok:false 时保持记忆游标不变以便重试。
-   */
+  // Extracts memories from a span and writes them (status=pending_embedding).
+  // Resolves { ok:true, createdIds } (createdIds may be empty) or { ok:false } on failure.
+  // Never throws or blocks the caller; on ok:false the caller must keep its cursor for retry.
   extractAndStore(input: {
     agentId: string
     spanText: string
     model: { providerId: string; modelId: string }
     sourceSession?: string | null
+    sourceEntryIds?: number[] | null
   }): Promise<MemoryExtractionResult>
 
-  /**
-   * 基于记忆反思并演化自我模型（人格）。节流由实现决定；返回新人格版本 id 或 null。
-   * 失败返回 null，绝不抛出。
-   */
+  // Reflects over memories and evolves the self-model (persona). Throttling is the
+  // implementation's concern; returns a new persona version id, or null on no-op/failure.
   maybeReflect(
     agentId: string,
     model: { providerId: string; modelId: string },
@@ -91,7 +84,7 @@ export function buildMemorySection(payload: MemoryInjectionPayload | null): stri
   return sections.length ? sections.join('\n\n') : ''
 }
 
-/** 在现有 systemPrompt 末尾追加 Layer 4 记忆段；payload 为空则原样返回。 */
+// Appends the memory section to systemPrompt; returns it unchanged when payload is empty.
 export function appendMemorySection(
   systemPrompt: string,
   payload: MemoryInjectionPayload | null

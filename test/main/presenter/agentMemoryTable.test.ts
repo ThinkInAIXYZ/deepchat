@@ -74,7 +74,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         })
       ).toThrow()
 
-      // 同 key 但不同 agent 应允许
+      // Same key under a different agent is allowed.
       expect(() =>
         table.insert({
           id: 'm3',
@@ -200,6 +200,59 @@ describeIfSqlite('AgentMemoryTable', () => {
       const removed = table.clearByAgent('deepchat')
       expect(removed).toBe(2)
       expect(table.countByAgent('deepchat')).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('round-trips source_entry_ids lineage and leaves it null when absent', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'm1',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'with lineage',
+        sourceSession: 's1',
+        sourceEntryIds: [11, 12]
+      })
+      table.insert({ id: 'm2', agentId: 'deepchat', kind: 'semantic', content: 'no lineage' })
+      // Empty arrays collapse to NULL (no lineage worth recording).
+      table.insert({
+        id: 'm3',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'empty lineage',
+        sourceEntryIds: []
+      })
+
+      expect(JSON.parse(table.getById('m1')!.source_entry_ids!)).toEqual([11, 12])
+      expect(table.getById('m2')?.source_entry_ids).toBe(null)
+      expect(table.getById('m3')?.source_entry_ids).toBe(null)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('lists pending embeddings scoped to a single agent at the SQL layer', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'a1', agentId: 'agent-a', kind: 'semantic', content: 'a1' })
+      table.insert({ id: 'a2', agentId: 'agent-a', kind: 'semantic', content: 'a2' })
+      table.insert({ id: 'b1', agentId: 'agent-b', kind: 'semantic', content: 'b1' })
+
+      const aPending = table.listPendingEmbedding(50, 'agent-a')
+      expect(aPending.map((row) => row.id).sort()).toEqual(['a1', 'a2'])
+      const bPending = table.listPendingEmbedding(50, 'agent-b')
+      expect(bPending.map((row) => row.id)).toEqual(['b1'])
+      // No agent filter still returns the global pending set.
+      expect(table.listPendingEmbedding(50)).toHaveLength(3)
     } finally {
       db.close()
     }

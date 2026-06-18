@@ -23,6 +23,7 @@ export interface AgentMemoryRow {
   last_accessed: number | null
   access_count: number
   decay_score: number | null
+  source_entry_ids: string | null
 }
 
 export interface AgentMemoryInsertInput {
@@ -37,6 +38,7 @@ export interface AgentMemoryInsertInput {
   provenanceKey?: string | null
   isAnchor?: boolean
   createdAt?: number
+  sourceEntryIds?: number[] | null
 }
 
 export interface AgentMemoryListOptions {
@@ -58,6 +60,12 @@ const AGENT_MEMORY_INDEX_SQL = `
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
+}
+
+function serializeSourceEntryIds(ids: number[] | null | undefined): string | null {
+  if (!ids?.length) return null
+  const valid = ids.filter((id) => Number.isInteger(id) && id >= 0)
+  return valid.length ? JSON.stringify(valid) : null
 }
 
 export class AgentMemoryTable extends BaseTable {
@@ -84,7 +92,8 @@ export class AgentMemoryTable extends BaseTable {
         created_at INTEGER NOT NULL,
         last_accessed INTEGER,
         access_count INTEGER NOT NULL DEFAULT 0,
-        decay_score REAL
+        decay_score REAL,
+        source_entry_ids TEXT
       );
       ${AGENT_MEMORY_INDEX_SQL}
     `
@@ -125,7 +134,8 @@ export class AgentMemoryTable extends BaseTable {
       created_at: input.createdAt ?? Date.now(),
       last_accessed: null,
       access_count: 0,
-      decay_score: null
+      decay_score: null,
+      source_entry_ids: serializeSourceEntryIds(input.sourceEntryIds)
     }
 
     this.db
@@ -147,9 +157,10 @@ export class AgentMemoryTable extends BaseTable {
            created_at,
            last_accessed,
            access_count,
-           decay_score
+           decay_score,
+           source_entry_ids
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -168,7 +179,8 @@ export class AgentMemoryTable extends BaseTable {
         row.created_at,
         row.last_accessed,
         row.access_count,
-        row.decay_score
+        row.decay_score,
+        row.source_entry_ids
       )
 
     return row
@@ -251,8 +263,18 @@ export class AgentMemoryTable extends BaseTable {
       .all(agentId, pattern, cappedLimit) as AgentMemoryRow[]
   }
 
-  listPendingEmbedding(limit: number = 50): AgentMemoryRow[] {
+  listPendingEmbedding(limit: number = 50, agentId?: string): AgentMemoryRow[] {
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 500)
+    if (agentId) {
+      return this.db
+        .prepare(
+          `SELECT * FROM agent_memory
+           WHERE status = 'pending_embedding' AND agent_id = ?
+           ORDER BY created_at ASC
+           LIMIT ?`
+        )
+        .all(agentId, cappedLimit) as AgentMemoryRow[]
+    }
     return this.db
       .prepare(
         `SELECT * FROM agent_memory

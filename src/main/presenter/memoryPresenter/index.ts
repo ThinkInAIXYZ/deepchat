@@ -11,6 +11,7 @@ import {
   type MemoryPresenterDeps,
   type MemoryRecallItem,
   type MemoryStatus,
+  type MemoryVectorRecord,
   type WriteMemoriesOptions
 } from './types'
 import {
@@ -26,18 +27,23 @@ import {
   type MemoryInjectionPort,
   type MemoryRuntimePort
 } from './injectionPort'
-import { buildExtractionPrompt, parseMemoryCandidates } from './extraction'
+import {
+  buildExtractionPrompt,
+  buildTriagePrompt,
+  parseMemoryCandidates,
+  parseTriageDecision
+} from './extraction'
 import { buildReflectionPrompt, sanitizeSelfModel } from './extraction'
 import type { MemoryExtractionInput, MemoryExtractionResult, MemoryUpdateReason } from './types'
 
 export { appendMemorySection, buildMemorySection, isSafeAgentId }
 export type { MemoryInjectionPayload, MemoryInjectionPort, MemoryRuntimePort }
 
-/** 触发反思的最少（非人格）记忆数。 */
+// Minimum non-persona memories before reflection can run.
 const MIN_MEMORIES_FOR_REFLECTION = 3
-/** 每累积 N 条记忆触发一次反思。 */
+// Reflect once every N accumulated memories.
 const REFLECT_EVERY_N_MEMORIES = 5
-/** 反思时纳入的记忆条数上限。 */
+// Max memories fed into a single reflection prompt.
 const REFLECTION_MEMORY_LIMIT = 20
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -56,6 +62,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly vectorStores = new Map<string, Promise<IMemoryVectorStore>>()
   private readonly vectorStoreIdentities = new Map<string, string>()
   private readonly vectorStoreLocks = new Map<string, Promise<unknown>>()
+  // Serializes an agent's embedding drains. Distinct from vectorStoreLocks on purpose: this one
+  // spans the network embedding call, the file lock must not.
+  private readonly embeddingDrains = new Map<string, Promise<unknown>>()
 
   constructor(private readonly deps: MemoryPresenterDeps) {}
 
@@ -63,29 +72,31 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.resolveAgentConfig(agentId)?.memoryEnabled === true
   }
 
-  /** 校验外部传入的 agentId 格式；非法直接抛错（视为调用方 bug / 越权尝试）。 */
+  // Rejects malformed agentIds (caller bug or abuse attempt) before they reach storage.
   private assertSafeAgentId(agentId: string): void {
     if (!isSafeAgentId(agentId)) {
       throw new Error(`[Memory] invalid agentId: ${JSON.stringify(agentId)}`)
     }
   }
 
-  /** 是否为可管理的真实 DeepChat agent（未提供严格校验依赖时，仅依赖格式校验）。 */
+  // Falls back to format validation only when no strict existence checker was injected.
   private isManagedAgent(agentId: string): boolean {
     return this.deps.isManagedAgent ? this.deps.isManagedAgent(agentId) : true
   }
 
-  /** 广播记忆变更（宿主接 typed 事件）；无回调时静默。 */
   private emitChanged(agentId: string, reason: MemoryUpdateReason): void {
     this.deps.onMemoryChanged?.(agentId, reason)
   }
 
-  /**
-   * 阶段1（同步、调用方事务内）：写入记忆行（status=pending_embedding），幂等去重。
-   * 返回新建（非重复）记忆的 id 列表，供调用方落 tape anchor / 触发阶段2。
-   */
+  // Phase 1 (synchronous, inside the caller's transaction): write memory rows as
+  // pending_embedding with idempotent dedup. Returns the ids of newly-created (non-duplicate)
+  // memories so the caller can anchor them on the tape and trigger phase 2.
   writeMemoriesSync(candidates: MemoryCandidate[], options: WriteMemoriesOptions): string[] {
     if (!candidates.length) return []
+    const sourceSession = options.sourceSession ?? null
+    // Tape entry_id lineage is only meaningful when scoped by a session; drop it otherwise
+    // so a stray id can never be stored without a session to resolve it against.
+    const sourceEntryIds = sourceSession ? (options.sourceEntryIds ?? null) : null
     const created: string[] = []
     for (const candidate of candidates) {
       const content = candidate.content.trim()
@@ -103,29 +114,56 @@ export class MemoryPresenter implements MemoryRuntimePort {
           content,
           importance: candidate.importance,
           status: 'pending_embedding',
-          sourceSession: options.sourceSession ?? null,
+          sourceSession,
           userScope: options.userScope ?? null,
-          provenanceKey
+          provenanceKey,
+          sourceEntryIds
         })
         created.push(id)
       } catch (error) {
         if (!isUniqueConstraintError(error)) throw error
-        // 唯一索引并发冲突 → 视为已存在，跳过
+        // Unique-index race: treat as already present and skip.
         logger.warn(`[Memory] insert skipped (dedupe/race): ${String(error)}`)
       }
     }
     return created
   }
 
-  /**
-   * 阶段2（异步、事务外）：为 pending_embedding 的记忆计算向量并写入向量库，回填状态。
-   * 无 embedding 配置 → 标记 fts_only（仍可被 FTS 召回）。
-   */
-  async processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
+  // Serializes an agent's drains so two background triggers can't list and embed the same
+  // pending rows at once (duplicate, costly getEmbeddings calls). An uncontended call starts
+  // its drain synchronously; a contended one queues behind the in-flight drain and then finds
+  // the rows already embedded. A failing drain never breaks the chain for the next one.
+  processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
+    const prev = this.embeddingDrains.get(agentId)
+    const run = prev
+      ? prev.then(
+          () => this.drainPendingEmbeddings(agentId, limit),
+          () => this.drainPendingEmbeddings(agentId, limit)
+        )
+      : this.drainPendingEmbeddings(agentId, limit)
+    const tracked = run.then(
+      () => undefined,
+      () => undefined
+    )
+    this.embeddingDrains.set(agentId, tracked)
+    void tracked.finally(() => {
+      if (this.embeddingDrains.get(agentId) === tracked) {
+        this.embeddingDrains.delete(agentId)
+      }
+    })
+    return run
+  }
+
+  // Phase 2 (asynchronous, outside any transaction): embed the agent's pending_embedding
+  // memories, write the vectors to its sidecar, and backfill status. With no embedding config
+  // the rows are marked fts_only (still recallable via FTS).
+  //
+  // Pending rows are fetched scoped to this agent (SQL-level), embedded in a single batched
+  // call, and written to the sidecar in one transaction under the per-agent lock. Scoping at
+  // the query keeps a high-producing agent from consuming another agent's embedding budget.
+  private async drainPendingEmbeddings(agentId: string, limit: number): Promise<void> {
     const config = this.deps.resolveAgentConfig(agentId)
-    const pending = this.deps.repository
-      .listPendingEmbedding(limit)
-      .filter((row) => row.agent_id === agentId)
+    const pending = this.deps.repository.listPendingEmbedding(limit, agentId)
     if (!pending.length) return
 
     const embedding = config?.memoryEmbedding
@@ -136,88 +174,115 @@ export class MemoryPresenter implements MemoryRuntimePort {
       return
     }
 
-    for (const row of pending) {
-      try {
-        const vectors = await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
-          row.content
-        ])
-        const vector = vectors[0]
-        if (!vector?.length) {
-          this.deps.repository.updateStatus(row.id, 'error')
-          continue
+    try {
+      const vectors = await this.deps.getEmbeddings(
+        embedding.providerId,
+        embedding.modelId,
+        pending.map((row) => row.content)
+      )
+      const dim = vectors.find((vector) => vector?.length)?.length ?? 0
+      const records: MemoryVectorRecord[] = []
+      for (let i = 0; i < pending.length; i += 1) {
+        const vector = vectors[i]
+        if (dim > 0 && vector?.length === dim) {
+          records.push({ memoryId: pending[i].id, embedding: vector })
+        } else {
+          this.deps.repository.updateStatus(pending[i].id, 'error')
         }
-        // Open the store and write under the per-agent lock, with the row existence check
-        // INSIDE the lock and BEFORE opening: if the row was cleared during the embedding
-        // await, a concurrent clear cannot interleave to make us resurrect the sidecar.
-        const outcome = await this.runExclusiveForAgent(agentId, async () => {
-          if (!this.deps.repository.getById(row.id)) return 'gone' as const
-          const store = await this.openVectorStoreLocked(
-            agentId,
-            { providerId: embedding.providerId, modelId: embedding.modelId },
-            vector.length
-          )
-          if (!store.isUsable()) return 'unusable' as const
-          await store.upsert([{ memoryId: row.id, embedding: vector }])
-          return 'ok' as const
-        })
-        if (outcome === 'gone') continue
-        if (outcome === 'unusable') {
-          this.deps.repository.updateStatus(row.id, 'error')
-          continue
+      }
+      if (!records.length) return
+
+      // Open the store and write the whole batch under one per-agent lock, re-checking row
+      // existence INSIDE the lock: a clear that ran during the embedding await drops those
+      // rows here so it cannot interleave to resurrect the sidecar with stale vectors.
+      const outcome = await this.runExclusiveForAgent(agentId, async () => {
+        const live = records.filter((record) => this.deps.repository.getById(record.memoryId))
+        if (!live.length) return { written: new Set<string>(), usable: true }
+        const store = await this.openVectorStoreLocked(
+          agentId,
+          { providerId: embedding.providerId, modelId: embedding.modelId },
+          dim
+        )
+        if (!store.isUsable()) return { written: new Set<string>(), usable: false }
+        await store.upsert(live)
+        return { written: new Set(live.map((record) => record.memoryId)), usable: true }
+      })
+
+      for (const record of records) {
+        if (outcome.written.has(record.memoryId)) {
+          this.deps.repository.updateStatus(record.memoryId, 'embedded', {
+            embeddingId: record.memoryId,
+            embeddingDim: dim
+          })
+        } else if (!outcome.usable) {
+          this.deps.repository.updateStatus(record.memoryId, 'error')
         }
-        this.deps.repository.updateStatus(row.id, 'embedded', {
-          embeddingId: row.id,
-          embeddingDim: vector.length
-        })
-      } catch (error) {
-        logger.error(`[Memory] embedding failed for ${row.id}: ${String(error)}`)
+        // Rows cleared mid-flight are absent from `written`; their row no longer exists.
+      }
+    } catch (error) {
+      logger.error(`[Memory] batch embedding failed for ${agentId}: ${String(error)}`)
+      for (const row of pending) {
         this.deps.repository.updateStatus(row.id, 'error')
       }
     }
   }
 
-  /**
-   * 从对话片段抽取记忆（独立廉价 LLM 调用）并写入。
-   * 返回 { ok:true, createdIds } 表示成功（createdIds 可能为空）；{ ok:false } 表示抽取失败。
-   * 失败不抛出、不影响对话主流程，但调用方应据此避免推进记忆游标以便后续重试。
-   */
+  // Extracts memories from a span via an independent cheap LLM call and writes them. Returns
+  // { ok:true, createdIds } on success (createdIds may be empty) or { ok:false } on failure.
+  // Never throws and never disrupts the chat; on failure the caller keeps its cursor for retry.
   async extractAndStore(input: MemoryExtractionInput): Promise<MemoryExtractionResult> {
-    // 未启用 / 空片段：视为“成功消费、无新增”，调用方可安全推进游标
+    // Disabled or empty span: a successful no-op consume, so the caller may advance its cursor.
     if (!this.isEnabled(input.agentId)) return { ok: true, createdIds: [] }
     const span = input.spanText.trim()
     if (!span) return { ok: true, createdIds: [] }
+    const model = this.resolveExtractionModel(input.agentId, input.model)
     try {
+      // Cheap triage gate: skip the larger extraction call on spans with nothing durable.
+      // A triage failure is non-fatal — fall through to extraction so facts are never dropped.
+      let shouldExtract = true
+      try {
+        const triage = await this.deps.generateText(
+          model.providerId,
+          model.modelId,
+          buildTriagePrompt(span)
+        )
+        shouldExtract = parseTriageDecision(triage)
+      } catch (error) {
+        logger.warn(`[Memory] triage skipped, extracting anyway: ${String(error)}`)
+      }
+      if (!shouldExtract) return { ok: true, createdIds: [] }
+
       const response = await this.deps.generateText(
-        input.model.providerId,
-        input.model.modelId,
+        model.providerId,
+        model.modelId,
         buildExtractionPrompt(span)
       )
       const candidates = parseMemoryCandidates(response)
       const created = candidates.length
         ? this.writeMemoriesSync(candidates, {
             agentId: input.agentId,
-            sourceSession: input.sourceSession ?? null
+            sourceSession: input.sourceSession ?? null,
+            sourceEntryIds: input.sourceEntryIds ?? null
           })
         : []
       if (created.length) {
         this.emitChanged(input.agentId, 'extract')
-        // 阶段2：异步向量化，不阻塞调用方
+        // Phase 2 embedding runs in the background; it must not block the caller.
         void this.processPendingEmbeddings(input.agentId).catch((error) => {
           logger.warn(`[Memory] background embedding failed: ${String(error)}`)
         })
       }
       return { ok: true, createdIds: created }
     } catch (error) {
-      // 模型调用 / 解析失败：返回 ok:false，调用方据此保持游标不变以便后续重试
+      // Model/parse failure: return ok:false so the caller keeps its cursor for a later retry.
       logger.warn(`[Memory] extraction failed: ${String(error)}`)
       return { ok: false }
     }
   }
 
-  /**
-   * 显式记忆写入（`memory_remember` 工具路径）：写入 + 异步向量化 + 广播变更。
-   * 与自动抽取共用 'extract' 变更原因（订阅方仅据 agentId 决定刷新，不区分细分原因）。
-   */
+  // Explicit memory write (the `memory_remember` tool path): write + async embed + broadcast.
+  // Shares the 'extract' change reason with auto-extraction; subscribers refresh by agentId
+  // and do not distinguish finer reasons.
   async rememberMemory(
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions
@@ -232,10 +297,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return created
   }
 
-  /**
-   * 检索：向量（仅 embedded）+ FTS 混合召回，按综合打分取 top-K。
-   * 无 embedding 配置时退化为纯 FTS。
-   */
+  // Hybrid recall: vector (embedded rows only) + FTS, ranked by combined score and capped at
+  // top-K. Degrades to FTS-only when the agent has no embedding config.
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     const config = this.deps.resolveAgentConfig(agentId)
     const { topK, weights } = resolveRetrieval(config?.memoryRetrieval)
@@ -243,14 +306,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
     const scored = new Map<string, MemoryRecallItem>()
 
-    // FTS 召回（embedded | fts_only | error 均可，只要有 content）
+    // FTS recall covers any status that still has content (embedded | fts_only | error).
     if (normalizedQuery) {
       for (const row of this.deps.repository.search(agentId, normalizedQuery, topK * 2)) {
         scored.set(row.id, this.toRecallItem(row, FTS_SIMILARITY_BASELINE, now, weights))
       }
     }
 
-    // 向量召回（仅 embedded）
+    // Vector recall (embedded rows only).
     const embedding = config?.memoryEmbedding
     if (normalizedQuery && embedding?.providerId && embedding?.modelId) {
       try {
@@ -270,7 +333,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
             if (similarity < DEFAULT_SIMILARITY_THRESHOLD) continue
             const row = this.deps.repository.getById(match.memoryId)
             if (!row || row.superseded_by) continue
-            // 向量相似度优先于 FTS 基线
+            // A real vector similarity overrides the FTS baseline for the same row.
             scored.set(row.id, this.toRecallItem(row, similarity, now, weights))
           }
         }
@@ -289,7 +352,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return results
   }
 
-  /** 组装 Layer 4 注入载荷：常驻自我模型 + top-K 召回。 */
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionPayload | null> {
     if (!this.isEnabled(agentId)) return null
     const persona = this.deps.repository.getActivePersona(agentId)
@@ -301,14 +363,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
   }
 
-  // ==================== 人格演化 ====================
+  // ==================== Persona evolution ====================
 
   // Persona currently auto-evolves without gating; controlled approval is planned later.
-  /**
-   * 反思并演化自我模型（人格的核心）。节流：仅在记忆量跨过阈值倍数、或尚无人格时触发。
-   * createdCount = 本轮新写入的记忆数，用于判断是否"跨过"反思阈值。
-   * 返回新人格版本 id，或 null（未触发 / 失败）。独立廉价 LLM 调用，失败不抛。
-   */
+  // Reflects over recent memories and evolves the self-model. Throttled: runs only when the
+  // memory count crosses a REFLECT_EVERY_N_MEMORIES boundary, or when no persona exists yet.
+  // createdCount is the number written this round, used to detect the crossing. Returns the new
+  // persona version id, or null (not triggered / failed). Independent cheap call, never throws.
   async maybeReflect(
     agentId: string,
     model: { providerId: string; modelId: string },
@@ -333,9 +394,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
         .slice()
         .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
         .slice(0, REFLECTION_MEMORY_LIMIT)
+      const reflectionModel = this.resolveExtractionModel(agentId, model)
       const selfModelText = await this.deps.generateText(
-        model.providerId,
-        model.modelId,
+        reflectionModel.providerId,
+        reflectionModel.modelId,
         buildReflectionPrompt(
           previous?.content ?? null,
           top.map((row) => row.content)
@@ -350,7 +412,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
   }
 
-  /** 写入新自我模型版本，旧版本 superseded。锚点（is_anchor）不参与替换。 */
+  // Writes a new self-model version and supersedes the previous one. Anchored personas
+  // (is_anchor) are never superseded.
   evolvePersona(agentId: string, content: string, sourceSession?: string | null): string | null {
     const trimmed = content.trim()
     if (!trimmed) return null
@@ -378,7 +441,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.repository.listPersonaVersions(agentId)
   }
 
-  /** 回滚：将指定历史 persona 版本设为 active（清除其 superseded_by），并 supersede 当前 active。 */
+  // Rollback: reactivates a historical persona version (clears its superseded_by) and
+  // supersedes the current active one.
   rollbackPersona(agentId: string, versionId: string): boolean {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return false
@@ -393,7 +457,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return true
   }
 
-  // ==================== 管理 ====================
+  // ==================== Management ====================
 
   listMemories(agentId: string): AgentMemoryRow[] {
     this.assertSafeAgentId(agentId)
@@ -461,7 +525,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.vectorStoreLocks.clear()
   }
 
-  // ==================== 内部 ====================
+  // ==================== Internal ====================
+
+  // Cheap extraction/reflection model when configured; falls back to the caller's model.
+  private resolveExtractionModel(
+    agentId: string,
+    fallback: { providerId: string; modelId: string }
+  ): { providerId: string; modelId: string } {
+    const configured = this.deps.resolveAgentConfig(agentId)?.memoryExtractionModel
+    if (configured?.providerId && configured?.modelId) {
+      return { providerId: configured.providerId, modelId: configured.modelId }
+    }
+    return fallback
+  }
 
   private toRecallItem(
     row: AgentMemoryRow,

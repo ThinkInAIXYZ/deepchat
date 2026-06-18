@@ -93,6 +93,8 @@ const mergeDeepChatConfig = (
       2,
     memoryEnabled: overrideConfig.memoryEnabled ?? baseConfig.memoryEnabled ?? false,
     memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
+    memoryExtractionModel:
+      overrideConfig.memoryExtractionModel ?? baseConfig.memoryExtractionModel ?? null,
     memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null
   })
 

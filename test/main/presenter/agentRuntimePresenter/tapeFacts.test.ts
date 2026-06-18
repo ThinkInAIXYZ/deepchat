@@ -193,3 +193,73 @@ describe('appendToolFactsToTape', () => {
     expect(JSON.parse(effectiveResults[0].payload_json).response).toBe('second')
   })
 })
+
+function userRecord(
+  id: string,
+  orderSeq: number,
+  text: string,
+  overrides: Partial<ChatMessageRecord> = {}
+) {
+  return {
+    id,
+    sessionId: 's1',
+    orderSeq,
+    role: 'user',
+    content: JSON.stringify({ text }),
+    status: 'sent',
+    isContextEdge: 0,
+    metadata: '{}',
+    traceCount: 0,
+    createdAt: 100,
+    updatedAt: 100,
+    ...overrides
+  } as ChatMessageRecord
+}
+
+describe('buildEffectiveTapeView messageEntries (lineage pairing)', () => {
+  it('pairs each effective message with its tape entry_id, consistent with messageRecords', () => {
+    const table = createTable()
+    appendMessageRecordToTape(table as any, userRecord('u1', 1, 'first'), 'live')
+    appendMessageRecordToTape(
+      table as any,
+      assistantRecord(
+        [
+          {
+            type: 'content',
+            status: 'success',
+            timestamp: 1,
+            content: 'reply'
+          } as AssistantMessageBlock
+        ],
+        { id: 'a1', orderSeq: 2 }
+      ),
+      'live'
+    )
+
+    const view = buildEffectiveTapeView(table.rows)
+    expect(view.messageEntries.map((entry) => entry.record.id)).toEqual(
+      view.messageRecords.map((record) => record.id)
+    )
+    expect(view.messageEntries.map((entry) => entry.record.orderSeq)).toEqual([1, 2])
+    for (const entry of view.messageEntries) {
+      const row = table.rows.find((r) => r.kind === 'message' && r.entry_id === entry.entryId)
+      expect(row).toBeTruthy()
+      expect(JSON.parse(row!.payload_json).record.id).toBe(entry.record.id)
+    }
+  })
+
+  it('excludes a retracted message from messageEntries', () => {
+    const table = createTable()
+    appendMessageRecordToTape(table as any, userRecord('u1', 1, 'keep me'), 'live')
+    appendMessageRecordToTape(table as any, userRecord('u2', 2, 'retract me'), 'live')
+    table.append({
+      sessionId: 's1',
+      kind: 'event',
+      name: 'message/retracted',
+      payload: { data: { messageId: 'u2' } }
+    })
+
+    const ids = buildEffectiveTapeView(table.rows).messageEntries.map((entry) => entry.record.id)
+    expect(ids).toEqual(['u1'])
+  })
+})
