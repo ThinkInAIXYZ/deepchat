@@ -32,8 +32,16 @@ export interface MemoryRepositoryPort {
   updateStatus(
     id: string,
     status: AgentMemoryStatus,
-    embedding?: { embeddingId?: string | null; embeddingDim?: number | null }
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
   ): void
+  // Bulk-resets the embedding state of an agent's non-superseded rows in the given statuses back
+  // to pending_embedding (one SQL UPDATE), returning how many rows changed. Used by reindex and
+  // backfill so the requeue never loops per row on the caller's stack.
+  requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number
   markSuperseded(id: string, supersededBy: string | null): void
   recordAccess(id: string, accessedAt?: number): void
   delete(id: string): void
@@ -87,12 +95,45 @@ export interface MemoryRecallItem {
   content: string
   score: number
   importance: number
+  // Which retrieval path(s) surfaced this item; powers source-aware ranking and provenance UI.
+  sources?: { vec?: boolean; fts?: boolean }
+  // Lineage back to the originating tape span, when the row carries it.
+  sourceSession?: string | null
+  sourceEntryIds?: number[] | null
+}
+
+// One ranked candidate from a single retrieval path, fed into RRF fusion.
+export interface RetrievalCandidate {
+  row: AgentMemoryRow
+  similarity?: number
+  sources: { vec?: boolean; fts?: boolean }
+}
+
+export interface FuseOptions {
+  topK: number
+  rrfK: number
+  weights: { similarity: number; recency: number; importance: number }
+  now: number
+  halfLifeMs?: number
+  ftsBaseline?: number
+}
+
+// Pure fusion port: two already-ranked candidate lists in, one fused+reranked list out.
+// Implemented as a free function in scoring.ts so it can be unit-tested without storage.
+export interface MemoryRetrievalPort {
+  fuse(
+    fts: AgentMemoryRow[],
+    vec: { row: AgentMemoryRow; similarity: number }[],
+    opts: FuseOptions
+  ): MemoryRecallItem[]
 }
 
 export interface MemoryStatus {
   total: number
   pendingEmbedding: number
   hasPersona: boolean
+  // True while the agent's vectors are being rebuilt after an embedding model/dimension change.
+  reindexing?: boolean
 }
 
 export interface MemoryPresenterDeps {
@@ -126,6 +167,7 @@ export type MemoryUpdateReason =
   | 'clear'
   | 'persona-evolve'
   | 'persona-rollback'
+  | 'reindex'
 
 export interface MemoryExtractionInput {
   agentId: string
@@ -146,15 +188,25 @@ export function isSafeAgentId(agentId: unknown): agentId is string {
   return typeof agentId === 'string' && SAFE_AGENT_ID_PATTERN.test(agentId)
 }
 
+export const DEFAULT_SIMILARITY_THRESHOLD = 0.2
+// Reciprocal Rank Fusion constant; 60 is the long-standing default from the original RRF paper.
+export const DEFAULT_RRF_K = 60
+// Upper bounds that keep a malformed/imported config from producing a runaway vector LIMIT or a
+// degenerate fusion constant. topK feeds candidateLimit (topK*2) and the store query size.
+export const MAX_TOP_K = 100
+export const MAX_RRF_K = 1000
+
 export const DEFAULT_RETRIEVAL: Required<Omit<DeepChatAgentMemoryRetrieval, 'weights'>> & {
   weights: { similarity: number; recency: number; importance: number }
 } = {
   topK: 6,
+  rrfK: DEFAULT_RRF_K,
+  similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
   weights: { similarity: 0.6, recency: 0.25, importance: 0.15 }
 }
 
-export const DEFAULT_SIMILARITY_THRESHOLD = 0.2
 // Half-life (ms) for recency exponential decay; 14 days.
 export const DEFAULT_RECENCY_HALF_LIFE_MS = 14 * 24 * 60 * 60 * 1000
-// Similarity baseline for FTS-only hits that have no vector distance.
-export const FTS_SIMILARITY_BASELINE = 0.5
+// Similarity placeholder for FTS-only hits that have no vector distance; kept below the vector
+// threshold so a keyword-only hit never outranks a genuine strong vector match on the rerank.
+export const FTS_SIMILARITY_BASELINE = 0.3

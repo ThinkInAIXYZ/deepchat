@@ -206,7 +206,8 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     name: 'agent_memory',
     createTable: (db) => new AgentMemoryTable(db),
     repairableColumns: {
-      source_entry_ids: 'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;'
+      source_entry_ids: 'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;',
+      embedding_model: 'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;'
     }
   },
   {

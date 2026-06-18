@@ -1,0 +1,170 @@
+import { describe, expect, it } from 'vitest'
+
+import { fuse } from '@/presenter/memoryPresenter/scoring'
+import { DEFAULT_RETRIEVAL, DEFAULT_SIMILARITY_THRESHOLD } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+
+// Offline recall-quality regression. No real embedding service: a deterministic keyword-vector
+// stub stands in for getEmbeddings so the fixture and its expected ranking are reproducible.
+// It guards the two contracts the read-path rewrite must not regress:
+//   1) a strong vector hit is never outranked by a weak keyword-only hit;
+//   2) hybrid fusion is at least as good as keyword-only retrieval.
+
+const VOCAB = [
+  'chinese',
+  'concise',
+  'redis',
+  'cache',
+  'session',
+  'vue',
+  'pinia',
+  'frontend',
+  'timezone',
+  'pacific',
+  'docker',
+  'kubernetes',
+  'deploy'
+] as const
+
+// Light stemming so "caching"->"cache", "sessions"->"session" map onto the vocab.
+function tokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/caching/g, 'cache')
+    .replace(/sessions/g, 'session')
+    .split(/[^a-z]+/)
+    .filter(Boolean)
+}
+
+function embed(text: string): number[] {
+  const present = new Set(tokens(text))
+  return VOCAB.map((term) => (present.has(term) ? 1 : 0))
+}
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0
+  let na = 0
+  let nb = 0
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i]
+    na += a[i] * a[i]
+    nb += b[i] * b[i]
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb)
+  return denom === 0 ? 0 : dot / denom
+}
+
+function makeRow(id: string, content: string): AgentMemoryRow {
+  return {
+    id,
+    agent_id: 'a',
+    user_scope: null,
+    kind: 'semantic',
+    content,
+    importance: 0.5,
+    status: 'embedded',
+    embedding_id: id,
+    embedding_dim: VOCAB.length,
+    embedding_model: 'stub:stub',
+    source_session: null,
+    provenance_key: null,
+    is_anchor: 0,
+    superseded_by: null,
+    created_at: 1000,
+    last_accessed: null,
+    access_count: 0,
+    decay_score: null,
+    source_entry_ids: null
+  }
+}
+
+const FIXTURE: AgentMemoryRow[] = [
+  makeRow('m-chinese', 'user prefers concise answers in chinese'),
+  makeRow('m-redis', 'user likes redis caching for sessions'),
+  makeRow('m-vue', 'user builds vue frontend apps with pinia'),
+  makeRow('m-timezone', 'user works in the pacific timezone'),
+  makeRow('m-deploy', 'team deploys with docker and kubernetes')
+]
+
+interface EvalCase {
+  query: string
+  expected: string
+}
+
+const CASES: EvalCase[] = [
+  { query: 'redis caching', expected: 'm-redis' },
+  // Semantic, non-substring: "session store" never appears verbatim, vector must carry it.
+  { query: 'session store', expected: 'm-redis' },
+  { query: 'vue pinia frontend', expected: 'm-vue' },
+  { query: 'kubernetes deploy', expected: 'm-deploy' },
+  { query: 'pacific timezone', expected: 'm-timezone' }
+]
+
+function ftsCandidates(query: string): AgentMemoryRow[] {
+  const q = query.toLowerCase()
+  return FIXTURE.filter((row) => row.content.toLowerCase().includes(q))
+}
+
+function vecCandidates(query: string): { row: AgentMemoryRow; similarity: number }[] {
+  const queryVec = embed(query)
+  return FIXTURE.map((row) => ({ row, similarity: cosine(embed(row.content), queryVec) }))
+    .filter((candidate) => candidate.similarity >= DEFAULT_SIMILARITY_THRESHOLD)
+    .sort((a, b) => b.similarity - a.similarity)
+}
+
+const FUSE_OPTS = {
+  topK: 5,
+  rrfK: DEFAULT_RETRIEVAL.rrfK,
+  weights: DEFAULT_RETRIEVAL.weights,
+  now: 1000
+}
+
+function rankedIds(query: string, mode: 'hybrid' | 'fts'): string[] {
+  const vec = mode === 'hybrid' ? vecCandidates(query) : []
+  return fuse(ftsCandidates(query), vec, FUSE_OPTS).map((item) => item.id)
+}
+
+function reciprocalRank(ids: string[], expected: string): number {
+  const index = ids.indexOf(expected)
+  return index === -1 ? 0 : 1 / (index + 1)
+}
+
+function ndcgAtK(ids: string[], expected: string, k: number): number {
+  const index = ids.slice(0, k).indexOf(expected)
+  if (index === -1) return 0
+  // Single relevant doc → IDCG = 1; DCG = 1/log2(rank+2).
+  return 1 / Math.log2(index + 2)
+}
+
+describe('memory retrieval eval harness (hybrid RRF)', () => {
+  it('hits the expected memory at K=3 for every case (hit@3 = 1.0)', () => {
+    for (const testCase of CASES) {
+      const ids = rankedIds(testCase.query, 'hybrid')
+      expect(ids.slice(0, 3)).toContain(testCase.expected)
+    }
+  })
+
+  it('ranks the expected memory first for semantic, non-substring queries (strong vector wins)', () => {
+    const ids = rankedIds('session store', 'hybrid')
+    expect(ids[0]).toBe('m-redis')
+    // The keyword path alone cannot find it (no "session store" substring).
+    expect(ftsCandidates('session store')).toHaveLength(0)
+  })
+
+  it('hybrid MRR is at least as good as keyword-only retrieval', () => {
+    const mrr = (mode: 'hybrid' | 'fts') =>
+      CASES.reduce((sum, c) => sum + reciprocalRank(rankedIds(c.query, mode), c.expected), 0) /
+      CASES.length
+    const hybrid = mrr('hybrid')
+    const ftsOnly = mrr('fts')
+    expect(hybrid).toBeGreaterThanOrEqual(ftsOnly)
+    expect(hybrid).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('reports strong nDCG@3 across the fixture', () => {
+    const ndcg =
+      CASES.reduce((sum, c) => sum + ndcgAtK(rankedIds(c.query, 'hybrid'), c.expected, 3), 0) /
+      CASES.length
+    expect(ndcg).toBeGreaterThanOrEqual(0.9)
+  })
+})

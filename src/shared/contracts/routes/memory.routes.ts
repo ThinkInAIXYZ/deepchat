@@ -22,7 +22,8 @@ export const MemoryItemSchema = z.object({
 export const MemoryStatusSchema = z.object({
   total: z.number(),
   pendingEmbedding: z.number(),
-  hasPersona: z.boolean()
+  hasPersona: z.boolean(),
+  reindexing: z.boolean().optional()
 })
 
 export const memoryListRoute = defineRouteContract({

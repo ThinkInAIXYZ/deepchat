@@ -2,8 +2,6 @@ import logger from '@shared/logger'
 import { nanoid } from 'nanoid'
 
 import {
-  DEFAULT_SIMILARITY_THRESHOLD,
-  FTS_SIMILARITY_BASELINE,
   isSafeAgentId,
   type AgentMemoryRow,
   type IMemoryVectorStore,
@@ -14,12 +12,7 @@ import {
   type MemoryVectorRecord,
   type WriteMemoriesOptions
 } from './types'
-import {
-  buildMemoryProvenanceKey,
-  distanceToSimilarity,
-  resolveRetrieval,
-  retrievalScore
-} from './scoring'
+import { buildMemoryProvenanceKey, distanceToSimilarity, fuse, resolveRetrieval } from './scoring'
 import {
   appendMemorySection,
   buildMemorySection,
@@ -45,6 +38,13 @@ const MIN_MEMORIES_FOR_REFLECTION = 3
 const REFLECT_EVERY_N_MEMORIES = 5
 // Max memories fed into a single reflection prompt.
 const REFLECTION_MEMORY_LIMIT = 20
+// Per-batch size and batch cap for a background reindex drain.
+const REINDEX_BATCH_SIZE = 50
+const REINDEX_MAX_BATCHES = 200
+
+function embeddingFingerprint(providerId: string, modelId: string): string {
+  return `${providerId}:${modelId}`
+}
 
 function isUniqueConstraintError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
@@ -65,6 +65,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Serializes an agent's embedding drains. Distinct from vectorStoreLocks on purpose: this one
   // spans the network embedding call, the file lock must not.
   private readonly embeddingDrains = new Map<string, Promise<unknown>>()
+  // In-flight reindex per agent; recall coalesces onto it instead of starting a second rebuild.
+  private readonly reindexing = new Map<string, Promise<void>>()
+  // In-flight backfill per agent (embed fts_only / leftover pending rows without a store reset).
+  private readonly backfilling = new Map<string, Promise<void>>()
 
   constructor(private readonly deps: MemoryPresenterDeps) {}
 
@@ -174,12 +178,25 @@ export class MemoryPresenter implements MemoryRuntimePort {
       return
     }
 
+    let vectors: number[][]
     try {
-      const vectors = await this.deps.getEmbeddings(
+      vectors = await this.deps.getEmbeddings(
         embedding.providerId,
         embedding.modelId,
         pending.map((row) => row.content)
       )
+    } catch (error) {
+      // Transient embedding-service failure: keep the rows pending_embedding so the next drain
+      // retries them rather than terminally marking the batch 'error'. Memory is never lost and a
+      // service outage self-heals; without this a mid-reindex throw would strand the whole corpus.
+      logger.error(`[Memory] embedding service failed for ${agentId}, will retry: ${String(error)}`)
+      for (const row of pending) {
+        this.deps.repository.updateStatus(row.id, 'pending_embedding')
+      }
+      return
+    }
+
+    try {
       const dim = vectors.find((vector) => vector?.length)?.length ?? 0
       const records: MemoryVectorRecord[] = []
       for (let i = 0; i < pending.length; i += 1) {
@@ -208,11 +225,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
         return { written: new Set(live.map((record) => record.memoryId)), usable: true }
       })
 
+      const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
       for (const record of records) {
         if (outcome.written.has(record.memoryId)) {
           this.deps.repository.updateStatus(record.memoryId, 'embedded', {
             embeddingId: record.memoryId,
-            embeddingDim: dim
+            embeddingDim: dim,
+            embeddingModel: fingerprint
           })
         } else if (!outcome.usable) {
           this.deps.repository.updateStatus(record.memoryId, 'error')
@@ -220,10 +239,80 @@ export class MemoryPresenter implements MemoryRuntimePort {
         // Rows cleared mid-flight are absent from `written`; their row no longer exists.
       }
     } catch (error) {
-      logger.error(`[Memory] batch embedding failed for ${agentId}: ${String(error)}`)
+      // Embeddings succeeded but the vector store write failed: terminal for this batch.
+      logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
       for (const row of pending) {
         this.deps.repository.updateStatus(row.id, 'error')
       }
+    }
+  }
+
+  // Rebuilds an agent's vectors after an embedding model/dimension change (non-destructive): the
+  // affected rows are re-queued, the old sidecar is dropped and recreated at the new dimension,
+  // and the rows are re-embedded with the current model in the background. Coalesces concurrent
+  // callers onto one run; never throws (the chat path must not be blocked).
+  reindexEmbeddings(agentId: string, force = false): Promise<void> {
+    const inflight = this.reindexing.get(agentId)
+    if (inflight) return inflight
+    const tracked = this.runReindex(agentId, force).finally(() => {
+      if (this.reindexing.get(agentId) === tracked) this.reindexing.delete(agentId)
+    })
+    this.reindexing.set(agentId, tracked)
+    return tracked
+  }
+
+  private async runReindex(agentId: string, force: boolean): Promise<void> {
+    // One batched UPDATE re-queues stale-model rows, recovers rows a prior failed embed left in
+    // 'error', and picks up rows deferred as fts_only while no model was configured — without
+    // scanning or looping per row on the caller's stack.
+    const requeued = this.deps.repository.requeueForEmbedding(agentId, [
+      'embedded',
+      'error',
+      'fts_only'
+    ])
+    // `force` rebuilds an unusable on-disk store even with nothing to re-queue (the foreign file is
+    // itself what blocks recovery); otherwise skip the reset when there is no stale work.
+    if (!requeued && !force) return
+    // Drop the stale-dimension store under the per-agent lock; the next embed rebuilds it.
+    await this.runExclusiveForAgent(agentId, async () => {
+      await this.closeVectorStore(agentId)
+      await this.deps.resetVectorStore(agentId)
+    })
+    this.emitChanged(agentId, 'reindex')
+    await this.drainUntilExhausted(agentId)
+  }
+
+  // Embeds rows deferred as fts_only (written while no model was configured) and re-drains any
+  // rows an earlier run left pending, into the existing store (no reset — those vectors are still
+  // valid). Coalesces concurrent callers; never throws. recall only kicks this once the embedding
+  // service has proven reachable this turn, so a service outage never starts a retry loop here.
+  backfillEmbeddings(agentId: string): Promise<void> {
+    const inflight = this.backfilling.get(agentId)
+    if (inflight) return inflight
+    const tracked = this.runBackfill(agentId).finally(() => {
+      if (this.backfilling.get(agentId) === tracked) this.backfilling.delete(agentId)
+    })
+    this.backfilling.set(agentId, tracked)
+    return tracked
+  }
+
+  private async runBackfill(agentId: string): Promise<void> {
+    // Yield first so the requeue UPDATE runs off the recall call stack.
+    await Promise.resolve()
+    this.deps.repository.requeueForEmbedding(agentId, ['fts_only'])
+    await this.drainUntilExhausted(agentId)
+  }
+
+  // Drains an agent's pending rows in batches until none remain or a batch makes no progress. A
+  // stalled head row means the embedding service is down: the rows stay queued (drainPending keeps
+  // them pending on a transient failure) for the next trigger, so we stop instead of spinning.
+  private async drainUntilExhausted(agentId: string): Promise<void> {
+    for (let i = 0; i < REINDEX_MAX_BATCHES; i += 1) {
+      const head = this.deps.repository.listPendingEmbedding(1, agentId)
+      if (!head.length) break
+      await this.processPendingEmbeddings(agentId, REINDEX_BATCH_SIZE)
+      const next = this.deps.repository.listPendingEmbedding(1, agentId)
+      if (next.length && next[0].id === head[0].id) break
     }
   }
 
@@ -297,55 +386,82 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return created
   }
 
-  // Hybrid recall: vector (embedded rows only) + FTS, ranked by combined score and capped at
-  // top-K. Degrades to FTS-only when the agent has no embedding config.
+  // Hybrid recall: keyword (FTS) and vector candidates fused with Reciprocal Rank Fusion, then
+  // reranked by combined score and capped at top-K. Degrades to FTS-only when the agent has no
+  // embedding config, when the query has no vector hits, or while a reindex is rebuilding vectors.
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     const config = this.deps.resolveAgentConfig(agentId)
-    const { topK, weights } = resolveRetrieval(config?.memoryRetrieval)
+    const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
     const normalizedQuery = query.trim()
+    if (!normalizedQuery) return []
 
-    const scored = new Map<string, MemoryRecallItem>()
+    const candidateLimit = topK * 2
 
-    // FTS recall covers any status that still has content (embedded | fts_only | error).
-    if (normalizedQuery) {
-      for (const row of this.deps.repository.search(agentId, normalizedQuery, topK * 2)) {
-        scored.set(row.id, this.toRecallItem(row, FTS_SIMILARITY_BASELINE, now, weights))
-      }
-    }
+    // Keyword path covers any status that still has content (embedded | fts_only | error). persona
+    // is excluded: the self-model is injected separately as selfModel, never as a recalled memory.
+    const ftsRows = this.deps.repository
+      .search(agentId, normalizedQuery, candidateLimit)
+      .filter((row) => row.kind !== 'persona')
 
-    // Vector recall (embedded rows only).
+    // Vector path (embedded rows only).
+    const vecMatches: { row: AgentMemoryRow; similarity: number }[] = []
     const embedding = config?.memoryEmbedding
-    if (normalizedQuery && embedding?.providerId && embedding?.modelId) {
+    if (embedding?.providerId && embedding?.modelId) {
       try {
         const vectors = await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
           normalizedQuery
         ])
         const vector = vectors[0]
         if (vector?.length) {
-          const store = await this.getVectorStore(
-            agentId,
-            { providerId: embedding.providerId, modelId: embedding.modelId },
-            vector.length
-          )
-          const matches = store.isUsable() ? await store.query(vector, { topK: topK * 2 }) : []
-          for (const match of matches) {
-            const similarity = distanceToSimilarity(match.distance)
-            if (similarity < DEFAULT_SIMILARITY_THRESHOLD) continue
-            const row = this.deps.repository.getById(match.memoryId)
-            if (!row || row.superseded_by) continue
-            // A real vector similarity overrides the FTS baseline for the same row.
-            scored.set(row.id, this.toRecallItem(row, similarity, now, weights))
+          const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+          if (this.hasStaleEmbeddings(agentId, vector.length, fingerprint)) {
+            // The embedding model or dimension changed: rebuild vectors in the background and
+            // answer from FTS this turn instead of querying a store with stale dimensions.
+            void this.reindexEmbeddings(agentId).catch((error) => {
+              logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
+            })
+          } else {
+            const store = await this.getVectorStore(
+              agentId,
+              { providerId: embedding.providerId, modelId: embedding.modelId },
+              vector.length
+            )
+            if (store.isUsable()) {
+              const matches = await store.query(vector, { topK: candidateLimit })
+              for (const match of matches) {
+                const similarity = distanceToSimilarity(match.distance)
+                if (similarity < similarityThreshold) continue
+                const row = this.deps.repository.getById(match.memoryId)
+                // Skip persona even if an old/anomalous vector for it sits in the store: the
+                // self-model is injected separately, never recalled as a normal memory.
+                if (!row || row.superseded_by || row.kind === 'persona') continue
+                vecMatches.push({ row, similarity })
+              }
+              // The service embedded the query and the store is healthy: opportunistically embed
+              // rows deferred as fts_only (config added later) and re-drain any an earlier run left
+              // pending. Background, coalesced, and skipped while a reindex owns the requeue.
+              if (!this.reindexing.has(agentId)) {
+                void this.backfillEmbeddings(agentId).catch((error) => {
+                  logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+                })
+              }
+            } else if (!this.reindexing.has(agentId)) {
+              // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
+              // were no embedded rows to flag it as stale). Rebuild it under the current identity so
+              // the corpus stops failing closed; force the reset even if there is nothing to
+              // re-queue, since the unusable file itself is what blocks recovery.
+              void this.reindexEmbeddings(agentId, true).catch((error) => {
+                logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+              })
+            }
           }
         }
       } catch (error) {
-        logger.warn(`[Memory] vector recall failed, FTS only: ${String(error)}`)
+        logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
       }
     }
 
-    const results = Array.from(scored.values())
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK)
-
+    const results = fuse(ftsRows, vecMatches, { topK, rrfK, weights, now })
     for (const item of results) {
       this.deps.repository.recordAccess(item.id, now)
     }
@@ -511,7 +627,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return {
       total: all.length,
       pendingEmbedding: all.filter((row) => row.status === 'pending_embedding').length,
-      hasPersona: all.some((row) => row.kind === 'persona' && !row.superseded_by)
+      hasPersona: all.some((row) => row.kind === 'persona' && !row.superseded_by),
+      reindexing: this.reindexing.has(agentId)
     }
   }
 
@@ -539,19 +656,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return fallback
   }
 
-  private toRecallItem(
-    row: AgentMemoryRow,
-    similarity: number,
-    now: number,
-    weights: { similarity: number; recency: number; importance: number }
-  ): MemoryRecallItem {
-    return {
-      id: row.id,
-      kind: row.kind,
-      content: row.content,
-      importance: row.importance,
-      score: retrievalScore(row, similarity, now, weights)
-    }
+  // True when any embedded row was produced by a different model/dimension than the current
+  // config (or carries no fingerprint, i.e. predates the fingerprint column). Such rows can no
+  // longer be served by the current vector store and must be re-embedded. persona rows are
+  // ignored: they are never meant to be vectors, so an anomalous embedded persona (buggy/manual
+  // data) must not be read as "stale" and drive a reindex on every recall.
+  private hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean {
+    return this.deps.repository
+      .listByAgent(agentId, { statuses: ['embedded'] })
+      .some(
+        (row) =>
+          row.kind !== 'persona' &&
+          (row.embedding_dim !== currentDim || row.embedding_model !== fingerprint)
+      )
   }
 
   private vectorStoreCacheKey(

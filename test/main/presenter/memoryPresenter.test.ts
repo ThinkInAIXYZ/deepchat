@@ -9,6 +9,8 @@ import {
 import {
   buildMemoryProvenanceKey,
   distanceToSimilarity,
+  fuse,
+  parseSourceEntryIds,
   recencyScore,
   resolveRetrieval,
   retrievalScore
@@ -44,6 +46,7 @@ class FakeRepository implements MemoryRepositoryPort {
       status: input.status ?? 'pending_embedding',
       embedding_id: null,
       embedding_dim: null,
+      embedding_model: null,
       source_session: input.sourceSession ?? null,
       provenance_key: input.provenanceKey ?? null,
       is_anchor: input.isAnchor ? 1 : 0,
@@ -68,9 +71,15 @@ class FakeRepository implements MemoryRepositoryPort {
     )
   }
 
-  listByAgent(agentId: string, options?: { includeSuperseded?: boolean }) {
+  listByAgent(
+    agentId: string,
+    options?: { includeSuperseded?: boolean; statuses?: AgentMemoryRow['status'][] }
+  ) {
     return [...this.rows.values()].filter(
-      (row) => row.agent_id === agentId && (options?.includeSuperseded || !row.superseded_by)
+      (row) =>
+        row.agent_id === agentId &&
+        (options?.includeSuperseded || !row.superseded_by) &&
+        (!options?.statuses?.length || options.statuses.includes(row.status))
     )
   }
 
@@ -98,20 +107,44 @@ class FakeRepository implements MemoryRepositoryPort {
 
   listPendingEmbedding(limit = 50, agentId?: string) {
     return [...this.rows.values()]
-      .filter((row) => row.status === 'pending_embedding' && (!agentId || row.agent_id === agentId))
+      .filter(
+        (row) =>
+          row.status === 'pending_embedding' &&
+          row.kind !== 'persona' &&
+          (!agentId || row.agent_id === agentId)
+      )
       .slice(0, limit)
   }
 
   updateStatus(
     id: string,
     status: AgentMemoryRow['status'],
-    embedding?: { embeddingId?: string | null; embeddingDim?: number | null }
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
   ) {
     const row = this.rows.get(id)
     if (!row) return
     row.status = status
-    row.embedding_id = embedding?.embeddingId ?? row.embedding_id
-    row.embedding_dim = embedding?.embeddingDim ?? row.embedding_dim
+    row.embedding_id = embedding?.embeddingId ?? null
+    row.embedding_dim = embedding?.embeddingDim ?? null
+    row.embedding_model = embedding?.embeddingModel ?? null
+  }
+
+  requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
+    let changed = 0
+    for (const row of this.rows.values()) {
+      if (row.agent_id !== agentId || row.superseded_by || row.kind === 'persona') continue
+      if (!statuses.includes(row.status)) continue
+      row.status = 'pending_embedding'
+      row.embedding_id = null
+      row.embedding_dim = null
+      row.embedding_model = null
+      changed += 1
+    }
+    return changed
   }
 
   markSuperseded(id: string, supersededBy: string | null) {
@@ -238,9 +271,38 @@ describe('memory scoring', () => {
     expect(score).toBeCloseTo(0.6 + 0.25 + 0.15)
   })
 
-  it('resolveRetrieval falls back to defaults', () => {
-    expect(resolveRetrieval(null).topK).toBe(6)
-    expect(resolveRetrieval({ topK: 3 }).topK).toBe(3)
+  it('resolveRetrieval falls back to defaults and validates rrfK / similarityThreshold', () => {
+    const defaults = resolveRetrieval(null)
+    expect(defaults.topK).toBe(6)
+    expect(defaults.rrfK).toBe(60)
+    expect(defaults.similarityThreshold).toBe(0.2)
+    expect(resolveRetrieval({ topK: 3, rrfK: 30, similarityThreshold: 0.5 })).toMatchObject({
+      topK: 3,
+      rrfK: 30,
+      similarityThreshold: 0.5
+    })
+    // Illegal values fall back rather than corrupting recall.
+    expect(resolveRetrieval({ rrfK: 0, similarityThreshold: 2 })).toMatchObject({
+      rrfK: 60,
+      similarityThreshold: 0.2
+    })
+    // Non-finite / out-of-range numbers fall back instead of producing a runaway LIMIT or NaN.
+    expect(
+      resolveRetrieval({ topK: Infinity, rrfK: Number.NaN, similarityThreshold: Number.NaN })
+    ).toMatchObject({ topK: 6, rrfK: 60, similarityThreshold: 0.2 })
+    expect(resolveRetrieval({ topK: 10_000 }).topK).toBe(100)
+    expect(resolveRetrieval({ rrfK: 10_000 }).rrfK).toBe(1000)
+    // A single bad weight discards the whole set so scores never go NaN.
+    expect(
+      resolveRetrieval({ weights: { similarity: Number.NaN, recency: 0.3, importance: 0.2 } })
+        .weights
+    ).toEqual({ similarity: 0.6, recency: 0.25, importance: 0.15 })
+    expect(
+      resolveRetrieval({ weights: { similarity: -1, recency: 0.3, importance: 0.2 } }).weights
+    ).toEqual({ similarity: 0.6, recency: 0.25, importance: 0.15 })
+    expect(
+      resolveRetrieval({ weights: { similarity: 0.5, recency: 0.3, importance: 0.2 } }).weights
+    ).toEqual({ similarity: 0.5, recency: 0.3, importance: 0.2 })
   })
 
   it('provenance key is stable and dedupes on normalized content', () => {
@@ -249,6 +311,95 @@ describe('memory scoring', () => {
     expect(a).toBe(b)
     const c = buildMemoryProvenanceKey('agent', 'episodic', 'likes redis')
     expect(c).not.toBe(a)
+  })
+})
+
+function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
+  return {
+    id,
+    agent_id: 'a',
+    user_scope: null,
+    kind: 'semantic',
+    content: id,
+    importance: 0.5,
+    status: 'embedded',
+    embedding_id: null,
+    embedding_dim: null,
+    embedding_model: null,
+    source_session: null,
+    provenance_key: null,
+    is_anchor: 0,
+    superseded_by: null,
+    created_at: 1000,
+    last_accessed: null,
+    access_count: 0,
+    decay_score: null,
+    source_entry_ids: null,
+    ...overrides
+  }
+}
+
+describe('memory fuse (RRF)', () => {
+  const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
+  const opts = { topK: 10, rrfK: 60, weights, now: 1000 }
+
+  it('boosts a memory found by both paths above single-path hits (T-R1)', () => {
+    const both = makeRow('both')
+    const ftsOnly = makeRow('ftsOnly')
+    const vecOnly = makeRow('vecOnly')
+    const result = fuse(
+      [both, ftsOnly],
+      [
+        { row: both, similarity: 0.5 },
+        { row: vecOnly, similarity: 0.5 }
+      ],
+      opts
+    )
+    expect(result[0].id).toBe('both')
+    expect(result[0].sources).toEqual({ fts: true, vec: true })
+  })
+
+  it('keeps a strong vector hit above a weak keyword-only hit (T-R2, AC-1.1)', () => {
+    // M_vec: high similarity, surfaced only by the vector path (no query substring).
+    // M_fts: keyword-only hit scored at the FTS baseline; retrievalScore reranks M_vec on top.
+    const mVec = makeRow('mVec')
+    const mFts = makeRow('mFts', { importance: 0.9 })
+    const result = fuse([mFts], [{ row: mVec, similarity: 0.95 }], opts)
+    expect(result.map((item) => item.id)).toEqual(['mVec', 'mFts'])
+  })
+
+  it('keeps a strong vector hit above a weak keyword hit at a worse RRF rank (AC-1.1)', () => {
+    // The boundary pure RRF-primary ordering got wrong: the weak keyword hit is at FTS rank 0
+    // (best RRF), the strong vector hit only at vector rank 1 (behind a decoy). retrievalScore
+    // must still rerank the strong vector hit above the weak keyword hit.
+    const decoy = makeRow('decoy')
+    const mVec = makeRow('mVec')
+    const mFts = makeRow('mFts')
+    const result = fuse(
+      [mFts],
+      [
+        { row: decoy, similarity: 0.97 },
+        { row: mVec, similarity: 0.95 }
+      ],
+      opts
+    )
+    const ids = result.map((item) => item.id)
+    expect(ids.indexOf('mVec')).toBeLessThan(ids.indexOf('mFts'))
+  })
+
+  it('carries source markers and parsed lineage onto recall items (AC-4.3/5.1)', () => {
+    const row = makeRow('m1', { source_session: 's1', source_entry_ids: JSON.stringify([7, 8]) })
+    const [item] = fuse([], [{ row, similarity: 0.9 }], opts)
+    expect(item.sources).toEqual({ vec: true })
+    expect(item.sourceSession).toBe('s1')
+    expect(item.sourceEntryIds).toEqual([7, 8])
+  })
+
+  it('parseSourceEntryIds tolerates malformed lineage', () => {
+    expect(parseSourceEntryIds(null)).toBeNull()
+    expect(parseSourceEntryIds('not json')).toBeNull()
+    expect(parseSourceEntryIds('[]')).toBeNull()
+    expect(parseSourceEntryIds('[3,1,-2,"x"]')).toEqual([3, 1])
   })
 })
 
@@ -655,6 +806,47 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     expect(repo.getById('m1')?.status).toBe('error')
     expect(repo.getById('m2')?.status).toBe('error')
   })
+
+  it('keeps the batch pending (retryable) when the embedding service throws, then heals', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    let attempt = 0
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      attempt += 1
+      if (attempt === 1) throw new Error('ECONNRESET')
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis',
+      status: 'pending_embedding'
+    })
+    repo.insert({
+      id: 'm2',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'vue',
+      status: 'pending_embedding'
+    })
+
+    await presenter.processPendingEmbeddings('a')
+    // A transient service failure must not terminally strand the rows; they stay queued.
+    expect(repo.getById('m1')?.status).toBe('pending_embedding')
+    expect(repo.getById('m2')?.status).toBe('pending_embedding')
+
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.getById('m1')?.status).toBe('embedded')
+    expect(repo.getById('m2')?.status).toBe('embedded')
+  })
 })
 
 describe('MemoryPresenter change events (onMemoryChanged)', () => {
@@ -851,31 +1043,326 @@ describe('writeMemoriesSync insert error classification (C2, AC-2.2)', () => {
   })
 })
 
-describe('MemoryPresenter vector store identity (C5, AC-5.1/5.3)', () => {
-  it('re-opens the per-agent sidecar under the new identity on model switch (AC-5.1)', async () => {
+describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
+  it('reindexEmbeddings re-queues, rebuilds the store, and re-embeds with the new fingerprint', async () => {
     const repo = new FakeRepository()
     let config: DeepChatAgentConfig = {
       memoryEnabled: true,
       memoryEmbedding: { providerId: 'p', modelId: 'm1' }
     }
     const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const resetVectorStore = vi.fn(async () => undefined)
     const presenter = new MemoryPresenter({
       repository: repo,
       resolveAgentConfig: () => config,
       getEmbeddings: async (_p, _m, texts) => texts.map(() => [0.1, 0.2]),
-      createVectorStore
+      createVectorStore,
+      resetVectorStore
     })
 
-    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
+      agentId: 'a'
+    })
     await presenter.processPendingEmbeddings('a')
+    expect(repo.getById(id!)?.embedding_model).toBe('p:m1')
     expect(createVectorStore).toHaveBeenCalledTimes(1)
 
-    await presenter.recall('a', 'redis')
-    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    // Same dimension, different model: the per-row fingerprint is what catches this.
+    config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm2' } }
+    await presenter.reindexEmbeddings('a')
+
+    // Non-destructive: the on-disk store is dropped and rebuilt, the SQLite row survives.
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+    expect(repo.getById(id!)).toBeDefined()
+    expect(repo.getById(id!)?.status).toBe('embedded')
+    expect(repo.getById(id!)?.embedding_model).toBe('p:m2')
+    expect(createVectorStore).toHaveBeenCalledTimes(2)
+  })
+
+  it('treats a legacy NULL fingerprint as stale and re-embeds it', async () => {
+    const repo = new FakeRepository()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map(() => [0.1, 0.2]),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    // A row embedded before the fingerprint column existed: status embedded, model NULL.
+    repo.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'redis' })
+    repo.updateStatus('legacy', 'embedded', { embeddingId: 'legacy', embeddingDim: 2 })
+    expect(repo.getById('legacy')?.embedding_model).toBeNull()
+
+    await presenter.reindexEmbeddings('a')
+    expect(repo.getById('legacy')?.embedding_model).toBe('p:m')
+  })
+
+  it('recall detects a stale fingerprint, answers from FTS, and kicks off a reindex (AC-3.1/3.3)', async () => {
+    const repo = new FakeRepository()
+    let config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm1' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map(() => [0.1, 0.2]),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
 
     config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm2' } }
+    const results = await presenter.recall('a', 'redis')
+    // FTS still answers while vectors rebuild; the stale row was re-queued synchronously.
+    expect(results.some((item) => item.content === 'redis fact')).toBe(true)
+    expect(repo.getById(id!)?.status).toBe('pending_embedding')
+
+    await presenter.reindexEmbeddings('a')
+    expect(repo.getById(id!)?.embedding_model).toBe('p:m2')
+  })
+
+  it('reindex recovers rows left in error by a prior failed embed', async () => {
+    const repo = new FakeRepository()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map(() => [0.1, 0.2]),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    // A row a previous embed gave up on (e.g. a vector store write failure).
+    repo.insert({ id: 'stuck', agentId: 'a', kind: 'semantic', content: 'redis', status: 'error' })
+
+    await presenter.reindexEmbeddings('a')
+    expect(repo.getById('stuck')?.status).toBe('embedded')
+    expect(repo.getById('stuck')?.embedding_model).toBe('p:m')
+  })
+
+  it('recall backfills fts_only rows once an embedding model is configured (P1-A)', async () => {
+    const repo = new FakeRepository()
+    let config: DeepChatAgentConfig = { memoryEnabled: true }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    // No embedding config yet: the row is deferred to fts_only.
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
+
+    // Model configured later. recall reaches a healthy store and kicks the backfill.
+    config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm' } }
+    const spy = vi.spyOn(presenter, 'backfillEmbeddings')
     await presenter.recall('a', 'redis')
-    expect(createVectorStore).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenCalledWith('a')
+    await spy.mock.results[0]?.value
+
+    expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+    expect(repo.listByAgent('a')[0]?.embedding_model).toBe('p:m')
+  })
+
+  it('re-drains rows a failed reindex left pending on the next backfill (P1-B)', async () => {
+    const repo = new FakeRepository()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    let serviceDown = false
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (serviceDown) throw new Error('embedding service down')
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+
+    // A reindex during an outage re-queues then stalls: the row stays pending, never terminal.
+    serviceDown = true
+    await presenter.reindexEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('pending_embedding')
+
+    // Service recovers; the next backfill (as recall would trigger) re-drains the leftover.
+    serviceDown = false
+    await presenter.backfillEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+  })
+
+  it('never vectorizes persona rows during reindex/backfill (P2)', async () => {
+    const repo = new FakeRepository()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'persona1',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'I answer concisely',
+      status: 'fts_only'
+    })
+    repo.insert({
+      id: 'fact1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'likes redis',
+      status: 'fts_only'
+    })
+
+    await presenter.reindexEmbeddings('a')
+    // The self-model stays fts_only; only the real memory is embedded.
+    expect(repo.getById('persona1')?.status).toBe('fts_only')
+    expect(repo.getById('fact1')?.status).toBe('embedded')
+  })
+
+  it('ignores an anomalous embedded persona: no reindex churn, not recalled (P2)', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    // Anomalous data: a persona wrongly marked embedded with a STALE fingerprint, its vector
+    // already sitting in the sidecar (as a buggy backfill or manual import would leave it).
+    repo.insert({
+      id: 'persona1',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'redis persona',
+      status: 'fts_only'
+    })
+    repo.updateStatus('persona1', 'embedded', {
+      embeddingId: 'persona1',
+      embeddingDim: 4,
+      embeddingModel: 'p:OLD'
+    })
+    await store.upsert([{ memoryId: 'persona1', embedding: textToVector('redis persona') }])
+    // A normal fact embedded with the current fingerprint.
+    repo.insert({
+      id: 'fact1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis fact',
+      status: 'fts_only'
+    })
+    repo.updateStatus('fact1', 'embedded', {
+      embeddingId: 'fact1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    await store.upsert([{ memoryId: 'fact1', embedding: textToVector('redis fact') }])
+
+    const spy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const results = await presenter.recall('a', 'redis')
+
+    // The stale persona must not be read as stale (no reindex), nor surface as a normal memory.
+    expect(spy).not.toHaveBeenCalled()
+    const ids = results.map((item) => item.id)
+    expect(ids).toContain('fact1')
+    expect(ids).not.toContain('persona1')
+  })
+
+  it('excludes persona rows from recall results (P2)', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'persona1',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'redis persona note',
+      status: 'fts_only'
+    })
+    repo.insert({
+      id: 'fact1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis fact',
+      status: 'fts_only'
+    })
+
+    const results = await presenter.recall('a', 'redis')
+    const ids = results.map((item) => item.id)
+    expect(ids).toContain('fact1')
+    expect(ids).not.toContain('persona1')
+  })
+
+  it('rebuilds an unusable sidecar so pending/fts_only rows recover (P1)', async () => {
+    const repo = new FakeRepository()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    let didReset = false
+    const unusable: IMemoryVectorStore = {
+      upsert: async () => {},
+      query: async () => [],
+      deleteByMemoryIds: async () => {},
+      close: async () => {},
+      isUsable: () => false
+    }
+    const usable = new FakeVectorStore()
+    const createVectorStore = vi.fn(async () => (didReset ? usable : unusable))
+    const resetVectorStore = vi.fn(async () => {
+      didReset = true
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore
+    })
+    // Only fts_only rows: no embedded row exists to flag the foreign sidecar as stale.
+    repo.insert({
+      id: 'fact1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis fact',
+      status: 'fts_only'
+    })
+
+    const spy = vi.spyOn(presenter, 'reindexEmbeddings')
+    await presenter.recall('a', 'redis')
+    expect(spy).toHaveBeenCalledWith('a', true)
+    await spy.mock.results[0]?.value
+
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+    expect(repo.getById('fact1')?.status).toBe('embedded')
   })
 
   it('never queries an unusable vector store, falling back to FTS without errors (AC-5.3)', async () => {

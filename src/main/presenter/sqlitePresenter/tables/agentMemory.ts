@@ -15,6 +15,7 @@ export interface AgentMemoryRow {
   status: AgentMemoryStatus
   embedding_id: string | null
   embedding_dim: number | null
+  embedding_model: string | null
   source_session: string | null
   provenance_key: string | null
   is_anchor: number
@@ -48,6 +49,12 @@ export interface AgentMemoryListOptions {
   limit?: number
 }
 
+// Global migration version shared across all tables (see SQLitePresenter.migrate). This is the
+// first agent_memory migration and must stay above the previous ceiling so it actually runs.
+const AGENT_MEMORY_SCHEMA_VERSION = 32
+
+type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
+
 const AGENT_MEMORY_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_kind
     ON agent_memory(agent_id, kind, status);
@@ -69,6 +76,9 @@ function serializeSourceEntryIds(ids: number[] | null | undefined): string | nul
 }
 
 export class AgentMemoryTable extends BaseTable {
+  private ftsCapability: FtsCapability | undefined
+  private ftsReady = false
+
   constructor(db: Database.Database) {
     super(db, 'agent_memory')
   }
@@ -85,6 +95,7 @@ export class AgentMemoryTable extends BaseTable {
         status TEXT NOT NULL DEFAULT 'pending_embedding',
         embedding_id TEXT,
         embedding_dim INTEGER,
+        embedding_model TEXT,
         source_session TEXT,
         provenance_key TEXT,
         is_anchor INTEGER NOT NULL DEFAULT 0,
@@ -102,18 +113,101 @@ export class AgentMemoryTable extends BaseTable {
   override createTable(): void {
     if (!this.tableExists()) {
       this.db.exec(this.getCreateTableSQL())
-      return
+    } else {
+      this.db.exec(AGENT_MEMORY_INDEX_SQL)
     }
-    this.db.exec(AGENT_MEMORY_INDEX_SQL)
+    this.ensureFtsIndex()
   }
 
-  // FTS5 full-text index and versioned migrations are intentionally deferred for now.
-  getMigrationSQL(_version: number): string | null {
+  getMigrationSQL(version: number): string | null {
+    if (version === AGENT_MEMORY_SCHEMA_VERSION) {
+      // FTS5 objects are (re)built idempotently in ensureFtsIndex() because the tokenizer is
+      // chosen from runtime capabilities; only columns land here for existing databases.
+      // source_entry_ids first shipped without its own migration, so older tables lack it; it is
+      // backfilled alongside embedding_model. Duplicate ADD COLUMN is ignored by the runner.
+      return [
+        'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;',
+        'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;'
+      ].join('\n')
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 0
+    return AGENT_MEMORY_SCHEMA_VERSION
+  }
+
+  // Detects the best available FTS5 tokenizer once per connection. trigram gives substring
+  // matching across languages (including CJK) but only indexes >=3 character fragments;
+  // unicode61 is the word-boundary fallback; neither means FTS5 is unavailable.
+  private detectFtsCapability(): FtsCapability {
+    if (this.ftsCapability) return this.ftsCapability
+    const probe = (tokenizer: string): boolean => {
+      const name = `temp.fts5_probe_${tokenizer}`
+      try {
+        this.db.exec(
+          `CREATE VIRTUAL TABLE IF NOT EXISTS ${name} USING fts5(c, tokenize='${tokenizer}');`
+        )
+        this.db.exec(`DROP TABLE IF EXISTS ${name};`)
+        return true
+      } catch {
+        return false
+      }
+    }
+    if (probe('trigram')) this.ftsCapability = { available: true, tokenizer: 'trigram' }
+    else if (probe('unicode61')) this.ftsCapability = { available: true, tokenizer: 'unicode61' }
+    else this.ftsCapability = { available: false, tokenizer: 'unicode61' }
+    return this.ftsCapability
+  }
+
+  private ftsTableExists(): boolean {
+    const row = this.db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='agent_memory_fts'`)
+      .get()
+    return !!row
+  }
+
+  // Creates the external-content FTS5 mirror of agent_memory and the triggers that keep it in
+  // sync, then backfills existing rows the first time it is built. Idempotent and a no-op when
+  // FTS5 is unavailable (search falls back to LIKE). superseded rows stay in the index and are
+  // filtered at query time, so supersede updates need not touch it.
+  private ensureFtsIndex(): void {
+    const capability = this.detectFtsCapability()
+    if (!capability.available) {
+      this.ftsReady = false
+      return
+    }
+    const alreadyBuilt = this.ftsTableExists()
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts USING fts5(
+        content,
+        agent_id UNINDEXED,
+        content='agent_memory',
+        content_rowid='rowid',
+        tokenize='${capability.tokenizer}'
+      );
+      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ai AFTER INSERT ON agent_memory BEGIN
+        INSERT INTO agent_memory_fts(rowid, content, agent_id)
+        VALUES (new.rowid, new.content, new.agent_id);
+      END;
+      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ad AFTER DELETE ON agent_memory BEGIN
+        INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
+        VALUES ('delete', old.rowid, old.content, old.agent_id);
+      END;
+      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_au AFTER UPDATE OF content ON agent_memory BEGIN
+        INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
+        VALUES ('delete', old.rowid, old.content, old.agent_id);
+        INSERT INTO agent_memory_fts(rowid, content, agent_id)
+        VALUES (new.rowid, new.content, new.agent_id);
+      END;
+    `)
+    if (!alreadyBuilt) {
+      this.db.exec(
+        `INSERT INTO agent_memory_fts(rowid, content, agent_id)
+         SELECT rowid, content, agent_id FROM agent_memory;`
+      )
+    }
+    this.ftsReady = true
   }
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
@@ -127,6 +221,7 @@ export class AgentMemoryTable extends BaseTable {
       status: input.status ?? 'pending_embedding',
       embedding_id: null,
       embedding_dim: null,
+      embedding_model: null,
       source_session: input.sourceSession ?? null,
       provenance_key: input.provenanceKey ?? null,
       is_anchor: input.isAnchor ? 1 : 0,
@@ -150,6 +245,7 @@ export class AgentMemoryTable extends BaseTable {
            status,
            embedding_id,
            embedding_dim,
+           embedding_model,
            source_session,
            provenance_key,
            is_anchor,
@@ -160,7 +256,7 @@ export class AgentMemoryTable extends BaseTable {
            decay_score,
            source_entry_ids
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -172,6 +268,7 @@ export class AgentMemoryTable extends BaseTable {
         row.status,
         row.embedding_id,
         row.embedding_dim,
+        row.embedding_model,
         row.source_session,
         row.provenance_key,
         row.is_anchor,
@@ -244,12 +341,55 @@ export class AgentMemoryTable extends BaseTable {
       .all(agentId) as AgentMemoryRow[]
   }
 
+  // Keyword recall: BM25-ranked FTS5 hits first, then any LIKE-only substring matches the
+  // tokenizer missed (e.g. <3 character queries under trigram). LIKE always runs and is unioned
+  // in full so the result is never a subset of the old LIKE behavior — gating LIKE behind the cap
+  // would silently drop high-importance rows whenever FTS5 alone filled it. Each path is bounded
+  // by `limit`, so the union is bounded by `2 * limit`; downstream RRF reranks and trims.
   search(agentId: string, query: string, limit: number = 20): AgentMemoryRow[] {
     const normalized = query.trim()
     if (!normalized) {
       return []
     }
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
+    const ordered: AgentMemoryRow[] = []
+    const seen = new Set<string>()
+    const collect = (rows: AgentMemoryRow[]): void => {
+      for (const row of rows) {
+        if (seen.has(row.id)) continue
+        seen.add(row.id)
+        ordered.push(row)
+      }
+    }
+    if (this.ftsReady) {
+      collect(this.searchFts(agentId, normalized, cappedLimit))
+    }
+    collect(this.searchLike(agentId, normalized, cappedLimit))
+    return ordered
+  }
+
+  private searchFts(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
+    // Quote the whole query as a phrase so FTS5 operators in user text can never break the MATCH.
+    const match = `"${normalized.replace(/"/g, '""')}"`
+    try {
+      return this.db
+        .prepare(
+          `SELECT am.* FROM agent_memory_fts f
+           JOIN agent_memory am ON am.rowid = f.rowid
+           WHERE agent_memory_fts MATCH ?
+             AND am.agent_id = ?
+             AND am.superseded_by IS NULL
+           ORDER BY bm25(agent_memory_fts)
+           LIMIT ?`
+        )
+        .all(match, agentId, limit) as AgentMemoryRow[]
+    } catch {
+      // A query the tokenizer cannot match (too short, odd syntax) yields no FTS hits; LIKE covers it.
+      return []
+    }
+  }
+
+  private searchLike(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
     const pattern = `%${escapeLikePattern(normalized)}%`
     return this.db
       .prepare(
@@ -260,7 +400,7 @@ export class AgentMemoryTable extends BaseTable {
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
       )
-      .all(agentId, pattern, cappedLimit) as AgentMemoryRow[]
+      .all(agentId, pattern, limit) as AgentMemoryRow[]
   }
 
   listPendingEmbedding(limit: number = 50, agentId?: string): AgentMemoryRow[] {
@@ -269,7 +409,7 @@ export class AgentMemoryTable extends BaseTable {
       return this.db
         .prepare(
           `SELECT * FROM agent_memory
-           WHERE status = 'pending_embedding' AND agent_id = ?
+           WHERE status = 'pending_embedding' AND kind != 'persona' AND agent_id = ?
            ORDER BY created_at ASC
            LIMIT ?`
         )
@@ -278,7 +418,7 @@ export class AgentMemoryTable extends BaseTable {
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
-         WHERE status = 'pending_embedding'
+         WHERE status = 'pending_embedding' AND kind != 'persona'
          ORDER BY created_at ASC
          LIMIT ?`
       )
@@ -288,15 +428,50 @@ export class AgentMemoryTable extends BaseTable {
   updateStatus(
     id: string,
     status: AgentMemoryStatus,
-    embedding?: { embeddingId?: string | null; embeddingDim?: number | null }
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
   ): void {
     this.db
       .prepare(
         `UPDATE agent_memory
-         SET status = ?, embedding_id = ?, embedding_dim = ?
+         SET status = ?, embedding_id = ?, embedding_dim = ?, embedding_model = ?
          WHERE id = ?`
       )
-      .run(status, embedding?.embeddingId ?? null, embedding?.embeddingDim ?? null, id)
+      .run(
+        status,
+        embedding?.embeddingId ?? null,
+        embedding?.embeddingDim ?? null,
+        embedding?.embeddingModel ?? null,
+        id
+      )
+  }
+
+  // Resets the embedding state of the agent's non-superseded rows in `statuses` back to
+  // pending_embedding in a single statement (no per-row round trips), so a reindex/backfill can
+  // re-queue a whole corpus without blocking. persona rows are excluded: the self-model is
+  // injected verbatim, never vector-recalled, so it must stay out of the vector store. Status
+  // changes do not touch content, so the FTS triggers (UPDATE OF content) never fire here.
+  // Returns the number of rows changed.
+  requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number {
+    if (!statuses.length) return 0
+    const placeholders = statuses.map(() => '?').join(', ')
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET status = 'pending_embedding',
+             embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND kind != 'persona'
+           AND status IN (${placeholders})`
+      )
+      .run(agentId, ...statuses)
+    return result.changes
   }
 
   markSuperseded(id: string, supersededBy: string | null): void {

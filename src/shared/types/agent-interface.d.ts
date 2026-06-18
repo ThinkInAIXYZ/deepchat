@@ -648,6 +648,8 @@ export interface DeepChatAgentMemoryEmbedding {
 
 export interface DeepChatAgentMemoryRetrieval {
   topK?: number
+  rrfK?: number
+  similarityThreshold?: number
   weights?: {
     similarity: number
     recency: number
