@@ -1346,7 +1346,9 @@ describe('Integration: multi-turn context', () => {
 
     // Enqueuing from an errored session drains the backlog (no manual resume step).
     await agentPresenter.queuePendingInput(session.id, 'New message after error')
-    await new Promise((r) => setTimeout(r, 120))
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
 
     const recoveredSession = await agentPresenter.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')

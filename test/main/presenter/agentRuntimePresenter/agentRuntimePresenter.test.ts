@@ -3663,11 +3663,15 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const firstProcess = agent.processMessage('s1', 'First')
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await vi.waitFor(() => {
+        expect((processStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0)
+      })
 
       await agent.cancelGeneration('s1')
       const secondProcess = agent.processMessage('s1', 'Second')
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await vi.waitFor(() => {
+        expect((processStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1)
+      })
 
       const abortError = new Error('aborted')
       abortError.name = 'AbortError'

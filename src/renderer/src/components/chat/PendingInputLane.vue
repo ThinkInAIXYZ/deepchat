@@ -66,6 +66,7 @@
               data-testid="pending-steer-delete"
               class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
               :title="t('chat.pendingInput.remove')"
+              :aria-label="t('chat.pendingInput.remove')"
               @click.stop="emit('delete-queue', item.id)"
             >
               <Icon icon="lucide:x" class="h-3.5 w-3.5" />
@@ -182,6 +183,11 @@
                     data-testid="pending-row-steer"
                     class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
                     :title="
+                      disableQueueSteerAction
+                        ? t('chat.pendingInput.steerUnavailable')
+                        : t('chat.pendingInput.toSteer')
+                    "
+                    :aria-label="
                       disableQueueSteerAction
                         ? t('chat.pendingInput.steerUnavailable')
                         : t('chat.pendingInput.toSteer')

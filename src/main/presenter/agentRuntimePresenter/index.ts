@@ -627,13 +627,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
 
-    // Always enqueue the steer input first (it sorts ahead of queued items, and rapid successive
-    // steers merge into the same pending record).
     const activeGeneration = this.activeGenerations.get(sessionId)
     const preStreamController = this.abortControllers.get(sessionId)
-    this.queueVisibleSteerInput(sessionId, normalizedInput)
 
     if (activeGeneration) {
+      // Enqueue the steer input first (it sorts ahead of queued items, and rapid successive steers
+      // merge into the same pending record), then interrupt the active stream.
+      this.queueVisibleSteerInput(sessionId, normalizedInput)
       // A stream is actively producing tokens: interrupt it while preserving its partial output.
       // The abort settlement auto-drains the queue and runs the steer input as the next turn.
       await this.cancelGeneration(sessionId)
@@ -641,14 +641,40 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     if (preStreamController) {
+      this.queueVisibleSteerInput(sessionId, normalizedInput)
       // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
       // Don't abort — let it finish; the steer input drains right after as the next visible turn.
       return
     }
 
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue').catch((error) => {
-      console.error('[AgentRuntime] Failed to process steer input:', error)
-    })
+    if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
+      if (this.drainingPendingQueues.has(sessionId) || state.status === 'generating') {
+        this.queueVisibleSteerInput(sessionId, normalizedInput)
+        return
+      }
+      throw new Error('Unable to start the steered input.')
+    }
+
+    const record = this.queueVisibleSteerInput(sessionId, normalizedInput)
+    const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    if (started) {
+      return
+    }
+
+    const latestState = await this.getSessionState(sessionId)
+    if (this.drainingPendingQueues.has(sessionId) || latestState?.status === 'generating') {
+      return
+    }
+
+    try {
+      this.pendingInputCoordinator.deletePendingInput(sessionId, record.id)
+      if (this.activeSteerPendingInputIds.get(sessionId) === record.id) {
+        this.activeSteerPendingInputIds.delete(sessionId)
+      }
+    } catch (deleteError) {
+      console.error('[AgentRuntime] Failed to delete unstarted steer input:', deleteError)
+    }
+    throw new Error('Unable to start the steered input.')
   }
 
   async updateQueuedInput(
@@ -1027,6 +1053,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         if (userMessageId) {
           this.emitMessageRefresh(sessionId, userMessageId)
         }
+        this.clearSessionAbortController(sessionId, preStreamAbortController)
         this.settleAbortedTurn(sessionId, assistantMessageId, streamRunId)
         // Stop/steer: continue the queue automatically with the next item (steer items first).
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
@@ -1724,8 +1751,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
     })
-    const activeGeneration = runId ? this.activeGenerations.get(sessionId) : null
-    if (!runId || !activeGeneration || activeGeneration.runId === runId) {
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    const controller = this.abortControllers.get(sessionId)
+    const hasReplacementController = Boolean(
+      controller && (!activeGeneration || controller !== activeGeneration.abortController)
+    )
+    const canSetIdle = runId
+      ? activeGeneration?.runId === runId || (!activeGeneration && !hasReplacementController)
+      : !hasReplacementController
+    if (canSetIdle) {
       this.setSessionStatus(sessionId, 'idle')
     }
   }
@@ -3120,18 +3154,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     reason: 'enqueue' | 'completed'
   ): Promise<boolean> {
-    if (this.drainingPendingQueues.has(sessionId)) {
-      return false
-    }
-
     const state = await this.getSessionState(sessionId)
-    if (!state || !this.canDrainPendingQueueFromStatus(state.status, reason)) {
-      return false
-    }
-    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
-      return false
-    }
-    if (this.hasPendingInteractions(sessionId)) {
+    if (!state || !this.canStartPendingQueueDrain(sessionId, state.status, reason)) {
       return false
     }
 
@@ -3144,42 +3168,70 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return false
     }
 
+    const pendingInputSource: ProcessPendingInputSource = nextSteerInput ? 'steer' : 'queue'
+    let claimedInput: PendingSessionInputRecord
+
     this.drainingPendingQueues.add(sessionId)
     try {
-      const pendingInputSource: ProcessPendingInputSource = nextSteerInput ? 'steer' : 'queue'
-      const claimedInput =
+      claimedInput =
         pendingInputSource === 'steer'
           ? this.pendingInputCoordinator.claimSteerInput(sessionId, nextPendingInput.id)
           : this.pendingInputCoordinator.claimQueuedInput(sessionId, nextPendingInput.id)
-      if (pendingInputSource === 'steer') {
-        this.activeSteerPendingInputIds.delete(sessionId)
-      }
-      await this.processMessage(sessionId, claimedInput.payload, {
-        projectDir: this.resolveProjectDir(sessionId),
-        pendingQueueItemId: claimedInput.id,
-        pendingQueueItemSource: pendingInputSource
-      })
-      return true
     } catch (error) {
+      this.drainingPendingQueues.delete(sessionId)
       console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       return false
-    } finally {
-      this.drainingPendingQueues.delete(sessionId)
-      if (
-        this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
-        (await this.getSessionState(sessionId))?.status === 'idle' &&
-        !this.hasPendingInteractions(sessionId)
-      ) {
-        void this.drainPendingQueueIfPossible(sessionId, 'completed')
-      }
     }
+
+    if (pendingInputSource === 'steer') {
+      this.activeSteerPendingInputIds.delete(sessionId)
+    }
+
+    void this.processMessage(sessionId, claimedInput.payload, {
+      projectDir: this.resolveProjectDir(sessionId),
+      pendingQueueItemId: claimedInput.id,
+      pendingQueueItemSource: pendingInputSource
+    })
+      .catch((error) => {
+        console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      })
+      .finally(async () => {
+        this.drainingPendingQueues.delete(sessionId)
+        try {
+          if (
+            this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
+            (await this.getSessionState(sessionId))?.status === 'idle' &&
+            !this.hasPendingInteractions(sessionId)
+          ) {
+            void this.drainPendingQueueIfPossible(sessionId, 'completed')
+          }
+        } catch (error) {
+          console.error('[DeepChatAgent] drainPendingQueueIfPossible cleanup error:', error)
+        }
+      })
+
+    return true
   }
 
   private shouldStartQueuedInputImmediately(
     sessionId: string,
     status: DeepChatSessionState['status']
   ): boolean {
-    if (!this.canDrainPendingQueueFromStatus(status, 'enqueue')) {
+    if (!this.canStartPendingQueueDrain(sessionId, status, 'enqueue')) {
+      return false
+    }
+    return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
+  }
+
+  private canStartPendingQueueDrain(
+    sessionId: string,
+    status: DeepChatSessionState['status'],
+    reason: 'enqueue' | 'completed'
+  ): boolean {
+    if (!this.canDrainPendingQueueFromStatus(status, reason)) {
+      return false
+    }
+    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
       return false
     }
     if (this.hasPendingInteractions(sessionId)) {
@@ -3188,7 +3240,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
-    return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
+    return true
   }
 
   private canDrainPendingQueueFromStatus(
@@ -3557,6 +3609,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       if (this.isAbortError(error) || preStreamAbortSignal?.aborted) {
+        this.clearSessionAbortController(sessionId, preStreamAbortController ?? undefined)
         this.settleAbortedTurn(sessionId, messageId, streamRunId)
         // Stop/steer: continue the queue automatically with the next item (steer items first).
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
@@ -4745,13 +4798,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return { text, files }
   }
 
-  private queueVisibleSteerInput(sessionId: string, input: SendMessageInput): void {
+  private queueVisibleSteerInput(
+    sessionId: string,
+    input: SendMessageInput
+  ): PendingSessionInputRecord {
     const mergeItemId = this.activeSteerPendingInputIds.get(sessionId) ?? null
     try {
       const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input, {
         mergeItemId
       })
       this.activeSteerPendingInputIds.set(sessionId, record.id)
+      return record
     } catch (error) {
       if (!mergeItemId) {
         throw error
@@ -4759,6 +4816,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.activeSteerPendingInputIds.delete(sessionId)
       const record = this.pendingInputCoordinator.queueSteerInput(sessionId, input)
       this.activeSteerPendingInputIds.set(sessionId, record.id)
+      return record
     }
   }
 

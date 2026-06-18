@@ -188,6 +188,7 @@ describe('PendingInputLane', () => {
 
     const steerButtons = wrapper.findAll('[data-testid="pending-row-steer"]')
     expect(steerButtons).toHaveLength(1)
+    expect(steerButtons[0].attributes('aria-label')).toBe('Steer')
 
     await steerButtons[0].trigger('click')
 
@@ -204,6 +205,7 @@ describe('PendingInputLane', () => {
 
     const deleteButton = wrapper.find('[data-testid="pending-steer-delete"]')
     expect(deleteButton.exists()).toBe(true)
+    expect(deleteButton.attributes('aria-label')).toBe('Remove')
 
     await deleteButton.trigger('click')
 
@@ -221,5 +223,6 @@ describe('PendingInputLane', () => {
 
     const steerButton = wrapper.get('[data-testid="pending-row-steer"]')
     expect((steerButton.element as HTMLButtonElement).disabled).toBe(true)
+    expect(steerButton.attributes('aria-label')).toBe("Can't interrupt right now")
   })
 })

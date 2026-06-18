@@ -67,3 +67,7 @@ Post-implementation review surfaced six items, addressed as additional acceptanc
 - **Stale abort safety.** A stale run that later throws `AbortError` after a newer run has started
   dispatches its own terminal hooks and writes the canceled block, but must not set the session status
   to `idle` unless it is still the active run.
+- **Started-drain response contract.** Backend steer actions return after a pending turn is claimed and
+  launched, while the generation continues in the background. If a drain cannot start, the promoted
+  steer item is restored to the queue or surfaced as a failed action.
+- **Accessible queue controls.** Icon-only pending-input controls expose translated accessible names.

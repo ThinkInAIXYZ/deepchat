@@ -61,3 +61,13 @@
   enqueuing/sending a new message, which drains from the error state).
 - Two pre-existing, environment-specific test failures are unrelated to this change and reproduce on
   a clean tree: `pluginPresenter` CUA `/private/var` symlink path, and `cuaSettings` permission UI.
+
+## Review hardening — round 3 (CodeRabbit launch semantics)
+
+- [x] Main: make `drainPendingQueueIfPossible` report successful launch immediately while the claimed
+      turn continues in the background; keep failure rollback for promoted steer items.
+- [x] Main: guard abort throw-path idle settlement against replacement pre-stream controllers.
+- [x] Renderer: add translated `aria-label` values to icon-only pending input controls and clear plan
+      state only after queued steer succeeds.
+- [x] Tests: replace fixed sleeps in reviewed tests with observable `vi.waitFor` conditions.
+- [x] Verify: format, i18n, lint, typecheck, and targeted tests.

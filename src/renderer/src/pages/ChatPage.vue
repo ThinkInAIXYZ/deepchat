@@ -1835,11 +1835,12 @@ async function onPendingInputDelete(itemId: string) {
 
 async function onPendingInputSteer(itemId: string) {
   if (isReadOnlySession.value) return
+  if (!isGenerating.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
-  agentPlanStore.clear(props.sessionId)
   try {
     await pendingInputStore.steerPendingInput(props.sessionId, itemId)
+    agentPlanStore.clear(props.sessionId)
   } catch (error) {
     console.error('[ChatPage] steer queued input failed:', error)
     toast({

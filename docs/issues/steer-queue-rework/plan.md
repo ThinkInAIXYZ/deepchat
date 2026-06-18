@@ -30,6 +30,11 @@ recursion; plain sends continue via the new settlement drain; `drainingPendingQu
 re-entry; `cancelGeneration` clears the active generation so the next turn gets a fresh abort
 controller.
 
+Review correction: `drainPendingQueueIfPossible` returns whether a drain was successfully started.
+It keeps `drainingPendingQueues` held until the background `processMessage` promise settles and then
+runs the same completion recursion. Callers that only need launch confirmation can return
+immediately; tests wait on observable state instead of timer sleeps.
+
 ## Renderer
 
 1. `ChatInputToolbar.vue`: steer becomes a visible `outline` button (compass + `t('chat.input.steer')`
@@ -40,6 +45,10 @@ controller.
    `shared/contracts/routes/sessions.routes.ts` + `routes.ts`, `main/routes/index.ts`,
    `agentSessionPresenter/index.ts`, the `.d.ts` types, and the `resumeQueue` i18n key.
 4. Update `chat.input.steer` zh-CN to "打断".
+
+Review correction: queued-item steer only clears plan UI after the backend steer call succeeds, and
+icon-only pending-input action buttons use the same translated strings for `title` and
+`aria-label`.
 
 ## Tests
 

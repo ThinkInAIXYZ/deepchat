@@ -357,7 +357,15 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
-      template: '<div class="pending-input-lane-stub" />'
+      props: {
+        queueItems: {
+          type: Array,
+          default: () => []
+        }
+      },
+      emits: ['steer-queue'],
+      template:
+        '<button class="pending-input-lane-stub" data-testid="pending-lane-steer" @click="$emit(\'steer-queue\', queueItems[0]?.id ?? \'queue-1\')" />'
     })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
@@ -894,6 +902,69 @@ describe('ChatPage', () => {
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
+  })
+
+  it('clears the active plan after queued steer succeeds', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ]
+      }
+    })
+
+    agentPlanStore.clear.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.clear).toHaveBeenCalledWith('s1')
+  })
+
+  it('keeps the active plan when queued steer fails', async () => {
+    const { wrapper, pendingInputStore, agentPlanStore, toast } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        items: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        queueItems: [
+          {
+            id: 'p1',
+            mode: 'queue',
+            payload: { text: 'queued', files: [] }
+          }
+        ],
+        steerPendingInput: vi.fn().mockRejectedValue(new Error('boom'))
+      }
+    })
+
+    agentPlanStore.clear.mockClear()
+    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
+    await flushPromises()
+
+    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
+    expect(agentPlanStore.clear).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.pendingInput.steerFailed',
+      variant: 'destructive'
+    })
   })
 
   it('allows sending attachment-only drafts', async () => {
