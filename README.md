@@ -2,9 +2,9 @@
 <img src='./build/icon.png' width="150" height="150" alt="DeepChat AI Assistant Icon" />
 </p>
 
-<h1 align="center">DeepChat - Powerful Open-Source AI Agent Platform</h1>
+<h1 align="center">DeepChat - Open-Source Local-First AI Agent Desktop Client</h1>
 
-<p align="center">DeepChat is a feature-rich open-source AI agent platform that unifies models, tools, and agents: multi-LLM chat, MCP tool calling, Skills, ACP agent integration, and remote control.</p>
+<p align="center">DeepChat is an open-source, local-first AI agent desktop client with rich agent capabilities, designed around the Tape.systems philosophy, with support for MCP, Skills, ACP, and remote control integrations for messaging apps.</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,6 +30,7 @@
 - [🚀 Project Introduction](#-project-introduction)
 - [💡 Why Choose DeepChat](#-why-choose-deepchat)
 - [🔥 Main Features](#-main-features)
+- [📼 Tape & Trace](#-tape--trace)
 - [🧠 Skills Support](#-skills-support)
 - [🧩 ACP Integration (Agent Client Protocol)](#-acp-integration-agent-client-protocol)
 - [📡 Remote Control](#-remote-control)
@@ -51,9 +52,9 @@
 
 ## 🚀 Project Introduction
 
-DeepChat is a powerful open-source AI agent platform that brings together models, tools, and agent runtimes in one desktop app. Whether you're using cloud APIs like OpenAI, Gemini, Anthropic, or locally deployed Ollama models, DeepChat delivers a smooth user experience.
+DeepChat is a powerful open-source, local-first AI agent desktop client that brings together models, tools, Skills, agent runtimes, Tape, and long-running sessions in one desktop app. Whether you're using cloud APIs like OpenAI, Gemini, Anthropic, or locally deployed Ollama models, DeepChat delivers a smooth user experience.
 
-Beyond chat, DeepChat supports agentic workflows: rich tool calling via MCP (Model Context Protocol), installable Skills for specialized tasks, unique ACP (Agent Client Protocol) integration that lets you run ACP-compatible agents as first-class “models” with a dedicated workspace UI, and remote control from messaging apps.
+DeepChat's sessions and agent processes follow the Tape.systems philosophy: keep the process, so context, tool calls, requests, and results stay recoverable, traceable, and inspectable. It also provides strong MCP support, installable Skills, ACP agent integration, and remote control for Telegram, Feishu/Lark, QQBot, Discord, WeChat iLink, and other messaging workflows.
 
 <table align="center">
   <tr>
@@ -72,16 +73,34 @@ Beyond chat, DeepChat supports agentic workflows: rich tool calling via MCP (Mod
 
 Compared to other AI tools, DeepChat offers the following unique advantages:
 
-- **Unified Multi-Model Management**: One application supports almost all mainstream LLMs, eliminating the need to switch between multiple apps
-- **Seamless Local Model Integration**: Built-in Ollama support allows you to manage and use local models without command-line operations
-- **Agentic Protocol Ecosystem**: Built-in MCP support enables tool calling (code execution, web access, etc.), Skills add reusable task expertise, and built-in ACP support connects external agents into DeepChat with a native workspace UX
-- **Powerful Search Enhancement**: Support for multiple search engines makes AI responses more accurate and timely, providing non-standard web search paradigms that can be quickly customized
+- **Local-First Agent Desktop Client**: Run DeepChat agents, ACP agents, and remote-ready bots in one local app
+- **Tape.systems Philosophy**: Preserve recoverable session history, trace request context, and inspect token budgets when agent work gets complex
+- **Skills That Travel**: Install, import, export, and enable reusable Skills per conversation for code review, documents, frontend work, Office/PDF tasks, and more
+- **Native ACP Integration**: Run ACP-compatible coding and task agents as first-class entries in the model selector
+- **Strong MCP Support**: Support Resources, Prompts, Tools, multiple transports, inMemory services, and one-click installation
 - **Remote-Ready Workflows**: Control DeepChat sessions from Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink
+- **Unified Multi-Model Management**: One application supports mainstream cloud LLMs and local Ollama models, eliminating the need to switch between multiple apps
 - **Privacy-Focused**: Local data storage and network proxy support reduce the risk of information leakage
 - **Business-Friendly**: Embraces open source under the Apache License 2.0, suitable for both commercial and personal use
 
 ## 🔥 Main Features
 
+- 🤖 **Local-First Agent Desktop Client**
+  - Select DeepChat, ACP, and remote-capable agents from one model-like entry point
+  - Run long-lived sessions with project folders, permission modes, tool output, and resumable context
+- 📼 **Tape & Trace**
+  - Session Tape records structured work history for recovery, resume, and future agent memory flows
+  - Trace previews show request sequences, provider/model metadata, Tape view manifests, included entries, and token budgets
+- 🧠 **Skills**
+  - Install Skills from folders, ZIP files, or URLs
+  - Enable Skills per conversation so DeepChat can load task-specific instructions, references, and optional scripts
+  - Import and export Skills with Claude Code, Codex, Cursor, Windsurf, GitHub Copilot, and other compatible tools
+- 🤝 **ACP (Agent Client Protocol) Agent Integration**
+  - Run ACP-compatible agents (built-in or custom commands) as selectable “models”
+  - ACP workspace UI for structured plans, tool calls, and terminal output when provided by the agent
+- 📡 **Remote Control**
+  - Control DeepChat sessions from Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink
+  - Bind remote endpoints to sessions, switch models, answer pending interactions, stop runs, and open desktop sessions remotely
 - 🌐 **Multiple Cloud LLM Provider Support**: DeepSeek, OpenAI, Moonshot/Kimi, Grok, Gemini, Anthropic, and more
 - 🏠 **Local Model Deployment Support**:
   - Integrated Ollama with comprehensive management capabilities
@@ -89,39 +108,24 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 - 🚀 **Rich and Easy-to-Use Chat Capabilities**
   - Complete Markdown rendering with code block rendering based on industry-leading [CodeMirror](https://codemirror.net/)
   - Multi-window + multi-tab architecture supporting parallel multi-session operations across all dimensions, use large models like using a browser, non-blocking experience brings excellent efficiency
-  - Supports Artifacts rendering for diverse result presentation, significantly saving token consumption after MCP integration
+  - Supports Artifacts rendering for diverse result presentation
   - Messages support retry to generate multiple variations; conversations can be forked freely, ensuring there's always a suitable line of thought
   - Supports rendering images, Mermaid diagrams, and other multi-modal content; supports GPT-4o, Gemini, Grok text-to-image capabilities
   - Supports highlighting external information sources like search results within the content
 - 🔍 **Robust Search Extension Capabilities**
-  - Built-in integration with leading search APIs like BoSearch, Brave Search via MCP mode, allowing the model to intelligently decide when to search
+  - Built-in integration with leading search APIs like BoSearch and Brave Search, allowing the model to intelligently decide when to search
   - Supports mainstream search engines like Google, Bing, Baidu, and Sogou Official Accounts search by simulating user web browsing, enabling the LLM to read search engines like a human
   - Supports reading any search engine; simply configure a search assistant model to connect various search sources, whether internal networks, API-less engines, or vertical domain search engines, as information sources for the model
-- 🔧 **Excellent MCP (Model Context Protocol) Support**
-  - Complete support for the three core capabilities of Resources/Prompts/Tools in the MCP protocol
-  - Supports semantic workflows, enabling more complex and intelligent automation by understanding the meaning and context of tasks.
-  - Extremely user-friendly configuration interface
-  - Aesthetically pleasing and clear tool call display
-  - Detailed tool call debugging window with automatic formatting of tool parameters and return data
-  - Built-in Node.js runtime environment; npx/node-like services require no extra configuration and work out-of-the-box
-  - Supports StreamableHTTP/SSE/Stdio protocol Transports
-  - Supports inMemory services with built-in utilities like code execution, web information retrieval, and file operations; ready for most common use cases out-of-the-box without secondary installation
-  - Converts visual model capabilities into universally usable functions for any model via the built-in MCP service
-- 🧠 **Skills**
-  - Install Skills from folders, ZIP files, or URLs
-  - Enable Skills per conversation so DeepChat can load task-specific instructions, references, and optional scripts
-  - Import and export Skills with other AI coding assistants
-  - Built-in Skills cover code review, document collaboration, Office/PDF processing, frontend design, MCP development, and more
-- 🤝 **ACP (Agent Client Protocol) Agent Integration**
-  - Run ACP-compatible agents (built-in or custom commands) as selectable “models”
-  - ACP workspace UI for structured plans, tool calls, and terminal output when provided by the agent
-- 📡 **Remote Control**
-  - Control DeepChat sessions from Telegram, Feishu/Lark, QQBot, Discord, and WeChat iLink
-  - Bind remote endpoints to sessions and manage conversations from messaging apps
-  - Create or switch sessions, stop generation, open desktop sessions, handle pending interactions, switch models, and check status remotely
+- 🔧 **Strong MCP (Model Context Protocol) Support**
+  - Full support for Resources / Prompts / Tools
+  - Supports StreamableHTTP, SSE, Stdio, and other transports
+  - Built-in Node.js runtime so npx/node-style services work out of the box
+  - inMemory services for code execution, web information retrieval, file operations, and other common utilities
+  - Clear tool-call display with parameter and return-data debugging
+  - DeepLink support for one-click MCP service installation
 - 💻 **Multi-Platform Support**: Windows, macOS, Linux
 - 🎨 **Beautiful and User-Friendly Interface**, user-oriented design, meticulously themed light and dark modes
-- 🔗 **Rich DeepLink Support**: Initiate conversations via links for seamless integration with other applications. Also supports one-click installation of MCP services for simplicity and speed
+- 🔗 **Rich DeepLink Support**: Initiate conversations via links for seamless integration with other applications, including one-click MCP service installation.
 - 🚑 **Security-First Design**: Chat data and configuration data have reserved encryption interfaces and code obfuscation capabilities
 - 🛡️ **Privacy Protection**: Supports screen projection hiding, network proxies, and other privacy protection methods to reduce the risk of information leakage
 - 💰 **Business-Friendly**:
@@ -131,6 +135,10 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Reasonable architecture, data interaction and UI behavior separation, fully utilizing Electron's capabilities, rejecting simple web wrappers, excellent performance
 
 For more details on how to use these features, see the [documentation index](./docs/README.md).
+
+## 📼 Tape & Trace
+
+DeepChat's session Tape follows the Tape.systems philosophy and keeps agent work recoverable and inspectable. Trace previews expose request sequences, provider/model metadata, Tape view manifests, included or excluded entries, and token budgets, making long-running agent sessions easier to debug and resume.
 
 ## 🧠 Skills Support
 
@@ -145,6 +153,7 @@ Quick start:
 1. Open **Settings → Skills**
 2. Install or import a Skill
 3. Enable it in conversations that need that capability
+
 ## 🧩 ACP Integration (Agent Client Protocol)
 
 DeepChat has built-in support for [Agent Client Protocol (ACP)](https://agentclientprotocol.com), allowing you to integrate external agent runtimes into DeepChat with a native UI. Once enabled, ACP agents appear as first-class entries in the model selector, so you can use coding agents and task agents directly inside DeepChat.

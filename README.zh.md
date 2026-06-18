@@ -2,9 +2,9 @@
 <img src='./build/icon.png' width="150" height="150" alt="DeepChat AI助手图标" />
 </p>
 
-<h1 align="center">DeepChat - 强大的开源多模型 AI Agent 平台</h1>
+<h1 align="center">DeepChat - 开源本地优先 Agent 桌面客户端</h1>
 
-<p align="center">DeepChat是一个功能丰富的开源 AI Agent 平台，统一模型、工具与 Agent：多模型聊天、MCP 工具调用、Skills、ACP Agent 集成和远程控制。</p>
+<p align="center">DeepChat 是一款开源、本地优先的 Agent 桌面客户端，具有丰富的 Agent 能力，基于 Tape.systems 哲学设计，支持 MCP、Skills、ACP，并具备丰富的远程控制能力，可无缝接入各种 IM 工具。</p>
 
 <p align="center">
   <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
@@ -30,6 +30,7 @@
 - [🚀 项目简介](#-项目简介)
 - [💡 为什么选择DeepChat](#-为什么选择deepchat)
 - [🔥 主要功能](#-主要功能)
+- [📼 Tape 与 Trace](#-tape-与-trace)
 - [🧠 Skills 支持](#-skills-支持)
 - [🧩 ACP 集成（Agent Client Protocol）](#-acp-集成agent-client-protocol)
 - [📡 远程控制](#-远程控制)
@@ -51,9 +52,9 @@
 
 ## 🚀 项目简介
 
-DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 Agent Runtime 统一在一款桌面应用中。无论是云端API如OpenAI、Gemini、Anthropic，还是本地部署的Ollama模型，DeepChat都能提供流畅的用户体验。
+DeepChat 是一款功能强大的开源、本地优先 Agent 桌面客户端，将模型、工具、Skills、Agent Runtime、Tape 和长会话统一在一款桌面应用中。无论是云端 API 如 OpenAI、Gemini、Anthropic，还是本地部署的 Ollama 模型，DeepChat 都能提供流畅的用户体验。
 
-除了聊天，DeepChat还支持更强的 agentic 工作流：通过 MCP（Model Context Protocol）进行工具调用，通过可安装的 Skills强化专门任务，并内置 ACP（Agent Client Protocol）集成，让 ACP 兼容 Agent 以一等“模型”形态接入，同时提供专用 Workspace UI，也支持从聊天软件远程控制会话。
+DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过程保留下来，让上下文、工具调用、请求与结果可恢复、可追踪、可审计。它同时提供出色的 MCP 支持、可安装 Skills、ACP Agent 集成，以及可接入 Telegram、飞书/Lark、QQBot、Discord、微信 iLink 等 IM 工具的远程控制能力。
 
 <table align="center">
   <tr>
@@ -72,16 +73,34 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
 
 与其他AI工具相比，DeepChat具有以下独特优势：
 
-- **多模型统一管理**：一个应用支持几乎所有主流LLM，无需在多个应用间切换
-- **本地模型无缝集成**：内置Ollama支持，无需命令行操作即可管理和使用本地模型
-- **Agentic 协议生态**：内置MCP支持工具调用（代码执行、网络访问等），Skills 提供可复用的任务专长，同时内置ACP支持将外部 Agent 接入 DeepChat，并提供原生 Workspace 体验
-- **强大的搜索增强**：支持多种搜索引擎，让AI回答更加准确和及时，提供了非标网页搜索范式，可以快速定制
+- **本地优先 Agent 桌面客户端**：在一个本地应用里运行 DeepChat Agent、ACP Agent 和可远程控制的 Bot
+- **Tape.systems 哲学**：保留可恢复的会话历史，追踪请求上下文，并在复杂 Agent 任务中检查 token 预算
+- **可迁移的 Skills**：按会话安装、导入、导出和启用 Skills，覆盖代码审查、文档、前端、Office/PDF 等任务
+- **原生 ACP 集成**：将 ACP 兼容的编码/任务 Agent 作为一等“模型”使用
+- **出色的 MCP 支持**：支持 Resources、Prompts、Tools、多种传输协议、inMemory 服务和一键安装
 - **远程工作流**：支持通过 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink 控制 DeepChat 会话
+- **多模型统一管理**：一个应用支持主流云端 LLM 和本地 Ollama 模型，无需在多个应用间切换
 - **注重隐私保护**：本地数据存储，支持网络代理，减少信息泄露风险
 - **开源友好**：基于 Apache License 2.0 协议，适合商业和个人使用
 
 ## 🔥 主要功能
 
+- 🤖 **本地优先 Agent 桌面客户端**
+  - 从同一个类似模型选择器的入口选择 DeepChat、ACP 和远程能力 Agent
+  - 支持项目目录、权限模式、工具输出和可恢复上下文，适合长时间运行任务
+- 📼 **Tape 与 Trace**
+  - Session Tape 记录结构化工作历史，为恢复、续跑和未来 Agent 记忆流程打底
+  - Trace 预览展示请求序号、供应商/模型元数据、Tape 视图清单、上下文条目和 token 预算
+- 🧠 **Skills**
+  - 支持从文件夹、ZIP 文件或 URL 安装 Skills
+  - 可按会话启用 Skills，让 DeepChat 加载任务专用说明、参考资料和可选脚本
+  - 支持与 Claude Code、Codex、Cursor、Windsurf、GitHub Copilot 等兼容工具导入/导出
+- 🤝 **ACP（Agent Client Protocol）Agent 集成**
+  - 将 ACP 兼容 Agent（内置或自定义命令）作为可选“模型”使用
+  - Agent 提供时，支持 ACP Workspace UI 展示结构化计划、工具调用与终端输出
+- 📡 **远程控制**
+  - 支持通过 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink 控制 DeepChat 会话
+  - 可绑定远程端点、切换模型、处理待确认交互、停止任务，并在桌面打开对应会话
 - 🌐 **多种云端LLM提供商支持**：DeepSeek、OpenAI、Moonshot/Kimi、Grok、Gemini、Anthropic等
 - 🏠 **本地模型部署支持**：
   - 集成Ollama，提供全面的管理功能
@@ -89,39 +108,24 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
 - 🚀 **丰富易用的聊天功能**
   - 完整的Markdown渲染，代码块渲染基于业界顶级的 [CodeMirror](https://codemirror.net/) 实现
   - 多窗口+多Tab架构，各个维度支持多会话并行运行，就像使用浏览器一样使用大模型，无阻塞的体验带来了优异的效率
-  - 支持 Artifacts 渲染，多样化结果展示，MCP集成后显著节省token消耗
+  - 支持 Artifacts 渲染，多样化结果展示
   - 消息支持重试生成多个变体；对话可自由分支，确保总有合适的思路
   - 支持渲染图像、Mermaid图表等多模态内容；支持GPT-4o,Gemini,Grok的文本到图像功能
   - 支持在内容中高亮显示搜索结果等外部信息源
 - 🔍 **强大的搜索扩展能力**
-  - 通过MCP模式内置集成博查搜索、Brave Search等 领先搜索API，让模型智能决定何时搜索
+  - 内置集成博查搜索、Brave Search 等领先搜索 API，让模型智能决定何时搜索
   - 通过模拟用户网页浏览，支持Google、Bing、百度、搜狗公众号搜索等主流搜索引擎，使LLM能像人类一样阅读搜索引擎
   - 支持读取任何搜索引擎；只需配置搜索助手模型，即可连接各种搜索源，无论是内部网络、无API的引擎，还是垂直领域搜索引擎，作为模型的信息源
-- 🔧 **出色的MCP（Model Context Protocol）支持**
-  - 完整支持了 MCP 协议中 Resources/Prompts/Tools 三大核心能力
-  - 支持语义工作流，通过理解任务的意义和上下文，实现更复杂和智能的自动化
-  - 极其用户友好的配置界面
-  - 美观清晰的工具调用显示
-  - 详细的工具调用调试窗口，自动格式化工具参数和返回数据
-  - 内置 Node.js 运行环境；类似 npx/node 的服务无需额外配置开箱即用
-  - 支持 StreamableHTTP/SSE/Stdio 协议 Transports
-  - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用工具；开箱即用，无需二次安装即可满足大多数常见用例
-  - 通过内置 MCP 服务，将视觉模型能力转换为任何模型都可通用的函数
-- 🧠 **Skills**
-  - 支持从文件夹、ZIP 文件或 URL 安装 Skills
-  - 可按会话启用 Skills，让 DeepChat 加载任务专用说明、参考资料和可选脚本
-  - 支持与其他 AI 编程助手导入/导出 Skills
-  - 内置 Skills 覆盖代码审查、文档协作、Office/PDF 处理、前端设计、MCP 开发等任务
-- 🤝 **ACP（Agent Client Protocol）Agent 集成**
-  - 将 ACP 兼容 Agent（内置或自定义命令）作为可选“模型”使用
-  - Agent 提供时，支持 ACP Workspace UI 展示结构化计划、工具调用与终端输出
-- 📡 **远程控制**
-  - 支持通过 Telegram、飞书/Lark、QQBot、Discord 和微信 iLink 控制 DeepChat 会话
-  - 可将远程端点绑定到会话，并从聊天软件中管理对话
-  - 支持远程新建或切换会话、停止生成、打开桌面会话、处理待确认交互、切换模型和查看状态
+- 🔧 **出色的 MCP（Model Context Protocol）支持**
+  - 完整支持 Resources / Prompts / Tools 三大核心能力
+  - 支持 StreamableHTTP、SSE、Stdio 等传输协议
+  - 内置 Node.js 运行环境，npx/node 类服务可开箱即用
+  - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用能力
+  - 提供清晰的工具调用展示和参数/返回数据调试体验
+  - 支持通过 DeepLink 一键安装 MCP 服务
 - 💻 **多平台支持**：Windows、macOS、Linux
 - 🎨 **美观友好的界面**，以用户为中心的设计，精心设计的明暗主题
-- 🔗 **丰富的DeepLink支持**：通过链接发起对话，与其他应用无缝集成。还支持一键安装MCP服务，简单快速
+- 🔗 **丰富的DeepLink支持**：通过链接发起对话，与其他应用无缝集成，也支持一键安装 MCP 服务
 - 🚑 **安全优先设计**：聊天数据和配置数据预留加密接口和代码混淆能力
 - 🛡️ **隐私保护**：支持屏幕投影隐藏、网络代理等隐私保护方法，降低信息泄露风险
 - 💰 **商业友好**：
@@ -129,6 +133,10 @@ DeepChat是一个功能强大的开源 AI Agent 平台，将模型、工具与 A
   - 企业集成只需要修改极少配置代码即可使用预留的加密混淆的安全能力
   - 代码结构清晰，无论是模型供应商还是 MCP 服务都高度解耦，可以随意进行增删定制，成本极低
   - 架构合理，数据交互和UI行为分离，充分利用 Electron 的能力，拒绝简单的网页套壳，性能优异
+
+## 📼 Tape 与 Trace
+
+DeepChat 的 session Tape 继承 Tape.systems 的哲学，让 Agent 工作可恢复、可检查。Trace 预览可以查看请求序号、供应商/模型元数据、Tape 视图清单、包含/排除的上下文条目和 token 预算，让长会话更容易调试和续跑。
 
 ## 🧠 Skills 支持
 
