@@ -26,7 +26,7 @@
       />
     </div>
 
-    <div v-show="expanded" class="w-full relative">
+    <div v-if="expanded" class="w-full relative">
       <NodeRenderer
         v-if="sanitizedContent"
         class="think-prose w-full max-w-full"
