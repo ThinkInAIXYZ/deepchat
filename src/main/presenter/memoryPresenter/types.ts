@@ -65,8 +65,8 @@ export interface IMemoryVectorStore {
   upsert(records: MemoryVectorRecord[]): Promise<void>
   query(embedding: number[], options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
   deleteByMemoryIds(memoryIds: string[]): Promise<void>
-  clear(): Promise<void>
   close(): Promise<void>
+  isUsable(): boolean
 }
 
 /**
@@ -113,8 +113,17 @@ export interface MemoryPresenterDeps {
   getEmbeddings: (providerId: string, modelId: string, texts: string[]) => Promise<number[][]>
   /** 廉价模型文本生成，用于记忆抽取（独立于摘要调用）。 */
   generateText: (providerId: string, modelId: string, prompt: string) => Promise<string>
-  /** 为指定 agent 创建/打开向量存储；dimensions 用于首次初始化。 */
-  createVectorStore: (agentId: string, dimensions: number) => Promise<IMemoryVectorStore>
+  /** 为指定 agent 创建/打开向量存储；embedding 身份用于校验，dimensions 用于首次初始化。 */
+  createVectorStore: (
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    dimensions: number
+  ) => Promise<IMemoryVectorStore>
+  /**
+   * 删除指定 agent 的磁盘向量库（含 wal），与缓存是否存在无关。
+   * 用于清空记忆时彻底重置：重启后缓存为空也能删掉老库，下次写入会以当前 embedding 身份重建。
+   */
+  resetVectorStore: (agentId: string) => Promise<void>
   /**
    * 记忆数据变更回调（写入/删除/清空/人格演化/回滚后触发），由宿主接 typed 事件广播给 UI。
    * 可选——单测不注入时为纯 presenter，无副作用。

@@ -527,6 +527,7 @@ export class Presenter implements IPresenter {
 
     // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
     const memoryDbDir = path.join(dbDir, 'AgentMemory')
+    const memoryVectorDbPath = (agentId: string) => path.join(memoryDbDir, `${agentId}.duckdb`)
     this.memoryPresenter = new MemoryPresenter({
       repository: (this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter)
         .agentMemoryTable,
@@ -538,12 +539,18 @@ export class Presenter implements IPresenter {
       generateText: async (providerId, modelId, prompt) =>
         (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
         '',
-      createVectorStore: (agentId, dimensions) => {
+      createVectorStore: (agentId, embedding, dimensions) => {
         // 防御路径穿越：agentId 会拼进 *.duckdb 文件名，必须先确认是 URL-safe 格式
         if (!isSafeAgentId(agentId)) {
           throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
         }
-        return MemoryVectorStore.create(path.join(memoryDbDir, `${agentId}.duckdb`), dimensions)
+        return MemoryVectorStore.create(memoryVectorDbPath(agentId), dimensions, embedding)
+      },
+      resetVectorStore: async (agentId) => {
+        if (!isSafeAgentId(agentId)) {
+          throw new Error(`[Memory] refusing to reset vector store for unsafe agentId: ${agentId}`)
+        }
+        MemoryVectorStore.destroyFile(memoryVectorDbPath(agentId))
       },
       // 记忆变更 → typed 事件广播，驱动渲染层记忆管理 UI 自动刷新
       onMemoryChanged: (agentId, reason) =>
@@ -900,6 +907,7 @@ export class Presenter implements IPresenter {
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
+    await this.memoryPresenter.dispose() // release per-agent memory vector store connections
     await (this.workspacePresenter as WorkspacePresenter).destroy() // 销毁 Workspace watchers
     await (this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
     ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源

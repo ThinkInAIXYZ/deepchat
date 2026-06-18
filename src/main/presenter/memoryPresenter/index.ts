@@ -40,8 +40,22 @@ const REFLECT_EVERY_N_MEMORIES = 5
 /** 反思时纳入的记忆条数上限。 */
 const REFLECTION_MEMORY_LIMIT = 20
 
+function isUniqueConstraintError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code
+  if (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY') return true
+  const message = error instanceof Error ? error.message : String(error)
+  return /UNIQUE constraint failed/i.test(message)
+}
+
 export class MemoryPresenter implements MemoryRuntimePort {
-  private readonly vectorStores = new Map<string, IMemoryVectorStore>()
+  // One DuckDB sidecar per agent (keyed by agentId, not by embedding identity, because the
+  // file path is per-agent). Caches the in-flight create promise so concurrent callers share
+  // one open. The identity it was opened with is tracked separately to re-open on model/dim
+  // switch. All open/close/reset go through a per-agent lock so the same file is never opened
+  // by two DuckDBInstances at once.
+  private readonly vectorStores = new Map<string, Promise<IMemoryVectorStore>>()
+  private readonly vectorStoreIdentities = new Map<string, string>()
+  private readonly vectorStoreLocks = new Map<string, Promise<unknown>>()
 
   constructor(private readonly deps: MemoryPresenterDeps) {}
 
@@ -95,6 +109,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         })
         created.push(id)
       } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error
         // 唯一索引并发冲突 → 视为已存在，跳过
         logger.warn(`[Memory] insert skipped (dedupe/race): ${String(error)}`)
       }
@@ -131,8 +146,25 @@ export class MemoryPresenter implements MemoryRuntimePort {
           this.deps.repository.updateStatus(row.id, 'error')
           continue
         }
-        const store = await this.getVectorStore(agentId, vector.length)
-        await store.upsert([{ memoryId: row.id, embedding: vector }])
+        // Open the store and write under the per-agent lock, with the row existence check
+        // INSIDE the lock and BEFORE opening: if the row was cleared during the embedding
+        // await, a concurrent clear cannot interleave to make us resurrect the sidecar.
+        const outcome = await this.runExclusiveForAgent(agentId, async () => {
+          if (!this.deps.repository.getById(row.id)) return 'gone' as const
+          const store = await this.openVectorStoreLocked(
+            agentId,
+            { providerId: embedding.providerId, modelId: embedding.modelId },
+            vector.length
+          )
+          if (!store.isUsable()) return 'unusable' as const
+          await store.upsert([{ memoryId: row.id, embedding: vector }])
+          return 'ok' as const
+        })
+        if (outcome === 'gone') continue
+        if (outcome === 'unusable') {
+          this.deps.repository.updateStatus(row.id, 'error')
+          continue
+        }
         this.deps.repository.updateStatus(row.id, 'embedded', {
           embeddingId: row.id,
           embeddingDim: vector.length
@@ -227,8 +259,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
         ])
         const vector = vectors[0]
         if (vector?.length) {
-          const store = await this.getVectorStore(agentId, vector.length)
-          const matches = await store.query(vector, { topK: topK * 2 })
+          const store = await this.getVectorStore(
+            agentId,
+            { providerId: embedding.providerId, modelId: embedding.modelId },
+            vector.length
+          )
+          const matches = store.isUsable() ? await store.query(vector, { topK: topK * 2 }) : []
           for (const match of matches) {
             const similarity = distanceToSimilarity(match.distance)
             if (similarity < DEFAULT_SIMILARITY_THRESHOLD) continue
@@ -267,6 +303,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   // ==================== 人格演化 ====================
 
+  // Persona currently auto-evolves without gating; controlled approval is planned later.
   /**
    * 反思并演化自我模型（人格的核心）。节流：仅在记忆量跨过阈值倍数、或尚无人格时触发。
    * createdCount = 本轮新写入的记忆数，用于判断是否"跨过"反思阈值。
@@ -370,7 +407,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     this.deps.repository.delete(memoryId)
-    const store = this.vectorStores.get(agentId)
+    const store = await this.vectorStoreForAgent(agentId)
     if (store) {
       await store.deleteByMemoryIds([memoryId]).catch((error) => {
         logger.warn(`[Memory] vector delete failed: ${String(error)}`)
@@ -384,12 +421,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return 0
     const removed = this.deps.repository.clearByAgent(agentId)
-    const store = this.vectorStores.get(agentId)
-    if (store) {
-      await store.clear().catch((error) => {
-        logger.warn(`[Memory] vector clear failed: ${String(error)}`)
-      })
-    }
+    // Under the per-agent lock: close the cached connection (release the file handle), then
+    // delete the on-disk store regardless of cache state — a restart leaves the cache empty
+    // but a stale/mismatched .duckdb on disk, which would otherwise stay fail-closed forever.
+    await this.runExclusiveForAgent(agentId, async () => {
+      await this.closeVectorStore(agentId)
+      await this.deps.resetVectorStore(agentId)
+    }).catch((error) => {
+      // The SQLite rows are gone, but the sidecar file could not be removed (lock/permission);
+      // surface it so a failed recovery is not mistaken for success.
+      logger.error(
+        `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
+      )
+    })
     if (removed > 0) this.emitChanged(agentId, 'clear')
     return removed
   }
@@ -408,10 +452,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async dispose(): Promise<void> {
-    for (const store of this.vectorStores.values()) {
-      await store.close().catch(() => undefined)
+    for (const pending of this.vectorStores.values()) {
+      const store = await pending.catch(() => null)
+      if (store) await store.close().catch(() => undefined)
     }
     this.vectorStores.clear()
+    this.vectorStoreIdentities.clear()
+    this.vectorStoreLocks.clear()
   }
 
   // ==================== 内部 ====================
@@ -431,11 +478,72 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
   }
 
-  private async getVectorStore(agentId: string, dimensions: number): Promise<IMemoryVectorStore> {
-    const existing = this.vectorStores.get(agentId)
-    if (existing) return existing
-    const store = await this.deps.createVectorStore(agentId, dimensions)
-    this.vectorStores.set(agentId, store)
-    return store
+  private vectorStoreCacheKey(
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    dimensions: number
+  ): string {
+    return `${agentId}::${embedding.providerId}::${embedding.modelId}::${dimensions}`
+  }
+
+  /** Serialize open/close/reset of an agent's single sidecar file so it is never opened twice. */
+  private runExclusiveForAgent<T>(agentId: string, task: () => Promise<T>): Promise<T> {
+    const prev = this.vectorStoreLocks.get(agentId) ?? Promise.resolve()
+    const run = prev.then(() => task())
+    this.vectorStoreLocks.set(
+      agentId,
+      run.then(
+        () => undefined,
+        () => undefined
+      )
+    )
+    return run
+  }
+
+  private async vectorStoreForAgent(agentId: string): Promise<IMemoryVectorStore | null> {
+    const pending = this.vectorStores.get(agentId)
+    return pending ? pending.catch(() => null) : null
+  }
+
+  /** Close and evict the agent's cached store (caller must hold the per-agent lock). */
+  private async closeVectorStore(agentId: string): Promise<void> {
+    const pending = this.vectorStores.get(agentId)
+    if (!pending) return
+    this.vectorStores.delete(agentId)
+    this.vectorStoreIdentities.delete(agentId)
+    const store = await pending.catch(() => null)
+    if (store) await store.close().catch(() => undefined)
+  }
+
+  private getVectorStore(
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    dimensions: number
+  ): Promise<IMemoryVectorStore> {
+    return this.runExclusiveForAgent(agentId, () =>
+      this.openVectorStoreLocked(agentId, embedding, dimensions)
+    )
+  }
+
+  /** Open/reuse the agent's single sidecar. Caller MUST hold the per-agent lock. */
+  private async openVectorStoreLocked(
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    dimensions: number
+  ): Promise<IMemoryVectorStore> {
+    const identity = this.vectorStoreCacheKey(agentId, embedding, dimensions)
+    const cached = this.vectorStores.get(agentId)
+    if (cached && this.vectorStoreIdentities.get(agentId) === identity) return cached
+    // Identity changed (model/dim switch): the same .duckdb file is reused, so close the
+    // previous instance before opening it again to keep a single DuckDBInstance per file.
+    await this.closeVectorStore(agentId)
+    const pending = this.deps.createVectorStore(agentId, embedding, dimensions).catch((error) => {
+      this.vectorStores.delete(agentId)
+      this.vectorStoreIdentities.delete(agentId)
+      throw error
+    })
+    this.vectorStores.set(agentId, pending)
+    this.vectorStoreIdentities.set(agentId, identity)
+    return pending
   }
 }

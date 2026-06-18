@@ -31,6 +31,34 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     return { db, table }
   }
 
+  it('keeps memory/persona anchors out of context reconstruction (C7, AC-7.3)', () => {
+    const { db, table } = createTable()
+
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/manual',
+      state: { summary: 'one', cursorOrderSeq: 3 },
+      createdAt: 100
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'memory/extract',
+      state: { memoryIds: ['m1'], count: 1 },
+      createdAt: 101
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'persona/evolve',
+      state: { personaId: 'p1' },
+      createdAt: 102
+    })
+
+    const anchor = table.getLatestReconstructionAnchor('s1')
+    expect(anchor?.name).toBe('compaction/manual')
+
+    db.close()
+  })
+
   it('assigns monotonic entry ids per session', () => {
     const { db, table } = createTable()
 

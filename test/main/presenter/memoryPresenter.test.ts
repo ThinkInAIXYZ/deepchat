@@ -164,11 +164,11 @@ class FakeVectorStore implements IMemoryVectorStore {
     for (const id of memoryIds) this.vectors.delete(id)
   }
 
-  async clear() {
-    this.vectors.clear()
-  }
-
   async close() {}
+
+  isUsable() {
+    return true
+  }
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -188,13 +188,18 @@ function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeReposi
   const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
     texts.map((text) => textToVector(text))
   )
+  // Models the on-disk reset: clearing memories deletes the agent's vector file.
+  const resetVectorStore = vi.fn(async () => {
+    store.vectors.clear()
+  })
   const presenter = new MemoryPresenter({
     repository: repo,
     resolveAgentConfig: () => config,
     getEmbeddings,
-    createVectorStore: async () => store
+    createVectorStore: async () => store,
+    resetVectorStore
   })
-  return { presenter, repo, store, getEmbeddings }
+  return { presenter, repo, store, getEmbeddings, resetVectorStore }
 }
 
 // 把文本映射成与关键词相关的玩具向量，便于断言相似度排序。
@@ -382,6 +387,144 @@ describe('MemoryPresenter management', () => {
     expect(store.vectors.size).toBe(0)
   })
 
+  it('clearMemories closes the cached store, resets disk, and re-creates it next time', async () => {
+    const repo = new FakeRepository()
+    const stores: FakeVectorStore[] = []
+    const createVectorStore = vi.fn(async () => {
+      const s = new FakeVectorStore()
+      stores.push(s)
+      return s
+    })
+    const resetVectorStore = vi.fn(async () => undefined)
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    const closeSpy = vi.spyOn(stores[0], 'close')
+
+    await presenter.clearMemories('a')
+    expect(closeSpy).toHaveBeenCalledTimes(1)
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'pg' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(createVectorStore).toHaveBeenCalledTimes(2)
+  })
+
+  it('clearMemories resets the on-disk store even when nothing is cached', async () => {
+    const repo = new FakeRepository()
+    const resetVectorStore = vi.fn(async () => undefined)
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore
+    })
+    // Simulate a fresh process: a memory row exists on disk but no vector store is cached.
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    expect(createVectorStore).not.toHaveBeenCalled()
+
+    await presenter.clearMemories('a')
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+  })
+
+  it('concurrent vector-store access shares a single create (promise cache)', async () => {
+    const repo = new FakeRepository()
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    // Two cold-cache recalls in flight: only one create must open the file.
+    await Promise.all([presenter.recall('a', 'redis'), presenter.recall('a', 'redis')])
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+  })
+
+  it('processPendingEmbeddings does not open the sidecar for a row cleared during the await', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const createVectorStore = vi.fn(async () => store)
+    let resolveEmb: () => void = () => {}
+    const getEmbeddings = vi.fn(
+      () =>
+        new Promise<number[][]>((resolve) => {
+          resolveEmb = () => resolve([textToVector('redis')])
+        })
+    )
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    const ids = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
+      agentId: 'a'
+    })
+    const pending = presenter.processPendingEmbeddings('a') // suspends on getEmbeddings
+    await presenter.clearMemories('a') // deletes the row + resets the store
+    resolveEmb()
+    await pending
+    // Row was gone before the store was opened → no sidecar (re)created, no orphan vector.
+    expect(createVectorStore).not.toHaveBeenCalled()
+    expect(store.vectors.has(ids[0])).toBe(false)
+  })
+
+  it('clearMemories awaits an in-flight create, then closes and resets it', async () => {
+    const repo = new FakeRepository()
+    const created = new FakeVectorStore()
+    let resolveCreate: () => void = () => {}
+    const createVectorStore = vi.fn(
+      () =>
+        new Promise<IMemoryVectorStore>((resolve) => {
+          resolveCreate = () => resolve(created)
+        })
+    )
+    // Models the on-disk reset: deleting the file drops whatever the in-flight create wrote.
+    const resetVectorStore = vi.fn(async () => {
+      created.vectors.clear()
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    const closeSpy = vi.spyOn(created, 'close')
+
+    // An embedding blocks inside createVectorStore, holding the per-agent lock.
+    const embedding = presenter.processPendingEmbeddings('a')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+
+    // Clearing while the create is in flight must queue behind the lock, not race past it.
+    const clear = presenter.clearMemories('a')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(resetVectorStore).not.toHaveBeenCalled()
+
+    resolveCreate()
+    await Promise.all([embedding, clear])
+
+    expect(closeSpy).toHaveBeenCalledTimes(1)
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+    // The cleared row was deleted before the embedding resumed → no orphan vector written.
+    expect(created.vectors.size).toBe(0)
+  })
+
   it('deleteMemory only deletes owned memory', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const ids = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
@@ -404,6 +547,7 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
       getEmbeddings: async () => [],
       generateText: async () => '[]',
       createVectorStore: async () => store,
+      resetVectorStore: async () => undefined,
       onMemoryChanged
     })
     return { presenter, repo, onMemoryChanged }
@@ -531,5 +675,117 @@ describe('MemoryPresenter agentId safety guards', () => {
     // 真实 agent 正常工作
     expect(presenter.listMemories('real')).toHaveLength(1)
     expect(repo.countByAgent('real')).toBe(1)
+  })
+})
+
+describe('writeMemoriesSync insert error classification (C2, AC-2.2)', () => {
+  it('swallows UNIQUE constraint races as dedupe', () => {
+    const repo = new FakeRepository()
+    const uniqueError = Object.assign(
+      new Error('UNIQUE constraint failed: agent_memory.provenance_key'),
+      { code: 'SQLITE_CONSTRAINT_UNIQUE' }
+    )
+    vi.spyOn(repo, 'insert').mockImplementation(() => {
+      throw uniqueError
+    })
+    const { presenter } = makePresenter(enabledConfig, repo)
+
+    const created = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
+      agentId: 'a'
+    })
+    expect(created).toEqual([])
+  })
+
+  it('rethrows non-UNIQUE SQLite errors instead of silently dropping memories', () => {
+    const repo = new FakeRepository()
+    vi.spyOn(repo, 'insert').mockImplementation(() => {
+      throw Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' })
+    })
+    const { presenter } = makePresenter(enabledConfig, repo)
+
+    expect(() =>
+      presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    ).toThrow('disk I/O error')
+  })
+
+  it('extractAndStore degrades to ok:false on a real insert error (cursor must not advance)', async () => {
+    const repo = new FakeRepository()
+    vi.spyOn(repo, 'insert').mockImplementation(() => {
+      throw Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' })
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({ memoryEnabled: true }),
+      getEmbeddings: async () => [],
+      generateText: async () => '[{"kind":"semantic","content":"likes redis","importance":0.9}]',
+      createVectorStore: async () => new FakeVectorStore()
+    })
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('MemoryPresenter vector store identity (C5, AC-5.1/5.3)', () => {
+  it('re-opens the per-agent sidecar under the new identity on model switch (AC-5.1)', async () => {
+    const repo = new FakeRepository()
+    let config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm1' }
+    }
+    const createVectorStore = vi.fn(async () => new FakeVectorStore())
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map(() => [0.1, 0.2]),
+      createVectorStore
+    })
+
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+
+    await presenter.recall('a', 'redis')
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+
+    config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm2' } }
+    await presenter.recall('a', 'redis')
+    expect(createVectorStore).toHaveBeenCalledTimes(2)
+  })
+
+  it('never queries an unusable vector store, falling back to FTS without errors (AC-5.3)', async () => {
+    const repo = new FakeRepository()
+    const query = vi.fn(async () => [])
+    const unusableStore = { ...new FakeVectorStore(), isUsable: () => false, query }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => unusableStore
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+
+    const results = await presenter.recall('a', 'redis')
+    expect(query).not.toHaveBeenCalled()
+    expect(results.some((item) => item.content === 'redis fact')).toBe(true)
+  })
+})
+
+describe('MemoryPresenter dispose lifecycle (C4, AC-4.1)', () => {
+  it('closes cached vector stores and is idempotent', async () => {
+    const { presenter, store } = makePresenter(enabledConfig)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    const closeSpy = vi.spyOn(store, 'close')
+
+    await presenter.dispose()
+    expect(closeSpy).toHaveBeenCalledTimes(1)
+
+    await presenter.dispose()
+    expect(closeSpy).toHaveBeenCalledTimes(1)
   })
 })

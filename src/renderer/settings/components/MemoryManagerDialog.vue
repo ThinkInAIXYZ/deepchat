@@ -163,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -254,16 +254,21 @@ function formatTime(ms: number): string {
   return new Date(ms).toLocaleString()
 }
 
+function notifyActionFailed(e?: unknown): void {
+  toast({
+    variant: 'destructive',
+    title: t('settings.deepchatAgents.memoryManager.actionFailed'),
+    description: e instanceof Error ? e.message : e ? String(e) : undefined
+  })
+}
+
 async function handleDelete(memoryId: string): Promise<void> {
   try {
-    await memoryClient.remove(props.agentId, memoryId)
-    // 乐观更新；事件订阅亦会触发刷新
+    const ok = await memoryClient.remove(props.agentId, memoryId)
+    if (!ok) return notifyActionFailed()
     memories.value = memories.value.filter((memory) => memory.id !== memoryId)
   } catch (e) {
-    toast({
-      title: t('settings.deepchatAgents.memoryManager.actionFailed'),
-      description: e instanceof Error ? e.message : String(e)
-    })
+    notifyActionFailed(e)
   }
 }
 
@@ -272,22 +277,17 @@ async function handleClear(): Promise<void> {
     await memoryClient.clear(props.agentId)
     memories.value = []
   } catch (e) {
-    toast({
-      title: t('settings.deepchatAgents.memoryManager.actionFailed'),
-      description: e instanceof Error ? e.message : String(e)
-    })
+    notifyActionFailed(e)
   }
 }
 
 async function handleRollback(versionId: string): Promise<void> {
   try {
-    await memoryClient.rollbackPersona(props.agentId, versionId)
+    const ok = await memoryClient.rollbackPersona(props.agentId, versionId)
+    if (!ok) return notifyActionFailed()
     await refresh()
   } catch (e) {
-    toast({
-      title: t('settings.deepchatAgents.memoryManager.actionFailed'),
-      description: e instanceof Error ? e.message : String(e)
-    })
+    notifyActionFailed(e)
   }
 }
 
@@ -307,4 +307,9 @@ watch(
     }
   }
 )
+
+onUnmounted(() => {
+  disposeUpdated?.()
+  disposeUpdated = null
+})
 </script>

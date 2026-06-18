@@ -98,6 +98,7 @@ export class AgentMemoryTable extends BaseTable {
     this.db.exec(AGENT_MEMORY_INDEX_SQL)
   }
 
+  // FTS5 full-text index and versioned migrations are intentionally deferred for now.
   getMigrationSQL(_version: number): string | null {
     return null
   }

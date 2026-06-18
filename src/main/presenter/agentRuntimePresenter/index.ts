@@ -361,6 +361,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionPermissionPort?: SessionPermissionPort
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryPort?: MemoryRuntimePort
+  private readonly memoryExtractionChains = new Map<string, Promise<void>>()
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -1813,11 +1814,37 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private triggerMemoryExtractionFromCompaction(sessionId: string, intent: CompactionIntent): void {
     const spanText = intent.summaryBlocks.join('\n\n').trim()
     if (!spanText) return
-    void this.runMemoryExtraction(sessionId, {
-      spanText,
-      toOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
-      reason: 'compaction'
+    this.enqueueSessionExtraction(sessionId, () =>
+      this.runMemoryExtraction(sessionId, {
+        spanText,
+        toOrderSeq: Math.max(1, intent.targetCursorOrderSeq),
+        reason: 'compaction'
+      })
+    )
+  }
+
+  // Serializes extraction per session; sibling sessions never block each other.
+  private enqueueSessionExtraction(sessionId: string, task: () => Promise<void>): void {
+    const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
+    const next = prev.then(task, task).catch((error) => {
+      logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
     })
+    this.memoryExtractionChains.set(sessionId, next)
+    void next.finally(() => {
+      if (this.memoryExtractionChains.get(sessionId) === next) {
+        this.memoryExtractionChains.delete(sessionId)
+      }
+    })
+  }
+
+  private getLatestUserQuery(sessionId: string): string {
+    const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
+    if (tailOrderSeq < 0) return ''
+    const records = this.messageStore.getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
+    for (let i = records.length - 1; i >= 0; i -= 1) {
+      if (records[i].role === 'user') return this.extractPlainTextFromRecord(records[i])
+    }
+    return ''
   }
 
   /**
@@ -1829,22 +1856,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     if (!this.memoryPort.isEnabled(agentId)) return
 
-    const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
-    const cursor =
-      this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-    // AC-2.2：游标已到末尾 → 零调用；增量不足阈值 → 跳过
-    if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) {
-      return
-    }
-    const records = this.messageStore
-      .getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
-      .filter((record) => record.orderSeq > cursor)
-    const spanText = this.buildMemorySpanFromRecords(records)
-    if (!spanText) return
-    void this.runMemoryExtraction(sessionId, {
-      spanText,
-      toOrderSeq: tailOrderSeq,
-      reason: 'fallback'
+    // Read the cursor and build the span inside the queued task so a later task sees the
+    // cursor a prior one advanced, instead of re-extracting the same stale span.
+    this.enqueueSessionExtraction(sessionId, async () => {
+      const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
+      const cursor =
+        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+      if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) return
+      const records = this.messageStore
+        .getMessagesUpToOrderSeq(sessionId, tailOrderSeq)
+        .filter((record) => record.orderSeq > cursor)
+      const spanText = this.buildMemorySpanFromRecords(records)
+      if (!spanText) return
+      await this.runMemoryExtraction(sessionId, {
+        spanText,
+        toOrderSeq: tailOrderSeq,
+        reason: 'fallback'
+      })
     })
   }
 
@@ -1858,6 +1886,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!this.memoryPort.isEnabled(agentId)) return
       const state = this.runtimeState.get(sessionId)
       if (!state) return
+
+      // Skip if the cursor already passed this span (e.g. a sibling task consumed it first).
+      const cursor =
+        this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+      if (options.toOrderSeq <= cursor) return
 
       const result = await this.memoryPort.extractAndStore({
         agentId,
@@ -2985,9 +3018,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const summaryState = await this.applyCompactionIntent(params.sessionId, intent, {
       signal: params.signal
     })
-    const systemPrompt = appendReconstructionAnchorStateSection(
-      appendSummarySection(systemPromptBase, summaryState.summaryText),
-      this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+    const systemPrompt = await this.appendMemoryInjection(
+      params.sessionId,
+      appendReconstructionAnchorStateSection(
+        appendSummarySection(systemPromptBase, summaryState.summaryText),
+        this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+      ),
+      this.getLatestUserQuery(params.sessionId)
     )
     messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
 
@@ -3392,9 +3429,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         : this.sessionStore.getSummaryState(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const resumeTapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-      const systemPrompt = appendReconstructionAnchorStateSection(
-        appendSummarySection(baseSystemPrompt, summaryState.summaryText),
-        this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+      const systemPrompt = await this.appendMemoryInjection(
+        sessionId,
+        appendReconstructionAnchorStateSection(
+          appendSummarySection(baseSystemPrompt, summaryState.summaryText),
+          this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+        ),
+        this.getLatestUserQuery(sessionId)
       )
       const resumeContextBuild = buildTapeResumeView({
         sessionId,
@@ -3481,6 +3522,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
       if (result?.status === 'completed') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
+        this.triggerMemoryExtractionFallback(sessionId)
       }
       return true
     } catch (error) {

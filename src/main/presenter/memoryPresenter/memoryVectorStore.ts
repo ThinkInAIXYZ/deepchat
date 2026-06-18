@@ -18,6 +18,11 @@ const runtimeBasePath = path
 const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
 const extensionSuffix = '.duckdb_extension'
 
+interface EmbeddingIdentity {
+  providerId: string
+  modelId: string
+}
+
 /**
  * 记忆向量存储（DuckDB + VSS）。与知识库向量库分离：每个 agent 一个独立 .duckdb 文件，
  * 维度由首条记忆决定。表只有一张 memory_vector，按 memory_id 关联回 SQLite 的 agent_memory。
@@ -26,6 +31,8 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   private dbInstance!: DuckDBInstance
   private connection!: DuckDBConnection
   private readonly vectorTable = 'memory_vector'
+  private readonly metaTable = 'embedding_meta'
+  private usable = true
 
   private constructor(
     private readonly dbPath: string,
@@ -35,6 +42,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   static async create(
     dbPath: string,
     dimensions: number,
+    embedding: EmbeddingIdentity,
     metric: 'cosine' | 'l2sq' | 'ip' = 'cosine'
   ): Promise<MemoryVectorStore> {
     const parentDir = path.dirname(dbPath)
@@ -43,11 +51,15 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     }
     const store = new MemoryVectorStore(dbPath, metric)
     if (fs.existsSync(dbPath)) {
-      await store.open()
+      await store.open(dimensions, embedding)
     } else {
-      await store.initialize(dimensions)
+      await store.initialize(dimensions, embedding)
     }
     return store
+  }
+
+  isUsable(): boolean {
+    return this.usable
   }
 
   private async connect(): Promise<void> {
@@ -67,7 +79,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
   }
 
-  private async initialize(dimensions: number): Promise<void> {
+  private async initialize(dimensions: number, embedding: EmbeddingIdentity): Promise<void> {
     logger.info(`[MemoryVectorStore] initializing at ${this.dbPath} (dim=${dimensions})`)
     await this.connect()
     await this.loadVss()
@@ -83,24 +95,77 @@ export class MemoryVectorStore implements IMemoryVectorStore {
          USING HNSW (embedding)
          WITH (metric='${this.metric}', M=16, ef_construction=200);`
     )
+    await this.connection.run(
+      `CREATE TABLE IF NOT EXISTS ${this.metaTable} (provider VARCHAR, model VARCHAR, dim INTEGER);`
+    )
+    await this.connection.run(
+      `INSERT INTO ${this.metaTable} (provider, model, dim) VALUES (?, ?, ?);`,
+      [embedding.providerId, embedding.modelId, dimensions]
+    )
   }
 
-  private async open(): Promise<void> {
+  private async open(expectedDim: number, embedding: EmbeddingIdentity): Promise<void> {
     await this.connect()
     await this.loadVss()
+
+    const meta = await this.readEmbeddingMeta()
+    if (!meta) {
+      // Legacy store without persisted identity: the embedding model cannot be verified,
+      // so disable vector recall instead of risking stale results. Clearing memories
+      // rebuilds the store with the current identity.
+      this.usable = false
+      logger.warn(
+        `[MemoryVectorStore] no embedding identity recorded at ${this.dbPath}; cannot verify the embedding model. Vector recall disabled until reindex (FTS still active).`
+      )
+      return
+    }
+    if (
+      meta.provider !== embedding.providerId ||
+      meta.model !== embedding.modelId ||
+      meta.dim !== expectedDim
+    ) {
+      this.usable = false
+      logger.warn(
+        `[MemoryVectorStore] embedding identity mismatch at ${this.dbPath}: stored ${meta.provider}/${meta.model}/${meta.dim}, requested ${embedding.providerId}/${embedding.modelId}/${expectedDim}. Vector recall disabled until reindex (FTS still active).`
+      )
+    }
+  }
+
+  private async readEmbeddingMeta(): Promise<{
+    provider: string
+    model: string
+    dim: number
+  } | null> {
+    try {
+      const reader = await this.connection.runAndReadAll(
+        `SELECT provider, model, dim FROM ${this.metaTable} LIMIT 1;`
+      )
+      const row = reader.getRowObjectsJson()[0]
+      if (!row) return null
+      return { provider: String(row.provider), model: String(row.model), dim: Number(row.dim) }
+    } catch {
+      return null
+    }
   }
 
   async upsert(records: MemoryVectorRecord[]): Promise<void> {
     if (!records.length) return
-    for (const record of records) {
-      const vec = arrayValue(Array.from(record.embedding))
-      await this.connection.run(`DELETE FROM ${this.vectorTable} WHERE memory_id = ?;`, [
-        record.memoryId
-      ])
-      await this.connection.run(
-        `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES (?, ?::FLOAT[]);`,
-        [record.memoryId, vec]
-      )
+    await this.connection.run('BEGIN TRANSACTION;')
+    try {
+      for (const record of records) {
+        const vec = arrayValue(Array.from(record.embedding))
+        await this.connection.run(`DELETE FROM ${this.vectorTable} WHERE memory_id = ?;`, [
+          record.memoryId
+        ])
+        await this.connection.run(
+          `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES (?, ?::FLOAT[]);`,
+          [record.memoryId, vec]
+        )
+      }
+      await this.connection.run('COMMIT;')
+    } catch (error) {
+      await this.connection.run('ROLLBACK;').catch(() => undefined)
+      throw error
     }
   }
 
@@ -140,8 +205,23 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     )
   }
 
-  async clear(): Promise<void> {
-    await this.connection.run(`DELETE FROM ${this.vectorTable};`)
+  /**
+   * Delete an agent's store files from disk without needing an open instance (e.g. after
+   * restart). `force` ignores missing files; a real failure (lock/permission) is thrown so
+   * callers can surface that the on-disk store still persists instead of assuming success.
+   */
+  static destroyFile(dbPath: string): void {
+    const failures: string[] = []
+    for (const file of [dbPath, `${dbPath}.wal`]) {
+      try {
+        fs.rmSync(file, { force: true })
+      } catch (error) {
+        failures.push(`${file}: ${String(error)}`)
+      }
+    }
+    if (failures.length) {
+      throw new Error(`[MemoryVectorStore] failed to delete ${failures.join('; ')}`)
+    }
   }
 
   async close(): Promise<void> {
