@@ -151,6 +151,19 @@ export class DeepChatPendingInputStore {
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
+  convertSteerInputToQueue(itemId: string): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.mode !== 'steer') {
+      throw new Error(`Pending input ${itemId} is not a steer item.`)
+    }
+    this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
+      mode: 'queue',
+      queue_order: this.getNextQueueOrder(row.session_id)
+    })
+    this.resequenceQueue(row.session_id)
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
   deleteInput(itemId: string): void {
     const row = this.requireRow(itemId)
     this.sqlitePresenter.deepchatPendingInputsTable.delete(itemId)

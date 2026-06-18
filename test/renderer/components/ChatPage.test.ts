@@ -122,9 +122,8 @@ const setup = async (options: SetupOptions = {}) => {
     queueInput: vi.fn().mockResolvedValue(undefined),
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
     moveQueueInput: vi.fn().mockResolvedValue(undefined),
-    convertToSteer: vi.fn().mockResolvedValue(undefined),
+    steerPendingInput: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
-    resumeQueue: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn(),
     ...options.pendingInputStorePatch
   })
@@ -358,12 +357,6 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
-      props: {
-        showResumeQueue: {
-          type: Boolean,
-          default: false
-        }
-      },
       template: '<div class="pending-input-lane-stub" />'
     })
   }))
@@ -898,51 +891,9 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
-  })
-
-  it('hides resume queue while waiting for a tool follow-up answer', async () => {
-    const { wrapper } = await setup({
-      messages: [
-        buildAssistantMessage([
-          {
-            type: 'action',
-            action_type: 'question_request',
-            status: 'success',
-            tool_call: {
-              id: 'tool-1',
-              name: 'question',
-              params: '{}'
-            },
-            extra: {
-              needsUserAction: false,
-              questionResolution: 'replied'
-            }
-          }
-        ])
-      ],
-      pendingInputStorePatch: {
-        items: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ],
-        queueItems: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ]
-      }
-    })
-
-    expect(wrapper.findComponent({ name: 'PendingInputLane' }).props('showResumeQueue')).toBe(false)
   })
 
   it('allows sending attachment-only drafts', async () => {

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Направление",
     "queueCount": "В ожидании {count}/{max}",
-    "resumeQueue": "Продолжить отправку",
-    "toSteer": "Направить",
+    "toSteer": "Прервать и отправить",
     "locked": "Зафиксировано",
     "reorder": "Изменить порядок",
     "files": "{count} файлов",
     "attachmentsOnly": "{count} вложений",
     "empty": "Пустое сообщение",
-    "limitReached": "Область ожидания заполнена (макс. {max})."
+    "limitReached": "Область ожидания заполнена (макс. {max}).",
+    "remove": "Удалить",
+    "steerUnavailable": "Сейчас нельзя прервать",
+    "steerFailed": "Не удалось прервать этот ход"
   },
   "features": {
     "webSearch": "Поиск в интернете",

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Chỉ đạo",
     "queueCount": "Đang chờ gửi {count}/{max}",
-    "resumeQueue": "Tiếp tục gửi",
-    "toSteer": "Chỉ đạo",
+    "toSteer": "Ngắt & gửi",
     "locked": "Đã khóa",
     "reorder": "Sắp xếp lại",
     "files": "Các tập tin {count}",
     "attachmentsOnly": "Tệp đính kèm {count}",
     "empty": "Tin nhắn trống",
-    "limitReached": "Làn chờ đã đầy (tối đa {max})."
+    "limitReached": "Làn chờ đã đầy (tối đa {max}).",
+    "remove": "Xóa",
+    "steerUnavailable": "Hiện không thể ngắt",
+    "steerFailed": "Không thể ngắt lượt này"
   },
   "features": {
     "webSearch": "Tìm kiếm trên web",

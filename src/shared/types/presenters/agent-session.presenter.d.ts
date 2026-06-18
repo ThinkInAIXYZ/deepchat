@@ -80,8 +80,8 @@ export interface IAgentSessionPresenter {
     toIndex: number
   ): Promise<PendingSessionInputRecord[]>
   convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   deletePendingInput(sessionId: string, itemId: string): Promise<void>
-  resumePendingQueue(sessionId: string): Promise<void>
   sendMessage(sessionId: string, content: string | SendMessageInput): Promise<MessageStartResult>
   steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
   retryMessage(sessionId: string, messageId: string): Promise<void>

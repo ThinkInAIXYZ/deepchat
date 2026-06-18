@@ -860,6 +860,18 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenCalledWith('settings.changed', expect.any(Function))
   })
 
+  it('routes sessions.steerPendingInput through the registry name', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+
+    await sessionClient.steerPendingInput('session-1', 'item-1')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('sessions.steerPendingInput', {
+      sessionId: 'session-1',
+      itemId: 'item-1'
+    })
+  })
+
   it('routes session and chat calls through the shared registry names', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)

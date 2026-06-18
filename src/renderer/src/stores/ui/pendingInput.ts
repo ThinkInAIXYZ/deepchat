@@ -86,16 +86,16 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     }
   }
 
-  async function convertToSteer(sessionId: string, itemId: string): Promise<void> {
+  async function steerPendingInput(sessionId: string, itemId: string): Promise<void> {
     error.value = null
     try {
-      const updated = await sessionClient.convertPendingInputToSteer(sessionId, itemId)
+      const updated = await sessionClient.steerPendingInput(sessionId, itemId)
       items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
     } catch (e) {
-      error.value = `Failed to convert queued message to steer: ${e}`
+      error.value = `Failed to steer queued message: ${e}`
       throw e
     }
   }
@@ -107,19 +107,6 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
       items.value = items.value.filter((item) => item.id !== itemId)
     } catch (e) {
       error.value = `Failed to delete queued message: ${e}`
-      throw e
-    }
-  }
-
-  async function resumeQueue(sessionId: string): Promise<void> {
-    error.value = null
-    try {
-      await sessionClient.resumePendingQueue(sessionId)
-      if (currentSessionId.value === sessionId) {
-        await loadPendingInputs(sessionId)
-      }
-    } catch (e) {
-      error.value = `Failed to resume queue: ${e}`
       throw e
     }
   }
@@ -154,9 +141,8 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     queueInput,
     updateQueueInput,
     moveQueueInput,
-    convertToSteer,
+    steerPendingInput,
     deleteInput,
-    resumeQueue,
     clear
   }
 })

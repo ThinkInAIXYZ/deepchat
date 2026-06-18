@@ -92,14 +92,16 @@
   "pendingInput": {
     "steer": "Steer",
     "queueCount": "Queued {count}/{max}",
-    "resumeQueue": "Resume sending",
-    "toSteer": "Steer",
+    "toSteer": "Interrupt & send",
     "locked": "Locked",
     "reorder": "Reorder",
     "files": "{count} files",
     "attachmentsOnly": "{count} attachments",
     "empty": "Empty message",
-    "limitReached": "Waiting lane is full (max {max})."
+    "limitReached": "Waiting lane is full (max {max}).",
+    "remove": "Remove",
+    "steerUnavailable": "Can't interrupt right now",
+    "steerFailed": "Couldn't interrupt this turn"
   },
   "features": {
     "webSearch": "Web Search",

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Guiar",
     "queueCount": "En cola {count}/{max}",
-    "resumeQueue": "Reanudar envío",
-    "toSteer": "Convertir en guía",
+    "toSteer": "Interrumpir y enviar",
     "locked": "Bloqueado",
     "reorder": "Reordenar",
     "files": "{count} archivos",
     "attachmentsOnly": "{count} adjuntos",
     "empty": "Mensaje vacío",
-    "limitReached": "La zona de espera está llena (máx. {max})."
+    "limitReached": "La zona de espera está llena (máx. {max}).",
+    "remove": "Eliminar",
+    "steerUnavailable": "No se puede interrumpir ahora",
+    "steerFailed": "No se pudo interrumpir este turno"
   },
   "features": {
     "webSearch": "Búsqueda web",

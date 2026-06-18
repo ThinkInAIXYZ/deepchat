@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "유도",
     "queueCount": "전송 대기 {count}/{max}",
-    "resumeQueue": "전송 계속",
-    "toSteer": "유도로 전환",
+    "toSteer": "중단하고 보내기",
     "locked": "잠금됨",
     "reorder": "순서 변경",
     "files": "파일 {count}개",
     "attachmentsOnly": "첨부 {count}개",
     "empty": "빈 메시지",
-    "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개)."
+    "limitReached": "대기 영역이 가득 찼습니다 (최대 {max}개).",
+    "remove": "삭제",
+    "steerUnavailable": "지금은 중단할 수 없습니다",
+    "steerFailed": "이 턴을 중단하지 못했습니다"
   },
   "features": {
     "webSearch": "웹 검색",

@@ -71,16 +71,18 @@
     "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
-    "steer": "引導",
+    "steer": "打斷",
     "queueCount": "待發 {count}/{max}",
-    "resumeQueue": "繼續發送",
-    "toSteer": "轉為引導",
+    "toSteer": "打斷並發送",
     "locked": "已鎖定",
     "reorder": "調整順序",
     "files": "{count} 個檔案",
     "attachmentsOnly": "{count} 個附件",
     "empty": "空訊息",
-    "limitReached": "等待區已滿（最多 {max} 條）。"
+    "limitReached": "等待區已滿（最多 {max} 條）。",
+    "remove": "刪除",
+    "steerUnavailable": "目前無法打斷",
+    "steerFailed": "打斷失敗"
   },
   "features": {
     "webSearch": "網路搜尋",

@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "هدایت",
     "queueCount": "در انتظار ارسال {count}/{max}",
-    "resumeQueue": "ادامه ارسال",
-    "toSteer": "تبدیل به هدایت",
+    "toSteer": "وقفه و ارسال",
     "locked": "قفل‌شده",
     "reorder": "تغییر ترتیب",
     "files": "{count} فایل",
     "attachmentsOnly": "{count} پیوست",
     "empty": "پیام خالی",
-    "limitReached": "بخش انتظار پر است (حداکثر {max})."
+    "limitReached": "بخش انتظار پر است (حداکثر {max}).",
+    "remove": "حذف",
+    "steerUnavailable": "اکنون نمی‌توان وقفه داد",
+    "steerFailed": "وقفه در این نوبت ناموفق بود"
   },
   "features": {
     "webSearch": "جستجوی وب",

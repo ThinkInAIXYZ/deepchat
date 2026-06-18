@@ -67,12 +67,12 @@
               :steer-items="pendingInputStore.steerItems"
               :queue-items="pendingInputStore.queueItems"
               :disable-steer-action="pendingInputStore.isAtCapacity"
-              :show-resume-queue="showResumePendingQueue"
+              :disable-queue-steer-action="disableQueueSteerAction"
               class="mx-auto mb-1.5 max-w-4xl"
               @update-queue="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
+              @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"
-              @resume-queue="onResumePendingQueue"
             />
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
                  so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
@@ -1493,33 +1493,6 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 })
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
-const isAwaitingToolQuestionFollowUp = computed(() => {
-  let latestUserOrderSeq = 0
-
-  for (const message of messageStore.messages) {
-    if (message.role === 'user') {
-      latestUserOrderSeq = Math.max(latestUserOrderSeq, message.orderSeq)
-    }
-  }
-
-  return messageStore.messages.some((message) => {
-    if (message.role !== 'assistant' || message.orderSeq <= latestUserOrderSeq) {
-      return false
-    }
-
-    return messageStore
-      .getAssistantMessageBlocks(message)
-      .some(
-        (block) =>
-          block.type === 'action' &&
-          block.action_type === 'question_request' &&
-          block.status === 'success' &&
-          block.extra?.needsUserAction === false &&
-          block.extra?.questionResolution === 'replied' &&
-          typeof block.extra?.answerText !== 'string'
-      )
-  })
-})
 const hasInputText = computed(() => Boolean(message.value.trim()))
 const hasAttachments = computed(() => attachedFiles.value.length > 0)
 const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
@@ -1539,12 +1512,12 @@ const isInputSubmitDisabled = computed(
     (isGenerating.value && pendingInputStore.isAtCapacity) ||
     !hasDraftInput.value
 )
-const showResumePendingQueue = computed(
+const disableQueueSteerAction = computed(
   () =>
-    !isGenerating.value &&
-    !activePendingInteraction.value &&
-    !isAwaitingToolQuestionFollowUp.value &&
-    pendingInputStore.queueItems.length > 0
+    !isGenerating.value ||
+    isAcpWorkdirMissing.value ||
+    Boolean(activePendingInteraction.value) ||
+    isHandlingInteraction.value
 )
 
 function getActiveModelSelection(): { providerId: string; modelId: string } | null {
@@ -1860,9 +1833,20 @@ async function onPendingInputDelete(itemId: string) {
   await pendingInputStore.deleteInput(props.sessionId, itemId)
 }
 
-async function onResumePendingQueue() {
+async function onPendingInputSteer(itemId: string) {
   if (isReadOnlySession.value) return
-  await pendingInputStore.resumeQueue(props.sessionId)
+  if (isAcpWorkdirMissing.value) return
+  if (activePendingInteraction.value || isHandlingInteraction.value) return
+  agentPlanStore.clear(props.sessionId)
+  try {
+    await pendingInputStore.steerPendingInput(props.sessionId, itemId)
+  } catch (error) {
+    console.error('[ChatPage] steer queued input failed:', error)
+    toast({
+      title: t('chat.pendingInput.steerFailed'),
+      variant: 'destructive'
+    })
+  }
 }
 
 onMounted(() => {

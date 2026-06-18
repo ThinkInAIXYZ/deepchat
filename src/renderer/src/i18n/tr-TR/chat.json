@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Yönlendir",
     "queueCount": "Sıraya alındı ​​{count}/{max}",
-    "resumeQueue": "Göndermeye devam et",
-    "toSteer": "Yönlendir",
+    "toSteer": "Kes ve gönder",
     "locked": "Kilitli",
     "reorder": "Yeniden sırala",
     "files": "{count} dosyaları",
     "attachmentsOnly": "{count} ekler",
     "empty": "Boş mesaj",
-    "limitReached": "Bekleme şeridi dolu (maks. {max})."
+    "limitReached": "Bekleme şeridi dolu (maks. {max}).",
+    "remove": "Kaldır",
+    "steerUnavailable": "Şu anda kesilemiyor",
+    "steerFailed": "Bu tur kesilemedi"
   },
   "features": {
     "webSearch": "Web Araması",

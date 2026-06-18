@@ -986,19 +986,20 @@ describe('AgentRuntimePresenter', () => {
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
-    it('queues active stream steer without aborting the current stream', async () => {
-      let releaseFirstStream: (() => void) | null = null
+    it('interrupts the active stream and runs the steer input as the next turn', async () => {
       let firstAbortSignal: AbortSignal | null = null
       ;(processStream as ReturnType<typeof vi.fn>)
         .mockImplementationOnce(
           async (params: { io: { abortSignal: AbortSignal } }) =>
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
               firstAbortSignal = params.io.abortSignal
-              releaseFirstStream = () =>
-                resolve({
-                  status: 'completed',
-                  stopReason: 'complete'
-                })
+              // The active stream rejects with an AbortError as soon as it is interrupted, mirroring
+              // a real provider stream reacting to the abort signal.
+              params.io.abortSignal.addEventListener('abort', () => {
+                const abortError = new Error('Aborted')
+                abortError.name = 'AbortError'
+                reject(abortError)
+              })
             })
         )
         .mockResolvedValueOnce({
@@ -1018,18 +1019,9 @@ describe('AgentRuntimePresenter', () => {
 
       await agent.steerActiveTurn('s1', 'Refine active stream')
       await agent.steerActiveTurn('s1', 'Add second steer note')
-      expect(firstAbortSignal?.aborted).toBe(false)
-      expect(processStream).toHaveBeenCalledTimes(1)
-      expect((processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual(
-        expect.objectContaining({
-          shouldYieldForPendingInput: expect.any(Function)
-        })
-      )
-      expect(
-        (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].shouldYieldForPendingInput()
-      ).toBe(true)
+      // The active stream is interrupted (not left running) so the steer input takes over.
+      expect(firstAbortSignal?.aborted).toBe(true)
 
-      releaseFirstStream?.()
       await firstProcess
 
       for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -1039,11 +1031,6 @@ describe('AgentRuntimePresenter', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
 
-      expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).not.toHaveBeenCalledWith(
-        'mock-msg-id',
-        expect.any(String),
-        'error'
-      )
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)
         .filter((row) => row.role === 'user')
@@ -1062,6 +1049,127 @@ describe('AgentRuntimePresenter', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('interrupts the active stream and runs a steered queued input as the next turn', async () => {
+      let firstAbortSignal: AbortSignal | null = null
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          async (params: { io: { abortSignal: AbortSignal } }) =>
+            await new Promise((resolve, reject) => {
+              firstAbortSignal = params.io.abortSignal
+              params.io.abortSignal.addEventListener('abort', () => {
+                const abortError = new Error('Aborted')
+                abortError.name = 'AbortError'
+                reject(abortError)
+              })
+            })
+        )
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      // Queue a follow-up while the first turn is streaming, then steer it: it must interrupt the
+      // active turn (not wait for it) and run as the next visible turn ahead of any other queue items.
+      await agent.queuePendingInput('s1', 'Queued instruction', { source: 'queue' })
+      const [queued] = await agent.listPendingInputs('s1')
+      const steered = await agent.steerPendingInput('s1', queued.id)
+      expect(steered.mode).toBe('steer')
+      expect(firstAbortSignal?.aborted).toBe(true)
+
+      await firstProcess
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'user')
+
+      expect(userInserts).toHaveLength(2)
+      expect(JSON.parse(userInserts[0].content).text).toBe('First prompt')
+      expect(JSON.parse(userInserts[1].content).text).toBe('Queued instruction')
+      expect(processStream).toHaveBeenCalledTimes(2)
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+      await expect(agent.listPendingInputs('s1')).resolves.toEqual([])
+    })
+
+    it('settles an interrupted turn exactly once (single user_stop hook)', async () => {
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          async (params: { io: { abortSignal: AbortSignal } }) =>
+            await new Promise((_resolve, reject) => {
+              params.io.abortSignal.addEventListener('abort', () => {
+                const abortError = new Error('Aborted')
+                abortError.name = 'AbortError'
+                reject(abortError)
+              })
+            })
+        )
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First prompt')
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 0) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      await agent.steerActiveTurn('s1', 'Refine active stream')
+      await firstProcess
+
+      // Wait for the steer turn to actually run (second stream) and settle, so no drain leaks past the
+      // test — cancelGeneration sets idle synchronously, so polling idle alone would finish too early.
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((processStream as ReturnType<typeof vi.fn>).mock.calls.length > 1) {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if ((await agent.getSessionState('s1'))?.status === 'idle') {
+          break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      // cancelGeneration only requests the abort; the stream handler owns abort settlement, so the
+      // interrupted turn fires exactly one user_stop Stop hook (previously the synchronous cancel path
+      // plus the stream rethrow path could double-fire it).
+      const dispatchCalls = (hookDispatcher.dispatchEvent as ReturnType<typeof vi.fn>).mock
+        .calls as Array<[string, { stop?: { userStop?: boolean } }]>
+      const userStopHooks = dispatchCalls.filter(
+        ([event, payload]) => event === 'Stop' && payload?.stop?.userStop === true
+      )
+      expect(userStopHooks).toHaveLength(1)
     })
 
     it('dispatches lifecycle hooks through new session bridge', async () => {
@@ -3512,17 +3620,68 @@ describe('AgentRuntimePresenter', () => {
       const stopCalls = hookDispatcher.dispatchEvent.mock.calls.filter(
         (call: any[]) => call[0] === 'Stop'
       )
+      // Both turns settle exactly once: the cancelled run (user_stop) and the newer run (complete).
+      // Order is not asserted — settlement is owned by each run's stream handler, so the cancelled
+      // run's hook fires when its aborted stream resolves (after the newer turn), not at cancel time.
       expect(stopCalls).toHaveLength(2)
-      expect(stopCalls[0][1]).toEqual(
-        expect.objectContaining({
-          stop: expect.objectContaining({ reason: 'user_stop', userStop: true })
-        })
-      )
-      expect(stopCalls[1][1]).toEqual(
-        expect.objectContaining({
-          stop: expect.objectContaining({ reason: 'complete', userStop: false })
-        })
-      )
+      const stopReasons = stopCalls.map((call: any[]) => call[1]?.stop?.reason).sort()
+      expect(stopReasons).toEqual(['complete', 'user_stop'])
+      const userStop = stopCalls.find((call: any[]) => call[1]?.stop?.userStop === true)
+      expect(userStop?.[1]?.stop).toMatchObject({ reason: 'user_stop', userStop: true })
+      // The stale aborted run must not clobber the newer run's terminal state.
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
+    })
+
+    it('does not let a stale thrown abort mark a newer active run idle', async () => {
+      let rejectFirstRun: ((reason: unknown) => void) | null = null
+      let resolveSecondRun: ((value: any) => void) | null = null
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectFirstRun = reject
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecondRun = resolve
+            })
+        )
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
+        id: 'mock-msg-id',
+        session_id: 's1',
+        order_seq: 2,
+        role: 'assistant',
+        content: '[]',
+        status: 'pending',
+        is_context_edge: 0,
+        metadata: null,
+        created_at: 1,
+        updated_at: 1
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const firstProcess = agent.processMessage('s1', 'First')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      await agent.cancelGeneration('s1')
+      const secondProcess = agent.processMessage('s1', 'Second')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const abortError = new Error('aborted')
+      abortError.name = 'AbortError'
+      rejectFirstRun?.(abortError)
+      await firstProcess
+
+      expect((await agent.getSessionState('s1'))?.status).toBe('generating')
+
+      resolveSecondRun?.({
+        status: 'completed',
+        stopReason: 'complete'
+      })
+      await secondProcess
+      expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
     it('cancels generation only when the event id matches the active assistant message', async () => {
@@ -3608,9 +3767,16 @@ describe('AgentRuntimePresenter', () => {
       expect(result).toBe(pendingRecord)
     })
 
-    it('pauses automatic queue draining when a queued turn is stopped', async () => {
+    it('auto-continues the queue with the next item when a queued turn is stopped', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Queued retry')
+      // nanoid is mocked to a constant in this suite; hand out distinct ids so the two pending
+      // inputs do not collide on insert.
+      const { nanoid } = await import('nanoid')
+      ;(nanoid as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce('queued-1')
+        .mockReturnValueOnce('queued-2')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'First queued')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Second queued')
 
       let resolveStreamStarted: () => void = () => {}
       const streamStarted = new Promise<void>((resolve) => {
@@ -3620,43 +3786,42 @@ describe('AgentRuntimePresenter', () => {
       const streamRelease = new Promise<void>((resolve) => {
         resolveStream = resolve
       })
-      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
-        resolveStreamStarted()
-        await streamRelease
-        return {
-          status: 'aborted',
-          stopReason: 'user_stop',
-          errorMessage: 'common.error.userCanceledGeneration'
-        }
-      })
+      ;(processStream as ReturnType<typeof vi.fn>)
+        .mockImplementationOnce(async () => {
+          resolveStreamStarted()
+          await streamRelease
+          return {
+            status: 'aborted',
+            stopReason: 'user_stop',
+            errorMessage: 'common.error.userCanceledGeneration'
+          }
+        })
+        .mockResolvedValueOnce({
+          status: 'completed',
+          stopReason: 'complete'
+        })
 
-      const drainSpy = vi.spyOn(agent as any, 'drainPendingQueueIfPossible')
-      const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'resume')
+      const drainPromise = (agent as any).drainPendingQueueIfPossible('s1', 'enqueue')
       await streamStarted
 
+      // Stopping the first (queue-launched) turn aborts it but must not bounce it back to the
+      // waiting lane nor require a manual resume — the queue advances on its own.
       await agent.cancelGeneration('s1')
       resolveStream()
       await drainPromise
 
-      expect(drainSpy).toHaveBeenCalledTimes(1)
-      expect(processStream).toHaveBeenCalledTimes(1)
-      expect(await agent.listPendingInputs('s1')).toEqual([
-        expect.objectContaining({
-          mode: 'queue',
-          state: 'pending',
-          payload: { text: 'Queued retry', files: [] }
-        })
-      ])
-
-      ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        status: 'completed',
-        stopReason: 'complete'
-      })
-      await agent.resumePendingQueue('s1')
       await vi.waitFor(async () => {
         expect(processStream).toHaveBeenCalledTimes(2)
         expect(await agent.listPendingInputs('s1')).toEqual([])
       })
+
+      const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
+        .map(([row]) => row)
+        .filter((row) => row.role === 'user')
+      expect(userInserts.map((row) => JSON.parse(row.content).text)).toEqual([
+        'First queued',
+        'Second queued'
+      ])
     })
   })
 

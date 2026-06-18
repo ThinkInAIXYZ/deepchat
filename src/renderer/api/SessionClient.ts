@@ -13,7 +13,6 @@ import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
-  sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
@@ -46,7 +45,6 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
-  sessionsResumePendingQueueRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
@@ -58,6 +56,7 @@ import {
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
   sessionsSetSubagentEnabledRoute,
+  sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
   sessionsUpdateDisabledAgentToolsRoute,
@@ -177,8 +176,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.items
   }
 
-  async function convertPendingInputToSteer(sessionId: string, itemId: string) {
-    const result = await bridge.invoke(sessionsConvertPendingInputToSteerRoute.name, {
+  async function steerPendingInput(sessionId: string, itemId: string) {
+    const result = await bridge.invoke(sessionsSteerPendingInputRoute.name, {
       sessionId,
       itemId
     })
@@ -190,10 +189,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId,
       itemId
     })
-  }
-
-  async function resumePendingQueue(sessionId: string) {
-    await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
   }
 
   async function retryMessage(sessionId: string, messageId: string) {
@@ -547,9 +542,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     queuePendingInput,
     updateQueuedInput,
     moveQueuedInput,
-    convertPendingInputToSteer,
+    steerPendingInput,
     deletePendingInput,
-    resumePendingQueue,
     retryMessage,
     deleteMessage,
     editUserMessage,

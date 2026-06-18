@@ -24,3 +24,4 @@ plugins/*/runtime/**/*
 .claude/settings.local.json
 playwright-report/
 test-results/
+.deepchat/

@@ -1248,11 +1248,6 @@ describe('Integration: multi-turn context', () => {
     expect(providerInstance.coreStream).not.toHaveBeenCalled()
     await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
 
-    await deepchatAgent.resumePendingQueue('s-follow-up')
-    await new Promise((r) => setTimeout(r, 20))
-    expect(providerInstance.coreStream).not.toHaveBeenCalled()
-    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
-
     await deepchatAgent.queuePendingInput('s-follow-up', 'Actual follow-up answer')
     await new Promise((r) => setTimeout(r, 80))
 
@@ -1314,7 +1309,7 @@ describe('Integration: multi-turn context', () => {
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 
-  it('resumePendingQueue drains queued turns after a session error', async () => {
+  it('drains queued turns when a new message is enqueued after a session error', async () => {
     let releaseFirstTurn: (() => void) | null = null
     const providerInstance = {
       coreStream: vi
@@ -1349,17 +1344,19 @@ describe('Integration: multi-turn context', () => {
     expect(pendingAfterError).toHaveLength(1)
     expect(pendingAfterError[0].mode).toBe('queue')
 
-    await agentPresenter.resumePendingQueue(session.id)
-    await new Promise((r) => setTimeout(r, 80))
+    // Enqueuing from an errored session drains the backlog (no manual resume step).
+    await agentPresenter.queuePendingInput(session.id, 'New message after error')
+    await new Promise((r) => setTimeout(r, 120))
 
     const recoveredSession = await agentPresenter.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')
-    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
 
     const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const userMessages = messages.filter((message: any) => message.role === 'user')
-    expect(userMessages).toHaveLength(2)
+    expect(userMessages).toHaveLength(3)
     expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
+    expect(JSON.parse(userMessages[2].content).text).toBe('New message after error')
     await expect(agentPresenter.listPendingInputs(session.id)).resolves.toEqual([])
   })
 })

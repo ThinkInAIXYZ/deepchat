@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Steuern",
     "queueCount": "Ausstehend {count}/{max}",
-    "resumeQueue": "Senden fortsetzen",
-    "toSteer": "Zu Steuerung wechseln",
+    "toSteer": "Unterbrechen & senden",
     "locked": "Gesperrt",
     "reorder": "Reihenfolge ändern",
     "files": "{count} Dateien",
     "attachmentsOnly": "{count} Anhänge",
     "empty": "Leere Nachricht",
-    "limitReached": "Wartebereich ist voll (maximal {max})."
+    "limitReached": "Wartebereich ist voll (maximal {max}).",
+    "remove": "Entfernen",
+    "steerUnavailable": "Derzeit nicht unterbrechbar",
+    "steerFailed": "Diese Runde konnte nicht unterbrochen werden"
   },
   "features": {
     "webSearch": "Websuche",

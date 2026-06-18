@@ -349,7 +349,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
   private readonly drainingPendingQueues: Set<string> = new Set()
-  private readonly userPausedPendingQueues: Set<string> = new Set()
   private readonly activeProviderPermissions: Map<string, ActiveProviderPermission> = new Map()
   private readonly compactionService: CompactionService
   private readonly toolOutputGuard: ToolOutputGuard
@@ -528,7 +527,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.toolProfileCache.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
-    this.userPausedPendingQueues.delete(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
 
@@ -595,7 +593,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       throw new Error('Message cannot be empty.')
     }
 
-    this.clearPendingQueuePauseIfEmpty(sessionId)
     const shouldClaimImmediately =
       ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
       this.shouldStartQueuedInputImmediately(sessionId, state.status)
@@ -630,16 +627,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return
     }
 
+    // Always enqueue the steer input first (it sorts ahead of queued items, and rapid successive
+    // steers merge into the same pending record).
     const activeGeneration = this.activeGenerations.get(sessionId)
     const preStreamController = this.abortControllers.get(sessionId)
-    if (activeGeneration || preStreamController) {
-      this.queueVisibleSteerInput(sessionId, normalizedInput)
+    this.queueVisibleSteerInput(sessionId, normalizedInput)
+
+    if (activeGeneration) {
+      // A stream is actively producing tokens: interrupt it while preserving its partial output.
+      // The abort settlement auto-drains the queue and runs the steer input as the next turn.
+      await this.cancelGeneration(sessionId)
       return
     }
 
-    void this.processMessage(sessionId, normalizedInput, {
-      projectDir: this.resolveProjectDir(sessionId)
-    }).catch((error) => {
+    if (preStreamController) {
+      // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
+      // Don't abort — let it finish; the steer input drains right after as the next visible turn.
+      return
+    }
+
+    void this.drainPendingQueueIfPossible(sessionId, 'enqueue').catch((error) => {
       console.error('[AgentRuntime] Failed to process steer input:', error)
     })
   }
@@ -662,6 +669,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return this.pendingInputCoordinator.moveQueuedInput(sessionId, itemId, toIndex)
   }
 
+  /**
+   * Low-level, non-interrupting promote: move a queued item into the steer lane (so it sorts ahead of
+   * queued items) WITHOUT aborting the active turn. The interactive UI uses {@link steerPendingInput}
+   * instead, which promotes *and* interrupts. Retained as an interface-level capability and exercised
+   * by the agentSession integration tests.
+   */
   async convertPendingInputToSteer(
     sessionId: string,
     itemId: string
@@ -670,23 +683,49 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     return this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
   }
 
+  async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
+      throw new Error('Please resolve pending tool interactions before steering.')
+    }
+
+    // Promote the queued item to steer (it now sorts ahead of any queued items), then interrupt the
+    // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
+    const record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
+
+    const activeGeneration = this.activeGenerations.get(sessionId)
+    const preStreamController = this.abortControllers.get(sessionId)
+
+    if (activeGeneration) {
+      // A stream is actively producing tokens: interrupt it while preserving its partial output.
+      // The abort settlement auto-drains the queue and runs the steer item as the next turn.
+      await this.cancelGeneration(sessionId)
+      return record
+    }
+
+    if (preStreamController) {
+      // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
+      // Don't abort — let it finish; the steer input drains right after as the next visible turn.
+      return record
+    }
+
+    // No turn in flight: drain immediately. If the drain cannot start, roll the promotion back to the
+    // queue so the item is never stranded in the locked steer lane, and surface the failure.
+    const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    if (!started) {
+      try {
+        this.pendingInputCoordinator.restoreSteerInputToQueue(sessionId, itemId)
+      } catch (restoreError) {
+        console.error('[AgentRuntime] Failed to restore steered input to queue:', restoreError)
+      }
+      throw new Error('Unable to start the steered input.')
+    }
+    return record
+  }
+
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
     this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
-    this.clearPendingQueuePauseIfEmpty(sessionId)
-  }
-
-  async resumePendingQueue(sessionId: string): Promise<void> {
-    const state = await this.getSessionState(sessionId)
-    if (!state) {
-      throw new Error(`Session ${sessionId} not found`)
-    }
-    this.userPausedPendingQueues.delete(sessionId)
-    if (this.isAwaitingToolQuestionFollowUp(sessionId)) {
-      return
-    }
-
-    void this.drainPendingQueueIfPossible(sessionId, 'resume')
   }
 
   async processMessage(
@@ -723,6 +762,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let consumedPendingQueueItem = false
     let userMessageId: string | null = null
     let assistantMessageId: string | null = null
+    let streamRunId: string | undefined
 
     try {
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -868,7 +908,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {
         this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
-        this.clearPendingQueuePauseIfEmpty(sessionId)
         consumedPendingQueueItem = true
       }
 
@@ -876,7 +915,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         this.emitMessageRefresh(sessionId, assistantMessageId)
       }
 
-      const { runId, result } = await this.runStreamForMessage({
+      const streamResult = await this.runStreamForMessage({
         sessionId,
         messageId: assistantMessageId,
         messages,
@@ -894,11 +933,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           supportsVision,
           supportsAudioInput,
           traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+        },
+        onRunRegistered: (runId) => {
+          streamRunId = runId
         }
       })
+      const { runId, result } = streamResult
+      streamRunId = runId
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
         if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
-          if (result.status === 'completed' || result.status === 'paused') {
+          // An aborted queue/steer turn keeps its partial output and is consumed (not rolled back),
+          // so the queue advances to the next item instead of re-running this one. Only genuine
+          // errors roll the claim back to the waiting lane.
+          if (
+            result.status === 'completed' ||
+            result.status === 'paused' ||
+            result.status === 'aborted'
+          ) {
             this.consumeClaimedPendingInput(
               sessionId,
               context.pendingQueueItemId,
@@ -916,7 +967,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
         } else {
           this.pendingInputCoordinator.consumeQueuedInput(sessionId, context.pendingQueueItemId)
-          this.clearPendingQueuePauseIfEmpty(sessionId)
           consumedPendingQueueItem = true
         }
       }
@@ -929,6 +979,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
         // 通路②：会话兜底抽取（游标门控，覆盖从不触发 compaction 的短会话；后台执行）
         this.triggerMemoryExtractionFallback(sessionId)
+      } else if (result?.status === 'aborted') {
+        // Return-path abort: applyProcessResultStatus already dispatched terminal hooks + idle (guarded
+        // by active run). Append the canceled block, then continue the queue with the next item.
+        this.writeCanceledTerminalBlock(sessionId, assistantMessageId)
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
       return {
         requestId: assistantMessageId,
@@ -936,15 +991,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } catch (err) {
       console.error('[DeepChatAgent] processMessage error:', err)
+      const aborted = this.isAbortError(err) || preStreamAbortSignal.aborted
       if (context?.pendingQueueItemId && !consumedPendingQueueItem) {
         try {
           if (pendingInputSource === 'queue' || pendingInputSource === 'steer') {
-            this.rollbackClaimedPendingInputTurn(
-              sessionId,
-              context.pendingQueueItemId,
-              pendingInputSource,
-              userMessageId
-            )
+            // Abort keeps the partial turn and consumes the claim so the queue advances; only genuine
+            // errors roll the claim back to the waiting lane.
+            if (aborted) {
+              this.consumeClaimedPendingInput(
+                sessionId,
+                context.pendingQueueItemId,
+                pendingInputSource
+              )
+            } else {
+              this.rollbackClaimedPendingInputTurn(
+                sessionId,
+                context.pendingQueueItemId,
+                pendingInputSource,
+                userMessageId
+              )
+            }
           } else {
             this.releaseClaimedPendingInput(
               sessionId,
@@ -957,28 +1023,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
         }
       }
-      if (this.isAbortError(err) || preStreamAbortSignal.aborted) {
+      if (aborted) {
         if (userMessageId) {
           this.emitMessageRefresh(sessionId, userMessageId)
         }
-        if (assistantMessageId) {
-          const existingAssistant = this.messageStore.getMessage(assistantMessageId)
-          const existingBlocks = existingAssistant
-            ? this.parseAssistantBlocks(existingAssistant.content)
-            : []
-          const blocks = buildTerminalErrorBlocks(
-            existingBlocks,
-            'common.error.userCanceledGeneration'
-          )
-          this.messageStore.setMessageError(assistantMessageId, blocks)
-          this.emitMessageRefresh(sessionId, assistantMessageId)
-        }
-        this.dispatchTerminalHooks(sessionId, state, {
-          status: 'aborted',
-          stopReason: 'user_stop',
-          errorMessage: 'common.error.userCanceledGeneration'
-        })
-        this.setSessionStatus(sessionId, 'idle')
+        this.settleAbortedTurn(sessionId, assistantMessageId, streamRunId)
+        // Stop/steer: continue the queue automatically with the next item (steer items first).
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
         return {
           requestId: assistantMessageId,
           messageId: assistantMessageId
@@ -1622,30 +1673,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async cancelGeneration(sessionId: string): Promise<void> {
-    if (this.shouldPausePendingQueueOnStop(sessionId)) {
-      this.userPausedPendingQueues.add(sessionId)
-    }
-
+    // Single responsibility: request the abort and release controllers/permissions. Terminal
+    // settlement (canceled block + Stop/SessionEnd hooks + idle status + queue drain) is owned by the
+    // in-flight processMessage / resumeAssistantMessage handler, which always observes the abort and
+    // settles exactly once. cancelGeneration deliberately does NOT clear the active generation, write
+    // the terminal block, dispatch hooks, or set status.
     const activeGeneration = this.activeGenerations.get(sessionId)
     if (activeGeneration) {
       activeGeneration.abortController.abort()
-      this.clearActiveGeneration(sessionId, activeGeneration.runId)
-
-      const assistantMessage = this.messageStore.getMessage(activeGeneration.messageId)
-      if (assistantMessage?.role === 'assistant') {
-        const blocks = buildTerminalErrorBlocks(
-          this.parseAssistantBlocks(assistantMessage.content),
-          'common.error.userCanceledGeneration'
-        )
-        this.messageStore.setMessageError(activeGeneration.messageId, blocks)
-        this.emitMessageRefresh(sessionId, activeGeneration.messageId)
-      }
-
-      this.dispatchTerminalHooks(sessionId, this.runtimeState.get(sessionId), {
-        status: 'aborted',
-        stopReason: 'user_stop',
-        errorMessage: 'common.error.userCanceledGeneration'
-      })
     } else {
       const controller = this.abortControllers.get(sessionId)
       if (controller) {
@@ -1655,7 +1690,44 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
-    this.setSessionStatus(sessionId, 'idle')
+  }
+
+  /**
+   * Append the canceled terminal block to an assistant message after a stop/steer abort. Idempotent
+   * via buildTerminalErrorBlocks (won't duplicate the block).
+   */
+  private writeCanceledTerminalBlock(sessionId: string, messageId: string | null): void {
+    if (!messageId) {
+      return
+    }
+    const assistantMessage = this.messageStore.getMessage(messageId)
+    if (assistantMessage?.role !== 'assistant') {
+      return
+    }
+    const blocks = buildTerminalErrorBlocks(
+      this.parseAssistantBlocks(assistantMessage.content),
+      'common.error.userCanceledGeneration'
+    )
+    this.messageStore.setMessageError(messageId, blocks)
+    this.emitMessageRefresh(sessionId, messageId)
+  }
+
+  /**
+   * Settle a turn aborted by stop/steer from the stream handler's *throw* (catch) branch: canceled
+   * terminal block + terminal hooks + idle status. The return-path settles via applyProcessResultStatus
+   * instead. The caller remains responsible for draining the queue.
+   */
+  private settleAbortedTurn(sessionId: string, messageId: string | null, runId?: string): void {
+    this.writeCanceledTerminalBlock(sessionId, messageId)
+    this.dispatchTerminalHooks(sessionId, this.runtimeState.get(sessionId), {
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    const activeGeneration = runId ? this.activeGenerations.get(sessionId) : null
+    if (!runId || !activeGeneration || activeGeneration.runId === runId) {
+      this.setSessionStatus(sessionId, 'idle')
+    }
   }
 
   getActiveGeneration(sessionId: string): { eventId: string; runId: string } | null {
@@ -2018,7 +2090,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private ensureSessionAbortController(sessionId: string): AbortController {
     const activeGeneration = this.activeGenerations.get(sessionId)
     if (activeGeneration) {
-      return activeGeneration.abortController
+      if (!activeGeneration.abortController.signal.aborted) {
+        return activeGeneration.abortController
+      }
+      // A just-cancelled run can linger in the map until its handler settles. Never hand an already
+      // aborted controller to a fresh turn (it would abort immediately) — drop the stale run first.
+      this.clearActiveGeneration(sessionId, activeGeneration.runId)
     }
 
     const existing = this.abortControllers.get(sessionId)
@@ -2490,6 +2567,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
+    onRunRegistered?: (runId: string) => void
   }): Promise<{ runId: string; result: ProcessResult }> {
     const {
       sessionId,
@@ -2501,7 +2579,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       initialBlocks,
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
-      viewContext
+      viewContext,
+      onRunRegistered
     } = args
     const state = this.runtimeState.get(sessionId)
     if (!state) {
@@ -2601,6 +2680,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const abortController = new AbortController()
     const activeGeneration = this.registerActiveGeneration(sessionId, messageId, abortController)
+    onRunRegistered?.(activeGeneration.runId)
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
@@ -3038,12 +3118,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   private async drainPendingQueueIfPossible(
     sessionId: string,
-    reason: 'enqueue' | 'resume' | 'completed'
+    reason: 'enqueue' | 'completed'
   ): Promise<boolean> {
     if (this.drainingPendingQueues.has(sessionId)) {
-      return false
-    }
-    if (this.isPendingQueuePausedByUser(sessionId, reason)) {
       return false
     }
 
@@ -3091,8 +3168,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (
         this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
         (await this.getSessionState(sessionId))?.status === 'idle' &&
-        !this.hasPendingInteractions(sessionId) &&
-        !this.isPendingQueuePausedByUser(sessionId, 'completed')
+        !this.hasPendingInteractions(sessionId)
       ) {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
@@ -3112,41 +3188,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     if (this.drainingPendingQueues.has(sessionId)) {
       return false
     }
-    if (this.userPausedPendingQueues.has(sessionId)) {
-      return false
-    }
     return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
-  }
-
-  private shouldPausePendingQueueOnStop(sessionId: string): boolean {
-    return (
-      this.drainingPendingQueues.has(sessionId) ||
-      this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
-    )
-  }
-
-  private isPendingQueuePausedByUser(
-    sessionId: string,
-    reason: 'enqueue' | 'resume' | 'completed'
-  ): boolean {
-    return reason !== 'resume' && this.userPausedPendingQueues.has(sessionId)
-  }
-
-  private clearPendingQueuePauseIfEmpty(sessionId: string): void {
-    if (!this.pendingInputCoordinator.hasPendingTurnInput(sessionId)) {
-      this.userPausedPendingQueues.delete(sessionId)
-    }
   }
 
   private canDrainPendingQueueFromStatus(
     status: DeepChatSessionState['status'],
-    reason: 'enqueue' | 'resume' | 'completed'
+    reason: 'enqueue' | 'completed'
   ): boolean {
     if (status === 'idle') {
       return true
     }
 
-    return (reason === 'enqueue' || reason === 'resume') && status === 'error'
+    return reason === 'enqueue' && status === 'error'
   }
 
   private rollbackClaimedPendingInputTurn(
@@ -3170,11 +3223,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): void {
     if (pendingInputSource === 'steer') {
       this.pendingInputCoordinator.consumeSteerInput(sessionId, pendingInputId)
-      this.clearPendingQueuePauseIfEmpty(sessionId)
       return
     }
     this.pendingInputCoordinator.consumeQueuedInput(sessionId, pendingInputId)
-    this.clearPendingQueuePauseIfEmpty(sessionId)
   }
 
   private releaseClaimedPendingInput(
@@ -3285,30 +3336,40 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     result: ProcessResult | null | undefined,
     runId?: string
   ): void {
-    if (runId && !this.isActiveRun(sessionId, runId)) {
-      return
-    }
+    // Terminal hooks describe the run that just ended, so they fire even if a newer run has since
+    // become the active one. Session status, however, must not be clobbered by a stale run — guard it.
+    const isActive = !runId || this.isActiveRun(sessionId, runId)
     const state = this.runtimeState.get(sessionId)
     if (!result || !result.status) {
-      this.setSessionStatus(sessionId, 'idle')
+      if (isActive) {
+        this.setSessionStatus(sessionId, 'idle')
+      }
+      return
+    }
+    if (result.status === 'paused') {
+      if (isActive) {
+        this.setSessionStatus(sessionId, 'generating')
+      }
       return
     }
     if (result.status === 'completed') {
       this.dispatchTerminalHooks(sessionId, state, result)
-      this.setSessionStatus(sessionId, 'idle')
-      return
-    }
-    if (result.status === 'paused') {
-      this.setSessionStatus(sessionId, 'generating')
+      if (isActive) {
+        this.setSessionStatus(sessionId, 'idle')
+      }
       return
     }
     if (result.status === 'aborted') {
       this.dispatchTerminalHooks(sessionId, state, result)
-      this.setSessionStatus(sessionId, 'idle')
+      if (isActive) {
+        this.setSessionStatus(sessionId, 'idle')
+      }
       return
     }
     this.dispatchTerminalHooks(sessionId, state, result)
-    this.setSessionStatus(sessionId, 'error')
+    if (isActive) {
+      this.setSessionStatus(sessionId, 'error')
+    }
   }
 
   private async resumeAssistantMessage(
@@ -3323,6 +3384,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.resumingMessages.add(messageId)
     let preStreamAbortController: AbortController | null = null
     let preStreamAbortSignal: AbortSignal | undefined
+    let streamRunId: string | undefined
 
     try {
       const state = this.runtimeState.get(sessionId)
@@ -3454,7 +3516,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
 
       this.throwIfAbortRequested(preStreamAbortSignal)
-      const { runId, result } = await this.runStreamForMessage({
+      const streamResult = await this.runStreamForMessage({
         sessionId,
         messageId,
         messages: resumeContext,
@@ -3472,32 +3534,32 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           supportsVision: this.supportsVision(state.providerId, state.modelId),
           supportsAudioInput: this.supportsAudioInput(state.providerId, state.modelId),
           traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+        },
+        onRunRegistered: (runId) => {
+          streamRunId = runId
         }
       })
+      const { runId, result } = streamResult
+      streamRunId = runId
       try {
         this.applyProcessResultStatus(sessionId, result, runId)
       } finally {
         this.clearActiveGeneration(sessionId, runId)
       }
-      if (result?.status === 'completed') {
+      if (result?.status === 'aborted') {
+        // Return-path abort: applyProcessResultStatus already handled hooks + idle.
+        this.writeCanceledTerminalBlock(sessionId, messageId)
+      }
+      if (result?.status === 'completed' || result?.status === 'aborted') {
         void this.drainPendingQueueIfPossible(sessionId, 'completed')
       }
       return true
     } catch (error) {
       console.error('[DeepChatAgent] resumeAssistantMessage error:', error)
       if (this.isAbortError(error) || preStreamAbortSignal?.aborted) {
-        const blocks = buildTerminalErrorBlocks(
-          initialBlocks,
-          'common.error.userCanceledGeneration'
-        )
-        this.messageStore.setMessageError(messageId, blocks)
-        this.emitMessageRefresh(sessionId, messageId)
-        this.dispatchTerminalHooks(sessionId, this.runtimeState.get(sessionId), {
-          status: 'aborted',
-          stopReason: 'user_stop',
-          errorMessage: 'common.error.userCanceledGeneration'
-        })
-        this.setSessionStatus(sessionId, 'idle')
+        this.settleAbortedTurn(sessionId, messageId, streamRunId)
+        // Stop/steer: continue the queue automatically with the next item (steer items first).
+        void this.drainPendingQueueIfPossible(sessionId, 'completed')
         return false
       }
       const errorMessage = error instanceof Error ? error.message : String(error)

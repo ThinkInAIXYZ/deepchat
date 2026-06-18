@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "誘導",
     "queueCount": "送信待ち {count}/{max}",
-    "resumeQueue": "送信を再開",
-    "toSteer": "誘導にする",
+    "toSteer": "中断して送信",
     "locked": "ロック済み",
     "reorder": "並べ替え",
     "files": "{count} 件のファイル",
     "attachmentsOnly": "{count} 件の添付ファイル",
     "empty": "空のメッセージ",
-    "limitReached": "待機レーンがいっぱいです（最大{max}件）。"
+    "limitReached": "待機レーンがいっぱいです（最大{max}件）。",
+    "remove": "削除",
+    "steerUnavailable": "今は中断できません",
+    "steerFailed": "このターンを中断できませんでした"
   },
   "features": {
     "webSearch": "ウェブ検索",

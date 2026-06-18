@@ -73,14 +73,16 @@
   "pendingInput": {
     "steer": "Steruj",
     "queueCount": "W kolejce {count}/{max}",
-    "resumeQueue": "Wznów wysyłanie",
-    "toSteer": "Steruj",
+    "toSteer": "Przerwij i wyślij",
     "locked": "Zablokowane",
     "reorder": "Zmień kolejność",
     "files": "Pliki {count}",
     "attachmentsOnly": "Załączniki {count}",
     "empty": "Pusta wiadomość",
-    "limitReached": "Pas oczekujących jest pełny (maks. {max})."
+    "limitReached": "Pas oczekujących jest pełny (maks. {max}).",
+    "remove": "Usuń",
+    "steerUnavailable": "Nie można teraz przerwać",
+    "steerFailed": "Nie udało się przerwać tej tury"
   },
   "features": {
     "webSearch": "Wyszukiwanie w Internecie",
