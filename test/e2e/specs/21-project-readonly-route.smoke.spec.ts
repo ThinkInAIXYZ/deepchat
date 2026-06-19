@@ -34,6 +34,7 @@ test('environment settings reads project routes without native dialogs @smoke', 
     async ({ existingPath, missingPath }) => {
       type Project = {
         icon?: unknown
+        exists?: unknown
         lastAccessedAt?: unknown
         name?: unknown
         path?: unknown
@@ -107,6 +108,7 @@ test('environment settings reads project routes without native dialogs @smoke', 
         missingPathExists: missing.exists,
         projectCount: projects.length,
         projects: projects.slice(0, 10).map((project) => ({
+          existsType: typeof project.exists,
           iconType: typeof project.icon,
           lastAccessedAtType: typeof project.lastAccessedAt,
           nameType: typeof project.name,
@@ -129,6 +131,7 @@ test('environment settings reads project routes without native dialogs @smoke', 
     expect(project.nameType).toBe('string')
     expect(project.iconType === 'string' || project.iconType === 'object').toBe(true)
     expect(project.lastAccessedAtType).toBe('number')
+    expect(project.existsType).toBe('boolean')
   }
 
   for (const environment of snapshot.environments) {

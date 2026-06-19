@@ -2,7 +2,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
-const setup = async (pendingModelId: string) => {
+const setup = async (
+  pendingModelId: string,
+  options?: {
+    projects?: Array<{ name: string; path: string; exists: boolean }>
+    environments?: Array<{ path: string; exists: boolean }>
+  }
+) => {
   vi.resetModules()
 
   const draftStore = reactive({
@@ -40,7 +46,10 @@ const setup = async (pendingModelId: string) => {
     } as { name: string; path: string } | null,
     defaultProjectPath: null as string | null,
     selectionSource: 'manual' as 'none' | 'manual' | 'default',
-    projects: [{ name: 'demo', path: '/workspace/demo' }] as Array<{ name: string; path: string }>,
+    projects: (options?.projects ?? [
+      { name: 'demo', path: '/workspace/demo', exists: true }
+    ]) as Array<{ name: string; path: string; exists: boolean }>,
+    environments: options?.environments ?? [],
     archivedEnvironments: [],
     removedEnvironments: [],
     selectProject: vi.fn((path: string | null, source?: 'none' | 'manual' | 'default') => {
@@ -120,6 +129,9 @@ const setup = async (pendingModelId: string) => {
   const sessionClient = {
     ensureAcpDraftSession: vi.fn()
   }
+  const fileClient = {
+    isDirectory: vi.fn().mockResolvedValue(true)
+  }
 
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
@@ -141,6 +153,9 @@ const setup = async (pendingModelId: string) => {
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
+  }))
+  vi.doMock('@api/FileClient', () => ({
+    createFileClient: vi.fn(() => fileClient)
   }))
   vi.doMock('@/lib/startupDeferred', () => ({
     scheduleStartupDeferredTask: vi.fn((task: () => void | Promise<void>) => {
@@ -252,5 +267,20 @@ describe('NewThreadPage start deeplink prefill', () => {
     expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
       'common.project.none'
     )
+  }, 20000)
+
+  it('hides missing projects from the new thread dropdown', async () => {
+    const { wrapper } = await setup('deepseek-chat', {
+      projects: [
+        { name: 'demo', path: '/workspace/demo', exists: true },
+        { name: 'missing', path: '/workspace/missing', exists: false },
+        { name: 'stale', path: '/workspace/stale', exists: true }
+      ],
+      environments: [{ path: '/workspace/stale', exists: false }]
+    })
+
+    expect(wrapper.text()).toContain('/workspace/demo')
+    expect(wrapper.text()).not.toContain('/workspace/missing')
+    expect(wrapper.text()).not.toContain('/workspace/stale')
   }, 20000)
 })

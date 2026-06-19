@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setupStore = async (overrides?: {
-  recentProjects?: Array<{ path: string; name: string; icon: string | null }>
+  recentProjects?: Array<{ path: string; name: string; icon: string | null; exists: boolean }>
   defaultProjectPath?: string | null
 }) => {
   vi.resetModules()
@@ -20,7 +20,9 @@ const setupStore = async (overrides?: {
     getRecentProjects: vi
       .fn()
       .mockResolvedValue(
-        overrides?.recentProjects ?? [{ path: '/work/recent', name: 'recent', icon: null }]
+        overrides?.recentProjects ?? [
+          { path: '/work/recent', name: 'recent', icon: null, exists: true }
+        ]
       ),
     getEnvironments: vi.fn().mockResolvedValue([]),
     reorderEnvironments: vi.fn().mockResolvedValue({ updated: true }),
@@ -112,7 +114,7 @@ describe('projectStore default project handling', () => {
 
   it('applies the default directory and injects a synthetic project when it is not recent', async () => {
     const { store } = await setupStore({
-      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
+      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null, exists: true }],
       defaultProjectPath: '/work/default'
     })
 
@@ -129,7 +131,7 @@ describe('projectStore default project handling', () => {
 
   it('keeps a manual project selection when the default project changes later', async () => {
     const { store, emitDefaultProjectPathChanged } = await setupStore({
-      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
+      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null, exists: true }],
       defaultProjectPath: '/work/default'
     })
 
@@ -149,7 +151,7 @@ describe('projectStore default project handling', () => {
 
   it('updates the selected project when the default selection source is still active', async () => {
     const { store, emitDefaultProjectPathChanged } = await setupStore({
-      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
+      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null, exists: true }],
       defaultProjectPath: '/work/default'
     })
 
@@ -162,7 +164,7 @@ describe('projectStore default project handling', () => {
 
   it('keeps an explicit clear selection instead of reapplying the default directory', async () => {
     const { store, emitDefaultProjectPathChanged } = await setupStore({
-      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null }],
+      recentProjects: [{ path: '/work/recent', name: 'recent', icon: null, exists: true }],
       defaultProjectPath: '/work/default'
     })
 
@@ -182,8 +184,8 @@ describe('projectStore default project handling', () => {
   it('reorders active environments and removes deleted recent projects locally', async () => {
     const { store, projectPresenter } = await setupStore({
       recentProjects: [
-        { path: '/work/a', name: 'a', icon: null },
-        { path: '/work/b', name: 'b', icon: null }
+        { path: '/work/a', name: 'a', icon: null, exists: true },
+        { path: '/work/b', name: 'b', icon: null, exists: true }
       ]
     })
     store.environments.value = [
@@ -232,15 +234,15 @@ describe('projectStore default project handling', () => {
   it('refreshes project data when environments change in another window', async () => {
     const { store, projectPresenter, emitProjectEnvironmentsChanged } = await setupStore({
       recentProjects: [
-        { path: '/work/a', name: 'a', icon: null },
-        { path: '/work/b', name: 'b', icon: null }
+        { path: '/work/a', name: 'a', icon: null, exists: true },
+        { path: '/work/b', name: 'b', icon: null, exists: true }
       ]
     })
 
     await store.fetchProjects()
     store.selectProject('/work/a')
     projectPresenter.getRecentProjects.mockResolvedValueOnce([
-      { path: '/work/b', name: 'b', icon: null }
+      { path: '/work/b', name: 'b', icon: null, exists: true }
     ])
 
     emitProjectEnvironmentsChanged({

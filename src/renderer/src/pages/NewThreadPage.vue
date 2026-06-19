@@ -38,7 +38,10 @@
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" class="min-w-[200px]">
+          <DropdownMenuContent
+            align="center"
+            class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
+          >
             <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
             <DropdownMenuItem
               data-testid="new-thread-clear-project"
@@ -329,10 +332,22 @@ const archivedProjectPaths = computed(
 const removedProjectPaths = computed(
   () => new Set(projectStore.removedEnvironments.map((environment) => environment.path))
 )
+const missingProjectPaths = computed(
+  () =>
+    new Set(
+      projectStore.environments
+        .filter((environment) => !environment.exists)
+        .map((environment) => environment.path)
+    )
+)
 const selectableProjects = computed(() =>
   projectStore.projects.filter(
     (project) =>
-      !archivedProjectPaths.value.has(project.path) && !removedProjectPaths.value.has(project.path)
+      project.exists &&
+      !archivedProjectPaths.value.has(project.path) &&
+      !removedProjectPaths.value.has(project.path) &&
+      !missingProjectPaths.value.has(project.path) &&
+      !isSelectedInvalidProjectPath(project.path)
   )
 )
 const hasExplicitNoProjectSelection = computed(

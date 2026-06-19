@@ -857,6 +857,7 @@ export interface Project {
   name: string
   icon: string | null
   lastAccessedAt: number
+  exists: boolean
 }
 
 export interface EnvironmentSummary {

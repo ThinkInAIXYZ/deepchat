@@ -39,7 +39,8 @@ export class ProjectPresenter {
         path: row.path,
         name: row.name,
         icon: row.icon,
-        lastAccessedAt: row.last_accessed_at
+        lastAccessedAt: row.last_accessed_at,
+        exists: fs.existsSync(row.path)
       }))
   }
 
@@ -52,7 +53,8 @@ export class ProjectPresenter {
         path: row.path,
         name: row.name,
         icon: row.icon,
-        lastAccessedAt: row.last_accessed_at
+        lastAccessedAt: row.last_accessed_at,
+        exists: fs.existsSync(row.path)
       }))
   }
 

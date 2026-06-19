@@ -38,4 +38,5 @@
   - [x] Reorder cannot reactivate archived or removed paths.
   - [x] Archived Settings rows do not expose drag handle semantics.
 - [x] Complete non-English locale copy for the directory management UI.
+- [x] Fix new chat directory dropdown height and hide missing directories.
 - [ ] User acceptance.

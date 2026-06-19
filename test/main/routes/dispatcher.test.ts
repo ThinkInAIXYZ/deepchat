@@ -815,7 +815,8 @@ function createRuntime() {
         path: 'C:/workspace',
         name: 'workspace',
         icon: null,
-        lastAccessedAt: 123
+        lastAccessedAt: 123,
+        exists: true
       }
     ]),
     getEnvironments: vi.fn().mockResolvedValue([
@@ -3462,7 +3463,8 @@ describe('dispatchDeepchatRoute', () => {
           path: 'C:/workspace',
           name: 'workspace',
           icon: null,
-          lastAccessedAt: 123
+          lastAccessedAt: 123,
+          exists: true
         }
       ]
     })

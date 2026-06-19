@@ -778,7 +778,8 @@ export const ProjectSchema = z.object({
   path: z.string().min(1),
   name: z.string(),
   icon: z.string().nullable(),
-  lastAccessedAt: z.number().int()
+  lastAccessedAt: z.number().int(),
+  exists: z.boolean()
 })
 
 export const EnvironmentSummarySchema = z.object({

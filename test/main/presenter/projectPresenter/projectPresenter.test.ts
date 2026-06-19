@@ -76,6 +76,7 @@ describe('ProjectPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    existsSyncMock.mockReturnValue(true)
     sqlitePresenter = createMockSqlitePresenter()
     devicePresenter = createMockDevicePresenter()
     presenter = new ProjectPresenter(sqlitePresenter, devicePresenter)
@@ -95,7 +96,8 @@ describe('ProjectPresenter', () => {
         path: '/tmp/proj',
         name: 'proj',
         icon: 'folder',
-        lastAccessedAt: 1000
+        lastAccessedAt: 1000,
+        exists: true
       })
       expect(projects[1].icon).toBeNull()
     })
@@ -119,6 +121,7 @@ describe('ProjectPresenter', () => {
       expect(projects).toHaveLength(2)
       expect(projects[0].path).toBe('/recent1')
       expect(projects[0].lastAccessedAt).toBe(3000)
+      expect(projects[0].exists).toBe(true)
     })
 
     it('filters removed projects from recent rows', async () => {

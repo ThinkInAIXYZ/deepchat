@@ -10,6 +10,7 @@ export interface UIProject {
   name: string
   path: string
   icon: string | null
+  exists: boolean
   isSynthetic?: boolean
 }
 
@@ -46,6 +47,7 @@ export const useProjectStore = defineStore('project', () => {
     name: projectPath.split(/[/\\]/).pop() ?? projectPath,
     path: projectPath,
     icon: null,
+    exists: true,
     isSynthetic: true
   })
 
@@ -146,7 +148,8 @@ export const useProjectStore = defineStore('project', () => {
         (result as Project[]).map((p) => ({
           name: p.name,
           path: p.path,
-          icon: p.icon
+          icon: p.icon,
+          exists: p.exists
         }))
       )
       applyDefaultSelection()
@@ -289,7 +292,8 @@ export const useProjectStore = defineStore('project', () => {
         nextProjects.unshift({
           name,
           path: selectedPath,
-          icon: null
+          icon: null,
+          exists: true
         })
         projects.value = reconcileProjects(nextProjects)
         selectProject(selectedPath, 'manual')
