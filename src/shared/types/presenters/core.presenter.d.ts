@@ -27,6 +27,7 @@ import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'
 import type { IWindowPresenter, TabData } from './window.presenter'
+import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type {
   Agent,
   AgentType,
@@ -414,29 +415,6 @@ export interface IOAuthPresenter {
   startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus>
   cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
   logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
-}
-
-export type OpenAICodexAuthStatus = {
-  state:
-    | 'disabled'
-    | 'signed-out'
-    | 'pending-browser'
-    | 'pending-device'
-    | 'authenticated'
-    | 'error'
-  authenticated: boolean
-  accountId?: string
-  accountLabel?: string
-  planType?: string
-  expiresAt?: number
-  storage: 'safeStorage' | 'file' | 'none'
-  device?: {
-    userCode: string
-    verificationUri: string
-    expiresAt: number
-    interval?: number
-  }
-  error?: string
 }
 
 export interface OAuthConfig {

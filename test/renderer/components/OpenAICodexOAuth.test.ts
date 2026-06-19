@@ -116,7 +116,7 @@ describe('OpenAICodexOAuth', () => {
   it('starts browser login and emits auth success', async () => {
     const { wrapper, oauthClient } = await setup()
 
-    await wrapper.findAll('button')[0].trigger('click')
+    await wrapper.get('[data-testid="codex-browser-login-button"]').trigger('click')
     await flushPromises()
 
     expect(oauthClient.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
@@ -127,7 +127,7 @@ describe('OpenAICodexOAuth', () => {
   it('starts device login and shows the user code', async () => {
     const { wrapper, oauthClient } = await setup()
 
-    await wrapper.findAll('button')[1].trigger('click')
+    await wrapper.get('[data-testid="codex-device-login-button"]').trigger('click')
     await flushPromises()
 
     expect(oauthClient.startOpenAICodexDeviceLogin).toHaveBeenCalledTimes(1)
@@ -137,8 +137,7 @@ describe('OpenAICodexOAuth', () => {
   it('logs out authenticated Codex accounts', async () => {
     const { wrapper, oauthClient } = await setup(authenticatedStatus)
 
-    const logoutButton = wrapper.findAll('button').at(-1)
-    await logoutButton?.trigger('click')
+    await wrapper.get('[data-testid="codex-logout-button"]').trigger('click')
     await flushPromises()
 
     expect(oauthClient.logoutOpenAICodex).toHaveBeenCalledTimes(1)

@@ -176,13 +176,39 @@ function applyCodexHeaders(
 }
 
 export function createOpenAICodexFetch(defaultHeaders: Record<string, string>) {
+  let currentProxyUrl: string | null = null
+  let proxyAgent: ProxyAgent | undefined
+
+  const closeProxyAgent = () => {
+    if (proxyAgent) {
+      void proxyAgent.close().catch(() => undefined)
+    }
+    proxyAgent = undefined
+    currentProxyUrl = null
+  }
+
+  const getDispatcher = () => {
+    const proxyUrl = proxyConfig.getProxyUrl()
+    if (!proxyUrl) {
+      closeProxyAgent()
+      return undefined
+    }
+
+    if (currentProxyUrl !== proxyUrl || !proxyAgent) {
+      closeProxyAgent()
+      proxyAgent = new ProxyAgent(proxyUrl)
+      currentProxyUrl = proxyUrl
+    }
+
+    return proxyAgent
+  }
+
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (isOpenAICodexDisabled()) {
       throw new Error('OpenAI Codex provider is disabled by environment')
     }
 
-    const proxyUrl = proxyConfig.getProxyUrl()
-    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+    const dispatcher = getDispatcher()
     const auth = getGlobalOpenAICodexAuth()
     const backendAuth = await auth.getBackendAuth()
     const nextInit: FetchInitWithDispatcher = {

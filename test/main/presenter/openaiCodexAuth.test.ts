@@ -47,8 +47,28 @@ describe('OpenAI Codex auth', () => {
     expect(pair.codeVerifier).not.toBe(pair.codeChallenge)
   })
 
+  it('falls back when the redirect port env value is not a TCP port', async () => {
+    vi.resetModules()
+    process.env.OPENAI_CODEX_REDIRECT_PORT = '1455.5'
+    const decimalPortConstants =
+      await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    expect(decimalPortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(1455)
+
+    vi.resetModules()
+    process.env.OPENAI_CODEX_REDIRECT_PORT = '70000'
+    const outOfRangePortConstants =
+      await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    expect(outOfRangePortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(1455)
+
+    vi.resetModules()
+    process.env.OPENAI_CODEX_REDIRECT_PORT = '65535'
+    const validPortConstants = await import('../../../src/main/presenter/openaiCodexAuth/constants')
+    expect(validPortConstants.OPENAI_CODEX_REDIRECT_PORT).toBe(65535)
+  })
+
   it('stores Codex credentials outside provider records', () => {
-    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+    const credentialPath = path.join(tempDir, 'credentials.json')
+    const store = new OpenAICodexCredentialStore(credentialPath)
     store.save({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -59,6 +79,14 @@ describe('OpenAI Codex auth', () => {
       updatedAt: Date.now()
     })
 
+    expect(fs.mkdirSync).toHaveBeenCalledWith(path.dirname(credentialPath), {
+      recursive: true,
+      mode: 0o700
+    })
+    expect(fs.writeFileSync).toHaveBeenCalledWith(credentialPath, expect.any(String), {
+      encoding: 'utf-8',
+      mode: 0o600
+    })
     expect(store.load()?.accessToken).toBe('access-token')
     store.clear()
     expect(store.load()).toBeNull()
@@ -121,6 +149,7 @@ describe('OpenAI Codex auth', () => {
     expect(first).toBe('new-token')
     expect(second).toBe('new-token')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 

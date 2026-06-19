@@ -7,13 +7,17 @@ const authState = vi.hoisted(() => ({
   forceRefreshBackendAuth: vi.fn()
 }))
 
+const proxyState = vi.hoisted(() => ({
+  getProxyUrl: vi.fn()
+}))
+
 vi.mock('../../../../src/main/presenter/openaiCodexAuth', () => ({
   getGlobalOpenAICodexAuth: () => authState
 }))
 
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
-    getProxyUrl: () => null
+    getProxyUrl: proxyState.getProxyUrl
   }
 }))
 
@@ -23,6 +27,8 @@ describe('OpenAI Codex adapter', () => {
     authState.forceRefreshAccessToken.mockReset()
     authState.getBackendAuth.mockReset()
     authState.forceRefreshBackendAuth.mockReset()
+    proxyState.getProxyUrl.mockReset()
+    proxyState.getProxyUrl.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -82,6 +88,39 @@ describe('OpenAI Codex adapter', () => {
     expect(firstHeaders.has('x-api-key')).toBe(false)
     expect(secondHeaders.get('Authorization')).toBe('Bearer new-token')
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reuses the proxy dispatcher until the proxy URL changes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    )
+    authState.getBackendAuth.mockResolvedValue({
+      accessToken: 'token'
+    })
+    proxyState.getProxyUrl.mockReturnValue('http://127.0.0.1:1080')
+
+    const { createOpenAICodexFetch } =
+      await import('../../../../src/main/presenter/llmProviderPresenter/openaiCodexAdapter')
+    const fetcher = createOpenAICodexFetch({})
+
+    await fetcher('https://chatgpt.com/backend-api/codex/responses')
+    await fetcher('https://chatgpt.com/backend-api/codex/responses')
+    proxyState.getProxyUrl.mockReturnValue('http://127.0.0.1:1081')
+    await fetcher('https://chatgpt.com/backend-api/codex/responses')
+
+    const fetchMock = vi.mocked(fetch)
+    const firstDispatcher = (fetchMock.mock.calls[0][1] as { dispatcher?: unknown }).dispatcher
+    const secondDispatcher = (fetchMock.mock.calls[1][1] as { dispatcher?: unknown }).dispatcher
+    const thirdDispatcher = (fetchMock.mock.calls[2][1] as { dispatcher?: unknown }).dispatcher
+
+    expect(firstDispatcher).toBeDefined()
+    expect(secondDispatcher).toBe(firstDispatcher)
+    expect(thirdDispatcher).not.toBe(firstDispatcher)
   })
 
   it('normalizes Codex Responses request bodies for backend compatibility', async () => {

@@ -54,6 +54,7 @@
     <div class="flex flex-wrap gap-2">
       <Button
         v-if="status.authenticated"
+        data-testid="codex-test-connection-button"
         variant="outline"
         size="sm"
         class="text-xs text-normal rounded-lg"
@@ -65,6 +66,7 @@
       </Button>
 
       <Button
+        data-testid="codex-browser-login-button"
         variant="default"
         size="sm"
         class="text-xs"
@@ -79,6 +81,7 @@
       </Button>
 
       <Button
+        data-testid="codex-device-login-button"
         variant="outline"
         size="sm"
         class="text-xs"
@@ -92,13 +95,21 @@
         {{ deviceButtonText }}
       </Button>
 
-      <Button v-if="isPending" variant="outline" size="sm" class="text-xs" @click="cancelLogin">
+      <Button
+        v-if="isPending"
+        data-testid="codex-cancel-login-button"
+        variant="outline"
+        size="sm"
+        class="text-xs"
+        @click="cancelLogin"
+      >
         <Icon icon="lucide:x" class="h-4 w-4" />
         {{ t('settings.provider.openaiCodexCancel') }}
       </Button>
 
       <Button
         v-if="status.authenticated"
+        data-testid="codex-logout-button"
         variant="outline"
         size="sm"
         class="text-xs text-destructive"

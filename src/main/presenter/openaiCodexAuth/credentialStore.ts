@@ -72,7 +72,7 @@ export class OpenAICodexCredentialStore {
   }
 
   save(tokens: OpenAICodexTokenSet): void {
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true })
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true, mode: 0o700 })
     const normalized = this.normalizeTokens(tokens)
     if (!normalized) {
       throw new Error('Invalid OpenAI Codex token payload')
@@ -94,7 +94,10 @@ export class OpenAICodexCredentialStore {
             updatedAt: now
           }
 
-    fs.writeFileSync(this.filePath, JSON.stringify(envelope, null, 2), 'utf-8')
+    fs.writeFileSync(this.filePath, JSON.stringify(envelope, null, 2), {
+      encoding: 'utf-8',
+      mode: 0o600
+    })
   }
 
   clear(): void {

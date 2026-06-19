@@ -96,3 +96,14 @@
 - [x] T607 Run `pnpm run typecheck:node`.
 - [x] T608 Run `pnpm run typecheck:web`.
 - [x] T609 Update task statuses after implementation.
+
+## Phase 7 - PR Review Follow-Up
+
+- [x] T701 Cache the Codex `ProxyAgent` by proxy URL.
+- [x] T702 Validate `OPENAI_CODEX_REDIRECT_PORT` as a TCP port.
+- [x] T703 Persist Codex credential envelopes with owner-only file permissions.
+- [x] T704 Add OAuth HTTP request timeouts.
+- [x] T705 Deduplicate the Codex auth status type and event schema.
+- [x] T706 Replace fragile OpenAI Codex OAuth test button selectors.
+- [x] T707 Localize all new OpenAI Codex strings in non-English locale files.
+- [x] T708 Run review follow-up validation.

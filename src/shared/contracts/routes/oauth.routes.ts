@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import { EntityIdSchema, defineRouteContract } from '../common'
+import type { OpenAICodexAuthStatus } from '../../types/openai-codex'
+
+export type { OpenAICodexAuthStatus } from '../../types/openai-codex'
 
 const OAuthProviderIdSchema = EntityIdSchema
 
@@ -7,7 +10,7 @@ const OAuthLoginResultSchema = z.object({
   success: z.boolean()
 })
 
-export const OpenAICodexAuthStatusSchema = z.object({
+export const OpenAICodexAuthStatusSchema: z.ZodType<OpenAICodexAuthStatus> = z.object({
   state: z.enum([
     'disabled',
     'signed-out',
@@ -32,8 +35,6 @@ export const OpenAICodexAuthStatusSchema = z.object({
     .optional(),
   error: z.string().optional()
 })
-
-export type OpenAICodexAuthStatus = z.infer<typeof OpenAICodexAuthStatusSchema>
 
 const OpenAICodexStatusResultSchema = z.object({
   status: OpenAICodexAuthStatusSchema

@@ -5,8 +5,9 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
-import { getGlobalOpenAICodexAuth, type OpenAICodexAuthStatus } from './openaiCodexAuth'
+import { getGlobalOpenAICodexAuth } from './openaiCodexAuth'
 import { eventBus } from '@/eventbus'
+import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 
 export interface OAuthConfig {
   authUrl: string

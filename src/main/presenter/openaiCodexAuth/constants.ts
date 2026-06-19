@@ -18,6 +18,11 @@ function getNumberEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+function getPortEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name])
+  return Number.isInteger(value) && value >= 1 && value <= 65535 ? value : fallback
+}
+
 export const OPENAI_CODEX_CLIENT_ID =
   process.env.OPENAI_CODEX_CLIENT_ID?.trim() || 'app_EMoamEEZ73f0CkXaXp7hrann'
 
@@ -50,7 +55,7 @@ export const OPENAI_CODEX_DEVICE_TOKEN_URL =
   process.env.OPENAI_CODEX_DEVICE_TOKEN_URL?.trim() ||
   `${OPENAI_CODEX_BACKEND_API_URL}/codex/deviceauth/token`
 
-export const OPENAI_CODEX_REDIRECT_PORT = getNumberEnv('OPENAI_CODEX_REDIRECT_PORT', 1455)
+export const OPENAI_CODEX_REDIRECT_PORT = getPortEnv('OPENAI_CODEX_REDIRECT_PORT', 1455)
 export const OPENAI_CODEX_REDIRECT_PATH = '/auth/callback'
 export const OPENAI_CODEX_REDIRECT_URI =
   process.env.OPENAI_CODEX_REDIRECT_URI?.trim() ||
@@ -71,6 +76,11 @@ export const OPENAI_CODEX_BROWSER_TIMEOUT_MS = getNumberEnv(
 export const OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS = getNumberEnv(
   'OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS',
   60 * 1000
+)
+
+export const OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS = getNumberEnv(
+  'OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS',
+  30 * 1000
 )
 
 export function isOpenAICodexDisabled(): boolean {

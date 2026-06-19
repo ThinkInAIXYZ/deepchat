@@ -4,6 +4,7 @@ import { URL } from 'url'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   OPENAI_CODEX_ACCESS_TOKEN_ENV,
+  OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS,
   OPENAI_CODEX_AUTHORIZE_URL,
   OPENAI_CODEX_CLIENT_ID,
   OPENAI_CODEX_DEVICE_TOKEN_URL,
@@ -19,31 +20,7 @@ import {
 } from './constants'
 import { OpenAICodexCredentialStore, type OpenAICodexTokenSet } from './credentialStore'
 import { createOpenAICodexPkcePair, createOpenAICodexState } from './pkce'
-
-export type OpenAICodexAuthState =
-  | 'disabled'
-  | 'signed-out'
-  | 'pending-browser'
-  | 'pending-device'
-  | 'authenticated'
-  | 'error'
-
-export type OpenAICodexAuthStatus = {
-  state: OpenAICodexAuthState
-  authenticated: boolean
-  accountId?: string
-  accountLabel?: string
-  planType?: string
-  expiresAt?: number
-  storage: 'safeStorage' | 'file' | 'none'
-  device?: {
-    userCode: string
-    verificationUri: string
-    expiresAt: number
-    interval?: number
-  }
-  error?: string
-}
+import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 
 export type OpenAICodexBackendAuth = {
   accessToken: string
@@ -701,7 +678,7 @@ export class OpenAICodexAuth {
       }
     })
 
-    const response = await fetch(url, {
+    const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -724,7 +701,7 @@ export class OpenAICodexAuth {
     const jsonBody = JSON.stringify(
       Object.fromEntries(Object.entries(params).filter(([, value]) => Boolean(value)))
     )
-    const response = await fetch(url, {
+    const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -742,6 +719,26 @@ export class OpenAICodexAuth {
     }
 
     return this.postForm(url, params)
+  }
+
+  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS)
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: controller.signal
+      })
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error(
+          `OpenAI Codex auth request timed out after ${OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS}ms`
+        )
+      }
+      throw error
+    } finally {
+      clearTimeout(timeout)
+    }
   }
 
   private publishStatusChanged(): void {
