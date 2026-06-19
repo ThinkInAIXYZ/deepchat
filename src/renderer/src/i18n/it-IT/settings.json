@@ -168,11 +168,14 @@
       "personaActive": "Attiva",
       "rollback": "Ripristina",
       "actionFailed": "Azione non riuscita",
+      "conflict": "Conflitto",
+      "restore": "Ripristina",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indicizzato",
         "error": "Errore",
-        "fts_only": "Solo parole chiave"
+        "fts_only": "Solo parole chiave",
+        "archived": "Archiviato"
       }
     }
   },

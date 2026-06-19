@@ -68,6 +68,7 @@ import {
   memoryGetStatusRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRestoreRoute,
   memoryRollbackPersonaRoute,
   dialogErrorRoute,
   dialogRespondRoute,
@@ -391,7 +392,9 @@ function toMemoryItemDto(row: AgentMemoryRow) {
     status: row.status,
     sourceSession: row.source_session,
     supersededBy: row.superseded_by,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    confidence: row.confidence,
+    conflictState: row.conflict_state
   }
 }
 
@@ -1913,6 +1916,12 @@ export async function dispatchDeepchatRoute(
       const input = memoryClearRoute.input.parse(rawInput)
       const removed = await runtime.memoryPresenter.clearMemories(input.agentId)
       return memoryClearRoute.output.parse({ removed })
+    }
+
+    case memoryRestoreRoute.name: {
+      const input = memoryRestoreRoute.input.parse(rawInput)
+      const ok = runtime.memoryPresenter.restoreMemory(input.agentId, input.memoryId)
+      return memoryRestoreRoute.output.parse({ ok })
     }
 
     case memoryListPersonaVersionsRoute.name: {

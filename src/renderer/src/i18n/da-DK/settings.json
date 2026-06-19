@@ -2237,11 +2237,14 @@
       "personaActive": "Aktiv",
       "rollback": "Rul tilbage",
       "actionFailed": "Handling mislykkedes",
+      "conflict": "Konflikt",
+      "restore": "Gendan",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indekseret",
         "error": "Fejl",
-        "fts_only": "Kun nøgleord"
+        "fts_only": "Kun nøgleord",
+        "archived": "Arkiveret"
       }
     }
   },

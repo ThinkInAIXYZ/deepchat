@@ -168,11 +168,14 @@
       "personaActive": "Aktiv",
       "rollback": "Zurücksetzen",
       "actionFailed": "Aktion fehlgeschlagen",
+      "conflict": "Konflikt",
+      "restore": "Wiederherstellen",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indiziert",
         "error": "Fehler",
-        "fts_only": "Nur Stichwort"
+        "fts_only": "Nur Stichwort",
+        "archived": "Archiviert"
       }
     }
   },

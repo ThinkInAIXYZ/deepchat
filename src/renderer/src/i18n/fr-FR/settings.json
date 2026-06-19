@@ -2237,11 +2237,14 @@
       "personaActive": "Active",
       "rollback": "Restaurer",
       "actionFailed": "Échec de l'action",
+      "conflict": "Conflit",
+      "restore": "Restaurer",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexé",
         "error": "Erreur",
-        "fts_only": "Mots-clés uniquement"
+        "fts_only": "Mots-clés uniquement",
+        "archived": "Archivé"
       }
     }
   },

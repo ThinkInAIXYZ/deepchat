@@ -35,12 +35,20 @@ const memory: MemoryItem = {
 
 const status: MemoryStatusDto = { total: 1, pendingEmbedding: 0, hasPersona: false }
 
-async function setup(overrides: { remove?: boolean; clear?: number; rollback?: boolean } = {}) {
+async function setup(
+  overrides: {
+    remove?: boolean
+    clear?: number
+    rollback?: boolean
+    restore?: boolean
+    items?: MemoryItem[]
+  } = {}
+) {
   vi.resetModules()
 
   const dispose = vi.fn()
   const memoryClient = {
-    list: vi.fn().mockResolvedValue([{ ...memory }]),
+    list: vi.fn().mockResolvedValue(overrides.items ?? [{ ...memory }]),
     getStatus: vi.fn().mockResolvedValue(status),
     listPersonaVersions: vi.fn().mockResolvedValue([
       { ...memory, id: 'p-old', kind: 'persona', content: 'old persona', supersededBy: 'p-new' },
@@ -48,6 +56,7 @@ async function setup(overrides: { remove?: boolean; clear?: number; rollback?: b
     ]),
     remove: vi.fn().mockResolvedValue(overrides.remove ?? true),
     clear: vi.fn().mockResolvedValue(overrides.clear ?? 1),
+    restore: vi.fn().mockResolvedValue(overrides.restore ?? true),
     rollbackPersona: vi.fn().mockResolvedValue(overrides.rollback ?? true),
     onUpdated: vi.fn().mockReturnValue(dispose)
   }
@@ -161,5 +170,49 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
     expect(dispose).not.toHaveBeenCalled()
     wrapper.unmount()
     expect(dispose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MemoryManagerDialog SDD-4 surfacing (conflict / archived)', () => {
+  it('renders the conflict badge for a challenged memory', async () => {
+    const { wrapper } = await setup({
+      items: [{ ...memory, conflictState: 'challenged' }]
+    })
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.conflict')
+  })
+
+  it('does not render the conflict badge when there is no conflict', async () => {
+    const { wrapper } = await setup({ items: [{ ...memory, conflictState: null }] })
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.memoryManager.conflict')
+  })
+
+  it('dims an archived memory row and labels its status', async () => {
+    const { wrapper } = await setup({
+      items: [{ ...memory, status: 'archived', conflictState: null }]
+    })
+    const row = wrapper.findAll('li').find((li) => li.text().includes('redis fact'))
+    expect(row?.classes()).toContain('opacity-60')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.status.archived')
+  })
+
+  it('shows a restore action on archived rows that calls client.restore (AC-4.2)', async () => {
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory, status: 'archived', conflictState: null }]
+    })
+    const restoreBtn = wrapper
+      .findAll('button')
+      .find((b) => b.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.restore')
+    expect(restoreBtn).toBeTruthy()
+    await restoreBtn!.trigger('click')
+    await flushPromises()
+    expect(memoryClient.restore).toHaveBeenCalledWith('a', 'm1')
+  })
+
+  it('does not show a restore action on a non-archived row', async () => {
+    const { wrapper } = await setup({ items: [{ ...memory, status: 'embedded' }] })
+    const restoreBtn = wrapper
+      .findAll('button')
+      .find((b) => b.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.restore')
+    expect(restoreBtn).toBeUndefined()
   })
 })

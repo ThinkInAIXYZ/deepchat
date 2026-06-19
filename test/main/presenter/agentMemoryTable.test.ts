@@ -274,8 +274,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       const createSql = table.getCreateTableSQL()
       expect(createSql).toContain('embedding_model')
       expect(createSql).toContain('source_entry_ids')
-      expect(table.getLatestVersion()).toBe(32)
+      expect(createSql).toContain('confidence')
+      expect(createSql).toContain('last_consolidated_at')
+      expect(createSql).toContain('conflict_state')
+      expect(table.getLatestVersion()).toBe(33)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
+      expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
       expect(table.getMigrationSQL(31)).toBeNull()
 
       table.createTable()
@@ -508,7 +512,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       db.exec('ALTER TABLE agent_memory DROP COLUMN source_entry_ids')
       db.exec('ALTER TABLE agent_memory DROP COLUMN embedding_model')
 
-      const sql = table.getMigrationSQL(table.getLatestVersion())
+      const sql = table.getMigrationSQL(32)
       expect(sql).toBeTruthy()
       expect(sql).toContain('source_entry_ids')
       expect(sql).toContain('embedding_model')
@@ -523,6 +527,161 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         sourceEntryIds: [1, 2]
       })
       expect(table.getById('m')?.source_entry_ids).toBe('[1,2]')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('v33 migration adds the consolidation columns to a legacy table (T-M)', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      // Reproduce a database created before the consolidation columns existed.
+      db.exec('ALTER TABLE agent_memory DROP COLUMN confidence')
+      db.exec('ALTER TABLE agent_memory DROP COLUMN last_consolidated_at')
+      db.exec('ALTER TABLE agent_memory DROP COLUMN conflict_state')
+      table.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'old fact' })
+
+      const sql = table.getMigrationSQL(33)
+      expect(sql).toBeTruthy()
+      db.exec(sql as string)
+
+      const columns = (
+        db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{ name: string }>
+      ).map((column) => column.name)
+      expect(columns).toContain('confidence')
+      expect(columns).toContain('last_consolidated_at')
+      expect(columns).toContain('conflict_state')
+      // Legacy row survives the migration with neutral defaults.
+      expect(table.getById('legacy')?.confidence).toBe(null)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('archives, excludes archived from recall/search, and lists archive candidates', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'keep', agentId: 'a', kind: 'semantic', content: 'redis keep' })
+      table.insert({ id: 'gone', agentId: 'a', kind: 'semantic', content: 'redis gone' })
+
+      table.archive('gone', 5000)
+      expect(table.getById('gone')?.status).toBe('archived')
+      expect(table.search('a', 'redis').map((r) => r.id)).toEqual(['keep'])
+      expect(table.listByAgent('a').map((r) => r.id)).toEqual(['keep'])
+      expect(
+        table
+          .listByAgent('a', { includeArchived: true })
+          .map((r) => r.id)
+          .sort()
+      ).toEqual(['gone', 'keep'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('updates content, raises confidence monotonically, and flags conflicts', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'old', importance: 0.1 })
+
+      table.updateContent('m1', 'new', 'new-key', 1234)
+      expect(table.getById('m1')?.content).toBe('new')
+      expect(table.getById('m1')?.provenance_key).toBe('new-key')
+      expect(table.getById('m1')?.last_consolidated_at).toBe(1234)
+      // A content rewrite re-anchors the forgetting clock so the row reads as freshly touched.
+      expect(table.getById('m1')?.last_accessed).toBe(1234)
+
+      table.setConfidence('m1', 0.8)
+      expect(table.getById('m1')?.confidence).toBe(0.8)
+      table.setConfidence('m1', 0.6)
+      expect(table.getById('m1')?.confidence).toBe(0.8)
+
+      table.setImportance('m1', 0.4)
+      expect(table.getById('m1')?.importance).toBe(0.4)
+      table.setImportance('m1', 0.2)
+      expect(table.getById('m1')?.importance).toBe(0.4)
+
+      table.markConflict('m1', 'challenged')
+      expect(table.getById('m1')?.conflict_state).toBe('challenged')
+      table.markConflict('m1', null)
+      expect(table.getById('m1')?.conflict_state).toBe(null)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('getLastConsolidatedAt returns the most recent marker for the agent', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'a' })
+      table.insert({ id: 'm2', agentId: 'a', kind: 'semantic', content: 'b' })
+      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'c' })
+      expect(table.getLastConsolidatedAt('a')).toBe(null)
+
+      table.setLastConsolidatedAt('m1', 100)
+      table.setLastConsolidatedAt('m2', 300)
+      table.setLastConsolidatedAt('other', 9999)
+      expect(table.getLastConsolidatedAt('a')).toBe(300)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('updateDecayScore stamps last_consolidated_at only when a timestamp is passed', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'a' })
+
+      // No timestamp: decay updates, last_consolidated_at stays untouched (COALESCE keeps prior).
+      table.updateDecayScore('m1', 0.4)
+      expect(table.getById('m1')?.decay_score).toBe(0.4)
+      expect(table.getById('m1')?.last_consolidated_at).toBe(null)
+
+      // With a timestamp: the same write doubles as the cooldown stamp.
+      table.updateDecayScore('m1', 0.2, 777)
+      expect(table.getById('m1')?.decay_score).toBe(0.2)
+      expect(table.getById('m1')?.last_consolidated_at).toBe(777)
+
+      // A later decay-only refresh must not wipe the stamp.
+      table.updateDecayScore('m1', 0.1)
+      expect(table.getById('m1')?.last_consolidated_at).toBe(777)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('listArchiveCandidates pre-filters by age, decay, and exemptions', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const old = 1000
+      table.insert({ id: 'stale', agentId: 'a', kind: 'semantic', content: 's', createdAt: old })
+      table.insert({ id: 'fresh', agentId: 'a', kind: 'semantic', content: 'f', createdAt: 9000 })
+      table.insert({
+        id: 'anchored',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'an',
+        createdAt: old,
+        isAnchor: true
+      })
+      table.updateDecayScore('stale', 0.01)
+      table.updateDecayScore('fresh', 0.01)
+      table.updateDecayScore('anchored', 0.01)
+
+      const candidates = table.listArchiveCandidates('a', 5000, 0.05)
+      expect(candidates.map((r) => r.id)).toEqual(['stale'])
     } finally {
       db.close()
     }

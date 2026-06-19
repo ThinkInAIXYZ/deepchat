@@ -2237,11 +2237,14 @@
       "personaActive": "有効",
       "rollback": "ロールバック",
       "actionFailed": "操作に失敗しました",
+      "conflict": "競合",
+      "restore": "復元",
       "status": {
         "pending_embedding": "埋め込み中",
         "embedded": "インデックス済み",
         "error": "エラー",
-        "fts_only": "キーワードのみ"
+        "fts_only": "キーワードのみ",
+        "archived": "アーカイブ済み"
       }
     }
   },

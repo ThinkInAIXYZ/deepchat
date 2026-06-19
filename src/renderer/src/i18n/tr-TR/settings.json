@@ -168,11 +168,14 @@
       "personaActive": "Etkin",
       "rollback": "Geri al",
       "actionFailed": "İşlem başarısız",
+      "conflict": "Çakışma",
+      "restore": "Geri yükle",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Dizinlendi",
         "error": "Hata",
-        "fts_only": "Yalnızca anahtar kelime"
+        "fts_only": "Yalnızca anahtar kelime",
+        "archived": "Arşivlendi"
       }
     }
   },

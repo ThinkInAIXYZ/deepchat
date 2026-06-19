@@ -13,10 +13,12 @@ export const MemoryItemSchema = z.object({
   kind: z.enum(['episodic', 'semantic', 'reflection', 'persona']),
   content: z.string(),
   importance: z.number(),
-  status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only']),
+  status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived']),
   sourceSession: z.string().nullable(),
   supersededBy: z.string().nullable(),
-  createdAt: z.number()
+  createdAt: z.number(),
+  confidence: z.number().nullable().optional(),
+  conflictState: z.string().nullable().optional()
 })
 
 export const MemoryStatusSchema = z.object({
@@ -48,6 +50,12 @@ export const memoryClearRoute = defineRouteContract({
   name: 'memory.clear',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ removed: z.number() })
+})
+
+export const memoryRestoreRoute = defineRouteContract({
+  name: 'memory.restore',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: z.object({ ok: z.boolean() })
 })
 
 export const memoryListPersonaVersionsRoute = defineRouteContract({

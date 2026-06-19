@@ -5,6 +5,7 @@ import {
   memoryGetStatusRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRestoreRoute,
   memoryRollbackPersonaRoute,
   type MemoryItem,
   type MemoryStatusDto
@@ -35,6 +36,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.removed
   }
 
+  async function restore(agentId: string, memoryId: string): Promise<boolean> {
+    const result = await bridge.invoke(memoryRestoreRoute.name, { agentId, memoryId })
+    return result.ok
+  }
+
   async function listPersonaVersions(agentId: string): Promise<MemoryItem[]> {
     const result = await bridge.invoke(memoryListPersonaVersionsRoute.name, { agentId })
     return result.versions
@@ -55,6 +61,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     getStatus,
     remove,
     clear,
+    restore,
     listPersonaVersions,
     rollbackPersona,
     onUpdated

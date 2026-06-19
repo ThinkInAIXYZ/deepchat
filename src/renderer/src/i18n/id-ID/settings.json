@@ -168,11 +168,14 @@
       "personaActive": "Aktif",
       "rollback": "Kembalikan",
       "actionFailed": "Tindakan gagal",
+      "conflict": "Konflik",
+      "restore": "Pulihkan",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Terindeks",
         "error": "Galat",
-        "fts_only": "Kata kunci saja"
+        "fts_only": "Kata kunci saja",
+        "archived": "Diarsipkan"
       }
     }
   },

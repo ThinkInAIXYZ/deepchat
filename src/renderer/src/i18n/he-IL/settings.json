@@ -2237,11 +2237,14 @@
       "personaActive": "פעיל",
       "rollback": "שחזר",
       "actionFailed": "הפעולה נכשלה",
+      "conflict": "התנגשות",
+      "restore": "שחזר",
       "status": {
         "pending_embedding": "מבצע embedding",
         "embedded": "מאונדקס",
         "error": "שגיאה",
-        "fts_only": "מילות מפתח בלבד"
+        "fts_only": "מילות מפתח בלבד",
+        "archived": "בארכיון"
       }
     }
   },

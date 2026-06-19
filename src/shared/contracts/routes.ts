@@ -32,6 +32,7 @@ import {
   memoryGetStatusRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRestoreRoute,
   memoryRollbackPersonaRoute
 } from './routes/memory.routes'
 import {
@@ -780,6 +781,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryDeleteRoute.name]: memoryDeleteRoute,
   [memoryClearRoute.name]: memoryClearRoute,
+  [memoryRestoreRoute.name]: memoryRestoreRoute,
   [memoryListPersonaVersionsRoute.name]: memoryListPersonaVersionsRoute,
   [memoryRollbackPersonaRoute.name]: memoryRollbackPersonaRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,

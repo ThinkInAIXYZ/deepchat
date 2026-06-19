@@ -82,6 +82,7 @@
                 v-for="memory in memories"
                 :key="memory.id"
                 class="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                :class="{ 'opacity-60': memory.status === 'archived' }"
               >
                 <div class="min-w-0 flex-1">
                   <p class="break-words text-sm">{{ memory.content }}</p>
@@ -90,20 +91,39 @@
                     <Badge :variant="statusVariant(memory.status)" class="text-[10px]">
                       {{ t(`settings.deepchatAgents.memoryManager.status.${memory.status}`) }}
                     </Badge>
+                    <Badge
+                      v-if="memory.conflictState === 'challenged'"
+                      variant="destructive"
+                      class="text-[10px]"
+                    >
+                      {{ t('settings.deepchatAgents.memoryManager.conflict') }}
+                    </Badge>
                     <span class="text-[10px] text-muted-foreground">
                       {{ formatTime(memory.createdAt) }}
                     </span>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 shrink-0 px-2 text-xs text-destructive"
-                  :aria-label="t('common.delete')"
-                  @click="handleDelete(memory.id)"
-                >
-                  <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                </Button>
+                <div class="flex shrink-0 items-center gap-1">
+                  <Button
+                    v-if="memory.status === 'archived'"
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 px-2 text-xs"
+                    :aria-label="t('settings.deepchatAgents.memoryManager.restore')"
+                    @click="handleRestore(memory.id)"
+                  >
+                    <Icon icon="lucide:archive-restore" class="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 px-2 text-xs text-destructive"
+                    :aria-label="t('common.delete')"
+                    @click="handleDelete(memory.id)"
+                  >
+                    <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </li>
             </ul>
           </ScrollArea>
@@ -244,9 +264,10 @@ function isActivePersona(version: MemoryItem): boolean {
 
 function statusVariant(
   memoryStatus: MemoryItem['status']
-): 'default' | 'secondary' | 'destructive' {
+): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (memoryStatus === 'error') return 'destructive'
   if (memoryStatus === 'embedded') return 'default'
+  if (memoryStatus === 'archived') return 'outline'
   return 'secondary'
 }
 
@@ -284,6 +305,16 @@ async function handleClear(): Promise<void> {
 async function handleRollback(versionId: string): Promise<void> {
   try {
     const ok = await memoryClient.rollbackPersona(props.agentId, versionId)
+    if (!ok) return notifyActionFailed()
+    await refresh()
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleRestore(memoryId: string): Promise<void> {
+  try {
+    const ok = await memoryClient.restore(props.agentId, memoryId)
     if (!ok) return notifyActionFailed()
     await refresh()
   } catch (e) {

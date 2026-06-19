@@ -165,11 +165,14 @@
       "personaActive": "当前生效",
       "rollback": "回滚",
       "actionFailed": "操作失败",
+      "conflict": "冲突",
+      "restore": "恢复",
       "status": {
         "pending_embedding": "向量化中",
         "embedded": "已索引",
         "error": "错误",
-        "fts_only": "仅关键词"
+        "fts_only": "仅关键词",
+        "archived": "已归档"
       }
     },
     "compactionThreshold": "触发阈值",

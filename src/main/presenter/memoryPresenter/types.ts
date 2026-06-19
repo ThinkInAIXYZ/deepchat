@@ -2,6 +2,7 @@ import type {
   AgentMemoryKind,
   AgentMemoryRow,
   AgentMemoryStatus,
+  AgentMemoryConflictState,
   AgentMemoryInsertInput,
   AgentMemoryListOptions
 } from '../sqlitePresenter/tables/agentMemory'
@@ -14,6 +15,7 @@ export type {
   AgentMemoryKind,
   AgentMemoryRow,
   AgentMemoryStatus,
+  AgentMemoryConflictState,
   AgentMemoryInsertInput,
   AgentMemoryListOptions
 }
@@ -44,6 +46,15 @@ export interface MemoryRepositoryPort {
   requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number
   markSuperseded(id: string, supersededBy: string | null): void
   recordAccess(id: string, accessedAt?: number): void
+  updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
+  updateContent(id: string, content: string, provenanceKey: string | null, at?: number): void
+  setConfidence(id: string, confidence: number): void
+  setImportance(id: string, importance: number): void
+  markConflict(id: string, state: AgentMemoryConflictState | null): void
+  setLastConsolidatedAt(id: string, at?: number): void
+  getLastConsolidatedAt(agentId: string): number | null
+  archive(id: string, at?: number): void
+  listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
@@ -97,6 +108,8 @@ export interface MemoryRecallItem {
   importance: number
   // Which retrieval path(s) surfaced this item; powers source-aware ranking and provenance UI.
   sources?: { vec?: boolean; fts?: boolean }
+  // Raw vector similarity when surfaced by the vector path; used by consolidation near-dup gating.
+  similarity?: number
   // Lineage back to the originating tape span, when the row carries it.
   sourceSession?: string | null
   sourceEntryIds?: number[] | null
@@ -207,6 +220,17 @@ export const DEFAULT_RETRIEVAL: Required<Omit<DeepChatAgentMemoryRetrieval, 'wei
 
 // Half-life (ms) for recency exponential decay; 14 days.
 export const DEFAULT_RECENCY_HALF_LIFE_MS = 14 * 24 * 60 * 60 * 1000
+// Half-life (ms) for the materialized decay_score that drives archiving; 30 days.
+export const FORGET_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000
+// Neutral confidence for rows that carry none (legacy rows / not yet corroborated). Treated as the
+// pivot of the recall confidence factor, so default-confidence rows rank exactly as before.
+export const DEFAULT_CONFIDENCE = 0.7
+// Corroboration bump applied on UPDATE; confidence only ever rises and is capped at 1.
+export const CONFIDENCE_INCREMENT = 0.1
+// Slope of the recall confidence factor around DEFAULT_CONFIDENCE (1 + boost·(conf − default)).
+export const CONFIDENCE_BOOST = 0.5
+// Importance floor coefficient: a decayed but important memory keeps at least coef·importance.
+export const IMPORTANCE_FLOOR_COEF = 0.15
 // Similarity placeholder for FTS-only hits that have no vector distance; kept below the vector
 // threshold so a keyword-only hit never outranks a genuine strong vector match on the rerank.
 export const FTS_SIMILARITY_BASELINE = 0.3

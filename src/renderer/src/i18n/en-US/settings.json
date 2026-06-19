@@ -165,11 +165,14 @@
       "personaActive": "Active",
       "rollback": "Roll back",
       "actionFailed": "Action failed",
+      "conflict": "Conflict",
+      "restore": "Restore",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexed",
         "error": "Error",
-        "fts_only": "Keyword only"
+        "fts_only": "Keyword only",
+        "archived": "Archived"
       }
     },
     "compactionThreshold": "Trigger threshold",

@@ -902,12 +902,14 @@ export class Presenter implements IPresenter {
     await this.destroyRemoteControl()
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()
+    // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
+    // that already fired cannot write to a closed database during teardown.
+    await this.memoryPresenter.dispose() // release per-agent memory vector store connections
     this.sqlitePresenter.close() // 关闭数据库连接
     this.shortcutPresenter.destroy() // 销毁快捷键监听
     this.syncPresenter.destroy() // 销毁同步相关资源
     this.notificationPresenter.clearAllNotifications() // 清除所有通知
     this.knowledgePresenter.destroy() // 释放所有数据库连接
-    await this.memoryPresenter.dispose() // release per-agent memory vector store connections
     await (this.workspacePresenter as WorkspacePresenter).destroy() // 销毁 Workspace watchers
     await (this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
     ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源

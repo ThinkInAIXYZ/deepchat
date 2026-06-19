@@ -2237,11 +2237,14 @@
       "personaActive": "目前生效",
       "rollback": "回復",
       "actionFailed": "操作失敗",
+      "conflict": "衝突",
+      "restore": "復原",
       "status": {
         "pending_embedding": "向量化中",
         "embedded": "已索引",
         "error": "錯誤",
-        "fts_only": "僅關鍵字"
+        "fts_only": "僅關鍵字",
+        "archived": "已封存"
       }
     }
   },

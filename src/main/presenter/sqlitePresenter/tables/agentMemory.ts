@@ -3,7 +3,9 @@ import { BaseTable } from './baseTable'
 
 export type AgentMemoryKind = 'episodic' | 'semantic' | 'reflection' | 'persona'
 
-export type AgentMemoryStatus = 'pending_embedding' | 'embedded' | 'error' | 'fts_only'
+export type AgentMemoryStatus = 'pending_embedding' | 'embedded' | 'error' | 'fts_only' | 'archived'
+
+export type AgentMemoryConflictState = 'challenged'
 
 export interface AgentMemoryRow {
   id: string
@@ -25,6 +27,9 @@ export interface AgentMemoryRow {
   access_count: number
   decay_score: number | null
   source_entry_ids: string | null
+  confidence: number | null
+  last_consolidated_at: number | null
+  conflict_state: string | null
 }
 
 export interface AgentMemoryInsertInput {
@@ -46,12 +51,13 @@ export interface AgentMemoryListOptions {
   kinds?: AgentMemoryKind[]
   statuses?: AgentMemoryStatus[]
   includeSuperseded?: boolean
+  includeArchived?: boolean
   limit?: number
 }
 
-// Global migration version shared across all tables (see SQLitePresenter.migrate). This is the
-// first agent_memory migration and must stay above the previous ceiling so it actually runs.
-const AGENT_MEMORY_SCHEMA_VERSION = 32
+// Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
+// embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns.
+const AGENT_MEMORY_SCHEMA_VERSION = 33
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
@@ -104,7 +110,10 @@ export class AgentMemoryTable extends BaseTable {
         last_accessed INTEGER,
         access_count INTEGER NOT NULL DEFAULT 0,
         decay_score REAL,
-        source_entry_ids TEXT
+        source_entry_ids TEXT,
+        confidence REAL,
+        last_consolidated_at INTEGER,
+        conflict_state TEXT
       );
       ${AGENT_MEMORY_INDEX_SQL}
     `
@@ -120,7 +129,7 @@ export class AgentMemoryTable extends BaseTable {
   }
 
   getMigrationSQL(version: number): string | null {
-    if (version === AGENT_MEMORY_SCHEMA_VERSION) {
+    if (version === 32) {
       // FTS5 objects are (re)built idempotently in ensureFtsIndex() because the tokenizer is
       // chosen from runtime capabilities; only columns land here for existing databases.
       // source_entry_ids first shipped without its own migration, so older tables lack it; it is
@@ -128,6 +137,13 @@ export class AgentMemoryTable extends BaseTable {
       return [
         'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;',
         'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;'
+      ].join('\n')
+    }
+    if (version === 33) {
+      return [
+        'ALTER TABLE agent_memory ADD COLUMN confidence REAL;',
+        'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
+        'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;'
       ].join('\n')
     }
     return null
@@ -230,7 +246,10 @@ export class AgentMemoryTable extends BaseTable {
       last_accessed: null,
       access_count: 0,
       decay_score: null,
-      source_entry_ids: serializeSourceEntryIds(input.sourceEntryIds)
+      source_entry_ids: serializeSourceEntryIds(input.sourceEntryIds),
+      confidence: null,
+      last_consolidated_at: null,
+      conflict_state: null
     }
 
     this.db
@@ -254,9 +273,12 @@ export class AgentMemoryTable extends BaseTable {
            last_accessed,
            access_count,
            decay_score,
-           source_entry_ids
+           source_entry_ids,
+           confidence,
+           last_consolidated_at,
+           conflict_state
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -277,7 +299,10 @@ export class AgentMemoryTable extends BaseTable {
         row.last_accessed,
         row.access_count,
         row.decay_score,
-        row.source_entry_ids
+        row.source_entry_ids,
+        row.confidence,
+        row.last_consolidated_at,
+        row.conflict_state
       )
 
     return row
@@ -301,6 +326,9 @@ export class AgentMemoryTable extends BaseTable {
 
     if (!options.includeSuperseded) {
       where.push('superseded_by IS NULL')
+    }
+    if (!options.includeArchived && !options.statuses?.includes('archived')) {
+      where.push("status != 'archived'")
     }
     if (options.kinds?.length) {
       where.push(`kind IN (${options.kinds.map(() => '?').join(', ')})`)
@@ -379,6 +407,7 @@ export class AgentMemoryTable extends BaseTable {
            WHERE agent_memory_fts MATCH ?
              AND am.agent_id = ?
              AND am.superseded_by IS NULL
+             AND am.status != 'archived'
            ORDER BY bm25(agent_memory_fts)
            LIMIT ?`
         )
@@ -396,6 +425,7 @@ export class AgentMemoryTable extends BaseTable {
         `SELECT * FROM agent_memory
          WHERE agent_id = ?
            AND superseded_by IS NULL
+           AND status != 'archived'
            AND content LIKE ? ESCAPE '\\'
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
@@ -488,8 +518,106 @@ export class AgentMemoryTable extends BaseTable {
       .run(accessedAt, id)
   }
 
-  updateDecayScore(id: string, decayScore: number | null): void {
-    this.db.prepare('UPDATE agent_memory SET decay_score = ? WHERE id = ?').run(decayScore, id)
+  // Decay refresh runs once per consolidation pass over every active row, so passing `consolidatedAt`
+  // here doubles as the cooldown stamp: even a pass that merges and archives nothing still advances
+  // last_consolidated_at, so getLastConsolidatedAt seeds the cross-restart cooldown. Omitting it
+  // (COALESCE keeps the prior value) leaves the stamp untouched for callers that only set decay.
+  updateDecayScore(
+    id: string,
+    decayScore: number | null,
+    consolidatedAt: number | null = null
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET decay_score = ?, last_consolidated_at = COALESCE(?, last_consolidated_at)
+         WHERE id = ?`
+      )
+      .run(decayScore, consolidatedAt, id)
+  }
+
+  // Refreshes a row's content in place (UPDATE/merge decision), keeping its provenance_key in sync
+  // with the new content so the idempotent dedup short-circuit keeps matching. last_accessed is
+  // re-anchored too so a rewritten row's forgetting clock resets — a just-merged current-truth row
+  // therefore cannot be archived in the same maintenance pass. The FTS trigger fires on content
+  // change so the keyword index follows automatically.
+  updateContent(
+    id: string,
+    content: string,
+    provenanceKey: string | null,
+    at: number = Date.now()
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET content = ?, provenance_key = ?, last_accessed = ?, last_consolidated_at = ?
+         WHERE id = ?`
+      )
+      .run(content, provenanceKey, at, at, id)
+  }
+
+  // Confidence only ever rises: NULL seeds the first value, otherwise keep the larger.
+  setConfidence(id: string, confidence: number): void {
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET confidence = CASE WHEN confidence IS NULL THEN ? ELSE max(confidence, ?) END
+         WHERE id = ?`
+      )
+      .run(confidence, confidence, id)
+  }
+
+  // Importance only ever rises during consolidation so folding two rows never downgrades the
+  // survivor below the more important of the pair (keeps the importance floor honest).
+  setImportance(id: string, importance: number): void {
+    this.db
+      .prepare('UPDATE agent_memory SET importance = max(importance, ?) WHERE id = ?')
+      .run(importance, id)
+  }
+
+  markConflict(id: string, state: AgentMemoryConflictState | null): void {
+    this.db.prepare('UPDATE agent_memory SET conflict_state = ? WHERE id = ?').run(state, id)
+  }
+
+  setLastConsolidatedAt(id: string, at: number = Date.now()): void {
+    this.db.prepare('UPDATE agent_memory SET last_consolidated_at = ? WHERE id = ?').run(at, id)
+  }
+
+  // Most recent consolidation timestamp across the agent's rows; seeds the offline-pass cooldown so
+  // the >=6h debounce survives a process restart instead of resetting to "run immediately".
+  getLastConsolidatedAt(agentId: string): number | null {
+    const row = this.db
+      .prepare(
+        `SELECT MAX(last_consolidated_at) AS at FROM agent_memory
+         WHERE agent_id = ? AND last_consolidated_at IS NOT NULL`
+      )
+      .get(agentId) as { at: number | null } | undefined
+    return row?.at ?? null
+  }
+
+  // Soft delete: archived rows stay on disk (and in the vector store) but drop out of recall.
+  archive(id: string, at: number = Date.now()): void {
+    this.db
+      .prepare("UPDATE agent_memory SET status = 'archived', last_consolidated_at = ? WHERE id = ?")
+      .run(at, id)
+  }
+
+  // SQL-expressible subset of the archive conditions: active, aged out, decayed, and exempt rows
+  // (anchors / persona) excluded. The zero-interaction check runs in the caller on this result.
+  listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status != 'archived'
+           AND is_anchor = 0
+           AND kind != 'persona'
+           AND created_at < ?
+           AND decay_score IS NOT NULL
+           AND decay_score < ?`
+      )
+      .all(agentId, before, decayBelow) as AgentMemoryRow[]
   }
 
   delete(id: string): void {

@@ -2237,11 +2237,14 @@
       "personaActive": "활성",
       "rollback": "롤백",
       "actionFailed": "작업 실패",
+      "conflict": "충돌",
+      "restore": "복원",
       "status": {
         "pending_embedding": "임베딩 중",
         "embedded": "색인됨",
         "error": "오류",
-        "fts_only": "키워드만"
+        "fts_only": "키워드만",
+        "archived": "보관됨"
       }
     }
   },

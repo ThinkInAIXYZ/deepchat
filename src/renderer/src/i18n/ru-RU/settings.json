@@ -2237,11 +2237,14 @@
       "personaActive": "Активная",
       "rollback": "Откатить",
       "actionFailed": "Не удалось выполнить действие",
+      "conflict": "Конфликт",
+      "restore": "Восстановить",
       "status": {
         "pending_embedding": "Эмбеддинг",
         "embedded": "Проиндексировано",
         "error": "Ошибка",
-        "fts_only": "Только ключевые слова"
+        "fts_only": "Только ключевые слова",
+        "archived": "Архивировано"
       }
     }
   },

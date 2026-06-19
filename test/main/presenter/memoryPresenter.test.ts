@@ -8,6 +8,7 @@ import {
 } from '@/presenter/memoryPresenter'
 import {
   buildMemoryProvenanceKey,
+  decayScore,
   distanceToSimilarity,
   fuse,
   parseSourceEntryIds,
@@ -55,7 +56,10 @@ class FakeRepository implements MemoryRepositoryPort {
       last_accessed: null,
       access_count: 0,
       decay_score: null,
-      source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null
+      source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null,
+      confidence: null,
+      last_consolidated_at: null,
+      conflict_state: null
     }
     this.rows.set(row.id, row)
     return row
@@ -73,12 +77,19 @@ class FakeRepository implements MemoryRepositoryPort {
 
   listByAgent(
     agentId: string,
-    options?: { includeSuperseded?: boolean; statuses?: AgentMemoryRow['status'][] }
+    options?: {
+      includeSuperseded?: boolean
+      includeArchived?: boolean
+      statuses?: AgentMemoryRow['status'][]
+    }
   ) {
     return [...this.rows.values()].filter(
       (row) =>
         row.agent_id === agentId &&
         (options?.includeSuperseded || !row.superseded_by) &&
+        (options?.includeArchived ||
+          options?.statuses?.includes('archived') ||
+          row.status !== 'archived') &&
         (!options?.statuses?.length || options.statuses.includes(row.status))
     )
   }
@@ -100,7 +111,10 @@ class FakeRepository implements MemoryRepositoryPort {
     return [...this.rows.values()]
       .filter(
         (row) =>
-          row.agent_id === agentId && !row.superseded_by && row.content.toLowerCase().includes(q)
+          row.agent_id === agentId &&
+          !row.superseded_by &&
+          row.status !== 'archived' &&
+          row.content.toLowerCase().includes(q)
       )
       .slice(0, limit)
   }
@@ -158,6 +172,76 @@ class FakeRepository implements MemoryRepositoryPort {
       row.last_accessed = accessedAt
       row.access_count += 1
     }
+  }
+
+  updateDecayScore(id: string, decayScore: number | null, consolidatedAt: number | null = null) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.decay_score = decayScore
+      if (consolidatedAt !== null) row.last_consolidated_at = consolidatedAt
+    }
+  }
+
+  updateContent(id: string, content: string, provenanceKey: string | null, at = 0) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.content = content
+      row.provenance_key = provenanceKey
+      row.last_accessed = at
+      row.last_consolidated_at = at
+    }
+  }
+
+  setConfidence(id: string, confidence: number) {
+    const row = this.rows.get(id)
+    if (row)
+      row.confidence = row.confidence === null ? confidence : Math.max(row.confidence, confidence)
+  }
+
+  setImportance(id: string, importance: number) {
+    const row = this.rows.get(id)
+    if (row) row.importance = Math.max(row.importance, importance)
+  }
+
+  markConflict(id: string, state: 'challenged' | null) {
+    const row = this.rows.get(id)
+    if (row) row.conflict_state = state
+  }
+
+  setLastConsolidatedAt(id: string, at = 0) {
+    const row = this.rows.get(id)
+    if (row) row.last_consolidated_at = at
+  }
+
+  getLastConsolidatedAt(agentId: string) {
+    let max: number | null = null
+    for (const row of this.rows.values()) {
+      if (row.agent_id !== agentId || row.last_consolidated_at === null) continue
+      if (max === null || row.last_consolidated_at > max) max = row.last_consolidated_at
+    }
+    return max
+  }
+
+  archive(id: string, at = 0) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.status = 'archived'
+      row.last_consolidated_at = at
+    }
+  }
+
+  listArchiveCandidates(agentId: string, before: number, decayBelow: number) {
+    return [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        !row.superseded_by &&
+        row.status !== 'archived' &&
+        row.is_anchor === 0 &&
+        row.kind !== 'persona' &&
+        row.created_at < before &&
+        row.decay_score !== null &&
+        row.decay_score < decayBelow
+    )
   }
 
   delete(id: string) {
@@ -335,6 +419,9 @@ function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemo
     access_count: 0,
     decay_score: null,
     source_entry_ids: null,
+    confidence: null,
+    last_consolidated_at: null,
+    conflict_state: null,
     ...overrides
   }
 }
@@ -1395,5 +1482,1250 @@ describe('MemoryPresenter dispose lifecycle (C4, AC-4.1)', () => {
 
     await presenter.dispose()
     expect(closeSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ==================== SDD-4: consolidation & forgetting ====================
+
+const DAY = 24 * 60 * 60 * 1000
+
+const embeddingConfig: DeepChatAgentConfig = {
+  memoryEnabled: true,
+  memoryEmbedding: { providerId: 'p', modelId: 'm' },
+  memoryExtractionModel: { providerId: 'cheap', modelId: 'cheap' }
+}
+
+// Routes a single generateText stub by prompt so triage/extraction/decision can be controlled
+// independently. The decision-prompt branch returns whatever JSON the test wants.
+function routedLLM(opts: { extraction?: string; decision?: string; throwDecision?: boolean }) {
+  return vi.fn(async (_p: string, _m: string, prompt: string) => {
+    if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+    if (prompt.includes('JSON array')) return opts.extraction ?? '[]'
+    if (prompt.includes('Choose exactly ONE decision')) {
+      if (opts.throwDecision) throw new Error('decision model down')
+      return opts.decision ?? '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    }
+    return ''
+  })
+}
+
+function makeLLMPresenter(generateText: ReturnType<typeof vi.fn>, config = embeddingConfig) {
+  const repo = new FakeRepository()
+  const store = new FakeVectorStore()
+  const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+    texts.map((text) => textToVector(text))
+  )
+  const presenter = new MemoryPresenter({
+    repository: repo,
+    resolveAgentConfig: () => config,
+    getEmbeddings,
+    generateText,
+    createVectorStore: async () => store,
+    resetVectorStore: async () => {
+      store.vectors.clear()
+    }
+  })
+  return { presenter, repo, store, getEmbeddings, generateText }
+}
+
+async function seedEmbedded(
+  presenter: MemoryPresenter,
+  content: string,
+  agentId = 'a'
+): Promise<string> {
+  const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content }], { agentId })
+  await presenter.processPendingEmbeddings(agentId)
+  return id!
+}
+
+const decisionCalls = (generateText: ReturnType<typeof vi.fn>) =>
+  generateText.mock.calls.filter((call) => String(call[2]).includes('Choose exactly ONE decision'))
+    .length
+
+describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
+  it('ADD: model keeps the candidate as a new memory alongside the related neighbor', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(1)
+    expect(repo.countByAgent('a')).toBe(2)
+    expect(decisionCalls(generateText)).toBe(1)
+  })
+
+  it('UPDATE: reuses the neighbor row, refreshes content, adds no new row', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis 7"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const neighborId = await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis 7',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(repo.getById(neighborId)?.content).toBe('user prefers redis 7')
+    expect(repo.getById(neighborId)?.status).toBe('pending_embedding')
+  })
+
+  it('SUPERSEDE: links the old row to the new one and recall returns only the new', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user dislikes redis now","importance":0.8}]',
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user dislikes redis now"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const oldId = await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: actually I dislike redis now',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(1)
+    const newId = result.createdIds[0]
+    expect(repo.getById(oldId)?.superseded_by).toBe(newId)
+    await presenter.processPendingEmbeddings('a')
+    const recalled = await presenter.recall('a', 'redis')
+    expect(recalled.some((item) => item.id === oldId)).toBe(false)
+    expect(recalled.some((item) => item.id === newId)).toBe(true)
+  })
+
+  it('SUPERSEDE retires the old row into an existing duplicate when the merged wording collides', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user now hates redis","importance":0.8}]',
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers postgres"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const oldId = await seedEmbedded(presenter, 'user likes redis')
+    const existingId = await seedEmbedded(presenter, 'user prefers postgres')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I hate redis now',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(oldId)?.superseded_by).toBe(existingId)
+    expect(repo.getById(existingId)?.superseded_by).toBeNull()
+  })
+
+  it('NOOP: writes nothing and leaves the neighbor untouched', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const neighborId = await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: still redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(repo.getById(neighborId)?.content).toBe('user likes redis')
+  })
+
+  it('CHALLENGE: flags the neighbor as challenged without storing the candidate', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user dislikes redis","importance":0.8}]',
+      decision: '{"decision":"CHALLENGE","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const neighborId = await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: actually I dislike redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(repo.getById(neighborId)?.conflict_state).toBe('challenged')
+  })
+
+  it('falls back to a plain ADD when the decision model throws or returns garbage (T-A2)', async () => {
+    const thrown = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
+      throwDecision: true
+    })
+    const a = makeLLMPresenter(thrown)
+    await seedEmbedded(a.presenter, 'user likes redis')
+    const r1 = await a.presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!r1.ok) throw new Error('expected ok')
+    expect(r1.createdIds).toHaveLength(1)
+    expect(a.repo.countByAgent('a')).toBe(2)
+
+    const garbage = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis","importance":0.8}]',
+      decision: 'not json at all'
+    })
+    const b = makeLLMPresenter(garbage)
+    await seedEmbedded(b.presenter, 'user likes redis')
+    const r2 = await b.presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!r2.ok) throw new Error('expected ok')
+    expect(r2.createdIds).toHaveLength(1)
+    expect(b.repo.countByAgent('a')).toBe(2)
+  })
+
+  it('short-circuits a byte-level duplicate before any neighbor recall or decision call (T-A4)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter, repo, getEmbeddings } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+    getEmbeddings.mockClear()
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(decisionCalls(generateText)).toBe(0)
+    // No neighbor recall happened, so the candidate was never embedded for a query.
+    expect(getEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('merges two near-duplicate preferences into one truth instead of storing both (T-A5)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis format","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user prefers redis output')
+
+    await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis format',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    expect(repo.countByAgent('a')).toBe(1)
+  })
+
+  it('explicit rememberMemory bypasses the decision ring (no decision call)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+    const created = await presenter.rememberMemory(
+      { kind: 'semantic', content: 'user prefers redis' },
+      { agentId: 'a' }
+    )
+    expect(created).toHaveLength(1)
+    expect(repo.countByAgent('a')).toBe(2)
+    expect(decisionCalls(generateText)).toBe(0)
+  })
+})
+
+describe('MemoryPresenter forgetting score (T-B1..T-B2)', () => {
+  it('decay only reranks: an old active memory still appears, just lower (T-B1)', () => {
+    const now = 1_000 * DAY
+    const recent = makeRow('recent', { created_at: now })
+    const old = makeRow('old', { created_at: now - 200 * DAY })
+    const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
+    const result = fuse([recent, old], [], { topK: 10, rrfK: 60, weights, now })
+    expect(result.map((item) => item.id)).toEqual(['recent', 'old'])
+    expect(result).toHaveLength(2)
+  })
+
+  it('confidence lifts the score and high importance never sinks below the floor (T-B2)', () => {
+    const now = 1_000 * DAY
+    const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
+    const neutral = retrievalScore(
+      { importance: 0.5, created_at: now, confidence: null },
+      0.5,
+      now,
+      weights
+    )
+    const confident = retrievalScore(
+      { importance: 0.5, created_at: now, confidence: 1 },
+      0.5,
+      now,
+      weights
+    )
+    expect(confident).toBeGreaterThan(neutral)
+
+    // Heavily decayed, low confidence, but high importance: floored at coef * importance.
+    const floored = retrievalScore(
+      { importance: 1, created_at: now - 5_000 * DAY, confidence: 0 },
+      0,
+      now,
+      weights
+    )
+    expect(floored).toBeCloseTo(0.15)
+  })
+
+  it('decayScore anchors on last access and decays with the 30-day half-life', () => {
+    const now = 1_000 * DAY
+    const fresh = decayScore({ created_at: now, last_accessed: null }, now)
+    const stale = decayScore({ created_at: now - 60 * DAY, last_accessed: null }, now)
+    expect(fresh).toBeCloseTo(1)
+    expect(stale).toBeCloseTo(0.25)
+  })
+
+  it('UPDATE corroboration raises confidence monotonically (T-B2)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user prefers redis cluster","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis cluster"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    expect(repo.getById(id)?.confidence).toBe(null)
+    await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis cluster',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    const bumped = repo.getById(id)?.confidence
+    expect(bumped).toBeGreaterThan(0.7)
+  })
+})
+
+describe('MemoryPresenter archiving (T-B3)', () => {
+  function makeArchivePresenter() {
+    return makeLLMPresenter(routedLLM({}))
+  }
+
+  it('archives only when all four conditions hold; exempts and partial cases survive', () => {
+    const { presenter, repo } = makeArchivePresenter()
+    const now = 1_000 * DAY
+    const old = now - 200 * DAY
+    const make = (id: string, over: Partial<AgentMemoryRow>) =>
+      repo.rows.set(id, makeRow(id, { agent_id: 'a', created_at: old, ...over }))
+
+    make('stale', { decay_score: 0.01 })
+    make('accessed', { decay_score: 0.01, access_count: 2 })
+    make('recent', { decay_score: 0.01, created_at: now })
+    make('lively', { decay_score: 0.5 })
+    make('anchored', { decay_score: 0.01, is_anchor: 1 })
+    make('persona', { decay_score: 0.01, kind: 'persona' })
+
+    const archived = presenter.archiveStale('a', now)
+    expect(archived).toBe(1)
+    expect(repo.getById('stale')?.status).toBe('archived')
+    for (const id of ['accessed', 'recent', 'lively', 'anchored', 'persona']) {
+      expect(repo.getById(id)?.status).not.toBe('archived')
+    }
+  })
+
+  it('archived memories drop out of recall but are never hard-deleted, and can be restored', async () => {
+    const { presenter, repo } = makeArchivePresenter()
+    const deleteSpy = vi.spyOn(repo, 'delete')
+    const now = 1_000 * DAY
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.rows.get(id)!.created_at = now - 200 * DAY
+    repo.updateDecayScore(id, 0.01)
+
+    expect(presenter.archiveStale('a', now)).toBe(1)
+    expect(deleteSpy).not.toHaveBeenCalled()
+    const recalled = await presenter.recall('a', 'redis')
+    expect(recalled.some((item) => item.id === id)).toBe(false)
+
+    expect(presenter.restoreMemory('a', id)).toBe(true)
+    expect(repo.getById(id)?.status).toBe('pending_embedding')
+  })
+})
+
+describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
+  it('recall and buildInjection make zero LLM calls; merging only happens in the pass (T-B4)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+    generateText.mockClear()
+
+    await presenter.recall('a', 'redis')
+    await presenter.buildInjection('a', 'redis')
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('merges near-duplicates in the pass and supersedes the older row (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    // Recent rows so the same pass merges but never archives them.
+    repo.rows.get(oldId)!.created_at = now - 2000
+    repo.rows.get(newId)!.created_at = now - 1000
+
+    await presenter.runConsolidationPass('a', now)
+    const active = repo.listByAgent('a')
+    expect(active).toHaveLength(1)
+    expect(repo.getById(oldId)?.superseded_by).toBe(newId)
+  })
+
+  it('respects the cooldown: a second pass within the window does no LLM work (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis a')
+    await seedEmbedded(presenter, 'user likes redis b')
+
+    const now = 1_000 * DAY
+    await presenter.runConsolidationPass('a', now)
+    const callsAfterFirst = generateText.mock.calls.length
+    await presenter.runConsolidationPass('a', now + 60 * 1000)
+    expect(generateText.mock.calls.length).toBe(callsAfterFirst)
+  })
+
+  it('bounds the merge LLM calls per pass to the budget (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter } = makeLLMPresenter(generateText)
+    for (let i = 0; i < 20; i += 1) {
+      await seedEmbedded(presenter, `user likes redis variant ${i}`)
+    }
+    generateText.mockClear()
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+    // Every iteration finds a mergeable neighbor, so the pass consumes the full budget exactly once.
+    expect(decisionCalls(generateText)).toBe(8)
+  })
+
+  it('does not archive a just-merged old row in the same pass (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    // Both rows are old and never accessed: without the merge re-anchoring the survivor's clock,
+    // refreshDecayScores + archiveStale would archive it in the same pass.
+    repo.rows.get(oldId)!.created_at = now - 201 * DAY
+    repo.rows.get(newId)!.created_at = now - 200 * DAY
+
+    await presenter.runConsolidationPass('a', now)
+    const survivor = repo.getById(newId)
+    expect(survivor?.superseded_by).toBeNull()
+    expect(survivor?.status).not.toBe('archived')
+  })
+
+  it('NOOP leaves both near-duplicates intact instead of superseding one (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const id1 = await seedEmbedded(presenter, 'user likes redis a')
+    const id2 = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(id1)!.created_at = now - 2000
+    repo.rows.get(id2)!.created_at = now - 1000
+
+    await presenter.runConsolidationPass('a', now)
+    expect(repo.listByAgent('a')).toHaveLength(2)
+    expect(repo.getById(id1)?.superseded_by).toBeNull()
+    expect(repo.getById(id2)?.superseded_by).toBeNull()
+  })
+
+  it('a pass re-run after the cooldown does not merge an already-merged pair again (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(oldId)!.created_at = now - 2000
+    repo.rows.get(newId)!.created_at = now - 1000
+
+    await presenter.runConsolidationPass('a', now)
+    expect(repo.listByAgent('a')).toHaveLength(1)
+    expect(repo.getById(oldId)?.superseded_by).toBe(newId)
+
+    const callsAfterFirst = decisionCalls(generateText)
+    await presenter.runConsolidationPass('a', now + 6 * 60 * 60 * 1000 + 1)
+    expect(repo.listByAgent('a')).toHaveLength(1)
+    expect(repo.getById(oldId)?.superseded_by).toBe(newId)
+    expect(repo.getById(newId)?.superseded_by).toBeNull()
+    expect(decisionCalls(generateText)).toBe(callsAfterFirst)
+  })
+
+  it('merge carries forward the higher importance of the pair (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(oldId)!.created_at = now - 2000
+    repo.rows.get(oldId)!.importance = 0.9
+    repo.rows.get(newId)!.created_at = now - 1000
+    repo.rows.get(newId)!.importance = 0.2
+
+    await presenter.runConsolidationPass('a', now)
+    expect(repo.getById(newId)?.superseded_by).toBeNull()
+    expect(repo.getById(newId)?.importance).toBe(0.9)
+  })
+
+  it('the cooldown survives a fresh presenter via the persisted marker (T-B5)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const first = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(first.presenter, 'user likes redis a')
+    const newId = await seedEmbedded(first.presenter, 'user likes redis b')
+    first.repo.rows.get(oldId)!.created_at = now - 2000
+    first.repo.rows.get(newId)!.created_at = now - 1000
+    await first.presenter.runConsolidationPass('a', now)
+
+    // Reuse the same repository to mimic a restart: in-memory cooldown is gone but the row markers
+    // remain, so a pass within the window must still be skipped.
+    const restarted = makeLLMPresenter(generateText, embeddingConfig)
+    ;(restarted.presenter as unknown as { deps: { repository: FakeRepository } }).deps.repository =
+      first.repo
+    const callsBefore = decisionCalls(generateText)
+    await restarted.presenter.runConsolidationPass('a', now + 60 * 1000)
+    expect(decisionCalls(generateText)).toBe(callsBefore)
+  })
+
+  it('debounces a burst of extractions into one pass; dispose cancels the armed timer (AC-4.2)', async () => {
+    vi.useFakeTimers()
+    try {
+      let extracted = 0
+      const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+        if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+        if (prompt.includes('JSON array')) {
+          extracted += 1
+          return `[{"kind":"semantic","content":"fact ${extracted}","importance":0.5}]`
+        }
+        if (prompt.includes('Choose exactly ONE decision')) {
+          return '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+        }
+        return ''
+      })
+      const { presenter } = makeLLMPresenter(generateText)
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      const span = (text: string) => ({
+        agentId: 'a',
+        spanText: text,
+        model: { providerId: 'main', modelId: 'main' }
+      })
+      await presenter.extractAndStore(span('User: one'))
+      await presenter.extractAndStore(span('User: two'))
+      expect(passSpy).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy).toHaveBeenCalledTimes(1)
+
+      passSpy.mockClear()
+      await presenter.extractAndStore(span('User: three'))
+      await presenter.dispose()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not run for a disabled agent (T-B6)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"x"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText, {
+      memoryEnabled: false,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' },
+      memoryExtractionModel: { providerId: 'cheap', modelId: 'cheap' }
+    })
+    repo.rows.set('m1', makeRow('m1', { agent_id: 'a', content: 'a', status: 'embedded' }))
+    repo.rows.set('m2', makeRow('m2', { agent_id: 'a', content: 'b', status: 'embedded' }))
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+    expect(generateText).not.toHaveBeenCalled()
+    expect(repo.listByAgent('a')).toHaveLength(2)
+  })
+})
+
+describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
+  it('re-mentioning an archived fact restores it instead of swallowing it (AC-1.1)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(id, 1)
+    expect(repo.getById(id)?.status).toBe('archived')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(repo.getById(id)?.status).not.toBe('archived')
+    await presenter.processPendingEmbeddings('a')
+    const recalled = await presenter.recall('a', 'redis')
+    expect(recalled.some((m) => m.id === id)).toBe(true)
+  })
+
+  it('re-stating a superseded preference revives it and retires the contradicting head (AC-1.2)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const aId = await seedEmbedded(presenter, 'user likes redis')
+    const bId = await seedEmbedded(presenter, 'user dislikes redis')
+    repo.markSuperseded(aId, bId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis again',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(aId)?.superseded_by).toBeNull()
+    expect(repo.getById(bId)?.superseded_by).toBe(aId)
+    await presenter.processPendingEmbeddings('a')
+    const recalled = await presenter.recall('a', 'redis')
+    expect(recalled.some((m) => m.id === aId)).toBe(true)
+    expect(recalled.some((m) => m.id === bId)).toBe(false)
+  })
+
+  it('SUPERSEDE whose merged wording collides with an archived row revives it and folds the target in (AC-1.4)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user now hates redis","importance":0.8}]',
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers postgres"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    const archivedId = await seedEmbedded(presenter, 'user prefers postgres')
+    repo.archive(archivedId, 1)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I hate redis now',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    expect(repo.getById(archivedId)?.status).not.toBe('archived')
+    expect(repo.getById(targetId)?.superseded_by).toBe(archivedId)
+  })
+
+  it('after an UPDATE, re-mentioning the new wording short-circuits via the synced key (AC-2.1)', async () => {
+    let extractN = 0
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) {
+        extractN += 1
+        const content = extractN === 1 ? 'user uses macos' : 'user uses macos 15'
+        return `[{"kind":"semantic","content":"${content}","importance":0.8}]`
+      }
+      if (prompt.includes('Choose exactly ONE decision')) {
+        return '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user uses macos 15"}'
+      }
+      return ''
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user uses macos sonoma')
+
+    const span = (text: string) => ({
+      agentId: 'a',
+      spanText: text,
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    await presenter.extractAndStore(span('User: macos 15'))
+    expect(repo.countByAgent('a')).toBe(1)
+    const row = repo.listByAgent('a')[0]
+    expect(row.content).toBe('user uses macos 15')
+    expect(row.provenance_key).toBe(buildMemoryProvenanceKey('a', 'semantic', 'user uses macos 15'))
+
+    const decisionsAfterFirst = decisionCalls(generateText)
+    await presenter.extractAndStore(span('User: still macos 15'))
+    expect(repo.countByAgent('a')).toBe(1)
+    expect(decisionCalls(generateText)).toBe(decisionsAfterFirst)
+  })
+
+  it('consolidation merge syncs the survivor provenance key to the merged content (AC-2.2)', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(oldId)!.created_at = now - 2000
+    repo.rows.get(newId)!.created_at = now - 1000
+
+    await presenter.runConsolidationPass('a', now)
+    const survivor = repo.getById(newId)!
+    expect(survivor.content).toBe('user prefers redis')
+    expect(survivor.provenance_key).toBe(
+      buildMemoryProvenanceKey('a', survivor.kind, 'user prefers redis')
+    )
+  })
+
+  it('an UPDATE whose merged content collides with an active row folds the target into the owner (AC-2.3)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user enjoys redis","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers vue"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const ownerId = await seedEmbedded(presenter, 'user prefers vue')
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I enjoy redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    // The target folds into the active key owner instead of orphaning the merged wording.
+    expect(repo.getById(targetId)?.superseded_by).toBe(ownerId)
+    expect(repo.getById(ownerId)?.superseded_by).toBeNull()
+    expect(repo.getById(ownerId)?.content).toBe('user prefers vue')
+    // Exactly one active row owns the merged content.
+    expect(repo.listByAgent('a')).toHaveLength(1)
+    expect(repo.listByAgent('a')[0].id).toBe(ownerId)
+  })
+
+  it('an UPDATE whose merged content collides with an archived row revives the owner and folds in (AC-2.4)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user enjoys redis","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers vue"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const ownerId = await seedEmbedded(presenter, 'user prefers vue')
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(ownerId, 1)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I enjoy redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    // The archived owner is revived and becomes the survivor; the target folds into it.
+    expect(repo.getById(ownerId)?.status).not.toBe('archived')
+    expect(repo.getById(targetId)?.superseded_by).toBe(ownerId)
+    expect(repo.listByAgent('a')).toHaveLength(1)
+    expect(repo.listByAgent('a')[0].id).toBe(ownerId)
+  })
+
+  it('a consolidation pass interrupted by dispose writes nothing to the repository (AC-3.1)', async () => {
+    let resolveLLM = (): void => {}
+    const llmGate = new Promise<void>((resolve) => {
+      resolveLLM = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('Choose exactly ONE decision')) {
+        await llmGate
+        return '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
+      }
+      return ''
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const oldId = await seedEmbedded(presenter, 'user likes redis a')
+    const newId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(oldId)!.created_at = now - 2000
+    repo.rows.get(newId)!.created_at = now - 1000
+    const markSpy = vi.spyOn(repo, 'markSuperseded')
+
+    const pass = presenter.runConsolidationPass('a', now)
+    await Promise.resolve()
+    await presenter.dispose()
+    resolveLLM()
+    await pass
+
+    expect(markSpy).not.toHaveBeenCalled()
+    expect(repo.getById(oldId)?.superseded_by).toBeNull()
+  })
+
+  it('dispose waits for an in-flight timer-fired pass before returning (AC-3.2)', async () => {
+    vi.useFakeTimers()
+    try {
+      const generateText = routedLLM({
+        extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
+        decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+      })
+      const { presenter } = makeLLMPresenter(generateText)
+      let resolvePass = (): void => {}
+      const passGate = new Promise<void>((resolve) => {
+        resolvePass = resolve
+      })
+      vi.spyOn(presenter, 'runConsolidationPass').mockReturnValue(passGate)
+
+      await presenter.extractAndStore({
+        agentId: 'a',
+        spanText: 'User: I like redis',
+        model: { providerId: 'main', modelId: 'main' }
+      })
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+
+      let disposed = false
+      const disposePromise = presenter.dispose().then(() => {
+        disposed = true
+      })
+      await Promise.resolve()
+      expect(disposed).toBe(false)
+
+      resolvePass()
+      await disposePromise
+      expect(disposed).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('recall after dispose never starts a backfill, so no row is written (AC-3.3)', async () => {
+    const repo = new FakeRepository()
+    let config: DeepChatAgentConfig = { memoryEnabled: true }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
+
+    config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm' } }
+    const spy = vi.spyOn(presenter, 'backfillEmbeddings')
+    await presenter.dispose()
+    await presenter.recall('a', 'redis')
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
+  })
+
+  it('dispose waits for an in-flight backfill before returning (AC-3.4)', async () => {
+    const repo = new FakeRepository()
+    let resolveEmb: () => void = () => {}
+    let config: DeepChatAgentConfig = { memoryEnabled: true }
+    const getEmbeddings = vi.fn(
+      () =>
+        new Promise<number[][]>((resolve) => {
+          resolveEmb = () => resolve([textToVector('redis')])
+        })
+    )
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
+
+    config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm' } }
+    const backfill = presenter.backfillEmbeddings('a')
+    await new Promise((r) => setTimeout(r, 0)) // park inside getEmbeddings
+
+    let disposed = false
+    const disposePromise = presenter.dispose().then(() => {
+      disposed = true
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(disposed).toBe(false)
+
+    resolveEmb()
+    await Promise.all([backfill, disposePromise])
+    expect(disposed).toBe(true)
+    expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+  })
+
+  it('a recall whose embedding await spans dispose records no access and reopens no store (AC-3.5)', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    let blockRecall = false
+    let resolveEmb: () => void = () => {}
+    const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+      if (!blockRecall) return Promise.resolve(texts.map((t) => textToVector(t)))
+      return new Promise<number[][]>((resolve) => {
+        resolveEmb = () => resolve(texts.map((t) => textToVector(t)))
+      })
+    })
+    const createVectorStore = vi.fn(async () => store)
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings,
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a') // opens + caches the store once
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+
+    // A recall starts and parks inside getEmbeddings.
+    blockRecall = true
+    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const recall = presenter.recall('a', 'redis')
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Teardown happens while the recall is suspended.
+    await presenter.dispose()
+
+    // The embedding resolves only now; the recall must bail before opening a store or recording access.
+    resolveEmb()
+    const results = await recall
+    expect(results).toEqual([])
+    expect(recordSpy).not.toHaveBeenCalled()
+    expect(createVectorStore).toHaveBeenCalledTimes(1) // dispose closed it; no reopen after teardown
+  })
+
+  it('a no-op consolidation pass persists the cooldown so a fresh presenter skips a too-soon pass (AC-6.1)', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const now = 1_000 * DAY
+    const make = (gen: ReturnType<typeof vi.fn>) =>
+      new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => embeddingConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((t) => textToVector(t)),
+        generateText: gen,
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined
+      })
+
+    // A pure no-op pass: a single isolated, recent row — nothing to merge, nothing to archive.
+    const first = make(routedLLM({}))
+    const [solo] = first.writeMemoriesSync([{ kind: 'semantic', content: 'user likes redis' }], {
+      agentId: 'a'
+    })
+    await first.processPendingEmbeddings('a')
+    repo.rows.get(solo)!.created_at = now
+    expect(repo.getLastConsolidatedAt('a')).toBeNull()
+
+    await first.runConsolidationPass('a', now)
+    // Decay refresh stamped the cooldown anchor even though no merge/archive happened.
+    expect(repo.getLastConsolidatedAt('a')).toBe(now)
+
+    // Restart: a fresh presenter has an empty in-memory cooldown map and must read the persisted
+    // anchor. Add a near-duplicate that a *running* pass would merge (it would call the decision LLM).
+    first.writeMemoriesSync([{ kind: 'semantic', content: 'user really likes redis' }], {
+      agentId: 'a'
+    })
+    await first.processPendingEmbeddings('a')
+
+    const gen2 = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"merged"}'
+    })
+    const second = make(gen2)
+    await second.runConsolidationPass('a', now + 60 * 60 * 1000) // +1h, within the 6h cooldown
+    expect(decisionCalls(gen2)).toBe(0) // cooldown short-circuited before any decision call
+  })
+
+  it('an extraction whose decision await spans dispose writes nothing (AC-3.6)', async () => {
+    let resolveDecision = (): void => {}
+    const decisionGate = new Promise<void>((resolve) => {
+      resolveDecision = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) {
+        return '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      }
+      if (prompt.includes('Choose exactly ONE decision')) {
+        await decisionGate
+        return '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+      }
+      return ''
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    // A neighbor so decideWrite reaches the decision call rather than the no-neighbor insert.
+    await seedEmbedded(presenter, 'user enjoys redis')
+    const insertSpy = vi.spyOn(repo, 'insert')
+
+    const extraction = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    // Drain microtasks so the extraction parks on the gated decision await before teardown.
+    await new Promise((r) => setTimeout(r, 0))
+    await presenter.dispose()
+    resolveDecision()
+    await extraction
+
+    // decideWrite bailed after the decision await: no new row, no markSuperseded.
+    expect(insertSpy).not.toHaveBeenCalled()
+    expect(repo.countByAgent('a')).toBe(1) // only the seeded neighbor
+  })
+
+  it('write methods are no-ops after dispose (AC-3.7)', async () => {
+    const { presenter, repo } = makeLLMPresenter(routedLLM({}))
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    await presenter.dispose()
+    const insertSpy = vi.spyOn(repo, 'insert')
+    const deleteSpy = vi.spyOn(repo, 'delete')
+
+    expect(presenter.evolvePersona('a', 'new persona')).toBeNull()
+    expect(
+      await presenter.rememberMemory({ kind: 'semantic', content: 'x' }, { agentId: 'a' })
+    ).toEqual([])
+    expect(await presenter.deleteMemory('a', id)).toBe(false)
+    expect(await presenter.clearMemories('a')).toBe(0)
+    expect(presenter.rollbackPersona('a', id)).toBe(false)
+    expect(presenter.restoreMemory('a', id)).toBe(false)
+
+    expect(insertSpy).not.toHaveBeenCalled()
+    expect(deleteSpy).not.toHaveBeenCalled()
+    expect(repo.countByAgent('a')).toBe(1)
+  })
+
+  it('a recall whose vector-store open spans dispose reads nothing and leaks no store (AC-3.8)', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    let blockCreate = false
+    let resolveCreate: () => void = () => {}
+    const createVectorStore = vi.fn(() => {
+      if (!blockCreate) return Promise.resolve(store)
+      return new Promise<IMemoryVectorStore>((resolve) => {
+        resolveCreate = () => resolve(store)
+      })
+    })
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((t) => textToVector(t)),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    // An embedded row that matches the current fingerprint so recall reaches getVectorStore (not the
+    // stale-reindex branch). No store is opened during setup, so the recall is the first open.
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+
+    blockCreate = true
+    const getByIdSpy = vi.spyOn(repo, 'getById')
+    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
+    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const closeSpy = vi.spyOn(store, 'close')
+    const recall = presenter.recall('a', 'redis')
+    await new Promise((r) => setTimeout(r, 0)) // park inside createVectorStore
+
+    let disposed = false
+    const disposePromise = presenter.dispose().then(() => {
+      disposed = true
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(disposed).toBe(false) // dispose awaits the in-flight open lock
+
+    resolveCreate()
+    const [results] = await Promise.all([recall, disposePromise])
+    expect(disposed).toBe(true)
+    expect(results).toEqual([])
+    expect(getByIdSpy).not.toHaveBeenCalled()
+    expect(recordSpy).not.toHaveBeenCalled()
+    expect(backfillSpy).not.toHaveBeenCalled()
+    expect(reindexSpy).not.toHaveBeenCalled()
+    expect(closeSpy).toHaveBeenCalledTimes(1) // the store opened during teardown is closed, not leaked
+  })
+
+  it('a recall whose vector query spans dispose reads no rows and records no access (AC-3.9)', async () => {
+    const repo = new FakeRepository()
+    let blockQuery = false
+    let resolveQuery: () => void = () => {}
+    const store: IMemoryVectorStore = {
+      upsert: async () => {},
+      query: vi.fn(() => {
+        if (!blockQuery) return Promise.resolve([])
+        return new Promise<MemoryVectorMatch[]>((resolve) => {
+          resolveQuery = () => resolve([{ memoryId: 'm1', distance: 0.01 }])
+        })
+      }),
+      deleteByMemoryIds: async () => {},
+      close: async () => {},
+      isUsable: () => true
+    }
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((t) => textToVector(t)),
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+
+    blockQuery = true
+    const getByIdSpy = vi.spyOn(repo, 'getById')
+    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
+    const recall = presenter.recall('a', 'redis')
+    await new Promise((r) => setTimeout(r, 0)) // park inside store.query
+
+    await presenter.dispose() // query is not under the open lock, so dispose completes
+
+    resolveQuery()
+    const results = await recall
+    expect(results).toEqual([])
+    expect(getByIdSpy).not.toHaveBeenCalled() // disposed re-check after query skips the match loop
+    expect(recordSpy).not.toHaveBeenCalled()
+    expect(backfillSpy).not.toHaveBeenCalled()
+  })
+
+  it('a delete whose store await spans dispose skips the vector op (AC-3.10)', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    store.vectors.set('m1', textToVector('redis fact')) // so warm-up recall opens + caches the store
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' }
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map((t) => textToVector(t)),
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+
+    const warm = await presenter.recall('a', 'redis')
+    expect(warm.length).toBeGreaterThan(0) // the per-agent store is now cached
+
+    const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
+    // deleteMemory removes the SQLite row synchronously, then awaits the cached store. dispose() flips
+    // `disposed` synchronously before that await resumes, so the vector op must be skipped.
+    const del = presenter.deleteMemory('a', 'm1')
+    const disp = presenter.dispose()
+    const [ok] = await Promise.all([del, disp])
+
+    expect(ok).toBe(true) // the authoritative SQLite delete still happened
+    expect(repo.getById('m1')).toBeUndefined()
+    expect(deleteSpy).not.toHaveBeenCalled() // no write against the store dispose just closed
+  })
+
+  it('dispose waits for an in-flight vector delete before closing the store (AC-3.11)', async () => {
+    const { presenter, repo, store } = makeLLMPresenter(routedLLM({}))
+    const id = await seedEmbedded(presenter, 'user likes redis')
+
+    let resolveDelete: () => void = () => {}
+    const deleteGate = new Promise<void>((resolve) => {
+      resolveDelete = resolve
+    })
+    const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds').mockImplementation(async () => {
+      await deleteGate
+    })
+    const closeSpy = vi.spyOn(store, 'close')
+
+    const del = presenter.deleteMemory('a', id)
+    await new Promise((r) => setTimeout(r, 0)) // park inside deleteByMemoryIds (disposed still false)
+    expect(deleteSpy).toHaveBeenCalledTimes(1)
+    expect(repo.getById(id)).toBeUndefined() // SQLite row already gone
+
+    let disposed = false
+    const disp = presenter.dispose().then(() => {
+      disposed = true
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(disposed).toBe(false) // dispose blocks on the in-flight delete via vectorStoreLocks
+    expect(closeSpy).not.toHaveBeenCalled() // the store is not closed mid-DELETE
+
+    resolveDelete()
+    const [ok] = await Promise.all([del, disp])
+    expect(ok).toBe(true)
+    expect(disposed).toBe(true)
+    expect(closeSpy).toHaveBeenCalledTimes(1) // closed only after the delete resolved
+  })
+
+  it('an extraction whose triage await spans dispose fires no extraction call (AC-3.12)', async () => {
+    let resolveTriage: () => void = () => {}
+    const triageGate = new Promise<void>((resolve) => {
+      resolveTriage = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) {
+        await triageGate
+        return 'KEEP'
+      }
+      if (prompt.includes('JSON array')) {
+        return '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      }
+      return ''
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const insertSpy = vi.spyOn(repo, 'insert')
+
+    const extraction = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    await new Promise((r) => setTimeout(r, 0)) // park on the gated triage await
+    await presenter.dispose()
+    resolveTriage()
+    const result = await extraction
+
+    expect(result).toEqual({ ok: true, createdIds: [] })
+    // Only the triage call ran; the extraction LLM is never fired after teardown begins.
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(generateText.mock.calls[0][2]).toContain('KEEP or SKIP')
+    expect(insertSpy).not.toHaveBeenCalled()
   })
 })

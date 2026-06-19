@@ -2237,11 +2237,14 @@
       "personaActive": "فعال",
       "rollback": "بازگردانی",
       "actionFailed": "عملیات ناموفق بود",
+      "conflict": "تعارض",
+      "restore": "بازیابی",
       "status": {
         "pending_embedding": "در حال embedding",
         "embedded": "نمایه‌شده",
         "error": "خطا",
-        "fts_only": "فقط کلیدواژه"
+        "fts_only": "فقط کلیدواژه",
+        "archived": "بایگانی‌شده"
       }
     }
   },

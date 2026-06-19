@@ -168,11 +168,14 @@
       "personaActive": "Activa",
       "rollback": "Revertir",
       "actionFailed": "La acción falló",
+      "conflict": "Conflicto",
+      "restore": "Restaurar",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexado",
         "error": "Error",
-        "fts_only": "Solo palabras clave"
+        "fts_only": "Solo palabras clave",
+        "archived": "Archivado"
       }
     }
   },

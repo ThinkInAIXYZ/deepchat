@@ -1,8 +1,12 @@
 import {
+  CONFIDENCE_BOOST,
+  DEFAULT_CONFIDENCE,
   DEFAULT_RECENCY_HALF_LIFE_MS,
   DEFAULT_RETRIEVAL,
   DEFAULT_SIMILARITY_THRESHOLD,
+  FORGET_HALF_LIFE_MS,
   FTS_SIMILARITY_BASELINE,
+  IMPORTANCE_FLOOR_COEF,
   MAX_RRF_K,
   MAX_TOP_K,
   type AgentMemoryRow,
@@ -83,19 +87,44 @@ export function resolveRetrieval(config?: DeepChatAgentMemoryRetrieval | null): 
   }
 }
 
-/** 综合检索打分：α·相似度 + β·recency + γ·importance。 */
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
+}
+
+/**
+ * 综合检索打分：(α·相似度 + β·recency + γ·importance) × 置信因子，并以 importance 地板兜底。
+ * 置信因子以 DEFAULT_CONFIDENCE 为支点：默认置信记忆因子为 1（排序与未引入置信前一致），更高置信
+ * 上浮。importance 地板保证高 importance 记忆即使 recency 衰减也不被新而琐碎的记忆完全挤出。
+ */
 export function retrievalScore(
-  row: Pick<AgentMemoryRow, 'importance' | 'created_at'>,
+  row: Pick<AgentMemoryRow, 'importance' | 'created_at'> & { confidence?: number | null },
   similarity: number,
   now: number,
   weights: { similarity: number; recency: number; importance: number },
   halfLifeMs?: number
 ): number {
   const recency = recencyScore(row.created_at, now, halfLifeMs)
-  const importance = Math.min(1, Math.max(0, row.importance))
-  return (
+  const importance = clamp01(row.importance)
+  const confidence = clamp01(row.confidence ?? DEFAULT_CONFIDENCE)
+  const base =
     weights.similarity * similarity + weights.recency * recency + weights.importance * importance
-  )
+  const confidenceFactor = Math.max(0, 1 + CONFIDENCE_BOOST * (confidence - DEFAULT_CONFIDENCE))
+  const floor = IMPORTANCE_FLOOR_COEF * importance
+  return Math.max(base * confidenceFactor, floor)
+}
+
+/**
+ * 物化的遗忘衰减分（用于归档判定）：以最近访问时间或创建时间为锚的指数衰减，半衰期 30 天。
+ * 只读、纯函数；归档前由离线 pass 算出写回 decay_score。
+ */
+export function decayScore(
+  row: Pick<AgentMemoryRow, 'created_at' | 'last_accessed'>,
+  now: number,
+  halfLifeMs: number = FORGET_HALF_LIFE_MS
+): number {
+  const anchor = row.last_accessed ?? row.created_at
+  return recencyScore(anchor, now, halfLifeMs)
 }
 
 /** Parses the persisted source_entry_ids JSON back into a tape entry_id list, or null. */
@@ -114,7 +143,8 @@ export function parseSourceEntryIds(raw: string | null | undefined): number[] | 
 function toRecallItem(
   row: AgentMemoryRow,
   score: number,
-  sources: { vec?: boolean; fts?: boolean }
+  sources: { vec?: boolean; fts?: boolean },
+  similarity?: number
 ): MemoryRecallItem {
   return {
     id: row.id,
@@ -123,6 +153,7 @@ function toRecallItem(
     importance: row.importance,
     score,
     sources,
+    similarity,
     sourceSession: row.source_session,
     sourceEntryIds: parseSourceEntryIds(row.source_entry_ids)
   }
@@ -182,7 +213,7 @@ export function fuse(
       return {
         combined: score + candidate.rrf,
         score,
-        item: toRecallItem(candidate.row, score, candidate.sources)
+        item: toRecallItem(candidate.row, score, candidate.sources, candidate.similarity)
       }
     })
     .sort((a, b) => b.combined - a.combined || b.score - a.score)
