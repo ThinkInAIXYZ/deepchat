@@ -9,6 +9,7 @@ import { createDatabaseSecurityClient } from '../../../src/renderer/api/Database
 import { createDeviceClient } from '../../../src/renderer/api/DeviceClient'
 import { createKnowledgeClient } from '../../../src/renderer/api/KnowledgeClient'
 import { createMcpClient } from '../../../src/renderer/api/McpClient'
+import { createMemoryClient } from '../../../src/renderer/api/MemoryClient'
 import { createModelClient } from '../../../src/renderer/api/ModelClient'
 import { createNowledgeMemClient } from '../../../src/renderer/api/NowledgeMemClient'
 import { createOAuthClient } from '../../../src/renderer/api/OAuthClient'
@@ -975,6 +976,61 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(7, 'chat.stream.completed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(8, 'chat.stream.failed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(9, 'chat.plan.updated', expect.any(Function))
+  })
+
+  it('routes memory client calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const memoryClient = createMemoryClient(bridge)
+
+    await memoryClient.list('agent-1')
+    await memoryClient.getStatus('agent-1')
+    await memoryClient.remove('agent-1', 'mem-1')
+    await memoryClient.clear('agent-1')
+    await memoryClient.restore('agent-1', 'mem-1')
+    await memoryClient.listPersonaVersions('agent-1')
+    await memoryClient.rollbackPersona('agent-1', 'ver-1')
+    await memoryClient.listPersonaDrafts('agent-1')
+    await memoryClient.approvePersonaDraft('agent-1', 'draft-1')
+    await memoryClient.rejectPersonaDraft('agent-1', 'draft-1')
+    await memoryClient.setPersonaAnchor('agent-1', 'ver-1', true)
+    const off = memoryClient.onUpdated(vi.fn())
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'memory.getStatus', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'memory.delete', {
+      agentId: 'agent-1',
+      memoryId: 'mem-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'memory.clear', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'memory.restore', {
+      agentId: 'agent-1',
+      memoryId: 'mem-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'memory.listPersonaVersions', {
+      agentId: 'agent-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'memory.rollbackPersona', {
+      agentId: 'agent-1',
+      versionId: 'ver-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'memory.listPersonaDrafts', {
+      agentId: 'agent-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'memory.approvePersonaDraft', {
+      agentId: 'agent-1',
+      draftId: 'draft-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'memory.rejectPersonaDraft', {
+      agentId: 'agent-1',
+      draftId: 'draft-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'memory.setPersonaAnchor', {
+      agentId: 'agent-1',
+      versionId: 'ver-1',
+      anchored: true
+    })
+    expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
+    expect(typeof off).toBe('function')
   })
 
   it('routes agent dashboard calls through the shared registry names', async () => {

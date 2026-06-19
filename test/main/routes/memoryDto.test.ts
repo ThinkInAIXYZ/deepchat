@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { toMemoryItemDto } from '@/routes'
-import { memoryListRoute } from '@shared/contracts/routes'
+import { memoryListRoute, memoryRestoreRoute } from '@shared/contracts/routes'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 
 function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
@@ -64,5 +64,20 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
     const parsed = memoryListRoute.output.parse({ memories })
     expect(parsed.memories[0].sourceEntryIds).toEqual([1, 2])
     expect(parsed.memories[1].sourceEntryIds).toBeNull()
+  })
+})
+
+describe('memory.restore route contract round-trip', () => {
+  it('round-trips a valid restore input and output', () => {
+    const input = memoryRestoreRoute.input.parse({ agentId: 'deepchat-abc123', memoryId: 'mem-1' })
+    expect(input).toEqual({ agentId: 'deepchat-abc123', memoryId: 'mem-1' })
+    expect(memoryRestoreRoute.output.parse({ ok: true })).toEqual({ ok: true })
+    expect(memoryRestoreRoute.output.parse({ ok: false })).toEqual({ ok: false })
+  })
+
+  it('rejects an illegal agentId at the contract layer', () => {
+    for (const agentId of ['../etc', 'has space', '']) {
+      expect(memoryRestoreRoute.input.safeParse({ agentId, memoryId: 'm1' }).success).toBe(false)
+    }
   })
 })

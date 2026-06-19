@@ -2275,6 +2275,34 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.getById(targetId)?.superseded_by).toBe(archivedId)
   })
 
+  it('SUPERSEDE whose merged wording collides with a superseded row revives it and retires its head (AC-1.4)', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user now hates redis","importance":0.8}]',
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers postgres"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    const collisionId = await seedEmbedded(presenter, 'user prefers postgres')
+    const headId = await seedEmbedded(presenter, 'team uses mysql')
+    repo.markSuperseded(collisionId, headId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I hate redis now',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+    if (!result.ok) throw new Error('expected ok')
+    // The superseded collision row is revived as current truth: its former head retires into it and
+    // the SUPERSEDE target folds in too.
+    expect(repo.getById(collisionId)?.superseded_by).toBeNull()
+    expect(repo.getById(headId)?.superseded_by).toBe(collisionId)
+    expect(repo.getById(targetId)?.superseded_by).toBe(collisionId)
+    await presenter.processPendingEmbeddings('a')
+    const recalled = await presenter.recall('a', 'postgres')
+    expect(recalled.some((m) => m.id === collisionId)).toBe(true)
+    expect(recalled.some((m) => m.id === targetId || m.id === headId)).toBe(false)
+  })
+
   it('after an UPDATE, re-mentioning the new wording short-circuits via the synced key (AC-2.1)', async () => {
     let extractN = 0
     const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
