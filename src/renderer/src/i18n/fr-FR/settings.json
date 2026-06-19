@@ -2239,6 +2239,7 @@
       "actionFailed": "Échec de l'action",
       "conflict": "Conflit",
       "restore": "Restaurer",
+      "sourceLine": "De la session {session} · {count} entrées",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexé",

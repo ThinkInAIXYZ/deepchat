@@ -170,6 +170,7 @@
       "actionFailed": "La acción falló",
       "conflict": "Conflicto",
       "restore": "Restaurar",
+      "sourceLine": "De la sesión {session} · {count} entradas",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexado",

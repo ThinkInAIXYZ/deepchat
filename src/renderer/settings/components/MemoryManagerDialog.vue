@@ -102,6 +102,18 @@
                       {{ formatTime(memory.createdAt) }}
                     </span>
                   </div>
+                  <p
+                    v-if="memory.sourceSession && memory.sourceEntryIds?.length"
+                    class="mt-1 truncate text-[10px] text-muted-foreground"
+                    :title="sourceEntryTitle(memory)"
+                  >
+                    {{
+                      t('settings.deepchatAgents.memoryManager.sourceLine', {
+                        session: shortSession(memory.sourceSession),
+                        count: memory.sourceEntryIds?.length ?? 0
+                      })
+                    }}
+                  </p>
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
                   <Button
@@ -415,6 +427,14 @@ function statusVariant(
 
 function formatTime(ms: number): string {
   return new Date(ms).toLocaleString()
+}
+
+function shortSession(session: string): string {
+  return session.length > 8 ? `…${session.slice(-8)}` : session
+}
+
+function sourceEntryTitle(memory: MemoryItem): string {
+  return memory.sourceEntryIds?.join(', ') ?? ''
 }
 
 function notifyActionFailed(e?: unknown): void {

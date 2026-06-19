@@ -167,6 +167,7 @@
       "actionFailed": "Action failed",
       "conflict": "Conflict",
       "restore": "Restore",
+      "sourceLine": "From session {session} · {count} entries",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexed",

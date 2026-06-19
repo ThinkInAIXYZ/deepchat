@@ -170,6 +170,7 @@
       "actionFailed": "Hành động thất bại",
       "conflict": "Xung đột",
       "restore": "Khôi phục",
+      "sourceLine": "Từ phiên {session} · {count} bản ghi",
       "status": {
         "pending_embedding": "Đang embedding",
         "embedded": "Đã lập chỉ mục",

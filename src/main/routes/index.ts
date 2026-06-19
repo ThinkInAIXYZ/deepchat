@@ -386,7 +386,19 @@ export type MainKernelRouteRuntime = {
   scheduledTasks: ScheduledTasksService
 }
 
-function toMemoryItemDto(row: AgentMemoryRow) {
+function parseSourceEntryIds(raw: string | null): number[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    const ids = parsed.filter((v): v is number => Number.isInteger(v) && v >= 0)
+    return ids.length ? ids : null
+  } catch {
+    return null
+  }
+}
+
+export function toMemoryItemDto(row: AgentMemoryRow) {
   return {
     id: row.id,
     agentId: row.agent_id,
@@ -395,6 +407,7 @@ function toMemoryItemDto(row: AgentMemoryRow) {
     importance: row.importance,
     status: row.status,
     sourceSession: row.source_session,
+    sourceEntryIds: parseSourceEntryIds(row.source_entry_ids),
     supersededBy: row.superseded_by,
     createdAt: row.created_at,
     confidence: row.confidence,

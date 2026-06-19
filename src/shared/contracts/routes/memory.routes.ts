@@ -15,6 +15,7 @@ export const MemoryItemSchema = z.object({
   importance: z.number(),
   status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived']),
   sourceSession: z.string().nullable(),
+  sourceEntryIds: z.array(z.number().int().nonnegative()).nullable(),
   supersededBy: z.string().nullable(),
   createdAt: z.number(),
   confidence: z.number().nullable().optional(),

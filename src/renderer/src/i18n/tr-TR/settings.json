@@ -170,6 +170,7 @@
       "actionFailed": "İşlem başarısız",
       "conflict": "Çakışma",
       "restore": "Geri yükle",
+      "sourceLine": "{session} oturumundan · {count} kayıt",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Dizinlendi",

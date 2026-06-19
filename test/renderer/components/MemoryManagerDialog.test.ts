@@ -29,6 +29,7 @@ const memory: MemoryItem = {
   importance: 0.5,
   status: 'embedded',
   sourceSession: null,
+  sourceEntryIds: null,
   supersededBy: null,
   createdAt: 1000
 }
@@ -89,7 +90,12 @@ async function setup(
 
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
   vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
-  vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+  vi.doMock('vue-i18n', () => ({
+    useI18n: () => ({
+      t: (key: string, params?: Record<string, unknown>) =>
+        params ? `${key} ${JSON.stringify(params)}` : key
+    })
+  }))
   vi.doMock('@iconify/vue', () => ({ Icon: passStub('Icon') }))
   vi.doMock('@shadcn/components/ui/button', () => ({ Button: ButtonStub }))
   vi.doMock('@shadcn/components/ui/badge', () => ({ Badge: passStub('Badge') }))
@@ -241,6 +247,52 @@ describe('MemoryManagerDialog SDD-4 surfacing (conflict / archived)', () => {
       .findAll('button')
       .find((b) => b.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.restore')
     expect(restoreBtn).toBeUndefined()
+  })
+})
+
+describe('MemoryManagerDialog source lineage (SDD-7)', () => {
+  const sourceLineKey = 'settings.deepchatAgents.memoryManager.sourceLine'
+
+  it('renders the source line with the truncated session and entry count, and exposes raw ids via title', async () => {
+    const { wrapper } = await setup({
+      items: [{ ...memory, sourceSession: 'session-ABCD123456', sourceEntryIds: [12, 34] }]
+    })
+    const text = wrapper.text()
+    expect(text).toContain(sourceLineKey)
+    expect(text).toContain('"count":2')
+    expect(text).toContain('"session":"…CD123456"')
+    expect(wrapper.find('[title="12, 34"]').exists()).toBe(true)
+  })
+
+  it('does not render the source line when there is no source session', async () => {
+    const { wrapper } = await setup({ items: [{ ...memory, sourceSession: null }] })
+    expect(wrapper.text()).not.toContain(sourceLineKey)
+  })
+
+  it('leaves a session-only memory (e.g. reflection) blank instead of showing zero entries', async () => {
+    const { wrapper } = await setup({
+      items: [{ ...memory, kind: 'reflection', sourceSession: 'session-x', sourceEntryIds: null }]
+    })
+    expect(wrapper.text()).not.toContain(sourceLineKey)
+  })
+
+  it('does not render a source line for persona timeline versions', async () => {
+    const { wrapper } = await setup({
+      items: [{ ...memory, sourceSession: null }],
+      personaVersions: [
+        {
+          ...memory,
+          id: 'p1',
+          kind: 'persona',
+          content: 'self model',
+          personaState: 'active',
+          supersededBy: null,
+          sourceSession: 'sess-persona',
+          sourceEntryIds: [9]
+        }
+      ]
+    })
+    expect(wrapper.text()).not.toContain(sourceLineKey)
   })
 })
 

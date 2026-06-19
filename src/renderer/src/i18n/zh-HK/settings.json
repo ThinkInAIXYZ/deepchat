@@ -2239,6 +2239,7 @@
       "actionFailed": "操作失敗",
       "conflict": "衝突",
       "restore": "復原",
+      "sourceLine": "來自會話 {session} · {count} 條記錄",
       "status": {
         "pending_embedding": "向量化中",
         "embedded": "已索引",

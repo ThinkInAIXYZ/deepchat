@@ -2239,6 +2239,7 @@
       "actionFailed": "Не удалось выполнить действие",
       "conflict": "Конфликт",
       "restore": "Восстановить",
+      "sourceLine": "Из сессии {session} · записей: {count}",
       "status": {
         "pending_embedding": "Эмбеддинг",
         "embedded": "Проиндексировано",

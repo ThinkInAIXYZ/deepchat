@@ -2239,6 +2239,7 @@
       "actionFailed": "عملیات ناموفق بود",
       "conflict": "تعارض",
       "restore": "بازیابی",
+      "sourceLine": "از نشست {session} · {count} رکورد",
       "status": {
         "pending_embedding": "در حال embedding",
         "embedded": "نمایه‌شده",

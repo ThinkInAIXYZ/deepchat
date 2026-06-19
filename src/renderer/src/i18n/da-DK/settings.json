@@ -2239,6 +2239,7 @@
       "actionFailed": "Handling mislykkedes",
       "conflict": "Konflikt",
       "restore": "Gendan",
+      "sourceLine": "Fra session {session} · {count} poster",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indekseret",

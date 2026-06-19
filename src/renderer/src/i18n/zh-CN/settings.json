@@ -167,6 +167,7 @@
       "actionFailed": "操作失败",
       "conflict": "冲突",
       "restore": "恢复",
+      "sourceLine": "来自会话 {session} · {count} 条记录",
       "status": {
         "pending_embedding": "向量化中",
         "embedded": "已索引",

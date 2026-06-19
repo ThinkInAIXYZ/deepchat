@@ -2239,6 +2239,7 @@
       "actionFailed": "작업 실패",
       "conflict": "충돌",
       "restore": "복원",
+      "sourceLine": "{session} 세션에서 · 기록 {count}개",
       "status": {
         "pending_embedding": "임베딩 중",
         "embedded": "색인됨",

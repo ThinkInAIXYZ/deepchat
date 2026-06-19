@@ -2239,6 +2239,7 @@
       "actionFailed": "操作に失敗しました",
       "conflict": "競合",
       "restore": "復元",
+      "sourceLine": "セッション {session} より · {count} 件のレコード",
       "status": {
         "pending_embedding": "埋め込み中",
         "embedded": "インデックス済み",

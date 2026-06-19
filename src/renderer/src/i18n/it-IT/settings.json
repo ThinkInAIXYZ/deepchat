@@ -170,6 +170,7 @@
       "actionFailed": "Azione non riuscita",
       "conflict": "Conflitto",
       "restore": "Ripristina",
+      "sourceLine": "Dalla sessione {session} · {count} voci",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indicizzato",

@@ -2239,6 +2239,7 @@
       "actionFailed": "הפעולה נכשלה",
       "conflict": "התנגשות",
       "restore": "שחזר",
+      "sourceLine": "מתוך שיחה {session} · {count} רשומות",
       "status": {
         "pending_embedding": "מבצע embedding",
         "embedded": "מאונדקס",

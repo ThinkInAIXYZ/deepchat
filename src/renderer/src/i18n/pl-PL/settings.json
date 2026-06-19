@@ -170,6 +170,7 @@
       "actionFailed": "Akcja nie powiodła się",
       "conflict": "Konflikt",
       "restore": "Przywróć",
+      "sourceLine": "Z sesji {session} · {count} wpisów",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Zindeksowane",

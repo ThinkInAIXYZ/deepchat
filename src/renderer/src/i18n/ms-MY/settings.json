@@ -170,6 +170,7 @@
       "actionFailed": "Tindakan gagal",
       "conflict": "Konflik",
       "restore": "Pulihkan",
+      "sourceLine": "Dari sesi {session} · {count} entri",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Diindeks",

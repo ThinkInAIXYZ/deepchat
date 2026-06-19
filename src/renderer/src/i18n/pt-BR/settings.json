@@ -2239,6 +2239,7 @@
       "actionFailed": "A ação falhou",
       "conflict": "Conflito",
       "restore": "Restaurar",
+      "sourceLine": "Da sessão {session} · {count} registros",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexado",

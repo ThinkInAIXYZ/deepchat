@@ -170,6 +170,7 @@
       "actionFailed": "Aktion fehlgeschlagen",
       "conflict": "Konflikt",
       "restore": "Wiederherstellen",
+      "sourceLine": "Aus Sitzung {session} · {count} Einträge",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indiziert",
