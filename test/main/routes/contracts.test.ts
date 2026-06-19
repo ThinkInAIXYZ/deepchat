@@ -227,6 +227,34 @@ describe('main kernel contracts', () => {
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
   })
 
+  it('trims and rejects blank project path route inputs', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['project.reorderEnvironments'].input.parse({
+        paths: [' C:/workspace ']
+      })
+    ).toEqual({ paths: ['C:/workspace'] })
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['project.reorderEnvironments'].input.parse({
+        paths: ['   ']
+      })
+    ).toThrow()
+
+    const pathRouteNames: Array<keyof typeof DEEPCHAT_ROUTE_CATALOG> = [
+      'project.archiveEnvironment',
+      'project.restoreEnvironment',
+      'project.removeEnvironment',
+      'project.openDirectory',
+      'project.pathExists'
+    ]
+
+    for (const routeName of pathRouteNames) {
+      expect(DEEPCHAT_ROUTE_CATALOG[routeName].input.parse({ path: ' C:/workspace ' })).toEqual({
+        path: 'C:/workspace'
+      })
+      expect(() => DEEPCHAT_ROUTE_CATALOG[routeName].input.parse({ path: '   ' })).toThrow()
+    }
+  })
+
   it('validates plugin route payloads through concrete schemas', () => {
     expect(
       pluginsGetRoute.output.parse({

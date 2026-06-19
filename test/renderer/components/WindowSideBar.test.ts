@@ -8,6 +8,7 @@ type SetupOptions = {
   enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   activeSession?: { id: string; agentId: string } | null
   hasActiveSession?: boolean
+  hasLoadedInitialPage?: boolean
   sessions?: Array<{ id: string }>
   hasMore?: boolean
   loading?: boolean
@@ -26,6 +27,8 @@ type SetupOptions = {
   }
   collapsed?: boolean
   platform?: 'darwin' | 'win32' | 'linux'
+  projectEnvironments?: Array<{ path: string }>
+  archivedProjectEnvironments?: Array<{ path: string }>
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -129,6 +132,7 @@ const setup = async (options: SetupOptions = {}) => {
     activeSessionId: (options.activeSession?.id ?? 'session-1') as string | null,
     activeSession: options.activeSession ?? null,
     hasActiveSession: options.hasActiveSession ?? true,
+    hasLoadedInitialPage: options.hasLoadedInitialPage ?? true,
     sessions: (options.sessions ?? []) as Array<{ id: string }>,
     hasMore: options.hasMore ?? false,
     loading: options.loading ?? false,
@@ -183,6 +187,12 @@ const setup = async (options: SetupOptions = {}) => {
   })
   const pageRouterStore = reactive({
     goToNewThread: vi.fn()
+  })
+  const projectStore = reactive({
+    environments: options.projectEnvironments ?? [],
+    archivedEnvironments: options.archivedProjectEnvironments ?? [],
+    fetchEnvironments: vi.fn().mockResolvedValue(undefined),
+    reorderEnvironments: vi.fn().mockResolvedValue(undefined)
   })
   const spotlightStore = reactive({
     open: false,
@@ -288,6 +298,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouterStore
   }))
+  vi.doMock('@/stores/ui/project', () => ({
+    useProjectStore: () => projectStore
+  }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
   }))
@@ -342,6 +355,45 @@ const setup = async (options: SetupOptions = {}) => {
     template: '<button type="button" @click="$emit(\'select\')"><slot /></button>'
   })
 
+  const draggableStub = defineComponent({
+    name: 'draggable',
+    props: {
+      modelValue: {
+        type: Array,
+        default: () => []
+      },
+      disabled: {
+        type: Boolean,
+        default: false
+      }
+    },
+    emits: ['start', 'end', 'update:modelValue'],
+    template:
+      '<div data-testid="project-group-draggable" :data-disabled="String(disabled)"><slot v-for="item in modelValue" name="item" :element="item" /></div>'
+  })
+
+  const dropdownMenuItemStub = defineComponent({
+    props: {
+      disabled: {
+        type: Boolean,
+        default: false
+      }
+    },
+    emits: ['select'],
+    template:
+      '<button type="button" :disabled="disabled" @click="$emit(\'select\')"><slot /></button>'
+  })
+
+  vi.doMock('vuedraggable', () => ({
+    default: draggableStub
+  }))
+  vi.doMock('@shadcn/components/ui/dropdown-menu', () => ({
+    DropdownMenu: passthrough,
+    DropdownMenuTrigger: passthrough,
+    DropdownMenuContent: passthrough,
+    DropdownMenuItem: dropdownMenuItemStub
+  }))
+
   const WindowSideBar = (await import('@/components/WindowSideBar.vue')).default
   const wrapper = trackMountedWrapper(
     mount(WindowSideBar, {
@@ -356,6 +408,7 @@ const setup = async (options: SetupOptions = {}) => {
           ContextMenuContent: passthrough,
           ContextMenuSeparator: passthrough,
           ContextMenuItem: contextMenuItemStub,
+          draggable: draggableStub,
           Dialog: dialogStub,
           DialogContent: passthrough,
           DialogDescription: passthrough,
@@ -384,7 +437,8 @@ const setup = async (options: SetupOptions = {}) => {
     remoteControlClient,
     spotlightStore,
     pageRouterStore,
-    sidebarStore
+    sidebarStore,
+    projectStore
   }
 }
 
@@ -1184,6 +1238,163 @@ describe('WindowSideBar agent switch', () => {
           .get('[data-group-id="/tmp/workspaces/company-b/deepchat"]')
           .attributes('aria-expanded')
       ).toBe('true')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'reorders project groups while preserving hidden environment positions',
+    async () => {
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const unassignedGroup = {
+        id: '__no_project__',
+        label: 'No Project',
+        labelKey: 'chat.sidebar.noProject',
+        sessions: [
+          {
+            id: 'project-none',
+            title: 'No Project Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [
+          { path: '/work/alpha' },
+          { path: '/work/hidden' },
+          { path: '/work/beta' }
+        ],
+        groups: [alphaGroup, betaGroup, unassignedGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+      const draggable = wrapper.getComponent({ name: 'draggable' })
+      expect(draggable.attributes('data-disabled')).toBe('false')
+
+      draggable.vm.$emit('update:modelValue', [betaGroup, alphaGroup, unassignedGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
+        '/work/beta',
+        '/work/hidden',
+        '/work/alpha'
+      ])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'disables project group reordering while the sidebar search is active',
+    async () => {
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Shared Session Alpha',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Shared Session Beta',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
+        groups: [alphaGroup, betaGroup]
+      })
+
+      await wrapper.find('input').setValue('shared')
+      await flushPromises()
+
+      const draggable = wrapper.getComponent({ name: 'draggable' })
+      expect(draggable.attributes('data-disabled')).toBe('true')
+      expect(wrapper.find('[aria-label="chat.sidebar.projectGroupActions"]').exists()).toBe(false)
+
+      draggable.vm.$emit('update:modelValue', [betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).not.toHaveBeenCalled()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps archived project groups visible but outside active reordering',
+    async () => {
+      const activeGroup = {
+        id: '/work/active',
+        label: 'active',
+        sessions: [
+          {
+            id: 'project-active',
+            title: 'Active Session',
+            status: 'none'
+          }
+        ]
+      }
+      const archivedGroup = {
+        id: '/work/archived',
+        label: 'archived',
+        sessions: [
+          {
+            id: 'project-archived',
+            title: 'Archived Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/active' }],
+        archivedProjectEnvironments: [{ path: '/work/archived' }],
+        groups: [archivedGroup, activeGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('Active Session')
+      expect(wrapper.text()).toContain('Archived Session')
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(0)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [archivedGroup, activeGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).not.toHaveBeenCalled()
     },
     TEST_TIMEOUT_MS
   )

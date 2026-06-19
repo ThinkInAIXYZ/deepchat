@@ -338,7 +338,12 @@
     "searchPlaceholder": "채팅 제목 검색",
     "searchAriaLabel": "채팅 제목 검색",
     "searchEmptyTitle": "일치하는 대화가 없습니다",
-    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요"
+    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요",
+    "projectGroupActions": "프로젝트 그룹 작업",
+    "moveProjectGroupTop": "맨 위로 이동",
+    "moveProjectGroupUp": "위로 이동",
+    "moveProjectGroupDown": "아래로 이동",
+    "moveProjectGroupBottom": "맨 아래로 이동"
   },
   "floatingWidget": {
     "title": "작업 개요",

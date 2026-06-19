@@ -2051,6 +2051,10 @@
       "title": "Temp 目录",
       "description": "位于系统临时目录或应用托管工作区下的环境会收纳到这里，默认折叠。"
     },
+    "tabs": {
+      "active": "活跃目录 ({count})",
+      "archived": "已归档 ({count})"
+    },
     "actions": {
       "refresh": "刷新",
       "showMissing": "显示不存在目录",
@@ -2058,7 +2062,16 @@
       "setDefault": "设为默认",
       "clearDefault": "清除默认",
       "showTemp": "显示 Temp",
-      "hideTemp": "收起 Temp"
+      "hideTemp": "收起 Temp",
+      "more": "更多目录操作",
+      "dragTarget": "拖动目录 {name} 调整顺序",
+      "moveTop": "移到顶部",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "moveBottom": "移到底部",
+      "archive": "归档",
+      "restore": "恢复",
+      "remove": "从 DeepChat 移除"
     },
     "badges": {
       "default": "默认",
@@ -2069,14 +2082,26 @@
     "meta": {
       "sessions": "{count} 个会话",
       "lastUsed": "最近使用：{value}",
+      "archivedAt": "归档于：{value}",
       "never": "从未"
     },
     "empty": {
       "regular": "暂无可展示的目录环境。",
-      "temp": "当前没有 Temp 目录环境。"
+      "temp": "当前没有 Temp 目录环境。",
+      "archived": "暂无已归档目录。"
+    },
+    "confirm": {
+      "archiveTitle": "归档“{name}”？",
+      "archiveDescription": "归档后它会离开活跃目录列表和新会话选择器，但会话、消息和真实文件夹都会保留。",
+      "removeTitle": "从 DeepChat 移除“{name}”？",
+      "removeDescription": "不会删除真实文件夹或消息。普通会话会移到“无项目”，ACP 会话的工作目录记录会保留以便继续恢复。"
     },
     "errors": {
-      "openTitle": "打开目录失败"
+      "openTitle": "打开目录失败",
+      "archiveTitle": "归档目录失败",
+      "restoreTitle": "恢复目录失败",
+      "removeTitle": "移除目录失败",
+      "reorderTitle": "调整目录顺序失败"
     }
   },
   "remote": {

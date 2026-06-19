@@ -354,7 +354,12 @@
     "searchPlaceholder": "Sohbetlerde ara",
     "searchAriaLabel": "Sohbetlerde ara",
     "searchEmptyTitle": "Eşleşen görüşme yok",
-    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin"
+    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin",
+    "projectGroupActions": "Proje grubu eylemleri",
+    "moveProjectGroupTop": "En üste taşı",
+    "moveProjectGroupUp": "Yukarı taşı",
+    "moveProjectGroupDown": "Aşağı taşı",
+    "moveProjectGroupBottom": "En alta taşı"
   },
   "spotlight": {
     "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",

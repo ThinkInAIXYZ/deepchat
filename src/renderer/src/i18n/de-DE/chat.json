@@ -354,7 +354,12 @@
     "searchPlaceholder": "Chat-Titel suchen",
     "searchAriaLabel": "Chat-Titel suchen",
     "searchEmptyTitle": "Keine passenden Chats gefunden",
-    "searchEmptyDescription": "Versuchen Sie ein anderes Stichwort"
+    "searchEmptyDescription": "Versuchen Sie ein anderes Stichwort",
+    "projectGroupActions": "Projektgruppenaktionen",
+    "moveProjectGroupTop": "Ganz nach oben verschieben",
+    "moveProjectGroupUp": "Nach oben verschieben",
+    "moveProjectGroupDown": "Nach unten verschieben",
+    "moveProjectGroupBottom": "Ganz nach unten verschieben"
   },
   "spotlight": {
     "placeholder": "Chats, Agent, Einstellungen und Aktionen suchen…",

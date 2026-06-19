@@ -313,44 +313,115 @@
             </div>
           </div>
 
-          <template v-for="group in filteredGroups" :key="getGroupIdentifier(group)">
-            <button
-              type="button"
-              class="mt-2 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
-              :data-group-id="getGroupIdentifier(group)"
-              :aria-expanded="!isGroupCollapsed(group)"
-              @click="toggleGroup(group)"
-            >
-              <span class="shrink-0 size-6 flex items-center justify-center">
-                <Icon
-                  :icon="isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'"
-                  class="size-4"
-                />
-              </span>
-              <span class="truncate">
-                {{ getGroupLabel(group) }}
-              </span>
-            </button>
-            <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
-              <WindowSideBarSessionItem
-                v-for="session in group.sessions"
-                :key="session.id"
-                :session="session"
-                :active="sessionStore.activeSessionId === session.id"
-                region="grouped"
-                :hero-hidden="pinFlightSessionId === session.id"
-                :hero-placeholder="pinFlightSessionId === session.id"
-                :force-pin-docked="pinDockedSessionId === session.id"
-                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                :search-query="sessionSearchQuery"
-                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
-                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
-                @select="handleSessionClick"
-                @toggle-pin="handleTogglePin"
-                @delete="openDeleteDialog"
-              />
-            </div>
-          </template>
+          <draggable
+            :model-value="filteredGroups"
+            item-key="id"
+            tag="div"
+            handle=".sidebar-project-folder-target"
+            :animation="150"
+            ghost-class="sidebar-project-group-ghost"
+            chosen-class="sidebar-project-group-chosen"
+            :disabled="!canReorderProjectGroups"
+            @start="handleProjectGroupDragStart"
+            @end="handleProjectGroupDragEnd"
+            @update:model-value="handleProjectGroupModelUpdate"
+          >
+            <template #item="{ element: group }">
+              <div>
+                <div
+                  class="mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+                  :class="isProjectGroupDragging ? 'pointer-events-none' : ''"
+                >
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
+                    :class="
+                      isProjectGroupReorderTarget(group) && canReorderProjectGroups
+                        ? 'sidebar-project-folder-target cursor-grab active:cursor-grabbing'
+                        : ''
+                    "
+                    :data-group-id="getGroupIdentifier(group)"
+                    :aria-expanded="!isGroupCollapsed(group)"
+                    @click="toggleGroup(group)"
+                  >
+                    <span class="shrink-0 size-6 flex items-center justify-center">
+                      <Icon
+                        :icon="
+                          isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
+                        "
+                        class="size-4"
+                      />
+                    </span>
+                    <span class="truncate">
+                      {{ getGroupLabel(group) }}
+                    </span>
+                  </button>
+
+                  <DropdownMenu
+                    v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
+                  >
+                    <DropdownMenuTrigger as-child>
+                      <button
+                        type="button"
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                        :aria-label="t('chat.sidebar.projectGroupActions')"
+                      >
+                        <Icon icon="lucide:ellipsis" class="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-40">
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, -1)"
+                        @select="handleMoveProjectGroup(group, 'top')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupTop') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, -1)"
+                        @select="handleMoveProjectGroup(group, 'up')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupUp') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, 1)"
+                        @select="handleMoveProjectGroup(group, 'down')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupDown') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        :disabled="!canMoveProjectGroup(group, 1)"
+                        @select="handleMoveProjectGroup(group, 'bottom')"
+                      >
+                        {{ t('chat.sidebar.moveProjectGroupBottom') }}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
+                  <WindowSideBarSessionItem
+                    v-for="session in group.sessions"
+                    :key="session.id"
+                    :session="session"
+                    :active="sessionStore.activeSessionId === session.id"
+                    region="grouped"
+                    :hero-hidden="pinFlightSessionId === session.id"
+                    :hero-placeholder="pinFlightSessionId === session.id"
+                    :force-pin-docked="pinDockedSessionId === session.id"
+                    :pin-feedback-mode="
+                      pinFeedbackSessionId === session.id ? pinFeedbackMode : null
+                    "
+                    :search-query="sessionSearchQuery"
+                    :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                    :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                    @select="handleSessionClick"
+                    @toggle-pin="handleTogglePin"
+                    @delete="openDeleteDialog"
+                  />
+                </div>
+              </div>
+            </template>
+          </draggable>
 
           <div
             v-if="sessionStore.loadingMore"
@@ -383,6 +454,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -400,10 +472,17 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useAgentStore } from '@/stores/ui/agent'
+import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import type {
@@ -429,11 +508,13 @@ const PIN_TARGET_SETTLE_MAX_FRAMES = 10
 const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
 const SIDEBAR_SHORTCUT_MAX_ROWS = 10
+const NO_PROJECT_GROUP_ID = '__no_project__'
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
 
 type SessionItemRegion = 'pinned' | 'grouped'
 type ShortcutPlatform = 'mac' | 'other'
+type ProjectGroupMoveTarget = 'top' | 'up' | 'down' | 'bottom'
 type SessionItemRect = {
   left: number
   top: number
@@ -446,6 +527,7 @@ const remoteControlClient = createRemoteControlClient()
 const deviceClient = createDeviceClient()
 const { t } = useI18n()
 const agentStore = useAgentStore()
+const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
@@ -654,10 +736,17 @@ const matchesSessionSearch = (session: UISession) => {
 
   return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
 }
+const pinFlightSessionId = ref<string | null>(null)
+const pinDockedSessionId = ref<string | null>(null)
+const pinFeedbackSessionId = ref<string | null>(null)
+const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const isProjectGroupDragging = ref(false)
+const projectGroupDragScrollTop = ref<number | null>(null)
+const projectEnvironmentMetadataReady = ref(false)
 const pinnedSessions = computed(() =>
   sessionStore.getPinnedSessions(sidebarSelectedAgentId.value).filter(matchesSessionSearch)
 )
-const filteredGroups = computed(() =>
+const baseFilteredGroups = computed(() =>
   sessionStore
     .getFilteredGroups(sidebarSelectedAgentId.value)
     .map((group) => ({
@@ -668,10 +757,70 @@ const filteredGroups = computed(() =>
     }))
     .filter((group) => group.sessions.length > 0)
 )
-const pinFlightSessionId = ref<string | null>(null)
-const pinDockedSessionId = ref<string | null>(null)
-const pinFeedbackSessionId = ref<string | null>(null)
-const pinFeedbackMode = ref<PinFeedbackMode | null>(null)
+const projectOrderIndex = computed(
+  () => new Map(projectStore.environments.map((environment, index) => [environment.path, index]))
+)
+const archivedProjectPathSet = computed(
+  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
+)
+const isProjectDirectoryGroup = (group: SessionGroup) =>
+  sessionStore.groupMode === 'project' && group.id !== NO_PROJECT_GROUP_ID && !group.labelKey
+const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
+  isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
+const getProjectGroupRank = (group: SessionGroup) => {
+  if (!isProjectDirectoryGroup(group)) {
+    return 2
+  }
+
+  return archivedProjectPathSet.value.has(group.id) ? 1 : 0
+}
+const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
+  const leftRank = getProjectGroupRank(left)
+  const rightRank = getProjectGroupRank(right)
+
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank
+  }
+
+  if (leftRank !== 0) {
+    return 0
+  }
+
+  const leftOrder = projectOrderIndex.value.get(left.id) ?? Number.MAX_SAFE_INTEGER
+  const rightOrder = projectOrderIndex.value.get(right.id) ?? Number.MAX_SAFE_INTEGER
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder
+  }
+
+  return 0
+}
+const filteredGroups = computed(() => {
+  const groups = baseFilteredGroups.value
+  if (sessionStore.groupMode !== 'project') {
+    return groups
+  }
+
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort(
+      (left, right) => compareProjectGroups(left.group, right.group) || left.index - right.index
+    )
+    .map(({ group }) => group)
+})
+const projectReorderableGroups = computed(() =>
+  filteredGroups.value.filter(isActiveProjectDirectoryGroup)
+)
+const canReorderProjectGroups = computed(
+  () =>
+    !collapsed.value &&
+    sessionStore.groupMode === 'project' &&
+    normalizedSessionSearchQuery.value.length === 0 &&
+    !pinFlightSessionId.value &&
+    projectEnvironmentMetadataReady.value &&
+    sessionStore.hasLoadedInitialPage &&
+    !sessionStore.loading &&
+    projectReorderableGroups.value.length > 1
+)
 const sessionListRef = ref<HTMLElement | null>(null)
 const deleteTargetSession = ref<UISession | null>(null)
 
@@ -755,6 +904,110 @@ const toggleGroup = (group: SessionGroup) => {
   collapsedGroupIds.value = nextCollapsedGroupIds
 }
 
+const isProjectGroupReorderTarget = (group: SessionGroup) => isActiveProjectDirectoryGroup(group)
+
+const getCurrentProjectOrderPaths = () => {
+  const environmentPaths = projectStore.environments.map((environment) => environment.path)
+  return environmentPaths.length > 0
+    ? environmentPaths
+    : projectReorderableGroups.value.map((group) => group.id)
+}
+
+const commitVisibleProjectGroupOrder = async (nextVisiblePaths: string[]) => {
+  const currentOrder = getCurrentProjectOrderPaths()
+  const previousVisiblePaths = projectReorderableGroups.value.map((group) => group.id)
+  const previousVisiblePathSet = new Set(previousVisiblePaths)
+  const nextOrder = [...currentOrder]
+  let nextVisibleIndex = 0
+
+  for (let index = 0; index < nextOrder.length; index += 1) {
+    if (!previousVisiblePathSet.has(nextOrder[index])) {
+      continue
+    }
+
+    const nextPath = nextVisiblePaths[nextVisibleIndex]
+    if (nextPath) {
+      nextOrder[index] = nextPath
+    }
+    nextVisibleIndex += 1
+  }
+
+  for (const path of nextVisiblePaths) {
+    if (!nextOrder.includes(path)) {
+      nextOrder.push(path)
+    }
+  }
+
+  await projectStore.reorderEnvironments(nextOrder)
+}
+
+const handleProjectGroupModelUpdate = (nextGroups: SessionGroup[]) => {
+  if (!canReorderProjectGroups.value) {
+    return
+  }
+
+  const nextVisiblePaths = nextGroups.filter(isActiveProjectDirectoryGroup).map((group) => group.id)
+  void commitVisibleProjectGroupOrder(nextVisiblePaths).catch((error) => {
+    console.warn('[WindowSideBar] Failed to reorder project groups:', error)
+  })
+}
+
+const canMoveProjectGroup = (group: SessionGroup, delta: -1 | 1) => {
+  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
+    return false
+  }
+
+  const groups = projectReorderableGroups.value
+  const index = groups.findIndex((candidate) => candidate.id === group.id)
+  if (index < 0) {
+    return false
+  }
+
+  return delta < 0 ? index > 0 : index < groups.length - 1
+}
+
+const handleMoveProjectGroup = (group: SessionGroup, target: ProjectGroupMoveTarget) => {
+  if (!canReorderProjectGroups.value || !isProjectGroupReorderTarget(group)) {
+    return
+  }
+
+  const paths = projectReorderableGroups.value.map((candidate) => candidate.id)
+  const currentIndex = paths.indexOf(group.id)
+  if (currentIndex < 0) {
+    return
+  }
+
+  const [path] = paths.splice(currentIndex, 1)
+  const nextIndex =
+    target === 'top'
+      ? 0
+      : target === 'bottom'
+        ? paths.length
+        : target === 'up'
+          ? Math.max(0, currentIndex - 1)
+          : Math.min(paths.length, currentIndex + 1)
+
+  paths.splice(nextIndex, 0, path)
+  void commitVisibleProjectGroupOrder(paths).catch((error) => {
+    console.warn('[WindowSideBar] Failed to move project group:', error)
+  })
+}
+
+const handleProjectGroupDragStart = () => {
+  isProjectGroupDragging.value = true
+  projectGroupDragScrollTop.value = sessionListRef.value?.scrollTop ?? null
+  hideShortcutBadges()
+}
+
+const handleProjectGroupDragEnd = () => {
+  void nextTick(() => {
+    restoreSessionListScroll(projectGroupDragScrollTop.value)
+    projectGroupDragScrollTop.value = null
+    isProjectGroupDragging.value = false
+    void ensureSessionListFilled()
+  })
+}
+
 watch(
   [pinnedSessions, () => sessionStore.activeSessionId],
   ([sessions, activeSessionId]) => {
@@ -773,6 +1026,10 @@ watch(
 watch(
   [filteredGroups, () => sessionStore.activeSessionId],
   ([groups, activeSessionId]) => {
+    if (isProjectGroupDragging.value) {
+      return
+    }
+
     const validGroupIds = new Set(groups.map(getGroupIdentifier))
     const nextCollapsedGroupIds = new Set(
       [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
@@ -840,6 +1097,15 @@ const refreshRemoteControlStatus = async () => {
     }
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
+  }
+}
+
+const refreshProjectEnvironmentMetadata = async () => {
+  try {
+    await projectStore.fetchEnvironments()
+    projectEnvironmentMetadataReady.value = true
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to refresh project environment metadata:', error)
   }
 }
 
@@ -1101,7 +1367,12 @@ const restoreSessionListScroll = (scrollTop: number | null) => {
 
 const performSessionListScrollCheck = () => {
   const listElement = sessionListRef.value
-  if (!listElement || sessionStore.loadingMore || !sessionStore.hasMore) {
+  if (
+    !listElement ||
+    isProjectGroupDragging.value ||
+    sessionStore.loadingMore ||
+    !sessionStore.hasMore
+  ) {
     return
   }
 
@@ -1129,7 +1400,7 @@ const handleSessionListScroll = () => {
 // 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
 let isFillingSessionList = false
 const ensureSessionListFilled = async () => {
-  if (isFillingSessionList) {
+  if (isFillingSessionList || isProjectGroupDragging.value) {
     return
   }
   isFillingSessionList = true
@@ -1141,6 +1412,7 @@ const ensureSessionListFilled = async () => {
       const listElement = sessionListRef.value
       if (
         !listElement ||
+        isProjectGroupDragging.value ||
         !sessionStore.hasMore ||
         sessionStore.loadingMore ||
         sessionStore.loading
@@ -1423,6 +1695,7 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
+  void refreshProjectEnvironmentMetadata()
   void loadShortcutPlatform()
   window.addEventListener('keydown', handleWindowShortcutKeydown)
   window.addEventListener('keyup', handleWindowShortcutKeyup)
@@ -1453,6 +1726,8 @@ onUnmounted(() => {
 
   pinFlightSessionId.value = null
   pinDockedSessionId.value = null
+  isProjectGroupDragging.value = false
+  projectGroupDragScrollTop.value = null
   clearPinFeedback()
   hideShortcutBadges()
 })
@@ -1477,6 +1752,14 @@ onUnmounted(() => {
 
 .session-list {
   overflow-anchor: none;
+}
+
+:deep(.sidebar-project-group-ghost) {
+  opacity: 0.45;
+}
+
+:deep(.sidebar-project-group-chosen) {
+  background: hsl(var(--accent) / 0.35);
 }
 
 button,
