@@ -216,9 +216,13 @@ describe('projectStore default project handling', () => {
     ]
     projectPresenter.getEnvironments.mockResolvedValueOnce(store.environments.value)
 
-    await store.reorderEnvironments(['/work/b', '/work/a'])
+    await store.reorderEnvironments(['/work/b', '/work/missing', '/work/a'])
 
     expect(projectPresenter.reorderEnvironments).toHaveBeenCalledWith(['/work/b', '/work/a'])
+
+    projectPresenter.reorderEnvironments.mockClear()
+    await store.reorderEnvironments(['/work/missing'])
+    expect(projectPresenter.reorderEnvironments).not.toHaveBeenCalled()
 
     await store.fetchProjects()
     store.selectProject('/work/a')

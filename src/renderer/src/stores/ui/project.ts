@@ -215,6 +215,11 @@ export const useProjectStore = defineStore('project', () => {
       previousEnvironments.map((environment) => [environment.path, environment])
     )
     const orderedPaths = normalizedPaths.filter((environmentPath) => byPath.has(environmentPath))
+
+    if (orderedPaths.length === 0) {
+      return
+    }
+
     const orderedPathSet = new Set(orderedPaths)
 
     environments.value = [
@@ -226,7 +231,7 @@ export const useProjectStore = defineStore('project', () => {
     ]
 
     try {
-      await projectClient.reorderEnvironments(normalizedPaths)
+      await projectClient.reorderEnvironments(orderedPaths)
       await fetchEnvironments()
     } catch (e) {
       environments.value = previousEnvironments

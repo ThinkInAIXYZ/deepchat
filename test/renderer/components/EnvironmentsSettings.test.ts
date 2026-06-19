@@ -165,6 +165,8 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
       return 'Remove keeps files'
     case 'settings.environments.errors.openTitle':
       return 'Open failed'
+    case 'settings.environments.errors.reorderTitle':
+      return 'Reorder failed'
     case 'settings.environments.errors.archiveTitle':
       return 'Archive failed'
     case 'settings.environments.errors.restoreTitle':
@@ -463,6 +465,49 @@ describe('EnvironmentsSettings', () => {
       '/work/missing',
       '/work/app'
     ])
+  })
+
+  it('shows a toast when reordered environments fail to persist', async () => {
+    const appEnvironment = {
+      path: '/work/app',
+      name: 'app',
+      sessionCount: 1,
+      lastUsedAt: 100,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 0,
+      archivedAt: null,
+      removedAt: null
+    }
+    const betaEnvironment = {
+      path: '/work/beta',
+      name: 'beta',
+      sessionCount: 1,
+      lastUsedAt: 300,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 1,
+      archivedAt: null,
+      removedAt: null
+    }
+    const { wrapper, projectStore, toast } = await setup({
+      environments: [appEnvironment, betaEnvironment]
+    })
+    projectStore.reorderEnvironments.mockRejectedValueOnce(new Error('reorder failed'))
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Move Down')!
+      .trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'Reorder failed',
+      description: 'reorder failed',
+      variant: 'destructive'
+    })
   })
 
   it('archives an active environment after confirmation', async () => {

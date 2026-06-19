@@ -94,28 +94,30 @@
         </template>
       </draggable>
 
-      <div
-        v-else-if="archivedEnvironments.length === 0"
-        class="px-2 py-6 text-sm text-muted-foreground"
-        data-testid="environments-archived-empty"
-      >
-        {{ t('settings.environments.empty.archived') }}
-      </div>
+      <div v-else class="flex flex-col" data-testid="environments-archived-panel">
+        <div
+          v-if="archivedEnvironments.length === 0"
+          class="px-2 py-6 text-sm text-muted-foreground"
+          data-testid="environments-archived-empty"
+        >
+          {{ t('settings.environments.empty.archived') }}
+        </div>
 
-      <div v-else class="flex flex-col">
-        <EnvironmentRow
-          v-for="environment in archivedEnvironments"
-          :key="environment.path"
-          :environment="environment"
-          :default-project-path="defaultProjectPath"
-          view="archived"
-          :can-move-up="false"
-          :can-move-down="false"
-          :format-date="formatDate"
-          @open="handleOpen"
-          @restore="handleRestore"
-          @remove="requestEnvironmentAction('remove', environment)"
-        />
+        <template v-else>
+          <EnvironmentRow
+            v-for="environment in archivedEnvironments"
+            :key="environment.path"
+            :environment="environment"
+            :default-project-path="defaultProjectPath"
+            view="archived"
+            :can-move-up="false"
+            :can-move-down="false"
+            :format-date="formatDate"
+            @open="handleOpen"
+            @restore="handleRestore"
+            @remove="requestEnvironmentAction('remove', environment)"
+          />
+        </template>
       </div>
     </div>
   </SettingsPageShell>
@@ -328,7 +330,15 @@ const refreshData = async () => {
 const getActiveOrderPaths = () => activeEnvironments.value.map((environment) => environment.path)
 
 const reorderActivePaths = async (paths: string[]) => {
-  await projectStore.reorderEnvironments(paths)
+  try {
+    await projectStore.reorderEnvironments(paths)
+  } catch (error) {
+    toast({
+      title: t('settings.environments.errors.reorderTitle'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  }
 }
 
 const handleVisibleActiveReorder = (nextVisibleEnvironments: EnvironmentListItem[]) => {

@@ -39,4 +39,10 @@
   - [x] Archived Settings rows do not expose drag handle semantics.
 - [x] Complete non-English locale copy for the directory management UI.
 - [x] Fix new chat directory dropdown height and hide missing directories.
+- [x] Address PR review comments:
+  - [x] Show a destructive toast when settings reorder persistence fails.
+  - [x] Send only current known environment paths when reordering.
+  - [x] Reject blank project path route inputs after trimming.
+  - [x] Scope archived-tab e2e assertions to archived content.
+  - [x] Correct Vietnamese Temp copy.
 - [ ] User acceptance.

@@ -21,8 +21,10 @@ test('environment settings reads project routes without native dialogs @smoke', 
   })
 
   await settingsPage.getByTestId('environments-archived-tab').click()
+  const archivedPanel = settingsPage.getByTestId('environments-archived-panel')
+  await expect(archivedPanel).toBeVisible({ timeout: 30_000 })
   await expect(
-    settingsPage
+    archivedPanel
       .locator('[data-testid="environments-archived-empty"], [data-testid="environment-row"]')
       .first()
   ).toBeVisible({ timeout: 30_000 })
