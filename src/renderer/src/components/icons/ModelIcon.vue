@@ -33,6 +33,7 @@ import qingyanColorIcon from '@/assets/llm-icons/qingyan-color.svg?url'
 import qwenColorIcon from '@/assets/llm-icons/qwen-color.svg?url'
 import deepseekColorIcon from '@/assets/llm-icons/deepseek-color.svg?url'
 import openaiColorIcon from '@/assets/llm-icons/openai.svg?url'
+import openaiCodexColorIcon from '@/assets/llm-icons/openai-codex.svg?url'
 import ollamaColorIcon from '@/assets/llm-icons/ollama.svg?url'
 import doubaoColorIcon from '@/assets/llm-icons/doubao-color.svg?url'
 import dimcodeColorIcon from '@/assets/llm-icons/dimcode.svg?url'
@@ -84,6 +85,7 @@ const icons = {
   'claude-acp': claudeColorIcon,
   'claude-code-acp': claudeColorIcon,
   'codex-acp': openaiColorIcon,
+  'openai-codex': openaiCodexColorIcon,
   dimcode: dimcodeColorIcon,
   'dimcode-acp': dimcodeColorIcon,
   o3fan: o3fanColorIcon,
@@ -236,6 +238,7 @@ watch(
 // Monochrome icon URLs that need inversion in dark mode
 const monoIconUrls = new Set([
   openaiColorIcon,
+  openaiCodexColorIcon,
   dimcodeColorIcon,
   ollamaColorIcon,
   zerooneColorIcon,
