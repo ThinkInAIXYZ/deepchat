@@ -64,6 +64,7 @@ import {
   modelBatchStatusChangedEvent
 } from './events/models.events'
 import { databaseRepairSuggestedEvent, notificationErrorEvent } from './events/notification.events'
+import { oauthOpenAICodexStatusChangedEvent } from './events/oauth.events'
 import { providersOllamaPullProgressEvent } from './events/misc.providers.events'
 import {
   providersAcpDebugEvent,
@@ -134,6 +135,7 @@ export * from './events/mcp.events'
 export * from './events/misc.providers.events'
 export * from './events/models.events'
 export * from './events/notification.events'
+export * from './events/oauth.events'
 export * from './events/providers.events'
 export * from './events/settings.events'
 export * from './events/startup.events'
@@ -191,6 +193,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [configSystemPromptsChangedEvent.name]: configSystemPromptsChangedEvent,
   [configCustomPromptsChangedEvent.name]: configCustomPromptsChangedEvent,
   [providersChangedEvent.name]: providersChangedEvent,
+  [oauthOpenAICodexStatusChangedEvent.name]: oauthOpenAICodexStatusChangedEvent,
   [providersRateLimitConfigUpdatedEvent.name]: providersRateLimitConfigUpdatedEvent,
   [providersRateLimitRequestQueuedEvent.name]: providersRateLimitRequestQueuedEvent,
   [providersRateLimitRequestExecutedEvent.name]: providersRateLimitRequestExecutedEvent,

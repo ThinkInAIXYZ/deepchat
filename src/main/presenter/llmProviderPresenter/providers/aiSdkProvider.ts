@@ -67,6 +67,12 @@ import { isImageInputSupported } from '@shared/types/model-db'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
+const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
+  'gpt-5.5',
+  'gpt-5.4',
+  'gpt-5.4-mini',
+  'gpt-5.3-codex-spark'
+]
 const DEFAULT_NEW_API_BASE_URL = 'https://www.newapi.ai'
 
 type RouteDecision = {
@@ -664,6 +670,8 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
       headers['api-key'] = this.resolveTraceAuthToken(runtimeProvider)
+    } else if (decision.providerKind === 'openai-codex') {
+      headers.Authorization = 'Bearer OPENAI_CODEX_OAUTH'
     } else if (this.usesGeminiApiKeyHeader(runtimeProvider)) {
       headers['x-goog-api-key'] = this.resolveTraceAuthToken(runtimeProvider)
     } else {
@@ -1447,6 +1455,24 @@ export class AiSdkProvider extends BaseLLMProvider {
     })
   }
 
+  private mapOpenAICodexModels(): MODEL_META[] {
+    const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Codex')
+    const modelsById = new Map(models.map((model) => [model.id, model]))
+    const recommended = OPENAI_CODEX_RECOMMENDED_MODEL_IDS.flatMap((id) => {
+      const model = modelsById.get(id)
+      return model ? [model] : []
+    })
+
+    if (recommended.length > 0) {
+      return recommended
+    }
+
+    return models.filter(
+      (model) =>
+        model.id.toLowerCase().includes('codex') || model.name.toLowerCase().includes('codex')
+    )
+  }
+
   private syncProviderModelConfig(modelId: string, nextConfig: Partial<ModelConfig>): void {
     const existingConfig = this.getProviderModelConfig(modelId)
     const merged = {
@@ -1471,6 +1497,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchConfigDbModels()
       case 'provider-db':
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
+      case 'openai-codex':
+        return this.mapOpenAICodexModels()
       case 'github': {
         const response = await this.fetchOpenAIModelRecords({
           timeout: this.getModelFetchTimeout()

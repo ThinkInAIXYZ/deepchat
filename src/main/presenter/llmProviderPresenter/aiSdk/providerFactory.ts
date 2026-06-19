@@ -16,10 +16,16 @@ import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../../proxyConfig'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
+import {
+  buildOpenAICodexResponsesEndpoint,
+  createOpenAICodexFetch,
+  normalizeOpenAICodexBaseUrl
+} from '../openaiCodexAdapter'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
   | 'openai-responses'
+  | 'openai-codex'
   | 'azure'
   | 'anthropic'
   | 'gemini'
@@ -463,6 +469,23 @@ export function createAiSdkProviderContext(
         })
 
   switch (params.providerKind) {
+    case 'openai-codex': {
+      const codexBaseUrl = normalizeOpenAICodexBaseUrl(baseUrl)
+      const provider = createOpenAI({
+        baseURL: codexBaseUrl,
+        apiKey: 'openai-codex-oauth',
+        headers: params.defaultHeaders,
+        fetch: createOpenAICodexFetch(params.defaultHeaders)
+      })
+
+      return {
+        providerOptionsKey: 'openai',
+        apiType: 'openai_responses',
+        model: maybeWrapModel(provider.responses(params.modelId) as any),
+        endpoint: buildOpenAICodexResponsesEndpoint(codexBaseUrl)
+      }
+    }
+
     case 'openai-responses': {
       const provider = createOpenAI({
         baseURL: baseUrl,

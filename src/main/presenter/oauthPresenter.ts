@@ -5,6 +5,7 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
+import { getGlobalOpenAICodexAuth, type OpenAICodexAuthStatus } from './openaiCodexAuth'
 import { eventBus } from '@/eventbus'
 
 export interface OAuthConfig {
@@ -83,6 +84,26 @@ export class OAuthPresenter {
       console.error('[GitHub Copilot] Device Flow login failed:', error)
       return false
     }
+  }
+
+  async getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus> {
+    return getGlobalOpenAICodexAuth().getStatus()
+  }
+
+  async startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus> {
+    return getGlobalOpenAICodexAuth().startBrowserLogin()
+  }
+
+  async startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus> {
+    return getGlobalOpenAICodexAuth().startDeviceLogin()
+  }
+
+  async cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
+    return getGlobalOpenAICodexAuth().cancelLogin()
+  }
+
+  async logoutOpenAICodex(): Promise<OpenAICodexAuthStatus> {
+    return getGlobalOpenAICodexAuth().logout()
   }
 
   /**

@@ -173,6 +173,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'openai-codex',
+    name: 'OpenAI Codex',
+    apiType: 'openai-codex',
+    apiKey: '',
+    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    enable: false,
+    websites: {
+      official: 'https://developers.openai.com/codex',
+      apiKey: 'https://chatgpt.com/codex',
+      docs: 'https://developers.openai.com/codex/auth',
+      models: 'https://developers.openai.com/codex/models',
+      defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
+    }
+  },
+  {
     id: 'acp',
     name: 'ACP',
     apiType: 'acp',

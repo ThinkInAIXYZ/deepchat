@@ -25,6 +25,8 @@ import {
   configListAgentsRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
+  oauthOpenAICodexGetStatusRoute,
+  oauthOpenAICodexStartDeviceLoginRoute,
   sessionsActivateRoute,
   sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
@@ -120,6 +122,11 @@ describe('main kernel contracts', () => {
         'nowledgeMem.updateConfig',
         'oauth.githubCopilot.startDeviceFlowLogin',
         'oauth.githubCopilot.startLogin',
+        'oauth.openaiCodex.cancelLogin',
+        'oauth.openaiCodex.getStatus',
+        'oauth.openaiCodex.logout',
+        'oauth.openaiCodex.startBrowserLogin',
+        'oauth.openaiCodex.startDeviceLogin',
         'plugins.get',
         'plugins.invokeAction',
         'project.pathExists',
@@ -299,6 +306,49 @@ describe('main kernel contracts', () => {
         providerId: ''
       })
     ).toThrow()
+  })
+
+  it('validates OpenAI Codex OAuth route payloads', () => {
+    expect(oauthOpenAICodexGetStatusRoute.input.parse({})).toEqual({})
+    expect(
+      oauthOpenAICodexGetStatusRoute.output.parse({
+        status: {
+          state: 'authenticated',
+          authenticated: true,
+          accountId: 'acct...1234',
+          accountLabel: 'user@example.com',
+          planType: 'plus',
+          expiresAt: 123,
+          storage: 'safeStorage'
+        }
+      })
+    ).toEqual({
+      status: {
+        state: 'authenticated',
+        authenticated: true,
+        accountId: 'acct...1234',
+        accountLabel: 'user@example.com',
+        planType: 'plus',
+        expiresAt: 123,
+        storage: 'safeStorage'
+      }
+    })
+
+    expect(
+      oauthOpenAICodexStartDeviceLoginRoute.output.parse({
+        status: {
+          state: 'pending-device',
+          authenticated: false,
+          storage: 'file',
+          device: {
+            userCode: 'ABCD-EFGH',
+            verificationUri: 'https://chatgpt.com/activate',
+            expiresAt: 123,
+            interval: 5
+          }
+        }
+      }).status.device?.userCode
+    ).toBe('ABCD-EFGH')
   })
 
   it('validates database repair and browser sandbox utility route payloads', () => {
@@ -1492,6 +1542,7 @@ describe('main kernel contracts', () => {
         'models.config.changed',
         'models.status.changed',
         'notification.error',
+        'oauth.openaiCodex.statusChanged',
         'providers.acp.debug.event',
         'providers.changed',
         'providers.ollama.pull.progress',

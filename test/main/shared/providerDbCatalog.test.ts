@@ -6,4 +6,8 @@ describe('provider DB catalog', () => {
     expect(isProviderDbBackedProvider('mistral')).toBe(true)
     expect(isProviderDbBackedProvider(' MISTRAL ')).toBe(true)
   })
+
+  it('treats OpenAI Codex as provider DB-backed', () => {
+    expect(isProviderDbBackedProvider('openai-codex')).toBe(true)
+  })
 })

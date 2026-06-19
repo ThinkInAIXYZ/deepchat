@@ -409,6 +409,34 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
+  getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
+  startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
+  startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus>
+  cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
+  logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
+}
+
+export type OpenAICodexAuthStatus = {
+  state:
+    | 'disabled'
+    | 'signed-out'
+    | 'pending-browser'
+    | 'pending-device'
+    | 'authenticated'
+    | 'error'
+  authenticated: boolean
+  accountId?: string
+  accountLabel?: string
+  planType?: string
+  expiresAt?: number
+  storage: 'safeStorage' | 'file' | 'none'
+  device?: {
+    userCode: string
+    verificationUri: string
+    expiresAt: number
+    interval?: number
+  }
+  error?: string
 }
 
 export interface OAuthConfig {

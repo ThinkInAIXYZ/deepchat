@@ -56,11 +56,25 @@ architecture.
   is shaped as a Responses API request.
 - Use an experimental flag and an environment kill switch.
 - Support browser PKCE sign-in.
+- Browser PKCE sign-in opens a DeepChat-owned authorization window.
 - Support a device-code fallback when browser callback cannot be used.
 - Persist OAuth credentials in OS-backed encrypted storage when available.
 - Expose auth status to the renderer without raw tokens.
 - Refresh tokens before expiry and coordinate concurrent refreshes.
 - Route requests through a dedicated Codex adapter.
+- Build the Codex model picker from the OpenAI provider database using the current Codex
+  recommended model IDs: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, and
+  `gpt-5.3-codex-spark`.
+- Replace stale persisted Codex model snapshots with the dedicated Codex runtime catalog during
+  model refresh.
+- Use `gpt-5.5` as the default Codex connection-check model.
+- Include OpenAI Responses `instructions` on every Codex chat request. The value comes from the
+  leading system prompt when present and falls back to a minimal DeepChat assistant instruction.
+- Add ChatGPT backend routing headers, including the full `ChatGPT-Account-ID` when available and
+  `OAI-Product-Sku: codex`.
+- Skip `openai-codex` during provider-db background refresh events because its visible model list is
+  served by the dedicated runtime catalog. Manual model refresh remains available from the Models
+  tab.
 - Preserve streaming, abort behavior, proxy behavior, tool calls, reasoning, and structured output
   where the upstream endpoint accepts them.
 - Surface subscription or entitlement failures as provider errors without leaking tokens or account
@@ -101,6 +115,20 @@ constant copied from OpenCode is treated as compatibility data, not as a stable 
 - Renderer route payloads for Codex auth contain no access token, refresh token, ID token, or raw
   account ID.
 - Codex requests use the dedicated adapter and can be disabled by the kill switch.
+- Codex requests include Codex backend auth headers and produce readable errors for rejected
+  bad-request responses.
+- Codex Responses requests include `instructions`, including flows without a configured system
+  prompt.
+- Codex model listing exposes the current recommended Codex models from provider-db metadata
+  instead of filtering only model IDs containing `codex`.
+- Codex model refresh replaces old `gpt-5-codex` and `gpt-5.1-codex` style snapshots with the
+  current dedicated runtime catalog.
+- The Models tab exposes a refresh action so users can update provider models from the model list
+  surface.
+- Provider-db loaded or updated events refresh already materialized DB-backed providers and skip
+  `openai-codex`; users can manually refresh Codex models when they need a catalog update.
+- Browser sign-in creates an internal authorization window and closes it when auth completes,
+  fails, is cancelled, or times out.
 - `openai-codex` has separate provider ID, `apiType`, config persistence, route namespace,
   credential storage, settings panel, and adapter from `openai`.
 - Existing OpenAI, GitHub Copilot, custom OpenAI-compatible, Azure, Vertex, Bedrock, Anthropic,

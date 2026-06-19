@@ -140,6 +140,11 @@ import {
   nowledgeMemUpdateConfigRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
+  oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexGetStatusRoute,
+  oauthOpenAICodexLogoutRoute,
+  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthOpenAICodexStartDeviceLoginRoute,
   remoteControlClearChannelPairCodeRoute,
   remoteControlCreateChannelPairCodeRoute,
   remoteControlGetChannelBindingsRoute,
@@ -1994,6 +1999,41 @@ export async function dispatchDeepchatRoute(
       const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
       return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
         success: await runtime.oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
+      })
+    }
+
+    case oauthOpenAICodexGetStatusRoute.name: {
+      oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
+      return oauthOpenAICodexGetStatusRoute.output.parse({
+        status: await runtime.oauthPresenter.getOpenAICodexStatus()
+      })
+    }
+
+    case oauthOpenAICodexStartBrowserLoginRoute.name: {
+      oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
+      return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.startOpenAICodexBrowserLogin()
+      })
+    }
+
+    case oauthOpenAICodexStartDeviceLoginRoute.name: {
+      oauthOpenAICodexStartDeviceLoginRoute.input.parse(rawInput)
+      return oauthOpenAICodexStartDeviceLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.startOpenAICodexDeviceLogin()
+      })
+    }
+
+    case oauthOpenAICodexCancelLoginRoute.name: {
+      oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
+      return oauthOpenAICodexCancelLoginRoute.output.parse({
+        status: await runtime.oauthPresenter.cancelOpenAICodexLogin()
+      })
+    }
+
+    case oauthOpenAICodexLogoutRoute.name: {
+      oauthOpenAICodexLogoutRoute.input.parse(rawInput)
+      return oauthOpenAICodexLogoutRoute.output.parse({
+        status: await runtime.oauthPresenter.logoutOpenAICodex()
       })
     }
 

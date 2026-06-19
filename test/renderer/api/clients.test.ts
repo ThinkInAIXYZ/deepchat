@@ -494,6 +494,45 @@ describe('renderer api clients', () => {
               return { success: true }
             case 'oauth.githubCopilot.startDeviceFlowLogin':
               return { success: false }
+            case 'oauth.openaiCodex.getStatus':
+              return {
+                status: {
+                  state: 'signed-out',
+                  authenticated: false,
+                  storage: 'safeStorage'
+                }
+              }
+            case 'oauth.openaiCodex.startBrowserLogin':
+              return {
+                status: {
+                  state: 'authenticated',
+                  authenticated: true,
+                  storage: 'safeStorage'
+                }
+              }
+            case 'oauth.openaiCodex.startDeviceLogin':
+              return {
+                status: {
+                  state: 'pending-device',
+                  authenticated: false,
+                  storage: 'file',
+                  device: {
+                    userCode: 'ABCD-EFGH',
+                    verificationUri: 'https://chatgpt.com/activate',
+                    expiresAt: 123,
+                    interval: 5
+                  }
+                }
+              }
+            case 'oauth.openaiCodex.cancelLogin':
+            case 'oauth.openaiCodex.logout':
+              return {
+                status: {
+                  state: 'signed-out',
+                  authenticated: false,
+                  storage: 'safeStorage'
+                }
+              }
             case 'mcp.router.listServers':
               return {
                 servers: [
@@ -1792,6 +1831,31 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'oauth.githubCopilot.startDeviceFlowLogin', {
       providerId: 'github-copilot'
     })
+  })
+
+  it('routes OpenAI Codex OAuth calls through the shared registry names', async () => {
+    const bridge = createBridge()
+    const oauthClient = createOAuthClient(bridge)
+    const listener = vi.fn()
+
+    const status = await oauthClient.getOpenAICodexStatus()
+    const browserStatus = await oauthClient.startOpenAICodexBrowserLogin()
+    const deviceStatus = await oauthClient.startOpenAICodexDeviceLogin()
+    const cancelStatus = await oauthClient.cancelOpenAICodexLogin()
+    const logoutStatus = await oauthClient.logoutOpenAICodex()
+    oauthClient.onOpenAICodexStatusChanged(listener)
+
+    expect(status.state).toBe('signed-out')
+    expect(browserStatus.authenticated).toBe(true)
+    expect(deviceStatus.device?.userCode).toBe('ABCD-EFGH')
+    expect(cancelStatus.state).toBe('signed-out')
+    expect(logoutStatus.state).toBe('signed-out')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'oauth.openaiCodex.getStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'oauth.openaiCodex.startBrowserLogin', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'oauth.openaiCodex.startDeviceLogin', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'oauth.openaiCodex.cancelLogin', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'oauth.openaiCodex.logout', {})
+    expect(bridge.on).toHaveBeenCalledWith('oauth.openaiCodex.statusChanged', expect.any(Function))
   })
 
   it('routes NowledgeMem calls through the shared registry names', async () => {

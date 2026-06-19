@@ -42,6 +42,12 @@ export const shell = {
   openPath: async (_path: string) => ''
 }
 
+export const safeStorage = {
+  isEncryptionAvailable: () => false,
+  encryptString: (value: string) => Buffer.from(value, 'utf-8'),
+  decryptString: (value: Buffer) => value.toString('utf-8')
+}
+
 export const dialog = {
   showOpenDialog: async (_opts?: any) => ({ canceled: true, filePaths: [] }),
   showMessageBoxSync: (_opts?: any) => 1

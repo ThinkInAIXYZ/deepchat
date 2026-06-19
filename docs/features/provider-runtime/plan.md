@@ -125,12 +125,18 @@ src/main/presenter/openaiCodexAuth/
 The module owns:
 
 - PKCE verifier/challenge generation.
-- Browser callback server.
+- Browser callback URL validation.
+- DeepChat-owned authorization `BrowserWindow` for browser sign-in.
 - Device-code polling.
 - Token exchange and refresh.
 - Encrypted credential persistence.
 - Logout cleanup.
 - Redaction helpers.
+
+Browser sign-in loads the authorization URL in a main-process `BrowserWindow`. Redirect navigation
+to the configured localhost callback URL is captured inside that window, and the code is exchanged
+in the main process. New-window requests from the authorization page stay in the same auth window.
+Completion, cancellation, timeout, or token-exchange failure closes the auth window.
 
 The existing `OAuthPresenter` may delegate to this module or expose thin methods for typed routes.
 
@@ -169,12 +175,42 @@ src/main/presenter/llmProviderPresenter/openaiCodexAdapter.ts
 Responsibilities:
 
 - Resolve a valid access token before a request.
+- Resolve the full ChatGPT account ID in main process only and attach it as `ChatGPT-Account-ID`
+  when present.
 - Rewrite supported OpenAI Responses requests to the Codex compatibility endpoint.
-- Add account routing headers only when available.
+- Attach OpenAI Responses `instructions` through AI SDK provider options for every Codex chat
+  request. Use the leading system prompt when present and a short DeepChat assistant fallback when
+  the conversation has no system prompt.
+- Add Codex backend headers such as `OAI-Product-Sku: codex`.
 - Remove API-key authorization headers.
 - Apply one refresh-and-replay cycle on eligible 401 responses before streaming starts.
 - Preserve abort signal, streaming, proxy, and request tracing behavior.
-- Normalize auth and entitlement failures.
+- Normalize auth, entitlement, and bad-request failures into readable provider errors.
+
+### Model Catalog
+
+The Codex provider reads model metadata from the existing OpenAI provider database and exposes the
+Codex recommended set in this order:
+
+```text
+gpt-5.5
+gpt-5.4
+gpt-5.4-mini
+gpt-5.3-codex-spark
+```
+
+The picker keeps provider-db metadata for context length, output length, tool support, reasoning,
+vision, pricing, and names. If the provider database lacks the recommended IDs, the fallback remains
+limited to models whose ID or name contains `codex`.
+
+Renderer model refresh treats `openai-codex` as a runtime catalog provider. During refresh it calls
+the runtime model list, updates the provider model cache, and uses that result as the standard model
+list. Existing stored standard-model snapshots are ignored for this provider so deprecated Codex
+model IDs do not remain visible after the dedicated Codex catalog changes.
+
+Provider-db loaded and updated events skip `openai-codex` in both the main-process background
+refresh path and the renderer materialized-provider refresh path. Codex catalog updates remain
+user-controlled through the Models tab refresh button and the explicit provider refresh route.
 
 ### Renderer UI
 
@@ -213,6 +249,9 @@ Add a Codex-specific connection panel under the existing provider settings shell
 The existing generic API-key field remains for ordinary providers. `openai-codex` hides the generic
 API-key input and uses status routes.
 
+The Models tab includes a refresh button wired to the same model-refresh path as the connection
+panel. Users can refresh provider models from the list where stale catalog data is visible.
+
 ## Compatibility
 
 - Existing `LLM_PROVIDER` records continue to load.
@@ -231,6 +270,11 @@ Unit tests:
 - Credential encryption, decryption, logout, and safe-storage unavailable handling.
 - Token refresh single-flight behavior.
 - Adapter endpoint rewrite and header redaction.
+- Codex model catalog ordering and provider-db metadata mapping.
+- Codex backend auth headers and bad-request error normalization.
+- Codex renderer refresh replaces stale persisted standard models with the dedicated runtime
+  catalog.
+- Models tab refresh emits the existing provider model refresh action.
 
 Main/provider tests:
 

@@ -972,7 +972,38 @@ function createRuntime() {
 
   const oauthPresenter = {
     startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
-    startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false)
+    startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false),
+    getOpenAICodexStatus: vi.fn().mockResolvedValue({
+      state: 'signed-out',
+      authenticated: false,
+      storage: 'safeStorage'
+    }),
+    startOpenAICodexBrowserLogin: vi.fn().mockResolvedValue({
+      state: 'authenticated',
+      authenticated: true,
+      storage: 'safeStorage'
+    }),
+    startOpenAICodexDeviceLogin: vi.fn().mockResolvedValue({
+      state: 'pending-device',
+      authenticated: false,
+      storage: 'file',
+      device: {
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://chatgpt.com/activate',
+        expiresAt: 123,
+        interval: 5
+      }
+    }),
+    cancelOpenAICodexLogin: vi.fn().mockResolvedValue({
+      state: 'signed-out',
+      authenticated: false,
+      storage: 'safeStorage'
+    }),
+    logoutOpenAICodex: vi.fn().mockResolvedValue({
+      state: 'signed-out',
+      authenticated: false,
+      storage: 'safeStorage'
+    })
   } as unknown as IOAuthPresenter
   const nowledgeMemConfig = {
     baseUrl: 'http://127.0.0.1:14242',
@@ -1637,6 +1668,56 @@ describe('dispatchDeepchatRoute', () => {
     expect(oauthPresenter.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
     expect(loginResult).toEqual({ success: true })
     expect(deviceFlowResult).toEqual({ success: false })
+  })
+
+  it('dispatches OpenAI Codex OAuth routes through OAuthPresenter', async () => {
+    const { runtime, oauthPresenter } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const statusResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.openaiCodex.getStatus',
+      {},
+      context
+    )
+    const browserResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.openaiCodex.startBrowserLogin',
+      {},
+      context
+    )
+    const deviceResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.openaiCodex.startDeviceLogin',
+      {},
+      context
+    )
+    const cancelResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.openaiCodex.cancelLogin',
+      {},
+      context
+    )
+    const logoutResult = await dispatchDeepchatRoute(
+      runtime,
+      'oauth.openaiCodex.logout',
+      {},
+      context
+    )
+
+    expect(oauthPresenter.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
+    expect(oauthPresenter.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
+    expect(oauthPresenter.startOpenAICodexDeviceLogin).toHaveBeenCalledTimes(1)
+    expect(oauthPresenter.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
+    expect(oauthPresenter.logoutOpenAICodex).toHaveBeenCalledTimes(1)
+    expect(statusResult.status.state).toBe('signed-out')
+    expect(browserResult.status.authenticated).toBe(true)
+    expect(deviceResult.status.device?.userCode).toBe('ABCD-EFGH')
+    expect(cancelResult.status.state).toBe('signed-out')
+    expect(logoutResult.status.state).toBe('signed-out')
   })
 
   it('dispatches database schema repair through SQLitePresenter', async () => {
