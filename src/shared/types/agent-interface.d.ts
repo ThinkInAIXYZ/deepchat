@@ -675,6 +675,8 @@ export interface DeepChatAgentConfig {
   memoryEmbedding?: DeepChatAgentMemoryEmbedding | null
   memoryExtractionModel?: DeepChatAgentModelSelection | null
   memoryRetrieval?: DeepChatAgentMemoryRetrieval | null
+  // Approximate token ceiling for the assembled memory injection (persona + working + recalled).
+  memoryInjectionTokenBudget?: number | null
 }
 
 export interface CreateDeepChatAgentInput {

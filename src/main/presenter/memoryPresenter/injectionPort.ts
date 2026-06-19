@@ -1,9 +1,31 @@
 import type { AgentMemoryKind } from '../sqlitePresenter/tables/agentMemory'
-import type { MemoryExtractionResult } from './types'
+import type { MemoryExtractionResult, MemoryReflectionResult } from './types'
 
 export interface MemoryInjectionPayload {
   selfModel: string | null
   memories: Array<{ id: string; kind: AgentMemoryKind; content: string }>
+  // Condensed open-session working-memory blob, injected ahead of recalled memories when present.
+  working?: string | null
+  // Approximate token ceiling for the assembled section; falls back to the default when unset.
+  tokenBudget?: number | null
+}
+
+// Default token ceiling for the assembled memory injection (persona + working + recalled).
+export const DEFAULT_INJECTION_TOKEN_BUDGET = 1200
+const MIN_INJECTION_TOKEN_BUDGET = 64
+const MAX_INJECTION_TOKEN_BUDGET = 8000
+
+// Char/4 heuristic, the same approximation the consolidation budget uses; no tokenizer dependency.
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+// Clamps a configured budget into a sane range, falling back to the default for anything malformed.
+export function resolveInjectionTokenBudget(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_INJECTION_TOKEN_BUDGET
+  const floored = Math.floor(value)
+  if (floored < MIN_INJECTION_TOKEN_BUDGET) return DEFAULT_INJECTION_TOKEN_BUDGET
+  return Math.min(floored, MAX_INJECTION_TOKEN_BUDGET)
 }
 
 // Minimal injection-only surface so AgentRuntimePresenter stays free of native deps
@@ -27,16 +49,18 @@ export interface MemoryRuntimePort extends MemoryInjectionPort {
     sourceEntryIds?: number[] | null
   }): Promise<MemoryExtractionResult>
 
-  // Reflects over memories and evolves the self-model (persona). Throttling is the
-  // implementation's concern; returns a new persona version id, or null on no-op/failure.
+  // Reflects over recent atomic memories and writes high-level insight rows (kind=reflection).
+  // Throttled on accumulated importance since the last reflection; returns the new reflection rows
+  // and the memories that fed them, or null on no-op/failure. Never writes persona.
   maybeReflect(
     agentId: string,
     model: { providerId: string; modelId: string },
-    createdCount: number
-  ): Promise<string | null>
+    sourceSession?: string | null
+  ): Promise<MemoryReflectionResult | null>
 }
 
 const SELF_MODEL_HEADER = '## Self-Model'
+const WORKING_MEMORY_HEADER = '## Working Memory'
 const MEMORIES_HEADER = '## Relevant Memories'
 
 const CONTEXT_DATA_OPEN = '<context-data kind="memory">'
@@ -69,17 +93,114 @@ function wrapAsContextData(body: string): string {
   return `${CONTEXT_DATA_OPEN}\n${body}\n${CONTEXT_DATA_CLOSE}`
 }
 
+function buildSection(header: string, body: string): string {
+  return `${header}\n${wrapAsContextData(body)}`
+}
+
+// Fits a high-priority section (persona/working) by truncating its body to the largest prefix that
+// keeps the whole assembled output within budget. Returns null when even an empty section overflows,
+// so the hard budget always wins over inclusion. Monotonic length -> binary search on the prefix.
+function fitSectionWithinBudget(
+  sections: string[],
+  header: string,
+  body: string,
+  budget: number
+): string | null {
+  const projectedTokens = (candidate: string): number =>
+    estimateTokens([...sections, buildSection(header, candidate)].join('\n\n'))
+  if (projectedTokens(body) <= budget) return buildSection(header, body)
+  if (projectedTokens('') > budget) return null
+  let lo = 0
+  let hi = body.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (projectedTokens(body.slice(0, mid)) <= budget) lo = mid
+    else hi = mid - 1
+  }
+  return buildSection(header, body.slice(0, lo))
+}
+
+const MIN_SECTION_BODY_CHARS = 24
+
+// Smallest non-empty body prefix used to seed a high-priority section so a kept section is never
+// reduced to a bare header/container shell while the sibling section still carries body.
+function minimalSectionBody(body: string): string {
+  return body.length > MIN_SECTION_BODY_CHARS ? body.slice(0, MIN_SECTION_BODY_CHARS) : body
+}
+
+// Admits persona and working under a hard budget. Priority is persona > working, but when both are
+// present the assembler refuses to starve working into an empty shell: it first checks that both
+// empty section skeletons fit (otherwise persona only), then reserves working a non-empty floor when
+// both floors fit, grows persona into the remaining budget, and finally fits working into whatever
+// persona leaves. Every step is bounded by fitSectionWithinBudget, so the output never exceeds budget.
+function placeHighPrioritySections(
+  sections: string[],
+  personaBody: string,
+  workingBody: string,
+  budget: number
+): void {
+  if (personaBody && workingBody) {
+    const skeletons = [buildSection(SELF_MODEL_HEADER, ''), buildSection(WORKING_MEMORY_HEADER, '')]
+    if (estimateTokens([...sections, ...skeletons].join('\n\n')) > budget) {
+      const personaOnly = fitSectionWithinBudget(sections, SELF_MODEL_HEADER, personaBody, budget)
+      if (personaOnly) sections.push(personaOnly)
+      return
+    }
+    const workingFloor = buildSection(WORKING_MEMORY_HEADER, minimalSectionBody(workingBody))
+    const personaFloor = buildSection(SELF_MODEL_HEADER, minimalSectionBody(personaBody))
+    const floorsFit =
+      estimateTokens([...sections, personaFloor, workingFloor].join('\n\n')) <= budget
+    const reserved = floorsFit ? workingFloor : buildSection(WORKING_MEMORY_HEADER, '')
+    const persona =
+      fitSectionWithinBudget([...sections, reserved], SELF_MODEL_HEADER, personaBody, budget) ??
+      buildSection(SELF_MODEL_HEADER, '')
+    sections.push(persona)
+    const working = fitSectionWithinBudget(sections, WORKING_MEMORY_HEADER, workingBody, budget)
+    if (working) sections.push(working)
+    return
+  }
+  const single = personaBody
+    ? fitSectionWithinBudget(sections, SELF_MODEL_HEADER, personaBody, budget)
+    : workingBody
+      ? fitSectionWithinBudget(sections, WORKING_MEMORY_HEADER, workingBody, budget)
+      : null
+  if (single) sections.push(single)
+}
+
+// Token-budgeted Context Assembler. Priority is persona > working > recalled units > episodic
+// summaries, but priority only decides admission order — the budget is a hard ceiling every section
+// counts against. Persona and working are placed first (see placeHighPrioritySections, which keeps
+// both present and truncated rather than letting one starve the other); recalled memories are then
+// added whole lines (never half a sentence) until the budget is reached; episodic summaries sit last
+// so they are cut first. The assembler is the final boundary and never trusts an upstream size cap,
+// so estimateTokens(buildMemorySection(payload)) <= the resolved budget always holds.
 export function buildMemorySection(payload: MemoryInjectionPayload | null): string {
   if (!payload) return ''
+  const budget = resolveInjectionTokenBudget(payload.tokenBudget)
   const sections: string[] = []
-  if (payload.selfModel) {
-    sections.push(
-      `${SELF_MODEL_HEADER}\n${wrapAsContextData(sanitizeForInjection(payload.selfModel))}`
+
+  const personaBody = payload.selfModel ? sanitizeForInjection(payload.selfModel) : ''
+  const workingBody = payload.working ? sanitizeForInjection(payload.working) : ''
+  placeHighPrioritySections(sections, personaBody, workingBody, budget)
+
+  // Working blobs are injected as their own section, never as recalled memories. recall() already
+  // excludes kind='working', so this is defense in depth against a hand-built or stale payload.
+  const recalled = payload.memories.filter((memory) => memory.kind !== 'working')
+  const ordered = [
+    ...recalled.filter((memory) => memory.kind !== 'episodic'),
+    ...recalled.filter((memory) => memory.kind === 'episodic')
+  ]
+  const lines: string[] = []
+  for (const memory of ordered) {
+    const candidate = [...lines, `- ${sanitizeForInjection(memory.content)}`]
+    const projected = [...sections, buildSection(MEMORIES_HEADER, candidate.join('\n'))].join(
+      '\n\n'
     )
+    if (estimateTokens(projected) > budget) break
+    lines.push(candidate[candidate.length - 1])
   }
-  if (payload.memories.length) {
-    const lines = payload.memories.map((memory) => `- ${sanitizeForInjection(memory.content)}`)
-    sections.push(`${MEMORIES_HEADER}\n${wrapAsContextData(lines.join('\n'))}`)
+  if (lines.length) {
+    sections.push(buildSection(MEMORIES_HEADER, lines.join('\n')))
   }
   return sections.length ? sections.join('\n\n') : ''
 }

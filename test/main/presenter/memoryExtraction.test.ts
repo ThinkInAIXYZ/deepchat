@@ -297,11 +297,18 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
 })
 
 describe('MemoryPresenter.maybeReflect cheap model', () => {
-  async function buildWithMemories(config: any, generateText: any, count = 3) {
+  // Importance sums past REFLECTION_IMPORTANCE_THRESHOLD (5.0) so the reflection actually fires.
+  async function buildWithMemories(config: any, generateText: any, count = 6) {
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
     const repo = makeFakeRepo()
     for (let i = 0; i < count; i += 1) {
-      repo.insert({ id: `m${i}`, agentId: 'a', kind: 'semantic', content: `fact ${i}` })
+      repo.insert({
+        id: `m${i}`,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `fact ${i}`,
+        importance: 0.9
+      })
     }
     const presenter = new MemoryPresenter({
       repository: repo as any,
@@ -321,31 +328,84 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
   }
 
   it('reflects through the configured memoryExtractionModel', async () => {
-    const generateText = vi.fn(async () => 'I am a concise, technical assistant.')
-    const { presenter } = await buildWithMemories(
+    const generateText = vi.fn(async () => '["The user prefers concise, technical answers."]')
+    const { presenter, repo } = await buildWithMemories(
       {
         memoryEnabled: true,
         memoryExtractionModel: { providerId: 'cheap-p', modelId: 'cheap-m' }
       },
       generateText
     )
-    const personaId = await presenter.maybeReflect(
-      'a',
-      { providerId: 'main-p', modelId: 'main-m' },
-      3
-    )
-    expect(personaId).toBeTruthy()
+    const result = await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
+    expect(result?.reflectionIds.length).toBe(1)
     expect(generateText).toHaveBeenCalledTimes(1)
     expect(generateText.mock.calls[0][0]).toBe('cheap-p')
     expect(generateText.mock.calls[0][1]).toBe('cheap-m')
+    // Reflection writes a kind=reflection row and never a persona.
+    const reflection = repo.getById(result!.reflectionIds[0])
+    expect(reflection.kind).toBe('reflection')
+    expect(reflection.source_entry_ids).toBe(null)
+    expect([...repo.rows.values()].some((r: any) => r.kind === 'persona')).toBe(false)
   })
 
   it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
-    const generateText = vi.fn(async () => 'I am a concise, technical assistant.')
+    const generateText = vi.fn(async () => '["An insight."]')
     const { presenter } = await buildWithMemories({ memoryEnabled: true }, generateText)
-    await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' }, 3)
+    await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
     expect(generateText.mock.calls[0][0]).toBe('main-p')
     expect(generateText.mock.calls[0][1]).toBe('main-m')
+  })
+
+  it('does not fire until accumulated importance crosses the threshold', async () => {
+    const generateText = vi.fn(async () => '["should not be produced"]')
+    // 3 units (importance 0.9 each, sum 2.7) clear the min-count gate but stay under 5.0.
+    const { presenter } = await buildWithMemories({ memoryEnabled: true }, generateText, 3)
+    const result = await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
+    expect(result).toBeNull()
+    expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('does not re-run the model on the same units after an empty reflection', async () => {
+    const generateText = vi.fn(async () => '[]')
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(generateText).toHaveBeenCalledTimes(1)
+    // No new units: the same batch must not re-trigger the model.
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(generateText).toHaveBeenCalledTimes(1)
+    // Fresh high-importance units past the attempt watermark re-open the trigger.
+    for (let i = 0; i < 6; i += 1) {
+      repo.insert({
+        id: `n${i}`,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `new ${i}`,
+        importance: 0.9,
+        createdAt: 2
+      })
+    }
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not re-run the model when every insight is a duplicate', async () => {
+    const { buildMemoryProvenanceKey } = await import('@/presenter/memoryPresenter/scoring')
+    const generateText = vi.fn(async () => '["already known insight"]')
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    // A reflection with this content already exists, so the model's insight dedups to nothing.
+    repo.insert({
+      id: 'dup',
+      agentId: 'a',
+      kind: 'reflection',
+      content: 'already known insight',
+      importance: 0.8,
+      createdAt: 0,
+      provenanceKey: buildMemoryProvenanceKey('a', 'reflection', 'already known insight')
+    })
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(generateText).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -387,10 +447,16 @@ function makeFakeRepo() {
     getById: (id: string) => rows.get(id),
     getByProvenanceKey: (agentId: string, key: string) =>
       [...rows.values()].find((r) => r.agent_id === agentId && r.provenance_key === key),
-    listByAgent: (agentId: string, opts?: any) =>
-      [...rows.values()].filter(
+    listByAgent: (agentId: string, opts?: any) => {
+      let result = [...rows.values()].filter(
         (r) => r.agent_id === agentId && (opts?.includeSuperseded || !r.superseded_by)
-      ),
+      )
+      if (opts?.kinds?.length) result = result.filter((r) => opts.kinds.includes(r.kind))
+      else result = result.filter((r) => r.kind !== 'working')
+      result.sort((a, b) => b.created_at - a.created_at)
+      if (opts?.limit) result = result.slice(0, opts.limit)
+      return result
+    },
     getActivePersona: () => undefined,
     listPersonaVersions: () => [],
     search: () => [],

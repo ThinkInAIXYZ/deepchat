@@ -4,16 +4,27 @@ import {
   DEFAULT_RECENCY_HALF_LIFE_MS,
   DEFAULT_RETRIEVAL,
   DEFAULT_SIMILARITY_THRESHOLD,
+  EPISODIC_HALF_LIFE_MS,
   FORGET_HALF_LIFE_MS,
   FTS_SIMILARITY_BASELINE,
   IMPORTANCE_FLOOR_COEF,
   MAX_RRF_K,
   MAX_TOP_K,
+  REFLECTION_HALF_LIFE_MS,
   type AgentMemoryRow,
   type FuseOptions,
   type MemoryRecallItem
 } from './types'
+import type { AgentMemoryKind } from '../sqlitePresenter/tables/agentMemory'
 import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
+
+// Recency half-life per cognitive layer: reflections persist longest, episodic summaries next,
+// everything else on the semantic default. persona/working never reach recall, so they fall through.
+export function halfLifeForKind(kind: AgentMemoryKind): number {
+  if (kind === 'reflection') return REFLECTION_HALF_LIFE_MS
+  if (kind === 'episodic') return EPISODIC_HALF_LIFE_MS
+  return DEFAULT_RECENCY_HALF_LIFE_MS
+}
 
 /** 余弦距离([0,2]) → 相似度([0,1])。其它度量也按 1-distance 归一并裁剪。 */
 export function distanceToSimilarity(distance: number): number {
@@ -207,7 +218,7 @@ export function fuse(
         candidate.similarity ?? baseline,
         opts.now,
         opts.weights,
-        opts.halfLifeMs
+        opts.halfLifeMs ?? halfLifeForKind(candidate.row.kind)
       )
       // retrievalScore is the primary signal; RRF is folded in as a small additive boost.
       return {

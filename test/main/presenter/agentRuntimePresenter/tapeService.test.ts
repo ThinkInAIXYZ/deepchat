@@ -934,6 +934,46 @@ describe('DeepChatTapeService', () => {
     expect(sourceMaps.reconstructionAnchorEntryIds).not.toContain(entryIdByName('fork/merge'))
   })
 
+  it('keeps memory anchors off the reconstruction lineage', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('s1')
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'compaction/manual',
+      source: { type: 'summary', id: 's1', seq: 1 },
+      state: {}
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'memory/extract',
+      source: { type: 'runtime_event', id: 's1', seq: 2 },
+      state: { memoryIds: ['m1'], count: 1, reason: 'episodic' }
+    })
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'memory/reflect',
+      source: { type: 'runtime_event', id: 's1', seq: 3 },
+      state: { reflectionIds: ['r1'], sourceMemoryIds: ['m1'], count: 1 }
+    })
+
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    const entryIdByName = (name: string) =>
+      table.getBySession('s1').find((entry: any) => entry.name === name)?.entry_id
+
+    // Memory anchors are recorded on the tape for observability...
+    expect(sourceMaps.anchorEntryIds).toContain(entryIdByName('memory/extract'))
+    expect(sourceMaps.anchorEntryIds).toContain(entryIdByName('memory/reflect'))
+    // ...but never own the reconstruction cursor; only the summary anchor does.
+    expect(sourceMaps.reconstructionAnchorEntryId).toBe(entryIdByName('compaction/manual'))
+    expect(sourceMaps.reconstructionAnchorEntryIds).not.toContain(entryIdByName('memory/extract'))
+    expect(sourceMaps.reconstructionAnchorEntryIds).not.toContain(entryIdByName('memory/reflect'))
+  })
+
   it('bounds replay slices to the selected view instead of pre-cursor history', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table)

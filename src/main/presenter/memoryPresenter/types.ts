@@ -194,6 +194,13 @@ export interface MemoryExtractionInput {
 // advances the memory cursor only on success, so a failure is retried next time.
 export type MemoryExtractionResult = { ok: true; createdIds: string[] } | { ok: false }
 
+// Outcome of a reflection pass: the new reflection rows plus the atomic memory ids that fed them.
+// Both go into the audit anchor; only the reflection rows are recallable.
+export interface MemoryReflectionResult {
+  reflectionIds: string[]
+  sourceMemoryIds: string[]
+}
+
 // URL-safe ids only (matching nanoid's `deepchat-xxxx`). Guards against path traversal when an
 // externally supplied id is used in a file path, and against malformed keys.
 const SAFE_AGENT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
@@ -218,8 +225,12 @@ export const DEFAULT_RETRIEVAL: Required<Omit<DeepChatAgentMemoryRetrieval, 'wei
   weights: { similarity: 0.6, recency: 0.25, importance: 0.15 }
 }
 
-// Half-life (ms) for recency exponential decay; 14 days.
+// Half-life (ms) for recency exponential decay; 14 days. Default for semantic units.
 export const DEFAULT_RECENCY_HALF_LIFE_MS = 14 * 24 * 60 * 60 * 1000
+// Per-kind recall half-lives: higher cognitive layers persist longer than raw units. Session
+// episodic summaries outlive atomic facts; reflections (high-level insights) decay slowest.
+export const EPISODIC_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000
+export const REFLECTION_HALF_LIFE_MS = 60 * 24 * 60 * 60 * 1000
 // Half-life (ms) for the materialized decay_score that drives archiving; 30 days.
 export const FORGET_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000
 // Neutral confidence for rows that carry none (legacy rows / not yet corroborated). Treated as the

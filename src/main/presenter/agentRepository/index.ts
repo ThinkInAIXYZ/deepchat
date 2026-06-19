@@ -95,7 +95,9 @@ const mergeDeepChatConfig = (
     memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
     memoryExtractionModel:
       overrideConfig.memoryExtractionModel ?? baseConfig.memoryExtractionModel ?? null,
-    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null
+    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null,
+    memoryInjectionTokenBudget:
+      overrideConfig.memoryInjectionTokenBudget ?? baseConfig.memoryInjectionTokenBudget ?? null
   })
 
 export class AgentRepository {

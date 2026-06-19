@@ -78,12 +78,14 @@ class FakeRepository implements MemoryRepositoryPort {
   listByAgent(
     agentId: string,
     options?: {
+      kinds?: AgentMemoryRow['kind'][]
       includeSuperseded?: boolean
       includeArchived?: boolean
       statuses?: AgentMemoryRow['status'][]
+      limit?: number
     }
   ) {
-    return [...this.rows.values()].filter(
+    let result = [...this.rows.values()].filter(
       (row) =>
         row.agent_id === agentId &&
         (options?.includeSuperseded || !row.superseded_by) &&
@@ -92,6 +94,11 @@ class FakeRepository implements MemoryRepositoryPort {
           row.status !== 'archived') &&
         (!options?.statuses?.length || options.statuses.includes(row.status))
     )
+    if (options?.kinds?.length) result = result.filter((row) => options.kinds!.includes(row.kind))
+    else result = result.filter((row) => row.kind !== 'working')
+    result.sort((a, b) => b.created_at - a.created_at)
+    if (options?.limit) result = result.slice(0, Math.max(1, Math.floor(options.limit)))
+    return result
   }
 
   getActivePersona(agentId: string) {
@@ -331,6 +338,229 @@ const enabledConfig: DeepChatAgentConfig = {
   memoryEmbedding: { providerId: 'p', modelId: 'm' }
 }
 
+describe('reflection rows (T3)', () => {
+  it('participate in recall alongside atomic units', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'r1',
+      agentId: 'deepchat',
+      kind: 'reflection',
+      content: 'the user works on redis backends',
+      status: 'embedded',
+      importance: 0.8
+    })
+    const results = await presenter.recall('deepchat', 'redis')
+    expect(results.map((item) => item.id)).toContain('r1')
+    expect(results.find((item) => item.id === 'r1')?.kind).toBe('reflection')
+  })
+})
+
+describe('working-memory L1 (T5)', () => {
+  it('refreshes one working blob and injects it at session open without recall', async () => {
+    const { presenter, repo, getEmbeddings } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'user prefers redis',
+      importance: 0.9
+    })
+    repo.insert({
+      id: 'r1',
+      agentId: 'deepchat',
+      kind: 'reflection',
+      content: 'user is a backend engineer',
+      importance: 0.8
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    const working = [...repo.rows.values()].filter((row) => row.kind === 'working')
+    expect(working).toHaveLength(1)
+    expect(working[0].content).toContain('user prefers redis')
+
+    // Empty query at session open: no embedding/recall, but the blob is injected.
+    getEmbeddings.mockClear()
+    const payload = await presenter.buildInjection('deepchat', '')
+    expect(payload?.working).toContain('user prefers redis')
+    expect(payload?.memories).toHaveLength(0)
+    expect(getEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('keeps a single working row across refreshes', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact one',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    repo.insert({
+      id: 's2',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact two',
+      importance: 0.95
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    const working = [...repo.rows.values()].filter((row) => row.kind === 'working')
+    expect(working).toHaveLength(1)
+    expect(working[0].content).toContain('fact two')
+  })
+
+  it('skips an oversized memory instead of emptying the blob', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'big',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'x'.repeat(2000),
+      importance: 0.99
+    })
+    repo.insert({
+      id: 'small',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'small resident fact',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    const working = [...repo.rows.values()].find((row) => row.kind === 'working')
+    expect(working?.content).toContain('small resident fact')
+    expect(working?.content).not.toContain('x'.repeat(2000))
+  })
+
+  it('falls back to recall when no working blob exists', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'likes redis',
+      status: 'embedded',
+      importance: 0.9
+    })
+    const payload = await presenter.buildInjection('deepchat', 'redis')
+    expect(payload?.working).toBeFalsy()
+    expect(payload?.memories.map((item) => item.id)).toContain('s1')
+  })
+
+  it('never surfaces the working blob in recall', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'redis fact',
+      status: 'embedded',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    const results = await presenter.recall('deepchat', 'redis')
+    expect(results.some((item) => item.kind === 'working')).toBe(false)
+  })
+
+  it('does nothing when memory is disabled', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: false })
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
+    expect(await presenter.buildInjection('deepchat', 'q')).toBeNull()
+  })
+
+  it('reading the working blob does not bump its access clock', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'fact one',
+      importance: 0.9
+    })
+    presenter.refreshWorkingMemory('deepchat')
+    presenter.refreshWorkingMemory('deepchat')
+    const workingRow = [...repo.rows.values()].find((row) => row.kind === 'working')!
+    const stamp = workingRow.last_accessed
+    expect(stamp).not.toBeNull()
+    await presenter.buildInjection('deepchat', '')
+    expect(repo.getById(workingRow.id)?.last_accessed).toBe(stamp)
+  })
+
+  it('refreshes the working blob on the offline consolidation pass', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const now = 1_000_000_000_000
+    // Recent relative to `now` so the same pass does not archive it before the blob build.
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'redis fact',
+      importance: 0.9,
+      createdAt: now
+    })
+    await presenter.runConsolidationPass('deepchat', now)
+    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(true)
+  })
+
+  it('schedules an async refresh on a cold-start miss and serves the blob next open', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'likes redis',
+      status: 'embedded',
+      importance: 0.9
+    })
+    // First open: no blob yet, so this turn is served by recall and a refresh is kicked off.
+    const first = await presenter.buildInjection('deepchat', 'redis')
+    expect(first?.working).toBeFalsy()
+    expect(first?.memories.map((item) => item.id)).toContain('s1')
+    await Promise.resolve()
+    // Next open: the background refresh has produced the blob.
+    const second = await presenter.buildInjection('deepchat', '')
+    expect(second?.working).toContain('likes redis')
+  })
+
+  it('coalesces concurrent cold-start misses into a single refresh', async () => {
+    const { presenter } = makePresenter(enabledConfig)
+    const refreshSpy = vi.spyOn(presenter, 'refreshWorkingMemory')
+    // Two opens race before either refresh microtask runs; the in-flight flag collapses them to one.
+    await Promise.all([
+      presenter.buildInjection('deepchat', 'q'),
+      presenter.buildInjection('deepchat', 'q')
+    ])
+    await Promise.resolve()
+    expect(refreshSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes again after a new memory even right after an empty cold-start miss', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    // Empty agent: the first open misses and its scheduled refresh finds nothing to blob.
+    await presenter.buildInjection('deepchat', 'q')
+    await Promise.resolve()
+    // A memory lands moments later; the next open must not be suppressed by a refresh timer.
+    repo.insert({
+      id: 's1',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'likes redis',
+      status: 'embedded',
+      importance: 0.9
+    })
+    await presenter.buildInjection('deepchat', '')
+    await Promise.resolve()
+    const served = await presenter.buildInjection('deepchat', '')
+    expect(served?.working).toContain('likes redis')
+  })
+})
+
 describe('memory scoring', () => {
   it('distanceToSimilarity clamps to [0,1]', () => {
     expect(distanceToSimilarity(0)).toBe(1)
@@ -480,6 +710,18 @@ describe('memory fuse (RRF)', () => {
     expect(item.sources).toEqual({ vec: true })
     expect(item.sourceSession).toBe('s1')
     expect(item.sourceEntryIds).toEqual([7, 8])
+  })
+
+  it('decays reflections slower than semantic units via per-kind half-life', () => {
+    const day = 24 * 60 * 60 * 1000
+    const semantic = makeRow('semantic', { kind: 'semantic', created_at: 0 })
+    const reflection = makeRow('reflection', { kind: 'reflection', created_at: 0 })
+    // Both keyword-only at the same baseline; only the per-kind half-life differs. Over 30 days the
+    // reflection's 60d half-life decays far less than the semantic 14d default, so it ranks on top
+    // even when listed at a worse keyword rank.
+    const aged = { topK: 10, rrfK: 60, weights, now: 30 * day }
+    const result = fuse([semantic, reflection], [], aged)
+    expect(result.map((item) => item.id)).toEqual(['reflection', 'semantic'])
   })
 
   it('parseSourceEntryIds tolerates malformed lineage', () => {

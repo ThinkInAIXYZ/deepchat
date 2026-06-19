@@ -257,6 +257,59 @@ describeIfSqlite('AgentMemoryTable', () => {
       db.close()
     }
   })
+
+  it("hides the internal 'working' cache row from generic listings, recall, and embedding", () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'unit', agentId: 'a', kind: 'semantic', content: 'redis caching note' })
+      table.insert({ id: 'work', agentId: 'a', kind: 'working', content: 'redis working blob' })
+
+      // Generic listing hides working; an explicit kinds allowlist still surfaces it.
+      expect(table.listByAgent('a').map((row) => row.id)).toEqual(['unit'])
+      expect(table.listByAgent('a', { kinds: ['working'] }).map((row) => row.id)).toEqual(['work'])
+      // Keyword recall never returns the working blob.
+      expect(table.search('a', 'redis').map((row) => row.id)).toEqual(['unit'])
+      // Working rows are never queued for embedding.
+      expect(table.listPendingEmbedding(50, 'a').map((row) => row.id)).toEqual(['unit'])
+      expect(table.listPendingEmbedding(50).map((row) => row.id)).toEqual(['unit'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('never requeues the working blob for embedding', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'unit',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'fact',
+        status: 'fts_only'
+      })
+      table.insert({
+        id: 'work',
+        agentId: 'a',
+        kind: 'working',
+        content: 'blob',
+        status: 'fts_only'
+      })
+
+      // A reindex requeues real rows but must leave the internal working cache alone, or it would
+      // strand at pending_embedding forever (listPendingEmbedding excludes working).
+      expect(table.requeueForEmbedding('a', ['fts_only'])).toBe(1)
+      expect(table.getById('unit')?.status).toBe('pending_embedding')
+      expect(table.getById('work')?.status).toBe('fts_only')
+    } finally {
+      db.close()
+    }
+  })
 })
 
 function ftsActive(db: InstanceType<NonNullable<typeof Database>>): boolean {

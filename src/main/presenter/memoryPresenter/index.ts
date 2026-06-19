@@ -24,28 +24,43 @@ import { CONFIDENCE_INCREMENT, DEFAULT_CONFIDENCE } from './types'
 import {
   appendMemorySection,
   buildMemorySection,
+  estimateTokens,
+  resolveInjectionTokenBudget,
   type MemoryInjectionPayload,
   type MemoryInjectionPort,
   type MemoryRuntimePort
 } from './injectionPort'
 import {
   buildExtractionPrompt,
+  buildReflectionInsightsPrompt,
   buildTriagePrompt,
   parseMemoryCandidates,
+  parseReflectionInsights,
   parseTriageDecision
 } from './extraction'
-import { buildReflectionPrompt, sanitizeSelfModel } from './extraction'
-import type { MemoryExtractionInput, MemoryExtractionResult, MemoryUpdateReason } from './types'
+import type {
+  MemoryExtractionInput,
+  MemoryExtractionResult,
+  MemoryReflectionResult,
+  MemoryUpdateReason
+} from './types'
 
 export { appendMemorySection, buildMemorySection, isSafeAgentId }
 export type { MemoryInjectionPayload, MemoryInjectionPort, MemoryRuntimePort }
 
-// Minimum non-persona memories before reflection can run.
+// Minimum atomic units before reflection can run.
 const MIN_MEMORIES_FOR_REFLECTION = 3
-// Reflect once every N accumulated memories.
-const REFLECT_EVERY_N_MEMORIES = 5
+// Reflection fires once the importance of units accumulated since the last reflection crosses this.
+const REFLECTION_IMPORTANCE_THRESHOLD = 5.0
+// Reflection rows start high and decay slowly (60d half-life) so high-level insights persist.
+const REFLECTION_IMPORTANCE = 0.8
 // Max memories fed into a single reflection prompt.
 const REFLECTION_MEMORY_LIMIT = 20
+
+// Working-memory L1 cache: a single condensed blob of an agent's highest-value resident memories,
+// refreshed in the background and injected at session open without a full recall.
+const WORKING_BLOB_TOKEN_LIMIT = 400
+const WORKING_PROVENANCE_SEED = 'session-working-blob'
 // Per-batch size and batch cap for a background reindex drain.
 const REINDEX_BATCH_SIZE = 50
 const REINDEX_MAX_BATCHES = 200
@@ -97,6 +112,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly lastConsolidationAt = new Map<string, number>()
   // In-flight timer-fired consolidation passes; dispose() awaits them so none writes after teardown.
   private readonly consolidationRuns = new Set<Promise<unknown>>()
+  // Per-agent watermark for a reflection attempt that ran the model but wrote nothing new (empty or
+  // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
+  // newer ones arrive. In-memory only: a restart costs at most one redundant attempt.
+  private readonly reflectionAttemptWatermark = new Map<string, number>()
+  // Agents with a cold-start blob refresh already scheduled, so concurrent open-misses coalesce into
+  // one rebuild. Cleared when that pass finishes, so a memory written between opens is picked up next.
+  private readonly workingRefreshInFlight = new Set<string>()
   // Set once dispose() begins so a timer that already fired turns its in-flight pass into a no-op
   // instead of writing to a database the teardown is about to close.
   private disposed = false
@@ -646,6 +668,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.refreshDecayScores(agentId, now)
     // archiveStale emits its own change event, so the pass only needs to emit for merges.
     this.archiveStale(agentId, now)
+    // Refresh the L1 working blob on the same idle cadence; cheap, SQLite-only, no model call.
+    this.refreshWorkingMemory(agentId)
 
     if (touched) {
       void this.processPendingEmbeddings(agentId).catch((error) => {
@@ -697,7 +721,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         [{ content: neighbor.content }]
       )
       calls += 1
-      inputTokens += Math.ceil(prompt.length / 4)
+      inputTokens += estimateTokens(prompt)
       let decision: MemoryDecision = ADD_DECISION
       try {
         const raw = await this.deps.generateText(model.providerId, model.modelId, prompt)
@@ -834,10 +858,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const candidateLimit = topK * 2
 
     // Keyword path covers any status that still has content (embedded | fts_only | error). persona
-    // is excluded: the self-model is injected separately as selfModel, never as a recalled memory.
+    // is excluded (the self-model is injected separately, never recalled) and working (an internal
+    // open-session cache row that must never feed back into recall).
     const ftsRows = this.deps.repository
       .search(agentId, normalizedQuery, candidateLimit)
-      .filter((row) => row.kind !== 'persona')
+      .filter((row) => row.kind !== 'persona' && row.kind !== 'working')
 
     // Vector path (embedded rows only).
     const vecMatches: { row: AgentMemoryRow; similarity: number }[] = []
@@ -880,12 +905,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
                 if (similarity < similarityThreshold) continue
                 const row = this.deps.repository.getById(match.memoryId)
                 // Skip persona even if an old/anomalous vector for it sits in the store: the
-                // self-model is injected separately, never recalled as a normal memory. Archived
-                // rows keep their vector but must stay out of recall until restored.
+                // self-model is injected separately, never recalled as a normal memory. working
+                // rows are never embedded, but skip them defensively too. Archived rows keep their
+                // vector but must stay out of recall until restored.
                 if (
                   !row ||
                   row.superseded_by ||
                   row.kind === 'persona' ||
+                  row.kind === 'working' ||
                   row.status === 'archived'
                 )
                   continue
@@ -927,63 +954,213 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionPayload | null> {
     if (this.disposed || !this.isEnabled(agentId)) return null
+    const config = this.deps.resolveAgentConfig(agentId)
     const persona = this.deps.repository.getActivePersona(agentId)
+    // The working blob is a precomputed L1 read (no recall, no access bump). At session open the
+    // query is empty so recall is a no-op and the blob carries the injection; on a normal turn the
+    // blob is injected alongside the query-relevant recall.
+    const working = this.readWorkingMemory(agentId)
+    // Cold start (or an evicted blob): serve this turn from recall and rebuild the blob off the hot
+    // path so the next open is served from L1.
+    if (!working) this.scheduleWorkingRefresh(agentId)
     const recalled = await this.recall(agentId, query)
-    if (!persona && recalled.length === 0) return null
+    if (!persona && !working && recalled.length === 0) return null
     return {
       selfModel: persona?.content ?? null,
-      memories: recalled.map((item) => ({ id: item.id, kind: item.kind, content: item.content }))
+      working,
+      memories: recalled.map((item) => ({ id: item.id, kind: item.kind, content: item.content })),
+      tokenBudget: resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
     }
   }
 
-  // ==================== Persona evolution ====================
+  // Reads the agent's working-memory blob without bumping its access clock, so last_accessed stays
+  // a pure "last refreshed at" stamp. Returns null on cold start (no blob), where recall takes over.
+  private readWorkingMemory(agentId: string): string | null {
+    const workingKey = buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
+    const row = this.deps.repository.getByProvenanceKey(agentId, workingKey)
+    const content = row?.content?.trim()
+    return content ? content : null
+  }
 
-  // Persona currently auto-evolves without gating; controlled approval is planned later.
-  // Reflects over recent memories and evolves the self-model. Throttled: runs only when the
-  // memory count crosses a REFLECT_EVERY_N_MEMORIES boundary, or when no persona exists yet.
-  // createdCount is the number written this round, used to detect the crossing. Returns the new
-  // persona version id, or null (not triggered / failed). Independent cheap call, never throws.
+  // Rebuilds the working-memory blob from the agent's highest-value resident memories (by importance,
+  // then access, then recency) into a single kind='working' row, capped at the blob token limit.
+  // Persona is injected separately as the self-model, so it stays out of the blob to avoid double
+  // injection. Synchronous SQLite-only work; runs on the offline maintenance pass.
+  // Fire-and-forget cold-start refresh: rebuilds the blob on a microtask so buildInjection never
+  // blocks on it. An in-flight flag coalesces concurrent open-misses; once the pass finishes the flag
+  // clears, so a memory written between opens is reflected on the next open rather than after a timer.
+  private scheduleWorkingRefresh(agentId: string): void {
+    if (this.disposed || !this.isEnabled(agentId)) return
+    if (this.workingRefreshInFlight.has(agentId)) return
+    this.workingRefreshInFlight.add(agentId)
+    void Promise.resolve()
+      .then(() => {
+        if (!this.disposed) this.refreshWorkingMemory(agentId)
+      })
+      .catch((error) => {
+        logger.warn(`[Memory] working refresh skipped: ${String(error)}`)
+      })
+      .finally(() => {
+        this.workingRefreshInFlight.delete(agentId)
+      })
+  }
+
+  refreshWorkingMemory(agentId: string): void {
+    if (this.disposed || !this.isEnabled(agentId)) return
+    const workingKey = buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
+    const existing = this.deps.repository.getByProvenanceKey(agentId, workingKey)
+    const blob = this.buildWorkingBlob(agentId)
+    if (!blob) {
+      if (existing) this.deps.repository.delete(existing.id)
+      return
+    }
+    const now = Date.now()
+    if (existing) {
+      this.deps.repository.updateContent(existing.id, blob, workingKey, now)
+      return
+    }
+    try {
+      this.deps.repository.insert({
+        id: `working-${nanoid(12)}`,
+        agentId,
+        kind: 'working',
+        content: blob,
+        importance: 0,
+        status: 'fts_only',
+        provenanceKey: workingKey,
+        createdAt: now
+      })
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+    }
+  }
+
+  private buildWorkingBlob(agentId: string): string {
+    const units = this.deps.repository
+      .listByAgent(agentId, { kinds: ['semantic', 'reflection', 'episodic'] })
+      .slice()
+      .sort(
+        (a, b) =>
+          b.importance - a.importance ||
+          b.access_count - a.access_count ||
+          b.created_at - a.created_at
+      )
+    const lines: string[] = []
+    let tokens = 0
+    for (const unit of units) {
+      const content = unit.content.trim()
+      if (!content) continue
+      const line = `- ${content}`
+      const cost = estimateTokens(line)
+      // Skip a single oversized memory rather than break, so it cannot starve the smaller, lower
+      // importance memories that would still fit under the cap.
+      if (tokens + cost > WORKING_BLOB_TOKEN_LIMIT) continue
+      lines.push(line)
+      tokens += cost
+    }
+    return lines.join('\n').trim()
+  }
+
+  // ==================== Reflection ====================
+
+  // Generative-Agents reflection: when the importance of atomic units accumulated since the last
+  // reflection crosses a threshold, synthesize a few high-level insight rows (kind=reflection) that
+  // participate in recall. The most recent reflection's timestamp is the watermark for "new since
+  // last reflection", so reflections never feed on themselves and a quiet agent never re-fires.
+  // Independent cheap-model call, fully throttled, never throws. Returns the new reflection rows and
+  // the units that fed them (for the audit anchor), or null when not triggered / no usable output.
   async maybeReflect(
     agentId: string,
     model: { providerId: string; modelId: string },
-    createdCount: number
-  ): Promise<string | null> {
+    sourceSession?: string | null
+  ): Promise<MemoryReflectionResult | null> {
     if (this.disposed || !this.isEnabled(agentId)) return null
     try {
-      const active = this.deps.repository
-        .listByAgent(agentId)
-        .filter((row) => row.kind !== 'persona')
-      if (active.length < MIN_MEMORIES_FOR_REFLECTION) return null
+      const units = this.deps.repository.listByAgent(agentId, { kinds: ['episodic', 'semantic'] })
+      if (units.length < MIN_MEMORIES_FOR_REFLECTION) return null
 
-      const previous = this.deps.repository.getActivePersona(agentId)
-      const before = Math.max(0, active.length - Math.max(0, createdCount))
-      const crossed =
-        Math.floor(before / REFLECT_EVERY_N_MEMORIES) <
-        Math.floor(active.length / REFLECT_EVERY_N_MEMORIES)
-      const shouldReflect = (!previous && active.length >= MIN_MEMORIES_FOR_REFLECTION) || crossed
-      if (!shouldReflect) return null
+      const lastReflection = this.deps.repository.listByAgent(agentId, {
+        kinds: ['reflection'],
+        limit: 1
+      })[0]
+      // A no-op model attempt advances an in-memory watermark too, so empty/duplicate output cannot
+      // re-trigger the model on the same units every extraction.
+      const watermark = Math.max(
+        lastReflection?.created_at ?? 0,
+        this.reflectionAttemptWatermark.get(agentId) ?? 0
+      )
+      const recentImportance = units
+        .filter((unit) => unit.created_at > watermark)
+        .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
+      if (recentImportance < REFLECTION_IMPORTANCE_THRESHOLD) return null
+      const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
 
-      const top = active
+      const top = units
         .slice()
         .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
         .slice(0, REFLECTION_MEMORY_LIMIT)
       const reflectionModel = this.resolveExtractionModel(agentId, model)
-      const selfModelText = await this.deps.generateText(
+      const raw = await this.deps.generateText(
         reflectionModel.providerId,
         reflectionModel.modelId,
-        buildReflectionPrompt(
-          previous?.content ?? null,
-          top.map((row) => row.content)
-        )
+        buildReflectionInsightsPrompt(top.map((row) => row.content))
       )
-      const sanitized = sanitizeSelfModel(selfModelText)
-      if (!sanitized || this.disposed) return null
-      return this.evolvePersona(agentId, sanitized)
+      if (this.disposed) return null
+      const insights = parseReflectionInsights(raw)
+      const reflectionIds: string[] = []
+      for (const insight of insights) {
+        const id = this.insertReflection(agentId, insight, sourceSession ?? null)
+        if (id) reflectionIds.push(id)
+      }
+      if (!reflectionIds.length) {
+        this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
+        return null
+      }
+      this.reflectionAttemptWatermark.delete(agentId)
+
+      this.emitChanged(agentId, 'extract')
+      void this.processPendingEmbeddings(agentId).catch((error) => {
+        logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+      })
+      return { reflectionIds, sourceMemoryIds: top.map((row) => row.id) }
     } catch (error) {
       logger.warn(`[Memory] reflection skipped: ${String(error)}`)
       return null
     }
   }
+
+  // Inserts one reflection insight. source_entry_ids stays null: a reflection has no direct tape
+  // span (the units it reasons over are tracked only in the audit anchor). Idempotent on content so
+  // a repeated insight is not re-added.
+  private insertReflection(
+    agentId: string,
+    content: string,
+    sourceSession: string | null
+  ): string | null {
+    const trimmed = content.trim()
+    if (!trimmed) return null
+    const provenanceKey = buildMemoryProvenanceKey(agentId, 'reflection', trimmed)
+    if (this.deps.repository.getByProvenanceKey(agentId, provenanceKey)) return null
+    const id = `mem-${nanoid(12)}`
+    try {
+      this.deps.repository.insert({
+        id,
+        agentId,
+        kind: 'reflection',
+        content: trimmed,
+        importance: REFLECTION_IMPORTANCE,
+        status: 'pending_embedding',
+        sourceSession,
+        provenanceKey
+      })
+      return id
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+      return null
+    }
+  }
+
+  // ==================== Persona ====================
 
   // Writes a new self-model version and supersedes the previous one. Anchored personas
   // (is_anchor) are never superseded.

@@ -1,7 +1,10 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
 
-export type AgentMemoryKind = 'episodic' | 'semantic' | 'reflection' | 'persona'
+// 'working' is an internal session-open injection cache (a single blob row per agent); it is never
+// recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
+// reserved future layer with no read/write path yet.
+export type AgentMemoryKind = 'episodic' | 'semantic' | 'reflection' | 'persona' | 'working'
 
 export type AgentMemoryStatus = 'pending_embedding' | 'embedded' | 'error' | 'fts_only' | 'archived'
 
@@ -333,6 +336,10 @@ export class AgentMemoryTable extends BaseTable {
     if (options.kinds?.length) {
       where.push(`kind IN (${options.kinds.map(() => '?').join(', ')})`)
       params.push(...options.kinds)
+    } else {
+      // The working-memory cache row is internal; hide it from every generic listing (recall feeds,
+      // consolidation, decay, management UI). Callers that need it ask for it via `kinds`.
+      where.push("kind != 'working'")
     }
     if (options.statuses?.length) {
       where.push(`status IN (${options.statuses.map(() => '?').join(', ')})`)
@@ -408,6 +415,7 @@ export class AgentMemoryTable extends BaseTable {
              AND am.agent_id = ?
              AND am.superseded_by IS NULL
              AND am.status != 'archived'
+             AND am.kind != 'working'
            ORDER BY bm25(agent_memory_fts)
            LIMIT ?`
         )
@@ -426,6 +434,7 @@ export class AgentMemoryTable extends BaseTable {
          WHERE agent_id = ?
            AND superseded_by IS NULL
            AND status != 'archived'
+           AND kind != 'working'
            AND content LIKE ? ESCAPE '\\'
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
@@ -439,7 +448,7 @@ export class AgentMemoryTable extends BaseTable {
       return this.db
         .prepare(
           `SELECT * FROM agent_memory
-           WHERE status = 'pending_embedding' AND kind != 'persona' AND agent_id = ?
+           WHERE status = 'pending_embedding' AND kind NOT IN ('persona', 'working') AND agent_id = ?
            ORDER BY created_at ASC
            LIMIT ?`
         )
@@ -448,7 +457,7 @@ export class AgentMemoryTable extends BaseTable {
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
-         WHERE status = 'pending_embedding' AND kind != 'persona'
+         WHERE status = 'pending_embedding' AND kind NOT IN ('persona', 'working')
          ORDER BY created_at ASC
          LIMIT ?`
       )
@@ -481,8 +490,10 @@ export class AgentMemoryTable extends BaseTable {
 
   // Resets the embedding state of the agent's non-superseded rows in `statuses` back to
   // pending_embedding in a single statement (no per-row round trips), so a reindex/backfill can
-  // re-queue a whole corpus without blocking. persona rows are excluded: the self-model is
-  // injected verbatim, never vector-recalled, so it must stay out of the vector store. Status
+  // re-queue a whole corpus without blocking. persona and working rows are excluded: the self-model
+  // is injected verbatim and the working blob is an internal open-session cache, so neither is
+  // vector-recalled and both must stay out of the vector store. Requeuing them would strand the row
+  // in pending_embedding forever, since listPendingEmbedding never returns those kinds. Status
   // changes do not touch content, so the FTS triggers (UPDATE OF content) never fire here.
   // Returns the number of rows changed.
   requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number {
@@ -497,7 +508,7 @@ export class AgentMemoryTable extends BaseTable {
              embedding_model = NULL
          WHERE agent_id = ?
            AND superseded_by IS NULL
-           AND kind != 'persona'
+           AND kind NOT IN ('persona', 'working')
            AND status IN (${placeholders})`
       )
       .run(agentId, ...statuses)
@@ -612,7 +623,7 @@ export class AgentMemoryTable extends BaseTable {
            AND superseded_by IS NULL
            AND status != 'archived'
            AND is_anchor = 0
-           AND kind != 'persona'
+           AND kind NOT IN ('persona', 'working')
            AND created_at < ?
            AND decay_score IS NOT NULL
            AND decay_score < ?`

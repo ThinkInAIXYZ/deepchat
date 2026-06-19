@@ -1927,16 +1927,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         })
       }
 
-      const personaId = await this.memoryPort.maybeReflect(
+      const reflection = await this.memoryPort.maybeReflect(
         agentId,
         { providerId: state.providerId, modelId: state.modelId },
-        createdIds.length
+        sessionId
       )
-      if (personaId) {
+      if (reflection) {
         this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
           sessionId,
-          name: 'persona/evolve',
-          state: { personaId, reason: options.reason }
+          name: 'memory/reflect',
+          state: {
+            reflectionIds: reflection.reflectionIds,
+            sourceMemoryIds: reflection.sourceMemoryIds,
+            count: reflection.reflectionIds.length,
+            reason: options.reason
+          }
         })
       }
     } catch (error) {
