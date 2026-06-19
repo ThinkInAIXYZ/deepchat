@@ -666,6 +666,27 @@
               {{ t('settings.deepchatAgents.memoryEmbeddingHint') }}
             </p>
 
+            <div class="mt-2 space-y-2 rounded-xl border border-border p-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-xs font-medium">
+                    {{ t('settings.deepchatAgents.personaEvolutionTitle') }}
+                  </div>
+                  <p class="mt-0.5 text-[11px] text-muted-foreground">
+                    {{ t('settings.deepchatAgents.personaEvolutionDescription') }}
+                  </p>
+                </div>
+                <Switch
+                  :model-value="form.personaEvolutionEnabled"
+                  :aria-label="t('settings.deepchatAgents.personaEvolutionTitle')"
+                  @update:model-value="form.personaEvolutionEnabled = $event"
+                />
+              </div>
+              <p class="rounded-lg bg-muted px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                {{ t('settings.deepchatAgents.personaEvolutionWarning') }}
+              </p>
+            </div>
+
             <div v-if="form.id && form.id !== DRAFT_AGENT_ID" class="pt-1">
               <Button
                 variant="outline"
@@ -733,6 +754,7 @@
       v-model:open="memoryManagerOpen"
       :agent-id="form.id"
       :has-embedding-configured="Boolean(form.memoryEmbedding)"
+      :persona-evolution-enabled="form.personaEvolutionEnabled"
     />
   </div>
 </template>
@@ -838,6 +860,7 @@ type FormState = {
   autoCompactionRetainRecentPairs: EditableNumberValue
   memoryEnabled: boolean
   memoryEmbedding: EditableModel
+  personaEvolutionEnabled: boolean
 }
 
 const LUCIDE_ICONS = ['bot', 'sparkles', 'brain', 'code', 'book-open', 'pen-tool', 'rocket']
@@ -913,7 +936,8 @@ const form = reactive<FormState>({
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
   memoryEnabled: false,
-  memoryEmbedding: null
+  memoryEmbedding: null,
+  personaEvolutionEnabled: false
 })
 
 const avatarKindOptions = computed(() => [
@@ -1167,7 +1191,8 @@ const emptyForm = (): FormState => ({
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
   memoryEnabled: false,
-  memoryEmbedding: null
+  memoryEmbedding: null,
+  personaEvolutionEnabled: false
 })
 
 const assignForm = (next: FormState) => Object.assign(form, next)
@@ -1288,7 +1313,8 @@ const fromAgent = (agent?: Agent | null): FormState => {
     memoryEnabled: config.memoryEnabled ?? false,
     memoryEmbedding: config.memoryEmbedding
       ? { providerId: config.memoryEmbedding.providerId, modelId: config.memoryEmbedding.modelId }
-      : null
+      : null,
+    personaEvolutionEnabled: config.personaEvolutionEnabled ?? false
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1515,7 +1541,8 @@ const saveAgent = async () => {
           form.autoCompactionRetainRecentPairs
         ),
         memoryEnabled: form.memoryEnabled,
-        memoryEmbedding: buildModelSelection(form.memoryEmbedding)
+        memoryEmbedding: buildModelSelection(form.memoryEmbedding),
+        personaEvolutionEnabled: form.personaEvolutionEnabled
       }
     }
     if (form.id) {

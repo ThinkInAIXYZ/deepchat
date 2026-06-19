@@ -173,11 +173,28 @@
         "error": "错误",
         "fts_only": "仅关键词",
         "archived": "已归档"
-      }
+      },
+      "pendingTitle": "待审批（{count}）",
+      "largeChange": "变更幅度较大，请仔细审查",
+      "personaCurrent": "当前自我模型",
+      "personaProposed": "拟更新的自我模型",
+      "personaNone": "尚无生效的自我模型",
+      "approve": "批准",
+      "reject": "拒绝",
+      "anchored": "已锚定",
+      "anchor": "锚定",
+      "unanchor": "取消锚定",
+      "rollbackConfirmTitle": "回滚到此自我模型？",
+      "rollbackConfirmBody": "此操作会将所选版本设为生效的自我模型，并替换当前版本。",
+      "personaEvolutionOnHint": "人格演化为实验功能。新的自我模型会以草稿形式出现在这里，仅在你批准后才会注入。",
+      "personaEvolutionOffHint": "人格演化是实验性的可选功能，当前该 agent 未开启。"
     },
     "compactionThreshold": "触发阈值",
     "compactionRetainPairs": "保留最近消息对",
-    "deleteConfirm": "确定删除 Agent “{name}” 吗？它的历史会话会自动回落到内置 DeepChat。"
+    "deleteConfirm": "确定删除 Agent “{name}” 吗？它的历史会话会自动回落到内置 DeepChat。",
+    "personaEvolutionTitle": "人格演化（实验）",
+    "personaEvolutionDescription": "让反思以草稿形式提出更新后的自我模型，交由你审批。独立于记忆开关，默认关闭。",
+    "personaEvolutionWarning": "蒸馏出的人格可能产生漂移或放大既往对话中的偏差。每次变更都需你显式批准，绝不会静默更新。"
   },
   "notificationsHooks": {
     "title": "Hooks",

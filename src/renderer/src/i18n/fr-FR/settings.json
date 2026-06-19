@@ -2245,8 +2245,25 @@
         "error": "Erreur",
         "fts_only": "Mots-clés uniquement",
         "archived": "Archivé"
-      }
-    }
+      },
+      "pendingTitle": "En attente d'approbation ({count})",
+      "largeChange": "Changement important — examinez attentivement",
+      "personaCurrent": "Modèle de soi actuel",
+      "personaProposed": "Modèle de soi proposé",
+      "personaNone": "Aucun modèle de soi actif pour l'instant",
+      "approve": "Approuver",
+      "reject": "Rejeter",
+      "anchored": "Ancré",
+      "anchor": "Ancrer",
+      "unanchor": "Désancrer",
+      "rollbackConfirmTitle": "Revenir à ce modèle de soi ?",
+      "rollbackConfirmBody": "Cela rend la version sélectionnée active et remplace l'actuelle.",
+      "personaEvolutionOnHint": "L'évolution de la persona est expérimentale. Les nouveaux modèles de soi apparaissent ici sous forme de brouillons et ne sont injectés qu'après votre approbation.",
+      "personaEvolutionOffHint": "L'évolution de la persona est une fonctionnalité expérimentale et optionnelle, actuellement désactivée pour cet agent."
+    },
+    "personaEvolutionTitle": "Évolution de la persona (expérimental)",
+    "personaEvolutionDescription": "Laissez la réflexion proposer des modèles de soi mis à jour sous forme de brouillons à approuver. Indépendant de la mémoire ; désactivé par défaut.",
+    "personaEvolutionWarning": "Les personas distillées peuvent dériver ou amplifier les biais des conversations passées. Chaque changement nécessite votre approbation explicite — jamais de mise à jour silencieuse."
   },
   "plugins": {
     "title": "Plugins",

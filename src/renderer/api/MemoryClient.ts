@@ -1,12 +1,16 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetStatusRoute,
+  memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRejectPersonaDraftRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySetPersonaAnchorRoute,
   type MemoryItem,
   type MemoryStatusDto
 } from '@shared/contracts/routes'
@@ -51,6 +55,34 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.ok
   }
 
+  async function listPersonaDrafts(agentId: string): Promise<MemoryItem[]> {
+    const result = await bridge.invoke(memoryListPersonaDraftsRoute.name, { agentId })
+    return result.drafts
+  }
+
+  async function approvePersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+    const result = await bridge.invoke(memoryApprovePersonaDraftRoute.name, { agentId, draftId })
+    return result.ok
+  }
+
+  async function rejectPersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+    const result = await bridge.invoke(memoryRejectPersonaDraftRoute.name, { agentId, draftId })
+    return result.ok
+  }
+
+  async function setPersonaAnchor(
+    agentId: string,
+    versionId: string,
+    anchored: boolean
+  ): Promise<boolean> {
+    const result = await bridge.invoke(memorySetPersonaAnchorRoute.name, {
+      agentId,
+      versionId,
+      anchored
+    })
+    return result.ok
+  }
+
   /** 订阅记忆变更事件；返回取消订阅函数。 */
   function onUpdated(listener: (payload: MemoryUpdatedPayload) => void): () => void {
     return bridge.on(memoryUpdatedEvent.name, listener)
@@ -64,6 +96,10 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     restore,
     listPersonaVersions,
     rollbackPersona,
+    listPersonaDrafts,
+    approvePersonaDraft,
+    rejectPersonaDraft,
+    setPersonaAnchor,
     onUpdated
   }
 }

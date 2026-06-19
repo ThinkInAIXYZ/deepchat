@@ -1,0 +1,354 @@
+import { vi } from 'vitest'
+
+import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import type {
+  AgentMemoryInsertInput,
+  AgentMemoryRow,
+  IMemoryVectorStore,
+  MemoryRepositoryPort,
+  MemoryVectorMatch,
+  MemoryVectorRecord
+} from '@/presenter/memoryPresenter/types'
+import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+
+// In-memory stand-in for the SQLite-backed repository. Mirrors the authoritative table's observable
+// behavior (provenance uniqueness, supersede/persona state machine, archive/decay) closely enough to
+// exercise the presenter without a native database.
+export class FakeRepository implements MemoryRepositoryPort {
+  rows = new Map<string, AgentMemoryRow>()
+
+  insert(input: AgentMemoryInsertInput): AgentMemoryRow {
+    if (input.provenanceKey) {
+      for (const row of this.rows.values()) {
+        if (row.agent_id === input.agentId && row.provenance_key === input.provenanceKey) {
+          throw new Error('UNIQUE constraint failed')
+        }
+      }
+    }
+    const row: AgentMemoryRow = {
+      id: input.id,
+      agent_id: input.agentId,
+      user_scope: input.userScope ?? null,
+      kind: input.kind,
+      content: input.content,
+      importance: input.importance ?? 0.5,
+      status: input.status ?? 'pending_embedding',
+      embedding_id: null,
+      embedding_dim: null,
+      embedding_model: null,
+      source_session: input.sourceSession ?? null,
+      provenance_key: input.provenanceKey ?? null,
+      is_anchor: input.isAnchor ? 1 : 0,
+      superseded_by: null,
+      created_at: input.createdAt ?? 1000,
+      last_accessed: null,
+      access_count: 0,
+      decay_score: null,
+      source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null,
+      confidence: null,
+      last_consolidated_at: null,
+      conflict_state: null,
+      persona_state: input.personaState ?? null
+    }
+    this.rows.set(row.id, row)
+    return row
+  }
+
+  getById(id: string) {
+    return this.rows.get(id)
+  }
+
+  getByProvenanceKey(agentId: string, provenanceKey: string) {
+    return [...this.rows.values()].find(
+      (row) => row.agent_id === agentId && row.provenance_key === provenanceKey
+    )
+  }
+
+  listByAgent(
+    agentId: string,
+    options?: {
+      kinds?: AgentMemoryRow['kind'][]
+      includeSuperseded?: boolean
+      includeArchived?: boolean
+      statuses?: AgentMemoryRow['status'][]
+      limit?: number
+    }
+  ) {
+    let result = [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        (options?.includeSuperseded || !row.superseded_by) &&
+        (options?.includeArchived ||
+          options?.statuses?.includes('archived') ||
+          row.status !== 'archived') &&
+        (!options?.statuses?.length || options.statuses.includes(row.status))
+    )
+    if (options?.kinds?.length) result = result.filter((row) => options.kinds!.includes(row.kind))
+    else result = result.filter((row) => row.kind !== 'working')
+    result.sort((a, b) => b.created_at - a.created_at)
+    if (options?.limit) result = result.slice(0, Math.max(1, Math.floor(options.limit)))
+    return result
+  }
+
+  getActivePersona(agentId: string) {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          row.kind === 'persona' &&
+          (row.persona_state === 'active' ||
+            (row.persona_state == null && row.superseded_by === null))
+      )
+      .sort((a, b) => b.created_at - a.created_at)[0]
+  }
+
+  getDraftPersona(agentId: string) {
+    return [...this.rows.values()]
+      .filter(
+        (row) => row.agent_id === agentId && row.kind === 'persona' && row.persona_state === 'draft'
+      )
+      .sort((a, b) => b.created_at - a.created_at)[0]
+  }
+
+  setPersonaState(id: string, state: string, supersededBy?: string | null) {
+    const row = this.rows.get(id)
+    if (!row) return
+    row.persona_state = state
+    if (supersededBy !== undefined) row.superseded_by = supersededBy
+  }
+
+  setAnchor(id: string, anchored: boolean) {
+    const row = this.rows.get(id)
+    if (row) row.is_anchor = anchored ? 1 : 0
+  }
+
+  listPersonaVersions(agentId: string) {
+    return [...this.rows.values()]
+      .filter((row) => row.agent_id === agentId && row.kind === 'persona')
+      .sort((a, b) => b.created_at - a.created_at)
+  }
+
+  search(agentId: string, query: string, limit = 20) {
+    const q = query.toLowerCase()
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          !row.superseded_by &&
+          row.status !== 'archived' &&
+          row.content.toLowerCase().includes(q)
+      )
+      .slice(0, limit)
+  }
+
+  listPendingEmbedding(limit = 50, agentId?: string) {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.status === 'pending_embedding' &&
+          row.kind !== 'persona' &&
+          (!agentId || row.agent_id === agentId)
+      )
+      .slice(0, limit)
+  }
+
+  updateStatus(
+    id: string,
+    status: AgentMemoryRow['status'],
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
+  ) {
+    const row = this.rows.get(id)
+    if (!row) return
+    row.status = status
+    row.embedding_id = embedding?.embeddingId ?? null
+    row.embedding_dim = embedding?.embeddingDim ?? null
+    row.embedding_model = embedding?.embeddingModel ?? null
+  }
+
+  requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
+    let changed = 0
+    for (const row of this.rows.values()) {
+      if (row.agent_id !== agentId || row.superseded_by || row.kind === 'persona') continue
+      if (!statuses.includes(row.status)) continue
+      row.status = 'pending_embedding'
+      row.embedding_id = null
+      row.embedding_dim = null
+      row.embedding_model = null
+      changed += 1
+    }
+    return changed
+  }
+
+  markSuperseded(id: string, supersededBy: string | null) {
+    const row = this.rows.get(id)
+    if (row) row.superseded_by = supersededBy
+  }
+
+  recordAccess(id: string, accessedAt = 0) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.last_accessed = accessedAt
+      row.access_count += 1
+    }
+  }
+
+  updateDecayScore(id: string, decayScore: number | null, consolidatedAt: number | null = null) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.decay_score = decayScore
+      if (consolidatedAt !== null) row.last_consolidated_at = consolidatedAt
+    }
+  }
+
+  updateContent(id: string, content: string, provenanceKey: string | null, at = 0) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.content = content
+      row.provenance_key = provenanceKey
+      row.last_accessed = at
+      row.last_consolidated_at = at
+    }
+  }
+
+  setConfidence(id: string, confidence: number) {
+    const row = this.rows.get(id)
+    if (row)
+      row.confidence = row.confidence === null ? confidence : Math.max(row.confidence, confidence)
+  }
+
+  setImportance(id: string, importance: number) {
+    const row = this.rows.get(id)
+    if (row) row.importance = Math.max(row.importance, importance)
+  }
+
+  markConflict(id: string, state: 'challenged' | null) {
+    const row = this.rows.get(id)
+    if (row) row.conflict_state = state
+  }
+
+  setLastConsolidatedAt(id: string, at = 0) {
+    const row = this.rows.get(id)
+    if (row) row.last_consolidated_at = at
+  }
+
+  getLastConsolidatedAt(agentId: string) {
+    let max: number | null = null
+    for (const row of this.rows.values()) {
+      if (row.agent_id !== agentId || row.last_consolidated_at === null) continue
+      if (max === null || row.last_consolidated_at > max) max = row.last_consolidated_at
+    }
+    return max
+  }
+
+  archive(id: string, at = 0) {
+    const row = this.rows.get(id)
+    if (row) {
+      row.status = 'archived'
+      row.last_consolidated_at = at
+    }
+  }
+
+  listArchiveCandidates(agentId: string, before: number, decayBelow: number) {
+    return [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        !row.superseded_by &&
+        row.status !== 'archived' &&
+        row.is_anchor === 0 &&
+        row.kind !== 'persona' &&
+        row.created_at < before &&
+        row.decay_score !== null &&
+        row.decay_score < decayBelow
+    )
+  }
+
+  delete(id: string) {
+    this.rows.delete(id)
+  }
+
+  clearByAgent(agentId: string) {
+    let removed = 0
+    for (const [id, row] of this.rows) {
+      if (row.agent_id === agentId) {
+        this.rows.delete(id)
+        removed += 1
+      }
+    }
+    return removed
+  }
+
+  countByAgent(agentId: string) {
+    return this.listByAgent(agentId, { includeSuperseded: true }).length
+  }
+}
+
+export class FakeVectorStore implements IMemoryVectorStore {
+  vectors = new Map<string, number[]>()
+
+  async upsert(records: MemoryVectorRecord[]) {
+    for (const record of records) this.vectors.set(record.memoryId, record.embedding)
+  }
+
+  async query(embedding: number[], options: { topK: number }): Promise<MemoryVectorMatch[]> {
+    return [...this.vectors.entries()]
+      .map(([memoryId, vec]) => ({ memoryId, distance: 1 - cosine(embedding, vec) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, options.topK)
+  }
+
+  async deleteByMemoryIds(memoryIds: string[]) {
+    for (const id of memoryIds) this.vectors.delete(id)
+  }
+
+  async close() {}
+
+  isUsable() {
+    return true
+  }
+}
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0
+  let na = 0
+  let nb = 0
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i]
+    na += a[i] * a[i]
+    nb += b[i] * b[i]
+  }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1)
+}
+
+// Maps text to a keyword-correlated toy vector so similarity ordering is assertable.
+export function textToVector(text: string): number[] {
+  const t = text.toLowerCase()
+  return [t.includes('redis') ? 1 : 0, t.includes('vue') ? 1 : 0, t.includes('简洁') ? 1 : 0, 0.01]
+}
+
+export const enabledConfig: DeepChatAgentConfig = {
+  memoryEnabled: true,
+  memoryEmbedding: { providerId: 'p', modelId: 'm' }
+}
+
+export function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeRepository()) {
+  const store = new FakeVectorStore()
+  const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+    texts.map((text) => textToVector(text))
+  )
+  // Models the on-disk reset: clearing memories deletes the agent's vector file.
+  const resetVectorStore = vi.fn(async () => {
+    store.vectors.clear()
+  })
+  const presenter = new MemoryPresenter({
+    repository: repo,
+    resolveAgentConfig: () => config,
+    getEmbeddings,
+    createVectorStore: async () => store,
+    resetVectorStore
+  })
+  return { presenter, repo, store, getEmbeddings, resetVectorStore }
+}

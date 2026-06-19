@@ -17,326 +17,18 @@ import {
   retrievalScore
 } from '@/presenter/memoryPresenter/scoring'
 import type {
-  AgentMemoryInsertInput,
   AgentMemoryRow,
   IMemoryVectorStore,
-  MemoryRepositoryPort,
-  MemoryVectorMatch,
-  MemoryVectorRecord
+  MemoryVectorMatch
 } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
-
-class FakeRepository implements MemoryRepositoryPort {
-  rows = new Map<string, AgentMemoryRow>()
-
-  insert(input: AgentMemoryInsertInput): AgentMemoryRow {
-    if (input.provenanceKey) {
-      for (const row of this.rows.values()) {
-        if (row.agent_id === input.agentId && row.provenance_key === input.provenanceKey) {
-          throw new Error('UNIQUE constraint failed')
-        }
-      }
-    }
-    const row: AgentMemoryRow = {
-      id: input.id,
-      agent_id: input.agentId,
-      user_scope: input.userScope ?? null,
-      kind: input.kind,
-      content: input.content,
-      importance: input.importance ?? 0.5,
-      status: input.status ?? 'pending_embedding',
-      embedding_id: null,
-      embedding_dim: null,
-      embedding_model: null,
-      source_session: input.sourceSession ?? null,
-      provenance_key: input.provenanceKey ?? null,
-      is_anchor: input.isAnchor ? 1 : 0,
-      superseded_by: null,
-      created_at: input.createdAt ?? 1000,
-      last_accessed: null,
-      access_count: 0,
-      decay_score: null,
-      source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null,
-      confidence: null,
-      last_consolidated_at: null,
-      conflict_state: null
-    }
-    this.rows.set(row.id, row)
-    return row
-  }
-
-  getById(id: string) {
-    return this.rows.get(id)
-  }
-
-  getByProvenanceKey(agentId: string, provenanceKey: string) {
-    return [...this.rows.values()].find(
-      (row) => row.agent_id === agentId && row.provenance_key === provenanceKey
-    )
-  }
-
-  listByAgent(
-    agentId: string,
-    options?: {
-      kinds?: AgentMemoryRow['kind'][]
-      includeSuperseded?: boolean
-      includeArchived?: boolean
-      statuses?: AgentMemoryRow['status'][]
-      limit?: number
-    }
-  ) {
-    let result = [...this.rows.values()].filter(
-      (row) =>
-        row.agent_id === agentId &&
-        (options?.includeSuperseded || !row.superseded_by) &&
-        (options?.includeArchived ||
-          options?.statuses?.includes('archived') ||
-          row.status !== 'archived') &&
-        (!options?.statuses?.length || options.statuses.includes(row.status))
-    )
-    if (options?.kinds?.length) result = result.filter((row) => options.kinds!.includes(row.kind))
-    else result = result.filter((row) => row.kind !== 'working')
-    result.sort((a, b) => b.created_at - a.created_at)
-    if (options?.limit) result = result.slice(0, Math.max(1, Math.floor(options.limit)))
-    return result
-  }
-
-  getActivePersona(agentId: string) {
-    return [...this.rows.values()]
-      .filter((row) => row.agent_id === agentId && row.kind === 'persona' && !row.superseded_by)
-      .sort((a, b) => b.created_at - a.created_at)[0]
-  }
-
-  listPersonaVersions(agentId: string) {
-    return [...this.rows.values()]
-      .filter((row) => row.agent_id === agentId && row.kind === 'persona')
-      .sort((a, b) => b.created_at - a.created_at)
-  }
-
-  search(agentId: string, query: string, limit = 20) {
-    const q = query.toLowerCase()
-    return [...this.rows.values()]
-      .filter(
-        (row) =>
-          row.agent_id === agentId &&
-          !row.superseded_by &&
-          row.status !== 'archived' &&
-          row.content.toLowerCase().includes(q)
-      )
-      .slice(0, limit)
-  }
-
-  listPendingEmbedding(limit = 50, agentId?: string) {
-    return [...this.rows.values()]
-      .filter(
-        (row) =>
-          row.status === 'pending_embedding' &&
-          row.kind !== 'persona' &&
-          (!agentId || row.agent_id === agentId)
-      )
-      .slice(0, limit)
-  }
-
-  updateStatus(
-    id: string,
-    status: AgentMemoryRow['status'],
-    embedding?: {
-      embeddingId?: string | null
-      embeddingDim?: number | null
-      embeddingModel?: string | null
-    }
-  ) {
-    const row = this.rows.get(id)
-    if (!row) return
-    row.status = status
-    row.embedding_id = embedding?.embeddingId ?? null
-    row.embedding_dim = embedding?.embeddingDim ?? null
-    row.embedding_model = embedding?.embeddingModel ?? null
-  }
-
-  requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
-    let changed = 0
-    for (const row of this.rows.values()) {
-      if (row.agent_id !== agentId || row.superseded_by || row.kind === 'persona') continue
-      if (!statuses.includes(row.status)) continue
-      row.status = 'pending_embedding'
-      row.embedding_id = null
-      row.embedding_dim = null
-      row.embedding_model = null
-      changed += 1
-    }
-    return changed
-  }
-
-  markSuperseded(id: string, supersededBy: string | null) {
-    const row = this.rows.get(id)
-    if (row) row.superseded_by = supersededBy
-  }
-
-  recordAccess(id: string, accessedAt = 0) {
-    const row = this.rows.get(id)
-    if (row) {
-      row.last_accessed = accessedAt
-      row.access_count += 1
-    }
-  }
-
-  updateDecayScore(id: string, decayScore: number | null, consolidatedAt: number | null = null) {
-    const row = this.rows.get(id)
-    if (row) {
-      row.decay_score = decayScore
-      if (consolidatedAt !== null) row.last_consolidated_at = consolidatedAt
-    }
-  }
-
-  updateContent(id: string, content: string, provenanceKey: string | null, at = 0) {
-    const row = this.rows.get(id)
-    if (row) {
-      row.content = content
-      row.provenance_key = provenanceKey
-      row.last_accessed = at
-      row.last_consolidated_at = at
-    }
-  }
-
-  setConfidence(id: string, confidence: number) {
-    const row = this.rows.get(id)
-    if (row)
-      row.confidence = row.confidence === null ? confidence : Math.max(row.confidence, confidence)
-  }
-
-  setImportance(id: string, importance: number) {
-    const row = this.rows.get(id)
-    if (row) row.importance = Math.max(row.importance, importance)
-  }
-
-  markConflict(id: string, state: 'challenged' | null) {
-    const row = this.rows.get(id)
-    if (row) row.conflict_state = state
-  }
-
-  setLastConsolidatedAt(id: string, at = 0) {
-    const row = this.rows.get(id)
-    if (row) row.last_consolidated_at = at
-  }
-
-  getLastConsolidatedAt(agentId: string) {
-    let max: number | null = null
-    for (const row of this.rows.values()) {
-      if (row.agent_id !== agentId || row.last_consolidated_at === null) continue
-      if (max === null || row.last_consolidated_at > max) max = row.last_consolidated_at
-    }
-    return max
-  }
-
-  archive(id: string, at = 0) {
-    const row = this.rows.get(id)
-    if (row) {
-      row.status = 'archived'
-      row.last_consolidated_at = at
-    }
-  }
-
-  listArchiveCandidates(agentId: string, before: number, decayBelow: number) {
-    return [...this.rows.values()].filter(
-      (row) =>
-        row.agent_id === agentId &&
-        !row.superseded_by &&
-        row.status !== 'archived' &&
-        row.is_anchor === 0 &&
-        row.kind !== 'persona' &&
-        row.created_at < before &&
-        row.decay_score !== null &&
-        row.decay_score < decayBelow
-    )
-  }
-
-  delete(id: string) {
-    this.rows.delete(id)
-  }
-
-  clearByAgent(agentId: string) {
-    let removed = 0
-    for (const [id, row] of this.rows) {
-      if (row.agent_id === agentId) {
-        this.rows.delete(id)
-        removed += 1
-      }
-    }
-    return removed
-  }
-
-  countByAgent(agentId: string) {
-    return this.listByAgent(agentId, { includeSuperseded: true }).length
-  }
-}
-
-class FakeVectorStore implements IMemoryVectorStore {
-  vectors = new Map<string, number[]>()
-
-  async upsert(records: MemoryVectorRecord[]) {
-    for (const record of records) this.vectors.set(record.memoryId, record.embedding)
-  }
-
-  async query(embedding: number[], options: { topK: number }): Promise<MemoryVectorMatch[]> {
-    return [...this.vectors.entries()]
-      .map(([memoryId, vec]) => ({ memoryId, distance: 1 - cosine(embedding, vec) }))
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, options.topK)
-  }
-
-  async deleteByMemoryIds(memoryIds: string[]) {
-    for (const id of memoryIds) this.vectors.delete(id)
-  }
-
-  async close() {}
-
-  isUsable() {
-    return true
-  }
-}
-
-function cosine(a: number[], b: number[]): number {
-  let dot = 0
-  let na = 0
-  let nb = 0
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i]
-    na += a[i] * a[i]
-    nb += b[i] * b[i]
-  }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1)
-}
-
-function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeRepository()) {
-  const store = new FakeVectorStore()
-  const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
-    texts.map((text) => textToVector(text))
-  )
-  // Models the on-disk reset: clearing memories deletes the agent's vector file.
-  const resetVectorStore = vi.fn(async () => {
-    store.vectors.clear()
-  })
-  const presenter = new MemoryPresenter({
-    repository: repo,
-    resolveAgentConfig: () => config,
-    getEmbeddings,
-    createVectorStore: async () => store,
-    resetVectorStore
-  })
-  return { presenter, repo, store, getEmbeddings, resetVectorStore }
-}
-
-// Maps text to a keyword-correlated toy vector so similarity ordering is assertable.
-function textToVector(text: string): number[] {
-  const t = text.toLowerCase()
-  return [t.includes('redis') ? 1 : 0, t.includes('vue') ? 1 : 0, t.includes('简洁') ? 1 : 0, 0.01]
-}
-
-const enabledConfig: DeepChatAgentConfig = {
-  memoryEnabled: true,
-  memoryEmbedding: { providerId: 'p', modelId: 'm' }
-}
+import {
+  enabledConfig,
+  FakeRepository,
+  FakeVectorStore,
+  makePresenter,
+  textToVector
+} from './fakes/memoryFakes'
 
 describe('reflection rows (T3)', () => {
   it('participate in recall alongside atomic units', async () => {
@@ -814,7 +506,8 @@ describe('MemoryPresenter recall + injection', () => {
 
   it('buildInjection includes self-model and recalled memories', async () => {
     const { presenter } = makePresenter(enabledConfig)
-    presenter.evolvePersona('a', 'I answer concisely')
+    const draft = presenter.evolvePersona('a', 'I answer concisely')
+    await presenter.approvePersonaDraft('a', draft!)
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
     await presenter.processPendingEmbeddings('a')
     const payload = await presenter.buildInjection('a', 'redis')
@@ -823,37 +516,226 @@ describe('MemoryPresenter recall + injection', () => {
   })
 })
 
-describe('MemoryPresenter persona evolution', () => {
-  it('evolve supersedes previous active persona', () => {
+describe('MemoryPresenter guarded persona evolution', () => {
+  it('evolvePersona writes a draft that is not active and not injected', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const draft = presenter.evolvePersona('a', 'a draft self-model', null)
+    expect(repo.getById(draft!)?.persona_state).toBe('draft')
+    expect(repo.getActivePersona('a')).toBeUndefined()
+    const payload = await presenter.buildInjection('a', 'anything')
+    expect(payload?.selfModel ?? null).toBeNull()
+  })
+
+  it('approve promotes the draft to active and supersedes the previous active', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const v1 = presenter.evolvePersona('a', 'v1', null)
+    await presenter.approvePersonaDraft('a', v1!)
     const v2 = presenter.evolvePersona('a', 'v2', null)
-    expect(presenter.listPersonaVersions('a')).toHaveLength(2)
+    // The pending draft is not yet injected.
+    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('v1')
+    await presenter.approvePersonaDraft('a', v2!)
     expect(repo.getById(v1!)?.superseded_by).toBe(v2)
-    expect(presenter.getStatus('a').hasPersona).toBe(true)
+    expect(repo.getById(v1!)?.persona_state).toBe('superseded')
+    expect(repo.getActivePersona('a')?.id).toBe(v2)
+    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('v2')
   })
 
-  it('does not supersede anchor personas', () => {
-    const { presenter, repo } = makePresenter(enabledConfig)
-    repo.insert({
-      id: 'anchor',
-      agentId: 'a',
-      kind: 'persona',
-      content: 'core values',
-      isAnchor: true,
-      createdAt: 1
-    })
-    presenter.evolvePersona('a', 'evolved', null)
-    expect(repo.getById('anchor')?.superseded_by).toBeNull()
-  })
-
-  it('rollback restores a historical version', () => {
+  it('reject discards the draft and leaves the active persona unchanged', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const v1 = presenter.evolvePersona('a', 'v1', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    const draft = presenter.evolvePersona('a', 'unwanted', null)
+    expect(await presenter.rejectPersonaDraft('a', draft!)).toBe(true)
+    expect(repo.getById(draft!)?.persona_state).toBe('rejected')
+    expect(presenter.listPersonaDrafts('a')).toHaveLength(0)
+    expect(repo.getActivePersona('a')?.content).toBe('v1')
+  })
+
+  it('approving anchored active still replaces it (explicit user action)', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const v1 = presenter.evolvePersona('a', 'v1', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    expect(await presenter.setPersonaAnchor('a', v1!, true)).toBe(true)
+    expect(repo.getById(v1!)?.is_anchor).toBe(1)
     const v2 = presenter.evolvePersona('a', 'v2', null)
-    expect(presenter.rollbackPersona('a', v1!)).toBe(true)
-    expect(repo.getById(v1!)?.superseded_by).toBeNull()
+    await presenter.approvePersonaDraft('a', v2!)
+    expect(repo.getActivePersona('a')?.id).toBe(v2)
+    // The anchored predecessor is superseded, never left as a second active row (single-active invariant).
+    expect(repo.getById(v1!)?.persona_state).toBe('superseded')
+    expect(
+      repo.listPersonaVersions('a').filter((row) => row.persona_state === 'active')
+    ).toHaveLength(1)
+  })
+
+  it('rollback refuses while the current active is anchored', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const v1 = presenter.evolvePersona('a', 'v1', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    const v2 = presenter.evolvePersona('a', 'v2', null)
+    await presenter.approvePersonaDraft('a', v2!)
+    await presenter.setPersonaAnchor('a', v2!, true)
+    expect(await presenter.rollbackPersona('a', v1!)).toBe(false)
+    expect(repo.getActivePersona('a')?.id).toBe(v2)
+    expect(repo.getById(v2!)?.superseded_by).toBeNull()
+  })
+
+  it('rollback re-activates a historical version when not anchored', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const v1 = presenter.evolvePersona('a', 'v1', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    const v2 = presenter.evolvePersona('a', 'v2', null)
+    await presenter.approvePersonaDraft('a', v2!)
+    expect(await presenter.rollbackPersona('a', v1!)).toBe(true)
+    expect(repo.getActivePersona('a')?.id).toBe(v1)
     expect(repo.getById(v2!)?.superseded_by).toBe(v1)
+  })
+
+  it('rollback refuses a pending draft so an unapproved self-model cannot be activated', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const active = presenter.evolvePersona('a', 'approved', null)
+    await presenter.approvePersonaDraft('a', active!)
+    const draft = presenter.evolvePersona('a', 'unapproved draft', null)
+    expect(repo.getById(draft!)?.persona_state).toBe('draft')
+    expect(await presenter.rollbackPersona('a', draft!)).toBe(false)
+    expect(repo.getById(draft!)?.persona_state).toBe('draft')
+    expect(repo.getActivePersona('a')?.id).toBe(active)
+  })
+
+  it('rollback refuses a rejected version so a discarded self-model can never return', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const active = presenter.evolvePersona('a', 'approved', null)
+    await presenter.approvePersonaDraft('a', active!)
+    const draft = presenter.evolvePersona('a', 'rejected draft', null)
+    await presenter.rejectPersonaDraft('a', draft!)
+    expect(repo.getById(draft!)?.persona_state).toBe('rejected')
+    expect(await presenter.rollbackPersona('a', draft!)).toBe(false)
+    expect(repo.getById(draft!)?.persona_state).toBe('rejected')
+    expect(repo.getActivePersona('a')?.id).toBe(active)
+  })
+
+  it('legacy persona rows (persona_state NULL) are interpreted by superseded_by', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    repo.insert({ id: 'old-active', agentId: 'a', kind: 'persona', content: 'old', createdAt: 10 })
+    repo.insert({ id: 'old-super', agentId: 'a', kind: 'persona', content: 'older', createdAt: 20 })
+    repo.markSuperseded('old-super', 'old-active')
+    expect(presenter.getStatus('a').hasPersona).toBe(true)
+    expect(repo.getActivePersona('a')?.id).toBe('old-active')
+  })
+})
+
+describe('MemoryPresenter.maybeEvolvePersona (guarded, default off)', () => {
+  const model = { providerId: 'p', modelId: 'm' }
+  const seedUnits = (repo: FakeRepository, agentId: string, n: number, from = 2000): void => {
+    for (let i = 0; i < n; i += 1) {
+      repo.insert({
+        id: `u-${agentId}-${i}`,
+        agentId,
+        kind: 'semantic',
+        content: `durable fact number ${i}`,
+        importance: 1,
+        status: 'embedded',
+        createdAt: from + i
+      })
+    }
+  }
+  const personaLLM = (text: string): ReturnType<typeof vi.fn> =>
+    vi.fn(async (_p: string, _m: string, prompt: string) =>
+      prompt.includes('stable self-model') ? text : ''
+    )
+  const makePersona = (config: DeepChatAgentConfig, generateText: ReturnType<typeof vi.fn>) => {
+    const repo = new FakeRepository()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => config,
+      getEmbeddings: async (_p, _m, texts) => texts.map(() => [1, 0, 0, 0]),
+      generateText,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => {}
+    })
+    return { presenter, repo, generateText }
+  }
+
+  it('produces no draft and never calls the model when the flag is off (default)', async () => {
+    const generateText = personaLLM('I am concise.')
+    const { presenter, repo } = makePersona({ memoryEnabled: true }, generateText)
+    seedUnits(repo, 'a', 6)
+    expect(await presenter.maybeEvolvePersona('a', model)).toBeNull()
+    expect(generateText).not.toHaveBeenCalled()
+    expect(presenter.listPersonaDrafts('a')).toHaveLength(0)
+  })
+
+  it('stays off while memory stays on (decoupled switches)', async () => {
+    const generateText = personaLLM('I am concise.')
+    const { presenter, repo } = makePersona(
+      { memoryEnabled: true, personaEvolutionEnabled: false },
+      generateText
+    )
+    seedUnits(repo, 'a', 6)
+    expect(await presenter.maybeEvolvePersona('a', model)).toBeNull()
+    // Memory recall still works with the flag off.
+    expect((await presenter.recall('a', 'durable fact')).length).toBeGreaterThan(0)
+  })
+
+  it('writes a draft once enough importance accumulates; the draft is not injected', async () => {
+    const generateText = personaLLM('I am concise and technical.')
+    const { presenter, repo } = makePersona(
+      { memoryEnabled: true, personaEvolutionEnabled: true },
+      generateText
+    )
+    seedUnits(repo, 'a', 6)
+    const result = await presenter.maybeEvolvePersona('a', model)
+    expect(result?.draftId).toBeTruthy()
+    expect(result?.needsReview).toBe(false)
+    expect(repo.getById(result!.draftId)?.persona_state).toBe('draft')
+    expect(repo.getActivePersona('a')).toBeUndefined()
+    expect((await presenter.buildInjection('a', 'q'))?.selfModel ?? null).toBeNull()
+  })
+
+  it('flags needsReview when the draft drifts far from the active self-model', async () => {
+    const generateText = personaLLM(
+      'I am a wholly different self-model that bears no resemblance to before.'
+    )
+    const { presenter, repo } = makePersona(
+      { memoryEnabled: true, personaEvolutionEnabled: true },
+      generateText
+    )
+    const v1 = presenter.evolvePersona('a', 'short', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    seedUnits(repo, 'a', 6, 3000)
+    const result = await presenter.maybeEvolvePersona('a', model)
+    expect(result?.needsReview).toBe(true)
+  })
+
+  it('keeps at most one outstanding draft and serializes concurrent passes', async () => {
+    const generateText = personaLLM('I am concise.')
+    const { presenter, repo } = makePersona(
+      { memoryEnabled: true, personaEvolutionEnabled: true },
+      generateText
+    )
+    seedUnits(repo, 'a', 6)
+    const [first, second] = await Promise.all([
+      presenter.maybeEvolvePersona('a', model),
+      presenter.maybeEvolvePersona('a', model)
+    ])
+    const produced = [first, second].filter(Boolean)
+    expect(produced).toHaveLength(1)
+    expect(presenter.listPersonaDrafts('a')).toHaveLength(1)
+    expect(generateText).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not overwrite an active self-model and never injects an unapproved draft (no silent drift)', async () => {
+    const generateText = personaLLM('I am a freshly distilled self-model.')
+    const { presenter, repo } = makePersona(
+      { memoryEnabled: true, personaEvolutionEnabled: true },
+      generateText
+    )
+    const v1 = presenter.evolvePersona('a', 'approved self-model', null)
+    await presenter.approvePersonaDraft('a', v1!)
+    seedUnits(repo, 'a', 6, 3000)
+    await presenter.maybeEvolvePersona('a', model)
+    // The active persona text is unchanged until the new draft is explicitly approved.
+    expect((await presenter.buildInjection('a', 'q'))?.selfModel).toBe('approved self-model')
+    expect(repo.getActivePersona('a')?.content).toBe('approved self-model')
   })
 })
 
@@ -1217,13 +1099,16 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     expect(onMemoryChanged).not.toHaveBeenCalled()
   })
 
-  it('emits "persona-evolve" and "persona-rollback"', () => {
+  it('emits persona reasons through the draft / approve / rollback lifecycle', async () => {
     const { presenter, onMemoryChanged } = makeWithSpy()
     const v1 = presenter.evolvePersona('a', 'v1', null)
-    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'persona-evolve')
-    presenter.evolvePersona('a', 'v2', null)
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'persona-draft')
+    await presenter.approvePersonaDraft('a', v1!)
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'persona-approve')
+    const v2 = presenter.evolvePersona('a', 'v2', null)
+    await presenter.approvePersonaDraft('a', v2!)
     onMemoryChanged.mockClear()
-    presenter.rollbackPersona('a', v1!)
+    await presenter.rollbackPersona('a', v1!)
     expect(onMemoryChanged).toHaveBeenCalledWith('a', 'persona-rollback')
   })
 
@@ -1285,7 +1170,11 @@ describe('MemoryPresenter agentId safety guards', () => {
     expect(() => presenter.listMemories('../escape')).toThrow(/invalid agentId/)
     expect(() => presenter.getStatus('bad/id')).toThrow(/invalid agentId/)
     expect(() => presenter.listPersonaVersions('bad.id')).toThrow(/invalid agentId/)
-    expect(() => presenter.rollbackPersona('bad id', 'v')).toThrow(/invalid agentId/)
+    expect(() => presenter.listPersonaDrafts('bad.id')).toThrow(/invalid agentId/)
+    await expect(presenter.rollbackPersona('bad id', 'v')).rejects.toThrow(/invalid agentId/)
+    await expect(presenter.approvePersonaDraft('bad/id', 'd')).rejects.toThrow(/invalid agentId/)
+    await expect(presenter.rejectPersonaDraft('bad/id', 'd')).rejects.toThrow(/invalid agentId/)
+    await expect(presenter.setPersonaAnchor('bad/id', 'v', true)).rejects.toThrow(/invalid agentId/)
     await expect(presenter.deleteMemory('bad/id', 'm')).rejects.toThrow(/invalid agentId/)
     await expect(presenter.clearMemories('bad/id')).rejects.toThrow(/invalid agentId/)
   })
@@ -1312,7 +1201,7 @@ describe('MemoryPresenter agentId safety guards', () => {
       hasPersona: false
     })
     expect(await presenter.clearMemories('ghost')).toBe(0)
-    expect(presenter.rollbackPersona('ghost', 'v')).toBe(false)
+    expect(await presenter.rollbackPersona('ghost', 'v')).toBe(false)
 
     // A real agent works normally.
     expect(presenter.listMemories('real')).toHaveLength(1)
@@ -2749,7 +2638,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     ).toEqual([])
     expect(await presenter.deleteMemory('a', id)).toBe(false)
     expect(await presenter.clearMemories('a')).toBe(0)
-    expect(presenter.rollbackPersona('a', id)).toBe(false)
+    expect(await presenter.rollbackPersona('a', id)).toBe(false)
     expect(presenter.restoreMemory('a', id)).toBe(false)
 
     expect(insertSpy).not.toHaveBeenCalled()

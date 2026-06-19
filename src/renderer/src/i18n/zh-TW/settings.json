@@ -2245,8 +2245,25 @@
         "error": "錯誤",
         "fts_only": "僅關鍵字",
         "archived": "已封存"
-      }
-    }
+      },
+      "pendingTitle": "待審核（{count}）",
+      "largeChange": "變更幅度較大，請仔細審查",
+      "personaCurrent": "目前的自我模型",
+      "personaProposed": "擬更新的自我模型",
+      "personaNone": "尚無生效的自我模型",
+      "approve": "核准",
+      "reject": "拒絕",
+      "anchored": "已錨定",
+      "anchor": "錨定",
+      "unanchor": "取消錨定",
+      "rollbackConfirmTitle": "回復到此自我模型？",
+      "rollbackConfirmBody": "此操作會將所選版本設為生效的自我模型，並取代目前版本。",
+      "personaEvolutionOnHint": "人格演化為實驗功能。新的自我模型會以草稿形式出現在這裡，僅在你核准後才會注入。",
+      "personaEvolutionOffHint": "人格演化是實驗性的選用功能，目前此 agent 未開啟。"
+    },
+    "personaEvolutionTitle": "人格演化（實驗）",
+    "personaEvolutionDescription": "讓反思以草稿形式提出更新後的自我模型，交由你審核。獨立於記憶開關，預設關閉。",
+    "personaEvolutionWarning": "蒸餾出的人格可能產生漂移或放大既往對話中的偏差。每次變更都需你明確核准，絕不會靜默更新。"
   },
   "plugins": {
     "title": "插件",

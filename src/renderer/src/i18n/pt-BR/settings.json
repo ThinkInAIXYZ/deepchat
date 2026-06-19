@@ -2245,8 +2245,25 @@
         "error": "Erro",
         "fts_only": "Apenas palavras-chave",
         "archived": "Arquivado"
-      }
-    }
+      },
+      "pendingTitle": "Aguardando aprovação ({count})",
+      "largeChange": "Mudança grande — revise com atenção",
+      "personaCurrent": "Modelo de si atual",
+      "personaProposed": "Modelo de si proposto",
+      "personaNone": "Ainda não há um modelo de si ativo",
+      "approve": "Aprovar",
+      "reject": "Rejeitar",
+      "anchored": "Fixado",
+      "anchor": "Fixar",
+      "unanchor": "Desafixar",
+      "rollbackConfirmTitle": "Reverter para este modelo de si?",
+      "rollbackConfirmBody": "Isso torna a versão selecionada o modelo ativo e substitui o atual.",
+      "personaEvolutionOnHint": "A evolução da persona é experimental. Novos modelos de si aparecem aqui como rascunhos e só são injetados após sua aprovação.",
+      "personaEvolutionOffHint": "A evolução da persona é um recurso experimental e opcional, atualmente desativado para este agente."
+    },
+    "personaEvolutionTitle": "Evolução da persona (experimental)",
+    "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",
+    "personaEvolutionWarning": "Personas destiladas podem desviar ou amplificar vieses de conversas anteriores. Toda mudança exige sua aprovação explícita — nunca é atualizada silenciosamente."
   },
   "plugins": {
     "title": "Plugins",

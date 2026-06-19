@@ -4,8 +4,29 @@ import {
   buildExtractionPrompt,
   buildTriagePrompt,
   parseMemoryCandidates,
-  parseTriageDecision
+  parseTriageDecision,
+  personaChangeRatio,
+  PERSONA_MAX_CHANGE_RATIO
 } from '@/presenter/memoryPresenter/extraction'
+
+describe('personaChangeRatio', () => {
+  it('is 0 for identical or both-empty self-models', () => {
+    expect(personaChangeRatio('I am concise.', 'I am concise.')).toBe(0)
+    expect(personaChangeRatio('', '')).toBe(0)
+    expect(personaChangeRatio(null, undefined)).toBe(0)
+  })
+
+  it('is 1 when there is no previous self-model to compare', () => {
+    expect(personaChangeRatio('', 'a brand new self-model')).toBe(1)
+  })
+
+  it('stays small for a minor refinement and large for a rewrite', () => {
+    const small = personaChangeRatio('I am concise.', 'I am concise and direct.')
+    expect(small).toBeLessThan(PERSONA_MAX_CHANGE_RATIO)
+    const large = personaChangeRatio('I am concise.', 'Completely unrelated wording here.')
+    expect(large).toBeGreaterThan(PERSONA_MAX_CHANGE_RATIO)
+  })
+})
 
 describe('parseMemoryCandidates', () => {
   it('parses a plain JSON array', () => {

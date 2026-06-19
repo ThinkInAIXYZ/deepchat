@@ -176,8 +176,25 @@
         "error": "Lỗi",
         "fts_only": "Chỉ từ khóa",
         "archived": "Đã lưu trữ"
-      }
-    }
+      },
+      "pendingTitle": "Đang chờ phê duyệt ({count})",
+      "largeChange": "Thay đổi lớn — hãy xem xét kỹ",
+      "personaCurrent": "Mô hình bản thân hiện tại",
+      "personaProposed": "Mô hình bản thân đề xuất",
+      "personaNone": "Chưa có mô hình bản thân đang hoạt động",
+      "approve": "Phê duyệt",
+      "reject": "Từ chối",
+      "anchored": "Đã ghim",
+      "anchor": "Ghim",
+      "unanchor": "Bỏ ghim",
+      "rollbackConfirmTitle": "Khôi phục về mô hình bản thân này?",
+      "rollbackConfirmBody": "Thao tác này biến phiên bản đã chọn thành mô hình bản thân đang hoạt động và thay thế phiên bản hiện tại.",
+      "personaEvolutionOnHint": "Tiến hóa tính cách là tính năng thử nghiệm. Các mô hình bản thân mới xuất hiện ở đây dưới dạng bản nháp và chỉ được đưa vào sau khi bạn phê duyệt.",
+      "personaEvolutionOffHint": "Tiến hóa tính cách là tính năng thử nghiệm, tùy chọn và hiện đang tắt cho tác nhân này."
+    },
+    "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",
+    "personaEvolutionDescription": "Cho phép quá trình phản tư đề xuất các mô hình bản thân cập nhật dưới dạng bản nháp để bạn phê duyệt. Độc lập với bộ nhớ; mặc định tắt.",
+    "personaEvolutionWarning": "Tính cách được chưng cất có thể trôi dạt hoặc khuếch đại thành kiến từ các cuộc trò chuyện trước. Mọi thay đổi đều cần bạn phê duyệt rõ ràng — không bao giờ cập nhật âm thầm."
   },
   "notificationsHooks": {
     "title": "móc",

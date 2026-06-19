@@ -10,6 +10,11 @@ export type AgentMemoryStatus = 'pending_embedding' | 'embedded' | 'error' | 'ft
 
 export type AgentMemoryConflictState = 'challenged'
 
+// Persona lifecycle, only meaningful for kind='persona' (NULL for every other kind). A new self-model
+// lands as 'draft' and is never injected until the user approves it ('active'). Legacy persona rows
+// predate this column (NULL) and are read as active only while not superseded.
+export type AgentMemoryPersonaState = 'draft' | 'active' | 'superseded' | 'rejected'
+
 export interface AgentMemoryRow {
   id: string
   agent_id: string
@@ -33,6 +38,7 @@ export interface AgentMemoryRow {
   confidence: number | null
   last_consolidated_at: number | null
   conflict_state: string | null
+  persona_state: string | null
 }
 
 export interface AgentMemoryInsertInput {
@@ -48,6 +54,7 @@ export interface AgentMemoryInsertInput {
   isAnchor?: boolean
   createdAt?: number
   sourceEntryIds?: number[] | null
+  personaState?: AgentMemoryPersonaState | null
 }
 
 export interface AgentMemoryListOptions {
@@ -59,8 +66,9 @@ export interface AgentMemoryListOptions {
 }
 
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
-// embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns.
-const AGENT_MEMORY_SCHEMA_VERSION = 33
+// embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
+// persona lifecycle column.
+const AGENT_MEMORY_SCHEMA_VERSION = 34
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
@@ -116,7 +124,8 @@ export class AgentMemoryTable extends BaseTable {
         source_entry_ids TEXT,
         confidence REAL,
         last_consolidated_at INTEGER,
-        conflict_state TEXT
+        conflict_state TEXT,
+        persona_state TEXT
       );
       ${AGENT_MEMORY_INDEX_SQL}
     `
@@ -148,6 +157,9 @@ export class AgentMemoryTable extends BaseTable {
         'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
         'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;'
       ].join('\n')
+    }
+    if (version === 34) {
+      return 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
     }
     return null
   }
@@ -252,7 +264,8 @@ export class AgentMemoryTable extends BaseTable {
       source_entry_ids: serializeSourceEntryIds(input.sourceEntryIds),
       confidence: null,
       last_consolidated_at: null,
-      conflict_state: null
+      conflict_state: null,
+      persona_state: input.personaState ?? null
     }
 
     this.db
@@ -279,9 +292,10 @@ export class AgentMemoryTable extends BaseTable {
            source_entry_ids,
            confidence,
            last_consolidated_at,
-           conflict_state
+           conflict_state,
+           persona_state
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -305,7 +319,8 @@ export class AgentMemoryTable extends BaseTable {
         row.source_entry_ids,
         row.confidence,
         row.last_consolidated_at,
-        row.conflict_state
+        row.conflict_state,
+        row.persona_state
       )
 
     return row
@@ -355,15 +370,50 @@ export class AgentMemoryTable extends BaseTable {
     return this.db.prepare(sql).all(...params) as AgentMemoryRow[]
   }
 
+  // Active = the approved self-model. A draft persona also has superseded_by IS NULL, so the state
+  // must be checked explicitly; legacy rows (persona_state NULL) stay active only while not
+  // superseded. The superseded_by guard on legacy rows is load-bearing: a row left with a later
+  // created_at by an old rollback must not resurface, so COALESCE(persona_state,'active') alone is wrong.
   getActivePersona(agentId: string): AgentMemoryRow | undefined {
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
-         WHERE agent_id = ? AND kind = 'persona' AND superseded_by IS NULL
+         WHERE agent_id = ? AND kind = 'persona'
+           AND (
+             persona_state = 'active'
+             OR (persona_state IS NULL AND superseded_by IS NULL)
+           )
          ORDER BY created_at DESC
          LIMIT 1`
       )
       .get(agentId) as AgentMemoryRow | undefined
+  }
+
+  getDraftPersona(agentId: string): AgentMemoryRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT * FROM agent_memory
+         WHERE agent_id = ? AND kind = 'persona' AND persona_state = 'draft'
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(agentId) as AgentMemoryRow | undefined
+  }
+
+  // Persona state-machine transition. superseded_by is only written when supersededBy is passed
+  // (including an explicit null to clear it on re-activation); omitting it leaves the link untouched.
+  setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void {
+    if (supersededBy === undefined) {
+      this.db.prepare('UPDATE agent_memory SET persona_state = ? WHERE id = ?').run(state, id)
+      return
+    }
+    this.db
+      .prepare('UPDATE agent_memory SET persona_state = ?, superseded_by = ? WHERE id = ?')
+      .run(state, supersededBy, id)
+  }
+
+  setAnchor(id: string, anchored: boolean): void {
+    this.db.prepare('UPDATE agent_memory SET is_anchor = ? WHERE id = ?').run(anchored ? 1 : 0, id)
   }
 
   listPersonaVersions(agentId: string): AgentMemoryRow[] {

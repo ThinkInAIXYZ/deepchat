@@ -176,8 +176,25 @@
         "error": "Error",
         "fts_only": "Solo palabras clave",
         "archived": "Archivado"
-      }
-    }
+      },
+      "pendingTitle": "Pendiente de aprobación ({count})",
+      "largeChange": "Cambio importante: revísalo con cuidado",
+      "personaCurrent": "Modelo de sí mismo actual",
+      "personaProposed": "Modelo de sí mismo propuesto",
+      "personaNone": "Aún no hay un modelo de sí mismo activo",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "anchored": "Anclado",
+      "anchor": "Anclar",
+      "unanchor": "Desanclar",
+      "rollbackConfirmTitle": "¿Volver a este modelo de sí mismo?",
+      "rollbackConfirmBody": "Esto convierte la versión seleccionada en el modelo activo y sustituye al actual.",
+      "personaEvolutionOnHint": "La evolución de la persona es experimental. Los nuevos modelos aparecen aquí como borradores y solo se inyectan tras tu aprobación.",
+      "personaEvolutionOffHint": "La evolución de la persona es una función experimental y opcional, actualmente desactivada para este agente."
+    },
+    "personaEvolutionTitle": "Evolución de la persona (experimental)",
+    "personaEvolutionDescription": "Permite que la reflexión proponga modelos de sí mismo actualizados como borradores para tu aprobación. Independiente de la memoria; desactivado por defecto.",
+    "personaEvolutionWarning": "Las personas destiladas pueden desviarse o amplificar sesgos de conversaciones anteriores. Cada cambio requiere tu aprobación explícita: nunca se actualiza en silencio."
   },
   "notificationsHooks": {
     "title": "Hooks",

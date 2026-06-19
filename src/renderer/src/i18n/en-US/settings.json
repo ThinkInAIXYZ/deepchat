@@ -173,11 +173,28 @@
         "error": "Error",
         "fts_only": "Keyword only",
         "archived": "Archived"
-      }
+      },
+      "pendingTitle": "Pending approval ({count})",
+      "largeChange": "Large change — review carefully",
+      "personaCurrent": "Current self-model",
+      "personaProposed": "Proposed self-model",
+      "personaNone": "No active self-model yet",
+      "approve": "Approve",
+      "reject": "Reject",
+      "anchored": "Anchored",
+      "anchor": "Anchor",
+      "unanchor": "Unanchor",
+      "rollbackConfirmTitle": "Roll back to this self-model?",
+      "rollbackConfirmBody": "This makes the selected version the active self-model and supersedes the current one.",
+      "personaEvolutionOnHint": "Persona evolution is experimental. New self-models appear here as drafts and are only injected after you approve them.",
+      "personaEvolutionOffHint": "Persona evolution is an experimental, opt-in feature and is currently off for this agent."
     },
     "compactionThreshold": "Trigger threshold",
     "compactionRetainPairs": "Retain recent pairs",
-    "deleteConfirm": "Delete agent \"{name}\"? Its history will fall back to the built-in DeepChat agent."
+    "deleteConfirm": "Delete agent \"{name}\"? Its history will fall back to the built-in DeepChat agent.",
+    "personaEvolutionTitle": "Persona evolution (experimental)",
+    "personaEvolutionDescription": "Let reflection propose updated self-models as drafts for your approval. Independent of memory; off by default.",
+    "personaEvolutionWarning": "Distilled personas can drift or amplify biases from past chats. Every change needs your explicit approval — it never updates silently."
   },
   "notificationsHooks": {
     "title": "Hooks",

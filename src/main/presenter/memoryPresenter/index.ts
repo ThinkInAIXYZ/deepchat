@@ -33,14 +33,19 @@ import {
 import {
   buildExtractionPrompt,
   buildReflectionInsightsPrompt,
+  buildReflectionPrompt,
   buildTriagePrompt,
   parseMemoryCandidates,
   parseReflectionInsights,
-  parseTriageDecision
+  parseTriageDecision,
+  personaChangeRatio,
+  sanitizeSelfModel,
+  PERSONA_MAX_CHANGE_RATIO
 } from './extraction'
 import type {
   MemoryExtractionInput,
   MemoryExtractionResult,
+  MemoryPersonaDraftResult,
   MemoryReflectionResult,
   MemoryUpdateReason
 } from './types'
@@ -56,6 +61,13 @@ const REFLECTION_IMPORTANCE_THRESHOLD = 5.0
 const REFLECTION_IMPORTANCE = 0.8
 // Max memories fed into a single reflection prompt.
 const REFLECTION_MEMORY_LIMIT = 20
+
+// Guarded persona evolution (opt-in, default off). A draft is distilled only once enough new
+// importance has accumulated since the current self-model, and at most one draft is outstanding at a
+// time. Mirrors the reflection throttle so an enabled agent never spends the model every turn.
+const MIN_MEMORIES_FOR_PERSONA = 3
+const PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD = 5.0
+const PERSONA_MEMORY_LIMIT = 20
 
 // Working-memory L1 cache: a single condensed blob of an agent's highest-value resident memories,
 // refreshed in the background and injected at session open without a full recall.
@@ -116,6 +128,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
   // newer ones arrive. In-memory only: a restart costs at most one redundant attempt.
   private readonly reflectionAttemptWatermark = new Map<string, number>()
+  // Same watermark idea for persona drafts: a no-op attempt advances it so an enabled-but-quiet agent
+  // does not re-distill the self-model on every extraction.
+  private readonly personaAttemptWatermark = new Map<string, number>()
+  // Serializes all persona writes for one agent (draft production, approve, reject, rollback, anchor).
+  // Per-AGENT because persona is an agent-level single chain — distinct from the per-SESSION extraction
+  // cursor lock, and from the per-agent vector-store file lock; these guard different resources.
+  private readonly personaLocks = new Map<string, Promise<unknown>>()
   // Agents with a cold-start blob refresh already scheduled, so concurrent open-misses coalesce into
   // one rebuild. Cleared when that pass finishes, so a memory written between opens is picked up next.
   private readonly workingRefreshInFlight = new Set<string>()
@@ -127,6 +146,28 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   isEnabled(agentId: string): boolean {
     return this.deps.resolveAgentConfig(agentId)?.memoryEnabled === true
+  }
+
+  // Guarded persona evolution is a second, independent switch gated behind memoryEnabled: turning it
+  // off (the default) leaves extraction/recall/reflection untouched and only stops persona drafts.
+  private isPersonaEvolutionEnabled(agentId: string): boolean {
+    const config = this.deps.resolveAgentConfig(agentId)
+    return config?.memoryEnabled === true && config?.personaEvolutionEnabled === true
+  }
+
+  // Serializes an agent's persona mutations so concurrent reflections/approvals can never branch the
+  // single self-model chain. Mirrors runExclusiveForAgent but on a distinct map and resource.
+  private withPersonaLock<T>(agentId: string, task: () => T | Promise<T>): Promise<T> {
+    const prev = this.personaLocks.get(agentId) ?? Promise.resolve()
+    const run = prev.then(() => task())
+    this.personaLocks.set(
+      agentId,
+      run.then(
+        () => undefined,
+        () => undefined
+      )
+    )
+    return run
   }
 
   // Rejects malformed agentIds (caller bug or abuse attempt) before they reach storage.
@@ -1162,13 +1203,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   // ==================== Persona ====================
 
-  // Writes a new self-model version and supersedes the previous one. Anchored personas
-  // (is_anchor) are never superseded.
+  // Writes a new self-model as a DRAFT: never active, never superseding the current persona, never
+  // injected (getActivePersona ignores drafts) until the user approves it. Returns the draft id.
   evolvePersona(agentId: string, content: string, sourceSession?: string | null): string | null {
     if (this.disposed) return null
     const trimmed = content.trim()
     if (!trimmed) return null
-    const previous = this.deps.repository.getActivePersona(agentId)
     const id = `persona-${nanoid(12)}`
     this.deps.repository.insert({
       id,
@@ -1177,13 +1217,144 @@ export class MemoryPresenter implements MemoryRuntimePort {
       content: trimmed,
       importance: 1,
       status: 'fts_only',
-      sourceSession: sourceSession ?? null
+      sourceSession: sourceSession ?? null,
+      personaState: 'draft'
     })
-    if (previous && previous.is_anchor === 0) {
-      this.deps.repository.markSuperseded(previous.id, id)
-    }
-    this.emitChanged(agentId, 'persona-evolve')
+    this.emitChanged(agentId, 'persona-draft')
     return id
+  }
+
+  // Guarded persona evolution: when enabled for the agent, distill an updated self-model from recent
+  // memories and write it as a draft for user approval. Gated (default off), throttled on accumulated
+  // importance since the current self-model, and capped at one outstanding draft. Independent cheap
+  // model call; never throws, never injects — approval is the only path to active. Returns the draft
+  // (for the audit anchor) or null when off / throttled / unchanged.
+  async maybeEvolvePersona(
+    agentId: string,
+    model: { providerId: string; modelId: string },
+    sourceSession?: string | null
+  ): Promise<MemoryPersonaDraftResult | null> {
+    if (this.disposed || !this.isPersonaEvolutionEnabled(agentId)) return null
+    try {
+      return await this.withPersonaLock(agentId, async () => {
+        if (this.disposed) return null
+        // One outstanding draft at a time: skip before any model call until the user resolves it.
+        if (this.deps.repository.getDraftPersona(agentId)) return null
+
+        const units = this.deps.repository.listByAgent(agentId, {
+          kinds: ['semantic', 'reflection', 'episodic']
+        })
+        if (units.length < MIN_MEMORIES_FOR_PERSONA) return null
+
+        const previous = this.deps.repository.getActivePersona(agentId)
+        const watermark = Math.max(
+          previous?.created_at ?? 0,
+          this.personaAttemptWatermark.get(agentId) ?? 0
+        )
+        const recentImportance = units
+          .filter((unit) => unit.created_at > watermark)
+          .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
+        if (recentImportance < PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD) return null
+        const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
+
+        const top = units
+          .slice()
+          .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
+          .slice(0, PERSONA_MEMORY_LIMIT)
+        const personaModel = this.resolveExtractionModel(agentId, model)
+        const raw = await this.deps.generateText(
+          personaModel.providerId,
+          personaModel.modelId,
+          buildReflectionPrompt(
+            previous?.content ?? null,
+            top.map((row) => row.content)
+          )
+        )
+        if (this.disposed) return null
+        const content = sanitizeSelfModel(raw)
+        // No usable output or no change from the current self-model: advance the watermark so the
+        // model is not re-spent on the same units, and produce no draft.
+        if (!content || content === (previous?.content?.trim() ?? '')) {
+          this.personaAttemptWatermark.set(agentId, maxUnitCreatedAt)
+          return null
+        }
+        const changeRatio = personaChangeRatio(previous?.content ?? null, content)
+        const needsReview = previous ? changeRatio > PERSONA_MAX_CHANGE_RATIO : false
+        const draftId = this.evolvePersona(agentId, content, sourceSession ?? null)
+        this.personaAttemptWatermark.set(agentId, maxUnitCreatedAt)
+        if (!draftId) return null
+        return { draftId, needsReview, changeRatio }
+      })
+    } catch (error) {
+      logger.warn(`[Memory] persona evolution skipped: ${String(error)}`)
+      return null
+    }
+  }
+
+  // Approve a draft: the user's explicit replacement of the self-model. Supersedes the current active
+  // persona (even an anchored one — anchoring guards against automatic drift, not deliberate approval)
+  // and promotes the draft to active. Returns false on a stale / foreign / non-draft id.
+  async approvePersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    return this.withPersonaLock(agentId, () => {
+      if (this.disposed) return false
+      const draft = this.deps.repository.getById(draftId)
+      if (
+        !draft ||
+        draft.agent_id !== agentId ||
+        draft.kind !== 'persona' ||
+        draft.persona_state !== 'draft'
+      ) {
+        return false
+      }
+      const current = this.deps.repository.getActivePersona(agentId)
+      if (current && current.id !== draft.id) {
+        this.deps.repository.setPersonaState(current.id, 'superseded', draft.id)
+      }
+      this.deps.repository.setPersonaState(draft.id, 'active', null)
+      this.emitChanged(agentId, 'persona-approve')
+      return true
+    })
+  }
+
+  // Reject a draft: it leaves the approval queue and is never injected; the active persona is unchanged.
+  async rejectPersonaDraft(agentId: string, draftId: string): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    return this.withPersonaLock(agentId, () => {
+      if (this.disposed) return false
+      const draft = this.deps.repository.getById(draftId)
+      if (
+        !draft ||
+        draft.agent_id !== agentId ||
+        draft.kind !== 'persona' ||
+        draft.persona_state !== 'draft'
+      ) {
+        return false
+      }
+      this.deps.repository.setPersonaState(draft.id, 'rejected')
+      this.emitChanged(agentId, 'persona-reject')
+      return true
+    })
+  }
+
+  // Anchors (or un-anchors) a persona version. An anchored active persona is never superseded by an
+  // automatic rollback, making the is_anchor guard real (it was previously unreachable).
+  async setPersonaAnchor(agentId: string, versionId: string, anchored: boolean): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    return this.withPersonaLock(agentId, () => {
+      if (this.disposed) return false
+      const row = this.deps.repository.getById(versionId)
+      if (!row || row.agent_id !== agentId || row.kind !== 'persona') return false
+      this.deps.repository.setAnchor(row.id, anchored)
+      this.emitChanged(agentId, 'persona-evolve')
+      return true
+    })
   }
 
   listPersonaVersions(agentId: string): AgentMemoryRow[] {
@@ -1192,21 +1363,50 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.repository.listPersonaVersions(agentId)
   }
 
-  // Rollback: reactivates a historical persona version (clears its superseded_by) and
-  // supersedes the current active one.
-  rollbackPersona(agentId: string, versionId: string): boolean {
+  // Pending drafts paired with a freshly-computed needsReview: the drift from the current self-model is
+  // recomputed on read (not persisted), so it always reflects the live active persona.
+  listPersonaDrafts(agentId: string): { row: AgentMemoryRow; needsReview: boolean }[] {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return []
+    const active = this.deps.repository.getActivePersona(agentId)
+    return this.deps.repository
+      .listPersonaVersions(agentId)
+      .filter((row) => row.persona_state === 'draft')
+      .map((row) => ({
+        row,
+        needsReview: active
+          ? personaChangeRatio(active.content, row.content) > PERSONA_MAX_CHANGE_RATIO
+          : false
+      }))
+  }
+
+  // Rollback: re-activate a historical persona version and supersede the current active one. Refuses
+  // when the current active is anchored, so a rollback can never silently move an anchored self-model;
+  // the single-active invariant is preserved either way. The target must be a historical version
+  // (superseded, or a legacy row that was already superseded): drafts and rejected versions are never
+  // injectable, and re-activating them here would smuggle an unapproved self-model past approval.
+  async rollbackPersona(agentId: string, versionId: string): Promise<boolean> {
     if (this.disposed) return false
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return false
-    const target = this.deps.repository.getById(versionId)
-    if (!target || target.agent_id !== agentId || target.kind !== 'persona') return false
-    const current = this.deps.repository.getActivePersona(agentId)
-    if (current && current.id !== versionId && current.is_anchor === 0) {
-      this.deps.repository.markSuperseded(current.id, versionId)
-    }
-    this.deps.repository.markSuperseded(versionId, null)
-    this.emitChanged(agentId, 'persona-rollback')
-    return true
+    return this.withPersonaLock(agentId, () => {
+      if (this.disposed) return false
+      const target = this.deps.repository.getById(versionId)
+      if (!target || target.agent_id !== agentId || target.kind !== 'persona') return false
+      const current = this.deps.repository.getActivePersona(agentId)
+      if (current && current.id === versionId) return true
+      const isHistorical =
+        target.persona_state === 'superseded' ||
+        (target.persona_state == null && target.superseded_by != null)
+      if (!isHistorical) return false
+      if (current && current.is_anchor === 1) return false
+      if (current) {
+        this.deps.repository.setPersonaState(current.id, 'superseded', versionId)
+      }
+      this.deps.repository.setPersonaState(versionId, 'active', null)
+      this.emitChanged(agentId, 'persona-rollback')
+      return true
+    })
   }
 
   // ==================== Management ====================
@@ -1272,7 +1472,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return {
       total: all.length,
       pendingEmbedding: all.filter((row) => row.status === 'pending_embedding').length,
-      hasPersona: all.some((row) => row.kind === 'persona' && !row.superseded_by),
+      // Reflects an approved self-model only; a pending draft does not count as having a persona.
+      hasPersona: this.deps.repository.getActivePersona(agentId) !== undefined,
       reindexing: this.reindexing.has(agentId)
     }
   }

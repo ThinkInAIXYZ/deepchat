@@ -63,13 +63,17 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetStatusRoute,
+  memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRejectPersonaDraftRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySetPersonaAnchorRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -394,7 +398,9 @@ function toMemoryItemDto(row: AgentMemoryRow) {
     supersededBy: row.superseded_by,
     createdAt: row.created_at,
     confidence: row.confidence,
-    conflictState: row.conflict_state
+    conflictState: row.conflict_state,
+    personaState: row.persona_state as 'draft' | 'active' | 'superseded' | 'rejected' | null,
+    isAnchor: row.is_anchor === 1
   }
 }
 
@@ -1934,8 +1940,38 @@ export async function dispatchDeepchatRoute(
 
     case memoryRollbackPersonaRoute.name: {
       const input = memoryRollbackPersonaRoute.input.parse(rawInput)
-      const ok = runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
+      const ok = await runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
       return memoryRollbackPersonaRoute.output.parse({ ok })
+    }
+
+    case memoryListPersonaDraftsRoute.name: {
+      const input = memoryListPersonaDraftsRoute.input.parse(rawInput)
+      const drafts = runtime.memoryPresenter
+        .listPersonaDrafts(input.agentId)
+        .map(({ row, needsReview }) => ({ ...toMemoryItemDto(row), needsReview }))
+      return memoryListPersonaDraftsRoute.output.parse({ drafts })
+    }
+
+    case memoryApprovePersonaDraftRoute.name: {
+      const input = memoryApprovePersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.approvePersonaDraft(input.agentId, input.draftId)
+      return memoryApprovePersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memoryRejectPersonaDraftRoute.name: {
+      const input = memoryRejectPersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.rejectPersonaDraft(input.agentId, input.draftId)
+      return memoryRejectPersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memorySetPersonaAnchorRoute.name: {
+      const input = memorySetPersonaAnchorRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.setPersonaAnchor(
+        input.agentId,
+        input.versionId,
+        input.anchored
+      )
+      return memorySetPersonaAnchorRoute.output.parse({ ok })
     }
 
     case onboardingGetStateRoute.name: {

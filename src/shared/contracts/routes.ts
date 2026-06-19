@@ -27,13 +27,17 @@ import {
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
 import {
+  memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetStatusRoute,
+  memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryRejectPersonaDraftRoute,
   memoryRestoreRoute,
-  memoryRollbackPersonaRoute
+  memoryRollbackPersonaRoute,
+  memorySetPersonaAnchorRoute
 } from './routes/memory.routes'
 import {
   configAddCustomPromptRoute,
@@ -784,6 +788,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryRestoreRoute.name]: memoryRestoreRoute,
   [memoryListPersonaVersionsRoute.name]: memoryListPersonaVersionsRoute,
   [memoryRollbackPersonaRoute.name]: memoryRollbackPersonaRoute,
+  [memoryListPersonaDraftsRoute.name]: memoryListPersonaDraftsRoute,
+  [memoryApprovePersonaDraftRoute.name]: memoryApprovePersonaDraftRoute,
+  [memoryRejectPersonaDraftRoute.name]: memoryRejectPersonaDraftRoute,
+  [memorySetPersonaAnchorRoute.name]: memorySetPersonaAnchorRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,
   [skillsInstallFromFolderRoute.name]: skillsInstallFromFolderRoute,

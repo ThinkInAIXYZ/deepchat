@@ -176,8 +176,25 @@
         "error": "Fehler",
         "fts_only": "Nur Stichwort",
         "archived": "Archiviert"
-      }
-    }
+      },
+      "pendingTitle": "Ausstehende Freigabe ({count})",
+      "largeChange": "Große Änderung – bitte sorgfältig prüfen",
+      "personaCurrent": "Aktuelles Selbstmodell",
+      "personaProposed": "Vorgeschlagenes Selbstmodell",
+      "personaNone": "Noch kein aktives Selbstmodell",
+      "approve": "Freigeben",
+      "reject": "Ablehnen",
+      "anchored": "Verankert",
+      "anchor": "Verankern",
+      "unanchor": "Verankerung lösen",
+      "rollbackConfirmTitle": "Auf dieses Selbstmodell zurücksetzen?",
+      "rollbackConfirmBody": "Dadurch wird die ausgewählte Version zum aktiven Selbstmodell und ersetzt das aktuelle.",
+      "personaEvolutionOnHint": "Die Persona-Entwicklung ist experimentell. Neue Selbstmodelle erscheinen hier als Entwürfe und werden erst nach Ihrer Freigabe injiziert.",
+      "personaEvolutionOffHint": "Die Persona-Entwicklung ist eine experimentelle, optionale Funktion und ist für diesen Agenten derzeit deaktiviert."
+    },
+    "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
+    "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",
+    "personaEvolutionWarning": "Destillierte Personas können driften oder Verzerrungen aus früheren Chats verstärken. Jede Änderung erfordert Ihre ausdrückliche Freigabe – sie wird nie still aktualisiert."
   },
   "notificationsHooks": {
     "title": "Hooks",

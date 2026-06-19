@@ -7,6 +7,9 @@ export const MemoryUpdateReasonSchema = z.enum([
   'delete',
   'clear',
   'persona-evolve',
+  'persona-draft',
+  'persona-approve',
+  'persona-reject',
   'persona-rollback',
   'reindex'
 ])

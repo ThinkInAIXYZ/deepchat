@@ -1944,6 +1944,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
         })
       }
+
+      // Guarded persona evolution: a no-op unless the agent opted in. Any draft it writes stays out of
+      // injection until the user approves it in the memory manager, so this never changes the live
+      // self-model. The anchor is audit-only (not a reconstruction anchor).
+      const personaDraft = await this.memoryPort.maybeEvolvePersona(
+        agentId,
+        { providerId: state.providerId, modelId: state.modelId },
+        sessionId
+      )
+      if (personaDraft) {
+        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+          sessionId,
+          name: 'persona/evolve',
+          state: {
+            state: 'draft',
+            draftId: personaDraft.draftId,
+            needsReview: personaDraft.needsReview,
+            reason: options.reason
+          }
+        })
+      }
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
     }

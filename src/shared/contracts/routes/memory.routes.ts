@@ -18,7 +18,12 @@ export const MemoryItemSchema = z.object({
   supersededBy: z.string().nullable(),
   createdAt: z.number(),
   confidence: z.number().nullable().optional(),
-  conflictState: z.string().nullable().optional()
+  conflictState: z.string().nullable().optional(),
+  // Persona lifecycle (null for non-persona rows). isAnchor surfaces the drift guard; needsReview is
+  // computed per draft against the active self-model and only set on the persona-drafts route.
+  personaState: z.enum(['draft', 'active', 'superseded', 'rejected']).nullable().optional(),
+  isAnchor: z.boolean().optional(),
+  needsReview: z.boolean().optional()
 })
 
 export const MemoryStatusSchema = z.object({
@@ -67,6 +72,30 @@ export const memoryListPersonaVersionsRoute = defineRouteContract({
 export const memoryRollbackPersonaRoute = defineRouteContract({
   name: 'memory.rollbackPersona',
   input: z.object({ agentId: AgentIdSchema, versionId: z.string() }),
+  output: z.object({ ok: z.boolean() })
+})
+
+export const memoryListPersonaDraftsRoute = defineRouteContract({
+  name: 'memory.listPersonaDrafts',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ drafts: z.array(MemoryItemSchema) })
+})
+
+export const memoryApprovePersonaDraftRoute = defineRouteContract({
+  name: 'memory.approvePersonaDraft',
+  input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
+  output: z.object({ ok: z.boolean() })
+})
+
+export const memoryRejectPersonaDraftRoute = defineRouteContract({
+  name: 'memory.rejectPersonaDraft',
+  input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
+  output: z.object({ ok: z.boolean() })
+})
+
+export const memorySetPersonaAnchorRoute = defineRouteContract({
+  name: 'memory.setPersonaAnchor',
+  input: z.object({ agentId: AgentIdSchema, versionId: z.string(), anchored: z.boolean() }),
   output: z.object({ ok: z.boolean() })
 })
 

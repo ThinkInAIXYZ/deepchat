@@ -176,8 +176,25 @@
         "error": "Errore",
         "fts_only": "Solo parole chiave",
         "archived": "Archiviato"
-      }
-    }
+      },
+      "pendingTitle": "In attesa di approvazione ({count})",
+      "largeChange": "Modifica importante — esamina con attenzione",
+      "personaCurrent": "Modello di sé attuale",
+      "personaProposed": "Modello di sé proposto",
+      "personaNone": "Nessun modello di sé attivo ancora",
+      "approve": "Approva",
+      "reject": "Rifiuta",
+      "anchored": "Ancorato",
+      "anchor": "Ancora",
+      "unanchor": "Rimuovi ancoraggio",
+      "rollbackConfirmTitle": "Ripristinare questo modello di sé?",
+      "rollbackConfirmBody": "Rende la versione selezionata il modello attivo e sostituisce quello corrente.",
+      "personaEvolutionOnHint": "L'evoluzione della persona è sperimentale. I nuovi modelli di sé compaiono qui come bozze e vengono iniettati solo dopo la tua approvazione.",
+      "personaEvolutionOffHint": "L'evoluzione della persona è una funzione sperimentale e facoltativa, attualmente disattivata per questo agente."
+    },
+    "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",
+    "personaEvolutionDescription": "Lascia che la riflessione proponga modelli di sé aggiornati come bozze da approvare. Indipendente dalla memoria; disattivata per impostazione predefinita.",
+    "personaEvolutionWarning": "Le persone distillate possono andare alla deriva o amplificare i bias delle chat passate. Ogni modifica richiede la tua approvazione esplicita — non si aggiorna mai in silenzio."
   },
   "notificationsHooks": {
     "title": "Hooks",

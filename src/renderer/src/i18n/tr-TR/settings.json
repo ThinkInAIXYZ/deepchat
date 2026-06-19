@@ -176,8 +176,25 @@
         "error": "Hata",
         "fts_only": "Yalnızca anahtar kelime",
         "archived": "Arşivlendi"
-      }
-    }
+      },
+      "pendingTitle": "Onay bekliyor ({count})",
+      "largeChange": "Büyük değişiklik — dikkatlice inceleyin",
+      "personaCurrent": "Mevcut benlik modeli",
+      "personaProposed": "Önerilen benlik modeli",
+      "personaNone": "Henüz etkin bir benlik modeli yok",
+      "approve": "Onayla",
+      "reject": "Reddet",
+      "anchored": "Sabitlendi",
+      "anchor": "Sabitle",
+      "unanchor": "Sabitlemeyi kaldır",
+      "rollbackConfirmTitle": "Bu benlik modeline geri dönülsün mü?",
+      "rollbackConfirmBody": "Seçili sürümü etkin benlik modeli yapar ve mevcut olanın yerini alır.",
+      "personaEvolutionOnHint": "Kişilik evrimi deneyseldir. Yeni benlik modelleri burada taslak olarak görünür ve yalnızca siz onayladıktan sonra enjekte edilir.",
+      "personaEvolutionOffHint": "Kişilik evrimi deneysel, isteğe bağlı bir özelliktir ve bu ajan için şu anda kapalıdır."
+    },
+    "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
+    "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",
+    "personaEvolutionWarning": "Damıtılmış kişilikler geçmiş sohbetlerdeki önyargıları kaydırabilir veya artırabilir. Her değişiklik açık onayınızı gerektirir — asla sessizce güncellenmez."
   },
   "notificationsHooks": {
     "title": "Kancalar",

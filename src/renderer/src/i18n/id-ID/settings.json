@@ -176,8 +176,25 @@
         "error": "Galat",
         "fts_only": "Kata kunci saja",
         "archived": "Diarsipkan"
-      }
-    }
+      },
+      "pendingTitle": "Menunggu persetujuan ({count})",
+      "largeChange": "Perubahan besar — tinjau dengan cermat",
+      "personaCurrent": "Model diri saat ini",
+      "personaProposed": "Model diri yang diusulkan",
+      "personaNone": "Belum ada model diri aktif",
+      "approve": "Setujui",
+      "reject": "Tolak",
+      "anchored": "Disematkan",
+      "anchor": "Sematkan",
+      "unanchor": "Lepas sematan",
+      "rollbackConfirmTitle": "Kembalikan ke model diri ini?",
+      "rollbackConfirmBody": "Ini menjadikan versi yang dipilih sebagai model diri aktif dan menggantikan yang sekarang.",
+      "personaEvolutionOnHint": "Evolusi persona bersifat eksperimental. Model diri baru muncul di sini sebagai draf dan hanya disuntikkan setelah Anda menyetujuinya.",
+      "personaEvolutionOffHint": "Evolusi persona adalah fitur eksperimental dan opsional, saat ini nonaktif untuk agen ini."
+    },
+    "personaEvolutionTitle": "Evolusi persona (eksperimental)",
+    "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",
+    "personaEvolutionWarning": "Persona hasil distilasi dapat melenceng atau memperkuat bias dari percakapan sebelumnya. Setiap perubahan memerlukan persetujuan eksplisit Anda — tidak pernah diperbarui secara diam-diam."
   },
   "notificationsHooks": {
     "title": "Kait",

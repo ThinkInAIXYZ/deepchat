@@ -3,6 +3,7 @@ import type {
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
+  AgentMemoryPersonaState,
   AgentMemoryInsertInput,
   AgentMemoryListOptions
 } from '../sqlitePresenter/tables/agentMemory'
@@ -16,6 +17,7 @@ export type {
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
+  AgentMemoryPersonaState,
   AgentMemoryInsertInput,
   AgentMemoryListOptions
 }
@@ -28,6 +30,9 @@ export interface MemoryRepositoryPort {
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
   getActivePersona(agentId: string): AgentMemoryRow | undefined
+  getDraftPersona(agentId: string): AgentMemoryRow | undefined
+  setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
+  setAnchor(id: string, anchored: boolean): void
   listPersonaVersions(agentId: string): AgentMemoryRow[]
   search(agentId: string, query: string, limit?: number): AgentMemoryRow[]
   listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
@@ -179,6 +184,9 @@ export type MemoryUpdateReason =
   | 'delete'
   | 'clear'
   | 'persona-evolve'
+  | 'persona-draft'
+  | 'persona-approve'
+  | 'persona-reject'
   | 'persona-rollback'
   | 'reindex'
 
@@ -199,6 +207,14 @@ export type MemoryExtractionResult = { ok: true; createdIds: string[] } | { ok: 
 export interface MemoryReflectionResult {
   reflectionIds: string[]
   sourceMemoryIds: string[]
+}
+
+// Outcome of a guarded persona-evolution pass: the new draft (never auto-active) plus the measured
+// drift from the current self-model. needsReview gates the draft out of any auto-approval path.
+export interface MemoryPersonaDraftResult {
+  draftId: string
+  needsReview: boolean
+  changeRatio: number
 }
 
 // URL-safe ids only (matching nanoid's `deepchat-xxxx`). Guards against path traversal when an

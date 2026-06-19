@@ -129,53 +129,168 @@
           </ScrollArea>
         </TabsContent>
 
-        <!-- ============ 人格时间线 ============ -->
+        <!-- ============ 人格 ============ -->
         <TabsContent value="persona" class="mt-3">
           <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">
             {{ t('common.loading') }}
           </div>
-          <div
-            v-else-if="personaVersions.length === 0"
-            class="py-10 text-center text-sm text-muted-foreground"
-          >
-            {{ t('settings.deepchatAgents.memoryManager.emptyPersona') }}
-          </div>
-          <ScrollArea v-else class="h-[400px] pr-3">
-            <ol class="space-y-2">
-              <li
-                v-for="version in personaVersions"
-                :key="version.id"
-                class="rounded-lg border px-3 py-2"
-                :class="isActivePersona(version) ? 'border-primary bg-primary/5' : 'border-border'"
+          <template v-else>
+            <!-- 实验性质常驻提示 -->
+            <div
+              class="mb-3 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground"
+              :class="props.personaEvolutionEnabled ? '' : 'opacity-80'"
+            >
+              {{
+                props.personaEvolutionEnabled
+                  ? t('settings.deepchatAgents.memoryManager.personaEvolutionOnHint')
+                  : t('settings.deepchatAgents.memoryManager.personaEvolutionOffHint')
+              }}
+            </div>
+
+            <!-- 待审批的人格草稿 -->
+            <div v-if="personaDrafts.length > 0" class="mb-3 space-y-2">
+              <div class="text-xs font-medium">
+                {{
+                  t('settings.deepchatAgents.memoryManager.pendingTitle', {
+                    count: personaDrafts.length
+                  })
+                }}
+              </div>
+              <div
+                v-for="draft in personaDrafts"
+                :key="draft.id"
+                class="space-y-2 rounded-lg border px-3 py-2"
+                :class="
+                  draft.needsReview
+                    ? 'border-destructive/60 bg-destructive/5'
+                    : 'border-amber-500/50 bg-amber-500/5'
+                "
               >
-                <div class="mb-1 flex items-center justify-between gap-2">
-                  <Badge
-                    :variant="isActivePersona(version) ? 'default' : 'outline'"
-                    class="text-[10px]"
-                  >
+                <div
+                  v-if="draft.needsReview"
+                  class="flex items-center gap-1.5 text-[11px] font-medium text-destructive"
+                >
+                  <Icon icon="lucide:triangle-alert" class="h-3.5 w-3.5" />
+                  {{ t('settings.deepchatAgents.memoryManager.largeChange') }}
+                </div>
+                <div class="space-y-1">
+                  <div class="text-[10px] font-medium uppercase text-muted-foreground">
+                    {{ t('settings.deepchatAgents.memoryManager.personaCurrent') }}
+                  </div>
+                  <p class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
                     {{
-                      isActivePersona(version)
-                        ? t('settings.deepchatAgents.memoryManager.personaActive')
-                        : formatTime(version.createdAt)
+                      activePersonaContent || t('settings.deepchatAgents.memoryManager.personaNone')
                     }}
-                  </Badge>
+                  </p>
+                  <div class="text-[10px] font-medium uppercase text-muted-foreground">
+                    {{ t('settings.deepchatAgents.memoryManager.personaProposed') }}
+                  </div>
+                  <p class="whitespace-pre-wrap break-words text-xs">{{ draft.content }}</p>
+                </div>
+                <div class="flex items-center justify-end gap-2">
                   <Button
-                    v-if="!isActivePersona(version)"
                     variant="ghost"
                     size="sm"
                     class="h-7 px-2 text-xs"
-                    @click="handleRollback(version.id)"
+                    @click="handleRejectDraft(draft.id)"
                   >
-                    <Icon icon="lucide:rotate-ccw" class="mr-1 h-3.5 w-3.5" />
-                    {{ t('settings.deepchatAgents.memoryManager.rollback') }}
+                    {{ t('settings.deepchatAgents.memoryManager.reject') }}
+                  </Button>
+                  <Button size="sm" class="h-7 px-2 text-xs" @click="handleApproveDraft(draft.id)">
+                    {{ t('settings.deepchatAgents.memoryManager.approve') }}
                   </Button>
                 </div>
-                <p class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
-                  {{ version.content }}
-                </p>
-              </li>
-            </ol>
-          </ScrollArea>
+              </div>
+            </div>
+
+            <div
+              v-if="personaTimeline.length === 0"
+              class="py-10 text-center text-sm text-muted-foreground"
+            >
+              {{ t('settings.deepchatAgents.memoryManager.emptyPersona') }}
+            </div>
+            <ScrollArea v-else class="h-[320px] pr-3">
+              <ol class="space-y-2">
+                <li
+                  v-for="version in personaTimeline"
+                  :key="version.id"
+                  class="rounded-lg border px-3 py-2"
+                  :class="
+                    isActivePersona(version) ? 'border-primary bg-primary/5' : 'border-border'
+                  "
+                >
+                  <div class="mb-1 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5">
+                      <Badge
+                        :variant="isActivePersona(version) ? 'default' : 'outline'"
+                        class="text-[10px]"
+                      >
+                        {{
+                          isActivePersona(version)
+                            ? t('settings.deepchatAgents.memoryManager.personaActive')
+                            : formatTime(version.createdAt)
+                        }}
+                      </Badge>
+                      <Badge v-if="version.isAnchor" variant="secondary" class="gap-1 text-[10px]">
+                        <Icon icon="lucide:lock" class="h-3 w-3" />
+                        {{ t('settings.deepchatAgents.memoryManager.anchored') }}
+                      </Badge>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-7 px-2 text-xs"
+                        :aria-label="
+                          version.isAnchor
+                            ? t('settings.deepchatAgents.memoryManager.unanchor')
+                            : t('settings.deepchatAgents.memoryManager.anchor')
+                        "
+                        @click="handleSetAnchor(version.id, !version.isAnchor)"
+                      >
+                        <Icon
+                          :icon="version.isAnchor ? 'lucide:lock-open' : 'lucide:lock'"
+                          class="mr-1 h-3.5 w-3.5"
+                        />
+                        {{
+                          version.isAnchor
+                            ? t('settings.deepchatAgents.memoryManager.unanchor')
+                            : t('settings.deepchatAgents.memoryManager.anchor')
+                        }}
+                      </Button>
+                      <AlertDialog v-if="!isActivePersona(version)">
+                        <AlertDialogTrigger as-child>
+                          <Button variant="ghost" size="sm" class="h-7 px-2 text-xs">
+                            <Icon icon="lucide:rotate-ccw" class="mr-1 h-3.5 w-3.5" />
+                            {{ t('settings.deepchatAgents.memoryManager.rollback') }}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmTitle') }}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {{ t('settings.deepchatAgents.memoryManager.rollbackConfirmBody') }}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+                            <AlertDialogAction @click="handleRollback(version.id)">
+                              {{ t('settings.deepchatAgents.memoryManager.rollback') }}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                  <p class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                    {{ version.content }}
+                  </p>
+                </li>
+              </ol>
+            </ScrollArea>
+          </template>
         </TabsContent>
       </Tabs>
     </DialogContent>
@@ -217,6 +332,8 @@ const props = defineProps<{
   agentId: string
   /** 该 agent 是否已配置 embedding 模型，用于降级提示。 */
   hasEmbeddingConfigured?: boolean
+  /** 是否开启了实验性的人格演化（用于在人格页提示）。 */
+  personaEvolutionEnabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -232,6 +349,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const memories = ref<MemoryItem[]>([])
 const personaVersions = ref<MemoryItem[]>([])
+const personaDrafts = ref<MemoryItem[]>([])
 const status = ref<MemoryStatusDto | null>(null)
 
 const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === true)
@@ -243,13 +361,15 @@ async function refresh(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const [list, versions, currentStatus] = await Promise.all([
+    const [list, versions, drafts, currentStatus] = await Promise.all([
       memoryClient.list(props.agentId),
       memoryClient.listPersonaVersions(props.agentId),
+      memoryClient.listPersonaDrafts(props.agentId),
       memoryClient.getStatus(props.agentId)
     ])
     memories.value = list
     personaVersions.value = versions
+    personaDrafts.value = drafts
     status.value = currentStatus
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -258,8 +378,30 @@ async function refresh(): Promise<void> {
   }
 }
 
+// The injected self-model is the newest version that is active (or a legacy row that was never
+// superseded). Drafts and rejected versions are kept out of the timeline entirely.
+const activePersonaId = computed<string | null>(() => {
+  const match = personaVersions.value.find(
+    (version) =>
+      version.personaState === 'active' ||
+      (version.personaState == null && version.supersededBy === null)
+  )
+  return match?.id ?? null
+})
+
+const activePersonaContent = computed<string | null>(
+  () =>
+    personaVersions.value.find((version) => version.id === activePersonaId.value)?.content ?? null
+)
+
+const personaTimeline = computed<MemoryItem[]>(() =>
+  personaVersions.value.filter(
+    (version) => version.personaState !== 'draft' && version.personaState !== 'rejected'
+  )
+)
+
 function isActivePersona(version: MemoryItem): boolean {
-  return version.supersededBy === null
+  return version.id === activePersonaId.value
 }
 
 function statusVariant(
@@ -305,6 +447,36 @@ async function handleClear(): Promise<void> {
 async function handleRollback(versionId: string): Promise<void> {
   try {
     const ok = await memoryClient.rollbackPersona(props.agentId, versionId)
+    if (!ok) return notifyActionFailed()
+    await refresh()
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleApproveDraft(draftId: string): Promise<void> {
+  try {
+    const ok = await memoryClient.approvePersonaDraft(props.agentId, draftId)
+    if (!ok) return notifyActionFailed()
+    await refresh()
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleRejectDraft(draftId: string): Promise<void> {
+  try {
+    const ok = await memoryClient.rejectPersonaDraft(props.agentId, draftId)
+    if (!ok) return notifyActionFailed()
+    await refresh()
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleSetAnchor(versionId: string, anchored: boolean): Promise<void> {
+  try {
+    const ok = await memoryClient.setPersonaAnchor(props.agentId, versionId, anchored)
     if (!ok) return notifyActionFailed()
     await refresh()
   } catch (e) {

@@ -330,9 +330,11 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(createSql).toContain('confidence')
       expect(createSql).toContain('last_consolidated_at')
       expect(createSql).toContain('conflict_state')
-      expect(table.getLatestVersion()).toBe(33)
+      expect(createSql).toContain('persona_state')
+      expect(table.getLatestVersion()).toBe(34)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
       expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
+      expect(table.getMigrationSQL(34)).toMatch(/ADD COLUMN persona_state/)
       expect(table.getMigrationSQL(31)).toBeNull()
 
       table.createTable()
@@ -340,6 +342,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{ name: string }>
       ).map((column) => column.name)
       expect(columns).toContain('embedding_model')
+      expect(columns).toContain('persona_state')
     } finally {
       db.close()
     }
@@ -594,7 +597,11 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       db.exec('ALTER TABLE agent_memory DROP COLUMN confidence')
       db.exec('ALTER TABLE agent_memory DROP COLUMN last_consolidated_at')
       db.exec('ALTER TABLE agent_memory DROP COLUMN conflict_state')
-      table.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'old fact' })
+      // Seed the legacy row with raw SQL: table.insert() names every current column, including the
+      // ones this migration is about to add, so it cannot run against the pre-migration schema.
+      db.prepare(
+        'INSERT INTO agent_memory (id, agent_id, kind, content, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('legacy', 'a', 'semantic', 'old fact', 1000)
 
       const sql = table.getMigrationSQL(33)
       expect(sql).toBeTruthy()
@@ -608,6 +615,85 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(columns).toContain('conflict_state')
       // Legacy row survives the migration with neutral defaults.
       expect(table.getById('legacy')?.confidence).toBe(null)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('v34 migration adds persona_state to a legacy table and reads legacy personas as active', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      // Reproduce a database created before the persona lifecycle column existed.
+      db.exec('ALTER TABLE agent_memory DROP COLUMN persona_state')
+      // Seed the legacy row with raw SQL: table.insert() names persona_state, which does not exist
+      // yet on the pre-migration schema, so the ORM insert path cannot run here.
+      db.prepare(
+        'INSERT INTO agent_memory (id, agent_id, kind, content, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('legacy-persona', 'a', 'persona', 'legacy self-model', 1000)
+
+      const sql = table.getMigrationSQL(34)
+      expect(sql).toBeTruthy()
+      db.exec(sql as string)
+
+      const columns = (
+        db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{ name: string }>
+      ).map((column) => column.name)
+      expect(columns).toContain('persona_state')
+      // A pre-lifecycle persona (NULL state, not superseded) keeps reading as the active self-model.
+      expect(table.getById('legacy-persona')?.persona_state).toBe(null)
+      expect(table.getActivePersona('a')?.id).toBe('legacy-persona')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('getActivePersona honors the lifecycle tristate (legacy active / superseded / draft) (AC-1.6)', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      // Legacy active: NULL state, never superseded -> readable.
+      table.insert({
+        id: 'legacy-active',
+        agentId: 'a',
+        kind: 'persona',
+        content: 'legacy active',
+        createdAt: 1000
+      })
+      expect(table.getActivePersona('a')?.id).toBe('legacy-active')
+
+      // Legacy superseded: NULL state but superseded_by set -> never resurfaces, even if its
+      // created_at is newer than the active row.
+      const superseded = table.insert({
+        id: 'legacy-superseded',
+        agentId: 'a',
+        kind: 'persona',
+        content: 'legacy superseded',
+        createdAt: 3000
+      })
+      table.markSuperseded(superseded.id, 'legacy-active')
+      expect(table.getActivePersona('a')?.id).toBe('legacy-active')
+
+      // Draft: pending approval, never injected as the active persona.
+      table.insert({
+        id: 'pending-draft',
+        agentId: 'a',
+        kind: 'persona',
+        content: 'proposed self-model',
+        createdAt: 4000,
+        personaState: 'draft'
+      })
+      expect(table.getActivePersona('a')?.id).toBe('legacy-active')
+      expect(table.getDraftPersona('a')?.id).toBe('pending-draft')
+
+      // Approving the draft (active) and superseding the legacy row swaps the active self-model.
+      table.setPersonaState('legacy-active', 'superseded', 'pending-draft')
+      table.setPersonaState('pending-draft', 'active')
+      expect(table.getActivePersona('a')?.id).toBe('pending-draft')
+      expect(table.getDraftPersona('a')).toBeUndefined()
     } finally {
       db.close()
     }

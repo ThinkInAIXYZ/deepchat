@@ -2245,8 +2245,25 @@
         "error": "Fejl",
         "fts_only": "Kun nøgleord",
         "archived": "Arkiveret"
-      }
-    }
+      },
+      "pendingTitle": "Afventer godkendelse ({count})",
+      "largeChange": "Stor ændring — gennemgå omhyggeligt",
+      "personaCurrent": "Nuværende selvmodel",
+      "personaProposed": "Foreslået selvmodel",
+      "personaNone": "Ingen aktiv selvmodel endnu",
+      "approve": "Godkend",
+      "reject": "Afvis",
+      "anchored": "Forankret",
+      "anchor": "Forankr",
+      "unanchor": "Fjern forankring",
+      "rollbackConfirmTitle": "Rul tilbage til denne selvmodel?",
+      "rollbackConfirmBody": "Dette gør den valgte version til den aktive selvmodel og erstatter den nuværende.",
+      "personaEvolutionOnHint": "Personaudvikling er eksperimentel. Nye selvmodeller vises her som kladder og injiceres først, når du har godkendt dem.",
+      "personaEvolutionOffHint": "Personaudvikling er en eksperimentel, valgfri funktion og er i øjeblikket slået fra for denne agent."
+    },
+    "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
+    "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",
+    "personaEvolutionWarning": "Destillerede personaer kan drive eller forstærke bias fra tidligere chats. Hver ændring kræver din udtrykkelige godkendelse — den opdateres aldrig i stilhed."
   },
   "plugins": {
     "title": "Plugins",

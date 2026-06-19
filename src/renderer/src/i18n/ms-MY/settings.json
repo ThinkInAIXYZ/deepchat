@@ -176,8 +176,25 @@
         "error": "Ralat",
         "fts_only": "Kata kunci sahaja",
         "archived": "Diarkibkan"
-      }
-    }
+      },
+      "pendingTitle": "Menunggu kelulusan ({count})",
+      "largeChange": "Perubahan besar — semak dengan teliti",
+      "personaCurrent": "Model diri semasa",
+      "personaProposed": "Model diri yang dicadangkan",
+      "personaNone": "Belum ada model diri aktif",
+      "approve": "Lulus",
+      "reject": "Tolak",
+      "anchored": "Disauh",
+      "anchor": "Sauh",
+      "unanchor": "Buang sauh",
+      "rollbackConfirmTitle": "Undur kembali ke model diri ini?",
+      "rollbackConfirmBody": "Ini menjadikan versi yang dipilih sebagai model diri aktif dan menggantikan yang semasa.",
+      "personaEvolutionOnHint": "Evolusi persona adalah eksperimental. Model diri baharu muncul di sini sebagai draf dan hanya disuntik selepas anda meluluskannya.",
+      "personaEvolutionOffHint": "Evolusi persona ialah ciri eksperimental dan pilihan, dan kini dimatikan untuk ejen ini."
+    },
+    "personaEvolutionTitle": "Evolusi persona (eksperimental)",
+    "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",
+    "personaEvolutionWarning": "Persona yang disuling boleh menyimpang atau membesarkan berat sebelah daripada perbualan lalu. Setiap perubahan memerlukan kelulusan jelas anda — ia tidak pernah dikemas kini secara senyap."
   },
   "notificationsHooks": {
     "title": "Hooks",

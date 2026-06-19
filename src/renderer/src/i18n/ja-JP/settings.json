@@ -2245,8 +2245,25 @@
         "error": "エラー",
         "fts_only": "キーワードのみ",
         "archived": "アーカイブ済み"
-      }
-    }
+      },
+      "pendingTitle": "承認待ち（{count}）",
+      "largeChange": "変更が大きいため、慎重に確認してください",
+      "personaCurrent": "現在の自己モデル",
+      "personaProposed": "提案された自己モデル",
+      "personaNone": "有効な自己モデルはまだありません",
+      "approve": "承認",
+      "reject": "却下",
+      "anchored": "固定済み",
+      "anchor": "固定",
+      "unanchor": "固定を解除",
+      "rollbackConfirmTitle": "この自己モデルにロールバックしますか？",
+      "rollbackConfirmBody": "選択したバージョンを有効な自己モデルにし、現在のものを置き換えます。",
+      "personaEvolutionOnHint": "人格進化は実験的機能です。新しい自己モデルはここに下書きとして表示され、承認後にのみ注入されます。",
+      "personaEvolutionOffHint": "人格進化は実験的なオプション機能で、現在このエージェントでは無効です。"
+    },
+    "personaEvolutionTitle": "人格進化（実験的）",
+    "personaEvolutionDescription": "リフレクションが更新後の自己モデルを下書きとして提案し、あなたの承認を待ちます。メモリとは独立で、既定では無効です。",
+    "personaEvolutionWarning": "蒸留された人格は、過去の会話の偏りをドリフトさせたり増幅したりすることがあります。すべての変更には明示的な承認が必要で、無断で更新されることはありません。"
   },
   "plugins": {
     "title": "Plugins",

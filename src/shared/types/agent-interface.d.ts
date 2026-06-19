@@ -677,6 +677,9 @@ export interface DeepChatAgentConfig {
   memoryRetrieval?: DeepChatAgentMemoryRetrieval | null
   // Approximate token ceiling for the assembled memory injection (persona + working + recalled).
   memoryInjectionTokenBudget?: number | null
+  // Opt-in, experimental guarded persona evolution. Independent of memoryEnabled and default false:
+  // when off, reflection still runs but no persona draft is ever produced or injected.
+  personaEvolutionEnabled?: boolean
 }
 
 export interface CreateDeepChatAgentInput {

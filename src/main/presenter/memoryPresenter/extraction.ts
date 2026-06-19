@@ -160,6 +160,42 @@ export function parseReflectionInsights(raw: string): string[] {
   return insights
 }
 
+// A draft whose normalized distance from the current self-model exceeds this is flagged needsReview
+// and can never be auto-approved. Conservative default so only large rewrites trip it.
+export const PERSONA_MAX_CHANGE_RATIO = 0.6
+
+// Normalized character-level Levenshtein distance between two self-models, in [0, 1]: 0 = identical,
+// 1 = fully different. Used as the programmatic small-step guard on persona drafts. A pure function so
+// it can be unit-tested without storage; two empty strings are identical (0).
+export function personaChangeRatio(
+  previous: string | null | undefined,
+  next: string | null | undefined
+): number {
+  const a = (previous ?? '').trim()
+  const b = (next ?? '').trim()
+  if (a === b) return 0
+  const longest = Math.max(a.length, b.length)
+  if (longest === 0) return 0
+  return levenshtein(a, b) / longest
+}
+
+function levenshtein(a: string, b: string): number {
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i += 1) {
+    let prevDiag = row[0]
+    row[0] = i
+    for (let j = 1; j <= b.length; j += 1) {
+      const above = row[j]
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prevDiag + cost)
+      prevDiag = above
+    }
+  }
+  return row[b.length]
+}
+
 export function sanitizeSelfModel(raw: string): string {
   if (!raw) return ''
   let text = raw.trim()

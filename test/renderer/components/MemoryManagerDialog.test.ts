@@ -41,7 +41,12 @@ async function setup(
     clear?: number
     rollback?: boolean
     restore?: boolean
+    approve?: boolean
+    reject?: boolean
+    anchor?: boolean
     items?: MemoryItem[]
+    personaVersions?: MemoryItem[]
+    drafts?: MemoryItem[]
   } = {}
 ) {
   vi.resetModules()
@@ -50,14 +55,34 @@ async function setup(
   const memoryClient = {
     list: vi.fn().mockResolvedValue(overrides.items ?? [{ ...memory }]),
     getStatus: vi.fn().mockResolvedValue(status),
-    listPersonaVersions: vi.fn().mockResolvedValue([
-      { ...memory, id: 'p-old', kind: 'persona', content: 'old persona', supersededBy: 'p-new' },
-      { ...memory, id: 'p-new', kind: 'persona', content: 'new persona', supersededBy: null }
-    ]),
+    listPersonaVersions: vi.fn().mockResolvedValue(
+      overrides.personaVersions ?? [
+        {
+          ...memory,
+          id: 'p-old',
+          kind: 'persona',
+          content: 'old persona',
+          personaState: 'superseded',
+          supersededBy: 'p-new'
+        },
+        {
+          ...memory,
+          id: 'p-new',
+          kind: 'persona',
+          content: 'new persona',
+          personaState: 'active',
+          supersededBy: null
+        }
+      ]
+    ),
+    listPersonaDrafts: vi.fn().mockResolvedValue(overrides.drafts ?? []),
     remove: vi.fn().mockResolvedValue(overrides.remove ?? true),
     clear: vi.fn().mockResolvedValue(overrides.clear ?? 1),
     restore: vi.fn().mockResolvedValue(overrides.restore ?? true),
     rollbackPersona: vi.fn().mockResolvedValue(overrides.rollback ?? true),
+    approvePersonaDraft: vi.fn().mockResolvedValue(overrides.approve ?? true),
+    rejectPersonaDraft: vi.fn().mockResolvedValue(overrides.reject ?? true),
+    setPersonaAnchor: vi.fn().mockResolvedValue(overrides.anchor ?? true),
     onUpdated: vi.fn().mockReturnValue(dispose)
   }
   const toast = vi.fn()
@@ -155,13 +180,15 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
   })
 
   it('rollback failure toasts (AC-6.1)', async () => {
-    const { wrapper, toast } = await setup({ rollback: false })
-    const rollbackBtn = wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('settings.deepchatAgents.memoryManager.rollback'))
-    await rollbackBtn!.trigger('click')
+    const { wrapper, memoryClient, toast } = await setup({ rollback: false })
+    // Rollback is now confirm-wrapped: the action lives on the AlertDialog confirm button.
+    const rollbackAction = wrapper
+      .findAllComponents(AlertDialogActionStub)
+      .find((c) => c.text().includes('settings.deepchatAgents.memoryManager.rollback'))
+    await rollbackAction!.trigger('click')
     await flushPromises()
 
+    expect(memoryClient.rollbackPersona).toHaveBeenCalledWith('a', 'p-old')
     expect(toast).toHaveBeenCalledWith(expect.objectContaining(failedToast))
   })
 
@@ -214,5 +241,71 @@ describe('MemoryManagerDialog SDD-4 surfacing (conflict / archived)', () => {
       .findAll('button')
       .find((b) => b.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.restore')
     expect(restoreBtn).toBeUndefined()
+  })
+})
+
+const draft: MemoryItem = {
+  ...memory,
+  id: 'd1',
+  kind: 'persona',
+  content: 'proposed self-model',
+  personaState: 'draft',
+  supersededBy: null,
+  needsReview: false
+}
+
+describe('MemoryManagerDialog persona draft approval (SDD-6)', () => {
+  it('keeps drafts out of the timeline but surfaces them in the pending section', async () => {
+    const { wrapper } = await setup({ drafts: [{ ...draft }] })
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.pendingTitle')
+    expect(wrapper.text()).toContain('proposed self-model')
+    // The active persona is shown for comparison; the draft never joins the version timeline.
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.personaProposed')
+  })
+
+  it('flags a large-change draft and approves it through the client (AC-3.x)', async () => {
+    const { wrapper, memoryClient } = await setup({
+      drafts: [{ ...draft, needsReview: true }]
+    })
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.largeChange')
+
+    const approveBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('settings.deepchatAgents.memoryManager.approve'))
+    await approveBtn!.trigger('click')
+    await flushPromises()
+    expect(memoryClient.approvePersonaDraft).toHaveBeenCalledWith('a', 'd1')
+  })
+
+  it('rejects a draft through the client', async () => {
+    const { wrapper, memoryClient } = await setup({ drafts: [{ ...draft }] })
+    const rejectBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('settings.deepchatAgents.memoryManager.reject'))
+    await rejectBtn!.trigger('click')
+    await flushPromises()
+    expect(memoryClient.rejectPersonaDraft).toHaveBeenCalledWith('a', 'd1')
+  })
+
+  it('approve failure toasts and does not crash (AC-6.1)', async () => {
+    const { wrapper, toast } = await setup({ drafts: [{ ...draft }], approve: false })
+    const approveBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('settings.deepchatAgents.memoryManager.approve'))
+    await approveBtn!.trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining(failedToast))
+  })
+
+  it('toggles the anchor on a persona version through the client', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const anchorBtn = wrapper
+      .findAll('button')
+      .find((b) => b.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.anchor')
+    expect(anchorBtn).toBeTruthy()
+    await anchorBtn!.trigger('click')
+    await flushPromises()
+    // The non-active 'p-old' version is the one offering an anchor toggle.
+    expect(memoryClient.setPersonaAnchor).toHaveBeenCalledWith('a', 'p-old', true)
   })
 })

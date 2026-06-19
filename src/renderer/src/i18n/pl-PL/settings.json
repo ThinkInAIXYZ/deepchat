@@ -176,8 +176,25 @@
         "error": "Błąd",
         "fts_only": "Tylko słowa kluczowe",
         "archived": "Zarchiwizowano"
-      }
-    }
+      },
+      "pendingTitle": "Oczekuje na zatwierdzenie ({count})",
+      "largeChange": "Duża zmiana — przejrzyj uważnie",
+      "personaCurrent": "Bieżący model siebie",
+      "personaProposed": "Proponowany model siebie",
+      "personaNone": "Brak aktywnego modelu siebie",
+      "approve": "Zatwierdź",
+      "reject": "Odrzuć",
+      "anchored": "Zakotwiczone",
+      "anchor": "Zakotwicz",
+      "unanchor": "Odkotwicz",
+      "rollbackConfirmTitle": "Przywrócić ten model siebie?",
+      "rollbackConfirmBody": "Wybrana wersja stanie się aktywnym modelem siebie i zastąpi bieżącą.",
+      "personaEvolutionOnHint": "Ewolucja persony jest eksperymentalna. Nowe modele siebie pojawiają się tutaj jako wersje robocze i są wstrzykiwane dopiero po Twoim zatwierdzeniu.",
+      "personaEvolutionOffHint": "Ewolucja persony to eksperymentalna, opcjonalna funkcja, obecnie wyłączona dla tego agenta."
+    },
+    "personaEvolutionTitle": "Ewolucja persony (eksperymentalna)",
+    "personaEvolutionDescription": "Pozwól, aby refleksja proponowała zaktualizowane modele siebie jako wersje robocze do zatwierdzenia. Niezależna od pamięci; domyślnie wyłączona.",
+    "personaEvolutionWarning": "Wydestylowane persony mogą dryfować lub wzmacniać uprzedzenia z poprzednich rozmów. Każda zmiana wymaga Twojego wyraźnego zatwierdzenia — nigdy nie aktualizuje się po cichu."
   },
   "notificationsHooks": {
     "title": "Haczyki",

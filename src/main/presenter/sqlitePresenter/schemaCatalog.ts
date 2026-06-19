@@ -210,7 +210,8 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       embedding_model: 'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;',
       confidence: 'ALTER TABLE agent_memory ADD COLUMN confidence REAL;',
       last_consolidated_at: 'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
-      conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;'
+      conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;',
+      persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
     }
   },
   {

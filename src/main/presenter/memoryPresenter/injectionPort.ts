@@ -1,5 +1,9 @@
 import type { AgentMemoryKind } from '../sqlitePresenter/tables/agentMemory'
-import type { MemoryExtractionResult, MemoryReflectionResult } from './types'
+import type {
+  MemoryExtractionResult,
+  MemoryPersonaDraftResult,
+  MemoryReflectionResult
+} from './types'
 
 export interface MemoryInjectionPayload {
   selfModel: string | null
@@ -57,6 +61,15 @@ export interface MemoryRuntimePort extends MemoryInjectionPort {
     model: { providerId: string; modelId: string },
     sourceSession?: string | null
   ): Promise<MemoryReflectionResult | null>
+
+  // Distills a new self-model draft from recent memories when guarded persona evolution is enabled
+  // for the agent. Always returns null when the feature is off (default), throttled, or unchanged; the
+  // draft it writes is never injected until the user approves it. Never throws or blocks the caller.
+  maybeEvolvePersona(
+    agentId: string,
+    model: { providerId: string; modelId: string },
+    sourceSession?: string | null
+  ): Promise<MemoryPersonaDraftResult | null>
 }
 
 const SELF_MODEL_HEADER = '## Self-Model'
