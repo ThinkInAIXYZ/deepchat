@@ -1998,7 +1998,16 @@
       "setDefault": "Establecer predeterminado",
       "clearDefault": "Borrar valor predeterminado",
       "showTemp": "Mostrar temperatura",
-      "hideTemp": "Ocultar temperatura"
+      "hideTemp": "Ocultar temperatura",
+      "more": "Más acciones del directorio",
+      "dragTarget": "Arrastra el directorio {name} para reordenarlo",
+      "moveTop": "Mover al principio",
+      "moveUp": "Mover arriba",
+      "moveDown": "Mover abajo",
+      "moveBottom": "Mover al final",
+      "archive": "Archivar",
+      "restore": "Restaurar",
+      "remove": "Quitar de DeepChat"
     },
     "badges": {
       "default": "Predeterminado",
@@ -2009,14 +2018,30 @@
     "meta": {
       "sessions": "{count} sesiones",
       "lastUsed": "Último uso: {value}",
-      "never": "nunca"
+      "never": "nunca",
+      "archivedAt": "Archivado: {value}"
     },
     "empty": {
       "regular": "No hay entornos para mostrar.",
-      "temp": "Aún no hay entornos temporales."
+      "temp": "Aún no hay entornos temporales.",
+      "archived": "Aún no hay entornos archivados."
     },
     "errors": {
-      "openTitle": "No se pudo abrir el directorio"
+      "openTitle": "No se pudo abrir el directorio",
+      "archiveTitle": "No se pudo archivar el directorio",
+      "restoreTitle": "No se pudo restaurar el directorio",
+      "removeTitle": "No se pudo quitar el directorio",
+      "reorderTitle": "No se pudieron reordenar los directorios"
+    },
+    "tabs": {
+      "active": "Activos ({count})",
+      "archived": "Archivados ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "¿Archivar \"{name}\"?",
+      "archiveDescription": "Se quitará de la lista de directorios activos y del selector de nuevo chat, pero se conservarán las sesiones, los mensajes y la carpeta real.",
+      "removeTitle": "¿Quitar \"{name}\" de DeepChat?",
+      "removeDescription": "La carpeta real y los mensajes no se eliminarán. Las sesiones normales se moverán a Sin proyecto; los registros de directorio de trabajo de ACP se conservan para que las sesiones existentes puedan reanudarse."
     }
   },
   "remote": {

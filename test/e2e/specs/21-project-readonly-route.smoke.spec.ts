@@ -13,6 +13,20 @@ test('environment settings reads project routes without native dialogs @smoke', 
   await expect(settingsPage.getByTestId('missing-toggle')).toBeVisible({
     timeout: 30_000
   })
+  await expect(settingsPage.getByTestId('environments-active-tab')).toBeVisible({
+    timeout: 30_000
+  })
+  await expect(settingsPage.getByTestId('environments-archived-tab')).toBeVisible({
+    timeout: 30_000
+  })
+
+  await settingsPage.getByTestId('environments-archived-tab').click()
+  await expect(
+    settingsPage
+      .locator('[data-testid="environments-archived-empty"], [data-testid="environment-row"]')
+      .first()
+  ).toBeVisible({ timeout: 30_000 })
+  await settingsPage.getByTestId('environments-active-tab').click()
 
   const repoRoot = process.cwd()
   const missingPath = `${repoRoot}/.deepchat-e2e-missing-${Date.now()}`
@@ -26,18 +40,29 @@ test('environment settings reads project routes without native dialogs @smoke', 
       }
 
       type Environment = {
+        archivedAt?: unknown
         exists?: unknown
         isTemp?: unknown
         lastUsedAt?: unknown
         name?: unknown
         path?: unknown
+        removedAt?: unknown
         sessionCount?: unknown
+        sortOrder?: unknown
+        status?: unknown
       }
 
       const recent = (await window.deepchat.invoke('project.listRecent', { limit: 10 })) as {
         projects?: Project[]
       }
-      const environments = (await window.deepchat.invoke('project.listEnvironments', {})) as {
+      const environments = (await window.deepchat.invoke('project.listEnvironments', {
+        status: 'active'
+      })) as {
+        environments?: Environment[]
+      }
+      const archivedEnvironments = (await window.deepchat.invoke('project.listEnvironments', {
+        status: 'archived'
+      })) as {
         environments?: Environment[]
       }
       const existing = (await window.deepchat.invoke('project.pathExists', {
@@ -56,17 +81,28 @@ test('environment settings reads project routes without native dialogs @smoke', 
         document.querySelectorAll('[data-testid="environment-row"]')
       )
 
+      const summarizeEnvironment = (environment: Environment) => ({
+        archivedAtType: typeof environment.archivedAt,
+        existsType: typeof environment.exists,
+        isTempType: typeof environment.isTemp,
+        lastUsedAtType: typeof environment.lastUsedAt,
+        nameType: typeof environment.name,
+        pathType: typeof environment.path,
+        removedAtType: typeof environment.removedAt,
+        sessionCountType: typeof environment.sessionCount,
+        sortOrderType: typeof environment.sortOrder,
+        status: environment.status,
+        statusType: typeof environment.status
+      })
+
       return {
+        archivedEnvironmentCount: archivedEnvironments.environments?.length ?? -1,
+        archivedEnvironments: (archivedEnvironments.environments ?? [])
+          .slice(0, 10)
+          .map(summarizeEnvironment),
         environmentCount: environments.environments?.length ?? -1,
         environmentRowsCount: environmentRows.length,
-        environments: (environments.environments ?? []).slice(0, 10).map((environment) => ({
-          existsType: typeof environment.exists,
-          isTempType: typeof environment.isTemp,
-          lastUsedAtType: typeof environment.lastUsedAt,
-          nameType: typeof environment.name,
-          pathType: typeof environment.path,
-          sessionCountType: typeof environment.sessionCount
-        })),
+        environments: (environments.environments ?? []).slice(0, 10).map(summarizeEnvironment),
         existingPathExists: existing.exists,
         missingPathExists: missing.exists,
         projectCount: projects.length,
@@ -83,6 +119,7 @@ test('environment settings reads project routes without native dialogs @smoke', 
 
   expect(snapshot.projectCount).toBeGreaterThanOrEqual(0)
   expect(snapshot.environmentCount).toBeGreaterThanOrEqual(0)
+  expect(snapshot.archivedEnvironmentCount).toBeGreaterThanOrEqual(0)
   expect(snapshot.environmentRowsCount).toBeGreaterThanOrEqual(0)
   expect(snapshot.existingPathExists).toBe(true)
   expect(snapshot.missingPathExists).toBe(false)
@@ -101,5 +138,32 @@ test('environment settings reads project routes without native dialogs @smoke', 
     expect(environment.lastUsedAtType).toBe('number')
     expect(environment.isTempType).toBe('boolean')
     expect(environment.existsType).toBe('boolean')
+    expect(environment.statusType).toBe('string')
+    expect(environment.status).toBe('active')
+    expect(environment.sortOrderType).toBe('number')
+    expect(environment.archivedAtType === 'number' || environment.archivedAtType === 'object').toBe(
+      true
+    )
+    expect(environment.removedAtType === 'number' || environment.removedAtType === 'object').toBe(
+      true
+    )
+  }
+
+  for (const environment of snapshot.archivedEnvironments) {
+    expect(environment.pathType).toBe('string')
+    expect(environment.nameType).toBe('string')
+    expect(environment.sessionCountType).toBe('number')
+    expect(environment.lastUsedAtType).toBe('number')
+    expect(environment.isTempType).toBe('boolean')
+    expect(environment.existsType).toBe('boolean')
+    expect(environment.statusType).toBe('string')
+    expect(environment.status).toBe('archived')
+    expect(environment.sortOrderType).toBe('number')
+    expect(environment.archivedAtType === 'number' || environment.archivedAtType === 'object').toBe(
+      true
+    )
+    expect(environment.removedAtType === 'number' || environment.removedAtType === 'object').toBe(
+      true
+    )
   }
 })

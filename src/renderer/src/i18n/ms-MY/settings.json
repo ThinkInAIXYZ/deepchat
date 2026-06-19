@@ -1998,7 +1998,16 @@
       "setDefault": "Tetapkan sebagai lalai",
       "clearDefault": "kosongkan lalai",
       "showTemp": "Tunjukkan Temp",
-      "hideTemp": "Tutup Temp"
+      "hideTemp": "Tutup Temp",
+      "more": "Lagi tindakan direktori",
+      "dragTarget": "Seret direktori {name} untuk menyusun semula",
+      "moveTop": "Alih ke paling atas",
+      "moveUp": "Alih ke atas",
+      "moveDown": "Alih ke bawah",
+      "moveBottom": "Alih ke paling bawah",
+      "archive": "Arkibkan",
+      "restore": "Pulihkan",
+      "remove": "Alih keluar daripada DeepChat"
     },
     "badges": {
       "default": "lalai",
@@ -2009,14 +2018,30 @@
     "meta": {
       "sessions": "Sesi {count}",
       "lastUsed": "Digunakan baru-baru ini: {value}",
-      "never": "tidak pernah"
+      "never": "tidak pernah",
+      "archivedAt": "Diarkibkan: {value}"
     },
     "empty": {
       "regular": "Pada masa ini tiada persekitaran direktori untuk dipaparkan.",
-      "temp": "Pada masa ini tiada persekitaran direktori Temp."
+      "temp": "Pada masa ini tiada persekitaran direktori Temp.",
+      "archived": "Belum ada persekitaran diarkibkan."
     },
     "errors": {
-      "openTitle": "Gagal membuka direktori"
+      "openTitle": "Gagal membuka direktori",
+      "archiveTitle": "Gagal mengarkibkan direktori",
+      "restoreTitle": "Gagal memulihkan direktori",
+      "removeTitle": "Gagal mengalih keluar direktori",
+      "reorderTitle": "Gagal menyusun semula direktori"
+    },
+    "tabs": {
+      "active": "Aktif ({count})",
+      "archived": "Diarkibkan ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Arkibkan \"{name}\"?",
+      "archiveDescription": "Ia akan keluar daripada senarai direktori aktif dan pemilih chat baharu, sementara sesi, mesej dan folder sebenar kekal utuh.",
+      "removeTitle": "Alih keluar \"{name}\" daripada DeepChat?",
+      "removeDescription": "Folder sebenar dan mesej tidak dipadam. Sesi biasa dialihkan kepada Tiada projek; rekod direktori kerja ACP disimpan supaya sesi sedia ada boleh disambung semula."
     }
   },
   "remote": {

@@ -354,7 +354,12 @@
     "searchPlaceholder": "Judul sesi pencarian",
     "searchAriaLabel": "Judul sesi pencarian",
     "searchEmptyTitle": "Tidak ditemukan sesi yang cocok",
-    "searchEmptyDescription": "Coba ubah kata kunci judul"
+    "searchEmptyDescription": "Coba ubah kata kunci judul",
+    "projectGroupActions": "Tindakan grup proyek",
+    "moveProjectGroupTop": "Pindahkan ke paling atas",
+    "moveProjectGroupUp": "Pindahkan ke atas",
+    "moveProjectGroupDown": "Pindahkan ke bawah",
+    "moveProjectGroupBottom": "Pindahkan ke paling bawah"
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",

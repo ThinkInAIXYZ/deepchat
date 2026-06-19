@@ -338,7 +338,12 @@
     "searchPlaceholder": "Pesquisar conversas",
     "searchAriaLabel": "Pesquisar conversas",
     "searchEmptyTitle": "Nenhuma conversa encontrada",
-    "searchEmptyDescription": "Tente outra palavra-chave do título"
+    "searchEmptyDescription": "Tente outra palavra-chave do título",
+    "projectGroupActions": "Ações do grupo de projetos",
+    "moveProjectGroupTop": "Mover para o topo",
+    "moveProjectGroupUp": "Mover para cima",
+    "moveProjectGroupDown": "Mover para baixo",
+    "moveProjectGroupBottom": "Mover para o fim"
   },
   "floatingWidget": {
     "title": "Visão geral das tarefas",

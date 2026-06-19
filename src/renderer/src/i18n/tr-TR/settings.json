@@ -1998,7 +1998,16 @@
       "setDefault": "Varsayılanı Ayarla",
       "clearDefault": "Varsayılanı Temizle",
       "showTemp": "Sıcaklığı Göster",
-      "hideTemp": "Sıcaklığı Gizle"
+      "hideTemp": "Sıcaklığı Gizle",
+      "more": "Daha fazla dizin eylemi",
+      "dragTarget": "Sıralamayı değiştirmek için {name} dizinini sürükleyin",
+      "moveTop": "En üste taşı",
+      "moveUp": "Yukarı taşı",
+      "moveDown": "Aşağı taşı",
+      "moveBottom": "En alta taşı",
+      "archive": "Arşivle",
+      "restore": "Geri yükle",
+      "remove": "DeepChat’ten kaldır"
     },
     "badges": {
       "default": "Varsayılan",
@@ -2009,14 +2018,30 @@
     "meta": {
       "sessions": "{count} oturumları",
       "lastUsed": "Son kullanılan: {value}",
-      "never": "Asla"
+      "never": "Asla",
+      "archivedAt": "Arşivlendi: {value}"
     },
     "empty": {
       "regular": "Gösterilecek ortam yok.",
-      "temp": "Henüz geçici ortam yok."
+      "temp": "Henüz geçici ortam yok.",
+      "archived": "Henüz arşivlenmiş ortam yok."
     },
     "errors": {
-      "openTitle": "Dizin Açılamadı"
+      "openTitle": "Dizin Açılamadı",
+      "archiveTitle": "Dizin arşivlenemedi",
+      "restoreTitle": "Dizin geri yüklenemedi",
+      "removeTitle": "Dizin kaldırılamadı",
+      "reorderTitle": "Dizinler yeniden sıralanamadı"
+    },
+    "tabs": {
+      "active": "Etkin ({count})",
+      "archived": "Arşivlenen ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "\"{name}\" arşivlensin mi?",
+      "archiveDescription": "Etkin dizin listesinden ve yeni sohbet seçicisinden çıkarılır; oturumlar, mesajlar ve gerçek klasör olduğu gibi kalır.",
+      "removeTitle": "\"{name}\" DeepChat’ten kaldırılsın mı?",
+      "removeDescription": "Gerçek klasör ve mesajlar silinmez. Normal oturumlar Proje yok bölümüne taşınır; ACP çalışma dizini kayıtları mevcut oturumların sürdürülebilmesi için saklanır."
     }
   },
   "remote": {

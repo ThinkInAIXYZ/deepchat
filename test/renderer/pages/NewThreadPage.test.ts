@@ -41,6 +41,8 @@ const setup = async (pendingModelId: string) => {
     defaultProjectPath: null as string | null,
     selectionSource: 'manual' as 'none' | 'manual' | 'default',
     projects: [{ name: 'demo', path: '/workspace/demo' }] as Array<{ name: string; path: string }>,
+    archivedEnvironments: [],
+    removedEnvironments: [],
     selectProject: vi.fn((path: string | null, source?: 'none' | 'manual' | 'default') => {
       const normalizedPath = path?.trim() || null
       projectStore.selectedProject = normalizedPath

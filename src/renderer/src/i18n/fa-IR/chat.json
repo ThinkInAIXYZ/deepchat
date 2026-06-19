@@ -338,7 +338,12 @@
     "searchPlaceholder": "جستجوی گفتگوها",
     "searchAriaLabel": "جستجوی گفتگوها",
     "searchEmptyTitle": "گفتگوی منطبقی پیدا نشد",
-    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید"
+    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید",
+    "projectGroupActions": "اقدام‌های گروه پروژه",
+    "moveProjectGroupTop": "انتقال به بالاترین جایگاه",
+    "moveProjectGroupUp": "انتقال به بالا",
+    "moveProjectGroupDown": "انتقال به پایین",
+    "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه"
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",

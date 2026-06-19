@@ -354,7 +354,12 @@
     "searchPlaceholder": "Wyszukaj czaty",
     "searchAriaLabel": "Wyszukaj czaty",
     "searchEmptyTitle": "Brak pasujących rozmów",
-    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule"
+    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule",
+    "projectGroupActions": "Akcje grupy projektu",
+    "moveProjectGroupTop": "Przenieś na górę",
+    "moveProjectGroupUp": "Przenieś wyżej",
+    "moveProjectGroupDown": "Przenieś niżej",
+    "moveProjectGroupBottom": "Przenieś na dół"
   },
   "spotlight": {
     "placeholder": "Przeszukuj czaty, agentów, ustawienia, działania…",

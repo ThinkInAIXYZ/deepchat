@@ -78,6 +78,8 @@ const setup = async (options?: {
     selectionSource: 'manual' as 'manual' | 'default',
     defaultProjectPath: options?.defaultProjectPath ?? null,
     projects: [],
+    archivedEnvironments: [],
+    removedEnvironments: [],
     selectProject: vi.fn((path: string | null, source: 'manual' | 'default' = 'manual') => {
       projectStore.selectionSource = source
       projectStore.selectedProject = path

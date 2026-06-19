@@ -2051,6 +2051,10 @@
       "title": "Temp Directories",
       "description": "Directories under temp roots or app-managed workspaces are grouped here and hidden by default."
     },
+    "tabs": {
+      "active": "Active ({count})",
+      "archived": "Archived ({count})"
+    },
     "actions": {
       "refresh": "Refresh",
       "showMissing": "Show Missing",
@@ -2058,7 +2062,16 @@
       "setDefault": "Set Default",
       "clearDefault": "Clear Default",
       "showTemp": "Show Temp",
-      "hideTemp": "Hide Temp"
+      "hideTemp": "Hide Temp",
+      "more": "More directory actions",
+      "dragTarget": "Drag directory {name} to reorder",
+      "moveTop": "Move to Top",
+      "moveUp": "Move Up",
+      "moveDown": "Move Down",
+      "moveBottom": "Move to Bottom",
+      "archive": "Archive",
+      "restore": "Restore",
+      "remove": "Remove from DeepChat"
     },
     "badges": {
       "default": "Default",
@@ -2069,14 +2082,26 @@
     "meta": {
       "sessions": "{count} sessions",
       "lastUsed": "Last used: {value}",
+      "archivedAt": "Archived: {value}",
       "never": "Never"
     },
     "empty": {
       "regular": "No environments to show.",
-      "temp": "No temp environments yet."
+      "temp": "No temp environments yet.",
+      "archived": "No archived environments yet."
+    },
+    "confirm": {
+      "archiveTitle": "Archive \"{name}\"?",
+      "archiveDescription": "It leaves the active directory list and new chat picker, while sessions, messages, and the real folder stay intact.",
+      "removeTitle": "Remove \"{name}\" from DeepChat?",
+      "removeDescription": "The real folder and messages are not deleted. Regular sessions move to No project; ACP workdir records are kept so existing sessions can resume."
     },
     "errors": {
-      "openTitle": "Failed to Open Directory"
+      "openTitle": "Failed to Open Directory",
+      "archiveTitle": "Failed to Archive Directory",
+      "restoreTitle": "Failed to Restore Directory",
+      "removeTitle": "Failed to Remove Directory",
+      "reorderTitle": "Failed to Reorder Directories"
     }
   },
   "remote": {

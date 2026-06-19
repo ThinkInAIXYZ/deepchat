@@ -5,6 +5,7 @@ import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable } from './tables/acpSessions'
 import { AcpTurnsTable } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
+import { NewEnvironmentPreferencesTable } from './tables/newEnvironmentPreferences'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
@@ -89,6 +90,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     afterRepair: (db) => {
       new NewEnvironmentsTable(db).rebuildFromSessions()
     }
+  },
+  {
+    name: 'new_environment_preferences',
+    createTable: (db) => new NewEnvironmentPreferencesTable(db)
   },
   {
     name: 'new_sessions',

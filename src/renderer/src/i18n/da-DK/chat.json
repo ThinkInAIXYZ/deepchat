@@ -338,7 +338,12 @@
     "searchPlaceholder": "Søg i chats",
     "searchAriaLabel": "Søg i chats",
     "searchEmptyTitle": "Ingen matchende samtaler",
-    "searchEmptyDescription": "Prøv et andet nøgleord i titlen"
+    "searchEmptyDescription": "Prøv et andet nøgleord i titlen",
+    "projectGroupActions": "Projektgruppehandlinger",
+    "moveProjectGroupTop": "Flyt til toppen",
+    "moveProjectGroupUp": "Flyt op",
+    "moveProjectGroupDown": "Flyt ned",
+    "moveProjectGroupBottom": "Flyt til bunden"
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",

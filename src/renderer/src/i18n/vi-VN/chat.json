@@ -354,7 +354,12 @@
     "searchPlaceholder": "Tìm kiếm cuộc trò chuyện",
     "searchAriaLabel": "Tìm kiếm cuộc trò chuyện",
     "searchEmptyTitle": "Không có cuộc trò chuyện phù hợp",
-    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác"
+    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác",
+    "projectGroupActions": "Thao tác nhóm dự án",
+    "moveProjectGroupTop": "Di chuyển lên đầu",
+    "moveProjectGroupUp": "Di chuyển lên",
+    "moveProjectGroupDown": "Di chuyển xuống",
+    "moveProjectGroupBottom": "Di chuyển xuống cuối"
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",

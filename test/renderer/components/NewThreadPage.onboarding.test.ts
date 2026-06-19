@@ -60,6 +60,8 @@ const setup = async () => {
     defaultProjectPath: null,
     selectionSource: 'manual' as const,
     projects: [],
+    archivedEnvironments: [],
+    removedEnvironments: [],
     selectProject: vi.fn(),
     openFolderPicker: vi.fn()
   })

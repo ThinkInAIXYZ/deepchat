@@ -1998,7 +1998,16 @@
       "setDefault": "Ustaw domyślne",
       "clearDefault": "Wyczyść domyślne",
       "showTemp": "Pokaż Temp",
-      "hideTemp": "Ukryj Temp"
+      "hideTemp": "Ukryj Temp",
+      "more": "Więcej akcji katalogu",
+      "dragTarget": "Przeciągnij katalog {name}, aby zmienić kolejność",
+      "moveTop": "Przenieś na górę",
+      "moveUp": "Przenieś wyżej",
+      "moveDown": "Przenieś niżej",
+      "moveBottom": "Przenieś na dół",
+      "archive": "Archiwizuj",
+      "restore": "Przywróć",
+      "remove": "Usuń z DeepChat"
     },
     "badges": {
       "default": "Domyślne",
@@ -2009,14 +2018,30 @@
     "meta": {
       "sessions": "Sesje {count}",
       "lastUsed": "Ostatnio używane: {value}",
-      "never": "Nigdy"
+      "never": "Nigdy",
+      "archivedAt": "Zarchiwizowano: {value}"
     },
     "empty": {
       "regular": "Brak środowisk do pokazania.",
-      "temp": "Nie ma jeszcze środowisk tymczasowych."
+      "temp": "Nie ma jeszcze środowisk tymczasowych.",
+      "archived": "Nie ma jeszcze zarchiwizowanych środowisk."
     },
     "errors": {
-      "openTitle": "Nie udało się otworzyć katalogu"
+      "openTitle": "Nie udało się otworzyć katalogu",
+      "archiveTitle": "Nie udało się zarchiwizować katalogu",
+      "restoreTitle": "Nie udało się przywrócić katalogu",
+      "removeTitle": "Nie udało się usunąć katalogu",
+      "reorderTitle": "Nie udało się zmienić kolejności katalogów"
+    },
+    "tabs": {
+      "active": "Aktywne ({count})",
+      "archived": "Zarchiwizowane ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Zarchiwizować \"{name}\"?",
+      "archiveDescription": "Zniknie z listy aktywnych katalogów i wybieraka nowego czatu, ale sesje, wiadomości i rzeczywisty folder pozostaną nienaruszone.",
+      "removeTitle": "Usunąć \"{name}\" z DeepChat?",
+      "removeDescription": "Rzeczywisty folder i wiadomości nie zostaną usunięte. Zwykłe sesje przejdą do Brak projektu; rekordy katalogu roboczego ACP zostaną zachowane, aby istniejące sesje mogły zostać wznowione."
     }
   },
   "remote": {

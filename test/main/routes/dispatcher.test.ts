@@ -21,6 +21,7 @@ import type {
 } from '@shared/presenter'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
+import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
 
 vi.mock('@/presenter/configPresenter/acpInitHelper', () => ({
@@ -67,7 +68,6 @@ const { browserWindowState } = vi.hoisted(() => {
     Object.assign(window, overrides)
     return window
   }
-
   return {
     browserWindowState: {
       windows,
@@ -825,9 +825,17 @@ function createRuntime() {
         sessionCount: 2,
         lastUsedAt: 456,
         isTemp: false,
-        exists: true
+        exists: true,
+        status: 'active',
+        sortOrder: 2147483647,
+        archivedAt: null,
+        removedAt: null
       }
     ]),
+    reorderEnvironments: vi.fn().mockResolvedValue(undefined),
+    archiveEnvironment: vi.fn().mockResolvedValue(undefined),
+    restoreEnvironment: vi.fn().mockResolvedValue(undefined),
+    removeEnvironment: vi.fn().mockResolvedValue({ clearedSessionIds: ['session-1'] }),
     openDirectory: vi.fn().mockResolvedValue(undefined),
     pathExists: vi.fn().mockResolvedValue(true),
     selectDirectory: vi.fn().mockResolvedValue('C:/selected-workspace')
@@ -1114,6 +1122,8 @@ function createRuntime() {
       settings: { enabled: false, tasks: [{ id }] }
     }))
   }
+
+  setDeepchatEventWindowPresenter(windowPresenter)
 
   return {
     settings,
@@ -3131,6 +3141,50 @@ describe('dispatchDeepchatRoute', () => {
         windowId: 7
       }
     )
+    const reorderEnvironmentsResult = await dispatchDeepchatRoute(
+      runtime,
+      'project.reorderEnvironments',
+      {
+        paths: ['C:/workspace', 'C:/other']
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const archiveEnvironmentResult = await dispatchDeepchatRoute(
+      runtime,
+      'project.archiveEnvironment',
+      {
+        path: 'C:/workspace'
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const restoreEnvironmentResult = await dispatchDeepchatRoute(
+      runtime,
+      'project.restoreEnvironment',
+      {
+        path: 'C:/workspace'
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+    const removeEnvironmentResult = await dispatchDeepchatRoute(
+      runtime,
+      'project.removeEnvironment',
+      {
+        path: 'C:/workspace'
+      },
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
     const openDirectoryResult = await dispatchDeepchatRoute(
       runtime,
       'project.openDirectory',
@@ -3420,10 +3474,22 @@ describe('dispatchDeepchatRoute', () => {
           sessionCount: 2,
           lastUsedAt: 456,
           isTemp: false,
-          exists: true
+          exists: true,
+          status: 'active',
+          sortOrder: 2147483647,
+          archivedAt: null,
+          removedAt: null
         }
       ]
     })
+    expect(projectPresenter.reorderEnvironments).toHaveBeenCalledWith(['C:/workspace', 'C:/other'])
+    expect(reorderEnvironmentsResult).toEqual({ updated: true })
+    expect(projectPresenter.archiveEnvironment).toHaveBeenCalledWith('C:/workspace')
+    expect(archiveEnvironmentResult).toEqual({ updated: true })
+    expect(projectPresenter.restoreEnvironment).toHaveBeenCalledWith('C:/workspace')
+    expect(restoreEnvironmentResult).toEqual({ updated: true })
+    expect(projectPresenter.removeEnvironment).toHaveBeenCalledWith('C:/workspace')
+    expect(removeEnvironmentResult).toEqual({ clearedSessionIds: ['session-1'] })
     expect(projectPresenter.openDirectory).toHaveBeenCalledWith('C:/workspace')
     expect(openDirectoryResult).toEqual({ opened: true })
     expect(projectPresenter.pathExists).toHaveBeenCalledWith('C:/workspace')

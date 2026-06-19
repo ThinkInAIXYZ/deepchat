@@ -1967,7 +1967,16 @@
       "setDefault": "Definir como padrão",
       "clearDefault": "Limpar padrão",
       "showTemp": "Mostrar Temp",
-      "hideTemp": "Ocultar Temp"
+      "hideTemp": "Ocultar Temp",
+      "more": "Mais ações do diretório",
+      "dragTarget": "Arraste o diretório {name} para reordenar",
+      "moveTop": "Mover para o topo",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo",
+      "moveBottom": "Mover para o fim",
+      "archive": "Arquivar",
+      "restore": "Restaurar",
+      "remove": "Remover do DeepChat"
     },
     "badges": {
       "default": "Padrão",
@@ -1978,14 +1987,30 @@
     "meta": {
       "sessions": "{count} sessões",
       "lastUsed": "Último uso: {value}",
-      "never": "Nunca"
+      "never": "Nunca",
+      "archivedAt": "Arquivado: {value}"
     },
     "empty": {
       "regular": "Nenhum ambiente para mostrar.",
-      "temp": "Ainda não há ambientes Temp."
+      "temp": "Ainda não há ambientes Temp.",
+      "archived": "Ainda não há ambientes arquivados."
     },
     "errors": {
-      "openTitle": "Falha ao abrir diretório"
+      "openTitle": "Falha ao abrir diretório",
+      "archiveTitle": "Falha ao arquivar diretório",
+      "restoreTitle": "Falha ao restaurar diretório",
+      "removeTitle": "Falha ao remover diretório",
+      "reorderTitle": "Falha ao reordenar diretórios"
+    },
+    "tabs": {
+      "active": "Ativos ({count})",
+      "archived": "Arquivados ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Arquivar \"{name}\"?",
+      "archiveDescription": "Ele sairá da lista de diretórios ativos e do seletor de novo chat, enquanto sessões, mensagens e a pasta real permanecem intactas.",
+      "removeTitle": "Remover \"{name}\" do DeepChat?",
+      "removeDescription": "A pasta real e as mensagens não serão excluídas. Sessões comuns são movidas para Sem projeto; registros de diretório de trabalho ACP são mantidos para que sessões existentes possam continuar."
     }
   },
   "remote": {

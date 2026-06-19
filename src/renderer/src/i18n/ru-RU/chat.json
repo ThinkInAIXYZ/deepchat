@@ -338,7 +338,12 @@
     "searchPlaceholder": "Поиск по чатам",
     "searchAriaLabel": "Поиск по чатам",
     "searchEmptyTitle": "Совпадений не найдено",
-    "searchEmptyDescription": "Попробуйте другое ключевое слово в названии"
+    "searchEmptyDescription": "Попробуйте другое ключевое слово в названии",
+    "projectGroupActions": "Действия с группой проекта",
+    "moveProjectGroupTop": "Переместить в начало",
+    "moveProjectGroupUp": "Переместить выше",
+    "moveProjectGroupDown": "Переместить ниже",
+    "moveProjectGroupBottom": "Переместить в конец"
   },
   "floatingWidget": {
     "title": "Обзор задач",

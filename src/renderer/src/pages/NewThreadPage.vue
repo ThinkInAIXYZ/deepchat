@@ -51,7 +51,7 @@
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              v-for="project in projectStore.projects"
+              v-for="project in selectableProjects"
               :key="project.path"
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.selectProject(project.path)"
@@ -323,6 +323,18 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   return normalized ? normalized : null
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const archivedProjectPaths = computed(
+  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
+)
+const removedProjectPaths = computed(
+  () => new Set(projectStore.removedEnvironments.map((environment) => environment.path))
+)
+const selectableProjects = computed(() =>
+  projectStore.projects.filter(
+    (project) =>
+      !archivedProjectPaths.value.has(project.path) && !removedProjectPaths.value.has(project.path)
+  )
+)
 const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )

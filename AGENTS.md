@@ -18,6 +18,10 @@
 - After completing a feature, always run `pnpm run format`, `pnpm run i18n` and `pnpm run lint` to keep formatting and lint status clean.
 - Test: `pnpm test`, `test:main`, `test:renderer`, `test:coverage`, `test:watch`, `test:ui`.
 - Build: `pnpm run build` then `build:win|mac|linux` (add `:x64|:arm64`).
+- Build preflight refresh: `pnpm run build` runs scripts that refresh
+  `resources/model-db/providers.json` and `resources/acp-registry/registry.json`. When these files
+  change during normal build/test work, include the refresh in the same change instead of reverting
+  it; keeping provider and ACP registry data current is expected maintenance.
 
 ## Coding Style & Naming Conventions
 - TypeScript + Vue 3 Composition API; Pinia for state; Tailwind for styles.

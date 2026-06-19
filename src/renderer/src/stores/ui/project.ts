@@ -24,6 +24,8 @@ export const useProjectStore = defineStore('project', () => {
   // --- State ---
   const projects = ref<UIProject[]>([])
   const environments = ref<EnvironmentSummary[]>([])
+  const archivedEnvironments = ref<EnvironmentSummary[]>([])
+  const removedEnvironments = ref<EnvironmentSummary[]>([])
   const selectedProjectPath = ref<string | null>(null)
   const defaultProjectPath = ref<string | null>(null)
   const selectionSource = ref<ProjectSelectionSource>('none')
@@ -107,6 +109,16 @@ export const useProjectStore = defineStore('project', () => {
     configClient.onDefaultProjectPathChanged(({ path }) => {
       handleDefaultProjectPathChanged(undefined, { path })
     })
+    projectClient.onEnvironmentsChanged(({ action, path }) => {
+      if (action === 'remove' && path) {
+        projects.value = projects.value.filter((project) => project.path !== path)
+        if (selectedProjectPath.value === path) {
+          selectProject(null)
+        }
+      }
+
+      void refreshProjectData()
+    })
     listenersRegistered = true
   }
 
@@ -145,10 +157,21 @@ export const useProjectStore = defineStore('project', () => {
 
   async function fetchEnvironments(): Promise<void> {
     try {
-      environments.value = await projectClient.listEnvironments()
+      const [active, archived, removed] = await Promise.all([
+        projectClient.listEnvironments('active'),
+        projectClient.listEnvironments('archived'),
+        projectClient.listEnvironments('removed')
+      ])
+      environments.value = active
+      archivedEnvironments.value = archived
+      removedEnvironments.value = removed
     } catch (e) {
       error.value = `Failed to load environments: ${e}`
     }
+  }
+
+  async function refreshProjectData(): Promise<void> {
+    await Promise.all([fetchProjects(), fetchEnvironments()])
   }
 
   function selectProject(
@@ -173,6 +196,75 @@ export const useProjectStore = defineStore('project', () => {
 
   async function clearDefaultProject(): Promise<void> {
     await setDefaultProject(null)
+  }
+
+  async function reorderEnvironments(paths: string[]): Promise<void> {
+    const normalizedPaths = Array.from(
+      new Set(paths.map((environmentPath) => normalizePath(environmentPath)).filter(Boolean))
+    ) as string[]
+
+    if (normalizedPaths.length === 0) {
+      return
+    }
+
+    const previousEnvironments = environments.value
+    const byPath = new Map(
+      previousEnvironments.map((environment) => [environment.path, environment])
+    )
+    const orderedPaths = normalizedPaths.filter((environmentPath) => byPath.has(environmentPath))
+    const orderedPathSet = new Set(orderedPaths)
+
+    environments.value = [
+      ...orderedPaths.map((environmentPath, index) => ({
+        ...byPath.get(environmentPath)!,
+        sortOrder: index
+      })),
+      ...previousEnvironments.filter((environment) => !orderedPathSet.has(environment.path))
+    ]
+
+    try {
+      await projectClient.reorderEnvironments(normalizedPaths)
+      await fetchEnvironments()
+    } catch (e) {
+      environments.value = previousEnvironments
+      error.value = `Failed to reorder environments: ${e}`
+      throw e
+    }
+  }
+
+  async function archiveEnvironment(path: string): Promise<void> {
+    try {
+      await projectClient.archiveEnvironment(path)
+      await fetchEnvironments()
+    } catch (e) {
+      error.value = `Failed to archive environment: ${e}`
+      throw e
+    }
+  }
+
+  async function restoreEnvironment(path: string): Promise<void> {
+    try {
+      await projectClient.restoreEnvironment(path)
+      await fetchEnvironments()
+    } catch (e) {
+      error.value = `Failed to restore environment: ${e}`
+      throw e
+    }
+  }
+
+  async function removeEnvironment(path: string): Promise<{ clearedSessionIds: string[] }> {
+    try {
+      const result = await projectClient.removeEnvironment(path)
+      projects.value = projects.value.filter((project) => project.path !== path)
+      if (selectedProjectPath.value === path) {
+        selectProject(null)
+      }
+      await Promise.all([loadDefaultProjectPath(), fetchEnvironments()])
+      return result
+    } catch (e) {
+      error.value = `Failed to remove environment: ${e}`
+      throw e
+    }
   }
 
   async function openDirectory(path: string): Promise<void> {
@@ -210,6 +302,8 @@ export const useProjectStore = defineStore('project', () => {
   return {
     projects,
     environments,
+    archivedEnvironments,
+    removedEnvironments,
     selectedProjectPath,
     defaultProjectPath,
     selectionSource,
@@ -223,6 +317,10 @@ export const useProjectStore = defineStore('project', () => {
     selectProject,
     setDefaultProject,
     clearDefaultProject,
+    reorderEnvironments,
+    archiveEnvironment,
+    restoreEnvironment,
+    removeEnvironment,
     openDirectory,
     openFolderPicker
   }

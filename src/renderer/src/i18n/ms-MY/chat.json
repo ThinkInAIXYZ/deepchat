@@ -354,7 +354,12 @@
     "searchPlaceholder": "Tajuk sesi carian",
     "searchAriaLabel": "Tajuk sesi carian",
     "searchEmptyTitle": "Tiada sesi sepadan ditemui",
-    "searchEmptyDescription": "Cuba tukar kata kunci tajuk"
+    "searchEmptyDescription": "Cuba tukar kata kunci tajuk",
+    "projectGroupActions": "Tindakan kumpulan projek",
+    "moveProjectGroupTop": "Alih ke paling atas",
+    "moveProjectGroupUp": "Alih ke atas",
+    "moveProjectGroupDown": "Alih ke bawah",
+    "moveProjectGroupBottom": "Alih ke paling bawah"
   },
   "spotlight": {
     "placeholder": "Sesi carian, Agent, tetapan dan tindakan…",

@@ -1967,7 +1967,16 @@
       "setDefault": "Définir par défaut",
       "clearDefault": "Retirer le défaut",
       "showTemp": "Afficher Temp",
-      "hideTemp": "Masquer Temp"
+      "hideTemp": "Masquer Temp",
+      "more": "Plus d’actions sur le dossier",
+      "dragTarget": "Faites glisser le dossier {name} pour le réordonner",
+      "moveTop": "Déplacer tout en haut",
+      "moveUp": "Déplacer vers le haut",
+      "moveDown": "Déplacer vers le bas",
+      "moveBottom": "Déplacer tout en bas",
+      "archive": "Archiver",
+      "restore": "Restaurer",
+      "remove": "Retirer de DeepChat"
     },
     "badges": {
       "default": "Par défaut",
@@ -1978,14 +1987,30 @@
     "meta": {
       "sessions": "{count} sessions",
       "lastUsed": "Dernière utilisation : {value}",
-      "never": "Jamais"
+      "never": "Jamais",
+      "archivedAt": "Archivé : {value}"
     },
     "empty": {
       "regular": "Aucun environnement à afficher.",
-      "temp": "Aucun environnement Temp pour le moment."
+      "temp": "Aucun environnement Temp pour le moment.",
+      "archived": "Aucun environnement archivé pour le moment."
     },
     "errors": {
-      "openTitle": "Échec de l'ouverture du dossier"
+      "openTitle": "Échec de l'ouverture du dossier",
+      "archiveTitle": "Échec de l’archivage du dossier",
+      "restoreTitle": "Échec de la restauration du dossier",
+      "removeTitle": "Échec du retrait du dossier",
+      "reorderTitle": "Échec du réordonnancement des dossiers"
+    },
+    "tabs": {
+      "active": "Actifs ({count})",
+      "archived": "Archivés ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Archiver « {name} » ?",
+      "archiveDescription": "Il quittera la liste des dossiers actifs et le sélecteur de nouvelle discussion, tout en conservant les sessions, les messages et le dossier réel.",
+      "removeTitle": "Retirer « {name} » de DeepChat ?",
+      "removeDescription": "Le dossier réel et les messages ne sont pas supprimés. Les sessions classiques passent dans Sans projet ; les enregistrements de dossier de travail ACP sont conservés pour permettre la reprise des sessions existantes."
     }
   },
   "remote": {

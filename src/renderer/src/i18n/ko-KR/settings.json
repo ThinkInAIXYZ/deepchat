@@ -1967,7 +1967,16 @@
       "setDefault": "기본값으로 설정",
       "clearDefault": "기본값 해제",
       "showTemp": "Temp 표시",
-      "hideTemp": "Temp 숨기기"
+      "hideTemp": "Temp 숨기기",
+      "more": "추가 디렉터리 작업",
+      "dragTarget": "순서를 변경하려면 {name} 디렉터리를 드래그하세요",
+      "moveTop": "맨 위로 이동",
+      "moveUp": "위로 이동",
+      "moveDown": "아래로 이동",
+      "moveBottom": "맨 아래로 이동",
+      "archive": "보관",
+      "restore": "복원",
+      "remove": "DeepChat에서 제거"
     },
     "badges": {
       "default": "기본값",
@@ -1978,14 +1987,30 @@
     "meta": {
       "sessions": "{count}개 세션",
       "lastUsed": "최근 사용: {value}",
-      "never": "없음"
+      "never": "없음",
+      "archivedAt": "보관됨: {value}"
     },
     "empty": {
       "regular": "표시할 환경이 없습니다.",
-      "temp": "Temp 환경이 아직 없습니다."
+      "temp": "Temp 환경이 아직 없습니다.",
+      "archived": "아직 보관된 환경이 없습니다."
     },
     "errors": {
-      "openTitle": "디렉터리를 열지 못했습니다"
+      "openTitle": "디렉터리를 열지 못했습니다",
+      "archiveTitle": "디렉터리를 보관하지 못했습니다",
+      "restoreTitle": "디렉터리를 복원하지 못했습니다",
+      "removeTitle": "디렉터리를 제거하지 못했습니다",
+      "reorderTitle": "디렉터리 순서를 변경하지 못했습니다"
+    },
+    "tabs": {
+      "active": "활성 ({count})",
+      "archived": "보관됨 ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "\"{name}\"을(를) 보관할까요?",
+      "archiveDescription": "활성 디렉터리 목록과 새 채팅 선택기에서 제외되지만 세션, 메시지, 실제 폴더는 그대로 유지됩니다.",
+      "removeTitle": "\"{name}\"을(를) DeepChat에서 제거할까요?",
+      "removeDescription": "실제 폴더와 메시지는 삭제되지 않습니다. 일반 세션은 프로젝트 없음으로 이동하고, ACP 작업 디렉터리 기록은 기존 세션을 재개할 수 있도록 유지됩니다."
     }
   },
   "remote": {

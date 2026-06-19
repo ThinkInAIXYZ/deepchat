@@ -18,6 +18,7 @@ import { MessageAttachmentsTable } from './tables/messageAttachments'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
 import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
 import { NewEnvironmentsTable } from './tables/newEnvironments'
+import { NewEnvironmentPreferencesTable } from './tables/newEnvironmentPreferences'
 import { NewSessionsTable } from './tables/newSessions'
 import { NewProjectsTable } from './tables/newProjects'
 import { DeepChatSessionsTable } from './tables/deepchatSessions'
@@ -211,6 +212,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private acpSessionsTable!: AcpSessionsTable
   private acpTurnsTable!: AcpTurnsTable
   public newEnvironmentsTable!: NewEnvironmentsTable
+  public newEnvironmentPreferencesTable!: NewEnvironmentPreferencesTable
   public newSessionsTable!: NewSessionsTable
   public newProjectsTable!: NewProjectsTable
   public deepchatSessionsTable!: DeepChatSessionsTable
@@ -387,6 +389,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.acpSessionsTable = new AcpSessionsTable(this.db)
     this.acpTurnsTable = new AcpTurnsTable(this.db)
     this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
+    this.newEnvironmentPreferencesTable = new NewEnvironmentPreferencesTable(this.db)
     this.newSessionsTable = new NewSessionsTable(this.db)
     this.newProjectsTable = new NewProjectsTable(this.db)
     this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
@@ -413,6 +416,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.acpSessionsTable.createTable()
     this.acpTurnsTable.createTable()
     this.newEnvironmentsTable.createTable()
+    this.newEnvironmentPreferencesTable.createTable()
     this.newSessionsTable.createTable()
     this.newProjectsTable.createTable()
     this.deepchatSessionsTable.createTable()
@@ -457,6 +461,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     const tables = [
       this.acpSessionsTable,
       this.newEnvironmentsTable,
+      this.newEnvironmentPreferencesTable,
       this.newSessionsTable,
       this.newProjectsTable,
       this.deepchatSessionsTable,
@@ -566,6 +571,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;
+        DELETE FROM new_environment_preferences;
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
