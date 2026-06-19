@@ -25,7 +25,9 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
+import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
 import { DEV_EVENTS } from '../events'
+import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
   acpTerminalInputRoute,
   acpTerminalKillRoute,
@@ -166,10 +168,14 @@ import {
   pluginsGetRoute,
   pluginsInvokeActionRoute,
   pluginsListRoute,
+  projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
   projectPathExistsRoute,
+  projectRemoveEnvironmentRoute,
+  projectReorderEnvironmentsRoute,
+  projectRestoreEnvironmentRoute,
   projectSelectDirectoryRoute,
   modelsSetBatchStatusRoute,
   modelsSetStatusRoute,
@@ -541,6 +547,17 @@ export function createMainKernelRouteRuntime(deps: {
 type RouteContext = {
   webContentsId: number
   windowId: number | null
+}
+
+const publishProjectEnvironmentsChanged = (
+  action: 'reorder' | 'archive' | 'restore' | 'remove',
+  path: string | null
+) => {
+  publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+    action,
+    path,
+    version: Date.now()
+  })
 }
 
 type WindowState = {
@@ -1384,10 +1401,38 @@ export async function dispatchDeepchatRoute(
     }
 
     case projectListEnvironmentsRoute.name: {
-      projectListEnvironmentsRoute.input.parse(rawInput)
+      const input = projectListEnvironmentsRoute.input.parse(rawInput)
       return projectListEnvironmentsRoute.output.parse({
-        environments: await runtime.projectPresenter.getEnvironments()
+        environments: await runtime.projectPresenter.getEnvironments({ status: input.status })
       })
+    }
+
+    case projectReorderEnvironmentsRoute.name: {
+      const input = projectReorderEnvironmentsRoute.input.parse(rawInput)
+      await runtime.projectPresenter.reorderEnvironments(input.paths)
+      publishProjectEnvironmentsChanged('reorder', null)
+      return projectReorderEnvironmentsRoute.output.parse({ updated: true })
+    }
+
+    case projectArchiveEnvironmentRoute.name: {
+      const input = projectArchiveEnvironmentRoute.input.parse(rawInput)
+      await runtime.projectPresenter.archiveEnvironment(input.path)
+      publishProjectEnvironmentsChanged('archive', input.path)
+      return projectArchiveEnvironmentRoute.output.parse({ updated: true })
+    }
+
+    case projectRestoreEnvironmentRoute.name: {
+      const input = projectRestoreEnvironmentRoute.input.parse(rawInput)
+      await runtime.projectPresenter.restoreEnvironment(input.path)
+      publishProjectEnvironmentsChanged('restore', input.path)
+      return projectRestoreEnvironmentRoute.output.parse({ updated: true })
+    }
+
+    case projectRemoveEnvironmentRoute.name: {
+      const input = projectRemoveEnvironmentRoute.input.parse(rawInput)
+      const result = await runtime.projectPresenter.removeEnvironment(input.path)
+      publishProjectEnvironmentsChanged('remove', input.path)
+      return projectRemoveEnvironmentRoute.output.parse(result)
     }
 
     case projectOpenDirectoryRoute.name: {

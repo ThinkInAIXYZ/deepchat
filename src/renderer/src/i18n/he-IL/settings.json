@@ -1986,7 +1986,16 @@
       "setDefault": "הגדר כברירת מחדל",
       "clearDefault": "נקה ברירת מחדל",
       "showTemp": "הצג Temp",
-      "hideTemp": "הסתר Temp"
+      "hideTemp": "הסתר Temp",
+      "more": "פעולות נוספות לתיקייה",
+      "dragTarget": "גרור את התיקייה {name} כדי לשנות את הסדר",
+      "moveTop": "העבר לראש הרשימה",
+      "moveUp": "העבר למעלה",
+      "moveDown": "העבר למטה",
+      "moveBottom": "העבר לתחתית הרשימה",
+      "archive": "העבר לארכיון",
+      "restore": "שחזר",
+      "remove": "הסר מ-DeepChat"
     },
     "badges": {
       "default": "ברירת מחדל",
@@ -1997,14 +2006,30 @@
     "meta": {
       "sessions": "{count} סשנים",
       "lastUsed": "שימוש אחרון: {value}",
-      "never": "מעולם"
+      "never": "מעולם",
+      "archivedAt": "הועבר לארכיון: {value}"
     },
     "empty": {
       "regular": "אין סביבות להצגה.",
-      "temp": "עדיין אין סביבות Temp."
+      "temp": "עדיין אין סביבות Temp.",
+      "archived": "עדיין אין סביבות בארכיון."
     },
     "errors": {
-      "openTitle": "פתיחת התיקייה נכשלה"
+      "openTitle": "פתיחת התיקייה נכשלה",
+      "archiveTitle": "העברת התיקייה לארכיון נכשלה",
+      "restoreTitle": "שחזור התיקייה נכשל",
+      "removeTitle": "הסרת התיקייה נכשלה",
+      "reorderTitle": "שינוי סדר התיקיות נכשל"
+    },
+    "tabs": {
+      "active": "פעילים ({count})",
+      "archived": "בארכיון ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "להעביר את \"{name}\" לארכיון?",
+      "archiveDescription": "היא תוסר מרשימת התיקיות הפעילות ומבורר השיחה החדשה, אך הסשנים, ההודעות והתיקייה האמיתית יישארו ללא שינוי.",
+      "removeTitle": "להסיר את \"{name}\" מ-DeepChat?",
+      "removeDescription": "התיקייה האמיתית וההודעות לא יימחקו. סשנים רגילים יועברו אל ללא פרויקט; רשומות תיקיית העבודה של ACP יישמרו כדי שסשנים קיימים יוכלו להתחדש."
     }
   },
   "remote": {

@@ -354,7 +354,12 @@
     "searchPlaceholder": "Buscar chats",
     "searchAriaLabel": "Buscar chats",
     "searchEmptyTitle": "No hay conversaciones coincidentes",
-    "searchEmptyDescription": "Prueba con otra palabra clave del título"
+    "searchEmptyDescription": "Prueba con otra palabra clave del título",
+    "projectGroupActions": "Acciones del grupo de proyectos",
+    "moveProjectGroupTop": "Mover al principio",
+    "moveProjectGroupUp": "Mover arriba",
+    "moveProjectGroupDown": "Mover abajo",
+    "moveProjectGroupBottom": "Mover al final"
   },
   "spotlight": {
     "placeholder": "Buscar chats, Agents, ajustes y acciones…",

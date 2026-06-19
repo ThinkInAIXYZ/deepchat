@@ -268,10 +268,14 @@ import {
   providersWarmupAcpProcessRoute
 } from './routes/providers.routes'
 import {
+  projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
   projectPathExistsRoute,
+  projectRemoveEnvironmentRoute,
+  projectReorderEnvironmentsRoute,
+  projectRestoreEnvironmentRoute,
   projectSelectDirectoryRoute
 } from './routes/project.routes'
 import {
@@ -503,6 +507,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [deviceSanitizeSvgRoute.name]: deviceSanitizeSvgRoute,
   [projectListRecentRoute.name]: projectListRecentRoute,
   [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
+  [projectReorderEnvironmentsRoute.name]: projectReorderEnvironmentsRoute,
+  [projectArchiveEnvironmentRoute.name]: projectArchiveEnvironmentRoute,
+  [projectRestoreEnvironmentRoute.name]: projectRestoreEnvironmentRoute,
+  [projectRemoveEnvironmentRoute.name]: projectRemoveEnvironmentRoute,
   [projectOpenDirectoryRoute.name]: projectOpenDirectoryRoute,
   [projectPathExistsRoute.name]: projectPathExistsRoute,
   [projectSelectDirectoryRoute.name]: projectSelectDirectoryRoute,

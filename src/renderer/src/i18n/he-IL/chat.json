@@ -338,7 +338,12 @@
     "searchPlaceholder": "חיפוש בצ׳אטים",
     "searchAriaLabel": "חיפוש בצ׳אטים",
     "searchEmptyTitle": "לא נמצאו שיחות תואמות",
-    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת"
+    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת",
+    "projectGroupActions": "פעולות קבוצת פרויקט",
+    "moveProjectGroupTop": "העבר לראש הרשימה",
+    "moveProjectGroupUp": "העבר למעלה",
+    "moveProjectGroupDown": "העבר למטה",
+    "moveProjectGroupBottom": "העבר לתחתית הרשימה"
   },
   "floatingWidget": {
     "title": "סקירת משימות",

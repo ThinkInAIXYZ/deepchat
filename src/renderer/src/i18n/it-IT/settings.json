@@ -2017,7 +2017,16 @@
       "setDefault": "Imposta predefinita",
       "clearDefault": "Cancella predefinita",
       "showTemp": "Mostra Temp",
-      "hideTemp": "Nascondi Temp"
+      "hideTemp": "Nascondi Temp",
+      "more": "Altre azioni sulla directory",
+      "dragTarget": "Trascina la directory {name} per riordinarla",
+      "moveTop": "Sposta in cima",
+      "moveUp": "Sposta su",
+      "moveDown": "Sposta giù",
+      "moveBottom": "Sposta in fondo",
+      "archive": "Archivia",
+      "restore": "Ripristina",
+      "remove": "Rimuovi da DeepChat"
     },
     "badges": {
       "default": "Predefinita",
@@ -2028,14 +2037,30 @@
     "meta": {
       "sessions": "{count} sessioni",
       "lastUsed": "Uso recente: {value}",
-      "never": "Mai"
+      "never": "Mai",
+      "archivedAt": "Archiviato: {value}"
     },
     "empty": {
       "regular": "Nessun ambiente directory da mostrare.",
-      "temp": "Nessun ambiente directory Temp."
+      "temp": "Nessun ambiente directory Temp.",
+      "archived": "Nessun ambiente archiviato per ora."
     },
     "errors": {
-      "openTitle": "Apertura directory non riuscita"
+      "openTitle": "Apertura directory non riuscita",
+      "archiveTitle": "Impossibile archiviare la directory",
+      "restoreTitle": "Impossibile ripristinare la directory",
+      "removeTitle": "Impossibile rimuovere la directory",
+      "reorderTitle": "Impossibile riordinare le directory"
+    },
+    "tabs": {
+      "active": "Attivi ({count})",
+      "archived": "Archiviati ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Archiviare \"{name}\"?",
+      "archiveDescription": "Uscirà dall’elenco delle directory attive e dal selettore delle nuove chat, mentre sessioni, messaggi e cartella reale resteranno intatti.",
+      "removeTitle": "Rimuovere \"{name}\" da DeepChat?",
+      "removeDescription": "La cartella reale e i messaggi non vengono eliminati. Le sessioni normali passano a Nessun progetto; i record della directory di lavoro ACP vengono conservati così le sessioni esistenti possono riprendere."
     }
   },
   "remote": {

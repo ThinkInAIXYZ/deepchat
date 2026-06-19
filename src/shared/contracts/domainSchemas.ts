@@ -778,7 +778,8 @@ export const ProjectSchema = z.object({
   path: z.string().min(1),
   name: z.string(),
   icon: z.string().nullable(),
-  lastAccessedAt: z.number().int()
+  lastAccessedAt: z.number().int(),
+  exists: z.boolean()
 })
 
 export const EnvironmentSummarySchema = z.object({
@@ -787,7 +788,11 @@ export const EnvironmentSummarySchema = z.object({
   sessionCount: z.number().int(),
   lastUsedAt: z.number().int(),
   isTemp: z.boolean(),
-  exists: z.boolean()
+  exists: z.boolean(),
+  status: z.enum(['active', 'archived', 'removed']),
+  sortOrder: z.number().int(),
+  archivedAt: z.number().int().nullable(),
+  removedAt: z.number().int().nullable()
 })
 
 export const WorkspaceInvalidationKindSchema = z.enum(['fs', 'git', 'full'])

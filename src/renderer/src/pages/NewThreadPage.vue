@@ -38,7 +38,10 @@
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" class="min-w-[200px]">
+          <DropdownMenuContent
+            align="center"
+            class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
+          >
             <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
             <DropdownMenuItem
               data-testid="new-thread-clear-project"
@@ -51,7 +54,7 @@
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              v-for="project in projectStore.projects"
+              v-for="project in selectableProjects"
               :key="project.path"
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.selectProject(project.path)"
@@ -323,6 +326,30 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   return normalized ? normalized : null
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const archivedProjectPaths = computed(
+  () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
+)
+const removedProjectPaths = computed(
+  () => new Set(projectStore.removedEnvironments.map((environment) => environment.path))
+)
+const missingProjectPaths = computed(
+  () =>
+    new Set(
+      projectStore.environments
+        .filter((environment) => !environment.exists)
+        .map((environment) => environment.path)
+    )
+)
+const selectableProjects = computed(() =>
+  projectStore.projects.filter(
+    (project) =>
+      project.exists &&
+      !archivedProjectPaths.value.has(project.path) &&
+      !removedProjectPaths.value.has(project.path) &&
+      !missingProjectPaths.value.has(project.path) &&
+      !isSelectedInvalidProjectPath(project.path)
+  )
+)
 const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )

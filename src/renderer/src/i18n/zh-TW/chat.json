@@ -338,7 +338,12 @@
     "searchPlaceholder": "搜尋會話標題",
     "searchAriaLabel": "搜尋會話標題",
     "searchEmptyTitle": "找不到相符的會話",
-    "searchEmptyDescription": "試試其他標題關鍵字"
+    "searchEmptyDescription": "試試其他標題關鍵字",
+    "projectGroupActions": "專案群組操作",
+    "moveProjectGroupTop": "移至最上方",
+    "moveProjectGroupUp": "上移",
+    "moveProjectGroupDown": "下移",
+    "moveProjectGroupBottom": "移至最下方"
   },
   "floatingWidget": {
     "title": "任務總覽",

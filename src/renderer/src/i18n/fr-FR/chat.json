@@ -338,7 +338,12 @@
     "searchPlaceholder": "Rechercher des chats",
     "searchAriaLabel": "Rechercher des chats",
     "searchEmptyTitle": "Aucune conversation correspondante",
-    "searchEmptyDescription": "Essayez un autre mot-clé de titre"
+    "searchEmptyDescription": "Essayez un autre mot-clé de titre",
+    "projectGroupActions": "Actions du groupe de projets",
+    "moveProjectGroupTop": "Déplacer tout en haut",
+    "moveProjectGroupUp": "Déplacer vers le haut",
+    "moveProjectGroupDown": "Déplacer vers le bas",
+    "moveProjectGroupBottom": "Déplacer tout en bas"
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",

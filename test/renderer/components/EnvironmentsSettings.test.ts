@@ -2,6 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
+type EnvironmentFixture = {
+  path: string
+  name: string
+  sessionCount: number
+  lastUsedAt: number
+  isTemp: boolean
+  exists: boolean
+  status?: 'active' | 'archived'
+  sortOrder?: number
+  archivedAt?: number | null
+  removedAt?: number | null
+}
+
 const passthrough = (name: string) =>
   defineComponent({
     name,
@@ -25,6 +38,41 @@ const switchStub = defineComponent({
   emits: ['update:modelValue'],
   template:
     '<button role="switch" :aria-checked="String(modelValue)" v-bind="$attrs" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>'
+})
+
+const draggableStub = defineComponent({
+  name: 'draggable',
+  props: {
+    modelValue: {
+      type: Array,
+      default: () => []
+    }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<div data-testid="draggable"><slot v-for="item in modelValue" name="item" :element="item" /></div>'
+})
+
+const dialogStub = defineComponent({
+  props: {
+    open: {
+      type: Boolean,
+      default: false
+    }
+  },
+  template: '<div v-if="open"><slot /></div>'
+})
+
+const dropdownItemStub = defineComponent({
+  props: {
+    disabled: {
+      type: Boolean,
+      default: false
+    }
+  },
+  emits: ['select'],
+  template:
+    '<button type="button" :disabled="disabled" @click="$emit(\'select\')"><slot /></button>'
 })
 
 const createTranslator = () => (key: string, params?: Record<string, unknown>) => {
@@ -63,6 +111,28 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
       return 'Show Temp'
     case 'settings.environments.actions.hideTemp':
       return 'Hide Temp'
+    case 'settings.environments.tabs.active':
+      return `Active (${params?.count ?? 0})`
+    case 'settings.environments.tabs.archived':
+      return `Archived (${params?.count ?? 0})`
+    case 'settings.environments.actions.more':
+      return 'More'
+    case 'settings.environments.actions.dragTarget':
+      return `Drag ${params?.name ?? ''}`
+    case 'settings.environments.actions.moveTop':
+      return 'Move Top'
+    case 'settings.environments.actions.moveUp':
+      return 'Move Up'
+    case 'settings.environments.actions.moveDown':
+      return 'Move Down'
+    case 'settings.environments.actions.moveBottom':
+      return 'Move Bottom'
+    case 'settings.environments.actions.archive':
+      return 'Archive'
+    case 'settings.environments.actions.restore':
+      return 'Restore'
+    case 'settings.environments.actions.remove':
+      return 'Remove from DeepChat'
     case 'settings.environments.badges.default':
       return 'Default'
     case 'settings.environments.badges.temp':
@@ -75,14 +145,36 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
       return `${params?.count ?? 0} sessions`
     case 'settings.environments.meta.lastUsed':
       return `Last used: ${params?.value ?? 'never'}`
+    case 'settings.environments.meta.archivedAt':
+      return `Archived: ${params?.value ?? 'never'}`
     case 'settings.environments.meta.never':
       return 'Never'
     case 'settings.environments.empty.regular':
       return 'No environments to show'
     case 'settings.environments.empty.temp':
       return 'No temp environments'
+    case 'settings.environments.empty.archived':
+      return 'No archived environments'
+    case 'settings.environments.confirm.archiveTitle':
+      return `Archive ${params?.name ?? ''}?`
+    case 'settings.environments.confirm.archiveDescription':
+      return 'Archive keeps sessions'
+    case 'settings.environments.confirm.removeTitle':
+      return `Remove ${params?.name ?? ''}?`
+    case 'settings.environments.confirm.removeDescription':
+      return 'Remove keeps files'
     case 'settings.environments.errors.openTitle':
       return 'Open failed'
+    case 'settings.environments.errors.reorderTitle':
+      return 'Reorder failed'
+    case 'settings.environments.errors.archiveTitle':
+      return 'Archive failed'
+    case 'settings.environments.errors.restoreTitle':
+      return 'Restore failed'
+    case 'settings.environments.errors.removeTitle':
+      return 'Remove failed'
+    case 'common.cancel':
+      return 'Cancel'
     default:
       return key
   }
@@ -91,14 +183,8 @@ const createTranslator = () => (key: string, params?: Record<string, unknown>) =
 async function setup(overrides?: {
   defaultProjectPath?: string | null
   pathExists?: boolean
-  environments?: Array<{
-    path: string
-    name: string
-    sessionCount: number
-    lastUsedAt: number
-    isTemp: boolean
-    exists: boolean
-  }>
+  environments?: EnvironmentFixture[]
+  archivedEnvironments?: EnvironmentFixture[]
 }) {
   vi.resetModules()
 
@@ -115,7 +201,11 @@ async function setup(overrides?: {
         sessionCount: 2,
         lastUsedAt: 1700000000000,
         isTemp: false,
-        exists: true
+        exists: true,
+        status: 'active',
+        sortOrder: 0,
+        archivedAt: null,
+        removedAt: null
       },
       {
         path: '/system/temp/deepchat-agent/workspaces/tmp-1',
@@ -123,13 +213,22 @@ async function setup(overrides?: {
         sessionCount: 1,
         lastUsedAt: 1700000001000,
         isTemp: true,
-        exists: true
+        exists: true,
+        status: 'active',
+        sortOrder: 1,
+        archivedAt: null,
+        removedAt: null
       }
     ],
+    archivedEnvironments: overrides?.archivedEnvironments ?? [],
     refreshEnvironmentData: vi.fn().mockResolvedValue(undefined),
     openDirectory: vi.fn().mockResolvedValue(undefined),
     setDefaultProject: vi.fn().mockResolvedValue(undefined),
-    clearDefaultProject: vi.fn().mockResolvedValue(undefined)
+    clearDefaultProject: vi.fn().mockResolvedValue(undefined),
+    reorderEnvironments: vi.fn().mockResolvedValue(undefined),
+    archiveEnvironment: vi.fn().mockResolvedValue(undefined),
+    restoreEnvironment: vi.fn().mockResolvedValue(undefined),
+    removeEnvironment: vi.fn().mockResolvedValue({ clearedSessionIds: [] })
   })
   const projectClient = {
     pathExists: vi.fn().mockResolvedValue(overrides?.pathExists ?? true)
@@ -150,6 +249,24 @@ async function setup(overrides?: {
       locale: { value: 'en-US' }
     })
   }))
+  vi.doMock('vuedraggable', () => ({
+    default: draggableStub
+  }))
+  vi.doMock('@shadcn/components/ui/dropdown-menu', () => ({
+    DropdownMenu: passthrough('DropdownMenu'),
+    DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+    DropdownMenuContent: passthrough('DropdownMenuContent'),
+    DropdownMenuItem: dropdownItemStub,
+    DropdownMenuSeparator: passthrough('DropdownMenuSeparator')
+  }))
+  vi.doMock('@shadcn/components/ui/dialog', () => ({
+    Dialog: dialogStub,
+    DialogContent: passthrough('DialogContent'),
+    DialogDescription: passthrough('DialogDescription'),
+    DialogFooter: passthrough('DialogFooter'),
+    DialogHeader: passthrough('DialogHeader'),
+    DialogTitle: passthrough('DialogTitle')
+  }))
 
   const EnvironmentsSettings = (
     await import('../../../src/renderer/settings/components/EnvironmentsSettings.vue')
@@ -161,6 +278,7 @@ async function setup(overrides?: {
         ScrollArea: passthrough('ScrollArea'),
         Button: buttonStub,
         Switch: switchStub,
+        draggable: draggableStub,
         Icon: passthrough('Icon')
       }
     }
@@ -204,9 +322,18 @@ describe('EnvironmentsSettings', () => {
   it('dispatches open and set default actions from an item', async () => {
     const { wrapper, projectStore } = await setup()
     const regularCardButtons = wrapper.get('[data-testid="environment-row"]').findAll('button')
+    const openButton = regularCardButtons.find(
+      (button) => button.attributes('aria-label') === 'Open'
+    )
+    const setDefaultButton = regularCardButtons.find(
+      (button) => button.attributes('aria-label') === 'Set Default'
+    )
 
-    await regularCardButtons[0].trigger('click')
-    await regularCardButtons[1].trigger('click')
+    expect(openButton).toBeTruthy()
+    expect(setDefaultButton).toBeTruthy()
+
+    await openButton!.trigger('click')
+    await setDefaultButton!.trigger('click')
     await flushPromises()
 
     expect(projectStore.openDirectory).toHaveBeenCalledWith('/work/app')
@@ -274,13 +401,199 @@ describe('EnvironmentsSettings', () => {
     await wrapper.get('[data-testid="missing-toggle"]').trigger('click')
     await flushPromises()
 
-    const buttons = wrapper.get('[data-testid="environment-row"]').findAll('button')
+    const setDefaultButton = wrapper
+      .get('[data-testid="environment-row"]')
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'Set Default')
 
-    expect(buttons[1].attributes('disabled')).toBeDefined()
+    expect(setDefaultButton).toBeTruthy()
+    expect(setDefaultButton!.attributes('disabled')).toBeDefined()
 
-    await buttons[1].trigger('click')
+    await setDefaultButton!.trigger('click')
 
     expect(projectStore.setDefaultProject).not.toHaveBeenCalled()
+  })
+
+  it('persists reordered visible environments without dropping hidden entries', async () => {
+    const appEnvironment = {
+      path: '/work/app',
+      name: 'app',
+      sessionCount: 1,
+      lastUsedAt: 100,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 0,
+      archivedAt: null,
+      removedAt: null
+    }
+    const missingEnvironment = {
+      path: '/work/missing',
+      name: 'missing',
+      sessionCount: 1,
+      lastUsedAt: 200,
+      isTemp: false,
+      exists: false,
+      status: 'active' as const,
+      sortOrder: 1,
+      archivedAt: null,
+      removedAt: null
+    }
+    const betaEnvironment = {
+      path: '/work/beta',
+      name: 'beta',
+      sessionCount: 1,
+      lastUsedAt: 300,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 2,
+      archivedAt: null,
+      removedAt: null
+    }
+    const { wrapper, projectStore } = await setup({
+      environments: [appEnvironment, missingEnvironment, betaEnvironment]
+    })
+
+    wrapper
+      .getComponent({ name: 'draggable' })
+      .vm.$emit('update:modelValue', [betaEnvironment, appEnvironment])
+    await flushPromises()
+
+    expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
+      '/work/beta',
+      '/work/missing',
+      '/work/app'
+    ])
+  })
+
+  it('shows a toast when reordered environments fail to persist', async () => {
+    const appEnvironment = {
+      path: '/work/app',
+      name: 'app',
+      sessionCount: 1,
+      lastUsedAt: 100,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 0,
+      archivedAt: null,
+      removedAt: null
+    }
+    const betaEnvironment = {
+      path: '/work/beta',
+      name: 'beta',
+      sessionCount: 1,
+      lastUsedAt: 300,
+      isTemp: false,
+      exists: true,
+      status: 'active' as const,
+      sortOrder: 1,
+      archivedAt: null,
+      removedAt: null
+    }
+    const { wrapper, projectStore, toast } = await setup({
+      environments: [appEnvironment, betaEnvironment]
+    })
+    projectStore.reorderEnvironments.mockRejectedValueOnce(new Error('reorder failed'))
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Move Down')!
+      .trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'Reorder failed',
+      description: 'reorder failed',
+      variant: 'destructive'
+    })
+  })
+
+  it('archives an active environment after confirmation', async () => {
+    const { wrapper, projectStore } = await setup()
+    const archiveMenuItem = wrapper.findAll('button').find((button) => button.text() === 'Archive')
+
+    expect(archiveMenuItem).toBeTruthy()
+    await archiveMenuItem!.trigger('click')
+    await flushPromises()
+
+    const archiveButtons = wrapper.findAll('button').filter((button) => button.text() === 'Archive')
+    expect(archiveButtons.length).toBeGreaterThan(1)
+
+    await archiveButtons[archiveButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(projectStore.archiveEnvironment).toHaveBeenCalledWith('/work/app')
+  })
+
+  it('restores archived environments from the archived tab', async () => {
+    const { wrapper, projectStore } = await setup({
+      archivedEnvironments: [
+        {
+          path: '/work/old',
+          name: 'old',
+          sessionCount: 3,
+          lastUsedAt: 500,
+          isTemp: false,
+          exists: true,
+          status: 'archived',
+          sortOrder: 0,
+          archivedAt: 600,
+          removedAt: null
+        }
+      ]
+    })
+
+    await wrapper.get('[data-testid="environments-archived-tab"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.environment-folder-drag-target').exists()).toBe(false)
+
+    await wrapper.get('button[aria-label="Restore"]').trigger('click')
+    await flushPromises()
+
+    expect(projectStore.restoreEnvironment).toHaveBeenCalledWith('/work/old')
+  })
+
+  it('removes an archived environment after confirmation', async () => {
+    const { wrapper, projectStore } = await setup({
+      archivedEnvironments: [
+        {
+          path: '/work/old',
+          name: 'old',
+          sessionCount: 3,
+          lastUsedAt: 500,
+          isTemp: false,
+          exists: true,
+          status: 'archived',
+          sortOrder: 0,
+          archivedAt: 600,
+          removedAt: null
+        }
+      ]
+    })
+
+    await wrapper.get('[data-testid="environments-archived-tab"]').trigger('click')
+    await flushPromises()
+
+    const removeMenuItem = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Remove from DeepChat')
+
+    expect(removeMenuItem).toBeTruthy()
+    await removeMenuItem!.trigger('click')
+    await flushPromises()
+
+    const removeButtons = wrapper
+      .findAll('button')
+      .filter((button) => button.text() === 'Remove from DeepChat')
+    expect(removeButtons.length).toBeGreaterThan(1)
+
+    await removeButtons[removeButtons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(projectStore.removeEnvironment).toHaveBeenCalledWith('/work/old')
   })
 
   it('keeps synthetic defaults visible and hides missing history by default', async () => {

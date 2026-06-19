@@ -1986,7 +1986,16 @@
       "setDefault": "Sæt som standard",
       "clearDefault": "Ryd standard",
       "showTemp": "Vis Temp",
-      "hideTemp": "Skjul Temp"
+      "hideTemp": "Skjul Temp",
+      "more": "Flere mappehandlinger",
+      "dragTarget": "Træk mappen {name} for at ændre rækkefølgen",
+      "moveTop": "Flyt til toppen",
+      "moveUp": "Flyt op",
+      "moveDown": "Flyt ned",
+      "moveBottom": "Flyt til bunden",
+      "archive": "Arkivér",
+      "restore": "Gendan",
+      "remove": "Fjern fra DeepChat"
     },
     "badges": {
       "default": "Standard",
@@ -1997,14 +2006,30 @@
     "meta": {
       "sessions": "{count} sessioner",
       "lastUsed": "Sidst brugt: {value}",
-      "never": "Aldrig"
+      "never": "Aldrig",
+      "archivedAt": "Arkiveret: {value}"
     },
     "empty": {
       "regular": "Ingen miljøer at vise.",
-      "temp": "Ingen Temp-miljøer endnu."
+      "temp": "Ingen Temp-miljøer endnu.",
+      "archived": "Ingen arkiverede miljøer endnu."
     },
     "errors": {
-      "openTitle": "Kunne ikke åbne mappe"
+      "openTitle": "Kunne ikke åbne mappe",
+      "archiveTitle": "Kunne ikke arkivere mappe",
+      "restoreTitle": "Kunne ikke gendanne mappe",
+      "removeTitle": "Kunne ikke fjerne mappe",
+      "reorderTitle": "Kunne ikke ændre mappernes rækkefølge"
+    },
+    "tabs": {
+      "active": "Aktive ({count})",
+      "archived": "Arkiverede ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Arkivér \"{name}\"?",
+      "archiveDescription": "Den fjernes fra listen over aktive mapper og vælgeren for nye chats, mens sessioner, beskeder og den rigtige mappe bevares.",
+      "removeTitle": "Fjern \"{name}\" fra DeepChat?",
+      "removeDescription": "Den rigtige mappe og beskeder slettes ikke. Almindelige sessioner flyttes til Intet projekt; ACP-arbejdsmappeposter bevares, så eksisterende sessioner kan genoptages."
     }
   },
   "remote": {

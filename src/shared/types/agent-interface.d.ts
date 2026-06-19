@@ -850,11 +850,14 @@ export interface CreateDetachedSessionInput {
 
 // ---- Project Types ----
 
+export type EnvironmentStatus = 'active' | 'archived' | 'removed'
+
 export interface Project {
   path: string
   name: string
   icon: string | null
   lastAccessedAt: number
+  exists: boolean
 }
 
 export interface EnvironmentSummary {
@@ -864,4 +867,8 @@ export interface EnvironmentSummary {
   lastUsedAt: number
   isTemp: boolean
   exists: boolean
+  status: EnvironmentStatus
+  sortOrder: number
+  archivedAt: number | null
+  removedAt: number | null
 }

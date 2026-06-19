@@ -2017,7 +2017,16 @@
       "setDefault": "Als Standard festlegen",
       "clearDefault": "Standard löschen",
       "showTemp": "Temp anzeigen",
-      "hideTemp": "Temp einklappen"
+      "hideTemp": "Temp einklappen",
+      "more": "Weitere Verzeichnisaktionen",
+      "dragTarget": "Verzeichnis {name} ziehen, um die Reihenfolge zu ändern",
+      "moveTop": "Ganz nach oben verschieben",
+      "moveUp": "Nach oben verschieben",
+      "moveDown": "Nach unten verschieben",
+      "moveBottom": "Ganz nach unten verschieben",
+      "archive": "Archivieren",
+      "restore": "Wiederherstellen",
+      "remove": "Aus DeepChat entfernen"
     },
     "badges": {
       "default": "Standard",
@@ -2028,14 +2037,30 @@
     "meta": {
       "sessions": "{count} Sitzungen",
       "lastUsed": "Zuletzt verwendet: {value}",
-      "never": "Nie"
+      "never": "Nie",
+      "archivedAt": "Archiviert: {value}"
     },
     "empty": {
       "regular": "Keine Verzeichnisumgebungen zum Anzeigen.",
-      "temp": "Aktuell keine Temp-Verzeichnisumgebungen."
+      "temp": "Aktuell keine Temp-Verzeichnisumgebungen.",
+      "archived": "Noch keine archivierten Umgebungen."
     },
     "errors": {
-      "openTitle": "Verzeichnis konnte nicht geöffnet werden"
+      "openTitle": "Verzeichnis konnte nicht geöffnet werden",
+      "archiveTitle": "Verzeichnis konnte nicht archiviert werden",
+      "restoreTitle": "Verzeichnis konnte nicht wiederhergestellt werden",
+      "removeTitle": "Verzeichnis konnte nicht entfernt werden",
+      "reorderTitle": "Verzeichnisse konnten nicht neu sortiert werden"
+    },
+    "tabs": {
+      "active": "Aktiv ({count})",
+      "archived": "Archiviert ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "\"{name}\" archivieren?",
+      "archiveDescription": "Es wird aus der aktiven Verzeichnisliste und der Auswahl für neue Chats entfernt, während Sitzungen, Nachrichten und der echte Ordner erhalten bleiben.",
+      "removeTitle": "\"{name}\" aus DeepChat entfernen?",
+      "removeDescription": "Der echte Ordner und die Nachrichten werden nicht gelöscht. Reguläre Sitzungen werden zu Kein Projekt verschoben; ACP-Arbeitsverzeichniseinträge bleiben erhalten, damit bestehende Sitzungen fortgesetzt werden können."
     }
   },
   "remote": {

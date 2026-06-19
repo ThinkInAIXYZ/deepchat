@@ -43,8 +43,23 @@ function createMockSqlitePresenter() {
       delete: vi.fn()
     },
     newEnvironmentsTable: {
-      list: vi.fn().mockReturnValue([])
-    }
+      list: vi.fn().mockReturnValue([]),
+      syncPath: vi.fn()
+    },
+    newEnvironmentPreferencesTable: {
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      reorderActive: vi.fn(),
+      markActive: vi.fn(),
+      markArchived: vi.fn(),
+      markRemoved: vi.fn()
+    },
+    newSessionsTable: {
+      clearProjectDir: vi.fn().mockReturnValue([])
+    },
+    getDatabase: vi.fn(() => ({
+      transaction: (fn: () => unknown) => fn
+    }))
   } as any
 }
 
@@ -61,6 +76,7 @@ describe('ProjectPresenter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    existsSyncMock.mockReturnValue(true)
     sqlitePresenter = createMockSqlitePresenter()
     devicePresenter = createMockDevicePresenter()
     presenter = new ProjectPresenter(sqlitePresenter, devicePresenter)
@@ -80,7 +96,8 @@ describe('ProjectPresenter', () => {
         path: '/tmp/proj',
         name: 'proj',
         icon: 'folder',
-        lastAccessedAt: 1000
+        lastAccessedAt: 1000,
+        exists: true
       })
       expect(projects[1].icon).toBeNull()
     })
@@ -92,20 +109,11 @@ describe('ProjectPresenter', () => {
   })
 
   describe('getRecentProjects', () => {
-    it('passes limit to DB query', async () => {
-      await presenter.getRecentProjects(5)
-      expect(sqlitePresenter.newProjectsTable.getRecent).toHaveBeenCalledWith(5)
-    })
-
-    it('defaults to limit 10', async () => {
-      await presenter.getRecentProjects()
-      expect(sqlitePresenter.newProjectsTable.getRecent).toHaveBeenCalledWith(10)
-    })
-
     it('returns correct order and limit', async () => {
-      sqlitePresenter.newProjectsTable.getRecent.mockReturnValue([
+      sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
         { path: '/recent1', name: 'recent1', icon: null, last_accessed_at: 3000 },
-        { path: '/recent2', name: 'recent2', icon: null, last_accessed_at: 2000 }
+        { path: '/recent2', name: 'recent2', icon: null, last_accessed_at: 2000 },
+        { path: '/recent3', name: 'recent3', icon: null, last_accessed_at: 1000 }
       ])
 
       const projects = await presenter.getRecentProjects(2)
@@ -113,6 +121,21 @@ describe('ProjectPresenter', () => {
       expect(projects).toHaveLength(2)
       expect(projects[0].path).toBe('/recent1')
       expect(projects[0].lastAccessedAt).toBe(3000)
+      expect(projects[0].exists).toBe(true)
+    })
+
+    it('filters removed projects from recent rows', async () => {
+      sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
+        { path: '/recent1', name: 'recent1', icon: null, last_accessed_at: 3000 },
+        { path: '/removed', name: 'removed', icon: null, last_accessed_at: 2000 }
+      ])
+      sqlitePresenter.newEnvironmentPreferencesTable.get.mockImplementation((projectPath: string) =>
+        projectPath === '/removed' ? { status: 'removed' } : undefined
+      )
+
+      const projects = await presenter.getRecentProjects(2)
+
+      expect(projects.map((project) => project.path)).toEqual(['/recent1'])
     })
   })
 
@@ -141,12 +164,16 @@ describe('ProjectPresenter', () => {
 
       expect(environments).toEqual([
         {
-          path: '/work/hello-world',
-          name: 'hello-world',
-          sessionCount: 3,
-          lastUsedAt: 1700000000000,
-          isTemp: false,
-          exists: true
+          path: '/mock/appData/alma/workspaces/default',
+          name: 'default',
+          sessionCount: 2,
+          lastUsedAt: 1700000002000,
+          isTemp: true,
+          exists: false,
+          status: 'active',
+          sortOrder: 2147483647,
+          archivedAt: null,
+          removedAt: null
         },
         {
           path: '/system/temp/deepchat-agent/workspaces/tmp-1',
@@ -154,16 +181,160 @@ describe('ProjectPresenter', () => {
           sessionCount: 1,
           lastUsedAt: 1700000001000,
           isTemp: true,
-          exists: false
+          exists: false,
+          status: 'active',
+          sortOrder: 2147483647,
+          archivedAt: null,
+          removedAt: null
         },
         {
-          path: '/mock/appData/alma/workspaces/default',
-          name: 'default',
-          sessionCount: 2,
-          lastUsedAt: 1700000002000,
-          isTemp: true,
-          exists: false
+          path: '/work/hello-world',
+          name: 'hello-world',
+          sessionCount: 3,
+          lastUsedAt: 1700000000000,
+          isTemp: false,
+          exists: true,
+          status: 'active',
+          sortOrder: 2147483647,
+          archivedAt: null,
+          removedAt: null
         }
+      ])
+    })
+
+    it('applies custom active order before last-used order', async () => {
+      sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
+        {
+          path: '/work/a',
+          session_count: 1,
+          last_used_at: 300
+        },
+        {
+          path: '/work/b',
+          session_count: 1,
+          last_used_at: 400
+        }
+      ])
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/a',
+          status: 'active',
+          sort_order: 1,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 1000
+        },
+        {
+          path: '/work/b',
+          status: 'active',
+          sort_order: 0,
+          archived_at: null,
+          removed_at: null,
+          updated_at: 1000
+        }
+      ])
+
+      const environments = await presenter.getEnvironments()
+
+      expect(environments.map((environment) => environment.path)).toEqual(['/work/b', '/work/a'])
+    })
+
+    it('returns archived preference rows separately from active rows', async () => {
+      sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
+        {
+          path: '/work/legacy',
+          session_count: 2,
+          last_used_at: 500
+        }
+      ])
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/legacy',
+          status: 'archived',
+          sort_order: 2147483647,
+          archived_at: 1000,
+          removed_at: null,
+          updated_at: 1000
+        }
+      ])
+
+      await expect(presenter.getEnvironments()).resolves.toEqual([])
+      const archived = await presenter.getEnvironments({ status: 'archived' })
+
+      expect(archived[0]).toMatchObject({
+        path: '/work/legacy',
+        status: 'archived',
+        archivedAt: 1000
+      })
+    })
+  })
+
+  describe('environment lifecycle', () => {
+    it('persists reorder requests through environment preferences', async () => {
+      sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
+        { path: '/work/a', session_count: 1, last_used_at: 100 },
+        { path: '/work/b', session_count: 1, last_used_at: 200 }
+      ])
+
+      await presenter.reorderEnvironments(['/work/b', '/work/a'])
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
+        '/work/b',
+        '/work/a'
+      ])
+    })
+
+    it('archives an environment through environment preferences', async () => {
+      await presenter.archiveEnvironment('/work/app')
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.markArchived).toHaveBeenCalledWith(
+        '/work/app'
+      )
+    })
+
+    it('clears regular project sessions and tombstones on remove', async () => {
+      sqlitePresenter.newSessionsTable.clearProjectDir.mockReturnValue(['s1', 's2'])
+
+      const result = await presenter.removeEnvironment('/work/app')
+
+      expect(result).toEqual({ clearedSessionIds: ['s1', 's2'] })
+      expect(sqlitePresenter.newSessionsTable.clearProjectDir).toHaveBeenCalledWith('/work/app')
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.markRemoved).toHaveBeenCalledWith(
+        '/work/app'
+      )
+      expect(sqlitePresenter.newProjectsTable.delete).toHaveBeenCalledWith('/work/app')
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/work/app')
+    })
+
+    it('does not reorder archived or removed environments', async () => {
+      sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
+        { path: '/work/active', session_count: 1, last_used_at: 100 },
+        { path: '/work/archived', session_count: 1, last_used_at: 200 },
+        { path: '/work/removed', session_count: 1, last_used_at: 300 }
+      ])
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/archived',
+          status: 'archived',
+          sort_order: 2147483647,
+          archived_at: 1000,
+          removed_at: null,
+          updated_at: 1000
+        },
+        {
+          path: '/work/removed',
+          status: 'removed',
+          sort_order: 2147483647,
+          archived_at: null,
+          removed_at: 2000,
+          updated_at: 2000
+        }
+      ])
+
+      await presenter.reorderEnvironments(['/work/removed', '/work/archived', '/work/active'])
+
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.reorderActive).toHaveBeenCalledWith([
+        '/work/active'
       ])
     })
   })
@@ -224,6 +395,9 @@ describe('ProjectPresenter', () => {
       expect(sqlitePresenter.newProjectsTable.upsert).toHaveBeenCalledWith(
         '/Users/test/my-project',
         'my-project'
+      )
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
+        '/Users/test/my-project'
       )
     })
   })

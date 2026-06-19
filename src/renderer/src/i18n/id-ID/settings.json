@@ -2017,7 +2017,16 @@
       "setDefault": "Tetapkan sebagai bawaan",
       "clearDefault": "jelas bawaannya",
       "showTemp": "Tampilan Temp",
-      "hideTemp": "Tutup Temp"
+      "hideTemp": "Tutup Temp",
+      "more": "Tindakan direktori lainnya",
+      "dragTarget": "Seret direktori {name} untuk mengubah urutan",
+      "moveTop": "Pindahkan ke paling atas",
+      "moveUp": "Pindahkan ke atas",
+      "moveDown": "Pindahkan ke bawah",
+      "moveBottom": "Pindahkan ke paling bawah",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "remove": "Hapus dari DeepChat"
     },
     "badges": {
       "default": "Bawaan",
@@ -2028,14 +2037,30 @@
     "meta": {
       "sessions": "{count} sesi",
       "lastUsed": "Baru-baru ini digunakan: {value}",
-      "never": "tidak pernah"
+      "never": "tidak pernah",
+      "archivedAt": "Diarsipkan: {value}"
     },
     "empty": {
       "regular": "Saat ini tidak ada lingkungan direktori untuk ditampilkan.",
-      "temp": "Saat ini tidak ada lingkungan direktori Temp."
+      "temp": "Saat ini tidak ada lingkungan direktori Temp.",
+      "archived": "Belum ada lingkungan yang diarsipkan."
     },
     "errors": {
-      "openTitle": "Gagal membuka direktori"
+      "openTitle": "Gagal membuka direktori",
+      "archiveTitle": "Gagal mengarsipkan direktori",
+      "restoreTitle": "Gagal memulihkan direktori",
+      "removeTitle": "Gagal menghapus direktori",
+      "reorderTitle": "Gagal mengubah urutan direktori"
+    },
+    "tabs": {
+      "active": "Aktif ({count})",
+      "archived": "Diarsipkan ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Arsipkan \"{name}\"?",
+      "archiveDescription": "Direktori ini akan keluar dari daftar direktori aktif dan pemilih chat baru, sementara sesi, pesan, dan folder asli tetap utuh.",
+      "removeTitle": "Hapus \"{name}\" dari DeepChat?",
+      "removeDescription": "Folder asli dan pesan tidak dihapus. Sesi reguler dipindahkan ke Tanpa proyek; catatan direktori kerja ACP tetap disimpan agar sesi yang ada dapat dilanjutkan."
     }
   },
   "remote": {

@@ -2016,8 +2016,17 @@
       "open": "Mở",
       "setDefault": "Đặt mặc định",
       "clearDefault": "Xóa mặc định",
-      "showTemp": "Hiển thị nhiệt độ",
-      "hideTemp": "Ẩn nhiệt độ"
+      "showTemp": "Hiển thị Temp",
+      "hideTemp": "Ẩn Temp",
+      "more": "Thao tác thư mục khác",
+      "dragTarget": "Kéo thư mục {name} để sắp xếp lại",
+      "moveTop": "Di chuyển lên đầu",
+      "moveUp": "Di chuyển lên",
+      "moveDown": "Di chuyển xuống",
+      "moveBottom": "Di chuyển xuống cuối",
+      "archive": "Lưu trữ",
+      "restore": "Khôi phục",
+      "remove": "Xóa khỏi DeepChat"
     },
     "badges": {
       "default": "Mặc định",
@@ -2028,14 +2037,30 @@
     "meta": {
       "sessions": "Phiên {count}",
       "lastUsed": "Lần sử dụng cuối cùng: {value}",
-      "never": "không bao giờ"
+      "never": "không bao giờ",
+      "archivedAt": "Đã lưu trữ: {value}"
     },
     "empty": {
       "regular": "Không có môi trường để hiển thị.",
-      "temp": "Chưa có môi trường tạm thời."
+      "temp": "Chưa có môi trường tạm thời.",
+      "archived": "Chưa có môi trường nào được lưu trữ."
     },
     "errors": {
-      "openTitle": "Không mở được thư mục"
+      "openTitle": "Không mở được thư mục",
+      "archiveTitle": "Không thể lưu trữ thư mục",
+      "restoreTitle": "Không thể khôi phục thư mục",
+      "removeTitle": "Không thể xóa thư mục",
+      "reorderTitle": "Không thể sắp xếp lại thư mục"
+    },
+    "tabs": {
+      "active": "Đang hoạt động ({count})",
+      "archived": "Đã lưu trữ ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "Lưu trữ \"{name}\"?",
+      "archiveDescription": "Nó sẽ rời khỏi danh sách thư mục đang hoạt động và bộ chọn chat mới, trong khi phiên, tin nhắn và thư mục thật vẫn được giữ nguyên.",
+      "removeTitle": "Xóa \"{name}\" khỏi DeepChat?",
+      "removeDescription": "Thư mục thật và tin nhắn không bị xóa. Phiên thông thường được chuyển sang Không có dự án; bản ghi thư mục làm việc ACP được giữ lại để các phiên hiện có có thể tiếp tục."
     }
   },
   "remote": {

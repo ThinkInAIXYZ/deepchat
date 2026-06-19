@@ -778,6 +778,14 @@ describe('renderer api clients', () => {
               return { reset: true }
             case 'project.listRecent':
               return { projects: [] }
+            case 'project.listEnvironments':
+              return { environments: [] }
+            case 'project.reorderEnvironments':
+            case 'project.archiveEnvironment':
+            case 'project.restoreEnvironment':
+              return { updated: true }
+            case 'project.removeEnvironment':
+              return { clearedSessionIds: [] }
             case 'project.pathExists':
               return { exists: true }
             case 'project.selectDirectory':
@@ -2028,8 +2036,14 @@ describe('renderer api clients', () => {
     await deviceClient.selectFiles({ filters: [{ name: 'ZIP Files', extensions: ['zip'] }] })
     await deviceClient.resetDataByType('chat')
     await projectClient.listRecent(8)
+    await projectClient.listEnvironments('archived')
+    await projectClient.reorderEnvironments(['/workspace', '/other'])
+    await projectClient.archiveEnvironment('/workspace')
+    await projectClient.restoreEnvironment('/workspace')
+    await projectClient.removeEnvironment('/workspace')
     await projectClient.pathExists('/workspace')
     await projectClient.selectDirectory()
+    const unsubscribe = projectClient.onEnvironmentsChanged(() => undefined)
     await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'device.selectFiles', {
@@ -2041,11 +2055,28 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'project.listRecent', {
       limit: 8
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'project.pathExists', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'project.listEnvironments', {
+      status: 'archived'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'project.reorderEnvironments', {
+      paths: ['/workspace', '/other']
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'project.archiveEnvironment', {
       path: '/workspace'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'project.selectDirectory', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'tools.listDefinitions', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'project.restoreEnvironment', {
+      path: '/workspace'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'project.removeEnvironment', {
+      path: '/workspace'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'project.pathExists', {
+      path: '/workspace'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'project.selectDirectory', {})
+    expect(bridge.on).toHaveBeenCalledWith('project:environments-changed', expect.any(Function))
+    expect(unsubscribe).toEqual(expect.any(Function))
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'tools.listDefinitions', {
       chatMode: 'agent'
     })
   })

@@ -404,6 +404,37 @@ export class NewSessionsTable extends BaseTable {
       .run(agentId, Date.now(), id)
   }
 
+  clearProjectDir(projectDir: string): string[] {
+    const normalizedProjectDir = projectDir.trim()
+    if (!normalizedProjectDir) {
+      return []
+    }
+
+    const rows = this.db
+      .prepare(
+        `SELECT id
+         FROM new_sessions
+         WHERE project_dir = ?
+           AND session_kind = 'regular'`
+      )
+      .all(normalizedProjectDir) as Array<{ id: string }>
+
+    if (rows.length === 0) {
+      return []
+    }
+
+    this.db
+      .prepare(
+        `UPDATE new_sessions
+         SET project_dir = NULL
+         WHERE project_dir = ?
+           AND session_kind = 'regular'`
+      )
+      .run(normalizedProjectDir)
+
+    return rows.map((row) => row.id)
+  }
+
   reassignAgentId(fromAgentId: string, toAgentId: string): void {
     this.db
       .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE agent_id = ?')

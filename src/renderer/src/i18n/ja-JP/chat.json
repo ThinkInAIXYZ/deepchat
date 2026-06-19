@@ -338,7 +338,12 @@
     "searchPlaceholder": "チャットタイトルを検索",
     "searchAriaLabel": "チャットタイトルを検索",
     "searchEmptyTitle": "一致する会話はありません",
-    "searchEmptyDescription": "別のキーワードを試してください"
+    "searchEmptyDescription": "別のキーワードを試してください",
+    "projectGroupActions": "プロジェクトグループ操作",
+    "moveProjectGroupTop": "最上部へ移動",
+    "moveProjectGroupUp": "上へ移動",
+    "moveProjectGroupDown": "下へ移動",
+    "moveProjectGroupBottom": "最下部へ移動"
   },
   "floatingWidget": {
     "title": "タスク概要",

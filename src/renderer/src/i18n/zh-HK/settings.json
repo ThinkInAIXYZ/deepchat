@@ -1986,7 +1986,16 @@
       "setDefault": "設為預設",
       "clearDefault": "清除預設",
       "showTemp": "顯示 Temp",
-      "hideTemp": "收起 Temp"
+      "hideTemp": "收起 Temp",
+      "more": "更多目錄操作",
+      "dragTarget": "拖曳目錄 {name} 以重新排序",
+      "moveTop": "移至最上方",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "moveBottom": "移至最下方",
+      "archive": "封存",
+      "restore": "復原",
+      "remove": "從 DeepChat 移除"
     },
     "badges": {
       "default": "預設",
@@ -1997,14 +2006,30 @@
     "meta": {
       "sessions": "{count} 個會話",
       "lastUsed": "最近使用：{value}",
-      "never": "從未"
+      "never": "從未",
+      "archivedAt": "封存於：{value}"
     },
     "empty": {
       "regular": "暫無可顯示的目錄環境。",
-      "temp": "目前沒有 Temp 目錄環境。"
+      "temp": "目前沒有 Temp 目錄環境。",
+      "archived": "暫無已封存環境。"
     },
     "errors": {
-      "openTitle": "打開目錄失敗"
+      "openTitle": "打開目錄失敗",
+      "archiveTitle": "封存目錄失敗",
+      "restoreTitle": "復原目錄失敗",
+      "removeTitle": "移除目錄失敗",
+      "reorderTitle": "重新排序目錄失敗"
+    },
+    "tabs": {
+      "active": "啟用中 ({count})",
+      "archived": "已封存 ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "封存「{name}」？",
+      "archiveDescription": "封存後它會離開啟用中目錄清單和新對話選擇器，但對話、訊息和真實資料夾都會保留。",
+      "removeTitle": "從 DeepChat 移除「{name}」？",
+      "removeDescription": "不會刪除真實資料夾或訊息。一般對話會移到「無專案」，ACP 對話的工作目錄記錄會保留，以便既有對話可繼續恢復。"
     }
   },
   "remote": {

@@ -581,7 +581,8 @@ export class Presenter implements IPresenter {
     )
     this.projectPresenter = new ProjectPresenter(
       this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
-      this.devicePresenter
+      this.devicePresenter,
+      this.configPresenter
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,

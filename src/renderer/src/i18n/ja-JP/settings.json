@@ -1986,7 +1986,16 @@
       "setDefault": "デフォルトに設定",
       "clearDefault": "デフォルトを解除",
       "showTemp": "Temp を表示",
-      "hideTemp": "Temp を隠す"
+      "hideTemp": "Temp を隠す",
+      "more": "その他のディレクトリアクション",
+      "dragTarget": "ディレクトリ {name} をドラッグして並べ替え",
+      "moveTop": "最上部へ移動",
+      "moveUp": "上へ移動",
+      "moveDown": "下へ移動",
+      "moveBottom": "最下部へ移動",
+      "archive": "アーカイブ",
+      "restore": "復元",
+      "remove": "DeepChat から削除"
     },
     "badges": {
       "default": "デフォルト",
@@ -1997,14 +2006,30 @@
     "meta": {
       "sessions": "{count} 件のセッション",
       "lastUsed": "最終使用: {value}",
-      "never": "未使用"
+      "never": "未使用",
+      "archivedAt": "アーカイブ済み: {value}"
     },
     "empty": {
       "regular": "表示できる環境はありません。",
-      "temp": "Temp 環境はまだありません。"
+      "temp": "Temp 環境はまだありません。",
+      "archived": "アーカイブ済みの環境はまだありません。"
     },
     "errors": {
-      "openTitle": "ディレクトリを開けませんでした"
+      "openTitle": "ディレクトリを開けませんでした",
+      "archiveTitle": "ディレクトリのアーカイブに失敗しました",
+      "restoreTitle": "ディレクトリの復元に失敗しました",
+      "removeTitle": "ディレクトリの削除に失敗しました",
+      "reorderTitle": "ディレクトリの並べ替えに失敗しました"
+    },
+    "tabs": {
+      "active": "アクティブ ({count})",
+      "archived": "アーカイブ済み ({count})"
+    },
+    "confirm": {
+      "archiveTitle": "「{name}」をアーカイブしますか？",
+      "archiveDescription": "アクティブなディレクトリ一覧と新規チャットの選択肢から外れますが、セッション、メッセージ、実際のフォルダは保持されます。",
+      "removeTitle": "「{name}」を DeepChat から削除しますか？",
+      "removeDescription": "実際のフォルダとメッセージは削除されません。通常セッションは「プロジェクトなし」に移動し、ACP の作業ディレクトリ記録は既存セッションを再開できるよう保持されます。"
     }
   },
   "remote": {
