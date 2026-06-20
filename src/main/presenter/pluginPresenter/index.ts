@@ -129,6 +129,40 @@ export class PluginPresenter {
     }
   }
 
+  async shutdown(): Promise<void> {
+    const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
+    const servers = await this.configPresenter.getMcpServers()
+
+    for (const [serverName, serverConfig] of Object.entries(servers)) {
+      if (!this.isPluginOwnedServerConfig(serverConfig)) {
+        continue
+      }
+
+      const ownerPluginId = this.getServerOwnerPluginId(serverConfig)
+      if (ownerPluginId) {
+        pluginIds.add(ownerPluginId)
+      }
+
+      try {
+        if (await this.mcpPresenter.isServerRunning(serverName)) {
+          await this.mcpPresenter.stopServer(serverName)
+        }
+      } catch (error) {
+        console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {
+          pluginId: ownerPluginId,
+          serverName,
+          error
+        })
+      }
+    }
+
+    for (const pluginId of pluginIds) {
+      unregisterPluginToolPolicies(pluginId)
+    }
+
+    this.closeAllPluginSettingsWindows()
+  }
+
   async listPlugins(): Promise<PluginListItem[]> {
     await this.loadOfficialPlugins()
     return await Promise.all(
@@ -289,10 +323,7 @@ export class PluginPresenter {
   private async disableByOwner(pluginId: string): Promise<void> {
     const servers = await this.configPresenter.getMcpServers()
     for (const [serverName, serverConfig] of Object.entries(servers)) {
-      if (
-        serverConfig.ownerPluginId === pluginId ||
-        (serverConfig.source === 'plugin' && serverConfig.sourceId === pluginId)
-      ) {
+      if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
         try {
           if (await this.mcpPresenter.isServerRunning(serverName)) {
             await this.mcpPresenter.stopServer(serverName)
@@ -312,6 +343,24 @@ export class PluginPresenter {
     unregisterPluginToolPolicies(pluginId)
     this.closePluginSettingsWindow(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
+  }
+
+  private isPluginOwnedServerConfig(serverConfig: MCPServerConfig): boolean {
+    return Boolean(serverConfig.ownerPluginId || serverConfig.source === 'plugin')
+  }
+
+  private isServerOwnedByPlugin(serverConfig: MCPServerConfig, pluginId: string): boolean {
+    return (
+      serverConfig.ownerPluginId === pluginId ||
+      (serverConfig.source === 'plugin' && serverConfig.sourceId === pluginId)
+    )
+  }
+
+  private getServerOwnerPluginId(serverConfig: MCPServerConfig): string | undefined {
+    return (
+      serverConfig.ownerPluginId ||
+      (serverConfig.source === 'plugin' ? serverConfig.sourceId : undefined)
+    )
   }
 
   private async removePersistedInstallation(pluginId: string): Promise<void> {
@@ -477,6 +526,12 @@ export class PluginPresenter {
       settingsWindow.close()
     }
     this.settingsWindows.delete(pluginId)
+  }
+
+  private closeAllPluginSettingsWindows(): void {
+    for (const pluginId of Array.from(this.settingsWindows.keys())) {
+      this.closePluginSettingsWindow(pluginId)
+    }
   }
 
   private registerToolPolicies(plugin: ResolvedOfficialPlugin): void {

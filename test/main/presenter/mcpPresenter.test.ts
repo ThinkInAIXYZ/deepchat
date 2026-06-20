@@ -223,6 +223,30 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(stopSpy).toHaveBeenCalledWith('regular')
   })
 
+  it('stops all running clients during shutdown and continues after stop failures', async () => {
+    const configPresenter = createConfigPresenter(true)
+    const presenter = new McpPresenter(configPresenter)
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    ;(presenter as any).serverManager = {
+      getRunningClients: serverManagerMocks.getRunningClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    serverManagerMocks.getRunningClients.mockResolvedValue([
+      { serverName: 'first' },
+      { serverName: 'second' }
+    ])
+    serverManagerMocks.stopServer
+      .mockRejectedValueOnce(new Error('first failed'))
+      .mockResolvedValueOnce(undefined)
+
+    await presenter.shutdown()
+
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(2)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('first')
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('second')
+    consoleErrorSpy.mockRestore()
+  })
+
   it('keeps plugin-owned tool definitions available when MCP is globally disabled', async () => {
     const configPresenter = createConfigPresenter(false, false, {
       regular: { enabled: true },

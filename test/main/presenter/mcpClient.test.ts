@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const fsExistsSyncMock = vi.hoisted(() => vi.fn())
+const terminateProcessTreeMock = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -88,6 +89,10 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 
 vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () => ({
   getInMemoryServer: vi.fn()
+}))
+
+vi.mock('../../../src/main/lib/agentRuntime/processTree', () => ({
+  terminateProcessTree: terminateProcessTreeMock
 }))
 
 // Mock MCP SDK modules
@@ -408,6 +413,68 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const pathEnv =
         transportOptions.env.PATH ?? transportOptions.env.Path ?? transportOptions.env.path
       expect(pathEnv).toContain('/custom/bin')
+    })
+
+    it('awaits process-tree cleanup before closing stdio transport on disconnect', async () => {
+      const order: string[] = []
+      const child = { pid: 123, exitCode: null, signalCode: null }
+      const closeMock = vi.fn(async () => {
+        order.push('transport-close')
+      })
+      terminateProcessTreeMock.mockImplementationOnce(async () => {
+        order.push('process-tree')
+        return true
+      })
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = closeMock
+        this._process = child
+      } as any)
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(order).toEqual(['process-tree', 'transport-close'])
+    })
+
+    it('closes stdio transport even when process-tree cleanup fails', async () => {
+      const child = { pid: 456, exitCode: null, signalCode: null }
+      const cleanupError = new Error('cleanup failed')
+      const closeMock = vi.fn().mockResolvedValue(undefined)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      terminateProcessTreeMock.mockRejectedValueOnce(cleanupError)
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = closeMock
+        this._process = child
+      } as any)
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to terminate MCP stdio process tree for test:',
+        cleanupError
+      )
+      consoleErrorSpy.mockRestore()
     })
   })
 

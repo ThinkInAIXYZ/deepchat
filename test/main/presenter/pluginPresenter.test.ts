@@ -886,6 +886,78 @@ describe('PluginPresenter', () => {
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
   })
 
+  it('shuts down running plugin-owned MCP servers without removing saved config', async () => {
+    const presenter = await createPluginPresenter('darwin')
+    await presenter.__mocks.configPresenter.addMcpServer('regular-server', {
+      source: 'manual'
+    })
+    await presenter.__mocks.configPresenter.addMcpServer('plugin-running', {
+      source: 'plugin',
+      sourceId: 'com.deepchat.plugins.fixture',
+      ownerPluginId: 'com.deepchat.plugins.fixture'
+    })
+    await presenter.__mocks.configPresenter.addMcpServer('plugin-stopped', {
+      source: 'plugin',
+      sourceId: 'com.deepchat.plugins.other',
+      ownerPluginId: 'com.deepchat.plugins.other'
+    })
+    presenter.__mocks.mcpPresenter.isServerRunning.mockImplementation(
+      async (serverName: string) => serverName !== 'plugin-stopped'
+    )
+
+    await presenter.shutdown()
+
+    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledTimes(1)
+    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-running')
+    expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
+    expect(await presenter.__mocks.configPresenter.getMcpServers()).toMatchObject({
+      'regular-server': {
+        source: 'manual'
+      },
+      'plugin-running': {
+        source: 'plugin',
+        ownerPluginId: 'com.deepchat.plugins.fixture'
+      },
+      'plugin-stopped': {
+        source: 'plugin',
+        ownerPluginId: 'com.deepchat.plugins.other'
+      }
+    })
+  })
+
+  it('continues plugin shutdown when one plugin-owned MCP server fails to stop', async () => {
+    const presenter = await createPluginPresenter('darwin')
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await presenter.__mocks.configPresenter.addMcpServer('plugin-first', {
+      source: 'plugin',
+      sourceId: 'com.deepchat.plugins.first'
+    })
+    await presenter.__mocks.configPresenter.addMcpServer('plugin-second', {
+      source: 'plugin',
+      sourceId: 'com.deepchat.plugins.second'
+    })
+    presenter.__mocks.mcpPresenter.isServerRunning.mockResolvedValue(true)
+    presenter.__mocks.mcpPresenter.stopServer
+      .mockRejectedValueOnce(new Error('first failed'))
+      .mockResolvedValueOnce(undefined)
+
+    await presenter.shutdown()
+
+    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledTimes(2)
+    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-first')
+    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-second')
+    expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PluginHost] Failed to stop plugin-owned MCP server during shutdown:',
+      expect.objectContaining({
+        pluginId: 'com.deepchat.plugins.first',
+        serverName: 'plugin-first',
+        error: expect.any(Error)
+      })
+    )
+    consoleWarnSpy.mockRestore()
+  })
+
   it('declares the CUA internal tool server with cross-platform helper context', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const mcpConfig = JSON.parse(await readFile('plugins/cua/mcp/cua-driver.json', 'utf8'))
