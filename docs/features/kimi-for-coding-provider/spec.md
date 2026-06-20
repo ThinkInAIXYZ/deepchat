@@ -37,7 +37,7 @@ metadata and existing API-key authentication.
 - Map Kimi Coding import/deeplink detection from both `https://api.kimi.com/coding/` and
   `https://api.kimi.com/coding/v1` to
   `kimi-for-coding`.
-- Reuse the Moonshot/Kimi icon.
+- Use `kimi-color.svg` for the Kimi For Coding provider icon.
 - Apply the existing Kimi fixed-thinking temperature policy to Kimi Code fixed-thinking model IDs:
   `kimi-for-coding`, `kimi-k2.7-code`, and `kimi-k2.7-code-highspeed`.
 

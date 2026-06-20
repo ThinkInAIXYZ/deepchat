@@ -59,9 +59,9 @@ describe('ModelIcon', () => {
     expect(image.attributes('src')).toBe(mistralIcon)
   })
 
-  it('resolves kimi-for-coding to the Moonshot icon', async () => {
+  it('resolves kimi-for-coding to the Kimi color icon', async () => {
     const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
-    const moonshotIcon = (await import('@/assets/llm-icons/moonshot.svg?url')).default
+    const kimiIcon = (await import('@/assets/llm-icons/kimi-color.svg?url')).default
     const wrapper = mount(ModelIcon, {
       props: {
         modelId: 'kimi-for-coding'
@@ -71,6 +71,6 @@ describe('ModelIcon', () => {
     const image = wrapper.get('img')
 
     expect(image.attributes('alt')).toBe('kimi-for-coding')
-    expect(image.attributes('src')).toBe(moonshotIcon)
+    expect(image.attributes('src')).toBe(kimiIcon)
   })
 })
