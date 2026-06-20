@@ -10,4 +10,9 @@ describe('provider DB catalog', () => {
   it('treats OpenAI Codex as provider DB-backed', () => {
     expect(isProviderDbBackedProvider('openai-codex')).toBe(true)
   })
+
+  it('treats Kimi For Coding as provider DB-backed', () => {
+    expect(isProviderDbBackedProvider('kimi-for-coding')).toBe(true)
+    expect(isProviderDbBackedProvider(' KIMI-FOR-CODING ')).toBe(true)
+  })
 })

@@ -4,6 +4,7 @@ const PROVIDER_DB_BACKED_PROVIDER_IDS = new Set([
   'minimax',
   'mistral',
   'o3fan',
+  'kimi-for-coding',
   'openai-codex'
 ])
 

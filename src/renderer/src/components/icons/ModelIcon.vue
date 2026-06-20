@@ -80,6 +80,7 @@ import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
 
 // 导入所有图标
 const icons = {
+  'kimi-for-coding': moonshotColorIcon,
   kimi: moonshotColorIcon,
   'kimi-cli': moonshotColorIcon,
   'claude-acp': claudeColorIcon,
