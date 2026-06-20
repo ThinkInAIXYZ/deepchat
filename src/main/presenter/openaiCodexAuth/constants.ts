@@ -47,14 +47,6 @@ export const OPENAI_CODEX_TOKEN_URL =
 export const OPENAI_CODEX_REVOKE_URL =
   process.env.OPENAI_CODEX_REVOKE_URL?.trim() || `${OPENAI_CODEX_AUTH_BASE_URL}/oauth/revoke`
 
-export const OPENAI_CODEX_DEVICE_USER_CODE_URL =
-  process.env.OPENAI_CODEX_DEVICE_USER_CODE_URL?.trim() ||
-  `${OPENAI_CODEX_BACKEND_API_URL}/codex/deviceauth/usercode`
-
-export const OPENAI_CODEX_DEVICE_TOKEN_URL =
-  process.env.OPENAI_CODEX_DEVICE_TOKEN_URL?.trim() ||
-  `${OPENAI_CODEX_BACKEND_API_URL}/codex/deviceauth/token`
-
 export const OPENAI_CODEX_REDIRECT_PORT = getPortEnv('OPENAI_CODEX_REDIRECT_PORT', 1455)
 export const OPENAI_CODEX_REDIRECT_PATH = '/auth/callback'
 export const OPENAI_CODEX_REDIRECT_URI =

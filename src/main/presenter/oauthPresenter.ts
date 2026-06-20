@@ -95,10 +95,6 @@ export class OAuthPresenter {
     return getGlobalOpenAICodexAuth().startBrowserLogin()
   }
 
-  async startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().startDeviceLogin()
-  }
-
   async cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
     return getGlobalOpenAICodexAuth().cancelLogin()
   }

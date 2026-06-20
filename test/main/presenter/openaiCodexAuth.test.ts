@@ -153,59 +153,6 @@ describe('OpenAI Codex auth', () => {
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 
-  it('stores tokens after device login polling succeeds', async () => {
-    vi.useFakeTimers()
-    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'device.json'))
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            device_code: 'device-code',
-            user_code: 'USER-CODE',
-            verification_uri: 'https://auth.openai.com/activate',
-            expires_in: 900,
-            interval: 1
-          }),
-          {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            access_token: 'device-token',
-            refresh_token: 'device-refresh-token',
-            expires_in: 3600,
-            token_type: 'Bearer'
-          }),
-          {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        )
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    const auth = new OpenAICodexAuth(store)
-    const pendingStatus = await auth.startDeviceLogin()
-
-    expect(pendingStatus.state).toBe('pending-device')
-    expect(pendingStatus.device?.userCode).toBe('USER-CODE')
-
-    await vi.advanceTimersByTimeAsync(1000)
-
-    expect(auth.getStatus().state).toBe('authenticated')
-    expect(store.load()?.accessToken).toBe('device-token')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
   it('opens browser login in an internal authorization window', async () => {
     const store = new OpenAICodexCredentialStore(path.join(tempDir, 'browser.json'))
     const fetchMock = vi.fn().mockResolvedValue(

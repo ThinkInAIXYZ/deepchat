@@ -992,17 +992,6 @@ function createRuntime() {
       authenticated: true,
       storage: 'safeStorage'
     }),
-    startOpenAICodexDeviceLogin: vi.fn().mockResolvedValue({
-      state: 'pending-device',
-      authenticated: false,
-      storage: 'file',
-      device: {
-        userCode: 'ABCD-EFGH',
-        verificationUri: 'https://chatgpt.com/activate',
-        expiresAt: 123,
-        interval: 5
-      }
-    }),
     cancelOpenAICodexLogin: vi.fn().mockResolvedValue({
       state: 'signed-out',
       authenticated: false,
@@ -1700,12 +1689,6 @@ describe('dispatchDeepchatRoute', () => {
       {},
       context
     )
-    const deviceResult = await dispatchDeepchatRoute(
-      runtime,
-      'oauth.openaiCodex.startDeviceLogin',
-      {},
-      context
-    )
     const cancelResult = await dispatchDeepchatRoute(
       runtime,
       'oauth.openaiCodex.cancelLogin',
@@ -1721,12 +1704,10 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(oauthPresenter.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
     expect(oauthPresenter.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.startOpenAICodexDeviceLogin).toHaveBeenCalledTimes(1)
     expect(oauthPresenter.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
     expect(oauthPresenter.logoutOpenAICodex).toHaveBeenCalledTimes(1)
     expect(statusResult.status.state).toBe('signed-out')
     expect(browserResult.status.authenticated).toBe(true)
-    expect(deviceResult.status.device?.userCode).toBe('ABCD-EFGH')
     expect(cancelResult.status.state).toBe('signed-out')
     expect(logoutResult.status.state).toBe('signed-out')
   })

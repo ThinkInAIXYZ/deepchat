@@ -5,7 +5,6 @@ import {
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
-  oauthOpenAICodexStartDeviceLoginRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
   type OpenAICodexAuthStatus
@@ -35,11 +34,6 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.status
   }
 
-  async function startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus> {
-    const result = await bridge.invoke(oauthOpenAICodexStartDeviceLoginRoute.name, {})
-    return result.status
-  }
-
   async function cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
     const result = await bridge.invoke(oauthOpenAICodexCancelLoginRoute.name, {})
     return result.status
@@ -63,7 +57,6 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     startGitHubCopilotDeviceFlowLogin,
     getOpenAICodexStatus,
     startOpenAICodexBrowserLogin,
-    startOpenAICodexDeviceLogin,
     cancelOpenAICodexLogin,
     logoutOpenAICodex,
     onOpenAICodexStatusChanged

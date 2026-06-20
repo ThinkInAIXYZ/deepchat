@@ -32,25 +32,6 @@
       </div>
     </div>
 
-    <div v-if="status.device" class="w-full space-y-2 rounded-md border border-input p-3">
-      <div class="flex items-center justify-between gap-2">
-        <span class="text-xs text-muted-foreground">
-          {{ t('settings.provider.openaiCodexDeviceCode') }}
-        </span>
-        <Button variant="outline" size="sm" class="h-7 text-xs" @click="copyDeviceCode">
-          <Icon icon="lucide:copy" class="h-3.5 w-3.5" />
-          {{ t('settings.provider.openaiCodexCopyCode') }}
-        </Button>
-      </div>
-      <div class="select-all rounded-md bg-muted px-3 py-2 font-mono text-base tracking-widest">
-        {{ status.device.userCode }}
-      </div>
-      <Button variant="outline" size="sm" class="w-full text-xs" @click="openVerificationUri">
-        <Icon icon="lucide:external-link" class="h-4 w-4" />
-        {{ t('settings.provider.openaiCodexDeviceOpen') }}
-      </Button>
-    </div>
-
     <div class="flex flex-wrap gap-2">
       <Button
         v-if="status.authenticated"
@@ -78,21 +59,6 @@
           :class="['h-4 w-4', { 'animate-spin': isBrowserBusy }]"
         />
         {{ browserButtonText }}
-      </Button>
-
-      <Button
-        data-testid="codex-device-login-button"
-        variant="outline"
-        size="sm"
-        class="text-xs"
-        :disabled="isBusy || status.state === 'disabled'"
-        @click="startDeviceLogin"
-      >
-        <Icon
-          :icon="isDeviceBusy ? 'lucide:loader-2' : 'lucide:smartphone'"
-          :class="['h-4 w-4', { 'animate-spin': isDeviceBusy }]"
-        />
-        {{ deviceButtonText }}
       </Button>
 
       <Button
@@ -157,19 +123,14 @@ const signedOutStatus: OpenAICodexAuthStatus = {
 const oauthClient = createOAuthClient()
 const modelCheckStore = useModelCheckStore()
 const status = ref<OpenAICodexAuthStatus>(signedOutStatus)
-const busyAction = ref<'browser' | 'device' | 'cancel' | 'logout' | null>(null)
+const busyAction = ref<'browser' | 'cancel' | 'logout' | null>(null)
 let pollTimer: number | null = null
 let unsubscribeStatus: (() => void) | null = null
 
-const isPending = computed(
-  () => status.value.state === 'pending-browser' || status.value.state === 'pending-device'
-)
+const isPending = computed(() => status.value.state === 'pending-browser')
 const isBusy = computed(() => busyAction.value !== null)
 const isBrowserBusy = computed(
   () => busyAction.value === 'browser' || status.value.state === 'pending-browser'
-)
-const isDeviceBusy = computed(
-  () => busyAction.value === 'device' || status.value.state === 'pending-device'
 )
 const statusClass = computed(() => {
   if (status.value.authenticated) {
@@ -201,8 +162,6 @@ const statusText = computed(() => {
       return t('settings.provider.openaiCodexConnected')
     case 'pending-browser':
       return t('settings.provider.openaiCodexPendingBrowser')
-    case 'pending-device':
-      return t('settings.provider.openaiCodexPendingDevice')
     case 'disabled':
       return t('settings.provider.openaiCodexDisabled')
     case 'error':
@@ -218,11 +177,6 @@ const browserButtonText = computed(() =>
     : status.value.authenticated
       ? t('settings.provider.openaiCodexReconnect')
       : t('settings.provider.openaiCodexSignInBrowser')
-)
-const deviceButtonText = computed(() =>
-  isDeviceBusy.value
-    ? t('settings.provider.openaiCodexWaiting')
-    : t('settings.provider.openaiCodexUseDeviceCode')
 )
 
 const applyStatus = (
@@ -248,7 +202,7 @@ const refreshStatus = async () => {
 }
 
 const runAuthAction = async (
-  action: 'browser' | 'device' | 'cancel' | 'logout',
+  action: 'browser' | 'cancel' | 'logout',
   runner: () => Promise<OpenAICodexAuthStatus>
 ) => {
   busyAction.value = action
@@ -271,27 +225,9 @@ const runAuthAction = async (
 const startBrowserLogin = () =>
   runAuthAction('browser', () => oauthClient.startOpenAICodexBrowserLogin())
 
-const startDeviceLogin = () =>
-  runAuthAction('device', () => oauthClient.startOpenAICodexDeviceLogin())
-
 const cancelLogin = () => runAuthAction('cancel', () => oauthClient.cancelOpenAICodexLogin())
 
 const logout = () => runAuthAction('logout', () => oauthClient.logoutOpenAICodex())
-
-const copyDeviceCode = async () => {
-  const code = status.value.device?.userCode
-  if (!code) {
-    return
-  }
-  await navigator.clipboard?.writeText(code)
-}
-
-const openVerificationUri = () => {
-  const verificationUri = status.value.device?.verificationUri
-  if (verificationUri) {
-    window.open(verificationUri, '_blank', 'noopener,noreferrer')
-  }
-}
 
 const openModelCheckDialog = () => {
   if (props.provider.enable) {
