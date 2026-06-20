@@ -8,7 +8,8 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   'azure-openai': 'azure',
   'aws-bedrock': 'amazon-bedrock',
   ppio: 'ppinfra',
-  fireworks: 'fireworks-ai'
+  fireworks: 'fireworks-ai',
+  'minimax-global': 'minimax'
 }
 
 export const resolveProviderId = (providerId: string | undefined): string | undefined => {

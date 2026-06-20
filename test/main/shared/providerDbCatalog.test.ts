@@ -15,4 +15,19 @@ describe('provider DB catalog', () => {
     expect(isProviderDbBackedProvider('kimi-for-coding')).toBe(true)
     expect(isProviderDbBackedProvider(' KIMI-FOR-CODING ')).toBe(true)
   })
+
+  it('treats the basic API-key provider batch as provider DB-backed', () => {
+    for (const providerId of [
+      'alibaba-token-plan',
+      'alibaba-token-plan-cn',
+      'huggingface',
+      'minimax-global',
+      'moonshot-ai',
+      'nvidia',
+      'stepfun',
+      'upstage'
+    ]) {
+      expect(isProviderDbBackedProvider(providerId)).toBe(true)
+    }
+  })
 })

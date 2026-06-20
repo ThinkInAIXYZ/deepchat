@@ -61,6 +61,8 @@ import googleColorIcon from '@/assets/llm-icons/google-color.svg?url'
 import qiniuIcon from '@/assets/llm-icons/qiniu.svg?url'
 import grokColorIcon from '@/assets/llm-icons/grok.svg?url'
 import groqColorIcon from '@/assets/llm-icons/groq.svg?url'
+import nvidiaColorIcon from '@/assets/llm-icons/nvidia-color.svg?url'
+import huggingfaceColorIcon from '@/assets/llm-icons/huggingface-color.svg?url'
 import hunyuanColorIcon from '@/assets/llm-icons/hunyuan-color.svg?url'
 import dashscopeColorIcon from '@/assets/llm-icons/alibabacloud-color.svg?url'
 import aihubmixColorIcon from '@/assets/llm-icons/aihubmix.png?url'
@@ -95,11 +97,16 @@ const icons = {
   'new-api': newApiColorIcon,
   modelscope: modelscopeColorIcon,
   '302ai': _302aiIcon,
+  'alibaba-token-plan': dashscopeColorIcon,
+  'alibaba-token-plan-cn': dashscopeColorIcon,
+  alibaba: dashscopeColorIcon,
   aihubmix: aihubmixColorIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,
   grok: grokColorIcon,
   groq: groqColorIcon,
+  nvidia: nvidiaColorIcon,
+  huggingface: huggingfaceColorIcon,
   qiniu: qiniuIcon,
   gemma: googleColorIcon,
   claude: claudeColorIcon,
@@ -110,6 +117,7 @@ const icons = {
   openai: openaiColorIcon,
   ollama: ollamaColorIcon,
   doubao: doubaoColorIcon,
+  'minimax-global': minimaxColorIcon,
   minimax: minimaxColorIcon,
   mistral: mistralColorIcon,
   fireworks: fireworksColorIcon,
