@@ -73,4 +73,31 @@ describe('ModelIcon', () => {
     expect(image.attributes('alt')).toBe('kimi-for-coding')
     expect(image.attributes('src')).toBe(kimiIcon)
   })
+
+  it('resolves the basic API-key provider icons', async () => {
+    const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
+    const nvidiaIcon = (await import('@/assets/llm-icons/nvidia-color.svg?url')).default
+    const huggingFaceIcon = (await import('@/assets/llm-icons/huggingface-color.svg?url')).default
+    const alibabaIcon = (await import('@/assets/llm-icons/alibabacloud-color.svg?url')).default
+
+    const nvidia = mount(ModelIcon, {
+      props: {
+        modelId: 'nvidia'
+      }
+    })
+    const huggingface = mount(ModelIcon, {
+      props: {
+        modelId: 'huggingface'
+      }
+    })
+    const alibabaTokenPlan = mount(ModelIcon, {
+      props: {
+        modelId: 'alibaba-token-plan'
+      }
+    })
+
+    expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
+    expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
+    expect(alibabaTokenPlan.get('img').attributes('src')).toBe(alibabaIcon)
+  })
 })

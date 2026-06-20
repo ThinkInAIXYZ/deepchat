@@ -129,6 +129,36 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'alibaba-token-plan',
+    createDefinition({
+      ...ENGLISH_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'alibaba-token-plan',
+      providerDbGroup: 'Token Plan',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-v4-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'alibaba-token-plan-cn',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'alibaba-token-plan-cn',
+      providerDbGroup: 'Token Plan',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-v4-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'anthropic',
     createDefinition({
       runtimeKind: 'anthropic',
@@ -235,6 +265,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'huggingface',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'huggingface',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'Qwen/Qwen3-Coder-Next',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'jiekou',
     createDefinition({
       ...OPENAI_BASE
@@ -299,6 +344,25 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'minimax-global',
+    createDefinition({
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'provider-db',
+      providerDbSourceId: 'minimax',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'none',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'MiniMax-M2.1',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'modelscope',
     createDefinition({
       ...TITLE_SUMMARY_OPENAI,
@@ -313,6 +377,36 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       modelSource: 'new-api',
       routeStrategy: 'new-api',
       embeddingStrategy: 'new-api'
+    })
+  ],
+  [
+    'moonshot-ai',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'moonshot-ai',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'kimi-k2-0905-preview',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'nvidia',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'nvidia',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'microsoft/phi-4-mini-instruct',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
@@ -379,6 +473,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'stepfun',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'stepfun',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'step-3.5-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'together',
     createDefinition({
       ...CHINESE_SUMMARY_OPENAI,
@@ -392,6 +501,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       modelSource: 'tokenflux',
       checkStrategy: 'key-status',
       keyStatusStrategy: 'tokenflux'
+    })
+  ],
+  [
+    'upstage',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'upstage',
+      providerDbGroup: 'default',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'solar-mini',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [
