@@ -3,15 +3,20 @@ import {
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
+  memoryGetSourceSpanRoute,
   memoryGetStatusRoute,
+  memoryListConflictsRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
   memoryRejectPersonaDraftRoute,
+  memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
   memorySetPersonaAnchorRoute,
+  type MemoryConflictItem,
   type MemoryItem,
+  type MemorySourceSpan,
   type MemoryStatusDto
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
@@ -42,6 +47,29 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function restore(agentId: string, memoryId: string): Promise<boolean> {
     const result = await bridge.invoke(memoryRestoreRoute.name, { agentId, memoryId })
+    return result.ok
+  }
+
+  async function getSourceSpan(agentId: string, memoryId: string): Promise<MemorySourceSpan> {
+    const result = await bridge.invoke(memoryGetSourceSpanRoute.name, { agentId, memoryId })
+    return result.span
+  }
+
+  async function listConflicts(agentId: string): Promise<MemoryConflictItem[]> {
+    const result = await bridge.invoke(memoryListConflictsRoute.name, { agentId })
+    return result.conflicts
+  }
+
+  async function resolveConflict(
+    agentId: string,
+    challengerId: string,
+    outcome: 'keep_target' | 'keep_challenger' | 'keep_both'
+  ): Promise<boolean> {
+    const result = await bridge.invoke(memoryResolveConflictRoute.name, {
+      agentId,
+      challengerId,
+      outcome
+    })
     return result.ok
   }
 
@@ -83,7 +111,6 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.ok
   }
 
-  /** 订阅记忆变更事件；返回取消订阅函数。 */
   function onUpdated(listener: (payload: MemoryUpdatedPayload) => void): () => void {
     return bridge.on(memoryUpdatedEvent.name, listener)
   }
@@ -94,6 +121,9 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     remove,
     clear,
     restore,
+    getSourceSpan,
+    listConflicts,
+    resolveConflict,
     listPersonaVersions,
     rollbackPersona,
     listPersonaDrafts,

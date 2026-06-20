@@ -2,9 +2,12 @@ import { vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type {
+  AgentMemoryAuditInsertInput,
+  AgentMemoryAuditRow,
   AgentMemoryInsertInput,
   AgentMemoryRow,
   IMemoryVectorStore,
+  MemoryAuditRepositoryPort,
   MemoryRepositoryPort,
   MemoryVectorMatch,
   MemoryVectorRecord
@@ -48,6 +51,7 @@ export class FakeRepository implements MemoryRepositoryPort {
       confidence: null,
       last_consolidated_at: null,
       conflict_state: null,
+      conflict_with: input.conflictWith ?? null,
       persona_state: input.personaState ?? null
     }
     this.rows.set(row.id, row)
@@ -81,6 +85,7 @@ export class FakeRepository implements MemoryRepositoryPort {
         (options?.includeArchived ||
           options?.statuses?.includes('archived') ||
           row.status !== 'archived') &&
+        (options?.statuses?.includes('conflicted') || row.status !== 'conflicted') &&
         (!options?.statuses?.length || options.statuses.includes(row.status))
     )
     if (options?.kinds?.length) result = result.filter((row) => options.kinds!.includes(row.kind))
@@ -136,6 +141,8 @@ export class FakeRepository implements MemoryRepositoryPort {
           row.agent_id === agentId &&
           !row.superseded_by &&
           row.status !== 'archived' &&
+          row.status !== 'conflicted' &&
+          row.kind !== 'working' &&
           row.content.toLowerCase().includes(q)
       )
       .slice(0, limit)
@@ -147,6 +154,7 @@ export class FakeRepository implements MemoryRepositoryPort {
         (row) =>
           row.status === 'pending_embedding' &&
           row.kind !== 'persona' &&
+          row.kind !== 'working' &&
           (!agentId || row.agent_id === agentId)
       )
       .slice(0, limit)
@@ -172,7 +180,13 @@ export class FakeRepository implements MemoryRepositoryPort {
   requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
     let changed = 0
     for (const row of this.rows.values()) {
-      if (row.agent_id !== agentId || row.superseded_by || row.kind === 'persona') continue
+      if (
+        row.agent_id !== agentId ||
+        row.superseded_by ||
+        row.kind === 'persona' ||
+        row.kind === 'working'
+      )
+        continue
       if (!statuses.includes(row.status)) continue
       row.status = 'pending_embedding'
       row.embedding_id = null
@@ -210,7 +224,6 @@ export class FakeRepository implements MemoryRepositoryPort {
       row.content = content
       row.provenance_key = provenanceKey
       row.last_accessed = at
-      row.last_consolidated_at = at
     }
   }
 
@@ -230,6 +243,11 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (row) row.conflict_state = state
   }
 
+  setConflictWith(id: string, targetId: string | null) {
+    const row = this.rows.get(id)
+    if (row) row.conflict_with = targetId
+  }
+
   setLastConsolidatedAt(id: string, at = 0) {
     const row = this.rows.get(id)
     if (row) row.last_consolidated_at = at
@@ -244,11 +262,10 @@ export class FakeRepository implements MemoryRepositoryPort {
     return max
   }
 
-  archive(id: string, at = 0) {
+  archive(id: string, _at = 0) {
     const row = this.rows.get(id)
     if (row) {
       row.status = 'archived'
-      row.last_consolidated_at = at
     }
   }
 
@@ -258,8 +275,10 @@ export class FakeRepository implements MemoryRepositoryPort {
         row.agent_id === agentId &&
         !row.superseded_by &&
         row.status !== 'archived' &&
+        row.status !== 'conflicted' &&
         row.is_anchor === 0 &&
         row.kind !== 'persona' &&
+        row.kind !== 'working' &&
         row.created_at < before &&
         row.decay_score !== null &&
         row.decay_score < decayBelow
@@ -283,6 +302,51 @@ export class FakeRepository implements MemoryRepositoryPort {
 
   countByAgent(agentId: string) {
     return this.listByAgent(agentId, { includeSuperseded: true }).length
+  }
+
+  listAgentIdsWithMemories() {
+    return [...new Set([...this.rows.values()].map((row) => row.agent_id))]
+  }
+}
+
+export class FakeAuditRepository implements MemoryAuditRepositoryPort {
+  rows: AgentMemoryAuditRow[] = []
+
+  insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow {
+    const row: AgentMemoryAuditRow = {
+      id: input.id,
+      agent_id: input.agentId,
+      event_type: input.eventType,
+      actor_type: input.actorType,
+      session_id: input.sessionId ?? null,
+      input_refs_json: JSON.stringify(input.inputRefs ?? {}),
+      output_refs_json: JSON.stringify(input.outputRefs ?? {}),
+      model_provider_id: input.modelProviderId ?? null,
+      model_id: input.modelId ?? null,
+      status: input.status,
+      reason: input.reason ?? null,
+      created_at: input.createdAt ?? Date.now()
+    }
+    this.rows.push(row)
+    return row
+  }
+
+  listByAgent(agentId: string, limit = 100): AgentMemoryAuditRow[] {
+    return this.rows
+      .filter((row) => row.agent_id === agentId)
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, limit)
+  }
+
+  getLatestCompletedEventAt(agentId: string, eventType: string): number | null {
+    let latest: number | null = null
+    for (const row of this.rows) {
+      if (row.agent_id !== agentId || row.event_type !== eventType || row.status !== 'completed') {
+        continue
+      }
+      if (latest === null || row.created_at > latest) latest = row.created_at
+    }
+    return latest
   }
 }
 
@@ -336,6 +400,7 @@ export const enabledConfig: DeepChatAgentConfig = {
 
 export function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeRepository()) {
   const store = new FakeVectorStore()
+  const auditRepo = new FakeAuditRepository()
   const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
     texts.map((text) => textToVector(text))
   )
@@ -345,10 +410,12 @@ export function makePresenter(config: DeepChatAgentConfig | null, repo = new Fak
   })
   const presenter = new MemoryPresenter({
     repository: repo,
+    auditRepository: auditRepo,
     resolveAgentConfig: () => config,
     getEmbeddings,
+    generateText: vi.fn(async () => ''),
     createVectorStore: async () => store,
     resetVectorStore
   })
-  return { presenter, repo, store, getEmbeddings, resetVectorStore }
+  return { presenter, repo, auditRepo, store, getEmbeddings, resetVectorStore }
 }

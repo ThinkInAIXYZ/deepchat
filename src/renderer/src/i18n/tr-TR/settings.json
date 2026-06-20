@@ -176,7 +176,8 @@
         "embedded": "Dizinlendi",
         "error": "Hata",
         "fts_only": "Yalnızca anahtar kelime",
-        "archived": "Arşivlendi"
+        "archived": "Arşivlendi",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Onay bekliyor ({count})",
       "largeChange": "Büyük değişiklik — dikkatlice inceleyin",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Bu benlik modeline geri dönülsün mü?",
       "rollbackConfirmBody": "Seçili sürümü etkin benlik modeli yapar ve mevcut olanın yerini alır.",
       "personaEvolutionOnHint": "Kişilik evrimi deneyseldir. Yeni benlik modelleri burada taslak olarak görünür ve yalnızca siz onayladıktan sonra enjekte edilir.",
-      "personaEvolutionOffHint": "Kişilik evrimi deneysel, isteğe bağlı bir özelliktir ve bu ajan için şu anda kapalıdır."
+      "personaEvolutionOffHint": "Kişilik evrimi deneysel, isteğe bağlı bir özelliktir ve bu ajan için şu anda kapalıdır.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
     "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",

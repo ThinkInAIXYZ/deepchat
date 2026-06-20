@@ -643,6 +643,45 @@ describe('AgentRuntimePresenter', () => {
     }
   })
 
+  describe('memory injection', () => {
+    it('keeps the injected prompt when the view anchor write fails', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection: vi.fn(async () => ({
+          selfModel: null,
+          working: null,
+          memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }],
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'm1', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'query-hash'
+          }
+        }))
+      }
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockImplementation(() => {
+        throw new Error('anchor failed')
+      })
+
+      const prompt = await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis')
+
+      expect(prompt).toContain('base prompt')
+      expect(prompt).toContain('## Relevant Memories')
+      expect(prompt).toContain('redis fact')
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 's1', name: 'memory/view_assembled' })
+      )
+    })
+  })
+
   function installSessionRows(initialRows: any[]) {
     let rows = [...initialRows]
     sqlitePresenter.deepchatMessagesTable.getBySession.mockImplementation((sessionId: string) =>

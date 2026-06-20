@@ -166,14 +166,22 @@
       "rollback": "回滚",
       "actionFailed": "操作失败",
       "conflict": "冲突",
+      "conflictPairsTitle": "待裁决冲突（{count}）",
+      "keepTarget": "保留当前",
+      "keepChallenger": "保留新的",
+      "keepBoth": "都保留",
       "restore": "恢复",
+      "clearNoop": "没有记忆被移除。",
       "sourceLine": "来自会话 {session} · {count} 条记录",
+      "sourceDialogTitle": "来源片段",
+      "sourceDialogEmpty": "来源片段已不可用。",
       "status": {
         "pending_embedding": "向量化中",
         "embedded": "已索引",
         "error": "错误",
         "fts_only": "仅关键词",
-        "archived": "已归档"
+        "archived": "已归档",
+        "conflicted": "冲突中"
       },
       "pendingTitle": "待审批（{count}）",
       "largeChange": "变更幅度较大，请仔细审查",

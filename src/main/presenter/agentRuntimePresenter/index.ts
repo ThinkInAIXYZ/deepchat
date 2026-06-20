@@ -121,7 +121,10 @@ import { DeepChatPendingInputStore } from './pendingInputStore'
 import { processStream } from './process'
 import { cloneBlocksForRenderer } from './echo'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
-import { appendMemorySection, type MemoryRuntimePort } from '../memoryPresenter/injectionPort'
+import {
+  appendMemorySectionWithManifest,
+  type MemoryRuntimePort
+} from '../memoryPresenter/injectionPort'
 import type { InterleavedReasoningConfig, PendingToolInteraction, ProcessResult } from './types'
 import { ToolOutputGuard } from './toolOutputGuard'
 import type { ProviderRequestTracePayload } from '../llmProviderPresenter/requestTrace'
@@ -1796,8 +1799,20 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!this.memoryPort.isEnabled(agentId)) {
         return systemPrompt
       }
-      const payload = await this.memoryPort.buildInjection(agentId, query)
-      return appendMemorySection(systemPrompt, payload)
+      const injection = await this.memoryPort.buildInjection(agentId, query)
+      const assembled = appendMemorySectionWithManifest(systemPrompt, injection)
+      if (assembled.manifest) {
+        try {
+          this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
+            sessionId,
+            name: 'memory/view_assembled',
+            state: assembled.manifest as unknown as Record<string, unknown>
+          })
+        } catch (error) {
+          logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
+        }
+      }
+      return assembled.prompt
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
       return systemPrompt
@@ -1926,45 +1941,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           }
         })
       }
-
-      const reflection = await this.memoryPort.maybeReflect(
-        agentId,
-        { providerId: state.providerId, modelId: state.modelId },
-        sessionId
-      )
-      if (reflection) {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
-          sessionId,
-          name: 'memory/reflect',
-          state: {
-            reflectionIds: reflection.reflectionIds,
-            sourceMemoryIds: reflection.sourceMemoryIds,
-            count: reflection.reflectionIds.length,
-            reason: options.reason
-          }
-        })
-      }
-
-      // Guarded persona evolution: a no-op unless the agent opted in. Any draft it writes stays out of
-      // injection until the user approves it in the memory manager, so this never changes the live
-      // self-model. The anchor is audit-only (not a reconstruction anchor).
-      const personaDraft = await this.memoryPort.maybeEvolvePersona(
-        agentId,
-        { providerId: state.providerId, modelId: state.modelId },
-        sessionId
-      )
-      if (personaDraft) {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
-          sessionId,
-          name: 'persona/evolve',
-          state: {
-            state: 'draft',
-            draftId: personaDraft.draftId,
-            needsReview: personaDraft.needsReview,
-            reason: options.reason
-          }
-        })
-      }
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
     }
@@ -2008,9 +1984,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (Array.isArray(parsed)) {
         return parsed
           .map((block) => {
-            const b = block as { type?: string; content?: unknown; text?: unknown }
+            const b = block as {
+              type?: string
+              content?: unknown
+              reasoning_content?: unknown
+              text?: unknown
+            }
             if (b?.type === 'content' && typeof b.content === 'string') return b.content
-            if (typeof b?.text === 'string') return b.text
+            if (b?.type === 'reasoning_content' && typeof b.content === 'string') return b.content
+            if (typeof b?.reasoning_content === 'string') return b.reasoning_content
+            if (b?.type === 'reasoning' && typeof b.text === 'string') return b.text
             return ''
           })
           .filter(Boolean)

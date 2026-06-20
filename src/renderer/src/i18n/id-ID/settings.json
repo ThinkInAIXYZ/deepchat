@@ -176,7 +176,8 @@
         "embedded": "Terindeks",
         "error": "Galat",
         "fts_only": "Kata kunci saja",
-        "archived": "Diarsipkan"
+        "archived": "Diarsipkan",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Menunggu persetujuan ({count})",
       "largeChange": "Perubahan besar — tinjau dengan cermat",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Kembalikan ke model diri ini?",
       "rollbackConfirmBody": "Ini menjadikan versi yang dipilih sebagai model diri aktif dan menggantikan yang sekarang.",
       "personaEvolutionOnHint": "Evolusi persona bersifat eksperimental. Model diri baru muncul di sini sebagai draf dan hanya disuntikkan setelah Anda menyetujuinya.",
-      "personaEvolutionOffHint": "Evolusi persona adalah fitur eksperimental dan opsional, saat ini nonaktif untuk agen ini."
+      "personaEvolutionOffHint": "Evolusi persona adalah fitur eksperimental dan opsional, saat ini nonaktif untuk agen ini.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",

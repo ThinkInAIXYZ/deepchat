@@ -94,10 +94,6 @@ function createMemoryResult(
   }
 }
 
-/**
- * 长期记忆内置工具：随 agent 的「长期记忆」开关自动可用，无需手动开 MCP。
- * agentId 从当前会话解析，作用于"正在对话的 agent"。
- */
 export class AgentMemoryToolHandler {
   constructor(private readonly runtimePort: AgentToolRuntimePort) {}
 
@@ -175,15 +171,18 @@ export class AgentMemoryToolHandler {
 
     if (toolName === MEMORY_TOOL_NAMES.remember) {
       const args = memoryToolSchemas[toolName].parse(rawArgs)
-      const created = await this.runtimePort.rememberMemory!(
+      const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+      const outcome = await this.runtimePort.rememberMemory!(
         agentId,
         { content: args.content, kind: args.kind, importance: args.importance },
-        conversationId
+        conversationId,
+        session ? { providerId: session.providerId, modelId: session.modelId } : null
       )
+      const ok = outcome.action !== 'noop'
       return createMemoryResult(
         toolName,
-        { ok: created.length > 0, memoryIds: created },
-        created.length > 0 ? 'Stored a long-term memory.' : 'Memory already existed (deduped).'
+        { ok, ...outcome },
+        ok ? 'Stored or updated long-term memory.' : 'Memory write made no change.'
       )
     }
 

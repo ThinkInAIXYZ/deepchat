@@ -93,9 +93,8 @@ import {
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 
-// 主 Presenter 类，负责协调其他 Presenter 并处理 IPC 通信
+// Coordinates presenters and owns main-process IPC wiring.
 export class Presenter implements IPresenter {
-  // 私有静态实例
   private static instance: Presenter
 
   windowPresenter: IWindowPresenter
@@ -164,7 +163,7 @@ export class Presenter implements IPresenter {
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
     this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
 
-    // 初始化各个 Presenter 实例及其依赖
+    // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
       this.configPresenter,
       this.startupWorkloadCoordinator
@@ -297,14 +296,23 @@ export class Presenter implements IPresenter {
         return await this.agentSessionPresenter.handoffTape(conversationId, name, state)
       },
       isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
-      rememberMemory: async (agentId, input, sourceSession) =>
+      rememberMemory: async (agentId, input, sourceSession, model) =>
         this.memoryPresenter.rememberMemory(
-          { kind: input.kind, content: input.content, importance: input.importance },
-          { agentId, sourceSession }
+          {
+            kind: input.kind,
+            content: input.content,
+            importance: input.importance
+          },
+          { agentId, sourceSession },
+          model
         ),
       recallMemory: async (agentId, query) => {
         const items = await this.memoryPresenter.recall(agentId, query)
-        return items.map((item) => ({ id: item.id, kind: item.kind, content: item.content }))
+        return items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          content: item.content
+        }))
       },
       forgetMemory: async (agentId, memoryId) =>
         await this.memoryPresenter.deleteMemory(agentId, memoryId),
@@ -531,8 +539,18 @@ export class Presenter implements IPresenter {
     this.memoryPresenter = new MemoryPresenter({
       repository: (this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter)
         .agentMemoryTable,
+      auditRepository: (
+        this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+      ).agentMemoryAuditTable,
       resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
-      // 严格存在性校验：仅真实存在的 DeepChat agent 才可被管理类记忆接口读写
+      resolveAgentDefaultModel: (agentId) => {
+        const config = agentRepository.resolveDeepChatAgentConfig(agentId)
+        const model = config.assistantModel ?? config.defaultModelPreset
+        return model?.providerId && model?.modelId
+          ? { providerId: model.providerId, modelId: model.modelId }
+          : null
+      },
+      // Management memory APIs only read/write real DeepChat agents.
       isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
       getEmbeddings: (providerId, modelId, texts) =>
         this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts),
@@ -540,7 +558,6 @@ export class Presenter implements IPresenter {
         (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
         '',
       createVectorStore: (agentId, embedding, dimensions) => {
-        // 防御路径穿越：agentId 会拼进 *.duckdb 文件名，必须先确认是 URL-safe 格式
         if (!isSafeAgentId(agentId)) {
           throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
         }
@@ -552,10 +569,14 @@ export class Presenter implements IPresenter {
         }
         MemoryVectorStore.destroyFile(memoryVectorDbPath(agentId))
       },
-      // 记忆变更 → typed 事件广播，驱动渲染层记忆管理 UI 自动刷新
       onMemoryChanged: (agentId, reason) =>
-        publishDeepchatEvent('memory.updated', { agentId, reason, version: Date.now() })
+        publishDeepchatEvent('memory.updated', {
+          agentId,
+          reason,
+          version: Date.now()
+        })
     })
+    this.memoryPresenter.startBackgroundMaintenance()
 
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
@@ -606,7 +627,7 @@ export class Presenter implements IPresenter {
       getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
     })
 
-    this.setupEventBus() // 设置事件总线监听
+    this.setupEventBus()
   }
 
   getActiveConversationIdSync(webContentsId: number): string | null {
@@ -643,23 +664,18 @@ export class Presenter implements IPresenter {
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
     if (!Presenter.instance) {
-      // 只能在类内部调用私有构造函数
       Presenter.instance = new Presenter(lifecycleManager)
     }
     return Presenter.instance
   }
 
-  // 设置事件监听和 typed renderer event 发送端
   setupEventBus() {
     setDeepchatEventWindowPresenter(this.windowPresenter)
 
-    // 设置特殊事件的处理逻辑
     this.setupSpecialEventHandlers()
   }
 
-  // 设置需要特殊处理的事件
   private setupSpecialEventHandlers() {
-    // CONFIG_EVENTS.PROVIDER_CHANGED 需要更新 providers（已在 configPresenter 中处理发送到渲染进程）
     eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {
       const providers = this.configPresenter.getProviders()
       this.llmproviderPresenter.setProviders(providers)
@@ -673,7 +689,6 @@ export class Presenter implements IPresenter {
     this.trayPresenter.init()
   }
 
-  // 应用初始化逻辑 (主窗口准备就绪后调用)
   init() {
     if (this.hasInitialized) {
       console.info('[Startup][Main] Presenter.init skipped because startup already ran')
@@ -682,7 +697,6 @@ export class Presenter implements IPresenter {
 
     this.hasInitialized = true
 
-    // 持久化 LLMProviderPresenter 的 Providers 数据
     const providers = this.configPresenter.getProviders()
     console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
@@ -784,7 +798,6 @@ export class Presenter implements IPresenter {
       })
   }
 
-  // 初始化悬浮按钮
   private async initializeFloatingButton() {
     try {
       await this.floatingButtonPresenter.initialize()
@@ -897,24 +910,21 @@ export class Presenter implements IPresenter {
     return this.startupWorkloadCoordinator
   }
 
-  // 在应用退出时进行清理，关闭数据库连接
   async destroy(): Promise<void> {
     await this.destroyRemoteControl()
-    this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
+    this.floatingButtonPresenter.destroy()
     this.tabPresenter.destroy()
     // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
     // that already fired cannot write to a closed database during teardown.
-    await this.memoryPresenter.dispose() // release per-agent memory vector store connections
-    this.sqlitePresenter.close() // 关闭数据库连接
-    this.shortcutPresenter.destroy() // 销毁快捷键监听
-    this.syncPresenter.destroy() // 销毁同步相关资源
-    this.notificationPresenter.clearAllNotifications() // 清除所有通知
-    this.knowledgePresenter.destroy() // 释放所有数据库连接
-    await (this.workspacePresenter as WorkspacePresenter).destroy() // 销毁 Workspace watchers
-    await (this.skillPresenter as SkillPresenter).destroy() // 销毁 Skills 相关资源
-    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy() // 销毁 Skill Sync 相关资源
-    // 注意: trayPresenter.destroy() 在 main/index.ts 的 will-quit 事件中处理
-    // 此处不销毁 trayPresenter，其生命周期由 main/index.ts 管理
+    await this.memoryPresenter.dispose()
+    this.sqlitePresenter.close()
+    this.shortcutPresenter.destroy()
+    this.syncPresenter.destroy()
+    this.notificationPresenter.clearAllNotifications()
+    this.knowledgePresenter.destroy()
+    await (this.workspacePresenter as WorkspacePresenter).destroy()
+    await (this.skillPresenter as SkillPresenter).destroy()
+    ;(this.skillSyncPresenter as SkillSyncPresenter).destroy()
   }
 
   private async destroyRemoteControl() {

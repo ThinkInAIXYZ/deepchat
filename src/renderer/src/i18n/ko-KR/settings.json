@@ -2245,7 +2245,8 @@
         "embedded": "색인됨",
         "error": "오류",
         "fts_only": "키워드만",
-        "archived": "보관됨"
+        "archived": "보관됨",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "승인 대기 ({count})",
       "largeChange": "변경 폭이 큽니다 — 신중히 검토하세요",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "이 자기 모델로 되돌릴까요?",
       "rollbackConfirmBody": "선택한 버전을 활성 자기 모델로 만들고 현재 버전을 대체합니다.",
       "personaEvolutionOnHint": "페르소나 진화는 실험적 기능입니다. 새 자기 모델은 여기에 초안으로 표시되며 승인한 후에만 주입됩니다.",
-      "personaEvolutionOffHint": "페르소나 진화는 실험적 선택 기능이며 현재 이 에이전트에서 꺼져 있습니다."
+      "personaEvolutionOffHint": "페르소나 진화는 실험적 선택 기능이며 현재 이 에이전트에서 꺼져 있습니다.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "페르소나 진화 (실험적)",
     "personaEvolutionDescription": "리플렉션이 업데이트된 자기 모델을 초안으로 제안하여 승인을 받도록 합니다. 메모리와 독립적이며 기본값은 꺼짐입니다.",

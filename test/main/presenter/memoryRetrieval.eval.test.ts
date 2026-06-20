@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
+import { MemoryPresenter } from '@/presenter/memoryPresenter'
 import { fuse } from '@/presenter/memoryPresenter/scoring'
 import { DEFAULT_RETRIEVAL, DEFAULT_SIMILARITY_THRESHOLD } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import { FakeRepository, FakeVectorStore } from './fakes/memoryFakes'
 
 // Offline recall-quality regression. No real embedding service: a deterministic keyword-vector
 // stub stands in for getEmbeddings so the fixture and its expected ranking are reproducible.
@@ -74,7 +76,12 @@ function makeRow(id: string, content: string): AgentMemoryRow {
     last_accessed: null,
     access_count: 0,
     decay_score: null,
-    source_entry_ids: null
+    source_entry_ids: null,
+    confidence: null,
+    last_consolidated_at: null,
+    conflict_state: null,
+    conflict_with: null,
+    persona_state: null
   }
 }
 
@@ -166,5 +173,40 @@ describe('memory retrieval eval harness (hybrid RRF)', () => {
       CASES.reduce((sum, c) => sum + ndcgAtK(rankedIds(c.query, 'hybrid'), c.expected, 3), 0) /
       CASES.length
     expect(ndcg).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('recalls the expected memory through MemoryPresenter with deterministic embeddings', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'stub', modelId: 'stub' }
+      }),
+      getEmbeddings: vi.fn(async (_providerId: string, _modelId: string, texts: string[]) =>
+        texts.map(embed)
+      ),
+      generateText: vi.fn(async () => ''),
+      createVectorStore: async () => store,
+      resetVectorStore: async () => {
+        store.vectors.clear()
+      }
+    })
+
+    for (const row of FIXTURE) {
+      repo.insert({
+        id: row.id,
+        agentId: row.agent_id,
+        kind: row.kind,
+        content: row.content,
+        importance: row.importance,
+        status: 'pending_embedding'
+      })
+    }
+    await presenter.processPendingEmbeddings('a')
+
+    const results = await presenter.recall('a', 'session store', 1000)
+    expect(results[0]?.id).toBe('m-redis')
   })
 })

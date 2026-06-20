@@ -176,7 +176,8 @@
         "embedded": "Đã lập chỉ mục",
         "error": "Lỗi",
         "fts_only": "Chỉ từ khóa",
-        "archived": "Đã lưu trữ"
+        "archived": "Đã lưu trữ",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Đang chờ phê duyệt ({count})",
       "largeChange": "Thay đổi lớn — hãy xem xét kỹ",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Khôi phục về mô hình bản thân này?",
       "rollbackConfirmBody": "Thao tác này biến phiên bản đã chọn thành mô hình bản thân đang hoạt động và thay thế phiên bản hiện tại.",
       "personaEvolutionOnHint": "Tiến hóa tính cách là tính năng thử nghiệm. Các mô hình bản thân mới xuất hiện ở đây dưới dạng bản nháp và chỉ được đưa vào sau khi bạn phê duyệt.",
-      "personaEvolutionOffHint": "Tiến hóa tính cách là tính năng thử nghiệm, tùy chọn và hiện đang tắt cho tác nhân này."
+      "personaEvolutionOffHint": "Tiến hóa tính cách là tính năng thử nghiệm, tùy chọn và hiện đang tắt cho tác nhân này.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",
     "personaEvolutionDescription": "Cho phép quá trình phản tư đề xuất các mô hình bản thân cập nhật dưới dạng bản nháp để bạn phê duyệt. Độc lập với bộ nhớ; mặc định tắt.",

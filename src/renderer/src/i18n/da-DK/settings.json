@@ -2245,7 +2245,8 @@
         "embedded": "Indekseret",
         "error": "Fejl",
         "fts_only": "Kun nøgleord",
-        "archived": "Arkiveret"
+        "archived": "Arkiveret",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Afventer godkendelse ({count})",
       "largeChange": "Stor ændring — gennemgå omhyggeligt",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "Rul tilbage til denne selvmodel?",
       "rollbackConfirmBody": "Dette gør den valgte version til den aktive selvmodel og erstatter den nuværende.",
       "personaEvolutionOnHint": "Personaudvikling er eksperimentel. Nye selvmodeller vises her som kladder og injiceres først, når du har godkendt dem.",
-      "personaEvolutionOffHint": "Personaudvikling er en eksperimentel, valgfri funktion og er i øjeblikket slået fra for denne agent."
+      "personaEvolutionOffHint": "Personaudvikling er en eksperimentel, valgfri funktion og er i øjeblikket slået fra for denne agent.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",

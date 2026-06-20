@@ -8,6 +8,12 @@ import type {
   AgentMemoryListOptions
 } from '../sqlitePresenter/tables/agentMemory'
 import type {
+  AgentMemoryAuditActorType,
+  AgentMemoryAuditInsertInput,
+  AgentMemoryAuditRow,
+  AgentMemoryAuditStatus
+} from '../sqlitePresenter/tables/agentMemoryAudit'
+import type {
   DeepChatAgentConfig,
   DeepChatAgentMemoryRetrieval
 } from '@shared/types/agent-interface'
@@ -56,6 +62,7 @@ export interface MemoryRepositoryPort {
   setConfidence(id: string, confidence: number): void
   setImportance(id: string, importance: number): void
   markConflict(id: string, state: AgentMemoryConflictState | null): void
+  setConflictWith(id: string, targetId: string | null): void
   setLastConsolidatedAt(id: string, at?: number): void
   getLastConsolidatedAt(agentId: string): number | null
   archive(id: string, at?: number): void
@@ -63,6 +70,20 @@ export interface MemoryRepositoryPort {
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
+  listAgentIdsWithMemories(): string[]
+}
+
+export interface MemoryAuditRepositoryPort {
+  insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow
+  listByAgent(agentId: string, limit?: number): AgentMemoryAuditRow[]
+  getLatestCompletedEventAt(agentId: string, eventType: string): number | null
+}
+
+export type {
+  AgentMemoryAuditActorType,
+  AgentMemoryAuditInsertInput,
+  AgentMemoryAuditRow,
+  AgentMemoryAuditStatus
 }
 
 export interface MemoryVectorRecord {
@@ -103,7 +124,25 @@ export interface WriteMemoriesOptions {
   sourceEntryIds?: number[] | null
 }
 
-export type { MemoryInjectionPayload, MemoryInjectionPort } from './injectionPort'
+export type {
+  MemoryInjectionPayload,
+  MemoryInjectionPort,
+  MemoryInjectionResult
+} from './injectionPort'
+
+export type MemoryWriteOutcome =
+  | { action: 'created'; id: string }
+  | { action: 'updated'; id: string }
+  | { action: 'superseded'; id: string; supersededId: string; created?: boolean }
+  | { action: 'noop'; reason: string; id?: string }
+  | { action: 'challenged'; targetId: string; challengerId: string }
+
+export type MemoryConflictResolution = 'keep_target' | 'keep_challenger' | 'keep_both'
+
+export interface MemoryConflictPair {
+  challenger: AgentMemoryRow
+  target: AgentMemoryRow
+}
 
 export interface MemoryRecallItem {
   id: string
@@ -118,6 +157,14 @@ export interface MemoryRecallItem {
   // Lineage back to the originating tape span, when the row carries it.
   sourceSession?: string | null
   sourceEntryIds?: number[] | null
+  breakdown?: {
+    similarity: number
+    recency: number
+    importance: number
+    confidence: number
+    rrf: number
+    final: number
+  }
 }
 
 // One ranked candidate from a single retrieval path, fed into RRF fusion.
@@ -134,6 +181,7 @@ export interface FuseOptions {
   now: number
   halfLifeMs?: number
   ftsBaseline?: number
+  trace?: boolean
 }
 
 // Pure fusion port: two already-ranked candidate lists in, one fused+reranked list out.
@@ -156,7 +204,9 @@ export interface MemoryStatus {
 
 export interface MemoryPresenterDeps {
   repository: MemoryRepositoryPort
+  auditRepository?: MemoryAuditRepositoryPort
   resolveAgentConfig: (agentId: string) => DeepChatAgentConfig | null
+  resolveAgentDefaultModel?: (agentId: string) => { providerId: string; modelId: string } | null
   // True only for a real, existing DeepChat agent. Management surfaces use it to refuse
   // reads/writes against arbitrary or nonexistent agents; skipped when absent (e.g. tests).
   isManagedAgent?: (agentId: string) => boolean

@@ -2245,7 +2245,8 @@
         "embedded": "מאונדקס",
         "error": "שגיאה",
         "fts_only": "מילות מפתח בלבד",
-        "archived": "בארכיון"
+        "archived": "בארכיון",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "ממתין לאישור ({count})",
       "largeChange": "שינוי גדול — בדוק בקפידה",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "לחזור למודל עצמי זה?",
       "rollbackConfirmBody": "הפעולה הופכת את הגרסה שנבחרה למודל העצמי הפעיל ומחליפה את הנוכחי.",
       "personaEvolutionOnHint": "התפתחות הפרסונה היא ניסיונית. מודלים עצמיים חדשים מופיעים כאן כטיוטות ומוזרקים רק לאחר אישורך.",
-      "personaEvolutionOffHint": "התפתחות הפרסונה היא תכונה ניסיונית ואופציונלית, וכבויה כעת עבור סוכן זה."
+      "personaEvolutionOffHint": "התפתחות הפרסונה היא תכונה ניסיונית ואופציונלית, וכבויה כעת עבור סוכן זה.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "התפתחות פרסונה (ניסיוני)",
     "personaEvolutionDescription": "אפשר לרפלקציה להציע מודלים עצמיים מעודכנים כטיוטות לאישורך. בלתי תלוי בזיכרון; כבוי כברירת מחדל.",

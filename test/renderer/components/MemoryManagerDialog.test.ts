@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem, MemoryStatusDto } from '@shared/contracts/routes'
+import type { MemoryItem, MemorySourceSpan, MemoryStatusDto } from '@shared/contracts/routes'
 
 const clickStub = (name: string) =>
   defineComponent({
@@ -46,8 +46,10 @@ async function setup(
     reject?: boolean
     anchor?: boolean
     items?: MemoryItem[]
+    conflicts?: Array<{ challenger: MemoryItem; target: MemoryItem }>
     personaVersions?: MemoryItem[]
     drafts?: MemoryItem[]
+    sourceSpan?: MemorySourceSpan
   } = {}
 ) {
   vi.resetModules()
@@ -56,6 +58,8 @@ async function setup(
   const memoryClient = {
     list: vi.fn().mockResolvedValue(overrides.items ?? [{ ...memory }]),
     getStatus: vi.fn().mockResolvedValue(status),
+    listConflicts: vi.fn().mockResolvedValue(overrides.conflicts ?? []),
+    getSourceSpan: vi.fn().mockResolvedValue(overrides.sourceSpan ?? null),
     listPersonaVersions: vi.fn().mockResolvedValue(
       overrides.personaVersions ?? [
         {
@@ -84,6 +88,7 @@ async function setup(
     approvePersonaDraft: vi.fn().mockResolvedValue(overrides.approve ?? true),
     rejectPersonaDraft: vi.fn().mockResolvedValue(overrides.reject ?? true),
     setPersonaAnchor: vi.fn().mockResolvedValue(overrides.anchor ?? true),
+    resolveConflict: vi.fn().mockResolvedValue(true),
     onUpdated: vi.fn().mockReturnValue(dispose)
   }
   const toast = vi.fn()
@@ -165,14 +170,16 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
     expect(wrapper.text()).not.toContain('redis fact')
   })
 
-  it('clear succeeds even when it removed zero (no toast, list cleared)', async () => {
+  it('clear removed zero toasts and keeps the list', async () => {
     const { wrapper, memoryClient, toast } = await setup({ clear: 0 })
     await wrapper.findComponent(AlertDialogActionStub).trigger('click')
     await flushPromises()
 
     expect(memoryClient.clear).toHaveBeenCalledWith('a')
-    expect(toast).not.toHaveBeenCalled()
-    expect(wrapper.text()).not.toContain('redis fact')
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'settings.deepchatAgents.memoryManager.clearNoop' })
+    )
+    expect(wrapper.text()).toContain('redis fact')
   })
 
   it('clear failure (thrown) toasts and keeps the list', async () => {
@@ -262,6 +269,24 @@ describe('MemoryManagerDialog source lineage (SDD-7)', () => {
     expect(text).toContain('"count":2')
     expect(text).toContain('"session":"…CD123456"')
     expect(wrapper.find('[title="12, 34"]').exists()).toBe(true)
+  })
+
+  it('opens the source span dialog with readable text', async () => {
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory, sourceSession: 'session-ABCD123456', sourceEntryIds: [12] }],
+      sourceSpan: {
+        sessionId: 'session-ABCD123456',
+        entries: [{ entryId: 12, role: 'user', content: 'readable source text', orderSeq: 7 }]
+      }
+    })
+    const sourceButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes(sourceLineKey))
+    await sourceButton!.trigger('click')
+    await flushPromises()
+    expect(memoryClient.getSourceSpan).toHaveBeenCalledWith('a', 'm1')
+    expect(wrapper.text()).toContain('readable source text')
+    expect(wrapper.text()).not.toContain('{"text"')
   })
 
   it('does not render the source line when there is no source session', async () => {

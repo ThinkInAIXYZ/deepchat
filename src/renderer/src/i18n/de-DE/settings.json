@@ -176,7 +176,8 @@
         "embedded": "Indiziert",
         "error": "Fehler",
         "fts_only": "Nur Stichwort",
-        "archived": "Archiviert"
+        "archived": "Archiviert",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Ausstehende Freigabe ({count})",
       "largeChange": "Große Änderung – bitte sorgfältig prüfen",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Auf dieses Selbstmodell zurücksetzen?",
       "rollbackConfirmBody": "Dadurch wird die ausgewählte Version zum aktiven Selbstmodell und ersetzt das aktuelle.",
       "personaEvolutionOnHint": "Die Persona-Entwicklung ist experimentell. Neue Selbstmodelle erscheinen hier als Entwürfe und werden erst nach Ihrer Freigabe injiziert.",
-      "personaEvolutionOffHint": "Die Persona-Entwicklung ist eine experimentelle, optionale Funktion und ist für diesen Agenten derzeit deaktiviert."
+      "personaEvolutionOffHint": "Die Persona-Entwicklung ist eine experimentelle, optionale Funktion und ist für diesen Agenten derzeit deaktiviert.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
     "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",

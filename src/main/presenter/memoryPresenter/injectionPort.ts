@@ -5,13 +5,51 @@ import type {
   MemoryReflectionResult
 } from './types'
 
+export interface MemoryInjectionMemory {
+  id: string
+  kind: AgentMemoryKind
+  content: string
+  score?: number
+  sources?: { vec?: boolean; fts?: boolean }
+  similarity?: number
+  breakdown?: {
+    similarity: number
+    recency: number
+    importance: number
+    confidence: number
+    rrf: number
+    final: number
+  }
+}
+
 export interface MemoryInjectionPayload {
   selfModel: string | null
-  memories: Array<{ id: string; kind: AgentMemoryKind; content: string }>
+  memories: MemoryInjectionMemory[]
   // Condensed open-session working-memory blob, injected ahead of recalled memories when present.
   working?: string | null
   // Approximate token ceiling for the assembled section; falls back to the default when unset.
   tokenBudget?: number | null
+}
+
+export interface MemoryInjectionManifest {
+  policyVersion: number
+  selected: Array<{
+    id: string
+    kind: AgentMemoryKind
+    score?: number
+    sources?: { vec?: boolean; fts?: boolean }
+    similarity?: number
+    breakdown?: MemoryInjectionMemory['breakdown']
+  }>
+  dropped: Array<{ id: string; kind: AgentMemoryKind; reason: 'budget' }>
+  tokenBudget: number
+  estimatedTokens: number
+  queryHash?: string
+}
+
+export interface MemoryInjectionResult extends MemoryInjectionPayload {
+  payload: MemoryInjectionPayload
+  manifest: MemoryInjectionManifest
 }
 
 // Default token ceiling for the assembled memory injection (persona + working + recalled).
@@ -19,9 +57,22 @@ export const DEFAULT_INJECTION_TOKEN_BUDGET = 1200
 const MIN_INJECTION_TOKEN_BUDGET = 64
 const MAX_INJECTION_TOKEN_BUDGET = 8000
 
-// Char/4 heuristic, the same approximation the consolidation budget uses; no tokenizer dependency.
+const CJK_TOKEN_DENSITY = 1.5
+
+function isCjkLike(char: string): boolean {
+  return /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/u.test(char)
+}
+
+// Mixed-language local heuristic. CJK/Kana/Hangul text is much denser than ASCII under common
+// tokenizers, so char/4 would systematically over-admit Chinese memory sections.
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4)
+  let cjk = 0
+  let other = 0
+  for (const char of text) {
+    if (isCjkLike(char)) cjk += 1
+    else other += 1
+  }
+  return Math.ceil(cjk * CJK_TOKEN_DENSITY + other / 4)
 }
 
 // Clamps a configured budget into a sane range, falling back to the default for anything malformed.
@@ -36,7 +87,10 @@ export function resolveInjectionTokenBudget(value: number | null | undefined): n
 // and tests can supply a fake implementation.
 export interface MemoryInjectionPort {
   isEnabled(agentId: string): boolean
-  buildInjection(agentId: string, query: string): Promise<MemoryInjectionPayload | null>
+  buildInjection(
+    agentId: string,
+    query: string
+  ): Promise<MemoryInjectionResult | MemoryInjectionPayload | null>
 }
 
 // Adds extraction entry points on top of injection. Extraction is an independent cheap
@@ -109,6 +163,15 @@ function wrapAsContextData(body: string): string {
 function buildSection(header: string, body: string): string {
   return `${header}\n${wrapAsContextData(body)}`
 }
+
+function toPayload(
+  input: MemoryInjectionPayload | MemoryInjectionResult | null
+): MemoryInjectionPayload | null {
+  if (!input) return null
+  return 'payload' in input ? input.payload : input
+}
+
+const MEMORY_INJECTION_POLICY_VERSION = 1
 
 // Fits a high-priority section (persona/working) by truncating its body to the largest prefix that
 // keeps the whole assembled output within budget. Returns null when even an empty section overflows,
@@ -187,8 +250,22 @@ function placeHighPrioritySections(
 // added whole lines (never half a sentence) until the budget is reached; episodic summaries sit last
 // so they are cut first. The assembler is the final boundary and never trusts an upstream size cap,
 // so estimateTokens(buildMemorySection(payload)) <= the resolved budget always holds.
-export function buildMemorySection(payload: MemoryInjectionPayload | null): string {
-  if (!payload) return ''
+function assembleMemorySection(payload: MemoryInjectionPayload | null): {
+  section: string
+  manifest: Omit<MemoryInjectionManifest, 'queryHash'>
+} {
+  if (!payload) {
+    return {
+      section: '',
+      manifest: {
+        policyVersion: MEMORY_INJECTION_POLICY_VERSION,
+        selected: [],
+        dropped: [],
+        tokenBudget: DEFAULT_INJECTION_TOKEN_BUDGET,
+        estimatedTokens: 0
+      }
+    }
+  }
   const budget = resolveInjectionTokenBudget(payload.tokenBudget)
   const sections: string[] = []
 
@@ -204,26 +281,70 @@ export function buildMemorySection(payload: MemoryInjectionPayload | null): stri
     ...recalled.filter((memory) => memory.kind === 'episodic')
   ]
   const lines: string[] = []
+  const selected: MemoryInjectionManifest['selected'] = []
+  const dropped: MemoryInjectionManifest['dropped'] = []
   for (const memory of ordered) {
     const candidate = [...lines, `- ${sanitizeForInjection(memory.content)}`]
     const projected = [...sections, buildSection(MEMORIES_HEADER, candidate.join('\n'))].join(
       '\n\n'
     )
-    if (estimateTokens(projected) > budget) break
+    if (estimateTokens(projected) > budget) {
+      dropped.push({ id: memory.id, kind: memory.kind, reason: 'budget' })
+      continue
+    }
     lines.push(candidate[candidate.length - 1])
+    selected.push({
+      id: memory.id,
+      kind: memory.kind,
+      score: memory.score,
+      sources: memory.sources,
+      similarity: memory.similarity,
+      breakdown: memory.breakdown
+    })
   }
   if (lines.length) {
     sections.push(buildSection(MEMORIES_HEADER, lines.join('\n')))
   }
-  return sections.length ? sections.join('\n\n') : ''
+  const section = sections.length ? sections.join('\n\n') : ''
+  return {
+    section,
+    manifest: {
+      policyVersion: MEMORY_INJECTION_POLICY_VERSION,
+      selected,
+      dropped,
+      tokenBudget: budget,
+      estimatedTokens: estimateTokens(section)
+    }
+  }
+}
+
+export function buildMemorySection(
+  payload: MemoryInjectionPayload | MemoryInjectionResult | null
+): string {
+  return assembleMemorySection(toPayload(payload)).section
 }
 
 // Appends the memory section to systemPrompt; returns it unchanged when payload is empty.
 export function appendMemorySection(
   systemPrompt: string,
-  payload: MemoryInjectionPayload | null
+  payload: MemoryInjectionPayload | MemoryInjectionResult | null
 ): string {
   const section = buildMemorySection(payload)
   if (!section) return systemPrompt
   return `${systemPrompt}\n\n${READONLY_NOTICE}\n\n${section}`
+}
+
+export function appendMemorySectionWithManifest(
+  systemPrompt: string,
+  result: MemoryInjectionResult | MemoryInjectionPayload | null
+): { prompt: string; manifest: MemoryInjectionManifest | null } {
+  if (!result) return { prompt: systemPrompt, manifest: null }
+  const payload = toPayload(result)
+  const assembled = assembleMemorySection(payload)
+  if (!assembled.section) return { prompt: systemPrompt, manifest: null }
+  const baseManifest = 'manifest' in result ? result.manifest : assembled.manifest
+  return {
+    prompt: `${systemPrompt}\n\n${READONLY_NOTICE}\n\n${assembled.section}`,
+    manifest: { ...baseManifest, ...assembled.manifest }
+  }
 }

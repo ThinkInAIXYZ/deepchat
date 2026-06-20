@@ -2245,7 +2245,8 @@
         "embedded": "Indexado",
         "error": "Erro",
         "fts_only": "Apenas palavras-chave",
-        "archived": "Arquivado"
+        "archived": "Arquivado",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Aguardando aprovação ({count})",
       "largeChange": "Mudança grande — revise com atenção",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "Reverter para este modelo de si?",
       "rollbackConfirmBody": "Isso torna a versão selecionada o modelo ativo e substitui o atual.",
       "personaEvolutionOnHint": "A evolução da persona é experimental. Novos modelos de si aparecem aqui como rascunhos e só são injetados após sua aprovação.",
-      "personaEvolutionOffHint": "A evolução da persona é um recurso experimental e opcional, atualmente desativado para este agente."
+      "personaEvolutionOffHint": "A evolução da persona é um recurso experimental e opcional, atualmente desativado para este agente.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",
     "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",

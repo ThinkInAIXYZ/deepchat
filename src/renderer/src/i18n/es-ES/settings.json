@@ -176,7 +176,8 @@
         "embedded": "Indexado",
         "error": "Error",
         "fts_only": "Solo palabras clave",
-        "archived": "Archivado"
+        "archived": "Archivado",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Pendiente de aprobación ({count})",
       "largeChange": "Cambio importante: revísalo con cuidado",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "¿Volver a este modelo de sí mismo?",
       "rollbackConfirmBody": "Esto convierte la versión seleccionada en el modelo activo y sustituye al actual.",
       "personaEvolutionOnHint": "La evolución de la persona es experimental. Los nuevos modelos aparecen aquí como borradores y solo se inyectan tras tu aprobación.",
-      "personaEvolutionOffHint": "La evolución de la persona es una función experimental y opcional, actualmente desactivada para este agente."
+      "personaEvolutionOffHint": "La evolución de la persona es una función experimental y opcional, actualmente desactivada para este agente.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Evolución de la persona (experimental)",
     "personaEvolutionDescription": "Permite que la reflexión proponga modelos de sí mismo actualizados como borradores para tu aprobación. Independiente de la memoria; desactivado por defecto.",

@@ -22,6 +22,7 @@ import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
+import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
@@ -211,8 +212,13 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       confidence: 'ALTER TABLE agent_memory ADD COLUMN confidence REAL;',
       last_consolidated_at: 'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
       conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;',
+      conflict_with: 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;',
       persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
     }
+  },
+  {
+    name: 'agent_memory_audit',
+    createTable: (db) => new AgentMemoryAuditTable(db)
   },
   {
     name: 'new_session_active_skills',

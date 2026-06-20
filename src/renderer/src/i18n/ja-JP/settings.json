@@ -2245,7 +2245,8 @@
         "embedded": "インデックス済み",
         "error": "エラー",
         "fts_only": "キーワードのみ",
-        "archived": "アーカイブ済み"
+        "archived": "アーカイブ済み",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "承認待ち（{count}）",
       "largeChange": "変更が大きいため、慎重に確認してください",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "この自己モデルにロールバックしますか？",
       "rollbackConfirmBody": "選択したバージョンを有効な自己モデルにし、現在のものを置き換えます。",
       "personaEvolutionOnHint": "人格進化は実験的機能です。新しい自己モデルはここに下書きとして表示され、承認後にのみ注入されます。",
-      "personaEvolutionOffHint": "人格進化は実験的なオプション機能で、現在このエージェントでは無効です。"
+      "personaEvolutionOffHint": "人格進化は実験的なオプション機能で、現在このエージェントでは無効です。",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "人格進化（実験的）",
     "personaEvolutionDescription": "リフレクションが更新後の自己モデルを下書きとして提案し、あなたの承認を待ちます。メモリとは独立で、既定では無効です。",

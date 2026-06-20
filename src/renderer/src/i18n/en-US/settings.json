@@ -166,14 +166,22 @@
       "rollback": "Roll back",
       "actionFailed": "Action failed",
       "conflict": "Conflict",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
       "restore": "Restore",
+      "clearNoop": "No memories were removed.",
       "sourceLine": "From session {session} · {count} entries",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available.",
       "status": {
         "pending_embedding": "Embedding",
         "embedded": "Indexed",
         "error": "Error",
         "fts_only": "Keyword only",
-        "archived": "Archived"
+        "archived": "Archived",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Pending approval ({count})",
       "largeChange": "Large change — review carefully",

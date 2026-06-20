@@ -176,7 +176,8 @@
         "embedded": "Diindeks",
         "error": "Ralat",
         "fts_only": "Kata kunci sahaja",
-        "archived": "Diarkibkan"
+        "archived": "Diarkibkan",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Menunggu kelulusan ({count})",
       "largeChange": "Perubahan besar — semak dengan teliti",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Undur kembali ke model diri ini?",
       "rollbackConfirmBody": "Ini menjadikan versi yang dipilih sebagai model diri aktif dan menggantikan yang semasa.",
       "personaEvolutionOnHint": "Evolusi persona adalah eksperimental. Model diri baharu muncul di sini sebagai draf dan hanya disuntik selepas anda meluluskannya.",
-      "personaEvolutionOffHint": "Evolusi persona ialah ciri eksperimental dan pilihan, dan kini dimatikan untuk ejen ini."
+      "personaEvolutionOffHint": "Evolusi persona ialah ciri eksperimental dan pilihan, dan kini dimatikan untuk ejen ini.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",

@@ -8,7 +8,6 @@
         </DialogDescription>
       </DialogHeader>
 
-      <!-- 降级提示：未配置 embedding 时纯 FTS 召回 -->
       <div
         v-if="status && status.total > 0 && !hasEmbeddingConfigured"
         class="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground"
@@ -27,7 +26,6 @@
           </TabsTrigger>
         </TabsList>
 
-        <!-- ============ 记忆列表 ============ -->
         <TabsContent value="memories" class="mt-3">
           <div class="mb-2 flex items-center justify-between">
             <div class="text-xs text-muted-foreground">
@@ -64,6 +62,56 @@
             </AlertDialog>
           </div>
 
+          <div v-if="conflicts.length > 0" class="mb-3 space-y-2">
+            <div class="text-xs font-medium">
+              {{
+                t('settings.deepchatAgents.memoryManager.conflictPairsTitle', {
+                  count: conflicts.length
+                })
+              }}
+            </div>
+            <div
+              v-for="conflict in conflicts"
+              :key="conflict.challenger.id"
+              class="space-y-2 rounded-lg border border-destructive/40 px-3 py-2"
+            >
+              <div class="grid gap-2 sm:grid-cols-2">
+                <p class="wrap-break-word text-xs text-muted-foreground">
+                  {{ conflict.target.content }}
+                </p>
+                <p class="wrap-break-word text-xs">
+                  {{ conflict.challenger.content }}
+                </p>
+              </div>
+              <div class="flex flex-wrap justify-end gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="handleResolveConflict(conflict.challenger.id, 'keep_target')"
+                >
+                  {{ t('settings.deepchatAgents.memoryManager.keepTarget') }}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="handleResolveConflict(conflict.challenger.id, 'keep_challenger')"
+                >
+                  {{ t('settings.deepchatAgents.memoryManager.keepChallenger') }}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2 text-xs"
+                  @click="handleResolveConflict(conflict.challenger.id, 'keep_both')"
+                >
+                  {{ t('settings.deepchatAgents.memoryManager.keepBoth') }}
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">
             {{ t('common.loading') }}
           </div>
@@ -85,7 +133,7 @@
                 :class="{ 'opacity-60': memory.status === 'archived' }"
               >
                 <div class="min-w-0 flex-1">
-                  <p class="break-words text-sm">{{ memory.content }}</p>
+                  <p class="wrap-break-word text-sm">{{ memory.content }}</p>
                   <div class="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" class="text-[10px]">{{ memory.kind }}</Badge>
                     <Badge :variant="statusVariant(memory.status)" class="text-[10px]">
@@ -102,10 +150,12 @@
                       {{ formatTime(memory.createdAt) }}
                     </span>
                   </div>
-                  <p
+                  <button
                     v-if="memory.sourceSession && memory.sourceEntryIds?.length"
-                    class="mt-1 truncate text-[10px] text-muted-foreground"
+                    class="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground hover:text-foreground"
                     :title="sourceEntryTitle(memory)"
+                    type="button"
+                    @click="handleOpenSource(memory)"
                   >
                     {{
                       t('settings.deepchatAgents.memoryManager.sourceLine', {
@@ -113,7 +163,7 @@
                         count: memory.sourceEntryIds?.length ?? 0
                       })
                     }}
-                  </p>
+                  </button>
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
                   <Button
@@ -141,13 +191,11 @@
           </ScrollArea>
         </TabsContent>
 
-        <!-- ============ 人格 ============ -->
         <TabsContent value="persona" class="mt-3">
           <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">
             {{ t('common.loading') }}
           </div>
           <template v-else>
-            <!-- 实验性质常驻提示 -->
             <div
               class="mb-3 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground"
               :class="props.personaEvolutionEnabled ? '' : 'opacity-80'"
@@ -159,7 +207,6 @@
               }}
             </div>
 
-            <!-- 待审批的人格草稿 -->
             <div v-if="personaDrafts.length > 0" class="mb-3 space-y-2">
               <div class="text-xs font-medium">
                 {{
@@ -189,7 +236,7 @@
                   <div class="text-[10px] font-medium uppercase text-muted-foreground">
                     {{ t('settings.deepchatAgents.memoryManager.personaCurrent') }}
                   </div>
-                  <p class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                  <p class="whitespace-pre-wrap wrap-break-word text-xs text-muted-foreground">
                     {{
                       activePersonaContent || t('settings.deepchatAgents.memoryManager.personaNone')
                     }}
@@ -197,7 +244,7 @@
                   <div class="text-[10px] font-medium uppercase text-muted-foreground">
                     {{ t('settings.deepchatAgents.memoryManager.personaProposed') }}
                   </div>
-                  <p class="whitespace-pre-wrap break-words text-xs">{{ draft.content }}</p>
+                  <p class="whitespace-pre-wrap wrap-break-word text-xs">{{ draft.content }}</p>
                 </div>
                 <div class="flex items-center justify-end gap-2">
                   <Button
@@ -296,7 +343,7 @@
                       </AlertDialog>
                     </div>
                   </div>
-                  <p class="whitespace-pre-wrap break-words text-xs text-muted-foreground">
+                  <p class="whitespace-pre-wrap wrap-break-word text-xs text-muted-foreground">
                     {{ version.content }}
                   </p>
                 </li>
@@ -305,6 +352,32 @@
           </template>
         </TabsContent>
       </Tabs>
+    </DialogContent>
+  </Dialog>
+  <Dialog v-model:open="sourceSpanOpen">
+    <DialogContent class="sm:max-w-160">
+      <DialogHeader class="text-left">
+        <DialogTitle>{{
+          t('settings.deepchatAgents.memoryManager.sourceDialogTitle')
+        }}</DialogTitle>
+      </DialogHeader>
+      <div v-if="!sourceSpan" class="py-6 text-center text-sm text-muted-foreground">
+        {{ t('settings.deepchatAgents.memoryManager.sourceDialogEmpty') }}
+      </div>
+      <ScrollArea v-else class="max-h-105 pr-3">
+        <ol class="space-y-2">
+          <li
+            v-for="entry in sourceSpan.entries"
+            :key="entry.entryId"
+            class="rounded-lg border border-border px-3 py-2"
+          >
+            <div class="mb-1 text-[10px] uppercase text-muted-foreground">
+              {{ entry.role }} · #{{ entry.orderSeq }}
+            </div>
+            <p class="whitespace-pre-wrap wrap-break-word text-xs">{{ entry.content }}</p>
+          </li>
+        </ol>
+      </ScrollArea>
     </DialogContent>
   </Dialog>
 </template>
@@ -337,14 +410,17 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { createMemoryClient } from '@api/MemoryClient'
 import { useToast } from '@/components/use-toast'
-import type { MemoryItem, MemoryStatusDto } from '@shared/contracts/routes'
+import type {
+  MemoryConflictItem,
+  MemoryItem,
+  MemorySourceSpan,
+  MemoryStatusDto
+} from '@shared/contracts/routes'
 
 const props = defineProps<{
   open: boolean
   agentId: string
-  /** 该 agent 是否已配置 embedding 模型，用于降级提示。 */
   hasEmbeddingConfigured?: boolean
-  /** 是否开启了实验性的人格演化（用于在人格页提示）。 */
   personaEvolutionEnabled?: boolean
 }>()
 
@@ -360,9 +436,12 @@ const activeTab = ref<'memories' | 'persona'>('memories')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const memories = ref<MemoryItem[]>([])
+const conflicts = ref<MemoryConflictItem[]>([])
 const personaVersions = ref<MemoryItem[]>([])
 const personaDrafts = ref<MemoryItem[]>([])
 const status = ref<MemoryStatusDto | null>(null)
+const sourceSpanOpen = ref(false)
+const sourceSpan = ref<MemorySourceSpan>(null)
 
 const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === true)
 
@@ -373,13 +452,15 @@ async function refresh(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const [list, versions, drafts, currentStatus] = await Promise.all([
+    const [list, conflictPairs, versions, drafts, currentStatus] = await Promise.all([
       memoryClient.list(props.agentId),
+      memoryClient.listConflicts(props.agentId),
       memoryClient.listPersonaVersions(props.agentId),
       memoryClient.listPersonaDrafts(props.agentId),
       memoryClient.getStatus(props.agentId)
     ])
     memories.value = list
+    conflicts.value = conflictPairs
     personaVersions.value = versions
     personaDrafts.value = drafts
     status.value = currentStatus
@@ -420,6 +501,7 @@ function statusVariant(
   memoryStatus: MemoryItem['status']
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (memoryStatus === 'error') return 'destructive'
+  if (memoryStatus === 'conflicted') return 'destructive'
   if (memoryStatus === 'embedded') return 'default'
   if (memoryStatus === 'archived') return 'outline'
   return 'secondary'
@@ -457,8 +539,39 @@ async function handleDelete(memoryId: string): Promise<void> {
 
 async function handleClear(): Promise<void> {
   try {
-    await memoryClient.clear(props.agentId)
+    const removed = await memoryClient.clear(props.agentId)
+    if (removed === 0) {
+      toast({
+        title: t('settings.deepchatAgents.memoryManager.clearNoop')
+      })
+      return
+    }
     memories.value = []
+    conflicts.value = []
+    status.value = status.value ? { ...status.value, total: 0, pendingEmbedding: 0 } : null
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleOpenSource(memory: MemoryItem): Promise<void> {
+  sourceSpan.value = null
+  sourceSpanOpen.value = true
+  try {
+    sourceSpan.value = await memoryClient.getSourceSpan(props.agentId, memory.id)
+  } catch (e) {
+    notifyActionFailed(e)
+  }
+}
+
+async function handleResolveConflict(
+  challengerId: string,
+  outcome: 'keep_target' | 'keep_challenger' | 'keep_both'
+): Promise<void> {
+  try {
+    const ok = await memoryClient.resolveConflict(props.agentId, challengerId, outcome)
+    if (!ok) return notifyActionFailed()
+    await refresh()
   } catch (e) {
     notifyActionFailed(e)
   }
@@ -514,7 +627,6 @@ async function handleRestore(memoryId: string): Promise<void> {
   }
 }
 
-// 打开时加载并订阅变更；关闭时清理订阅
 watch(
   () => props.open,
   (isOpen) => {

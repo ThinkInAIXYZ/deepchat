@@ -4,11 +4,16 @@ const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() =>
 const tableModule = sqliteModule
   ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
   : null
+const auditTableModule = sqliteModule
+  ? await import('@/presenter/sqlitePresenter/tables/agentMemoryAudit').catch(() => null)
+  : null
 
 const Database = sqliteModule?.default
 const AgentMemoryTable = tableModule?.AgentMemoryTable
+const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const DatabaseCtor = Database!
 const AgentMemoryTableCtor = AgentMemoryTable!
+const AgentMemoryAuditTableCtor = AgentMemoryAuditTable!
 
 let sqliteAvailable = false
 if (Database) {
@@ -706,9 +711,11 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.createTable()
       table.insert({ id: 'keep', agentId: 'a', kind: 'semantic', content: 'redis keep' })
       table.insert({ id: 'gone', agentId: 'a', kind: 'semantic', content: 'redis gone' })
+      table.setLastConsolidatedAt('gone', 4000)
 
       table.archive('gone', 5000)
       expect(table.getById('gone')?.status).toBe('archived')
+      expect(table.getById('gone')?.last_consolidated_at).toBe(4000)
       expect(table.search('a', 'redis').map((r) => r.id)).toEqual(['keep'])
       expect(table.listByAgent('a').map((r) => r.id)).toEqual(['keep'])
       expect(
@@ -732,7 +739,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.updateContent('m1', 'new', 'new-key', 1234)
       expect(table.getById('m1')?.content).toBe('new')
       expect(table.getById('m1')?.provenance_key).toBe('new-key')
-      expect(table.getById('m1')?.last_consolidated_at).toBe(1234)
+      expect(table.getById('m1')?.last_consolidated_at).toBeNull()
       // A content rewrite re-anchors the forgetting clock so the row reads as freshly touched.
       expect(table.getById('m1')?.last_accessed).toBe(1234)
 
@@ -786,7 +793,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(table.getById('m1')?.decay_score).toBe(0.4)
       expect(table.getById('m1')?.last_consolidated_at).toBe(null)
 
-      // With a timestamp: the same write doubles as the cooldown stamp.
+      // With a timestamp: callers can explicitly mark row-level LLM consolidation.
       table.updateDecayScore('m1', 0.2, 777)
       expect(table.getById('m1')?.decay_score).toBe(0.2)
       expect(table.getById('m1')?.last_consolidated_at).toBe(777)
@@ -794,6 +801,50 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       // A later decay-only refresh must not wipe the stamp.
       table.updateDecayScore('m1', 0.1)
       expect(table.getById('m1')?.last_consolidated_at).toBe(777)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('agent memory audit returns the latest completed LLM maintenance event only', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'a1',
+        agentId: 'a',
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'skipped',
+        createdAt: 100
+      })
+      table.insert({
+        id: 'a2',
+        agentId: 'a',
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 200
+      })
+      table.insert({
+        id: 'a3',
+        agentId: 'a',
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 300
+      })
+      table.insert({
+        id: 'other',
+        agentId: 'b',
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 999
+      })
+      expect(table.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(300)
+      expect(table.getLatestCompletedEventAt('a', 'memory/reflect')).toBeNull()
     } finally {
       db.close()
     }

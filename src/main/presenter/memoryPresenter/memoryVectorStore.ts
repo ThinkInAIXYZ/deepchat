@@ -23,10 +23,7 @@ interface EmbeddingIdentity {
   modelId: string
 }
 
-/**
- * 记忆向量存储（DuckDB + VSS）。与知识库向量库分离：每个 agent 一个独立 .duckdb 文件，
- * 维度由首条记忆决定。表只有一张 memory_vector，按 memory_id 关联回 SQLite 的 agent_memory。
- */
+// DuckDB-backed memory vector store, isolated per agent and linked to SQLite by memory_id.
 export class MemoryVectorStore implements IMemoryVectorStore {
   private dbInstance!: DuckDBInstance
   private connection!: DuckDBConnection

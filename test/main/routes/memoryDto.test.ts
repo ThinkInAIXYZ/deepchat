@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { toMemoryItemDto } from '@/routes'
+import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import { memoryListRoute, memoryRestoreRoute } from '@shared/contracts/routes'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
 function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
   return {
@@ -28,6 +29,7 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     confidence: null,
     last_consolidated_at: null,
     conflict_state: null,
+    conflict_with: null,
     persona_state: null,
     ...overrides
   }
@@ -65,6 +67,16 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
     expect(parsed.memories[0].sourceEntryIds).toEqual([1, 2])
     expect(parsed.memories[1].sourceEntryIds).toBeNull()
   })
+
+  it('maps conflict_with to camelCase conflictWith and accepts conflicted status', () => {
+    const dto = toMemoryItemDto(
+      makeRow({ status: 'conflicted', conflict_with: 'm-target', conflict_state: null })
+    )
+    const parsed = memoryListRoute.output.parse({ memories: [dto] })
+    expect(parsed.memories[0].status).toBe('conflicted')
+    expect(parsed.memories[0].conflictWith).toBe('m-target')
+    expect('conflict_with' in parsed.memories[0]).toBe(false)
+  })
 })
 
 describe('memory.restore route contract round-trip', () => {
@@ -79,5 +91,46 @@ describe('memory.restore route contract round-trip', () => {
     for (const agentId of ['../etc', 'has space', '']) {
       expect(memoryRestoreRoute.input.safeParse({ agentId, memoryId: 'm1' }).success).toBe(false)
     }
+  })
+})
+
+describe('formatMemorySourceRecordContent', () => {
+  const record = (role: ChatMessageRecord['role'], content: string): ChatMessageRecord =>
+    ({
+      id: 'msg-1',
+      sessionId: 's',
+      role,
+      content,
+      createdAt: 1000,
+      updatedAt: 1000,
+      status: 'sent',
+      orderSeq: 1,
+      tokenCount: 0
+    }) as ChatMessageRecord
+
+  it('returns readable text for user and assistant JSON records', () => {
+    expect(formatMemorySourceRecordContent(record('user', JSON.stringify({ text: 'hello' })))).toBe(
+      'hello'
+    )
+    expect(
+      formatMemorySourceRecordContent(
+        record(
+          'assistant',
+          JSON.stringify([
+            { type: 'content', content: 'answer body' },
+            { type: 'reasoning', text: 'reasoning note' },
+            { type: 'reasoning_content', content: 'reasoning block' },
+            { type: 'tool_call', content: '{"raw":true}' }
+          ])
+        )
+      )
+    ).toBe('answer body reasoning note reasoning block')
+  })
+
+  it('returns empty text for malformed or unsupported records', () => {
+    expect(formatMemorySourceRecordContent(record('user', '{bad json'))).toBe('')
+    expect(
+      formatMemorySourceRecordContent(record('assistant', JSON.stringify({ tool: true })))
+    ).toBe('')
   })
 })

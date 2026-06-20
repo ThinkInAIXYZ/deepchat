@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   appendMemorySection,
+  appendMemorySectionWithManifest,
   buildMemorySection,
   DEFAULT_INJECTION_TOKEN_BUDGET,
   estimateTokens,
@@ -11,11 +12,6 @@ import {
   type MemoryInjectionPort
 } from '@/presenter/memoryPresenter/injectionPort'
 
-/**
- * 复刻 AgentRuntimePresenter.appendMemoryInjection 的核心契约：
- * - 无 port / 未启用 / 抛错 → 返回原 systemPrompt（不污染、不阻塞）
- * - 启用且有 payload → 末尾追加 Layer 4，且不改动前面的层
- */
 async function appendMemoryInjection(
   port: MemoryInjectionPort | undefined,
   agentId: string,
@@ -80,9 +76,7 @@ describe('appendMemoryInjection contract', () => {
     })
     const result = await appendMemoryInjection(port, 'a', BASE_PROMPT, 'redis')
 
-    // 前面的层逐字保留
     expect(result.startsWith(BASE_PROMPT)).toBe(true)
-    // Layer 4 出现在最后
     const summaryIdx = result.indexOf('## Conversation Summary')
     const selfModelIdx = result.indexOf('## Self-Model')
     const memoriesIdx = result.indexOf('## Relevant Memories')
@@ -159,6 +153,40 @@ describe('Context Assembler token budget (T4)', () => {
     expect(section).toContain('unit-B')
     expect(section).not.toContain('episodic-Z')
     expect(estimateTokens(section)).toBeLessThanOrEqual(budget)
+  })
+
+  it('marks recalled-memory drops as budget drops', () => {
+    const result = appendMemorySectionWithManifest('base', {
+      selfModel: null,
+      working: null,
+      memories: [
+        { id: 's1', kind: 'semantic', content: 'short fact' },
+        { id: 's2', kind: 'semantic', content: 'x'.repeat(2000) }
+      ],
+      tokenBudget: 80
+    })
+    expect(result.manifest?.selected.map((memory) => memory.id)).toEqual(['s1'])
+    expect(result.manifest?.dropped).toEqual([{ id: 's2', kind: 'semantic', reason: 'budget' }])
+  })
+
+  it('does not impose a hidden candidate cap below retrieval topK', () => {
+    const memories: MemoryInjectionPayload['memories'] = Array.from(
+      { length: 100 },
+      (_, index) => ({
+        id: `s${index}`,
+        kind: 'semantic' as const,
+        content: `fact ${index}`
+      })
+    )
+    const result = appendMemorySectionWithManifest('base', {
+      selfModel: null,
+      working: null,
+      memories,
+      tokenBudget: 4000
+    })
+    expect(result.manifest?.selected).toHaveLength(100)
+    expect(result.manifest?.selected.map((memory) => memory.id)).toContain('s99')
+    expect(result.manifest?.dropped).toEqual([])
   })
 
   it('keeps persona and working even when the budget is tiny, dropping all recalled memories', () => {

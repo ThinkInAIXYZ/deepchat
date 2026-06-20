@@ -2245,7 +2245,8 @@
         "embedded": "Indexé",
         "error": "Erreur",
         "fts_only": "Mots-clés uniquement",
-        "archived": "Archivé"
+        "archived": "Archivé",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "En attente d'approbation ({count})",
       "largeChange": "Changement important — examinez attentivement",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "Revenir à ce modèle de soi ?",
       "rollbackConfirmBody": "Cela rend la version sélectionnée active et remplace l'actuelle.",
       "personaEvolutionOnHint": "L'évolution de la persona est expérimentale. Les nouveaux modèles de soi apparaissent ici sous forme de brouillons et ne sont injectés qu'après votre approbation.",
-      "personaEvolutionOffHint": "L'évolution de la persona est une fonctionnalité expérimentale et optionnelle, actuellement désactivée pour cet agent."
+      "personaEvolutionOffHint": "L'évolution de la persona est une fonctionnalité expérimentale et optionnelle, actuellement désactivée pour cet agent.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Évolution de la persona (expérimental)",
     "personaEvolutionDescription": "Laissez la réflexion proposer des modèles de soi mis à jour sous forme de brouillons à approuver. Indépendant de la mémoire ; désactivé par défaut.",

@@ -13,11 +13,12 @@ const renderSettingsDom = (): void => {
     <span id="plugin-state"></span>
     <strong id="runtime-state"></strong>
     <strong id="runtime-version"></strong>
+    <strong id="runtime-platform"></strong>
     <code id="runtime-command"></code>
     <code id="runtime-helper-app"></code>
     <strong id="mcp-state"></strong>
-    <strong id="permission-accessibility"></strong>
-    <strong id="permission-screen-recording"></strong>
+    <div id="diagnostics-title"></div>
+    <div id="diagnostics-rows"></div>
     <p id="message"></p>
     <a id="project-link"></a>
     <button id="check"></button>
@@ -33,6 +34,13 @@ const runSettingsScript = async (): Promise<void> => {
   window.eval(`(() => {\n${script}\n})()`)
 }
 
+const getDiagnosticRows = (): string[] =>
+  Array.from(document.querySelectorAll('#diagnostics-rows .row')).map((row) =>
+    Array.from(row.children)
+      .map((child) => child.textContent ?? '')
+      .join(':')
+  )
+
 describe('CUA plugin settings', () => {
   beforeEach(() => {
     renderSettingsDom()
@@ -45,6 +53,8 @@ describe('CUA plugin settings', () => {
     pluginWindow.deepchatPlugin = {
       getStatus: vi.fn().mockResolvedValue({
         enabled: true,
+        platform: 'darwin',
+        arch: 'arm64',
         runtime: {
           state: 'ready',
           version: '0.1.5',
@@ -75,8 +85,8 @@ describe('CUA plugin settings', () => {
     document.getElementById('check')?.click()
     await flushPromises()
 
-    expect(document.getElementById('permission-accessibility')?.textContent).toBe('Granted')
-    expect(document.getElementById('permission-screen-recording')?.textContent).toBe('Denied')
+    expect(document.getElementById('diagnostics-title')?.textContent).toBe('macOS Permissions')
+    expect(getDiagnosticRows()).toEqual(['Accessibility:Granted', 'Screen Recording:Denied'])
     expect(document.getElementById('message')?.textContent).toBe('')
   })
 

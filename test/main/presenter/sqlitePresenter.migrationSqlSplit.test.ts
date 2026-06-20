@@ -68,6 +68,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.legacyImportStatusTable = emptyTable
     presenter.agentsTable = emptyTable
     presenter.agentMemoryTable = emptyTable
+    presenter.agentMemoryAuditTable = emptyTable
     presenter.configTables = emptyTable
     presenter.newSessionActiveSkillsTable = emptyTable
     presenter.newSessionDisabledAgentToolsTable = emptyTable

@@ -2245,7 +2245,8 @@
         "embedded": "نمایه‌شده",
         "error": "خطا",
         "fts_only": "فقط کلیدواژه",
-        "archived": "بایگانی‌شده"
+        "archived": "بایگانی‌شده",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "در انتظار تأیید ({count})",
       "largeChange": "تغییر بزرگ — با دقت بررسی کنید",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "به این مدل خود بازگردانده شود؟",
       "rollbackConfirmBody": "این کار نسخهٔ انتخاب‌شده را به مدل خودِ فعال تبدیل کرده و نسخهٔ فعلی را جایگزین می‌کند.",
       "personaEvolutionOnHint": "تکامل پرسونا آزمایشی است. مدل‌های خودِ جدید به‌صورت پیش‌نویس اینجا ظاهر می‌شوند و فقط پس از تأیید شما تزریق می‌شوند.",
-      "personaEvolutionOffHint": "تکامل پرسونا یک قابلیت آزمایشی و اختیاری است و در حال حاضر برای این عامل خاموش است."
+      "personaEvolutionOffHint": "تکامل پرسونا یک قابلیت آزمایشی و اختیاری است و در حال حاضر برای این عامل خاموش است.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "تکامل پرسونا (آزمایشی)",
     "personaEvolutionDescription": "اجازه دهید بازتاب، مدل‌های خودِ به‌روزشده را به‌صورت پیش‌نویس برای تأیید شما پیشنهاد دهد. مستقل از حافظه؛ به‌طور پیش‌فرض خاموش.",

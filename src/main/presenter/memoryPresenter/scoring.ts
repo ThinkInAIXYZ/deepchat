@@ -26,14 +26,14 @@ export function halfLifeForKind(kind: AgentMemoryKind): number {
   return DEFAULT_RECENCY_HALF_LIFE_MS
 }
 
-/** 余弦距离([0,2]) → 相似度([0,1])。其它度量也按 1-distance 归一并裁剪。 */
+/** Maps distance-like scores to a clamped similarity range. */
 export function distanceToSimilarity(distance: number): number {
   const similarity = 1 - distance
   if (!Number.isFinite(similarity)) return 0
   return Math.min(1, Math.max(0, similarity))
 }
 
-/** recency 指数衰减：越新越接近 1。 */
+/** Exponential recency decay: newer timestamps stay closer to 1. */
 export function recencyScore(
   createdAt: number,
   now: number,
@@ -103,11 +103,6 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
-/**
- * 综合检索打分：(α·相似度 + β·recency + γ·importance) × 置信因子，并以 importance 地板兜底。
- * 置信因子以 DEFAULT_CONFIDENCE 为支点：默认置信记忆因子为 1（排序与未引入置信前一致），更高置信
- * 上浮。importance 地板保证高 importance 记忆即使 recency 衰减也不被新而琐碎的记忆完全挤出。
- */
 export function retrievalScore(
   row: Pick<AgentMemoryRow, 'importance' | 'created_at'> & { confidence?: number | null },
   similarity: number,
@@ -125,17 +120,14 @@ export function retrievalScore(
   return Math.max(base * confidenceFactor, floor)
 }
 
-/**
- * 物化的遗忘衰减分（用于归档判定）：以最近访问时间或创建时间为锚的指数衰减，半衰期 30 天。
- * 只读、纯函数；归档前由离线 pass 算出写回 decay_score。
- */
 export function decayScore(
-  row: Pick<AgentMemoryRow, 'created_at' | 'last_accessed'>,
+  row: Pick<AgentMemoryRow, 'created_at' | 'last_accessed' | 'importance'>,
   now: number,
   halfLifeMs: number = FORGET_HALF_LIFE_MS
 ): number {
   const anchor = row.last_accessed ?? row.created_at
-  return recencyScore(anchor, now, halfLifeMs)
+  const effectiveHalfLifeMs = halfLifeMs * (1 + clamp01(row.importance))
+  return recencyScore(anchor, now, effectiveHalfLifeMs)
 }
 
 /** Parses the persisted source_entry_ids JSON back into a tape entry_id list, or null. */
@@ -224,7 +216,26 @@ export function fuse(
       return {
         combined: score + candidate.rrf,
         score,
-        item: toRecallItem(candidate.row, score, candidate.sources, candidate.similarity)
+        item: {
+          ...toRecallItem(candidate.row, score, candidate.sources, candidate.similarity),
+          breakdown: opts.trace
+            ? {
+                similarity: candidate.similarity ?? baseline,
+                recency: recencyScore(
+                  candidate.row.created_at,
+                  opts.now,
+                  opts.halfLifeMs ?? halfLifeForKind(candidate.row.kind)
+                ),
+                importance: Math.min(1, Math.max(0, candidate.row.importance)),
+                confidence: Math.min(
+                  1,
+                  Math.max(0, candidate.row.confidence ?? DEFAULT_CONFIDENCE)
+                ),
+                rrf: candidate.rrf,
+                final: score
+              }
+            : undefined
+        }
       }
     })
     .sort((a, b) => b.combined - a.combined || b.score - a.score)
@@ -232,14 +243,12 @@ export function fuse(
     .map((entry) => entry.item)
 }
 
-/** 规范化记忆正文用于幂等去重：小写、折叠空白、裁剪。 */
+/** Normalizes memory text for idempotent provenance keys. */
 export function normalizeForProvenance(content: string): string {
   return content.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-/**
- * 简易稳定哈希（FNV-1a 变体），用于生成 provenance_key。避免依赖 crypto。
- */
+/** Lightweight stable hash for provenance keys without depending on crypto. */
 export function stableHash(input: string): string {
   let hash = 0x811c9dc5
   for (let i = 0; i < input.length; i += 1) {

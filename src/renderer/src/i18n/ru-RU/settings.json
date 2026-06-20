@@ -2245,7 +2245,8 @@
         "embedded": "Проиндексировано",
         "error": "Ошибка",
         "fts_only": "Только ключевые слова",
-        "archived": "Архивировано"
+        "archived": "Архивировано",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "Ожидает одобрения ({count})",
       "largeChange": "Большое изменение — внимательно проверьте",
@@ -2260,7 +2261,14 @@
       "rollbackConfirmTitle": "Откатить к этой модели себя?",
       "rollbackConfirmBody": "Выбранная версия станет активной моделью себя и заменит текущую.",
       "personaEvolutionOnHint": "Эволюция персоны — экспериментальная функция. Новые модели себя появляются здесь как черновики и внедряются только после вашего одобрения.",
-      "personaEvolutionOffHint": "Эволюция персоны — экспериментальная необязательная функция, сейчас отключена для этого агента."
+      "personaEvolutionOffHint": "Эволюция персоны — экспериментальная необязательная функция, сейчас отключена для этого агента.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Эволюция персоны (эксперимент)",
     "personaEvolutionDescription": "Позвольте рефлексии предлагать обновлённые модели себя в виде черновиков для вашего одобрения. Независимо от памяти; по умолчанию выключено.",

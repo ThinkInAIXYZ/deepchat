@@ -6,10 +6,13 @@ import {
   type AgentMemoryRow,
   type IMemoryVectorStore,
   type MemoryCandidate,
+  type MemoryConflictPair,
+  type MemoryConflictResolution,
   type MemoryPresenterDeps,
   type MemoryRecallItem,
   type MemoryStatus,
   type MemoryVectorRecord,
+  type MemoryWriteOutcome,
   type WriteMemoriesOptions
 } from './types'
 import {
@@ -23,11 +26,14 @@ import { ADD_DECISION, buildDecisionPrompt, parseDecision, type MemoryDecision }
 import { CONFIDENCE_INCREMENT, DEFAULT_CONFIDENCE } from './types'
 import {
   appendMemorySection,
+  appendMemorySectionWithManifest,
   buildMemorySection,
   estimateTokens,
   resolveInjectionTokenBudget,
+  type MemoryInjectionManifest,
   type MemoryInjectionPayload,
   type MemoryInjectionPort,
+  type MemoryInjectionResult,
   type MemoryRuntimePort
 } from './injectionPort'
 import {
@@ -50,8 +56,13 @@ import type {
   MemoryUpdateReason
 } from './types'
 
-export { appendMemorySection, buildMemorySection, isSafeAgentId }
-export type { MemoryInjectionPayload, MemoryInjectionPort, MemoryRuntimePort }
+export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
+export type {
+  MemoryInjectionPayload,
+  MemoryInjectionPort,
+  MemoryInjectionResult,
+  MemoryRuntimePort
+}
 
 // Minimum atomic units before reflection can run.
 const MIN_MEMORIES_FOR_REFLECTION = 3
@@ -88,6 +99,8 @@ const CONSOLIDATION_COOLDOWN_MS = 6 * 60 * 60 * 1000
 const CONSOLIDATION_MAX_LLM_CALLS = 8
 const CONSOLIDATION_MAX_INPUT_TOKENS = 24000
 const CONSOLIDATION_MERGE_SIMILARITY = 0.85
+const MAINTENANCE_START_DELAY_MS = 60 * 1000
+const MAINTENANCE_INTERVAL_MS = 30 * 60 * 1000
 const ARCHIVE_DECAY_THRESHOLD = 0.05
 const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -100,6 +113,23 @@ function isUniqueConstraintError(error: unknown): boolean {
   if (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY') return true
   const message = error instanceof Error ? error.message : String(error)
   return /UNIQUE constraint failed/i.test(message)
+}
+
+function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
+  switch (outcome.action) {
+    case 'created':
+      return [outcome.id]
+    case 'superseded':
+      return outcome.created === false ? [] : [outcome.id]
+    case 'challenged':
+      return [outcome.challengerId]
+    default:
+      return []
+  }
+}
+
+function outcomeTouched(outcome: MemoryWriteOutcome): boolean {
+  return outcome.action !== 'noop'
 }
 
 export class MemoryPresenter implements MemoryRuntimePort {
@@ -124,6 +154,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly lastConsolidationAt = new Map<string, number>()
   // In-flight timer-fired consolidation passes; dispose() awaits them so none writes after teardown.
   private readonly consolidationRuns = new Set<Promise<unknown>>()
+  private readonly maintenanceAgents = new Set<string>()
+  private maintenanceStartTimer: NodeJS.Timeout | null = null
+  private maintenanceInterval: NodeJS.Timeout | null = null
   // Per-agent watermark for a reflection attempt that ran the model but wrote nothing new (empty or
   // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
   // newer ones arrive. In-memory only: a restart costs at most one redundant attempt.
@@ -143,6 +176,52 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private disposed = false
 
   constructor(private readonly deps: MemoryPresenterDeps) {}
+
+  startBackgroundMaintenance(): void {
+    if (this.disposed || this.maintenanceStartTimer || this.maintenanceInterval) return
+    for (const agentId of this.deps.repository.listAgentIdsWithMemories()) {
+      this.registerMaintenanceAgent(agentId)
+    }
+    this.maintenanceStartTimer = setTimeout(() => {
+      this.maintenanceStartTimer = null
+      this.runBackgroundMaintenanceSweep()
+    }, MAINTENANCE_START_DELAY_MS)
+    if (typeof this.maintenanceStartTimer.unref === 'function') this.maintenanceStartTimer.unref()
+    this.maintenanceInterval = setInterval(
+      () => this.runBackgroundMaintenanceSweep(),
+      MAINTENANCE_INTERVAL_MS
+    )
+    if (typeof this.maintenanceInterval.unref === 'function') this.maintenanceInterval.unref()
+  }
+
+  stopBackgroundMaintenance(): void {
+    if (this.maintenanceStartTimer) {
+      clearTimeout(this.maintenanceStartTimer)
+      this.maintenanceStartTimer = null
+    }
+    if (this.maintenanceInterval) {
+      clearInterval(this.maintenanceInterval)
+      this.maintenanceInterval = null
+    }
+  }
+
+  private registerMaintenanceAgent(agentId: string): void {
+    if (isSafeAgentId(agentId) && this.isManagedAgent(agentId) && this.isEnabled(agentId)) {
+      this.maintenanceAgents.add(agentId)
+    }
+  }
+
+  private runBackgroundMaintenanceSweep(): void {
+    if (this.disposed) return
+    for (const agentId of this.maintenanceAgents) {
+      if (!this.isEnabled(agentId)) continue
+      const run = this.runConsolidationPass(agentId).catch((error) => {
+        logger.warn(`[Memory] maintenance sweep failed for ${agentId}: ${String(error)}`)
+      })
+      this.consolidationRuns.add(run)
+      void run.finally(() => this.consolidationRuns.delete(run))
+    }
+  }
 
   isEnabled(agentId: string): boolean {
     return this.deps.resolveAgentConfig(agentId)?.memoryEnabled === true
@@ -474,11 +553,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
       const createdIds: string[] = []
       let touched = false
       for (const candidate of candidates) {
-        const outcome = await this.decideWrite(input.agentId, candidate, model, options, now)
-        if (outcome.createdId) createdIds.push(outcome.createdId)
-        if (outcome.touched) touched = true
+        const outcome = await this.coordinateWrite(input.agentId, candidate, model, options, now)
+        createdIds.push(...createdIdsFromOutcome(outcome))
+        if (outcomeTouched(outcome)) touched = true
       }
       if (createdIds.length || touched) {
+        this.registerMaintenanceAgent(input.agentId)
         this.emitChanged(input.agentId, 'extract')
         // Phase 2 embedding runs in the background; it must not block the caller.
         void this.processPendingEmbeddings(input.agentId).catch((error) => {
@@ -494,27 +574,28 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
   }
 
-  // The Mem0-style write decision on the async extraction path: a fresh candidate is compared to
-  // its nearest existing memories and the cheap model picks ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE.
-  // Any failure (neighbor recall, model, parse) degrades to a plain ADD so a candidate is never
-  // lost, and a byte-level duplicate short-circuits before any recall or model call.
-  private async decideWrite(
+  // Shared Mem0-style write coordinator for extraction and explicit memory_remember writes.
+  // Any failure degrades to ADD so a candidate is never lost.
+  private async coordinateWrite(
     agentId: string,
     candidate: MemoryCandidate,
     model: { providerId: string; modelId: string },
     options: WriteMemoriesOptions,
     now: number
-  ): Promise<{ createdId: string | null; touched: boolean }> {
+  ): Promise<MemoryWriteOutcome> {
     const content = candidate.content.trim()
-    if (!content) return { createdId: null, touched: false }
+    if (!content) return { action: 'noop', reason: 'empty' }
     // Each disposed re-check below guards a write that follows an await: teardown may begin between
     // the candidate arriving and its decision landing, and no repository write may outlive it.
-    if (this.disposed) return { createdId: null, touched: false }
+    if (this.disposed) return { action: 'noop', reason: 'disposed' }
 
     const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, content)
     const duplicate = this.deps.repository.getByProvenanceKey(agentId, provenanceKey)
     if (duplicate) {
-      return { createdId: null, touched: this.absorbProvenanceHit(agentId, duplicate) }
+      const touched = this.absorbProvenanceHit(agentId, duplicate)
+      return touched
+        ? { action: 'updated', id: duplicate.id }
+        : { action: 'noop', reason: 'duplicate', id: duplicate.id }
     }
 
     let neighbors: MemoryRecallItem[] = []
@@ -524,12 +605,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] decision neighbor recall failed, adding: ${String(error)}`)
     }
-    if (this.disposed) return { createdId: null, touched: false }
+    if (this.disposed) return { action: 'noop', reason: 'disposed' }
     if (!neighbors.length) {
-      return {
-        createdId: this.insertMemory(agentId, candidate, content, provenanceKey, options),
-        touched: false
-      }
+      const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+      return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
     }
 
     let decision: MemoryDecision = ADD_DECISION
@@ -546,12 +625,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] decision model failed, adding: ${String(error)}`)
     }
-    if (this.disposed) return { createdId: null, touched: false }
+    if (this.disposed) return { action: 'noop', reason: 'disposed' }
 
     const target = decision.targetIndex !== null ? neighbors[decision.targetIndex] : null
     switch (decision.decision) {
       case 'NOOP':
-        return { createdId: null, touched: false }
+        return { action: 'noop', reason: 'decision-noop', id: target?.id }
       case 'UPDATE':
         if (target) {
           const targetRow = this.deps.repository.getById(target.id)
@@ -560,7 +639,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
             const survivorId = this.applyContentUpdate(agentId, targetRow, merged, now)
             this.bumpConfidence(survivorId)
             this.deps.repository.updateStatus(survivorId, 'pending_embedding')
-            return { createdId: null, touched: true }
+            return { action: 'updated', id: survivorId }
           }
         }
         break
@@ -571,7 +650,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
           const newId = this.insertMemory(agentId, candidate, merged, mergedKey, options)
           if (newId) {
             this.deps.repository.markSuperseded(target.id, newId)
-            return { createdId: newId, touched: true }
+            return { action: 'superseded', id: newId, supersededId: target.id, created: true }
           }
           // The merged wording collided with an existing memory: revive that row if it was inactive
           // (so the surviving truth is recallable), then retire the old contradicting row into it so
@@ -580,21 +659,79 @@ export class MemoryPresenter implements MemoryRuntimePort {
           if (existing && existing.id !== target.id) {
             this.absorbProvenanceHit(agentId, existing)
             this.deps.repository.markSuperseded(target.id, existing.id)
-            return { createdId: null, touched: true }
+            return {
+              action: 'superseded',
+              id: existing.id,
+              supersededId: target.id,
+              created: false
+            }
           }
-          return { createdId: null, touched: false }
+          return { action: 'noop', reason: 'supersede-collided', id: target.id }
         }
         break
       case 'CHALLENGE':
         if (target) {
-          this.deps.repository.markConflict(target.id, 'challenged')
-          return { createdId: null, touched: true }
+          const challengerId = this.insertConflictedMemory(
+            agentId,
+            candidate,
+            content,
+            provenanceKey,
+            target.id,
+            options
+          )
+          if (challengerId) {
+            const currentTarget = this.deps.repository.getById(target.id)
+            if (
+              currentTarget &&
+              currentTarget.agent_id === agentId &&
+              currentTarget.status !== 'archived' &&
+              currentTarget.superseded_by === null
+            ) {
+              this.deps.repository.markConflict(target.id, 'challenged')
+              return { action: 'challenged', targetId: target.id, challengerId }
+            }
+            this.deps.repository.setConflictWith(challengerId, null)
+            this.deps.repository.updateStatus(challengerId, 'pending_embedding')
+            return { action: 'created', id: challengerId }
+          }
+          return { action: 'noop', reason: 'challenge-insert-skipped', id: target.id }
         }
         break
     }
-    return {
-      createdId: this.insertMemory(agentId, candidate, content, provenanceKey, options),
-      touched: false
+    const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+    return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+  }
+
+  private insertConflictedMemory(
+    agentId: string,
+    candidate: MemoryCandidate,
+    content: string,
+    provenanceKey: string,
+    targetId: string,
+    options: WriteMemoriesOptions
+  ): string | null {
+    const sourceSession = options.sourceSession ?? null
+    const sourceEntryIds = sourceSession ? (options.sourceEntryIds ?? null) : null
+    const id = `mem-${nanoid(12)}`
+    try {
+      this.deps.repository.insert({
+        id,
+        agentId,
+        kind: candidate.kind,
+        content,
+        importance: candidate.importance,
+        status: 'conflicted',
+        sourceSession,
+        userScope: options.userScope ?? null,
+        provenanceKey,
+        sourceEntryIds,
+        conflictWith: targetId
+      })
+      return id
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+      logger.warn(`[Memory] conflicted insert skipped (dedupe/race): ${String(error)}`)
+      return null
     }
   }
 
@@ -669,6 +806,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // that fires after the burst settles. The timer is unref'd so it never keeps the process alive.
   private scheduleConsolidation(agentId: string): void {
     if (this.disposed) return
+    this.registerMaintenanceAgent(agentId)
     const existing = this.consolidationTimers.get(agentId)
     if (existing) clearTimeout(existing)
     const timer = setTimeout(() => {
@@ -684,33 +822,95 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.consolidationTimers.set(agentId, timer)
   }
 
-  // Offline maintenance: merge near-duplicates (budgeted cheap-model calls), refresh decay scores,
-  // and archive stale memories. Gated by opt-in and a cooldown so it stays off the chat hot path
-  // and never runs away. The cooldown is seeded from the persisted last_consolidated_at so it holds
-  // across restarts; merges and archiving are non-destructive and idempotent across reruns.
+  // Offline maintenance: cheap local upkeep always runs when due, while model-backed work is gated
+  // by the latest completed LLM maintenance audit so the cooldown survives restarts.
   async runConsolidationPass(agentId: string, now: number = Date.now()): Promise<void> {
     if (this.disposed || !this.isEnabled(agentId)) return
     let last = this.lastConsolidationAt.get(agentId)
     if (last === undefined) {
-      last = this.deps.repository.getLastConsolidatedAt(agentId) ?? 0
+      last =
+        this.deps.auditRepository?.getLatestCompletedEventAt(agentId, 'memory/maintenance_llm') ?? 0
       this.lastConsolidationAt.set(agentId, last)
     }
-    if (now - last < CONSOLIDATION_COOLDOWN_MS) return
+    if (now - last < CONSOLIDATION_COOLDOWN_MS) {
+      this.runCheapMaintenance(agentId, now, true)
+      return
+    }
+    this.runCheapMaintenance(agentId, now, false)
+    const model = this.resolveConsolidationModel(agentId)
+    if (!model) {
+      this.archiveStale(agentId, now)
+      this.writeAudit(agentId, {
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'skipped',
+        reason: 'missing-model',
+        createdAt: now
+      })
+      return
+    }
     this.lastConsolidationAt.set(agentId, now)
 
     let touched = false
     try {
-      touched = await this.mergeNearDuplicates(agentId, now)
+      touched = await this.mergeNearDuplicates(agentId, now, model)
     } catch (error) {
       logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
+    }
+    try {
+      if (await this.runChallengeResolutionPass(agentId, model)) touched = true
+    } catch (error) {
+      logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
+    }
+    try {
+      const reflection = await this.maybeReflect(agentId, model)
+      if (reflection) {
+        this.writeAudit(agentId, {
+          eventType: 'memory/reflect',
+          actorType: 'scheduler',
+          status: 'completed',
+          inputRefs: { memoryIds: reflection.sourceMemoryIds },
+          outputRefs: { memoryIds: reflection.reflectionIds },
+          model
+        })
+        touched = true
+      }
+    } catch (error) {
+      logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
+    }
+    try {
+      const personaDraft = await this.maybeEvolvePersona(agentId, model)
+      if (personaDraft) {
+        this.writeAudit(agentId, {
+          eventType: 'persona/evolve',
+          actorType: 'scheduler',
+          status: 'completed',
+          outputRefs: {
+            draftId: personaDraft.draftId,
+            needsReview: personaDraft.needsReview,
+            changeRatio: personaDraft.changeRatio
+          },
+          model
+        })
+      }
+    } catch (error) {
+      logger.warn(`[Memory] background persona evolution failed for ${agentId}: ${String(error)}`)
     }
     // Teardown may have started during the merge's awaits; bail before touching the DB it will close.
     if (this.disposed) return
     this.refreshDecayScores(agentId, now)
-    // archiveStale emits its own change event, so the pass only needs to emit for merges.
     this.archiveStale(agentId, now)
-    // Refresh the L1 working blob on the same idle cadence; cheap, SQLite-only, no model call.
-    this.refreshWorkingMemory(agentId)
+    if (!this.disposed) {
+      this.stampConsolidation(agentId, now)
+      this.writeAudit(agentId, {
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'completed',
+        outputRefs: { touched },
+        model,
+        createdAt: now
+      })
+    }
 
     if (touched) {
       void this.processPendingEmbeddings(agentId).catch((error) => {
@@ -723,9 +923,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Folds near-duplicate memories into a single current-truth row: the more recent row keeps the
   // merged wording and the older one is superseded into it (never hard-deleted). Bounded by an LLM
   // call and input-token budget; the remainder is picked up on the next pass.
-  private async mergeNearDuplicates(agentId: string, now: number): Promise<boolean> {
-    const model = this.resolveConsolidationModel(agentId)
-    if (!model) return false
+  private async mergeNearDuplicates(
+    agentId: string,
+    now: number,
+    model: { providerId: string; modelId: string }
+  ): Promise<boolean> {
     const active = this.deps.repository
       .listByAgent(agentId)
       .filter((row) => row.kind !== 'persona')
@@ -799,13 +1001,24 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return touched
   }
 
+  private runCheapMaintenance(agentId: string, now: number, archive: boolean): void {
+    this.refreshDecayScores(agentId, now)
+    if (archive) this.archiveStale(agentId, now)
+    this.refreshWorkingMemory(agentId)
+  }
+
+  private stampConsolidation(agentId: string, now: number): void {
+    for (const row of this.deps.repository.listByAgent(agentId)) {
+      if (row.kind === 'persona') continue
+      this.deps.repository.setLastConsolidatedAt(row.id, now)
+    }
+  }
+
   // Materializes the decay score for active non-persona rows so archiving can pre-filter in SQL.
-  // Passing `now` also stamps last_consolidated_at on every scanned row, so a pass that neither
-  // merges nor archives still advances the persisted cooldown anchor across restarts.
   private refreshDecayScores(agentId: string, now: number): void {
     for (const row of this.deps.repository.listByAgent(agentId)) {
       if (row.kind === 'persona') continue
-      this.deps.repository.updateDecayScore(row.id, decayScore(row, now), now)
+      this.deps.repository.updateDecayScore(row.id, decayScore(row, now), null)
     }
   }
 
@@ -844,6 +1057,174 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return true
   }
 
+  listConflicts(agentId: string): MemoryConflictPair[] {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return []
+    const challengers = this.deps.repository.listByAgent(agentId, { statuses: ['conflicted'] })
+    const pairs: MemoryConflictPair[] = []
+    for (const challenger of challengers) {
+      if (!challenger.conflict_with) {
+        logger.warn(`[Memory] skipping conflict challenger without target: ${challenger.id}`)
+        continue
+      }
+      const target = this.deps.repository.getById(challenger.conflict_with)
+      if (
+        !target ||
+        target.agent_id !== agentId ||
+        target.conflict_state !== 'challenged' ||
+        target.superseded_by !== null
+      ) {
+        logger.warn(`[Memory] skipping invalid conflict pair: ${challenger.id}`)
+        continue
+      }
+      pairs.push({ challenger, target })
+    }
+    return pairs
+  }
+
+  async resolveConflict(
+    agentId: string,
+    challengerId: string,
+    outcome: MemoryConflictResolution,
+    actorType: 'scheduler' | 'user' = 'user',
+    model?: { providerId: string; modelId: string } | null
+  ): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    const pair = this.listConflicts(agentId).find(
+      (conflict) => conflict.challenger.id === challengerId
+    )
+    if (!pair) return false
+    this.applyConflictResolution(agentId, pair, outcome)
+    this.writeAudit(agentId, {
+      eventType: 'memory/challenge_resolved',
+      actorType,
+      status: 'completed',
+      inputRefs: { challengerId: pair.challenger.id, targetId: pair.target.id },
+      outputRefs: { action: outcome },
+      model: model ?? undefined
+    })
+    if (outcome === 'keep_challenger' || outcome === 'keep_both') {
+      void this.processPendingEmbeddings(agentId).catch((error) => {
+        logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+      })
+    }
+    this.emitChanged(agentId, 'extract')
+    this.scheduleConsolidation(agentId)
+    return true
+  }
+
+  private applyConflictResolution(
+    agentId: string,
+    pair: MemoryConflictPair,
+    outcome: MemoryConflictResolution
+  ): void {
+    const now = Date.now()
+    const siblings = this.listConflictSiblings(agentId, pair.target.id, pair.challenger.id)
+    switch (outcome) {
+      case 'keep_challenger':
+        this.deps.repository.setConflictWith(pair.challenger.id, null)
+        this.deps.repository.updateStatus(pair.challenger.id, 'pending_embedding')
+        for (const sibling of siblings) {
+          this.deps.repository.setConflictWith(sibling.id, null)
+          this.deps.repository.markSuperseded(sibling.id, pair.challenger.id)
+          this.deps.repository.archive(sibling.id, now)
+        }
+        this.deps.repository.markSuperseded(pair.target.id, pair.challenger.id)
+        this.deps.repository.markConflict(pair.target.id, null)
+        this.deps.repository.archive(pair.target.id, now)
+        return
+      case 'keep_target':
+        this.deps.repository.setConflictWith(pair.challenger.id, null)
+        this.deps.repository.markSuperseded(pair.challenger.id, pair.target.id)
+        this.deps.repository.archive(pair.challenger.id, now)
+        if (siblings.length === 0) this.deps.repository.markConflict(pair.target.id, null)
+        return
+      case 'keep_both':
+        this.deps.repository.setConflictWith(pair.challenger.id, null)
+        this.deps.repository.updateStatus(pair.challenger.id, 'pending_embedding')
+        if (siblings.length === 0) this.deps.repository.markConflict(pair.target.id, null)
+        return
+    }
+  }
+
+  private listConflictSiblings(
+    agentId: string,
+    targetId: string,
+    excludeChallengerId: string
+  ): AgentMemoryRow[] {
+    return this.deps.repository
+      .listByAgent(agentId, { statuses: ['conflicted'] })
+      .filter((row) => row.id !== excludeChallengerId && row.conflict_with === targetId)
+  }
+
+  private async runChallengeResolutionPass(
+    agentId: string,
+    model: { providerId: string; modelId: string }
+  ): Promise<boolean> {
+    let touched = false
+    for (const pair of this.listConflicts(agentId)) {
+      const prompt = buildDecisionPrompt(
+        {
+          kind: pair.challenger.kind === 'episodic' ? 'episodic' : 'semantic',
+          content: pair.challenger.content
+        },
+        [{ content: pair.target.content }]
+      )
+      let decision: MemoryDecision = ADD_DECISION
+      try {
+        const raw = await this.deps.generateText(model.providerId, model.modelId, prompt)
+        decision = parseDecision(raw, 1)
+      } catch (error) {
+        logger.warn(`[Memory] challenge decision failed: ${String(error)}`)
+        continue
+      }
+      if (this.disposed) break
+      const outcome: MemoryConflictResolution =
+        decision.decision === 'NOOP'
+          ? 'keep_target'
+          : decision.decision === 'UPDATE' || decision.decision === 'SUPERSEDE'
+            ? 'keep_challenger'
+            : 'keep_both'
+      if (await this.resolveConflict(agentId, pair.challenger.id, outcome, 'scheduler', model)) {
+        touched = true
+      }
+    }
+    return touched
+  }
+
+  private writeAudit(
+    agentId: string,
+    input: {
+      eventType: string
+      actorType: 'scheduler' | 'user' | 'runtime'
+      status: 'completed' | 'skipped' | 'failed'
+      reason?: string | null
+      inputRefs?: Record<string, unknown>
+      outputRefs?: Record<string, unknown>
+      model?: { providerId: string; modelId: string } | null
+      sessionId?: string | null
+      createdAt?: number
+    }
+  ): void {
+    if (!this.deps.auditRepository) return
+    this.deps.auditRepository.insert({
+      id: `audit-${nanoid(12)}`,
+      agentId,
+      eventType: input.eventType,
+      actorType: input.actorType,
+      status: input.status,
+      reason: input.reason ?? null,
+      inputRefs: input.inputRefs,
+      outputRefs: input.outputRefs,
+      modelProviderId: input.model?.providerId ?? null,
+      modelId: input.model?.modelId ?? null,
+      sessionId: input.sessionId ?? null,
+      createdAt: input.createdAt
+    })
+  }
+
   private resolveConsolidationModel(
     agentId: string
   ): { providerId: string; modelId: string } | null {
@@ -851,7 +1232,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (configured?.providerId && configured?.modelId) {
       return { providerId: configured.providerId, modelId: configured.modelId }
     }
-    return null
+    return this.deps.resolveAgentDefaultModel?.(agentId) ?? null
   }
 
   // Explicit memory write (the `memory_remember` tool path): write + async embed + broadcast.
@@ -859,17 +1240,44 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // and do not distinguish finer reasons.
   async rememberMemory(
     candidate: MemoryCandidate,
-    options: WriteMemoriesOptions
-  ): Promise<string[]> {
-    if (this.disposed) return []
-    const created = this.writeMemoriesSync([candidate], options)
-    if (created.length) {
+    options: WriteMemoriesOptions,
+    model?: { providerId: string; modelId: string } | null
+  ): Promise<MemoryWriteOutcome> {
+    if (this.disposed) return { action: 'noop', reason: 'disposed' }
+    const resolvedModel = model ? this.resolveExtractionModel(options.agentId, model) : null
+    const outcome = resolvedModel
+      ? await this.coordinateWrite(options.agentId, candidate, resolvedModel, options, Date.now())
+      : this.directAddMemory(options.agentId, candidate, options)
+    if (outcomeTouched(outcome)) {
+      this.registerMaintenanceAgent(options.agentId)
       this.emitChanged(options.agentId, 'extract')
-      void this.processPendingEmbeddings(options.agentId).catch((error) => {
-        logger.warn(`[Memory] background embedding failed: ${String(error)}`)
-      })
+      if (outcome.action !== 'challenged') {
+        void this.processPendingEmbeddings(options.agentId).catch((error) => {
+          logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+        })
+      }
+      this.scheduleConsolidation(options.agentId)
     }
-    return created
+    return outcome
+  }
+
+  private directAddMemory(
+    agentId: string,
+    candidate: MemoryCandidate,
+    options: WriteMemoriesOptions
+  ): MemoryWriteOutcome {
+    const content = candidate.content.trim()
+    if (!content) return { action: 'noop', reason: 'empty' }
+    const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, content)
+    const duplicate = this.deps.repository.getByProvenanceKey(agentId, provenanceKey)
+    if (duplicate) {
+      const touched = this.absorbProvenanceHit(agentId, duplicate)
+      return touched
+        ? { action: 'updated', id: duplicate.id }
+        : { action: 'noop', reason: 'duplicate', id: duplicate.id }
+    }
+    const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+    return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
   // Hybrid recall: keyword (FTS) and vector candidates fused with Reciprocal Rank Fusion, then
@@ -886,7 +1294,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     agentId: string,
     query: string,
     now: number,
-    recordAccessHits: boolean
+    recordAccessHits: boolean,
+    trace: boolean = false
   ): Promise<MemoryRecallItem[]> {
     // The read path is gated on disposed too: after teardown begins it must neither reopen a vector
     // store nor record access on a database that is closing.
@@ -954,7 +1363,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
                   row.superseded_by ||
                   row.kind === 'persona' ||
                   row.kind === 'working' ||
-                  row.status === 'archived'
+                  row.status === 'archived' ||
+                  row.status === 'conflicted'
                 )
                   continue
                 vecMatches.push({ row, similarity })
@@ -983,7 +1393,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       }
     }
 
-    const results = fuse(ftsRows, vecMatches, { topK, rrfK, weights, now })
+    const results = fuse(ftsRows, vecMatches, { topK, rrfK, weights, now, trace })
     // Re-check after the store/query awaits: never write access counters once teardown has begun.
     if (recordAccessHits && !this.disposed) {
       for (const item of results) {
@@ -993,7 +1403,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return results
   }
 
-  async buildInjection(agentId: string, query: string): Promise<MemoryInjectionPayload | null> {
+  async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
     if (this.disposed || !this.isEnabled(agentId)) return null
     const config = this.deps.resolveAgentConfig(agentId)
     const persona = this.deps.repository.getActivePersona(agentId)
@@ -1004,14 +1414,34 @@ export class MemoryPresenter implements MemoryRuntimePort {
     // Cold start (or an evicted blob): serve this turn from recall and rebuild the blob off the hot
     // path so the next open is served from L1.
     if (!working) this.scheduleWorkingRefresh(agentId)
-    const recalled = await this.recall(agentId, query)
+    const recalled = query.trim()
+      ? await this.retrieve(agentId, query, Date.now(), true)
+      : await this.recall(agentId, query)
     if (!persona && !working && recalled.length === 0) return null
-    return {
+    const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
+    const payload: MemoryInjectionPayload = {
       selfModel: persona?.content ?? null,
       working,
-      memories: recalled.map((item) => ({ id: item.id, kind: item.kind, content: item.content })),
-      tokenBudget: resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
+      memories: recalled.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        content: item.content,
+        score: item.score,
+        sources: item.sources,
+        similarity: item.similarity,
+        breakdown: item.breakdown
+      })),
+      tokenBudget
     }
+    const manifest: MemoryInjectionManifest = {
+      policyVersion: 1,
+      selected: [],
+      dropped: [],
+      tokenBudget,
+      estimatedTokens: 0,
+      queryHash: query.trim() ? buildMemoryProvenanceKey(agentId, 'query', query.trim()) : undefined
+    }
+    return { ...payload, payload, manifest }
   }
 
   // Reads the agent's working-memory blob without bumping its access clock, so last_accessed stays
@@ -1055,11 +1485,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
       if (existing) this.deps.repository.delete(existing.id)
       return
     }
-    const now = Date.now()
     if (existing) {
-      this.deps.repository.updateContent(existing.id, blob, workingKey, now)
+      if (existing.content === blob) return
+      this.deps.repository.updateContent(existing.id, blob, workingKey, Date.now())
       return
     }
+    const now = Date.now()
     try {
       this.deps.repository.insert({
         id: `working-${nanoid(12)}`,
@@ -1460,6 +1891,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
       )
     })
     if (removed > 0) this.emitChanged(agentId, 'clear')
+    if (removed > 0 && this.deps.repository.countByAgent(agentId) === 0) {
+      this.maintenanceAgents.delete(agentId)
+      this.lastConsolidationAt.delete(agentId)
+    }
     return removed
   }
 
@@ -1480,6 +1915,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   async dispose(): Promise<void> {
     this.disposed = true
+    this.stopBackgroundMaintenance()
     for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
     this.consolidationTimers.clear()
     this.lastConsolidationAt.clear()

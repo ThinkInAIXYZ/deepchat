@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
 
-/**
- * agent id 安全格式：URL-safe 字符（与主进程 isSafeAgentId 保持一致）。
- * 在契约层拒绝非法/穿越式 id，避免任意字符串抵达记忆存储层。
- */
+/** URL-safe agent ids, matching the main-process memory storage guard. */
 const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentId')
 
 export const MemoryItemSchema = z.object({
@@ -13,13 +10,14 @@ export const MemoryItemSchema = z.object({
   kind: z.enum(['episodic', 'semantic', 'reflection', 'persona']),
   content: z.string(),
   importance: z.number(),
-  status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived']),
+  status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived', 'conflicted']),
   sourceSession: z.string().nullable(),
   sourceEntryIds: z.array(z.number().int().nonnegative()).nullable(),
   supersededBy: z.string().nullable(),
   createdAt: z.number(),
   confidence: z.number().nullable().optional(),
   conflictState: z.string().nullable().optional(),
+  conflictWith: z.string().nullable().optional(),
   // Persona lifecycle (null for non-persona rows). isAnchor surfaces the drift guard; needsReview is
   // computed per draft against the active self-model and only set on the persona-drafts route.
   personaState: z.enum(['draft', 'active', 'superseded', 'rejected']).nullable().optional(),
@@ -64,6 +62,44 @@ export const memoryRestoreRoute = defineRouteContract({
   output: z.object({ ok: z.boolean() })
 })
 
+export const memoryGetSourceSpanRoute = defineRouteContract({
+  name: 'memory.getSourceSpan',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: z.object({
+    span: z
+      .object({
+        sessionId: z.string(),
+        entries: z.array(
+          z.object({
+            entryId: z.number().int().nonnegative(),
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+            orderSeq: z.number()
+          })
+        )
+      })
+      .nullable()
+  })
+})
+
+export const memoryListConflictsRoute = defineRouteContract({
+  name: 'memory.listConflicts',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({
+    conflicts: z.array(z.object({ challenger: MemoryItemSchema, target: MemoryItemSchema }))
+  })
+})
+
+export const memoryResolveConflictRoute = defineRouteContract({
+  name: 'memory.resolveConflict',
+  input: z.object({
+    agentId: AgentIdSchema,
+    challengerId: z.string(),
+    outcome: z.enum(['keep_target', 'keep_challenger', 'keep_both'])
+  }),
+  output: z.object({ ok: z.boolean() })
+})
+
 export const memoryListPersonaVersionsRoute = defineRouteContract({
   name: 'memory.listPersonaVersions',
   input: z.object({ agentId: AgentIdSchema }),
@@ -102,3 +138,7 @@ export const memorySetPersonaAnchorRoute = defineRouteContract({
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
 export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
+export type MemorySourceSpan = z.infer<typeof memoryGetSourceSpanRoute.output>['span']
+export type MemoryConflictItem = z.infer<
+  typeof memoryListConflictsRoute.output
+>['conflicts'][number]

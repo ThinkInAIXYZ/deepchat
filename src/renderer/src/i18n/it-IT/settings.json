@@ -176,7 +176,8 @@
         "embedded": "Indicizzato",
         "error": "Errore",
         "fts_only": "Solo parole chiave",
-        "archived": "Archiviato"
+        "archived": "Archiviato",
+        "conflicted": "Conflicted"
       },
       "pendingTitle": "In attesa di approvazione ({count})",
       "largeChange": "Modifica importante — esamina con attenzione",
@@ -191,7 +192,14 @@
       "rollbackConfirmTitle": "Ripristinare questo modello di sé?",
       "rollbackConfirmBody": "Rende la versione selezionata il modello attivo e sostituisce quello corrente.",
       "personaEvolutionOnHint": "L'evoluzione della persona è sperimentale. I nuovi modelli di sé compaiono qui come bozze e vengono iniettati solo dopo la tua approvazione.",
-      "personaEvolutionOffHint": "L'evoluzione della persona è una funzione sperimentale e facoltativa, attualmente disattivata per questo agente."
+      "personaEvolutionOffHint": "L'evoluzione della persona è una funzione sperimentale e facoltativa, attualmente disattivata per questo agente.",
+      "conflictPairsTitle": "Conflicts pending review ({count})",
+      "keepTarget": "Keep current",
+      "keepChallenger": "Keep new",
+      "keepBoth": "Keep both",
+      "clearNoop": "No memories were removed.",
+      "sourceDialogTitle": "Source span",
+      "sourceDialogEmpty": "The source span is no longer available."
     },
     "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",
     "personaEvolutionDescription": "Lascia che la riflessione proponga modelli di sé aggiornati come bozze da approvare. Indipendente dalla memoria; disattivata per impostazione predefinita.",
