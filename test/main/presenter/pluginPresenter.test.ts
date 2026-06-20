@@ -947,6 +947,14 @@ describe('PluginPresenter', () => {
     expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-first')
     expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-second')
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PluginHost] Failed to stop plugin-owned MCP server during shutdown:',
+      expect.objectContaining({
+        pluginId: 'com.deepchat.plugins.first',
+        serverName: 'plugin-first',
+        error: expect.any(Error)
+      })
+    )
     consoleWarnSpy.mockRestore()
   })
 

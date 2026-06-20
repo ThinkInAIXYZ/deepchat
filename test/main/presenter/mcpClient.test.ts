@@ -445,6 +445,37 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(closeMock).toHaveBeenCalledTimes(1)
       expect(order).toEqual(['process-tree', 'transport-close'])
     })
+
+    it('closes stdio transport even when process-tree cleanup fails', async () => {
+      const child = { pid: 456, exitCode: null, signalCode: null }
+      const cleanupError = new Error('cleanup failed')
+      const closeMock = vi.fn().mockResolvedValue(undefined)
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      terminateProcessTreeMock.mockRejectedValueOnce(cleanupError)
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = closeMock
+        this._process = child
+      } as any)
+      const client = new McpClient('test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(terminateProcessTreeMock).toHaveBeenCalledWith(child, { graceMs: 2000 })
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to terminate MCP stdio process tree for test:',
+        cleanupError
+      )
+      consoleErrorSpy.mockRestore()
+    })
   })
 
   describe('Unsupported MCP capabilities', () => {

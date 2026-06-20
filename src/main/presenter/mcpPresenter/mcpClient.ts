@@ -549,11 +549,15 @@ export class McpClient {
   }
 
   private async closeTransport(transport: Transport): Promise<void> {
-    if (transport instanceof StdioClientTransport) {
-      const child = (transport as unknown as StdioClientTransportProcessAccess)._process
-      if (child) {
-        await terminateProcessTree(child, { graceMs: 2000 })
+    try {
+      if (transport instanceof StdioClientTransport) {
+        const child = (transport as unknown as StdioClientTransportProcessAccess)._process
+        if (child) {
+          await terminateProcessTree(child, { graceMs: 2000 })
+        }
       }
+    } catch (error) {
+      console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
     }
 
     await transport.close()
