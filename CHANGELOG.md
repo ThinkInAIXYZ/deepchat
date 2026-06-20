@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.6-beta.8 (2026-06-20)
+- Added OpenAI Codex runtime support with OAuth authentication and provider-specific request handling
+- Added built-in API key providers and provider registry metadata for easier model setup
+- Added environment management for workspace sessions and improved directory state persistence
+- Fixed steer abort queue handling so pending chat input pauses and resumes more reliably
+- Updated Markstream Vue and refreshed bundled provider/model and ACP registry data
+- 新增 OpenAI Codex runtime 支持，包含 OAuth 认证与 Provider 专属请求处理
+- 新增内置 API key providers 和 Provider registry metadata，简化模型配置
+- 新增工作区会话的环境管理，并改进目录状态持久化
+- 修复 steer abort queue 处理，让待处理聊天输入的暂停和恢复更可靠
+- 更新 Markstream Vue，并刷新内置 Provider/模型与 ACP registry 数据
+
 ## v1.0.6-beta.7 (2026-06-17)
 - Added Tape manifest integrity and lineage details so replay traces can be audited more reliably
 - Added a workspace single item viewer for focused file inspection from the workspace panel
