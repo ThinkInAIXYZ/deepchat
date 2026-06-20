@@ -733,9 +733,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
     const resolvedModelConfig = this.getModelConfigForDecision(modelId, modelConfig)
 
-    const cleanHeaders = this.isAzureOpenAI(decision, runtimeProvider)
-      ? false
-      : !this.isOfficialOpenAIService(decision, runtimeProvider)
+    const cleanHeaders =
+      this.isAzureOpenAI(decision, runtimeProvider) || runtimeProvider.id === 'kimi-for-coding'
+        ? false
+        : !this.isOfficialOpenAIService(decision, runtimeProvider)
 
     const shouldUseImageGeneration =
       decision.endpointType === 'grok-image' || decision.endpointType === 'image-generation'
@@ -1473,6 +1474,12 @@ export class AiSdkProvider extends BaseLLMProvider {
     )
   }
 
+  private mapKimiForCodingModels(): MODEL_META[] {
+    const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Kimi Code')
+    const stableModel = models.find((model) => model.id === 'kimi-for-coding')
+    return stableModel ? [stableModel] : models
+  }
+
   private syncProviderModelConfig(modelId: string, nextConfig: Partial<ModelConfig>): void {
     const existingConfig = this.getProviderModelConfig(modelId)
     const merged = {
@@ -1499,6 +1506,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
       case 'openai-codex':
         return this.mapOpenAICodexModels()
+      case 'kimi-for-coding':
+        return this.mapKimiForCodingModels()
       case 'github': {
         const response = await this.fetchOpenAIModelRecords({
           timeout: this.getModelFetchTimeout()

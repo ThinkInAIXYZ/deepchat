@@ -18,18 +18,18 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
-  it('includes Kimi For Coding as a disabled built-in OpenAI-compatible provider', () => {
+  it('includes Kimi For Coding as a disabled built-in Anthropic-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
         id: 'kimi-for-coding',
         name: 'Kimi For Coding',
-        apiType: 'openai-completions',
-        baseUrl: 'https://api.kimi.com/coding/v1',
+        apiType: 'anthropic',
+        baseUrl: 'https://api.kimi.com/coding/',
         enable: false,
         websites: expect.objectContaining({
           apiKey: 'https://www.kimi.com/code/console',
           docs: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
-          defaultBaseUrl: 'https://api.kimi.com/coding/v1'
+          defaultBaseUrl: 'https://api.kimi.com/coding/'
         })
       })
     )

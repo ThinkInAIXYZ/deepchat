@@ -37,6 +37,9 @@ describe('AI SDK provider factory', () => {
     expect(normalizeAnthropicBaseUrl('https://zenmux.ai/api/anthropic/')).toBe(
       'https://zenmux.ai/api/anthropic/v1'
     )
+    expect(normalizeAnthropicBaseUrl('https://api.kimi.com/coding/')).toBe(
+      'https://api.kimi.com/coding/v1'
+    )
   })
 
   it('avoids duplicating the messages suffix', () => {
@@ -324,6 +327,21 @@ describe('AI SDK provider factory', () => {
       'https://api.anthropic.com/v1/messages'
     ],
     [
+      'Kimi For Coding',
+      'anthropic',
+      {
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        apiType: 'anthropic',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.kimi.com/coding/',
+        enable: true
+      },
+      'anthropic',
+      'anthropic',
+      'https://api.kimi.com/coding/v1/messages'
+    ],
+    [
       'Gemini',
       'gemini',
       {
@@ -408,6 +426,29 @@ describe('AI SDK provider factory', () => {
       expect(context.endpoint).toBe(endpoint)
     }
   )
+
+  it('maps Kimi For Coding Anthropic aliases to the stable upstream model ID', () => {
+    const context = createAiSdkProviderContext({
+      providerKind: 'anthropic',
+      provider: {
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        apiType: 'anthropic',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.kimi.com/coding/',
+        enable: true
+      } as any,
+      configPresenter: {
+        getSetting: () => undefined
+      } as any,
+      defaultHeaders: {},
+      modelId: 'k2p7',
+      wrapThinkReasoning: false
+    })
+
+    expect(context.resolvedModelId).toBe('kimi-for-coding')
+    expect(context.endpoint).toBe('https://api.kimi.com/coding/v1/messages')
+  })
 
   it('uses normalized gemini urls with google auth headers', async () => {
     const fetchMock = vi.fn().mockResolvedValue(

@@ -1462,9 +1462,9 @@ describe('ProviderImportService', () => {
       {
         id: 'kimi-for-coding',
         name: 'Kimi For Coding',
-        apiType: 'openai-completions',
+        apiType: 'anthropic',
         apiKey: '',
-        baseUrl: 'https://api.kimi.com/coding/v1',
+        baseUrl: 'https://api.kimi.com/coding/',
         enable: false
       }
     ] as LLM_PROVIDER[])
@@ -1479,7 +1479,7 @@ describe('ProviderImportService', () => {
       sourceProviderId: 'kimi-code',
       targetKind: 'builtin',
       targetProviderId: 'kimi-for-coding',
-      targetApiType: 'openai-completions',
+      targetApiType: 'anthropic',
       modelPreview: ['K2.7 Code'],
       warnings: []
     })

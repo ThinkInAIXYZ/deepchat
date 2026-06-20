@@ -354,6 +354,22 @@ export function normalizeAnthropicBaseUrl(baseUrl: string | undefined): string {
   return `${normalized}/v1`
 }
 
+function resolveAnthropicApiKey(provider: LLM_PROVIDER): string | undefined {
+  if (provider.id === 'kimi-for-coding') {
+    return provider.apiKey || undefined
+  }
+
+  return provider.apiKey || process.env.ANTHROPIC_API_KEY
+}
+
+function resolveAnthropicModelId(provider: LLM_PROVIDER, modelId: string): string {
+  if (provider.id === 'kimi-for-coding') {
+    return 'kimi-for-coding'
+  }
+
+  return modelId
+}
+
 export function normalizeVertexBaseUrl(
   baseUrl: string | undefined,
   apiKey: string | undefined,
@@ -591,9 +607,10 @@ export function createAiSdkProviderContext(
 
     case 'anthropic': {
       const anthropicBaseUrl = normalizeAnthropicBaseUrl(baseUrl)
+      const anthropicModelId = resolveAnthropicModelId(params.provider, params.modelId)
       const provider = createAnthropic({
         baseURL: anthropicBaseUrl,
-        apiKey: params.provider.apiKey || process.env.ANTHROPIC_API_KEY,
+        apiKey: resolveAnthropicApiKey(params.provider),
         headers: params.defaultHeaders,
         fetch,
         name: 'anthropic'
@@ -602,8 +619,9 @@ export function createAiSdkProviderContext(
       return {
         providerOptionsKey: 'anthropic',
         apiType: 'anthropic',
-        model: maybeWrapModel(provider.messages(params.modelId) as any),
-        endpoint: `${anthropicBaseUrl}/messages`
+        model: maybeWrapModel(provider.messages(anthropicModelId) as any),
+        endpoint: `${anthropicBaseUrl}/messages`,
+        resolvedModelId: anthropicModelId === params.modelId ? undefined : anthropicModelId
       }
     }
 

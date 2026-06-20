@@ -76,9 +76,9 @@ vi.mock('../../../../src/main/presenter/llmProviderPresenter/aiSdk', () => ({
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'kimi-for-coding',
   name: 'Kimi For Coding',
-  apiType: 'openai-completions',
+  apiType: 'anthropic',
   apiKey: 'test-key',
-  baseUrl: 'https://api.kimi.com/coding/v1',
+  baseUrl: 'https://api.kimi.com/coding/',
   enable: false,
   ...overrides
 })
@@ -101,10 +101,11 @@ describe('AiSdkProvider kimi-for-coding', () => {
     mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 
-  it('resolves Kimi For Coding through the OpenAI-compatible runtime', () => {
+  it('resolves Kimi For Coding through the Anthropic-compatible runtime', () => {
     expect(resolveAiSdkProviderDefinition(createProvider())).toMatchObject({
-      runtimeKind: 'openai-compatible',
-      modelSource: 'provider-db',
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'kimi-for-coding',
       providerDbSourceId: 'kimi-for-coding',
       providerDbGroup: 'Kimi Code',
       checkStrategy: 'generate-text',
@@ -119,6 +120,23 @@ describe('AiSdkProvider kimi-for-coding', () => {
       id: 'kimi-for-coding',
       name: 'Kimi For Coding',
       models: [
+        {
+          id: 'k2p7',
+          display_name: 'Kimi K2.7 Code',
+          tool_call: true,
+          reasoning: {
+            supported: true,
+            default: true
+          },
+          modalities: {
+            input: ['text', 'image', 'video'],
+            output: ['text']
+          },
+          limit: {
+            context: 262144,
+            output: 32768
+          }
+        },
         {
           id: 'kimi-for-coding',
           display_name: 'K2.7 Code',
@@ -143,6 +161,7 @@ describe('AiSdkProvider kimi-for-coding', () => {
     const models = await provider.fetchModels()
 
     expect(mockGetProvider).toHaveBeenCalledWith('kimi-for-coding')
+    expect(models).toHaveLength(1)
     expect(models).toEqual([
       expect.objectContaining({
         id: 'kimi-for-coding',
@@ -183,10 +202,12 @@ describe('AiSdkProvider kimi-for-coding', () => {
     })
     expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerKind: 'openai-compatible',
+        providerKind: 'anthropic',
+        cleanHeaders: false,
         provider: expect.objectContaining({
           id: 'kimi-for-coding',
-          baseUrl: 'https://api.kimi.com/coding/v1'
+          apiType: 'anthropic',
+          baseUrl: 'https://api.kimi.com/coding/'
         })
       }),
       [{ role: 'user', content: 'Hello' }],

@@ -12,6 +12,7 @@ export type AiSdkBehaviorPreset =
 export type AiSdkModelSourceStrategy =
   | 'openai'
   | 'openai-codex'
+  | 'kimi-for-coding'
   | 'github'
   | 'together'
   | 'provider-db'
@@ -242,12 +243,15 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   [
     'kimi-for-coding',
     createDefinition({
-      ...OPENAI_BASE,
-      modelSource: 'provider-db',
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'kimi-for-coding',
       providerDbSourceId: 'kimi-for-coding',
       providerDbGroup: 'Kimi Code',
       checkStrategy: 'generate-text',
       credentialStrategy: 'api-key',
+      keyStatusStrategy: 'none',
+      routeStrategy: 'none',
       embeddingStrategy: 'none',
       checkModelId: 'kimi-for-coding',
       checkPrompt: 'Hello',

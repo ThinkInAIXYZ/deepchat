@@ -521,16 +521,16 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
     id: 'kimi-for-coding',
     name: 'Kimi For Coding',
-    apiType: 'openai-completions',
+    apiType: 'anthropic',
     apiKey: '',
-    baseUrl: 'https://api.kimi.com/coding/v1',
+    baseUrl: 'https://api.kimi.com/coding/',
     enable: false,
     websites: {
       official: 'https://www.kimi.com/code',
       apiKey: 'https://www.kimi.com/code/console',
       docs: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
       models: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
-      defaultBaseUrl: 'https://api.kimi.com/coding/v1'
+      defaultBaseUrl: 'https://api.kimi.com/coding/'
     }
   },
   // {
