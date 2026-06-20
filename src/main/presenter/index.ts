@@ -893,6 +893,8 @@ export class Presenter implements IPresenter {
 
   // 在应用退出时进行清理，关闭数据库连接
   async destroy(): Promise<void> {
+    await this.pluginPresenter.shutdown()
+    await this.mcpPresenter.shutdown()
     await this.destroyRemoteControl()
     this.floatingButtonPresenter.destroy() // 销毁悬浮按钮
     this.tabPresenter.destroy()

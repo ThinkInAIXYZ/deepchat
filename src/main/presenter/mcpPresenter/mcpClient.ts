@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type { ChildProcess } from 'node:child_process'
 import {
   ToolListChangedNotificationSchema,
   PromptListChangedNotificationSchema,
@@ -25,6 +26,7 @@ import { app } from 'electron'
 import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
 import {
   PromptListEntry,
   ToolCallResult,
@@ -43,6 +45,10 @@ const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
   'image/gif',
   'image/webp'
 ])
+
+type StdioClientTransportProcessAccess = {
+  _process?: ChildProcess
+}
 
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
 // Simple OAuth provider for handling Bearer Token
@@ -488,7 +494,7 @@ export class McpClient {
       }
 
       // 清理资源
-      this.cleanupResources()
+      await this.cleanupResources()
 
       console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
 
@@ -514,7 +520,7 @@ export class McpClient {
   }
 
   // 清理资源
-  private cleanupResources(): void {
+  private async cleanupResources(): Promise<void> {
     // 清除超时定时器
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout)
@@ -522,9 +528,11 @@ export class McpClient {
     }
 
     // 关闭transport
-    if (this.transport) {
+    const transport = this.transport
+    this.transport = null
+    if (transport) {
       try {
-        this.transport.close()
+        await this.closeTransport(transport)
       } catch (error) {
         console.error(`Failed to close MCP transport:`, error)
       }
@@ -532,13 +540,23 @@ export class McpClient {
 
     // 重置状态
     this.client = null
-    this.transport = null
     this.isConnected = false
 
     // 清空缓存
     this.cachedTools = null
     this.cachedPrompts = null
     this.cachedResources = null
+  }
+
+  private async closeTransport(transport: Transport): Promise<void> {
+    if (transport instanceof StdioClientTransport) {
+      const child = (transport as unknown as StdioClientTransportProcessAccess)._process
+      if (child) {
+        await terminateProcessTree(child, { graceMs: 2000 })
+      }
+    }
+
+    await transport.close()
   }
 
   // Register notification handlers
@@ -920,7 +938,7 @@ export class McpClient {
 
       try {
         // Clean up current connection
-        this.cleanupResources()
+        await this.cleanupResources()
 
         // Clear all caches to ensure fresh data after reconnection
         this.cachedTools = null
@@ -952,7 +970,7 @@ export class McpClient {
   // Internal disconnect with custom reason
   private async internalDisconnect(reason?: string): Promise<void> {
     // Clean up all resources
-    this.cleanupResources()
+    await this.cleanupResources()
 
     const logMessage = reason
       ? `MCP service ${this.serverName} has been stopped due to ${reason}`

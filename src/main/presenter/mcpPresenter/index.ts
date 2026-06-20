@@ -169,6 +169,17 @@ export class McpPresenter implements IMCPPresenter {
     }
   }
 
+  async shutdown(): Promise<void> {
+    const runningClients = await this.serverManager.getRunningClients()
+    for (const client of runningClients) {
+      try {
+        await this.stopServer(client.serverName)
+      } catch (error) {
+        console.error(`[MCP] Failed to stop server ${client.serverName} during shutdown:`, error)
+      }
+    }
+  }
+
   // =============== McpRouter marketplace APIs ===============
   async listMcpRouterServers(
     page: number,
