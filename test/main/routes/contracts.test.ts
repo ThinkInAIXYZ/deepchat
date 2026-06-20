@@ -26,7 +26,6 @@ import {
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
   oauthOpenAICodexGetStatusRoute,
-  oauthOpenAICodexStartDeviceLoginRoute,
   sessionsActivateRoute,
   sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
@@ -126,7 +125,6 @@ describe('main kernel contracts', () => {
         'oauth.openaiCodex.getStatus',
         'oauth.openaiCodex.logout',
         'oauth.openaiCodex.startBrowserLogin',
-        'oauth.openaiCodex.startDeviceLogin',
         'plugins.get',
         'plugins.invokeAction',
         'project.pathExists',
@@ -363,20 +361,24 @@ describe('main kernel contracts', () => {
     })
 
     expect(
-      oauthOpenAICodexStartDeviceLoginRoute.output.parse({
+      oauthOpenAICodexGetStatusRoute.output.parse({
+        status: {
+          state: 'pending-browser',
+          authenticated: false,
+          storage: 'file'
+        }
+      }).status.state
+    ).toBe('pending-browser')
+
+    expect(() =>
+      oauthOpenAICodexGetStatusRoute.output.parse({
         status: {
           state: 'pending-device',
           authenticated: false,
-          storage: 'file',
-          device: {
-            userCode: 'ABCD-EFGH',
-            verificationUri: 'https://chatgpt.com/activate',
-            expiresAt: 123,
-            interval: 5
-          }
+          storage: 'file'
         }
-      }).status.device?.userCode
-    ).toBe('ABCD-EFGH')
+      })
+    ).toThrow()
   })
 
   it('validates database repair and browser sandbox utility route payloads', () => {

@@ -146,7 +146,6 @@ import {
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
-  oauthOpenAICodexStartDeviceLoginRoute,
   remoteControlClearChannelPairCodeRoute,
   remoteControlCreateChannelPairCodeRoute,
   remoteControlGetChannelBindingsRoute,
@@ -2058,13 +2057,6 @@ export async function dispatchDeepchatRoute(
       oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
       return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
         status: await runtime.oauthPresenter.startOpenAICodexBrowserLogin()
-      })
-    }
-
-    case oauthOpenAICodexStartDeviceLoginRoute.name: {
-      oauthOpenAICodexStartDeviceLoginRoute.input.parse(rawInput)
-      return oauthOpenAICodexStartDeviceLoginRoute.output.parse({
-        status: await runtime.oauthPresenter.startOpenAICodexDeviceLogin()
       })
     }
 

@@ -36,18 +36,6 @@ const authenticatedStatus: OpenAICodexAuthStatus = {
   accountLabel: 'user@example.com'
 }
 
-const deviceStatus: OpenAICodexAuthStatus = {
-  state: 'pending-device',
-  authenticated: false,
-  storage: 'file',
-  device: {
-    userCode: 'ABCD-EFGH',
-    verificationUri: 'https://chatgpt.com/activate',
-    expiresAt: 123,
-    interval: 5
-  }
-}
-
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'openai-codex',
   name: 'OpenAI Codex',
@@ -66,7 +54,6 @@ describe('OpenAICodexOAuth', () => {
     const oauthClient = {
       getOpenAICodexStatus: vi.fn().mockResolvedValue(initialStatus),
       startOpenAICodexBrowserLogin: vi.fn().mockResolvedValue(authenticatedStatus),
-      startOpenAICodexDeviceLogin: vi.fn().mockResolvedValue(deviceStatus),
       cancelOpenAICodexLogin: vi.fn().mockResolvedValue(signedOutStatus),
       logoutOpenAICodex: vi.fn().mockResolvedValue(signedOutStatus),
       onOpenAICodexStatusChanged: vi.fn(() => vi.fn())
@@ -124,14 +111,11 @@ describe('OpenAICodexOAuth', () => {
     expect(wrapper.text()).toContain('user@example.com')
   })
 
-  it('starts device login and shows the user code', async () => {
-    const { wrapper, oauthClient } = await setup()
+  it('renders browser OAuth only without device-code controls', async () => {
+    const { wrapper } = await setup()
 
-    await wrapper.get('[data-testid="codex-device-login-button"]').trigger('click')
-    await flushPromises()
-
-    expect(oauthClient.startOpenAICodexDeviceLogin).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('ABCD-EFGH')
+    expect(wrapper.find('[data-testid="codex-browser-login-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="codex-device-login-button"]').exists()).toBe(false)
   })
 
   it('logs out authenticated Codex accounts', async () => {

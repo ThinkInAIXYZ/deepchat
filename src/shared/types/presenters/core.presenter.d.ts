@@ -412,7 +412,6 @@ export interface IOAuthPresenter {
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
   getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
   startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
-  startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus>
   cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
   logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
 }

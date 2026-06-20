@@ -11,28 +11,13 @@ const OAuthLoginResultSchema = z.object({
 })
 
 export const OpenAICodexAuthStatusSchema: z.ZodType<OpenAICodexAuthStatus> = z.object({
-  state: z.enum([
-    'disabled',
-    'signed-out',
-    'pending-browser',
-    'pending-device',
-    'authenticated',
-    'error'
-  ]),
+  state: z.enum(['disabled', 'signed-out', 'pending-browser', 'authenticated', 'error']),
   authenticated: z.boolean(),
   accountId: z.string().optional(),
   accountLabel: z.string().optional(),
   planType: z.string().optional(),
   expiresAt: z.number().optional(),
   storage: z.enum(['safeStorage', 'file', 'none']),
-  device: z
-    .object({
-      userCode: z.string(),
-      verificationUri: z.string(),
-      expiresAt: z.number(),
-      interval: z.number().optional()
-    })
-    .optional(),
   error: z.string().optional()
 })
 
@@ -64,12 +49,6 @@ export const oauthOpenAICodexGetStatusRoute = defineRouteContract({
 
 export const oauthOpenAICodexStartBrowserLoginRoute = defineRouteContract({
   name: 'oauth.openaiCodex.startBrowserLogin',
-  input: z.object({}),
-  output: OpenAICodexStatusResultSchema
-})
-
-export const oauthOpenAICodexStartDeviceLoginRoute = defineRouteContract({
-  name: 'oauth.openaiCodex.startDeviceLogin',
   input: z.object({}),
   output: OpenAICodexStatusResultSchema
 })

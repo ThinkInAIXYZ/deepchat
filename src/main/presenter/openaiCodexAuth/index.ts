@@ -7,8 +7,6 @@ import {
   OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS,
   OPENAI_CODEX_AUTHORIZE_URL,
   OPENAI_CODEX_CLIENT_ID,
-  OPENAI_CODEX_DEVICE_TOKEN_URL,
-  OPENAI_CODEX_DEVICE_USER_CODE_URL,
   OPENAI_CODEX_REDIRECT_PATH,
   OPENAI_CODEX_REDIRECT_PORT,
   OPENAI_CODEX_REDIRECT_URI,
@@ -25,17 +23,6 @@ import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 export type OpenAICodexBackendAuth = {
   accessToken: string
   accountId?: string
-}
-
-type PendingDeviceFlow = {
-  deviceCode: string
-  userCode: string
-  verificationUri: string
-  expiresAt: number
-  interval: number
-  codeVerifier?: string
-  cancelled: boolean
-  pollPromise?: Promise<void>
 }
 
 type PendingBrowserFlow = {
@@ -155,7 +142,6 @@ export function resolveOpenAICodexCallbackUrl(
 export class OpenAICodexAuth {
   private readonly store: OpenAICodexCredentialStore
   private pendingBrowserFlow: PendingBrowserFlow | null = null
-  private pendingDeviceFlow: PendingDeviceFlow | null = null
   private authWindow: BrowserWindow | null = null
   private refreshPromise: Promise<OpenAICodexTokenSet> | null = null
   private lastError: string | null = null
@@ -176,20 +162,6 @@ export class OpenAICodexAuth {
       return this.withStorage({
         state: 'pending-browser',
         authenticated: false,
-        ...(this.lastError ? { error: this.lastError } : {})
-      })
-    }
-
-    if (this.pendingDeviceFlow && !this.pendingDeviceFlow.cancelled) {
-      return this.withStorage({
-        state: 'pending-device',
-        authenticated: false,
-        device: {
-          userCode: this.pendingDeviceFlow.userCode,
-          verificationUri: this.pendingDeviceFlow.verificationUri,
-          expiresAt: this.pendingDeviceFlow.expiresAt,
-          interval: this.pendingDeviceFlow.interval
-        },
         ...(this.lastError ? { error: this.lastError } : {})
       })
     }
@@ -245,65 +217,10 @@ export class OpenAICodexAuth {
     }
   }
 
-  async startDeviceLogin(): Promise<OpenAICodexAuthStatus> {
-    this.assertEnabled()
-    this.cancelLogin()
-    this.lastError = null
-
-    try {
-      const pkce = createOpenAICodexPkcePair()
-      const payload = await this.postTokenJsonOrForm(OPENAI_CODEX_DEVICE_USER_CODE_URL, {
-        client_id: OPENAI_CODEX_CLIENT_ID,
-        scope: OPENAI_CODEX_SCOPE,
-        code_challenge: pkce.codeChallenge,
-        code_challenge_method: 'S256'
-      })
-      const deviceCode =
-        extractTokenText(payload, 'device_code') ||
-        extractTokenText(payload, 'deviceCode') ||
-        extractTokenText(payload, 'device_auth_id') ||
-        extractTokenText(payload, 'deviceAuthId')
-      const userCode =
-        extractTokenText(payload, 'user_code') || extractTokenText(payload, 'userCode')
-      const verificationUri =
-        extractTokenText(payload, 'verification_uri') ||
-        extractTokenText(payload, 'verification_url') ||
-        extractTokenText(payload, 'verificationUrl')
-
-      if (!deviceCode || !userCode || !verificationUri) {
-        throw new Error('Invalid OpenAI Codex device login response')
-      }
-
-      const now = Date.now()
-      const expiresIn = toNumberValue(payload.expires_in) || toNumberValue(payload.expiresIn) || 900
-      const interval = toNumberValue(payload.interval) || 5
-      this.pendingDeviceFlow = {
-        deviceCode,
-        userCode,
-        verificationUri,
-        expiresAt: now + expiresIn * 1000,
-        interval,
-        codeVerifier: pkce.codeVerifier,
-        cancelled: false
-      }
-      this.pendingDeviceFlow.pollPromise = this.pollDeviceFlow(this.pendingDeviceFlow)
-      this.publishStatusChanged()
-      return this.getStatus()
-    } catch (error) {
-      this.lastError = sanitizeError(error)
-      this.publishStatusChanged()
-      return this.getStatus()
-    }
-  }
-
   cancelLogin(): OpenAICodexAuthStatus {
     if (this.pendingBrowserFlow) {
       this.pendingBrowserFlow.cancelled = true
       this.pendingBrowserFlow = null
-    }
-    if (this.pendingDeviceFlow) {
-      this.pendingDeviceFlow.cancelled = true
-      this.pendingDeviceFlow = null
     }
     this.stopAuthWindow()
     this.publishStatusChanged()
@@ -588,50 +505,6 @@ export class OpenAICodexAuth {
     return refreshed
   }
 
-  private async pollDeviceFlow(flow: PendingDeviceFlow): Promise<void> {
-    while (!flow.cancelled && Date.now() < flow.expiresAt) {
-      await new Promise((resolve) => setTimeout(resolve, flow.interval * 1000))
-      if (flow.cancelled) {
-        return
-      }
-
-      try {
-        const payload = await this.postTokenJsonOrForm(OPENAI_CODEX_DEVICE_TOKEN_URL, {
-          client_id: OPENAI_CODEX_CLIENT_ID,
-          device_code: flow.deviceCode,
-          device_auth_id: flow.deviceCode,
-          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-          code_verifier: flow.codeVerifier
-        })
-        const tokens = this.parseTokenResponse(payload)
-        this.store.save(tokens)
-        this.pendingDeviceFlow = null
-        this.lastError = null
-        this.publishStatusChanged()
-        return
-      } catch (error) {
-        const message = sanitizeError(error)
-        if (/authorization_pending|pending/i.test(message)) {
-          continue
-        }
-        if (/slow_down/i.test(message)) {
-          flow.interval += 5
-          continue
-        }
-        this.pendingDeviceFlow = null
-        this.lastError = message
-        this.publishStatusChanged()
-        return
-      }
-    }
-
-    if (this.pendingDeviceFlow === flow) {
-      this.pendingDeviceFlow = null
-      this.lastError = 'OpenAI Codex device login expired'
-      this.publishStatusChanged()
-    }
-  }
-
   private parseTokenResponse(
     payload: TokenResponse,
     previous?: OpenAICodexTokenSet
@@ -692,33 +565,6 @@ export class OpenAICodexAuth {
     }
 
     return (await response.json()) as TokenResponse
-  }
-
-  private async postTokenJsonOrForm(
-    url: string,
-    params: Record<string, string | undefined>
-  ): Promise<TokenResponse> {
-    const jsonBody = JSON.stringify(
-      Object.fromEntries(Object.entries(params).filter(([, value]) => Boolean(value)))
-    )
-    const response = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: jsonBody
-    })
-
-    if (response.ok) {
-      return (await response.json()) as TokenResponse
-    }
-
-    if (![400, 404, 415, 422].includes(response.status)) {
-      throw new Error(await readErrorBody(response))
-    }
-
-    return this.postForm(url, params)
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
