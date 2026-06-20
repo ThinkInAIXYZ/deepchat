@@ -149,7 +149,8 @@ async function setup(options?: {
     },
     global: {
       stubs: {
-        GitHubCopilotOAuth: true
+        GitHubCopilotOAuth: true,
+        OpenAICodexOAuth: true
       }
     }
   })
@@ -222,6 +223,28 @@ describe('ProviderApiConfig', () => {
     expect(wrapper.find('input#openai-responses-url').exists()).toBe(true)
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
     expect(wrapper.text()).not.toContain('This provider is pinned to the recommended Base URL.')
+  })
+
+  it('shows Codex OAuth and hides the generic API key input', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'openai-codex',
+        name: 'OpenAI Codex',
+        apiType: 'openai-codex',
+        apiKey: '',
+        baseUrl: 'https://chatgpt.com/backend-api/codex'
+      }),
+      providerWebsites: {
+        official: 'https://developers.openai.com/codex',
+        apiKey: 'https://chatgpt.com/codex',
+        docs: 'https://developers.openai.com/codex/auth',
+        models: 'https://developers.openai.com/codex/models',
+        defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
+      }
+    })
+
+    expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
   })
 
   it('keeps custom providers editable by default', async () => {
@@ -422,7 +445,8 @@ describe('ProviderApiConfig', () => {
       },
       global: {
         stubs: {
-          GitHubCopilotOAuth: true
+          GitHubCopilotOAuth: true,
+          OpenAICodexOAuth: true
         }
       }
     })

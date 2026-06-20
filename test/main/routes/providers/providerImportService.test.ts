@@ -1441,6 +1441,50 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps Kimi Code base URL to the built-in Kimi For Coding provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'kimi-code',
+        name: 'Kimi Code',
+        type: 'openai',
+        apiKey: 'sk-kimi',
+        apiHost: 'https://api.kimi.com/coding/v1',
+        models: [{ id: 'kimi-for-coding', name: 'K2.7 Code' }]
+      }
+    ])
+
+    const configPresenter = createConfigPresenter([
+      {
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        apiType: 'anthropic',
+        apiKey: '',
+        baseUrl: 'https://api.kimi.com/coding/',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(configPresenter as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'kimi-code',
+      targetKind: 'builtin',
+      targetProviderId: 'kimi-for-coding',
+      targetApiType: 'anthropic',
+      modelPreview: ['K2.7 Code'],
+      warnings: []
+    })
+  })
+
   it('uses Cherry Studio custom data directory from app config', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

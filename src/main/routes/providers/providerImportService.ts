@@ -118,6 +118,9 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   bigmodel: 'zhipu',
   moonshot: 'moonshot',
   kimi: 'moonshot',
+  'kimi-code': 'kimi-for-coding',
+  'kimi-coding': 'kimi-for-coding',
+  'kimi-for-coding': 'kimi-for-coding',
   dashscope: 'dashscope',
   volcengine: 'doubao',
   ark: 'doubao',
@@ -1159,6 +1162,7 @@ export class ProviderImportService {
       return 'minimax'
     }
     if (baseUrl.includes('bigmodel.cn') || baseUrl.includes('api.z.ai')) return 'zhipu'
+    if (baseUrl.includes('api.kimi.com/coding')) return 'kimi-for-coding'
     if (baseUrl.includes('api.moonshot.cn') || baseUrl.includes('api.kimi.com')) return 'moonshot'
     if (baseUrl.includes('dashscope.aliyuncs.com')) return 'dashscope'
     if (baseUrl.includes('volces.com') || baseUrl.includes('bytepluses.com')) return 'doubao'

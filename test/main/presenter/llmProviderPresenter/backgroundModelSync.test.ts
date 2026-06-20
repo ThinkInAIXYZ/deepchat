@@ -207,6 +207,34 @@ describe('LLMProviderPresenter background model sync', () => {
     expect(refreshSpy).toHaveBeenCalledTimes(1)
   })
 
+  it('skips OpenAI Codex when provider-db updates in the background', async () => {
+    const refreshSpy = vi
+      .spyOn(AiSdkProvider.prototype, 'refreshModels')
+      .mockResolvedValue(undefined)
+
+    new LLMProviderPresenter(
+      createConfigPresenter(
+        createProvider({
+          id: 'openai-codex',
+          name: 'OpenAI Codex',
+          apiType: 'openai-codex',
+          baseUrl: 'https://chatgpt.com/backend-api/codex'
+        })
+      ),
+      mockSqlitePresenter
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    refreshSpy.mockClear()
+
+    await emitMainEvent('provider-db:updated', {
+      providersCount: 1,
+      lastUpdated: Date.now()
+    })
+
+    expect(refreshSpy).not.toHaveBeenCalled()
+  })
+
   it('ignores provider-db updates for providers that do not use the provider DB catalog', async () => {
     const refreshSpy = vi
       .spyOn(AiSdkProvider.prototype, 'refreshModels')

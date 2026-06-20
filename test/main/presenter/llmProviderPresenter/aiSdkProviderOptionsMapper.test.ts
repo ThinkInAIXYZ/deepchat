@@ -512,6 +512,60 @@ describe('AI SDK provider options', () => {
     })
   })
 
+  it('maps OpenAI Codex system prompts to Responses instructions', () => {
+    const result = buildProviderOptions({
+      providerId: 'openai-codex',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.5',
+      modelConfig: {
+        reasoning: true,
+        reasoningEffort: 'high'
+      } as any,
+      tools: [],
+      messages: [
+        {
+          role: 'system',
+          content: 'Follow DeepChat instructions.'
+        },
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ] as any
+    })
+
+    expect(result.providerOptions?.openai).toMatchObject({
+      instructions: 'Follow DeepChat instructions.',
+      reasoningEffort: 'high',
+      store: false
+    })
+  })
+
+  it('adds fallback instructions for OpenAI Codex requests without system prompts', () => {
+    const result = buildProviderOptions({
+      providerId: 'openai-codex',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_responses',
+      modelId: 'gpt-5.5',
+      modelConfig: {},
+      tools: [],
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ] as any
+    })
+
+    expect(result.providerOptions?.openai).toMatchObject({
+      instructions: 'You are DeepChat, an AI assistant. Follow the user instructions.',
+      store: false
+    })
+  })
+
   it('treats effort as the source of truth when the legacy reasoning boolean is stale', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,

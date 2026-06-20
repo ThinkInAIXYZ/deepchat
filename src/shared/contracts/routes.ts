@@ -209,7 +209,12 @@ import {
 } from './routes/nowledgeMem.routes'
 import {
   oauthGithubCopilotStartDeviceFlowLoginRoute,
-  oauthGithubCopilotStartLoginRoute
+  oauthGithubCopilotStartLoginRoute,
+  oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexGetStatusRoute,
+  oauthOpenAICodexLogoutRoute,
+  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthOpenAICodexStartDeviceLoginRoute
 } from './routes/oauth.routes'
 import {
   remoteControlClearChannelPairCodeRoute,
@@ -519,6 +524,11 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [nowledgeMemTestConnectionRoute.name]: nowledgeMemTestConnectionRoute,
   [oauthGithubCopilotStartLoginRoute.name]: oauthGithubCopilotStartLoginRoute,
   [oauthGithubCopilotStartDeviceFlowLoginRoute.name]: oauthGithubCopilotStartDeviceFlowLoginRoute,
+  [oauthOpenAICodexGetStatusRoute.name]: oauthOpenAICodexGetStatusRoute,
+  [oauthOpenAICodexStartBrowserLoginRoute.name]: oauthOpenAICodexStartBrowserLoginRoute,
+  [oauthOpenAICodexStartDeviceLoginRoute.name]: oauthOpenAICodexStartDeviceLoginRoute,
+  [oauthOpenAICodexCancelLoginRoute.name]: oauthOpenAICodexCancelLoginRoute,
+  [oauthOpenAICodexLogoutRoute.name]: oauthOpenAICodexLogoutRoute,
   [remoteControlListChannelsRoute.name]: remoteControlListChannelsRoute,
   [remoteControlGetChannelSettingsRoute.name]: remoteControlGetChannelSettingsRoute,
   [remoteControlSaveChannelSettingsRoute.name]: remoteControlSaveChannelSettingsRoute,

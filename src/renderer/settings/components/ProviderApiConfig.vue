@@ -83,7 +83,6 @@
       </div>
     </div>
 
-    <!-- GitHub Copilot OAuth 登录 -->
     <GitHubCopilotOAuth
       v-if="provider.id === 'github-copilot'"
       :provider="provider"
@@ -91,7 +90,13 @@
       @auth-error="handleOAuthError"
     />
 
-    <!-- API Key 配置 (GitHub Copilot 时隐藏手动输入) -->
+    <OpenAICodexOAuth
+      v-else-if="provider.id === 'openai-codex'"
+      :provider="provider"
+      @auth-success="handleOAuthSuccess"
+      @auth-error="handleOAuthError"
+    />
+
     <div v-else class="flex flex-col items-start gap-4">
       <div class="flex flex-col gap-2 w-full">
         <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
@@ -196,6 +201,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
+import OpenAICodexOAuth from './OpenAICodexOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'

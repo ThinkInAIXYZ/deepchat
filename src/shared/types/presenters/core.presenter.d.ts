@@ -27,6 +27,7 @@ import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { AcpDebugRequest, AcpDebugRunResult, AcpWorkdirInfo } from './acp.presenter'
 import type { IWindowPresenter, TabData } from './window.presenter'
+import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type {
   Agent,
   AgentType,
@@ -409,6 +410,11 @@ export interface IOAuthPresenter {
   startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
+  getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
+  startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
+  startOpenAICodexDeviceLogin(): Promise<OpenAICodexAuthStatus>
+  cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
+  logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
 }
 
 export interface OAuthConfig {

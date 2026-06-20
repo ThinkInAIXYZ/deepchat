@@ -173,6 +173,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'openai-codex',
+    name: 'OpenAI Codex',
+    apiType: 'openai-codex',
+    apiKey: '',
+    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    enable: false,
+    websites: {
+      official: 'https://developers.openai.com/codex',
+      apiKey: 'https://chatgpt.com/codex',
+      docs: 'https://developers.openai.com/codex/auth',
+      models: 'https://developers.openai.com/codex/models',
+      defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
+    }
+  },
+  {
     id: 'acp',
     name: 'ACP',
     apiType: 'acp',
@@ -501,6 +516,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://platform.moonshot.cn/docs/',
       models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8',
       defaultBaseUrl: 'https://api.moonshot.cn/v1'
+    }
+  },
+  {
+    id: 'kimi-for-coding',
+    name: 'Kimi For Coding',
+    apiType: 'anthropic',
+    apiKey: '',
+    baseUrl: 'https://api.kimi.com/coding/',
+    enable: false,
+    websites: {
+      official: 'https://www.kimi.com/code',
+      apiKey: 'https://www.kimi.com/code/console',
+      docs: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
+      models: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
+      defaultBaseUrl: 'https://api.kimi.com/coding/'
     }
   },
   // {

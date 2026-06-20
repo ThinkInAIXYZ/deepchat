@@ -10,6 +10,24 @@
           {{ t('settings.provider.modelsEnabled') }}
         </div>
       </div>
+      <Button
+        data-testid="provider-models-refresh-button"
+        variant="outline"
+        size="sm"
+        class="text-xs text-normal rounded-lg shrink-0"
+        :disabled="isRefreshingModels"
+        @click="$emit('refresh-models')"
+      >
+        <Icon
+          :icon="isRefreshingModels ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+          :class="['w-4 h-4 text-muted-foreground', { 'animate-spin': isRefreshingModels }]"
+        />
+        {{
+          isRefreshingModels
+            ? t('settings.provider.refreshingModels')
+            : t('settings.provider.refreshModels')
+        }}
+      </Button>
     </div>
 
     <div class="w-full">
@@ -31,6 +49,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
+import { Button } from '@shadcn/components/ui/button'
+import { Icon } from '@iconify/vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelList from './ProviderModelList.vue'
 
@@ -43,6 +63,7 @@ const props = defineProps<{
   providerModels: RENDERER_MODEL_META[]
   customModels: RENDERER_MODEL_META[]
   isModelListLoading?: boolean
+  isRefreshingModels?: boolean
 }>()
 
 const providerModelGroups = computed(() => [
@@ -61,6 +82,7 @@ const providerOptions = computed(() => [
 
 defineEmits<{
   'disable-all-models': []
+  'refresh-models': []
   'model-enabled-change': [model: RENDERER_MODEL_META, enabled: boolean]
   'config-changed': []
   'custom-model-added': []

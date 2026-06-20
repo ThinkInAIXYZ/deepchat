@@ -11,6 +11,8 @@ export type AiSdkBehaviorPreset =
 
 export type AiSdkModelSourceStrategy =
   | 'openai'
+  | 'openai-codex'
+  | 'kimi-for-coding'
   | 'github'
   | 'together'
   | 'provider-db'
@@ -88,6 +90,23 @@ const ENGLISH_SUMMARY_OPENAI = createDefinition({
 const CHINESE_SUMMARY_OPENAI = createDefinition({
   ...OPENAI_BASE,
   behaviorPreset: 'chinese-summary'
+})
+
+const OPENAI_CODEX = createDefinition({
+  runtimeKind: 'openai-codex',
+  behaviorPreset: 'openai',
+  modelSource: 'openai-codex',
+  checkStrategy: 'generate-text',
+  credentialStrategy: 'none',
+  keyStatusStrategy: 'none',
+  routeStrategy: 'none',
+  embeddingStrategy: 'none',
+  providerDbSourceId: 'openai',
+  providerDbGroup: 'Codex',
+  checkModelId: 'gpt-5.5',
+  checkPrompt: 'Hello',
+  checkTemperature: 0.2,
+  checkMaxTokens: 16
 })
 
 const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
@@ -222,6 +241,25 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'kimi-for-coding',
+    createDefinition({
+      runtimeKind: 'anthropic',
+      behaviorPreset: 'anthropic',
+      modelSource: 'kimi-for-coding',
+      providerDbSourceId: 'kimi-for-coding',
+      providerDbGroup: 'Kimi Code',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      keyStatusStrategy: 'none',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'kimi-for-coding',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'lmstudio',
     createDefinition({
       ...OPENAI_BASE
@@ -299,6 +337,7 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       runtimeKind: 'openai-responses'
     })
   ],
+  ['openai-codex', OPENAI_CODEX],
   [
     'openrouter',
     createDefinition({
@@ -449,6 +488,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['new-api', PROVIDER_ID_REGISTRY.get('new-api')!],
   ['o3fan', PROVIDER_ID_REGISTRY.get('o3fan')!],
   ['openai', PROVIDER_ID_REGISTRY.get('openai')!],
+  ['openai-codex', OPENAI_CODEX],
   ['openai-compatible', OPENAI_BASE],
   ['openai-completions', OPENAI_BASE],
   ['openai-responses', PROVIDER_ID_REGISTRY.get('openai-responses')!],

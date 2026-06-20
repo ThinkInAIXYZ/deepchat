@@ -16,10 +16,16 @@ import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
 import { proxyConfig } from '../../proxyConfig'
 import { createReasoningMiddleware } from './middlewares/reasoningMiddleware'
+import {
+  buildOpenAICodexResponsesEndpoint,
+  createOpenAICodexFetch,
+  normalizeOpenAICodexBaseUrl
+} from '../openaiCodexAdapter'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
   | 'openai-responses'
+  | 'openai-codex'
   | 'azure'
   | 'anthropic'
   | 'gemini'
@@ -348,6 +354,22 @@ export function normalizeAnthropicBaseUrl(baseUrl: string | undefined): string {
   return `${normalized}/v1`
 }
 
+function resolveAnthropicApiKey(provider: LLM_PROVIDER): string | undefined {
+  if (provider.id === 'kimi-for-coding') {
+    return provider.apiKey || undefined
+  }
+
+  return provider.apiKey || process.env.ANTHROPIC_API_KEY
+}
+
+function resolveAnthropicModelId(provider: LLM_PROVIDER, modelId: string): string {
+  if (provider.id === 'kimi-for-coding') {
+    return 'kimi-for-coding'
+  }
+
+  return modelId
+}
+
 export function normalizeVertexBaseUrl(
   baseUrl: string | undefined,
   apiKey: string | undefined,
@@ -463,6 +485,23 @@ export function createAiSdkProviderContext(
         })
 
   switch (params.providerKind) {
+    case 'openai-codex': {
+      const codexBaseUrl = normalizeOpenAICodexBaseUrl(baseUrl)
+      const provider = createOpenAI({
+        baseURL: codexBaseUrl,
+        apiKey: 'openai-codex-oauth',
+        headers: params.defaultHeaders,
+        fetch: createOpenAICodexFetch(params.defaultHeaders)
+      })
+
+      return {
+        providerOptionsKey: 'openai',
+        apiType: 'openai_responses',
+        model: maybeWrapModel(provider.responses(params.modelId) as any),
+        endpoint: buildOpenAICodexResponsesEndpoint(codexBaseUrl)
+      }
+    }
+
     case 'openai-responses': {
       const provider = createOpenAI({
         baseURL: baseUrl,
@@ -568,9 +607,10 @@ export function createAiSdkProviderContext(
 
     case 'anthropic': {
       const anthropicBaseUrl = normalizeAnthropicBaseUrl(baseUrl)
+      const anthropicModelId = resolveAnthropicModelId(params.provider, params.modelId)
       const provider = createAnthropic({
         baseURL: anthropicBaseUrl,
-        apiKey: params.provider.apiKey || process.env.ANTHROPIC_API_KEY,
+        apiKey: resolveAnthropicApiKey(params.provider),
         headers: params.defaultHeaders,
         fetch,
         name: 'anthropic'
@@ -579,8 +619,9 @@ export function createAiSdkProviderContext(
       return {
         providerOptionsKey: 'anthropic',
         apiType: 'anthropic',
-        model: maybeWrapModel(provider.messages(params.modelId) as any),
-        endpoint: `${anthropicBaseUrl}/messages`
+        model: maybeWrapModel(provider.messages(anthropicModelId) as any),
+        endpoint: `${anthropicBaseUrl}/messages`,
+        resolvedModelId: anthropicModelId === params.modelId ? undefined : anthropicModelId
       }
     }
 

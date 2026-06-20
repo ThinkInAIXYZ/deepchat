@@ -37,6 +37,9 @@ describe('AI SDK provider factory', () => {
     expect(normalizeAnthropicBaseUrl('https://zenmux.ai/api/anthropic/')).toBe(
       'https://zenmux.ai/api/anthropic/v1'
     )
+    expect(normalizeAnthropicBaseUrl('https://api.kimi.com/coding/')).toBe(
+      'https://api.kimi.com/coding/v1'
+    )
   })
 
   it('avoids duplicating the messages suffix', () => {
@@ -259,6 +262,192 @@ describe('AI SDK provider factory', () => {
       'https://example.openai.azure.com/openai/deployments/deepchat-prod/responses?api-version=2024-02-01'
     )
     expect(context.resolvedModelId).toBe('deepchat-prod')
+  })
+
+  it.each([
+    [
+      'OpenAI',
+      'openai-compatible',
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        apiType: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+        enable: true
+      },
+      'openai',
+      'openai_chat',
+      'https://api.openai.com/v1/chat/completions'
+    ],
+    [
+      'GitHub Copilot',
+      'openai-compatible',
+      {
+        id: 'github-copilot',
+        name: 'GitHub Copilot',
+        apiType: 'github-copilot',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.githubcopilot.com',
+        enable: true
+      },
+      'github-copilot',
+      'openai_chat',
+      'https://api.githubcopilot.com/chat/completions'
+    ],
+    [
+      'custom OpenAI-compatible provider',
+      'openai-compatible',
+      {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        apiType: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://proxy.example.com/v1',
+        enable: true,
+        custom: true
+      },
+      'custom-provider',
+      'openai_chat',
+      'https://proxy.example.com/v1/chat/completions'
+    ],
+    [
+      'Anthropic',
+      'anthropic',
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        apiType: 'anthropic',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.anthropic.com',
+        enable: true
+      },
+      'anthropic',
+      'anthropic',
+      'https://api.anthropic.com/v1/messages'
+    ],
+    [
+      'Kimi For Coding',
+      'anthropic',
+      {
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        apiType: 'anthropic',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.kimi.com/coding/',
+        enable: true
+      },
+      'anthropic',
+      'anthropic',
+      'https://api.kimi.com/coding/v1/messages'
+    ],
+    [
+      'Gemini',
+      'gemini',
+      {
+        id: 'gemini',
+        name: 'Gemini',
+        apiType: 'gemini',
+        apiKey: 'test-key',
+        baseUrl: 'https://generativelanguage.googleapis.com',
+        enable: true
+      },
+      'google',
+      'google',
+      'https://generativelanguage.googleapis.com/v1beta'
+    ],
+    [
+      'Azure OpenAI',
+      'azure',
+      {
+        id: 'azure-openai',
+        name: 'Azure OpenAI',
+        apiType: 'azure-openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.openai.azure.com/openai/v1',
+        enable: true
+      },
+      'azure',
+      'azure_responses',
+      'https://example.openai.azure.com/openai/v1/responses?api-version=v1'
+    ],
+    [
+      'Vertex',
+      'vertex',
+      {
+        id: 'vertex',
+        name: 'Vertex',
+        apiType: 'vertex',
+        apiKey: 'test-key',
+        projectId: 'project',
+        location: 'us-central1',
+        enable: true
+      },
+      'vertex',
+      'vertex',
+      'https://aiplatform.googleapis.com/v1/publishers/google'
+    ],
+    [
+      'AWS Bedrock',
+      'aws-bedrock',
+      {
+        id: 'aws-bedrock',
+        name: 'AWS Bedrock',
+        apiType: 'aws-bedrock',
+        apiKey: '',
+        enable: true,
+        credential: {
+          authMode: 'accessKeys',
+          accessKeyId: 'access-key',
+          secretAccessKey: 'secret-key',
+          region: 'us-east-1'
+        }
+      },
+      'bedrock',
+      'bedrock',
+      'https://bedrock-runtime.amazonaws.com'
+    ]
+  ])(
+    'keeps the %s provider factory branch stable',
+    (_label, providerKind, provider, providerOptionsKey, apiType, endpoint) => {
+      const context = createAiSdkProviderContext({
+        providerKind: providerKind as any,
+        provider: provider as any,
+        configPresenter: {
+          getSetting: () => undefined
+        } as any,
+        defaultHeaders: {},
+        modelId: 'test-model',
+        wrapThinkReasoning: false
+      })
+
+      expect(context.providerOptionsKey).toBe(providerOptionsKey)
+      expect(context.apiType).toBe(apiType)
+      expect(context.endpoint).toBe(endpoint)
+    }
+  )
+
+  it('maps Kimi For Coding Anthropic aliases to the stable upstream model ID', () => {
+    const context = createAiSdkProviderContext({
+      providerKind: 'anthropic',
+      provider: {
+        id: 'kimi-for-coding',
+        name: 'Kimi For Coding',
+        apiType: 'anthropic',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.kimi.com/coding/',
+        enable: true
+      } as any,
+      configPresenter: {
+        getSetting: () => undefined
+      } as any,
+      defaultHeaders: {},
+      modelId: 'k2p7',
+      wrapThinkReasoning: false
+    })
+
+    expect(context.resolvedModelId).toBe('kimi-for-coding')
+    expect(context.endpoint).toBe('https://api.kimi.com/coding/v1/messages')
   })
 
   it('uses normalized gemini urls with google auth headers', async () => {

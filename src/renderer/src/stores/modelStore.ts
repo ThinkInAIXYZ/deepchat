@@ -22,6 +22,9 @@ import { createModelClient } from '../../api/ModelClient'
 const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
 const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
 const ENABLED_MODELS_KEY = (providerId: string) => ['model-store', 'enabled-models', providerId]
+const RUNTIME_MODEL_LIST_PROVIDER_IDS = new Set(['openai-codex'])
+const isRuntimeModelListProvider = (providerId: string) =>
+  RUNTIME_MODEL_LIST_PROVIDER_IDS.has(providerId)
 
 type ModelQueryHandle<TData> = {
   entry: UseQueryEntry<TData, unknown, TData | undefined>
@@ -179,9 +182,14 @@ export const useModelStore = defineStore('model', () => {
     }
   )
 
-  const refreshMaterializedProviders = async () => {
+  const refreshMaterializedProviders = async (options?: {
+    skipRuntimeModelListProviders?: boolean
+  }) => {
     const providerIds = getMaterializedProviderIds()
     for (const providerId of providerIds) {
+      if (options?.skipRuntimeModelListProviders && isRuntimeModelListProvider(providerId)) {
+        continue
+      }
       await refreshProviderModels(providerId)
     }
   }
@@ -634,16 +642,41 @@ export const useModelStore = defineStore('model', () => {
     try {
       await invalidateProviderModelsCache(providerId)
       const providerState = getProviderState(providerId)
-      const useProviderDbModels = providerState?.apiType !== 'ollama'
+      const useRuntimeModelList = isRuntimeModelListProvider(providerId)
+      const useProviderDbModels = providerState?.apiType !== 'ollama' && !useRuntimeModelList
       let models: RENDERER_MODEL_META[] = useProviderDbModels
         ? await modelClient.getDbProviderModels(providerId)
         : []
+
+      const mapRuntimeModel = (meta: MODEL_META): RENDERER_MODEL_META => ({
+        id: meta.id,
+        name: meta.name,
+        contextLength: meta.contextLength || 4096,
+        maxTokens: meta.maxTokens || 2048,
+        group: meta.group || 'default',
+        enabled: false,
+        isCustom: meta.isCustom || false,
+        providerId,
+        vision: meta.vision || false,
+        functionCall: meta.functionCall || false,
+        reasoning: meta.reasoning || false,
+        type: (meta.type || ModelType.Chat) as ModelType,
+        supportedEndpointTypes: meta.supportedEndpointTypes,
+        endpointType: meta.endpointType,
+        ownedBy: meta.ownedBy
+      })
+
+      if (useRuntimeModelList) {
+        const modelMetas = await modelClient.getModelList(providerId)
+        updateProviderModelsCache(providerId, modelMetas)
+        models = modelMetas.map(mapRuntimeModel)
+      }
 
       const providerModelsQuery = getProviderModelsQuery(providerId)
       await providerModelsQuery.refetch()
       let storedModels = providerModelsQuery.data.value ?? []
 
-      if (storedModels.length === 0) {
+      if (!useRuntimeModelList && storedModels.length === 0) {
         // Fallback: try to get models directly from config
         const fallbackProviderModels = (await modelClient.getProviderModels(providerId)) ?? []
         if (fallbackProviderModels.length > 0) {
@@ -652,7 +685,7 @@ export const useModelStore = defineStore('model', () => {
         }
       }
 
-      if (storedModels.length > 0) {
+      if (!useRuntimeModelList && storedModels.length > 0) {
         const dbModelMap = new Map(models.map((model) => [model.id, model]))
         const storedModelMap = new Map<string, RENDERER_MODEL_META>()
 
@@ -737,24 +770,7 @@ export const useModelStore = defineStore('model', () => {
         try {
           const modelMetas = await modelClient.getModelList(providerId)
           if (modelMetas) {
-            models = modelMetas.map((meta) => ({
-              id: meta.id,
-              name: meta.name,
-              contextLength: meta.contextLength || 4096,
-              maxTokens: meta.maxTokens || 2048,
-              provider: providerId,
-              group: meta.group || 'default',
-              enabled: false,
-              isCustom: meta.isCustom || false,
-              providerId,
-              vision: meta.vision || false,
-              functionCall: meta.functionCall || false,
-              reasoning: meta.reasoning || false,
-              type: (meta.type || ModelType.Chat) as ModelType,
-              supportedEndpointTypes: meta.supportedEndpointTypes,
-              endpointType: meta.endpointType,
-              ownedBy: meta.ownedBy
-            }))
+            models = modelMetas.map(mapRuntimeModel)
           }
         } catch (error) {
           console.error(`Failed to fetch models for provider ${providerId}:`, error)
@@ -1299,7 +1315,7 @@ export const useModelStore = defineStore('model', () => {
         }
 
         if (reason === 'provider-db-loaded' || reason === 'provider-db-updated') {
-          await refreshMaterializedProviders()
+          await refreshMaterializedProviders({ skipRuntimeModelListProviders: true })
           return
         }
 
