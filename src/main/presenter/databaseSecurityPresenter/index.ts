@@ -8,6 +8,7 @@ import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase, type SQLitePresenter } from '../sqlitePresenter'
 import { configureSQLCipherCompatibility } from '../sqlitePresenter/connectionConfig'
+import { shouldExcludeFromSqliteCopy } from '../sqlitePresenter/sqliteCopyExclusions'
 
 type DatabaseSecurityMetadata = {
   version: 1
@@ -383,6 +384,9 @@ export class DatabaseSecurityPresenter {
     )
 
     return rows.filter((row) => {
+      if (shouldExcludeFromSqliteCopy(row.name)) {
+        return false
+      }
       for (const virtualTableName of virtualTableNames) {
         if (row.name === virtualTableName || row.name.startsWith(`${virtualTableName}_`)) {
           return false

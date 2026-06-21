@@ -305,6 +305,72 @@ export class DeepChatTapeEntriesTable extends BaseTable {
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
+  listMemoryViewManifestAnchorsBySessions(
+    sessionIds: string[],
+    optionsOrLimit: number | { limit?: number; messageId?: string } = 100
+  ): DeepChatTapeEntryRow[] {
+    const uniqueSessionIds = [...new Set(sessionIds.filter((id) => id.trim().length > 0))]
+    if (uniqueSessionIds.length === 0) {
+      return []
+    }
+    const options = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit
+    const cappedLimit = Math.min(Math.max(Math.floor(options.limit ?? 100), 1), 500)
+    const placeholders = uniqueSessionIds.map(() => '?').join(', ')
+    const whereClauses = [
+      `session_id IN (${placeholders})`,
+      "kind = 'anchor'",
+      "name = 'memory/view_assembled'"
+    ]
+    const params: Array<string | number> = [...uniqueSessionIds]
+    if (options.messageId) {
+      whereClauses.push("json_extract(meta_json, '$.messageId') = ?")
+      params.push(options.messageId)
+    }
+    params.push(cappedLimit)
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE ${whereClauses.join(' AND ')}
+         ORDER BY created_at DESC, entry_id DESC
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeEntryRow[]
+  }
+
+  listMemoryViewManifestAnchorsByAgent(
+    agentId: string,
+    options: { sessionId?: string; limit?: number; messageId?: string } = {}
+  ): DeepChatTapeEntryRow[] {
+    const cappedLimit = Math.min(Math.max(Math.floor(options.limit ?? 100), 1), 500)
+    const whereClauses = [
+      'sessions.agent_id = ?',
+      "tape.kind = 'anchor'",
+      "tape.name = 'memory/view_assembled'"
+    ]
+    const params: Array<string | number> = [agentId]
+    if (options.sessionId) {
+      whereClauses.push('tape.session_id = ?')
+      params.push(options.sessionId)
+    }
+    if (options.messageId) {
+      whereClauses.push("json_extract(tape.meta_json, '$.messageId') = ?")
+      params.push(options.messageId)
+    }
+    params.push(cappedLimit)
+    return this.db
+      .prepare(
+        `SELECT tape.*
+         FROM deepchat_tape_entries AS tape
+         INNER JOIN new_sessions AS sessions
+           ON sessions.id = tape.session_id
+         WHERE ${whereClauses.join(' AND ')}
+         ORDER BY tape.created_at DESC, tape.entry_id DESC
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeEntryRow[]
+  }
+
   getEntriesAfter(sessionId: string, entryId: number): DeepChatTapeEntryRow[] {
     return this.db
       .prepare(

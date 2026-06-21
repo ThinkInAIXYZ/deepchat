@@ -315,6 +315,44 @@ describeIfSqlite('AgentMemoryTable', () => {
       db.close()
     }
   })
+
+  it('agent memory audit clearByAgent removes only the requested agent rows', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'a1',
+        agentId: 'a',
+        eventType: 'memory/reflect',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 100
+      })
+      table.insert({
+        id: 'a2',
+        agentId: 'a',
+        eventType: 'persona/evolve',
+        actorType: 'runtime',
+        status: 'failed',
+        createdAt: 200
+      })
+      table.insert({
+        id: 'b1',
+        agentId: 'b',
+        eventType: 'memory/reflect',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 300
+      })
+
+      expect(table.clearByAgent('a')).toBe(2)
+      expect(table.listByAgent('a')).toEqual([])
+      expect(table.listByAgent('b').map((row) => row.id)).toEqual(['b1'])
+    } finally {
+      db.close()
+    }
+  })
 })
 
 function ftsActive(db: InstanceType<NonNullable<typeof Database>>): boolean {
@@ -336,10 +374,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(createSql).toContain('last_consolidated_at')
       expect(createSql).toContain('conflict_state')
       expect(createSql).toContain('persona_state')
-      expect(table.getLatestVersion()).toBe(34)
+      expect(createSql).toContain('conflict_with')
+      expect(table.getLatestVersion()).toBe(35)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
       expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
       expect(table.getMigrationSQL(34)).toMatch(/ADD COLUMN persona_state/)
+      expect(table.getMigrationSQL(35)).toMatch(/ADD COLUMN conflict_with/)
       expect(table.getMigrationSQL(31)).toBeNull()
 
       table.createTable()
@@ -348,6 +388,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       ).map((column) => column.name)
       expect(columns).toContain('embedding_model')
       expect(columns).toContain('persona_state')
+      expect(columns).toContain('conflict_with')
     } finally {
       db.close()
     }
@@ -872,6 +913,57 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
 
       const candidates = table.listArchiveCandidates('a', 5000, 0.05)
       expect(candidates.map((r) => r.id)).toEqual(['stale'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('agent memory audit list filters remain compatible with limit calls', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'a1',
+        agentId: 'a',
+        eventType: 'memory/reflect',
+        actorType: 'scheduler',
+        status: 'completed',
+        sessionId: 's1',
+        createdAt: 100
+      })
+      table.insert({
+        id: 'a2',
+        agentId: 'a',
+        eventType: 'persona/evolve',
+        actorType: 'runtime',
+        status: 'failed',
+        sessionId: 's2',
+        createdAt: 200
+      })
+      table.insert({
+        id: 'b1',
+        agentId: 'b',
+        eventType: 'memory/reflect',
+        actorType: 'scheduler',
+        status: 'completed',
+        sessionId: 's1',
+        createdAt: 300
+      })
+
+      expect(table.listByAgent('a', 1).map((row) => row.id)).toEqual(['a2'])
+      expect(
+        table
+          .listByAgent('a', {
+            eventType: 'memory/reflect',
+            actorType: 'scheduler',
+            sessionId: 's1',
+            status: 'completed',
+            startCreatedAt: 50,
+            endCreatedAt: 150
+          })
+          .map((row) => row.id)
+      ).toEqual(['a1'])
     } finally {
       db.close()
     }

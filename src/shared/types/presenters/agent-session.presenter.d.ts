@@ -22,6 +22,8 @@ import type {
   UsageDashboardData,
   AgentTapeInfo,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
   AgentTapeAnchorResult,
@@ -116,6 +118,11 @@ export interface IAgentSessionPresenter {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+  getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
   listTapeAnchors(
     sessionId: string,
     options?: AgentTapeAnchorsOptions

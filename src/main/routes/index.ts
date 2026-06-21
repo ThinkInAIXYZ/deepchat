@@ -68,10 +68,12 @@ import {
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
   memoryGetStatusRoute,
+  memoryListAuditEventsRoute,
   memoryListConflictsRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
   memoryResolveConflictRoute,
   memoryRestoreRoute,
@@ -210,6 +212,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
@@ -344,6 +347,8 @@ import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMemory'
+import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/agentMemoryAudit'
+import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
@@ -450,6 +455,98 @@ export function toMemoryItemDto(row: AgentMemoryRow) {
     conflictWith: row.conflict_with,
     personaState: row.persona_state as 'draft' | 'active' | 'superseded' | 'rejected' | null,
     isAnchor: row.is_anchor === 1
+  }
+}
+
+function parseJsonRecord(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {}
+  return {}
+}
+
+function sanitizeRouteRefs(record: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {}
+  const safeKey = /(id|ids|type|status|action|reason|policy|seq|count|hash)$/i
+  for (const [key, value] of Object.entries(record)) {
+    if (safeKey.test(key) || key === 'createdAt' || key === 'updatedAt') {
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        value === null
+      ) {
+        safe[key] = value
+      } else if (Array.isArray(value)) {
+        safe[key] = value.filter(
+          (item) =>
+            typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+        )
+      } else {
+        safe[key] = '{...}'
+      }
+    } else if (Array.isArray(value)) {
+      safe[key] = `[${value.length}]`
+    } else if (value && typeof value === 'object') {
+      safe[key] = '{...}'
+    } else if (value !== undefined) {
+      safe[key] = '[redacted]'
+    }
+  }
+  return safe
+}
+
+function toMemoryAuditEventDto(row: AgentMemoryAuditRow) {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    eventType: row.event_type,
+    actorType: row.actor_type,
+    sessionId: row.session_id,
+    inputRefs: sanitizeRouteRefs(parseJsonRecord(row.input_refs_json)),
+    outputRefs: sanitizeRouteRefs(parseJsonRecord(row.output_refs_json)),
+    modelProviderId: row.model_provider_id,
+    modelId: row.model_id,
+    status: row.status,
+    reason: row.reason,
+    createdAt: row.created_at
+  }
+}
+
+function readNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
+  const payload = parseJsonRecord(row.payload_json)
+  const meta = parseJsonRecord(row.meta_json)
+  const state = payload.state
+  const manifest =
+    state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return null
+  }
+  const record = manifest as Record<string, unknown>
+  const messageId = typeof meta.messageId === 'string' ? meta.messageId : null
+  return {
+    sessionId: row.session_id,
+    messageId,
+    entryId: row.entry_id,
+    policyVersion:
+      typeof record.policyVersion === 'number' && Number.isFinite(record.policyVersion)
+        ? record.policyVersion
+        : null,
+    tokenBudget: readNumber(record.tokenBudget),
+    estimatedTokens: readNumber(record.estimatedTokens),
+    selectedCount: Array.isArray(record.selected) ? record.selected.length : 0,
+    droppedCount: Array.isArray(record.dropped) ? record.dropped.length : 0,
+    queryHash: typeof record.queryHash === 'string' ? record.queryHash : null,
+    createdAt: row.created_at
   }
 }
 
@@ -1983,6 +2080,48 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case memoryListAuditEventsRoute.name: {
+      const input = memoryListAuditEventsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const sqlitePresenter = runtime.sqlitePresenter as unknown as SQLitePresenter
+      const events = sqlitePresenter.agentMemoryAuditTable
+        .listByAgent(input.agentId, {
+          eventType: input.eventType,
+          actorType: input.actorType,
+          sessionId: input.sessionId,
+          status: input.status,
+          startCreatedAt: input.startCreatedAt,
+          endCreatedAt: input.endCreatedAt,
+          limit: input.limit
+        })
+        .map(toMemoryAuditEventDto)
+      return memoryListAuditEventsRoute.output.parse({ events })
+    }
+
+    case memoryListViewManifestsRoute.name: {
+      const input = memoryListViewManifestsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
+      const sqlitePresenter = runtime.sqlitePresenter as unknown as SQLitePresenter
+      const limit = input.limit ?? 100
+      const manifests = sqlitePresenter.deepchatTapeEntriesTable
+        .listMemoryViewManifestAnchorsByAgent(input.agentId, {
+          sessionId: input.sessionId,
+          limit,
+          messageId: input.messageId
+        })
+        .map(toMemoryViewManifestDto)
+        .filter((manifest): manifest is NonNullable<typeof manifest> => Boolean(manifest))
+        .filter((manifest) => !input.messageId || manifest.messageId === input.messageId)
+        .slice(0, limit)
+      return memoryListViewManifestsRoute.output.parse({ manifests })
+    }
+
     case memoryDeleteRoute.name: {
       const input = memoryDeleteRoute.input.parse(rawInput)
       const ok = await runtime.memoryPresenter.deleteMemory(input.agentId, input.memoryId)
@@ -2430,6 +2569,16 @@ export async function dispatchDeepchatRoute(
         input.searchId
       )
       return sessionsGetSearchResultsRoute.output.parse({ results })
+    }
+
+    case sessionsGetTapeContextRoute.name: {
+      const input = sessionsGetTapeContextRoute.input.parse(rawInput)
+      const context = await runtime.agentSessionPresenter.getTapeContext(
+        input.sessionId,
+        input.entryIds,
+        input.options
+      )
+      return sessionsGetTapeContextRoute.output.parse({ context })
     }
 
     case sessionsListMessageTracesRoute.name: {

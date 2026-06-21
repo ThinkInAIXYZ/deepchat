@@ -5,6 +5,8 @@ import type {
   AssistantMessageBlock,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -844,7 +846,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           appendSummarySection(baseSystemPrompt, summaryState.summaryText),
           this.sessionStore.getReconstructionAnchorPromptState(sessionId)
         ),
-        normalizedInput.text
+        normalizedInput.text,
+        userMessageId
       )
       const contextBuild = buildTapeChatView({
         sessionId,
@@ -1789,7 +1792,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private async appendMemoryInjection(
     sessionId: string,
     systemPrompt: string,
-    query: string
+    query: string,
+    messageId?: string | null
   ): Promise<string> {
     if (!this.memoryPort) {
       return systemPrompt
@@ -1806,7 +1810,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
             sessionId,
             name: 'memory/view_assembled',
-            state: assembled.manifest as unknown as Record<string, unknown>
+            state: assembled.manifest as unknown as Record<string, unknown>,
+            meta: messageId ? { messageId } : undefined
           })
         } catch (error) {
           logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
@@ -2229,6 +2234,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   ): Promise<AgentTapeSearchResult[]> {
     this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
     return this.tapeService.search(sessionId, query, options)
+  }
+
+  async getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult> {
+    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    return this.tapeService.getContext(sessionId, entryIds, options)
   }
 
   async listTapeAnchors(
@@ -3052,7 +3066,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         appendSummarySection(systemPromptBase, summaryState.summaryText),
         this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
       ),
-      this.getLatestUserQuery(params.sessionId)
+      this.getLatestUserQuery(params.sessionId),
+      null
     )
     messages = this.replaceLeadingSystemPrompt(messages, systemPrompt)
 
@@ -3463,7 +3478,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           appendSummarySection(baseSystemPrompt, summaryState.summaryText),
           this.sessionStore.getReconstructionAnchorPromptState(sessionId)
         ),
-        this.getLatestUserQuery(sessionId)
+        this.getLatestUserQuery(sessionId),
+        messageId
       )
       const resumeContextBuild = buildTapeResumeView({
         sessionId,

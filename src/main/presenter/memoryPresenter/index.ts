@@ -261,6 +261,29 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.isManagedAgent ? this.deps.isManagedAgent(agentId) : true
   }
 
+  private canWriteAgentMemory(agentId: string): boolean {
+    return !this.disposed && this.isManagedAgent(agentId) && this.isEnabled(agentId)
+  }
+
+  private canReadAgentMemory(agentId: string): boolean {
+    return !this.disposed && this.isManagedAgent(agentId) && this.isEnabled(agentId)
+  }
+
+  private canContinueAgentMemoryTask(agentId: string): boolean {
+    return this.isManagedAgent(agentId) && this.isEnabled(agentId)
+  }
+
+  private isPendingEmbeddableRow(agentId: string, row: AgentMemoryRow | undefined): boolean {
+    return (
+      !!row &&
+      row.agent_id === agentId &&
+      row.status === 'pending_embedding' &&
+      !row.superseded_by &&
+      row.kind !== 'persona' &&
+      row.kind !== 'working'
+    )
+  }
+
   private emitChanged(agentId: string, reason: MemoryUpdateReason): void {
     this.deps.onMemoryChanged?.(agentId, reason)
   }
@@ -325,7 +348,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // its drain synchronously; a contended one queues behind the in-flight drain and then finds
   // the rows already embedded. A failing drain never breaks the chain for the next one.
   processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
-    if (this.disposed) return Promise.resolve()
+    if (!this.canWriteAgentMemory(agentId)) return Promise.resolve()
     const prev = this.embeddingDrains.get(agentId)
     const run = prev
       ? prev.then(
@@ -354,6 +377,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // call, and written to the sidecar in one transaction under the per-agent lock. Scoping at
   // the query keeps a high-producing agent from consuming another agent's embedding budget.
   private async drainPendingEmbeddings(agentId: string, limit: number): Promise<void> {
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     const config = this.deps.resolveAgentConfig(agentId)
     const pending = this.deps.repository.listPendingEmbedding(limit, agentId)
     if (!pending.length) return
@@ -361,7 +385,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const embedding = config?.memoryEmbedding
     if (!embedding?.providerId || !embedding?.modelId) {
       for (const row of pending) {
-        this.deps.repository.updateStatus(row.id, 'fts_only')
+        this.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'fts_only')
       }
       return
     }
@@ -378,12 +402,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
       // retries them rather than terminally marking the batch 'error'. Memory is never lost and a
       // service outage self-heals; without this a mid-reindex throw would strand the whole corpus.
       logger.error(`[Memory] embedding service failed for ${agentId}, will retry: ${String(error)}`)
+      if (!this.canContinueAgentMemoryTask(agentId)) return
       for (const row of pending) {
-        this.deps.repository.updateStatus(row.id, 'pending_embedding')
+        this.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'pending_embedding')
       }
       return
     }
 
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     try {
       const dim = vectors.find((vector) => vector?.length)?.length ?? 0
       const records: MemoryVectorRecord[] = []
@@ -392,45 +418,51 @@ export class MemoryPresenter implements MemoryRuntimePort {
         if (dim > 0 && vector?.length === dim) {
           records.push({ memoryId: pending[i].id, embedding: vector })
         } else {
-          this.deps.repository.updateStatus(pending[i].id, 'error')
+          this.deps.repository.updatePendingEmbeddingStatus(agentId, pending[i].id, 'error')
         }
       }
       if (!records.length) return
 
-      // Open the store and write the whole batch under one per-agent lock, re-checking row
-      // existence INSIDE the lock: a clear that ran during the embedding await drops those
-      // rows here so it cannot interleave to resurrect the sidecar with stale vectors.
       const outcome = await this.runExclusiveForAgent(agentId, async () => {
-        const live = records.filter((record) => this.deps.repository.getById(record.memoryId))
+        if (!this.canContinueAgentMemoryTask(agentId)) {
+          return { written: new Set<string>(), usable: true }
+        }
+        const live = records.filter((record) =>
+          this.isPendingEmbeddableRow(agentId, this.deps.repository.getById(record.memoryId))
+        )
         if (!live.length) return { written: new Set<string>(), usable: true }
         const store = await this.openVectorStoreLocked(
           agentId,
           { providerId: embedding.providerId, modelId: embedding.modelId },
           dim
         )
+        if (!this.canContinueAgentMemoryTask(agentId)) {
+          return { written: new Set<string>(), usable: true }
+        }
         if (!store.isUsable()) return { written: new Set<string>(), usable: false }
         await store.upsert(live)
         return { written: new Set(live.map((record) => record.memoryId)), usable: true }
       })
 
+      if (!this.canContinueAgentMemoryTask(agentId)) return
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
       for (const record of records) {
         if (outcome.written.has(record.memoryId)) {
-          this.deps.repository.updateStatus(record.memoryId, 'embedded', {
+          this.deps.repository.updatePendingEmbeddingStatus(agentId, record.memoryId, 'embedded', {
             embeddingId: record.memoryId,
             embeddingDim: dim,
             embeddingModel: fingerprint
           })
         } else if (!outcome.usable) {
-          this.deps.repository.updateStatus(record.memoryId, 'error')
+          this.deps.repository.updatePendingEmbeddingStatus(agentId, record.memoryId, 'error')
         }
-        // Rows cleared mid-flight are absent from `written`; their row no longer exists.
       }
     } catch (error) {
       // Embeddings succeeded but the vector store write failed: terminal for this batch.
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
+      if (!this.canContinueAgentMemoryTask(agentId)) return
       for (const row of pending) {
-        this.deps.repository.updateStatus(row.id, 'error')
+        this.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'error')
       }
     }
   }
@@ -451,6 +483,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   private async runReindex(agentId: string, force: boolean): Promise<void> {
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     // One batched UPDATE re-queues stale-model rows, recovers rows a prior failed embed left in
     // 'error', and picks up rows deferred as fts_only while no model was configured — without
     // scanning or looping per row on the caller's stack.
@@ -464,9 +497,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (!requeued && !force) return
     // Drop the stale-dimension store under the per-agent lock; the next embed rebuilds it.
     await this.runExclusiveForAgent(agentId, async () => {
+      if (!this.canContinueAgentMemoryTask(agentId)) return
       await this.closeVectorStore(agentId)
       await this.deps.resetVectorStore(agentId)
     })
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     this.emitChanged(agentId, 'reindex')
     await this.drainUntilExhausted(agentId)
   }
@@ -489,6 +524,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private async runBackfill(agentId: string): Promise<void> {
     // Yield first so the requeue UPDATE runs off the recall call stack.
     await Promise.resolve()
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     this.deps.repository.requeueForEmbedding(agentId, ['fts_only'])
     await this.drainUntilExhausted(agentId)
   }
@@ -498,9 +534,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // them pending on a transient failure) for the next trigger, so we stop instead of spinning.
   private async drainUntilExhausted(agentId: string): Promise<void> {
     for (let i = 0; i < REINDEX_MAX_BATCHES; i += 1) {
+      if (!this.canContinueAgentMemoryTask(agentId)) break
       const head = this.deps.repository.listPendingEmbedding(1, agentId)
       if (!head.length) break
       await this.processPendingEmbeddings(agentId, REINDEX_BATCH_SIZE)
+      if (!this.canContinueAgentMemoryTask(agentId)) break
       const next = this.deps.repository.listPendingEmbedding(1, agentId)
       if (next.length && next[0].id === head[0].id) break
     }
@@ -511,7 +549,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Never throws and never disrupts the chat; on failure the caller keeps its cursor for retry.
   async extractAndStore(input: MemoryExtractionInput): Promise<MemoryExtractionResult> {
     // Disabled or empty span: a successful no-op consume, so the caller may advance its cursor.
-    if (!this.isEnabled(input.agentId)) return { ok: true, createdIds: [] }
+    if (!this.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
     // The extraction chain is dispatched fire-and-forget and is not drained by dispose, so it must
     // fail closed itself: never start (or finish) a write against a database teardown is closing.
     if (this.disposed) return { ok: true, createdIds: [] }
@@ -533,7 +571,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         logger.warn(`[Memory] triage skipped, extracting anyway: ${String(error)}`)
       }
       // Teardown may have begun during the triage await; stop before firing the extraction LLM.
-      if (this.disposed) return { ok: true, createdIds: [] }
+      if (!this.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
       if (!shouldExtract) return { ok: true, createdIds: [] }
 
       const response = await this.deps.generateText(
@@ -542,7 +580,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         buildExtractionPrompt(span)
       )
       // Teardown may have begun during the extraction await; stop before any candidate processing.
-      if (this.disposed) return { ok: true, createdIds: [] }
+      if (!this.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
       const candidates = parseMemoryCandidates(response)
       const options: WriteMemoriesOptions = {
         agentId: input.agentId,
@@ -559,6 +597,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       }
       if (createdIds.length || touched) {
         this.registerMaintenanceAgent(input.agentId)
+        this.syncWorkingMemoryAfterMutation(input.agentId)
         this.emitChanged(input.agentId, 'extract')
         // Phase 2 embedding runs in the background; it must not block the caller.
         void this.processPendingEmbeddings(input.agentId).catch((error) => {
@@ -587,7 +626,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (!content) return { action: 'noop', reason: 'empty' }
     // Each disposed re-check below guards a write that follows an await: teardown may begin between
     // the candidate arriving and its decision landing, and no repository write may outlive it.
-    if (this.disposed) return { action: 'noop', reason: 'disposed' }
+    if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
 
     const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, content)
     const duplicate = this.deps.repository.getByProvenanceKey(agentId, provenanceKey)
@@ -605,7 +644,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] decision neighbor recall failed, adding: ${String(error)}`)
     }
-    if (this.disposed) return { action: 'noop', reason: 'disposed' }
+    if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
     if (!neighbors.length) {
       const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
       return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
@@ -625,7 +664,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] decision model failed, adding: ${String(error)}`)
     }
-    if (this.disposed) return { action: 'noop', reason: 'disposed' }
+    if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
 
     const target = decision.targetIndex !== null ? neighbors[decision.targetIndex] : null
     switch (decision.decision) {
@@ -825,7 +864,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Offline maintenance: cheap local upkeep always runs when due, while model-backed work is gated
   // by the latest completed LLM maintenance audit so the cooldown survives restarts.
   async runConsolidationPass(agentId: string, now: number = Date.now()): Promise<void> {
-    if (this.disposed || !this.isEnabled(agentId)) return
+    if (!this.canWriteAgentMemory(agentId)) return
     let last = this.lastConsolidationAt.get(agentId)
     if (last === undefined) {
       last =
@@ -857,11 +896,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
     }
+    if (!this.canWriteAgentMemory(agentId)) return
     try {
       if (await this.runChallengeResolutionPass(agentId, model)) touched = true
     } catch (error) {
       logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
     }
+    if (!this.canWriteAgentMemory(agentId)) return
     try {
       const reflection = await this.maybeReflect(agentId, model)
       if (reflection) {
@@ -878,6 +919,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     } catch (error) {
       logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
     }
+    if (!this.canWriteAgentMemory(agentId)) return
     try {
       const personaDraft = await this.maybeEvolvePersona(agentId, model)
       if (personaDraft) {
@@ -897,20 +939,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
       logger.warn(`[Memory] background persona evolution failed for ${agentId}: ${String(error)}`)
     }
     // Teardown may have started during the merge's awaits; bail before touching the DB it will close.
-    if (this.disposed) return
+    if (!this.canWriteAgentMemory(agentId)) return
     this.refreshDecayScores(agentId, now)
     this.archiveStale(agentId, now)
-    if (!this.disposed) {
-      this.stampConsolidation(agentId, now)
-      this.writeAudit(agentId, {
-        eventType: 'memory/maintenance_llm',
-        actorType: 'scheduler',
-        status: 'completed',
-        outputRefs: { touched },
-        model,
-        createdAt: now
-      })
-    }
+    this.syncWorkingMemoryAfterMutation(agentId)
+    this.stampConsolidation(agentId, now)
+    this.writeAudit(agentId, {
+      eventType: 'memory/maintenance_llm',
+      actorType: 'scheduler',
+      status: 'completed',
+      outputRefs: { touched },
+      model,
+      createdAt: now
+    })
 
     if (touched) {
       void this.processPendingEmbeddings(agentId).catch((error) => {
@@ -950,7 +991,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       } catch {
         continue
       }
-      if (this.disposed) break
+      if (!this.canWriteAgentMemory(agentId)) break
       const neighbor = hits.find(
         (hit) =>
           hit.id !== row.id &&
@@ -974,7 +1015,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         continue
       }
       // Teardown may have started during the decision await; bail before any repository write.
-      if (this.disposed) break
+      if (!this.canWriteAgentMemory(agentId)) break
 
       // Only UPDATE/SUPERSEDE fold the pair; NOOP means "already covered, leave both intact" so a
       // re-run over an already-merged corpus converges instead of superseding a live memory.
@@ -1004,7 +1045,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private runCheapMaintenance(agentId: string, now: number, archive: boolean): void {
     this.refreshDecayScores(agentId, now)
     if (archive) this.archiveStale(agentId, now)
-    this.refreshWorkingMemory(agentId)
+    this.syncWorkingMemoryAfterMutation(agentId)
   }
 
   private stampConsolidation(agentId: string, now: number): void {
@@ -1038,7 +1079,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
       this.deps.repository.archive(row.id, now)
       archived += 1
     }
-    if (archived > 0) this.emitChanged(agentId, 'extract')
+    if (archived > 0) {
+      this.syncWorkingMemoryAfterMutation(agentId)
+      this.emitChanged(agentId, 'extract')
+    }
     return archived
   }
 
@@ -1050,9 +1094,23 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
     this.deps.repository.updateStatus(memoryId, 'pending_embedding')
+    this.syncWorkingMemoryAfterMutation(agentId)
     void this.processPendingEmbeddings(agentId).catch((error) => {
       logger.warn(`[Memory] background embedding failed: ${String(error)}`)
     })
+    this.emitChanged(agentId, 'extract')
+    return true
+  }
+
+  async forgetMemory(agentId: string, memoryId: string): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    const row = this.deps.repository.getById(memoryId)
+    if (!row || row.agent_id !== agentId) return false
+    if (row.status === 'archived') return true
+    this.deps.repository.archive(row.id, Date.now())
+    this.syncWorkingMemoryAfterMutation(agentId)
     this.emitChanged(agentId, 'extract')
     return true
   }
@@ -1097,6 +1155,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     )
     if (!pair) return false
     this.applyConflictResolution(agentId, pair, outcome)
+    this.syncWorkingMemoryAfterMutation(agentId)
     this.writeAudit(agentId, {
       eventType: 'memory/challenge_resolved',
       actorType,
@@ -1180,7 +1239,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         logger.warn(`[Memory] challenge decision failed: ${String(error)}`)
         continue
       }
-      if (this.disposed) break
+      if (!this.canWriteAgentMemory(agentId)) break
       const outcome: MemoryConflictResolution =
         decision.decision === 'NOOP'
           ? 'keep_target'
@@ -1243,13 +1302,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
     options: WriteMemoriesOptions,
     model?: { providerId: string; modelId: string } | null
   ): Promise<MemoryWriteOutcome> {
-    if (this.disposed) return { action: 'noop', reason: 'disposed' }
+    if (!this.canWriteAgentMemory(options.agentId)) return { action: 'noop', reason: 'disposed' }
     const resolvedModel = model ? this.resolveExtractionModel(options.agentId, model) : null
     const outcome = resolvedModel
       ? await this.coordinateWrite(options.agentId, candidate, resolvedModel, options, Date.now())
       : this.directAddMemory(options.agentId, candidate, options)
     if (outcomeTouched(outcome)) {
       this.registerMaintenanceAgent(options.agentId)
+      this.syncWorkingMemoryAfterMutation(options.agentId)
       this.emitChanged(options.agentId, 'extract')
       if (outcome.action !== 'challenged') {
         void this.processPendingEmbeddings(options.agentId).catch((error) => {
@@ -1284,7 +1344,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // reranked by combined score and capped at top-K. Degrades to FTS-only when the agent has no
   // embedding config, when the query has no vector hits, or while a reindex is rebuilding vectors.
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
-    if (this.disposed) return []
+    if (!this.canReadAgentMemory(agentId)) return []
     return this.retrieve(agentId, query, now, true)
   }
 
@@ -1299,7 +1359,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   ): Promise<MemoryRecallItem[]> {
     // The read path is gated on disposed too: after teardown begins it must neither reopen a vector
     // store nor record access on a database that is closing.
-    if (this.disposed) return []
+    if (!this.canReadAgentMemory(agentId)) return []
     const config = this.deps.resolveAgentConfig(agentId)
     const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
     const normalizedQuery = query.trim()
@@ -1324,7 +1384,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         ])
         // Teardown may have started during the embedding await: bail before opening the store so a
         // late recall cannot reopen a sidecar the dispose close-loop has already passed.
-        if (this.disposed) return []
+        if (!this.canReadAgentMemory(agentId)) return []
         const vector = vectors[0]
         if (vector?.length) {
           const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
@@ -1332,7 +1392,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
             // The embedding model or dimension changed: rebuild vectors in the background and
             // answer from FTS this turn instead of querying a store with stale dimensions. Skipped
             // during teardown so no background write outlives the database connection.
-            if (!this.disposed) {
+            if (this.canReadAgentMemory(agentId)) {
               void this.reindexEmbeddings(agentId).catch((error) => {
                 logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
               })
@@ -1345,11 +1405,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
             )
             // Teardown may have begun while the store opened: bail before querying or reading rows.
             // dispose awaits the per-agent open lock, so the store this call cached is closed there.
-            if (this.disposed) return []
+            if (!this.canReadAgentMemory(agentId)) return []
             if (store.isUsable()) {
               const matches = await store.query(vector, { topK: candidateLimit })
               // ...and again after the query await, before any repository.getById on a closing DB.
-              if (this.disposed) return []
+              if (!this.canReadAgentMemory(agentId)) return []
               for (const match of matches) {
                 const similarity = distanceToSimilarity(match.distance)
                 if (similarity < similarityThreshold) continue
@@ -1372,12 +1432,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
               // The service embedded the query and the store is healthy: opportunistically embed
               // rows deferred as fts_only (config added later) and re-drain any an earlier run left
               // pending. Background, coalesced, and skipped while a reindex owns the requeue.
-              if (!this.disposed && !this.reindexing.has(agentId)) {
+              if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
                 void this.backfillEmbeddings(agentId).catch((error) => {
                   logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
                 })
               }
-            } else if (!this.disposed && !this.reindexing.has(agentId)) {
+            } else if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
               // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
               // were no embedded rows to flag it as stale). Rebuild it under the current identity so
               // the corpus stops failing closed; force the reset even if there is nothing to
@@ -1395,7 +1455,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
     const results = fuse(ftsRows, vecMatches, { topK, rrfK, weights, now, trace })
     // Re-check after the store/query awaits: never write access counters once teardown has begun.
-    if (recordAccessHits && !this.disposed) {
+    if (recordAccessHits && this.canReadAgentMemory(agentId)) {
       for (const item of results) {
         this.deps.repository.recordAccess(item.id, now)
       }
@@ -1404,7 +1464,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
-    if (this.disposed || !this.isEnabled(agentId)) return null
+    if (!this.canReadAgentMemory(agentId)) return null
     const config = this.deps.resolveAgentConfig(agentId)
     const persona = this.deps.repository.getActivePersona(agentId)
     // The working blob is a precomputed L1 read (no recall, no access bump). At session open the
@@ -1447,10 +1507,27 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Reads the agent's working-memory blob without bumping its access clock, so last_accessed stays
   // a pure "last refreshed at" stamp. Returns null on cold start (no blob), where recall takes over.
   private readWorkingMemory(agentId: string): string | null {
-    const workingKey = buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
-    const row = this.deps.repository.getByProvenanceKey(agentId, workingKey)
+    const row = this.deps.repository.getByProvenanceKey(agentId, this.workingMemoryKey(agentId))
     const content = row?.content?.trim()
     return content ? content : null
+  }
+
+  private workingMemoryKey(agentId: string): string {
+    return buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
+  }
+
+  private deleteWorkingMemory(agentId: string): void {
+    const existing = this.deps.repository.getByProvenanceKey(
+      agentId,
+      this.workingMemoryKey(agentId)
+    )
+    if (existing) this.deps.repository.delete(existing.id)
+  }
+
+  private syncWorkingMemoryAfterMutation(agentId: string): void {
+    if (this.disposed) return
+    if (this.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
+    else this.deleteWorkingMemory(agentId)
   }
 
   // Rebuilds the working-memory blob from the agent's highest-value resident memories (by importance,
@@ -1461,12 +1538,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // blocks on it. An in-flight flag coalesces concurrent open-misses; once the pass finishes the flag
   // clears, so a memory written between opens is reflected on the next open rather than after a timer.
   private scheduleWorkingRefresh(agentId: string): void {
-    if (this.disposed || !this.isEnabled(agentId)) return
+    if (!this.canReadAgentMemory(agentId)) return
     if (this.workingRefreshInFlight.has(agentId)) return
     this.workingRefreshInFlight.add(agentId)
     void Promise.resolve()
       .then(() => {
-        if (!this.disposed) this.refreshWorkingMemory(agentId)
+        if (this.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
       })
       .catch((error) => {
         logger.warn(`[Memory] working refresh skipped: ${String(error)}`)
@@ -1477,8 +1554,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   refreshWorkingMemory(agentId: string): void {
-    if (this.disposed || !this.isEnabled(agentId)) return
-    const workingKey = buildMemoryProvenanceKey(agentId, 'working', WORKING_PROVENANCE_SEED)
+    if (!this.canReadAgentMemory(agentId)) return
+    const workingKey = this.workingMemoryKey(agentId)
     const existing = this.deps.repository.getByProvenanceKey(agentId, workingKey)
     const blob = this.buildWorkingBlob(agentId)
     if (!blob) {
@@ -1546,7 +1623,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     model: { providerId: string; modelId: string },
     sourceSession?: string | null
   ): Promise<MemoryReflectionResult | null> {
-    if (this.disposed || !this.isEnabled(agentId)) return null
+    if (!this.canWriteAgentMemory(agentId)) return null
     try {
       const units = this.deps.repository.listByAgent(agentId, { kinds: ['episodic', 'semantic'] })
       if (units.length < MIN_MEMORIES_FOR_REFLECTION) return null
@@ -1577,7 +1654,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         reflectionModel.modelId,
         buildReflectionInsightsPrompt(top.map((row) => row.content))
       )
-      if (this.disposed) return null
+      if (!this.canWriteAgentMemory(agentId)) return null
       const insights = parseReflectionInsights(raw)
       const reflectionIds: string[] = []
       for (const insight of insights) {
@@ -1590,6 +1667,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       }
       this.reflectionAttemptWatermark.delete(agentId)
 
+      this.syncWorkingMemoryAfterMutation(agentId)
       this.emitChanged(agentId, 'extract')
       void this.processPendingEmbeddings(agentId).catch((error) => {
         logger.warn(`[Memory] background embedding failed: ${String(error)}`)
@@ -1609,6 +1687,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     content: string,
     sourceSession: string | null
   ): string | null {
+    if (!this.canWriteAgentMemory(agentId)) return null
     const trimmed = content.trim()
     if (!trimmed) return null
     const provenanceKey = buildMemoryProvenanceKey(agentId, 'reflection', trimmed)
@@ -1637,7 +1716,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // Writes a new self-model as a DRAFT: never active, never superseding the current persona, never
   // injected (getActivePersona ignores drafts) until the user approves it. Returns the draft id.
   evolvePersona(agentId: string, content: string, sourceSession?: string | null): string | null {
-    if (this.disposed) return null
+    if (!this.canWriteAgentMemory(agentId)) return null
     const trimmed = content.trim()
     if (!trimmed) return null
     const id = `persona-${nanoid(12)}`
@@ -1665,10 +1744,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
     model: { providerId: string; modelId: string },
     sourceSession?: string | null
   ): Promise<MemoryPersonaDraftResult | null> {
-    if (this.disposed || !this.isPersonaEvolutionEnabled(agentId)) return null
+    if (!this.canWriteAgentMemory(agentId) || !this.isPersonaEvolutionEnabled(agentId)) return null
     try {
       return await this.withPersonaLock(agentId, async () => {
-        if (this.disposed) return null
+        if (!this.canWriteAgentMemory(agentId) || !this.isPersonaEvolutionEnabled(agentId)) {
+          return null
+        }
         // One outstanding draft at a time: skip before any model call until the user resolves it.
         if (this.deps.repository.getDraftPersona(agentId)) return null
 
@@ -1701,7 +1782,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
             top.map((row) => row.content)
           )
         )
-        if (this.disposed) return null
+        if (!this.canWriteAgentMemory(agentId) || !this.isPersonaEvolutionEnabled(agentId)) {
+          return null
+        }
         const content = sanitizeSelfModel(raw)
         // No usable output or no change from the current self-model: advance the watermark so the
         // model is not re-spent on the same units, and produce no draft.
@@ -1855,6 +1938,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     this.deps.repository.delete(memoryId)
+    if (row.kind !== 'working') {
+      this.syncWorkingMemoryAfterMutation(agentId)
+    }
     // Run the vector delete under the per-agent lock so dispose() awaits it (via vectorStoreLocks)
     // before closing the sidecar — otherwise a teardown landing mid-DELETE could close the DuckDB
     // connection while the statement runs. If teardown already began, skip it: the authoritative row
@@ -1896,6 +1982,50 @@ export class MemoryPresenter implements MemoryRuntimePort {
       this.lastConsolidationAt.delete(agentId)
     }
     return removed
+  }
+
+  async cleanupDeletedAgentResources(agentId: string): Promise<void> {
+    if (this.disposed) return
+    this.assertSafeAgentId(agentId)
+    let resetError: unknown
+    try {
+      await this.runExclusiveForAgent(agentId, async () => {
+        await this.closeVectorStore(agentId)
+        await this.deps.resetVectorStore(agentId)
+      })
+    } catch (error) {
+      resetError = error
+    } finally {
+      const timer = this.consolidationTimers.get(agentId)
+      if (timer) clearTimeout(timer)
+      this.consolidationTimers.delete(agentId)
+      this.maintenanceAgents.delete(agentId)
+      this.lastConsolidationAt.delete(agentId)
+      this.reflectionAttemptWatermark.delete(agentId)
+      this.personaAttemptWatermark.delete(agentId)
+      this.workingRefreshInFlight.delete(agentId)
+      await this.settleDeletedAgentInFlight(agentId)
+    }
+    if (resetError) throw resetError
+  }
+
+  private async settleDeletedAgentInFlight(agentId: string): Promise<void> {
+    const reindexing = this.reindexing.get(agentId)
+    const backfilling = this.backfilling.get(agentId)
+    const embeddingDrain = this.embeddingDrains.get(agentId)
+    const vectorStoreLock = this.vectorStoreLocks.get(agentId)
+    const personaLock = this.personaLocks.get(agentId)
+    await Promise.allSettled(
+      [reindexing, backfilling, embeddingDrain, vectorStoreLock, personaLock].filter(
+        (promise): promise is Promise<unknown> => Boolean(promise)
+      )
+    )
+    if (this.reindexing.get(agentId) === reindexing) this.reindexing.delete(agentId)
+    if (this.backfilling.get(agentId) === backfilling) this.backfilling.delete(agentId)
+    if (this.embeddingDrains.get(agentId) === embeddingDrain) this.embeddingDrains.delete(agentId)
+    if (this.vectorStoreLocks.get(agentId) === vectorStoreLock)
+      this.vectorStoreLocks.delete(agentId)
+    if (this.personaLocks.get(agentId) === personaLock) this.personaLocks.delete(agentId)
   }
 
   getStatus(agentId: string): MemoryStatus {

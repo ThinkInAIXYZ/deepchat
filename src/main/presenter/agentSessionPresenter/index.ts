@@ -3,6 +3,8 @@ import type {
   Agent,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -1395,6 +1397,24 @@ export class AgentSessionPresenter {
     }
 
     return await agent.searchTape(sessionId, query, options)
+  }
+
+  async getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult> {
+    const session = this.sessionManager.get(sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    const agent = await this.resolveAgentImplementation(session.agentId)
+    if (!agent.getTapeContext) {
+      throw new Error(`Agent ${session.agentId} does not support tape context.`)
+    }
+
+    return await agent.getTapeContext(sessionId, entryIds, options)
   }
 
   async listTapeAnchors(

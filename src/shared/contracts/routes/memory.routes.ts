@@ -32,6 +32,36 @@ export const MemoryStatusSchema = z.object({
   reindexing: z.boolean().optional()
 })
 
+const JsonRecordSchema = z.record(z.unknown())
+
+export const MemoryAuditEventSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  eventType: z.string(),
+  actorType: z.enum(['scheduler', 'user', 'runtime']),
+  sessionId: z.string().nullable(),
+  inputRefs: JsonRecordSchema,
+  outputRefs: JsonRecordSchema,
+  modelProviderId: z.string().nullable(),
+  modelId: z.string().nullable(),
+  status: z.enum(['completed', 'skipped', 'failed']),
+  reason: z.string().nullable(),
+  createdAt: z.number()
+})
+
+export const MemoryViewManifestSchema = z.object({
+  sessionId: z.string(),
+  messageId: z.string().nullable(),
+  entryId: z.number(),
+  policyVersion: z.number().nullable(),
+  tokenBudget: z.number(),
+  estimatedTokens: z.number(),
+  selectedCount: z.number(),
+  droppedCount: z.number(),
+  queryHash: z.string().nullable(),
+  createdAt: z.number()
+})
+
 export const memoryListRoute = defineRouteContract({
   name: 'memory.list',
   input: z.object({ agentId: AgentIdSchema }),
@@ -42,6 +72,32 @@ export const memoryGetStatusRoute = defineRouteContract({
   name: 'memory.getStatus',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ status: MemoryStatusSchema })
+})
+
+export const memoryListAuditEventsRoute = defineRouteContract({
+  name: 'memory.listAuditEvents',
+  input: z.object({
+    agentId: AgentIdSchema,
+    eventType: z.string().optional(),
+    actorType: z.enum(['scheduler', 'user', 'runtime']).optional(),
+    sessionId: z.string().optional(),
+    status: z.enum(['completed', 'skipped', 'failed']).optional(),
+    startCreatedAt: z.number().optional(),
+    endCreatedAt: z.number().optional(),
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: z.object({ events: z.array(MemoryAuditEventSchema) })
+})
+
+export const memoryListViewManifestsRoute = defineRouteContract({
+  name: 'memory.listViewManifests',
+  input: z.object({
+    agentId: AgentIdSchema,
+    sessionId: z.string().optional(),
+    messageId: z.string().optional(),
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: z.object({ manifests: z.array(MemoryViewManifestSchema) })
 })
 
 export const memoryDeleteRoute = defineRouteContract({
@@ -138,6 +194,8 @@ export const memorySetPersonaAnchorRoute = defineRouteContract({
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
 export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
+export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
+export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>
 export type MemorySourceSpan = z.infer<typeof memoryGetSourceSpanRoute.output>['span']
 export type MemoryConflictItem = z.infer<
   typeof memoryListConflictsRoute.output

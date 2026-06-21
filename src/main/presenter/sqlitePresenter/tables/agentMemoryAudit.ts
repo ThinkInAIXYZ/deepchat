@@ -34,6 +34,16 @@ export interface AgentMemoryAuditInsertInput {
   createdAt?: number
 }
 
+export interface AgentMemoryAuditListOptions {
+  eventType?: string
+  actorType?: AgentMemoryAuditActorType
+  sessionId?: string
+  status?: AgentMemoryAuditStatus
+  startCreatedAt?: number
+  endCreatedAt?: number
+  limit?: number
+}
+
 const AGENT_MEMORY_AUDIT_SCHEMA_VERSION = 36
 
 const AGENT_MEMORY_AUDIT_INDEX_SQL = `
@@ -140,17 +150,51 @@ export class AgentMemoryAuditTable extends BaseTable {
     return row
   }
 
-  listByAgent(agentId: string, limit: number = 100): AgentMemoryAuditRow[] {
+  listByAgent(
+    agentId: string,
+    optionsOrLimit: number | AgentMemoryAuditListOptions = 100
+  ): AgentMemoryAuditRow[] {
+    const options = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit
+    const whereClauses = ['agent_id = ?']
+    const params: Array<string | number> = [agentId]
+
+    if (options.eventType) {
+      whereClauses.push('event_type = ?')
+      params.push(options.eventType)
+    }
+    if (options.actorType) {
+      whereClauses.push('actor_type = ?')
+      params.push(options.actorType)
+    }
+    if (options.sessionId) {
+      whereClauses.push('session_id = ?')
+      params.push(options.sessionId)
+    }
+    if (options.status) {
+      whereClauses.push('status = ?')
+      params.push(options.status)
+    }
+    if (Number.isFinite(options.startCreatedAt)) {
+      whereClauses.push('created_at >= ?')
+      params.push(options.startCreatedAt as number)
+    }
+    if (Number.isFinite(options.endCreatedAt)) {
+      whereClauses.push('created_at <= ?')
+      params.push(options.endCreatedAt as number)
+    }
+
+    const limit = options.limit ?? 100
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 500)
+    params.push(cappedLimit)
     return this.db
       .prepare(
         `SELECT *
          FROM agent_memory_audit
-         WHERE agent_id = ?
+         WHERE ${whereClauses.join(' AND ')}
          ORDER BY created_at DESC
          LIMIT ?`
       )
-      .all(agentId, cappedLimit) as AgentMemoryAuditRow[]
+      .all(...params) as AgentMemoryAuditRow[]
   }
 
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null {
@@ -164,5 +208,10 @@ export class AgentMemoryAuditTable extends BaseTable {
       )
       .get(agentId, eventType) as { at: number | null } | undefined
     return row?.at ?? null
+  }
+
+  clearByAgent(agentId: string): number {
+    const result = this.db.prepare('DELETE FROM agent_memory_audit WHERE agent_id = ?').run(agentId)
+    return result.changes
   }
 }

@@ -7,6 +7,7 @@ import type {
   AgentMemoryInsertInput,
   AgentMemoryRow,
   IMemoryVectorStore,
+  MemoryAuditListOptions,
   MemoryAuditRepositoryPort,
   MemoryRepositoryPort,
   MemoryVectorMatch,
@@ -153,6 +154,7 @@ export class FakeRepository implements MemoryRepositoryPort {
       .filter(
         (row) =>
           row.status === 'pending_embedding' &&
+          !row.superseded_by &&
           row.kind !== 'persona' &&
           row.kind !== 'working' &&
           (!agentId || row.agent_id === agentId)
@@ -175,6 +177,34 @@ export class FakeRepository implements MemoryRepositoryPort {
     row.embedding_id = embedding?.embeddingId ?? null
     row.embedding_dim = embedding?.embeddingDim ?? null
     row.embedding_model = embedding?.embeddingModel ?? null
+  }
+
+  updatePendingEmbeddingStatus(
+    agentId: string,
+    id: string,
+    status: AgentMemoryRow['status'],
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
+  ) {
+    const row = this.rows.get(id)
+    if (
+      !row ||
+      row.agent_id !== agentId ||
+      row.status !== 'pending_embedding' ||
+      row.superseded_by ||
+      row.kind === 'persona' ||
+      row.kind === 'working'
+    ) {
+      return false
+    }
+    row.status = status
+    row.embedding_id = embedding?.embeddingId ?? null
+    row.embedding_dim = embedding?.embeddingDim ?? null
+    row.embedding_model = embedding?.embeddingModel ?? null
+    return true
   }
 
   requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
@@ -331,11 +361,29 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
     return row
   }
 
-  listByAgent(agentId: string, limit = 100): AgentMemoryAuditRow[] {
+  listByAgent(
+    agentId: string,
+    optionsOrLimit: number | MemoryAuditListOptions = 100
+  ): AgentMemoryAuditRow[] {
+    const options = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit
     return this.rows
       .filter((row) => row.agent_id === agentId)
+      .filter((row) => !options.eventType || row.event_type === options.eventType)
+      .filter((row) => !options.actorType || row.actor_type === options.actorType)
+      .filter((row) => !options.sessionId || row.session_id === options.sessionId)
+      .filter((row) => !options.status || row.status === options.status)
+      .filter(
+        (row) =>
+          !Number.isFinite(options.startCreatedAt) ||
+          row.created_at >= (options.startCreatedAt as number)
+      )
+      .filter(
+        (row) =>
+          !Number.isFinite(options.endCreatedAt) ||
+          row.created_at <= (options.endCreatedAt as number)
+      )
       .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, limit)
+      .slice(0, options.limit ?? 100)
   }
 
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null {

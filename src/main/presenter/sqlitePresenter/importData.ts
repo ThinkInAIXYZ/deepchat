@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from './connectionConfig'
+import { shouldExcludeFromSqliteCopy } from './sqliteCopyExclusions'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>
@@ -92,7 +93,9 @@ export class DataImporter {
     const isVirtualOrShadow = (name: string): boolean =>
       virtualTableNames.some((vtab) => name === vtab || name.startsWith(`${vtab}_`))
 
-    const tables = allTables.filter((table) => !isVirtualOrShadow(table.name))
+    const tables = allTables.filter(
+      (table) => !isVirtualOrShadow(table.name) && !shouldExcludeFromSqliteCopy(table.name)
+    )
 
     const preferredOrder = ['conversations', 'messages', 'attachments', 'message_attachments']
     const preferredSet = new Set(preferredOrder)

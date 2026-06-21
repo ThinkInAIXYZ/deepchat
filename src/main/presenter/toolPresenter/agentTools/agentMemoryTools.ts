@@ -44,7 +44,7 @@ const recallSchema = z
 
 const forgetSchema = z
   .object({
-    memoryId: z.string().trim().min(1).describe('The id of the memory to delete.')
+    memoryId: z.string().trim().min(1).describe('The id of the memory to forget.')
   })
   .strict()
 
@@ -137,7 +137,7 @@ export class AgentMemoryToolHandler {
       ),
       buildToolDefinition(
         MEMORY_TOOL_NAMES.forget,
-        'Delete a specific long-term memory by id.',
+        'Archive a specific long-term memory by id so it is no longer recalled.',
         forgetSchema
       )
     ]
@@ -194,6 +194,6 @@ export class AgentMemoryToolHandler {
 
     const args = memoryToolSchemas[MEMORY_TOOL_NAMES.forget].parse(rawArgs)
     const ok = await this.runtimePort.forgetMemory!(agentId, args.memoryId)
-    return createMemoryResult(toolName, { ok }, ok ? 'Deleted the memory.' : 'Memory not found.')
+    return createMemoryResult(toolName, { ok }, ok ? 'Forgot the memory.' : 'Memory not found.')
   }
 }

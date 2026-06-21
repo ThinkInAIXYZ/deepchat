@@ -289,6 +289,9 @@ export class Presenter implements IPresenter {
       searchTape: async (conversationId, query, options) => {
         return await this.agentSessionPresenter.searchTape(conversationId, query, options)
       },
+      getTapeContext: async (conversationId, entryIds, options) => {
+        return await this.agentSessionPresenter.getTapeContext(conversationId, entryIds, options)
+      },
       listTapeAnchors: async (conversationId, options) => {
         return await this.agentSessionPresenter.listTapeAnchors(conversationId, options)
       },
@@ -315,7 +318,7 @@ export class Presenter implements IPresenter {
         }))
       },
       forgetMemory: async (agentId, memoryId) =>
-        await this.memoryPresenter.deleteMemory(agentId, memoryId),
+        await this.memoryPresenter.forgetMemory(agentId, memoryId),
       createSubagentSession: async (input) => {
         const agentSessionPresenter = this.agentSessionPresenter as IAgentSessionPresenter & {
           createSubagentSession?: (createInput: typeof input) => Promise<{
@@ -575,6 +578,13 @@ export class Presenter implements IPresenter {
           reason,
           version: Date.now()
         })
+    })
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setDeepChatAgentDeleteCleanup?: (cleanup: (agentId: string) => Promise<void>) => void
+      }
+    ).setDeepChatAgentDeleteCleanup?.(async (agentId) => {
+      await this.memoryPresenter.cleanupDeletedAgentResources(agentId)
     })
     this.memoryPresenter.startBackgroundMaintenance()
 

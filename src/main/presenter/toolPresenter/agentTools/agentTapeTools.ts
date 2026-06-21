@@ -9,6 +9,7 @@ export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
 export const TAPE_TOOL_NAMES = {
   info: 'tape_info',
   search: 'tape_search',
+  context: 'tape_context',
   anchors: 'tape_anchors',
   handoff: 'tape_handoff'
 } as const
@@ -61,6 +62,53 @@ const tapeSearchSchema = z.object({
     .describe('Optional inclusive ISO date/time or millisecond timestamp upper bound.')
 })
 
+const tapeContextSchema = z.object({
+  entryIds: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(20)
+    .describe('Tape entry IDs to expand into compact local context.'),
+  before: z
+    .number()
+    .int()
+    .min(0)
+    .max(20)
+    .optional()
+    .describe(
+      'Number of effective tape entries to include before each requested entry. Defaults to 2.'
+    ),
+  after: z
+    .number()
+    .int()
+    .min(0)
+    .max(20)
+    .optional()
+    .describe(
+      'Number of effective tape entries to include after each requested entry. Defaults to 2.'
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Maximum compact context entries to return. Defaults to 50.'),
+  maxBytesPerEntry: z
+    .number()
+    .int()
+    .min(0)
+    .max(8192)
+    .optional()
+    .describe('Maximum evidence bytes per entry. Defaults to 2048.'),
+  maxTotalBytes: z
+    .number()
+    .int()
+    .min(0)
+    .max(65536)
+    .optional()
+    .describe('Maximum evidence bytes across all returned entries. Defaults to 16384.')
+})
+
 const tapeHandoffSchema = z
   .object({
     name: z
@@ -81,6 +129,7 @@ const tapeHandoffSchema = z
 const tapeToolSchemas = {
   [TAPE_TOOL_NAMES.info]: tapeInfoSchema,
   [TAPE_TOOL_NAMES.search]: tapeSearchSchema,
+  [TAPE_TOOL_NAMES.context]: tapeContextSchema,
   [TAPE_TOOL_NAMES.anchors]: tapeAnchorsSchema,
   [TAPE_TOOL_NAMES.handoff]: tapeHandoffSchema
 }
@@ -148,6 +197,34 @@ function toTapeAnchorOverview(anchor: {
   }
 }
 
+function toTapeSearchOverview(result: {
+  entryId: number
+  kind: string
+  name: string | null
+  createdAt: number
+  summary?: string
+  refs?: Record<string, unknown>
+  score?: number
+}): {
+  entryId: number
+  kind: string
+  name: string | null
+  createdAt: number
+  summary?: string
+  refs?: Record<string, unknown>
+  score?: number
+} {
+  return {
+    entryId: result.entryId,
+    kind: result.kind,
+    name: result.name,
+    createdAt: result.createdAt,
+    ...(result.summary === undefined ? {} : { summary: result.summary }),
+    ...(result.refs === undefined ? {} : { refs: result.refs }),
+    ...(result.score === undefined ? {} : { score: result.score })
+  }
+}
+
 function parseTapeHandoffArgs(rawArgs: Record<string, unknown>): z.infer<typeof tapeHandoffSchema> {
   const parsed = tapeHandoffSchema.safeParse(rawArgs)
   if (parsed.success) {
@@ -182,7 +259,7 @@ export class AgentTapeToolHandler {
   }
 
   getToolDefinitions(): MCPToolDefinition[] {
-    return [
+    const definitions = [
       buildToolDefinition(
         TAPE_TOOL_NAMES.info,
         'Inspect this DeepChat-scoped append-only tape subset inspired by bub tape.info. Returns entry counts, anchor state, token usage, and migration status for the current session.',
@@ -203,6 +280,16 @@ export class AgentTapeToolHandler {
         'Write a bub-style phase-transition anchor to this DeepChat session tape. The anchor becomes the durable reconstruction marker for later context builds; include a compact summary when earlier history should be carried forward.',
         tapeHandoffSchema
       )
+    ]
+    if (!this.runtimePort.getTapeContext) return definitions
+    return [
+      ...definitions.slice(0, 2),
+      buildToolDefinition(
+        TAPE_TOOL_NAMES.context,
+        'Expand compact local evidence around selected tape entry IDs for the current session without returning unbounded raw payloads.',
+        tapeContextSchema
+      ),
+      ...definitions.slice(2)
     ]
   }
 
@@ -238,7 +325,27 @@ export class AgentTapeToolHandler {
         start: args.start,
         end: args.end
       })
-      return createTapeResult(toolName, results, `Found ${results.length} tape entries.`)
+      const overview = results.map(toTapeSearchOverview)
+      return createTapeResult(toolName, overview, `Found ${overview.length} tape entries.`)
+    }
+
+    if (toolName === TAPE_TOOL_NAMES.context) {
+      if (!this.runtimePort.getTapeContext) {
+        throw new Error('Tape context is not available.')
+      }
+      const args = tapeToolSchemas[toolName].parse(rawArgs)
+      const context = await this.runtimePort.getTapeContext(conversationId, args.entryIds, {
+        before: args.before,
+        after: args.after,
+        limit: args.limit,
+        maxBytesPerEntry: args.maxBytesPerEntry,
+        maxTotalBytes: args.maxTotalBytes
+      })
+      return createTapeResult(
+        toolName,
+        context,
+        `Expanded ${context.entries.length} tape context entries.`
+      )
     }
 
     if (toolName === TAPE_TOOL_NAMES.anchors) {

@@ -9,6 +9,8 @@ import type {
   DeepChatSubagentSlot,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -64,6 +66,11 @@ export interface AgentToolRuntimePort {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+  getTapeContext?(
+    conversationId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
   listTapeAnchors?(
     conversationId: string,
     options?: AgentTapeAnchorsOptions
@@ -87,7 +94,6 @@ export interface AgentToolRuntimePort {
     agentId: string,
     query: string
   ): Promise<Array<{ id: string; kind: string; content: string }>>
-  /** Deletes one long-term memory. */
   forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
   mergeSubagentTape?(

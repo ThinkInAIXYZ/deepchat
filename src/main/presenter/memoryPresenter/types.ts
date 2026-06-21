@@ -51,6 +51,16 @@ export interface MemoryRepositoryPort {
       embeddingModel?: string | null
     }
   ): void
+  updatePendingEmbeddingStatus(
+    agentId: string,
+    id: string,
+    status: AgentMemoryStatus,
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
+  ): boolean
   // Bulk-resets the embedding state of an agent's non-superseded rows in the given statuses back
   // to pending_embedding (one SQL UPDATE), returning how many rows changed. Used by reindex and
   // backfill so the requeue never loops per row on the caller's stack.
@@ -75,8 +85,18 @@ export interface MemoryRepositoryPort {
 
 export interface MemoryAuditRepositoryPort {
   insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow
-  listByAgent(agentId: string, limit?: number): AgentMemoryAuditRow[]
+  listByAgent(agentId: string, options?: number | MemoryAuditListOptions): AgentMemoryAuditRow[]
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null
+}
+
+export interface MemoryAuditListOptions {
+  eventType?: string
+  actorType?: AgentMemoryAuditActorType
+  sessionId?: string
+  status?: AgentMemoryAuditStatus
+  startCreatedAt?: number
+  endCreatedAt?: number
+  limit?: number
 }
 
 export type {

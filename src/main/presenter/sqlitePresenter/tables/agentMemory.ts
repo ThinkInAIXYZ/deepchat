@@ -518,7 +518,10 @@ export class AgentMemoryTable extends BaseTable {
       return this.db
         .prepare(
           `SELECT * FROM agent_memory
-           WHERE status = 'pending_embedding' AND kind NOT IN ('persona', 'working') AND agent_id = ?
+           WHERE status = 'pending_embedding'
+             AND superseded_by IS NULL
+             AND kind NOT IN ('persona', 'working')
+             AND agent_id = ?
            ORDER BY created_at ASC
            LIMIT ?`
         )
@@ -527,7 +530,9 @@ export class AgentMemoryTable extends BaseTable {
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
-         WHERE status = 'pending_embedding' AND kind NOT IN ('persona', 'working')
+         WHERE status = 'pending_embedding'
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
          ORDER BY created_at ASC
          LIMIT ?`
       )
@@ -556,6 +561,37 @@ export class AgentMemoryTable extends BaseTable {
         embedding?.embeddingModel ?? null,
         id
       )
+  }
+
+  updatePendingEmbeddingStatus(
+    agentId: string,
+    id: string,
+    status: AgentMemoryStatus,
+    embedding?: {
+      embeddingId?: string | null
+      embeddingDim?: number | null
+      embeddingModel?: string | null
+    }
+  ): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET status = ?, embedding_id = ?, embedding_dim = ?, embedding_model = ?
+         WHERE id = ?
+           AND agent_id = ?
+           AND status = 'pending_embedding'
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')`
+      )
+      .run(
+        status,
+        embedding?.embeddingId ?? null,
+        embedding?.embeddingDim ?? null,
+        embedding?.embeddingModel ?? null,
+        id,
+        agentId
+      )
+    return result.changes > 0
   }
 
   // Resets the embedding state of the agent's non-superseded rows in `statuses` back to

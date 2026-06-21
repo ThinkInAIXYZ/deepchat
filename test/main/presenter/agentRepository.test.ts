@@ -2,6 +2,274 @@ import { describe, expect, it } from 'vitest'
 import { AgentRepository } from '../../../src/main/presenter/agentRepository'
 
 describe('AgentRepository', () => {
+  it('deletes DeepChat agent memory rows and the agent row in one transaction', () => {
+    const agents = new Map<string, any>([
+      [
+        'writer',
+        {
+          id: 'writer',
+          agent_type: 'deepchat',
+          source: 'manual',
+          name: 'Writer',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: null,
+          created_at: 1,
+          updated_at: 1
+        }
+      ]
+    ])
+    const memories = new Map<string, string>([
+      ['m1', 'writer'],
+      ['m2', 'other']
+    ])
+    const audits = new Map<string, string>([
+      ['a1', 'writer'],
+      ['a2', 'other']
+    ])
+    const sqlitePresenter = {
+      getDatabase: () => ({
+        transaction: (callback: () => boolean) => callback
+      }),
+      agentsTable: {
+        get: (id: string) => agents.get(id),
+        delete: (id: string) => {
+          agents.delete(id)
+        }
+      },
+      agentMemoryTable: {
+        clearByAgent: (agentId: string) => {
+          let removed = 0
+          for (const [id, owner] of [...memories]) {
+            if (owner === agentId) {
+              memories.delete(id)
+              removed += 1
+            }
+          }
+          return removed
+        }
+      },
+      agentMemoryAuditTable: {
+        clearByAgent: (agentId: string) => {
+          let removed = 0
+          for (const [id, owner] of [...audits]) {
+            if (owner === agentId) {
+              audits.delete(id)
+              removed += 1
+            }
+          }
+          return removed
+        }
+      },
+      newSessionsTable: {
+        list: () => []
+      }
+    }
+    const repository = new AgentRepository(sqlitePresenter as never)
+
+    expect(repository.deleteDeepChatAgent('writer')).toBe(true)
+    expect(agents.has('writer')).toBe(false)
+    expect([...memories.entries()]).toEqual([['m2', 'other']])
+    expect([...audits.entries()]).toEqual([['a2', 'other']])
+  })
+
+  it('does not clear memory or audit rows when DeepChat agent deletion is blocked', () => {
+    const agent = {
+      id: 'writer',
+      agent_type: 'deepchat',
+      source: 'manual',
+      name: 'Writer',
+      enabled: 1,
+      protected: 0,
+      description: null,
+      icon: null,
+      avatar_json: null,
+      config_json: '{}',
+      state_json: null,
+      created_at: 1,
+      updated_at: 1
+    }
+    const memories = new Map<string, string>([['m1', 'writer']])
+    const audits = new Map<string, string>([['a1', 'writer']])
+    const sqlitePresenter = {
+      getDatabase: () => ({
+        transaction: (callback: () => boolean) => callback
+      }),
+      agentsTable: {
+        get: () => agent,
+        delete: () => {
+          throw new Error('should not delete')
+        }
+      },
+      agentMemoryTable: {
+        clearByAgent: () => {
+          memories.clear()
+          return 1
+        }
+      },
+      agentMemoryAuditTable: {
+        clearByAgent: () => {
+          audits.clear()
+          return 1
+        }
+      },
+      newSessionsTable: {
+        list: () => [{ id: 's1' }]
+      }
+    }
+    const repository = new AgentRepository(sqlitePresenter as never)
+
+    expect(repository.deleteDeepChatAgent('writer')).toBe(false)
+    expect(memories.has('m1')).toBe(true)
+    expect(audits.has('a1')).toBe(true)
+  })
+
+  it('does not clear memory or audit rows for protected or non-DeepChat agents', () => {
+    const cases = [
+      { agentType: 'deepchat', protected: 1 },
+      { agentType: 'acp', protected: 0 }
+    ]
+
+    for (const testCase of cases) {
+      const agent = {
+        id: 'writer',
+        agent_type: testCase.agentType,
+        source: 'manual',
+        name: 'Writer',
+        enabled: 1,
+        protected: testCase.protected,
+        description: null,
+        icon: null,
+        avatar_json: null,
+        config_json: '{}',
+        state_json: null,
+        created_at: 1,
+        updated_at: 1
+      }
+      const memories = new Map<string, string>([['m1', 'writer']])
+      const audits = new Map<string, string>([['a1', 'writer']])
+      const sqlitePresenter = {
+        getDatabase: () => ({
+          transaction: (callback: () => boolean) => callback
+        }),
+        agentsTable: {
+          get: () => agent,
+          delete: () => {
+            throw new Error('should not delete')
+          }
+        },
+        agentMemoryTable: {
+          clearByAgent: () => {
+            memories.clear()
+            return 1
+          }
+        },
+        agentMemoryAuditTable: {
+          clearByAgent: () => {
+            audits.clear()
+            return 1
+          }
+        },
+        newSessionsTable: {
+          list: () => []
+        }
+      }
+      const repository = new AgentRepository(sqlitePresenter as never)
+
+      expect(repository.deleteDeepChatAgent('writer')).toBe(false)
+      expect(memories.has('m1')).toBe(true)
+      expect(audits.has('a1')).toBe(true)
+    }
+  })
+
+  it('rolls back memory and audit cleanup when agent row deletion fails', () => {
+    const agents = new Map<string, any>([
+      [
+        'writer',
+        {
+          id: 'writer',
+          agent_type: 'deepchat',
+          source: 'manual',
+          name: 'Writer',
+          enabled: 1,
+          protected: 0,
+          description: null,
+          icon: null,
+          avatar_json: null,
+          config_json: '{}',
+          state_json: null,
+          created_at: 1,
+          updated_at: 1
+        }
+      ]
+    ])
+    const memories = new Map<string, string>([['m1', 'writer']])
+    const audits = new Map<string, string>([['a1', 'writer']])
+    const sqlitePresenter = {
+      getDatabase: () => ({
+        transaction: (callback: () => boolean) => () => {
+          const agentSnapshot = new Map(agents)
+          const memorySnapshot = new Map(memories)
+          const auditSnapshot = new Map(audits)
+          try {
+            return callback()
+          } catch (error) {
+            agents.clear()
+            for (const entry of agentSnapshot) agents.set(...entry)
+            memories.clear()
+            for (const entry of memorySnapshot) memories.set(...entry)
+            audits.clear()
+            for (const entry of auditSnapshot) audits.set(...entry)
+            throw error
+          }
+        }
+      }),
+      agentsTable: {
+        get: (id: string) => agents.get(id),
+        delete: () => {
+          throw new Error('delete failed')
+        }
+      },
+      agentMemoryTable: {
+        clearByAgent: (agentId: string) => {
+          let removed = 0
+          for (const [id, owner] of [...memories]) {
+            if (owner === agentId) {
+              memories.delete(id)
+              removed += 1
+            }
+          }
+          return removed
+        }
+      },
+      agentMemoryAuditTable: {
+        clearByAgent: (agentId: string) => {
+          let removed = 0
+          for (const [id, owner] of [...audits]) {
+            if (owner === agentId) {
+              audits.delete(id)
+              removed += 1
+            }
+          }
+          return removed
+        }
+      },
+      newSessionsTable: {
+        list: () => []
+      }
+    }
+    const repository = new AgentRepository(sqlitePresenter as never)
+
+    expect(() => repository.deleteDeepChatAgent('writer')).toThrow('delete failed')
+    expect(agents.has('writer')).toBe(true)
+    expect(memories.has('m1')).toBe(true)
+    expect(audits.has('a1')).toBe(true)
+  })
+
   it('resolves default DeepChat subagent slots for the builtin agent', () => {
     const rows = new Map<string, any>()
     const sqlitePresenter = {

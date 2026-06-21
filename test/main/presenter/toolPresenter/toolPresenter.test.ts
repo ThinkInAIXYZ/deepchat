@@ -461,7 +461,46 @@ describe('ToolPresenter', () => {
     expect(prompt).toContain('`tape_info` inspects')
     expect(prompt).toContain('`tape_anchors` lists')
     expect(prompt).not.toContain('`tape_search` supports')
+    expect(prompt).not.toContain('`tape_context` expands')
     expect(prompt).not.toContain('`tape_handoff` writes')
+  })
+
+  it('describes tape_context only when the context tool is enabled', () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    const prompt = toolPresenter.buildToolSystemPrompt({
+      conversationId: 'conv-1',
+      toolDefinitions: [
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.search, 'agent-tape'),
+          source: 'agent'
+        },
+        {
+          ...buildToolDefinition(TAPE_TOOL_NAMES.context, 'agent-tape'),
+          source: 'agent'
+        }
+      ]
+    })
+
+    expect(prompt).toContain('`tape_context` expands selected `entryIds`')
+    expect(prompt).toContain('compact `tape_search` results')
+    expect(prompt).toContain('bounded evidence/context')
+    expect(prompt).toContain('without dumping raw payloads')
   })
 
   it('describes the question schema and returns actionable validation errors', async () => {

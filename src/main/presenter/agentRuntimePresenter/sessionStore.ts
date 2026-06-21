@@ -159,6 +159,7 @@ export class DeepChatSessionStore {
 
   delete(id: string): void {
     this.sqlitePresenter.deepchatTapeEntriesTable?.deleteBySession(id)
+    this.sqlitePresenter.deepchatTapeSearchProjectionTable?.deleteBySession(id)
     this.sqlitePresenter.deepchatSessionsTable.delete(id)
   }
 
@@ -269,6 +270,7 @@ export class DeepChatSessionStore {
 
   resetTape(id: string): void {
     this.sqlitePresenter.deepchatTapeEntriesTable?.deleteBySession(id)
+    this.sqlitePresenter.deepchatTapeSearchProjectionTable?.deleteBySession(id)
     this.sqlitePresenter.deepchatTapeEntriesTable?.ensureBootstrapAnchor(id)
   }
 }

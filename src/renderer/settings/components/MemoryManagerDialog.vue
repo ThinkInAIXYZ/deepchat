@@ -16,13 +16,19 @@
       </div>
 
       <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="grid w-full grid-cols-2">
+        <TabsList class="grid w-full grid-cols-3">
           <TabsTrigger value="memories">
             {{ t('settings.deepchatAgents.memoryManager.tabMemories') }}
             <Badge v-if="status" variant="secondary" class="ml-1.5">{{ status.total }}</Badge>
           </TabsTrigger>
           <TabsTrigger value="persona">
             {{ t('settings.deepchatAgents.memoryManager.tabPersona') }}
+          </TabsTrigger>
+          <TabsTrigger value="activity">
+            {{ t('settings.deepchatAgents.memoryManager.tabActivity') }}
+            <Badge v-if="activityCount > 0" variant="secondary" class="ml-1.5">
+              {{ activityCount }}
+            </Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -351,6 +357,111 @@
             </ScrollArea>
           </template>
         </TabsContent>
+
+        <TabsContent value="activity" class="mt-3">
+          <div v-if="activityLoading" class="py-10 text-center text-sm text-muted-foreground">
+            {{ t('common.loading') }}
+          </div>
+          <div
+            v-else-if="activityCount === 0"
+            class="py-10 text-center text-sm text-muted-foreground"
+          >
+            {{ t('settings.deepchatAgents.memoryManager.emptyActivity') }}
+          </div>
+          <ScrollArea v-else class="h-90 pr-3">
+            <div class="space-y-4">
+              <section v-if="auditEvents.length > 0" class="space-y-2">
+                <div class="text-xs font-medium">
+                  {{
+                    t('settings.deepchatAgents.memoryManager.auditEventsTitle', {
+                      count: auditEvents.length
+                    })
+                  }}
+                </div>
+                <ol class="space-y-2">
+                  <li
+                    v-for="event in auditEvents"
+                    :key="event.id"
+                    class="rounded-lg border border-border px-3 py-2"
+                  >
+                    <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" class="text-[10px]">{{ event.eventType }}</Badge>
+                      <Badge :variant="auditStatusVariant(event.status)" class="text-[10px]">
+                        {{ event.status }}
+                      </Badge>
+                      <Badge variant="secondary" class="text-[10px]">{{ event.actorType }}</Badge>
+                      <span class="text-[10px] text-muted-foreground">
+                        {{ formatTime(event.createdAt) }}
+                      </span>
+                    </div>
+                    <p v-if="event.reason" class="wrap-break-word text-xs text-muted-foreground">
+                      {{ event.reason }}
+                    </p>
+                    <p
+                      v-if="formatRefs(event.inputRefs) || formatRefs(event.outputRefs)"
+                      class="wrap-break-word text-[10px] text-muted-foreground"
+                    >
+                      {{ formatRefs(event.inputRefs) }}
+                      <span v-if="formatRefs(event.inputRefs) && formatRefs(event.outputRefs)">
+                        ·
+                      </span>
+                      {{ formatRefs(event.outputRefs) }}
+                    </p>
+                  </li>
+                </ol>
+              </section>
+
+              <section v-if="viewManifests.length > 0" class="space-y-2">
+                <div class="text-xs font-medium">
+                  {{
+                    t('settings.deepchatAgents.memoryManager.viewManifestsTitle', {
+                      count: viewManifests.length
+                    })
+                  }}
+                </div>
+                <ol class="space-y-2">
+                  <li
+                    v-for="manifest in viewManifests"
+                    :key="`${manifest.sessionId}:${manifest.entryId}`"
+                    class="rounded-lg border border-border px-3 py-2"
+                  >
+                    <div class="mb-1 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" class="text-[10px]">
+                        v{{ manifest.policyVersion ?? 1 }}
+                      </Badge>
+                      <Badge variant="secondary" class="text-[10px]">
+                        {{ manifest.tokenBudget }}
+                      </Badge>
+                      <span class="text-[10px] text-muted-foreground">
+                        {{ formatTime(manifest.createdAt) }}
+                      </span>
+                    </div>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+                      <span>
+                        {{
+                          t('settings.deepchatAgents.memoryManager.manifestSelected', {
+                            count: manifest.selectedCount
+                          })
+                        }}
+                      </span>
+                      <span>
+                        {{
+                          t('settings.deepchatAgents.memoryManager.manifestDropped', {
+                            count: manifest.droppedCount
+                          })
+                        }}
+                      </span>
+                      <span>{{ manifest.estimatedTokens }}</span>
+                      <span v-if="manifest.queryHash">
+                        {{ shortHash(manifest.queryHash) }}
+                      </span>
+                    </div>
+                  </li>
+                </ol>
+              </section>
+            </div>
+          </ScrollArea>
+        </TabsContent>
       </Tabs>
     </DialogContent>
   </Dialog>
@@ -411,10 +522,12 @@ import {
 import { createMemoryClient } from '@api/MemoryClient'
 import { useToast } from '@/components/use-toast'
 import type {
+  MemoryAuditEvent,
   MemoryConflictItem,
   MemoryItem,
   MemorySourceSpan,
-  MemoryStatusDto
+  MemoryStatusDto,
+  MemoryViewManifest
 } from '@shared/contracts/routes'
 
 const props = defineProps<{
@@ -432,13 +545,16 @@ const { t } = useI18n()
 const { toast } = useToast()
 const memoryClient = createMemoryClient()
 
-const activeTab = ref<'memories' | 'persona'>('memories')
+const activeTab = ref<'memories' | 'persona' | 'activity'>('memories')
 const loading = ref(false)
+const activityLoading = ref(false)
 const error = ref<string | null>(null)
 const memories = ref<MemoryItem[]>([])
 const conflicts = ref<MemoryConflictItem[]>([])
 const personaVersions = ref<MemoryItem[]>([])
 const personaDrafts = ref<MemoryItem[]>([])
+const auditEvents = ref<MemoryAuditEvent[]>([])
+const viewManifests = ref<MemoryViewManifest[]>([])
 const status = ref<MemoryStatusDto | null>(null)
 const sourceSpanOpen = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
@@ -447,26 +563,49 @@ const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === t
 
 let disposeUpdated: (() => void) | null = null
 
+async function refreshActivity(agentId: string): Promise<void> {
+  activityLoading.value = true
+  try {
+    const [events, manifests] = await Promise.all([
+      memoryClient.listAuditEvents(agentId, { limit: 50 }),
+      memoryClient.listViewManifests(agentId, { limit: 50 })
+    ])
+    if (props.agentId !== agentId) return
+    auditEvents.value = events
+    viewManifests.value = manifests
+  } catch {
+    if (props.agentId !== agentId) return
+    auditEvents.value = []
+    viewManifests.value = []
+  } finally {
+    if (props.agentId === agentId) {
+      activityLoading.value = false
+    }
+  }
+}
+
 async function refresh(): Promise<void> {
   if (!props.agentId) return
+  const agentId = props.agentId
   loading.value = true
   error.value = null
   try {
     const [list, conflictPairs, versions, drafts, currentStatus] = await Promise.all([
-      memoryClient.list(props.agentId),
-      memoryClient.listConflicts(props.agentId),
-      memoryClient.listPersonaVersions(props.agentId),
-      memoryClient.listPersonaDrafts(props.agentId),
-      memoryClient.getStatus(props.agentId)
+      memoryClient.list(agentId),
+      memoryClient.listConflicts(agentId),
+      memoryClient.listPersonaVersions(agentId),
+      memoryClient.listPersonaDrafts(agentId),
+      memoryClient.getStatus(agentId)
     ])
     memories.value = list
     conflicts.value = conflictPairs
     personaVersions.value = versions
     personaDrafts.value = drafts
     status.value = currentStatus
+    loading.value = false
+    void refreshActivity(agentId)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
-  } finally {
     loading.value = false
   }
 }
@@ -493,6 +632,8 @@ const personaTimeline = computed<MemoryItem[]>(() =>
   )
 )
 
+const activityCount = computed(() => auditEvents.value.length + viewManifests.value.length)
+
 function isActivePersona(version: MemoryItem): boolean {
   return version.id === activePersonaId.value
 }
@@ -507,8 +648,40 @@ function statusVariant(
   return 'secondary'
 }
 
+function auditStatusVariant(
+  status: MemoryAuditEvent['status']
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'failed') return 'destructive'
+  if (status === 'completed') return 'default'
+  return 'secondary'
+}
+
 function formatTime(ms: number): string {
   return new Date(ms).toLocaleString()
+}
+
+function formatRefValue(key: string, value: unknown): string {
+  if (Array.isArray(value)) return `[${value.length}]`
+  if (value && typeof value === 'object') return '{...}'
+  if (
+    typeof value === 'string' &&
+    !/(id|ids|type|status|action|reason|policy|seq|count)$/i.test(key)
+  ) {
+    return 'text'
+  }
+  return String(value)
+}
+
+function formatRefs(refs: Record<string, unknown>): string {
+  return Object.entries(refs)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${formatRefValue(key, value)}`)
+    .join(' · ')
+}
+
+function shortHash(hash: string): string {
+  return hash.length > 12 ? hash.slice(0, 12) : hash
 }
 
 function shortSession(session: string): string {
@@ -549,6 +722,7 @@ async function handleClear(): Promise<void> {
     memories.value = []
     conflicts.value = []
     status.value = status.value ? { ...status.value, total: 0, pendingEmbedding: 0 } : null
+    await refreshActivity(props.agentId)
   } catch (e) {
     notifyActionFailed(e)
   }

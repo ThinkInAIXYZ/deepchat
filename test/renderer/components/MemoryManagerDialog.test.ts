@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem, MemorySourceSpan, MemoryStatusDto } from '@shared/contracts/routes'
+import type {
+  MemoryAuditEvent,
+  MemoryItem,
+  MemorySourceSpan,
+  MemoryStatusDto,
+  MemoryViewManifest
+} from '@shared/contracts/routes'
 
 const clickStub = (name: string) =>
   defineComponent({
@@ -50,6 +56,12 @@ async function setup(
     personaVersions?: MemoryItem[]
     drafts?: MemoryItem[]
     sourceSpan?: MemorySourceSpan
+    auditEvents?: MemoryAuditEvent[]
+    viewManifests?: MemoryViewManifest[]
+    auditPromise?: Promise<MemoryAuditEvent[]>
+    manifestPromise?: Promise<MemoryViewManifest[]>
+    auditReject?: boolean
+    manifestReject?: boolean
   } = {}
 ) {
   vi.resetModules()
@@ -81,6 +93,16 @@ async function setup(
       ]
     ),
     listPersonaDrafts: vi.fn().mockResolvedValue(overrides.drafts ?? []),
+    listAuditEvents: overrides.auditPromise
+      ? vi.fn().mockReturnValue(overrides.auditPromise)
+      : overrides.auditReject
+        ? vi.fn().mockRejectedValue(new Error('audit unavailable'))
+        : vi.fn().mockResolvedValue(overrides.auditEvents ?? []),
+    listViewManifests: overrides.manifestPromise
+      ? vi.fn().mockReturnValue(overrides.manifestPromise)
+      : overrides.manifestReject
+        ? vi.fn().mockRejectedValue(new Error('manifest unavailable'))
+        : vi.fn().mockResolvedValue(overrides.viewManifests ?? []),
     remove: vi.fn().mockResolvedValue(overrides.remove ?? true),
     clear: vi.fn().mockResolvedValue(overrides.clear ?? 1),
     restore: vi.fn().mockResolvedValue(overrides.restore ?? true),
@@ -192,6 +214,53 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
     expect(wrapper.text()).toContain('redis fact')
   })
 
+  it('refreshes activity after clear instead of hiding persisted history', async () => {
+    const { wrapper, memoryClient } = await setup({
+      auditEvents: [
+        {
+          id: 'audit-1',
+          agentId: 'a',
+          eventType: 'memory/reflect',
+          actorType: 'scheduler',
+          sessionId: 's1',
+          inputRefs: { memoryIds: ['m1'] },
+          outputRefs: { reflectionIds: ['r1'] },
+          modelProviderId: null,
+          modelId: null,
+          status: 'completed',
+          reason: null,
+          createdAt: 1000
+        }
+      ],
+      viewManifests: [
+        {
+          sessionId: 's1',
+          messageId: 'msg-1',
+          entryId: 10,
+          policyVersion: 1,
+          tokenBudget: 1200,
+          estimatedTokens: 42,
+          selectedCount: 3,
+          droppedCount: 1,
+          queryHash: 'abcdefpersisted',
+          createdAt: 1000
+        }
+      ]
+    })
+    expect(memoryClient.listAuditEvents).toHaveBeenCalledTimes(1)
+    expect(memoryClient.listViewManifests).toHaveBeenCalledTimes(1)
+
+    await wrapper.findComponent(AlertDialogActionStub).trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledWith('a')
+    expect(memoryClient.listAuditEvents).toHaveBeenCalledTimes(2)
+    expect(memoryClient.listViewManifests).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('redis fact')
+    expect(wrapper.text()).toContain('memory/reflect')
+    expect(wrapper.text()).toContain('abcdef')
+  })
+
   it('rollback failure toasts (AC-6.1)', async () => {
     const { wrapper, memoryClient, toast } = await setup({ rollback: false })
     // Rollback is now confirm-wrapped: the action lives on the AlertDialog confirm button.
@@ -210,6 +279,89 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
     expect(dispose).not.toHaveBeenCalled()
     wrapper.unmount()
     expect(dispose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MemoryManagerDialog activity visibility', () => {
+  it('keeps the core memory list available when activity routes fail', async () => {
+    const { wrapper } = await setup({
+      auditReject: true,
+      manifestReject: true
+    })
+
+    expect(wrapper.text()).toContain('redis fact')
+    expect(wrapper.text()).not.toContain('audit unavailable')
+    expect(wrapper.text()).not.toContain('manifest unavailable')
+  })
+
+  it('releases the core loading state while activity routes are still pending', async () => {
+    let resolveAudit!: (events: MemoryAuditEvent[]) => void
+    let resolveManifest!: (manifests: MemoryViewManifest[]) => void
+    const auditPromise = new Promise<MemoryAuditEvent[]>((resolve) => {
+      resolveAudit = resolve
+    })
+    const manifestPromise = new Promise<MemoryViewManifest[]>((resolve) => {
+      resolveManifest = resolve
+    })
+
+    const { wrapper, memoryClient } = await setup({
+      auditPromise,
+      manifestPromise
+    })
+
+    expect(memoryClient.listAuditEvents).toHaveBeenCalled()
+    expect(memoryClient.listViewManifests).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('redis fact')
+    expect(wrapper.text()).toContain('common.loading')
+
+    resolveAudit([])
+    resolveManifest([])
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('redis fact')
+    expect(wrapper.text()).not.toContain('common.loading')
+  })
+
+  it('renders audit and manifest metadata without raw memory content', async () => {
+    const { wrapper } = await setup({
+      items: [],
+      personaVersions: [],
+      auditEvents: [
+        {
+          id: 'audit-1',
+          agentId: 'a',
+          eventType: 'memory/reflect',
+          actorType: 'scheduler',
+          sessionId: 's1',
+          inputRefs: { memoryIds: ['m1'], content: 'secret raw memory' },
+          outputRefs: { reflectionIds: ['r1'] },
+          modelProviderId: 'openai',
+          modelId: 'gpt-4o-mini',
+          status: 'completed',
+          reason: null,
+          createdAt: 1000
+        }
+      ],
+      viewManifests: [
+        {
+          sessionId: 's1',
+          messageId: 'msg-1',
+          entryId: 10,
+          policyVersion: 1,
+          tokenBudget: 1200,
+          estimatedTokens: 42,
+          selectedCount: 3,
+          droppedCount: 1,
+          queryHash: 'abcdef1234567890',
+          createdAt: 1000
+        }
+      ]
+    })
+
+    expect(wrapper.text()).toContain('memory/reflect')
+    expect(wrapper.text()).toContain('abcdef')
+    expect(wrapper.text()).toContain('1200')
+    expect(wrapper.text()).not.toContain('secret raw memory')
   })
 })
 

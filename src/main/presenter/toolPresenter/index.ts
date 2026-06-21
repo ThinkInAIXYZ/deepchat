@@ -673,6 +673,11 @@ export class ToolPresenter implements IToolPresenter {
         '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
       )
     }
+    if (toolNames.has(TAPE_TOOL_NAMES.context)) {
+      lines.push(
+        '`tape_context` expands selected `entryIds` from compact `tape_search` results into bounded evidence/context without dumping raw payloads.'
+      )
+    }
     if (toolNames.has(TAPE_TOOL_NAMES.anchors)) {
       lines.push('`tape_anchors` lists recent bub-style phase-transition anchors.')
     }

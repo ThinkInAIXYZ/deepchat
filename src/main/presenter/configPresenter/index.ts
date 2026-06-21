@@ -418,6 +418,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
+  private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
@@ -603,6 +604,10 @@ export class ConfigPresenter implements IConfigPresenter {
       console.error('[Config] Failed to attach sqlite-backed config storage:', error)
       throw error
     }
+  }
+
+  setDeepChatAgentDeleteCleanup(cleanup: (agentId: string) => Promise<void>): void {
+    this.deepChatAgentDeleteCleanup = cleanup
   }
 
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {
@@ -2684,7 +2689,13 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async deleteDeepChatAgent(agentId: string): Promise<boolean> {
-    const removed = this.getAgentRepositoryOrThrow().deleteDeepChatAgent(agentId)
+    const repository = this.getAgentRepositoryOrThrow()
+    const removed = repository.deleteDeepChatAgent(agentId)
+    if (removed) {
+      await this.deepChatAgentDeleteCleanup?.(agentId).catch((error) => {
+        logger.warn(`[Config] DeepChat agent memory cleanup failed: ${String(error)}`)
+      })
+    }
     if (removed) {
       this.notifyAcpAgentsChanged()
     }

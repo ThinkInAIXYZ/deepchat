@@ -15,6 +15,7 @@
     "preinstall": "npx only-allow pnpm",
     "test": "vitest",
     "test:main": "vitest --config vitest.config.ts test/main",
+    "test:main:native-sqlite": "cross-env DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 vitest --config vitest.config.ts test/main/presenter/agentRuntimePresenter/tapeService.test.ts test/main/presenter/memoryRetrieval.eval.test.ts",
     "test:renderer": "vitest --config vitest.config.renderer.ts test/renderer",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",

@@ -5,19 +5,23 @@ import {
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
   memoryGetStatusRoute,
+  memoryListAuditEventsRoute,
   memoryListConflictsRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
   memorySetPersonaAnchorRoute,
   type MemoryConflictItem,
+  type MemoryAuditEvent,
   type MemoryItem,
   type MemorySourceSpan,
-  type MemoryStatusDto
+  type MemoryStatusDto,
+  type MemoryViewManifest
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
 import { getDeepchatBridge } from './core'
@@ -33,6 +37,35 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function getStatus(agentId: string): Promise<MemoryStatusDto> {
     const result = await bridge.invoke(memoryGetStatusRoute.name, { agentId })
     return result.status
+  }
+
+  async function listAuditEvents(
+    agentId: string,
+    options?: {
+      eventType?: string
+      actorType?: 'scheduler' | 'user' | 'runtime'
+      sessionId?: string
+      status?: 'completed' | 'skipped' | 'failed'
+      startCreatedAt?: number
+      endCreatedAt?: number
+      limit?: number
+    }
+  ): Promise<MemoryAuditEvent[]> {
+    const result = await bridge.invoke(memoryListAuditEventsRoute.name, { agentId, ...options })
+    return result.events
+  }
+
+  async function listViewManifests(
+    agentId: string,
+    options?: { sessionId?: string; messageId?: string; limit?: number }
+  ): Promise<MemoryViewManifest[]> {
+    const result = await bridge.invoke(memoryListViewManifestsRoute.name, {
+      agentId,
+      sessionId: options?.sessionId,
+      messageId: options?.messageId,
+      limit: options?.limit
+    })
+    return result.manifests
   }
 
   async function remove(agentId: string, memoryId: string): Promise<boolean> {
@@ -118,6 +151,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   return {
     list,
     getStatus,
+    listAuditEvents,
+    listViewManifests,
     remove,
     clear,
     restore,

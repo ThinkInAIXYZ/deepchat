@@ -63,9 +63,10 @@ export interface AgentTapeSearchResult {
   entryId: number
   kind: string
   name: string | null
-  payload: Record<string, unknown>
-  meta: Record<string, unknown>
   createdAt: number
+  summary?: string
+  refs?: Record<string, unknown>
+  score?: number
 }
 
 export interface AgentTapeAnchorResult {
@@ -80,6 +81,35 @@ export interface AgentTapeAnchorResult {
 
 export interface AgentTapeAnchorsOptions {
   limit?: number
+}
+
+export interface AgentTapeContextOptions {
+  before?: number
+  after?: number
+  limit?: number
+  maxBytesPerEntry?: number
+  maxTotalBytes?: number
+}
+
+export interface AgentTapeContextEntry {
+  entryId: number
+  kind: string
+  name: string | null
+  summary: string
+  refs: Record<string, unknown>
+  evidence: {
+    text: string
+    truncated: boolean
+    bytes: number
+  }
+  createdAt: number
+}
+
+export interface AgentTapeContextResult {
+  sessionId: string
+  requestedEntryIds: number[]
+  matchedEntryIds: number[]
+  entries: AgentTapeContextEntry[]
 }
 
 export interface DeepChatSessionState {
@@ -197,6 +227,12 @@ export interface IAgentImplementation {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+
+  getTapeContext?(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
 
   /** List recent anchors for this session tape */
   listTapeAnchors?(
