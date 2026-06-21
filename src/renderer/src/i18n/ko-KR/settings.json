@@ -2246,7 +2246,7 @@
         "error": "오류",
         "fts_only": "키워드만",
         "archived": "보관됨",
-        "conflicted": "Conflicted"
+        "conflicted": "충돌 중"
       },
       "pendingTitle": "승인 대기 ({count})",
       "largeChange": "변경 폭이 큽니다 — 신중히 검토하세요",

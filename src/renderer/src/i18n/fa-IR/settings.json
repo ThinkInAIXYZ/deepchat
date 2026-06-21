@@ -2246,7 +2246,7 @@
         "error": "خطا",
         "fts_only": "فقط کلیدواژه",
         "archived": "بایگانی‌شده",
-        "conflicted": "Conflicted"
+        "conflicted": "در تعارض"
       },
       "pendingTitle": "در انتظار تأیید ({count})",
       "largeChange": "تغییر بزرگ — با دقت بررسی کنید",

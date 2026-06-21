@@ -16,10 +16,11 @@ import {
   resolveRetrieval,
   retrievalScore
 } from '@/presenter/memoryPresenter/scoring'
-import type {
-  AgentMemoryRow,
-  IMemoryVectorStore,
-  MemoryVectorMatch
+import {
+  FTS_SIMILARITY_BASELINE,
+  type AgentMemoryRow,
+  type IMemoryVectorStore,
+  type MemoryVectorMatch
 } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
@@ -30,6 +31,45 @@ import {
   makePresenter,
   textToVector
 } from './fakes/memoryFakes'
+
+describe('memory repository fakes', () => {
+  it('matches AgentMemoryTable list limit lower-clamp behavior without an upper cap', () => {
+    const repo = new FakeRepository()
+    for (let index = 0; index < 3; index += 1) {
+      repo.insert({
+        id: `m${index}`,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `memory ${index}`,
+        status: 'embedded',
+        createdAt: index
+      })
+    }
+
+    expect(repo.listByAgent('a')).toHaveLength(3)
+    expect(repo.listByAgent('a', { limit: 0 })).toHaveLength(1)
+    expect(repo.listByAgent('a', { limit: -10 })).toHaveLength(1)
+    expect(repo.listByAgent('a', { limit: 2.8 })).toHaveLength(2)
+  })
+
+  it('matches AgentMemoryAuditTable list limit defaults and caps', () => {
+    const auditRepo = new FakeAuditRepository()
+    for (let index = 0; index < 505; index += 1) {
+      auditRepo.insert({
+        id: `audit-${index}`,
+        agentId: 'a',
+        eventType: 'memory/test',
+        actorType: 'system',
+        status: 'completed',
+        createdAt: index
+      })
+    }
+
+    expect(auditRepo.listByAgent('a')).toHaveLength(100)
+    expect(auditRepo.listByAgent('a', { limit: 0 })).toHaveLength(1)
+    expect(auditRepo.listByAgent('a', { limit: 999 })).toHaveLength(500)
+  })
+})
 
 describe('reflection rows (T3)', () => {
   it('participate in recall alongside atomic units', async () => {
@@ -532,6 +572,10 @@ describe('memory fuse (RRF)', () => {
     const mFts = makeRow('mFts', { importance: 0.9 })
     const result = fuse([mFts], [{ row: mVec, similarity: 0.95 }], opts)
     expect(result.map((item) => item.id)).toEqual(['mVec', 'mFts'])
+  })
+
+  it('keeps the FTS-only similarity baseline at the reviewed retrieval value', () => {
+    expect(FTS_SIMILARITY_BASELINE).toBe(0.3)
   })
 
   it('keeps a strong vector hit above a weak keyword hit at a worse RRF rank (AC-1.1)', () => {

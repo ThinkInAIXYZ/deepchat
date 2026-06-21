@@ -2246,7 +2246,7 @@
         "error": "エラー",
         "fts_only": "キーワードのみ",
         "archived": "アーカイブ済み",
-        "conflicted": "Conflicted"
+        "conflicted": "競合中"
       },
       "pendingTitle": "承認待ち（{count}）",
       "largeChange": "変更が大きいため、慎重に確認してください",

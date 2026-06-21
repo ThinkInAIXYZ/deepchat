@@ -177,7 +177,7 @@
         "error": "Galat",
         "fts_only": "Kata kunci saja",
         "archived": "Diarsipkan",
-        "conflicted": "Conflicted"
+        "conflicted": "Konflik"
       },
       "pendingTitle": "Menunggu persetujuan ({count})",
       "largeChange": "Perubahan besar — tinjau dengan cermat",

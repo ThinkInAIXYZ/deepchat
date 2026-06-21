@@ -2246,7 +2246,7 @@
         "error": "שגיאה",
         "fts_only": "מילות מפתח בלבד",
         "archived": "בארכיון",
-        "conflicted": "Conflicted"
+        "conflicted": "בקונפליקט"
       },
       "pendingTitle": "ממתין לאישור ({count})",
       "largeChange": "שינוי גדול — בדוק בקפידה",

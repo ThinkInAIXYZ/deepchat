@@ -368,6 +368,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionUiPort?: SessionUiPort
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
+  private readonly memoryExtractionEpochs = new Map<string, number>()
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -513,6 +514,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   }
 
   async destroySession(sessionId: string): Promise<void> {
+    this.bumpMemoryExtractionEpoch(sessionId)
     const controller =
       this.activeGenerations.get(sessionId)?.abortController ?? this.abortControllers.get(sessionId)
     if (controller) {
@@ -1829,30 +1831,42 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     if (!this.memoryPort.isEnabled(agentId)) return
     const toOrderSeq = Math.max(1, intent.targetCursorOrderSeq)
-    this.enqueueSessionExtraction(sessionId, async () => {
+    this.enqueueSessionExtraction(sessionId, async (epoch) => {
+      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
       const span = this.buildMemorySpanFromTape(sessionId, cursor, toOrderSeq)
       if (!span) return
-      await this.runMemoryExtraction(sessionId, {
-        spanText: span.spanText,
-        sourceEntryIds: span.sourceEntryIds,
-        toOrderSeq,
-        reason: 'compaction'
-      })
+      await this.runMemoryExtraction(
+        sessionId,
+        {
+          spanText: span.spanText,
+          sourceEntryIds: span.sourceEntryIds,
+          toOrderSeq,
+          reason: 'compaction'
+        },
+        epoch
+      )
     })
   }
 
   // Serializes extraction per session; sibling sessions never block each other.
-  private enqueueSessionExtraction(sessionId: string, task: () => Promise<void>): void {
+  private enqueueSessionExtraction(
+    sessionId: string,
+    task: (epoch: number) => Promise<void>
+  ): void {
     const prev = this.memoryExtractionChains.get(sessionId) ?? Promise.resolve()
-    const next = prev.then(task, task).catch((error) => {
+    const runTask = () => task(this.ensureMemoryExtractionEpoch(sessionId))
+    const next = prev.then(runTask, runTask).catch((error) => {
       logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
     })
     this.memoryExtractionChains.set(sessionId, next)
     void next.finally(() => {
       if (this.memoryExtractionChains.get(sessionId) === next) {
         this.memoryExtractionChains.delete(sessionId)
+        if (!this.runtimeState.has(sessionId)) {
+          this.memoryExtractionEpochs.delete(sessionId)
+        }
       }
     })
   }
@@ -1876,19 +1890,24 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     // Read the cursor and build the span inside the queued task so a later task sees the
     // cursor a prior one advanced, instead of re-extracting the same stale span.
-    this.enqueueSessionExtraction(sessionId, async () => {
+    this.enqueueSessionExtraction(sessionId, async (epoch) => {
+      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
       const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
       if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) return
       const span = this.buildMemorySpanFromTape(sessionId, cursor, tailOrderSeq)
       if (!span) return
-      await this.runMemoryExtraction(sessionId, {
-        spanText: span.spanText,
-        sourceEntryIds: span.sourceEntryIds,
-        toOrderSeq: tailOrderSeq,
-        reason: 'fallback'
-      })
+      await this.runMemoryExtraction(
+        sessionId,
+        {
+          spanText: span.spanText,
+          sourceEntryIds: span.sourceEntryIds,
+          toOrderSeq: tailOrderSeq,
+          reason: 'fallback'
+        },
+        epoch
+      )
     })
   }
 
@@ -1899,7 +1918,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       toOrderSeq: number
       reason: 'compaction' | 'fallback'
       sourceEntryIds?: number[]
-    }
+    },
+    epoch: number
   ): Promise<void> {
     if (!this.memoryPort) return
     try {
@@ -1907,6 +1927,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       if (!this.memoryPort.isEnabled(agentId)) return
       const state = this.runtimeState.get(sessionId)
       if (!state) return
+      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
 
       // Skip if the cursor already passed this span (e.g. a sibling task consumed it first).
       const cursor =
@@ -1924,6 +1945,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       // Leave the cursor unchanged on failure so this span is retried; a transient LLM or
       // parse error must not mark the span consumed and lose its memories permanently.
       if (!result.ok) return
+      if (!this.isMemoryExtractionEpochCurrent(sessionId, epoch)) return
       const createdIds = result.createdIds
 
       // Success consumes the span even when nothing was extracted.
@@ -2439,6 +2461,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.pendingInputCoordinator.deleteBySession(sessionId)
+    this.resetMemoryExtractionCursor(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.resetTape(sessionId)
     this.resetSummaryState(sessionId)
@@ -2480,6 +2503,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     this.invalidateSummaryIfNeeded(sessionId, sourceUserMessage.orderSeq)
+    this.invalidateMemoryExtractionFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
     await this.processMessage(sessionId, retryInput, {
       projectDir: this.resolveProjectDir(sessionId),
@@ -2499,6 +2523,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
+    this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
     this.setSessionStatus(sessionId, 'idle')
   }
@@ -2527,6 +2552,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const nextContent = this.buildEditedUserContent(target.content, nextText)
     this.invalidateSummaryIfNeeded(sessionId, target.orderSeq)
+    this.invalidateMemoryExtractionFromOrderSeq(sessionId, target.orderSeq)
     this.messageStore.updateMessageContent(messageId, nextContent)
 
     const updated = await this.messageStore.getMessage(messageId)
@@ -3238,6 +3264,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const userMessage = userMessageId ? this.messageStore.getMessage(userMessageId) : null
     if (userMessage) {
       this.invalidateSummaryIfNeeded(sessionId, userMessage.orderSeq)
+      this.invalidateMemoryExtractionFromOrderSeq(sessionId, userMessage.orderSeq)
       this.messageStore.deleteFromOrderSeq(sessionId, userMessage.orderSeq)
     }
     this.releaseClaimedPendingInput(sessionId, pendingQueueItemId, pendingInputSource)
@@ -6014,6 +6041,39 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private resetSummaryState(sessionId: string): void {
     this.sessionStore.resetSummaryState(sessionId)
     this.emitCompactionState(sessionId, this.buildIdleCompactionState())
+  }
+
+  private ensureMemoryExtractionEpoch(sessionId: string): number {
+    if (!this.memoryExtractionEpochs.has(sessionId)) {
+      this.memoryExtractionEpochs.set(sessionId, 0)
+    }
+    return this.memoryExtractionEpochs.get(sessionId) ?? 0
+  }
+
+  private bumpMemoryExtractionEpoch(sessionId: string): void {
+    const epoch = this.memoryExtractionEpochs.get(sessionId) ?? 0
+    this.memoryExtractionEpochs.set(sessionId, epoch + 1)
+  }
+
+  private isMemoryExtractionEpochCurrent(sessionId: string, epoch: number): boolean {
+    return this.memoryExtractionEpochs.get(sessionId) === epoch
+  }
+
+  private resetMemoryExtractionCursor(sessionId: string): void {
+    this.bumpMemoryExtractionEpoch(sessionId)
+    this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, 0)
+  }
+
+  private invalidateMemoryExtractionFromOrderSeq(sessionId: string, orderSeq: number): void {
+    this.bumpMemoryExtractionEpoch(sessionId)
+    const memoryCursor =
+      this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
+    if (orderSeq <= memoryCursor) {
+      this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(
+        sessionId,
+        Math.max(0, Math.floor(orderSeq) - 1)
+      )
+    }
   }
 
   private invalidateSummaryIfNeeded(sessionId: string, orderSeq: number): void {

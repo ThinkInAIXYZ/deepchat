@@ -177,7 +177,7 @@
         "error": "Fehler",
         "fts_only": "Nur Stichwort",
         "archived": "Archiviert",
-        "conflicted": "Conflicted"
+        "conflicted": "Im Konflikt"
       },
       "pendingTitle": "Ausstehende Freigabe ({count})",
       "largeChange": "Große Änderung – bitte sorgfältig prüfen",

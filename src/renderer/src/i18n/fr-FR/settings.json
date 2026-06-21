@@ -2246,7 +2246,7 @@
         "error": "Erreur",
         "fts_only": "Mots-clés uniquement",
         "archived": "Archivé",
-        "conflicted": "Conflicted"
+        "conflicted": "En conflit"
       },
       "pendingTitle": "En attente d'approbation ({count})",
       "largeChange": "Changement important — examinez attentivement",

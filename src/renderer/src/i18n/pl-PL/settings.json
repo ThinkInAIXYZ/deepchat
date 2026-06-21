@@ -177,7 +177,7 @@
         "error": "Błąd",
         "fts_only": "Tylko słowa kluczowe",
         "archived": "Zarchiwizowano",
-        "conflicted": "Conflicted"
+        "conflicted": "W konflikcie"
       },
       "pendingTitle": "Oczekuje na zatwierdzenie ({count})",
       "largeChange": "Duża zmiana — przejrzyj uważnie",

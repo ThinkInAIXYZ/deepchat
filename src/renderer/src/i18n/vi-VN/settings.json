@@ -177,7 +177,7 @@
         "error": "Lỗi",
         "fts_only": "Chỉ từ khóa",
         "archived": "Đã lưu trữ",
-        "conflicted": "Conflicted"
+        "conflicted": "Xung đột"
       },
       "pendingTitle": "Đang chờ phê duyệt ({count})",
       "largeChange": "Thay đổi lớn — hãy xem xét kỹ",

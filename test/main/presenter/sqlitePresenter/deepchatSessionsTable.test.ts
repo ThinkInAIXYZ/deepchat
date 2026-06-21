@@ -205,6 +205,20 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     expect(run).toHaveBeenLastCalledWith(4, 's1')
   })
 
+  it('rewinds the memory cursor without the monotonic MAX guard', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.rewindMemoryCursorOrderSeq('s1', 2.9)
+
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.stringContaining('SET memory_cursor_order_seq = ?')
+    )
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.not.stringContaining('MAX(COALESCE(memory_cursor_order_seq, 0), ?)')
+    )
+    expect(run).toHaveBeenCalledWith(2, 's1')
+  })
+
   it('writes image generation settings as normalized JSON', () => {
     run.mockReturnValue({ changes: 1 })
 

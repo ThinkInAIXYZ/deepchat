@@ -2246,7 +2246,7 @@
         "error": "Fejl",
         "fts_only": "Kun nøgleord",
         "archived": "Arkiveret",
-        "conflicted": "Conflicted"
+        "conflicted": "I konflikt"
       },
       "pendingTitle": "Afventer godkendelse ({count})",
       "largeChange": "Stor ændring — gennemgå omhyggeligt",

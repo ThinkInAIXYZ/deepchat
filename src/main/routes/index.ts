@@ -363,6 +363,10 @@ import {
   scheduledTasksUpsertRoute
 } from '@shared/contracts/routes/scheduledTasks.routes'
 
+const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
+type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
+const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
+
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
@@ -441,6 +445,13 @@ export function formatMemorySourceRecordContent(record: ChatMessageRecord): stri
   }
 }
 
+function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null {
+  if (typeof value === 'string' && MEMORY_PERSONA_STATE_SET.has(value)) {
+    return value as MemoryPersonaState
+  }
+  return null
+}
+
 export function toMemoryItemDto(row: AgentMemoryRow) {
   return {
     id: row.id,
@@ -456,7 +467,7 @@ export function toMemoryItemDto(row: AgentMemoryRow) {
     confidence: row.confidence,
     conflictState: row.conflict_state,
     conflictWith: row.conflict_with,
-    personaState: row.persona_state as 'draft' | 'active' | 'superseded' | 'rejected' | null,
+    personaState: normalizeMemoryPersonaState(row.persona_state),
     isAnchor: row.is_anchor === 1
   }
 }
@@ -582,9 +593,9 @@ function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, m
   const sourceEntryIds = parseSourceEntryIds(row.source_entry_ids)
   if (!sourceEntryIds?.length) return null
   const sourceSet = new Set(sourceEntryIds)
-  const sqlitePresenter =
-    runtime.sqlitePresenter as unknown as import('../presenter/sqlitePresenter').SQLitePresenter
-  const rows = sqlitePresenter.deepchatTapeEntriesTable.getBySession(row.source_session)
+  const tapeEntriesTable = getMemorySourceTapeEntriesTable(runtime)
+  if (!tapeEntriesTable) return null
+  const rows = tapeEntriesTable.getBySession(row.source_session)
   const entries = buildEffectiveTapeView(rows)
     .messageEntries.filter((entry) => sourceSet.has(entry.entryId))
     .map((entry) => ({
@@ -786,6 +797,30 @@ function getDatabaseSecuritySQLitePresenter(runtime: MainKernelRouteRuntime): SQ
     throw new Error('SQLite presenter is required for database encryption')
   }
   return runtime.sqlitePresenter as unknown as SQLitePresenter
+}
+
+function getMemorySourceTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.getBySession !== 'function') return null
+  return table
+}
+
+function getMemoryViewManifestTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.listMemoryViewManifestAnchorsByAgent !== 'function') return null
+  return table
+}
+
+function getMemoryAuditTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['agentMemoryAuditTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).agentMemoryAuditTable
+  if (!table || typeof table.listByAgent !== 'function') return null
+  return table
 }
 
 function recordSkillSettingsActivity(
@@ -2136,8 +2171,11 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryListAuditEventsRoute.output.parse({ events: [] })
       }
-      const sqlitePresenter = runtime.sqlitePresenter as unknown as SQLitePresenter
-      const events = sqlitePresenter.agentMemoryAuditTable
+      const auditTable = getMemoryAuditTable(runtime)
+      if (!auditTable) {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const events = auditTable
         .listByAgent(input.agentId, {
           eventType: input.eventType,
           actorType: input.actorType,
@@ -2157,9 +2195,12 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryListViewManifestsRoute.output.parse({ manifests: [] })
       }
-      const sqlitePresenter = runtime.sqlitePresenter as unknown as SQLitePresenter
+      const tapeEntriesTable = getMemoryViewManifestTapeEntriesTable(runtime)
+      if (!tapeEntriesTable) {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
       const limit = input.limit ?? 100
-      const manifests = sqlitePresenter.deepchatTapeEntriesTable
+      const manifests = tapeEntriesTable
         .listMemoryViewManifestAnchorsByAgent(input.agentId, {
           sessionId: input.sessionId,
           limit,

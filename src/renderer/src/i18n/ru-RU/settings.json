@@ -2246,7 +2246,7 @@
         "error": "Ошибка",
         "fts_only": "Только ключевые слова",
         "archived": "Архивировано",
-        "conflicted": "Conflicted"
+        "conflicted": "Конфликт"
       },
       "pendingTitle": "Ожидает одобрения ({count})",
       "largeChange": "Большое изменение — внимательно проверьте",

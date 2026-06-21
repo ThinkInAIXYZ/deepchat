@@ -1296,6 +1296,19 @@ describe('dispatchDeepchatRoute', () => {
     expect(listByAgent).not.toHaveBeenCalled()
   })
 
+  it('returns no memory audit events when the SQLite presenter has no memory audit table', async () => {
+    const { runtime } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.listAuditEvents',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ events: [] })
+  })
+
   it('filters memory view manifests by message before applying the requested limit', async () => {
     const { runtime, configPresenter } = createRuntime()
     vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
@@ -1408,6 +1421,42 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).resolves.toEqual({ manifests: [] })
     expect(listMemoryViewManifestAnchorsByAgent).not.toHaveBeenCalled()
+  })
+
+  it('returns no memory view manifests when the SQLite presenter has no tape table', async () => {
+    const { runtime } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.listViewManifests',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ manifests: [] })
+  })
+
+  it('returns a null memory source span when the SQLite presenter has no tape table', async () => {
+    const { runtime } = createRuntime()
+    ;(runtime as any).memoryPresenter = {
+      listMemories: vi.fn(() => [
+        {
+          id: 'm1',
+          agent_id: 'deepchat',
+          source_session: 's1',
+          source_entry_ids: '[1]'
+        }
+      ])
+    }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getSourceSpan',
+        { agentId: 'deepchat', memoryId: 'm1' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ span: null })
   })
 
   it('does not expand all sessions when listing memory view manifests', async () => {

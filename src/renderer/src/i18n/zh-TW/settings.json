@@ -2246,7 +2246,7 @@
         "error": "錯誤",
         "fts_only": "僅關鍵字",
         "archived": "已封存",
-        "conflicted": "冲突中"
+        "conflicted": "衝突中"
       },
       "pendingTitle": "待審核（{count}）",
       "largeChange": "變更幅度較大，請仔細審查",

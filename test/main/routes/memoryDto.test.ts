@@ -82,6 +82,12 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
     expect(parsed.memories[0].conflictWith).toBe('m-target')
     expect('conflict_with' in parsed.memories[0]).toBe(false)
   })
+
+  it('normalizes invalid persona_state values to null', () => {
+    const dto = toMemoryItemDto(makeRow({ persona_state: 'unknown' as any }))
+    const parsed = memoryListRoute.output.parse({ memories: [dto] })
+    expect(parsed.memories[0].personaState).toBeNull()
+  })
 })
 
 describe('memory.restore route contract round-trip', () => {

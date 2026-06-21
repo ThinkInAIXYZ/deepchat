@@ -338,6 +338,6 @@ export const CONFIDENCE_INCREMENT = 0.1
 export const CONFIDENCE_BOOST = 0.5
 // Importance floor coefficient: a decayed but important memory keeps at least coef·importance.
 export const IMPORTANCE_FLOOR_COEF = 0.15
-// Similarity placeholder for FTS-only hits that have no vector distance; kept below the vector
-// threshold so a keyword-only hit never outranks a genuine strong vector match on the rerank.
+// Similarity placeholder for FTS-only hits that have no vector distance. Keyword-only recall is
+// kept in check by RRF plus retrievalScore dominance rather than by the vector threshold.
 export const FTS_SIMILARITY_BASELINE = 0.3

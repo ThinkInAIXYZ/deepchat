@@ -92,7 +92,10 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (options?.kinds?.length) result = result.filter((row) => options.kinds!.includes(row.kind))
     else result = result.filter((row) => row.kind !== 'working')
     result.sort((a, b) => b.created_at - a.created_at)
-    if (options?.limit) result = result.slice(0, Math.max(1, Math.floor(options.limit)))
+    const limit = options?.limit
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+      result = result.slice(0, Math.max(1, Math.floor(limit)))
+    }
     return result
   }
 
@@ -366,6 +369,7 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
     optionsOrLimit: number | MemoryAuditListOptions = 100
   ): AgentMemoryAuditRow[] {
     const options = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit
+    const limit = Math.min(500, Math.max(1, Math.floor(options.limit ?? 100)))
     return this.rows
       .filter((row) => row.agent_id === agentId)
       .filter((row) => !options.eventType || row.event_type === options.eventType)
@@ -383,7 +387,7 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
           row.created_at <= (options.endCreatedAt as number)
       )
       .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, options.limit ?? 100)
+      .slice(0, limit)
   }
 
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null {

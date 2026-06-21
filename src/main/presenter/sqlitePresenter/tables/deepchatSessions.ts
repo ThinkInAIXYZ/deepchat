@@ -607,6 +607,16 @@ export class DeepChatSessionsTable extends BaseTable {
       .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
   }
 
+  rewindMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET memory_cursor_order_seq = ?
+         WHERE id = ?`
+      )
+      .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
+  }
+
   resetSummaryState(id: string): void {
     this.db
       .prepare(

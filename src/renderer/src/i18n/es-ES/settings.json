@@ -177,7 +177,7 @@
         "error": "Error",
         "fts_only": "Solo palabras clave",
         "archived": "Archivado",
-        "conflicted": "Conflicted"
+        "conflicted": "En conflicto"
       },
       "pendingTitle": "Pendiente de aprobación ({count})",
       "largeChange": "Cambio importante: revísalo con cuidado",

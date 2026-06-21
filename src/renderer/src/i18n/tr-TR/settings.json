@@ -177,7 +177,7 @@
         "error": "Hata",
         "fts_only": "Yalnızca anahtar kelime",
         "archived": "Arşivlendi",
-        "conflicted": "Conflicted"
+        "conflicted": "Çakışıyor"
       },
       "pendingTitle": "Onay bekliyor ({count})",
       "largeChange": "Büyük değişiklik — dikkatlice inceleyin",
