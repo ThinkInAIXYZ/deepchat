@@ -2216,11 +2216,11 @@
     "subagentTargetAgentLabel": "対象エージェント",
     "subagentLimit": "{count}/{max} スロット",
     "addSubagentSlot": "+ スロットを追加",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "長期メモリ",
+    "memoryEnabled": "長期メモリを有効化",
+    "memoryDescription": "このエージェントがセッションをまたいで安定した事実を記憶し、自己モデルを進化させられるようにします。プライバシーのため既定でオフです。",
+    "memoryEmbeddingModel": "メモリ埋め込みモデル",
+    "memoryEmbeddingHint": "意味的な想起に使います。未選択の場合はキーワード検索にフォールバックします（引き続き利用可能）。",
     "memoryManager": {
       "openButton": "メモリを管理",
       "title": "メモリを管理",
@@ -2276,11 +2276,27 @@
       "manifestIncluded": "{count}件含む",
       "manifestExcluded": "{count}件除外",
       "manifestSelected": "{count}件選択",
-      "manifestDropped": "{count}件破棄"
+      "manifestDropped": "{count}件破棄",
+      "searchPlaceholder": "メモリを検索",
+      "noSearchResults": "検索に一致するメモリはありません。",
+      "addMemory": "メモリを追加",
+      "addContentPlaceholder": "このアシスタントに覚えさせたい内容…",
+      "kindSemantic": "事実",
+      "kindEpisodic": "出来事",
+      "importanceLow": "重要度：低",
+      "importanceMedium": "重要度：中",
+      "importanceHigh": "重要度：高",
+      "addSuccess": "メモリを追加しました。",
+      "addConflict": "追加しましたが、既存のメモリと競合しています。リストで解決してください。",
+      "addDuplicate": "類似のメモリが既に存在するため、追加されませんでした。",
+      "addDisabledHint": "このアシスタントのメモリは無効です。メモリを追加する前に「設定」で有効にしてください。",
+      "addSkipped": "メモリは追加されませんでした。"
     },
     "personaEvolutionTitle": "人格進化（実験的）",
     "personaEvolutionDescription": "リフレクションが更新後の自己モデルを下書きとして提案し、あなたの承認を待ちます。メモリとは独立で、既定では無効です。",
-    "personaEvolutionWarning": "蒸留された人格は、過去の会話の偏りをドリフトさせたり増幅したりすることがあります。すべての変更には明示的な承認が必要で、無断で更新されることはありません。"
+    "personaEvolutionWarning": "蒸留された人格は、過去の会話の偏りをドリフトさせたり増幅したりすることがあります。すべての変更には明示的な承認が必要で、無断で更新されることはありません。",
+    "memoryManageLink": "メモリ設定で管理 →",
+    "memoryManageLinkHint": "検索・モデル・注入バジェット・人格進化はすべてメモリ設定ページにまとまっています。"
   },
   "plugins": {
     "title": "Plugins",
@@ -2384,6 +2400,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "各エージェントがセッションをまたいで記憶している内容を確認・設定・管理します。メモリはエージェントごとに分離されています。",
+    "empty": "利用可能な DeepChat エージェントはまだありません。",
+    "agentPicker": "エージェント",
+    "tabConfig": "設定",
+    "tabManage": "管理",
+    "config": {
+      "rootHint": "deepchat は組み込みエージェントであり、設定の継承元です。ここで設定した値が他のエージェントの既定値として継承されます。",
+      "extractionModel": "メモリツールモデル",
+      "extractionModelHint": "記憶の抽出と重複排除に使うモデルです。未選択の場合はチャットモデルにフォールバックします。",
+      "injectionBudget": "注入バジェット（トークン）",
+      "injectionBudgetHint": "組み立てたメモリ注入のおおよそのトークン上限です。空欄にすると既定値（{default}）を継承します。",
+      "retrievalTitle": "検索ランキング",
+      "retrievalHint": "想起した記憶の並び順を上書きします。オフのときは既定値を継承します。",
+      "retrievalOverride": "検索パラメータを上書き",
+      "topK": "想起件数（topK）",
+      "rrfK": "融合定数（rrfK）",
+      "similarityThreshold": "類似度しきい値",
+      "weightSimilarity": "重み · 類似度",
+      "weightRecency": "重み · 新しさ",
+      "weightImportance": "重み · 重要度"
     }
   }
 }

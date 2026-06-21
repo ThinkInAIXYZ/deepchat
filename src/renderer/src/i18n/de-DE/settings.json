@@ -147,11 +147,11 @@
     "compactionThreshold": "Auslöseschwelle",
     "compactionRetainPairs": "Neueste Nachrichtenpaare behalten",
     "deleteConfirm": "Agent „{name}“ wirklich löschen? Seine historischen Sitzungen fallen automatisch auf den integrierten DeepChat zurück.",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Langzeitgedächtnis",
+    "memoryEnabled": "Langzeitgedächtnis aktivieren",
+    "memoryDescription": "Lassen Sie diesen Agenten sich sitzungsübergreifend an dauerhafte Fakten erinnern und ein Selbstmodell entwickeln. Aus Datenschutzgründen standardmäßig deaktiviert.",
+    "memoryEmbeddingModel": "Gedächtnis-Embedding-Modell",
+    "memoryEmbeddingHint": "Wird für den semantischen Abruf verwendet. Ohne Auswahl greift der Abruf auf die Stichwortsuche zurück (funktioniert weiterhin).",
     "memoryManager": {
       "openButton": "Erinnerungen verwalten",
       "title": "Erinnerungen verwalten",
@@ -207,11 +207,27 @@
       "manifestIncluded": "{count} eingeschlossen",
       "manifestExcluded": "{count} ausgeschlossen",
       "manifestSelected": "{count} ausgewählt",
-      "manifestDropped": "{count} verworfen"
+      "manifestDropped": "{count} verworfen",
+      "searchPlaceholder": "Erinnerungen durchsuchen",
+      "noSearchResults": "Keine Erinnerungen entsprechen Ihrer Suche.",
+      "addMemory": "Erinnerung hinzufügen",
+      "addContentPlaceholder": "Was dieser Assistent sich merken soll…",
+      "kindSemantic": "Fakt",
+      "kindEpisodic": "Ereignis",
+      "importanceLow": "Wichtigkeit: Niedrig",
+      "importanceMedium": "Wichtigkeit: Mittel",
+      "importanceHigh": "Wichtigkeit: Hoch",
+      "addSuccess": "Erinnerung hinzugefügt.",
+      "addConflict": "Hinzugefügt, steht aber im Konflikt mit einer vorhandenen Erinnerung – bitte in der Liste klären.",
+      "addDuplicate": "Eine ähnliche Erinnerung existiert bereits; nichts wurde hinzugefügt.",
+      "addDisabledHint": "Das Gedächtnis ist für diesen Assistenten deaktiviert. Aktivieren Sie es zuerst in der Konfiguration, um Erinnerungen hinzuzufügen.",
+      "addSkipped": "Es wurde keine Erinnerung hinzugefügt."
     },
     "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
     "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",
-    "personaEvolutionWarning": "Destillierte Personas können driften oder Verzerrungen aus früheren Chats verstärken. Jede Änderung erfordert Ihre ausdrückliche Freigabe – sie wird nie still aktualisiert."
+    "personaEvolutionWarning": "Destillierte Personas können driften oder Verzerrungen aus früheren Chats verstärken. Jede Änderung erfordert Ihre ausdrückliche Freigabe – sie wird nie still aktualisiert.",
+    "memoryManageLink": "In den Gedächtnis-Einstellungen verwalten →",
+    "memoryManageLinkHint": "Abruf, Modelle, Injektionsbudget und Persona-Entwicklung befinden sich alle auf der Gedächtnis-Einstellungsseite."
   },
   "notificationsHooks": {
     "title": "Hooks",
@@ -2375,6 +2391,29 @@
       "once": "{time}",
       "daily": "Jeden Tag um {time}",
       "weekly": "{day} um {time}"
+    }
+  },
+  "memory": {
+    "description": "Prüfen, konfigurieren und verwalten Sie, woran sich jeder Agent sitzungsübergreifend erinnert. Das Gedächtnis ist auf einzelne Agenten beschränkt.",
+    "empty": "Noch keine DeepChat-Agenten verfügbar.",
+    "agentPicker": "Agent",
+    "tabConfig": "Konfiguration",
+    "tabManage": "Verwalten",
+    "config": {
+      "rootHint": "deepchat ist der integrierte Agent und die Konfigurationswurzel: Hier festgelegte Werte werden zu Standardwerten, die andere Agenten erben.",
+      "extractionModel": "Gedächtnis-Tool-Modell",
+      "extractionModelHint": "Modell zum Extrahieren und Deduplizieren von Erinnerungen. Ohne Auswahl wird das Chat-Modell verwendet.",
+      "injectionBudget": "Injektionsbudget (Tokens)",
+      "injectionBudgetHint": "Ungefähre Token-Obergrenze für die zusammengestellte Gedächtnisinjektion. Leer lassen, um den Standardwert ({default}) zu übernehmen.",
+      "retrievalTitle": "Abruf-Ranking",
+      "retrievalHint": "Überschreibt, wie abgerufene Erinnerungen sortiert werden; erbt sonst die Standardwerte.",
+      "retrievalOverride": "Abrufparameter überschreiben",
+      "topK": "Abrufanzahl (topK)",
+      "rrfK": "Fusionskonstante (rrfK)",
+      "similarityThreshold": "Ähnlichkeitsschwelle",
+      "weightSimilarity": "Gewicht · Ähnlichkeit",
+      "weightRecency": "Gewicht · Aktualität",
+      "weightImportance": "Gewicht · Wichtigkeit"
     }
   }
 }

@@ -1,5 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  memoryAddRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
@@ -15,10 +16,13 @@ import {
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySearchRoute,
   memorySetPersonaAnchorRoute,
+  type MemoryAddResult,
   type MemoryConflictItem,
   type MemoryAuditEvent,
   type MemoryItem,
+  type MemorySearchResult,
   type MemorySourceSpan,
   type MemoryStatusDto,
   type MemoryViewManifest
@@ -37,6 +41,32 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function getStatus(agentId: string): Promise<MemoryStatusDto> {
     const result = await bridge.invoke(memoryGetStatusRoute.name, { agentId })
     return result.status
+  }
+
+  async function search(
+    agentId: string,
+    query: string,
+    options?: { limit?: number }
+  ): Promise<MemorySearchResult[]> {
+    const result = await bridge.invoke(memorySearchRoute.name, {
+      agentId,
+      query,
+      limit: options?.limit
+    })
+    return result.results
+  }
+
+  async function add(
+    agentId: string,
+    input: { content: string; kind?: 'episodic' | 'semantic'; importance?: number }
+  ): Promise<MemoryAddResult> {
+    const result = await bridge.invoke(memoryAddRoute.name, {
+      agentId,
+      content: input.content,
+      kind: input.kind,
+      importance: input.importance
+    })
+    return result.result
   }
 
   async function listAuditEvents(
@@ -151,6 +181,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   return {
     list,
     getStatus,
+    search,
+    add,
     listAuditEvents,
     listViewManifests,
     remove,

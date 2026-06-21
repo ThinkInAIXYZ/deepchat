@@ -63,6 +63,7 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  memoryAddRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
@@ -78,6 +79,7 @@ import {
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySearchRoute,
   memorySetPersonaAnchorRoute,
   dialogErrorRoute,
   dialogRespondRoute,
@@ -346,6 +348,7 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
+import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMemory'
 import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/agentMemoryAudit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
@@ -455,6 +458,29 @@ export function toMemoryItemDto(row: AgentMemoryRow) {
     conflictWith: row.conflict_with,
     personaState: row.persona_state as 'draft' | 'active' | 'superseded' | 'rejected' | null,
     isAnchor: row.is_anchor === 1
+  }
+}
+
+function toMemoryAddResultDto(outcome: MemoryWriteOutcome) {
+  switch (outcome.action) {
+    case 'created':
+      return { action: 'created' as const, memoryId: outcome.id }
+    case 'updated':
+      return { action: 'updated' as const, memoryId: outcome.id }
+    case 'superseded':
+      return {
+        action: 'superseded' as const,
+        memoryId: outcome.id,
+        supersededId: outcome.supersededId
+      }
+    case 'challenged':
+      return {
+        action: 'challenged' as const,
+        memoryId: outcome.challengerId,
+        conflictWith: outcome.targetId
+      }
+    case 'noop':
+      return { action: 'noop' as const, reason: outcome.reason }
   }
 }
 
@@ -2071,6 +2097,30 @@ export async function dispatchDeepchatRoute(
       const input = memoryListRoute.input.parse(rawInput)
       const memories = runtime.memoryPresenter.listMemories(input.agentId).map(toMemoryItemDto)
       return memoryListRoute.output.parse({ memories })
+    }
+
+    case memorySearchRoute.name: {
+      const input = memorySearchRoute.input.parse(rawInput)
+      const hits = await runtime.memoryPresenter.searchMemories(input.agentId, input.query, {
+        limit: input.limit
+      })
+      const results = hits.map((hit) => ({
+        ...toMemoryItemDto(hit.row),
+        score: hit.score,
+        sources: hit.sources,
+        similarity: hit.similarity
+      }))
+      return memorySearchRoute.output.parse({ results })
+    }
+
+    case memoryAddRoute.name: {
+      const input = memoryAddRoute.input.parse(rawInput)
+      const outcome = await runtime.memoryPresenter.addUserMemory(input.agentId, {
+        content: input.content,
+        kind: input.kind,
+        importance: input.importance
+      })
+      return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })
     }
 
     case memoryGetStatusRoute.name: {

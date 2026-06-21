@@ -147,11 +147,11 @@
     "compactionThreshold": "ambang batas pemicu",
     "compactionRetainPairs": "Simpan pesan terbaru",
     "deleteConfirm": "Apakah Anda yakin ingin menghapus Agent \"{name}\"? Riwayat sesinya secara otomatis kembali ke DeepChat bawaan.",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Memori jangka panjang",
+    "memoryEnabled": "Aktifkan memori jangka panjang",
+    "memoryDescription": "Biarkan agen ini mengingat fakta yang bertahan lama di seluruh sesi dan mengembangkan model diri. Nonaktif secara default demi privasi.",
+    "memoryEmbeddingModel": "Model embedding memori",
+    "memoryEmbeddingHint": "Digunakan untuk pengambilan semantik. Jika tidak dipilih, pengambilan beralih ke pencarian kata kunci (tetap berfungsi).",
     "memoryManager": {
       "openButton": "Kelola memori",
       "title": "Kelola memori",
@@ -207,11 +207,27 @@
       "manifestIncluded": "{count} disertakan",
       "manifestExcluded": "{count} dikecualikan",
       "manifestSelected": "{count} dipilih",
-      "manifestDropped": "{count} dibuang"
+      "manifestDropped": "{count} dibuang",
+      "searchPlaceholder": "Cari memori",
+      "noSearchResults": "Tidak ada memori yang cocok dengan pencarian Anda.",
+      "addMemory": "Tambah memori",
+      "addContentPlaceholder": "Hal yang ingin Anda ingat oleh asisten ini…",
+      "kindSemantic": "Fakta",
+      "kindEpisodic": "Peristiwa",
+      "importanceLow": "Tingkat kepentingan: Rendah",
+      "importanceMedium": "Tingkat kepentingan: Sedang",
+      "importanceHigh": "Tingkat kepentingan: Tinggi",
+      "addSuccess": "Memori ditambahkan.",
+      "addConflict": "Ditambahkan, tetapi bertentangan dengan memori yang ada — selesaikan di daftar.",
+      "addDuplicate": "Memori serupa sudah ada; tidak ada yang ditambahkan.",
+      "addDisabledHint": "Memori dinonaktifkan untuk asisten ini. Aktifkan di Konfigurasi sebelum menambahkan memori.",
+      "addSkipped": "Tidak ada memori yang ditambahkan."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",
-    "personaEvolutionWarning": "Persona hasil distilasi dapat melenceng atau memperkuat bias dari percakapan sebelumnya. Setiap perubahan memerlukan persetujuan eksplisit Anda — tidak pernah diperbarui secara diam-diam."
+    "personaEvolutionWarning": "Persona hasil distilasi dapat melenceng atau memperkuat bias dari percakapan sebelumnya. Setiap perubahan memerlukan persetujuan eksplisit Anda — tidak pernah diperbarui secara diam-diam.",
+    "memoryManageLink": "Kelola di pengaturan Memori →",
+    "memoryManageLinkHint": "Pengambilan, model, anggaran injeksi, dan evolusi persona semuanya ada di halaman pengaturan Memori."
   },
   "notificationsHooks": {
     "title": "Kait",
@@ -2375,6 +2391,29 @@
       "once": "{time}",
       "daily": "Setiap hari pukul {time}",
       "weekly": "{day} pukul {time}"
+    }
+  },
+  "memory": {
+    "description": "Tinjau, konfigurasi, dan kelola apa yang diingat setiap agen di seluruh sesi. Memori terpisah per agen.",
+    "empty": "Belum ada agen DeepChat yang tersedia.",
+    "agentPicker": "Agen",
+    "tabConfig": "Konfigurasi",
+    "tabManage": "Kelola",
+    "config": {
+      "rootHint": "deepchat adalah agen bawaan dan akar konfigurasi: nilai yang diatur di sini menjadi default yang diwarisi oleh agen lain.",
+      "extractionModel": "Model alat memori",
+      "extractionModelHint": "Model yang digunakan untuk mengekstrak dan menyahduplikasi memori. Jika tidak dipilih, menggunakan model chat.",
+      "injectionBudget": "Anggaran injeksi (token)",
+      "injectionBudgetHint": "Batas token perkiraan untuk injeksi memori yang dirakit. Biarkan kosong untuk mewarisi default ({default}).",
+      "retrievalTitle": "Peringkat pengambilan",
+      "retrievalHint": "Mengganti cara memori yang diambil diperingkat; mewarisi default saat nonaktif.",
+      "retrievalOverride": "Ganti parameter pengambilan",
+      "topK": "Jumlah pengambilan (topK)",
+      "rrfK": "Konstanta fusi (rrfK)",
+      "similarityThreshold": "Ambang kemiripan",
+      "weightSimilarity": "Bobot · kemiripan",
+      "weightRecency": "Bobot · kebaruan",
+      "weightImportance": "Bobot · kepentingan"
     }
   }
 }

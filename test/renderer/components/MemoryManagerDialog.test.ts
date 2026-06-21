@@ -27,6 +27,14 @@ const passStub = (name: string) =>
 const ButtonStub = clickStub('Button')
 const AlertDialogActionStub = clickStub('AlertDialogAction')
 
+const InputStub = defineComponent({
+  name: 'Input',
+  inheritAttrs: false,
+  props: { modelValue: { type: [String, Number], default: '' } },
+  emits: ['update:modelValue'],
+  template: `<input v-bind="$attrs" :value="modelValue ?? ''" @input="$emit('update:modelValue', $event.target.value)" />`
+})
+
 const memory: MemoryItem = {
   id: 'm1',
   agentId: 'a',
@@ -52,6 +60,9 @@ async function setup(
     reject?: boolean
     anchor?: boolean
     items?: MemoryItem[]
+    searchResults?: MemoryItem[]
+    memoryEnabled?: boolean
+    addResult?: { action: string; memoryId?: string; reason?: string; conflictWith?: string }
     conflicts?: Array<{ challenger: MemoryItem; target: MemoryItem }>
     personaVersions?: MemoryItem[]
     drafts?: MemoryItem[]
@@ -70,6 +81,7 @@ async function setup(
   const memoryClient = {
     list: vi.fn().mockResolvedValue(overrides.items ?? [{ ...memory }]),
     getStatus: vi.fn().mockResolvedValue(status),
+    search: vi.fn().mockResolvedValue(overrides.searchResults ?? []),
     listConflicts: vi.fn().mockResolvedValue(overrides.conflicts ?? []),
     getSourceSpan: vi.fn().mockResolvedValue(overrides.sourceSpan ?? null),
     listPersonaVersions: vi.fn().mockResolvedValue(
@@ -103,6 +115,7 @@ async function setup(
       : overrides.manifestReject
         ? vi.fn().mockRejectedValue(new Error('manifest unavailable'))
         : vi.fn().mockResolvedValue(overrides.viewManifests ?? []),
+    add: vi.fn().mockResolvedValue(overrides.addResult ?? { action: 'created', memoryId: 'new-1' }),
     remove: vi.fn().mockResolvedValue(overrides.remove ?? true),
     clear: vi.fn().mockResolvedValue(overrides.clear ?? 1),
     restore: vi.fn().mockResolvedValue(overrides.restore ?? true),
@@ -125,6 +138,23 @@ async function setup(
   }))
   vi.doMock('@iconify/vue', () => ({ Icon: passStub('Icon') }))
   vi.doMock('@shadcn/components/ui/button', () => ({ Button: ButtonStub }))
+  vi.doMock('@shadcn/components/ui/input', () => ({ Input: InputStub }))
+  vi.doMock('@shadcn/components/ui/textarea', () => ({
+    Textarea: defineComponent({
+      name: 'Textarea',
+      inheritAttrs: false,
+      props: { modelValue: { type: String, default: '' } },
+      emits: ['update:modelValue'],
+      template: `<textarea v-bind="$attrs" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`
+    })
+  }))
+  vi.doMock('@shadcn/components/ui/select', () => ({
+    Select: passStub('Select'),
+    SelectContent: passStub('SelectContent'),
+    SelectItem: passStub('SelectItem'),
+    SelectTrigger: passStub('SelectTrigger'),
+    SelectValue: passStub('SelectValue')
+  }))
   vi.doMock('@shadcn/components/ui/badge', () => ({ Badge: passStub('Badge') }))
   vi.doMock('@shadcn/components/ui/dialog', () => ({
     Dialog: passStub('Dialog'),
@@ -156,7 +186,7 @@ async function setup(
     await import('../../../src/renderer/settings/components/MemoryManagerDialog.vue')
   ).default
   const wrapper = mount(MemoryManagerDialog, {
-    props: { open: false, agentId: 'a' },
+    props: { open: false, agentId: 'a', memoryEnabled: overrides.memoryEnabled },
     global: { mocks: { $t: (key: string) => key } }
   })
   await wrapper.setProps({ open: true })
@@ -190,6 +220,100 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
 
     expect(toast).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('redis fact')
+  })
+
+  it('deleting a search result drops it from the visible list without ghosting', async () => {
+    const other: MemoryItem = { ...memory, id: 'm2', content: 'vue fact' }
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory }, other],
+      searchResults: [{ ...memory }]
+    })
+
+    // A query swaps the list over to server search results (only m1 matches).
+    await wrapper.find('input[type="search"]').setValue('redis')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await flushPromises()
+    expect(memoryClient.search).toHaveBeenCalledWith('a', 'redis')
+    expect(wrapper.text()).toContain('redis fact')
+    expect(wrapper.text()).not.toContain('vue fact')
+
+    // Deleting the only visible result must remove it, not leave a stale search row behind.
+    await deleteButton(wrapper)!.trigger('click')
+    await flushPromises()
+    expect(memoryClient.remove).toHaveBeenCalledWith('a', 'm1')
+    expect(wrapper.text()).not.toContain('redis fact')
+  })
+
+  it('a late-rejecting earlier search does not clobber the latest results', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    let rejectFirst: (reason?: unknown) => void = () => {}
+    let resolveSecond: (value: MemoryItem[]) => void = () => {}
+    memoryClient.search
+      .mockReturnValueOnce(
+        new Promise<MemoryItem[]>((_resolve, reject) => {
+          rejectFirst = reject
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<MemoryItem[]>((resolve) => {
+          resolveSecond = resolve
+        })
+      )
+
+    // Query A dispatches and stays in flight; query B dispatches while A is still pending.
+    await wrapper.find('input[type="search"]').setValue('alpha')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await wrapper.find('input[type="search"]').setValue('bravo')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(memoryClient.search).toHaveBeenCalledTimes(2)
+
+    // B resolves first and writes its results.
+    resolveSecond([{ ...memory, id: 'mb', content: 'bravo hit' }])
+    await flushPromises()
+    expect(wrapper.text()).toContain('bravo hit')
+
+    // A rejects late — its catch must not clear the newer results.
+    rejectFirst(new Error('stale search failed'))
+    await flushPromises()
+    expect(wrapper.text()).toContain('bravo hit')
+  })
+
+  it('discards an earlier search that resolves after the query already changed', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    let resolveAlpha: (value: MemoryItem[]) => void = () => {}
+    let resolveBravo: (value: MemoryItem[]) => void = () => {}
+    memoryClient.search
+      .mockReturnValueOnce(
+        new Promise<MemoryItem[]>((resolve) => {
+          resolveAlpha = resolve
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<MemoryItem[]>((resolve) => {
+          resolveBravo = resolve
+        })
+      )
+
+    // alpha dispatches and stays in flight.
+    await wrapper.find('input[type="search"]').setValue('alpha')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(memoryClient.search).toHaveBeenCalledTimes(1)
+
+    // The query changes to bravo (its debounce has not fired yet); then alpha resolves late.
+    await wrapper.find('input[type="search"]').setValue('bravo')
+    resolveAlpha([{ ...memory, id: 'ma', content: 'alpha hit' }])
+    await flushPromises()
+    // The box already shows bravo, so the stale alpha result must not land.
+    expect(wrapper.text()).not.toContain('alpha hit')
+
+    // Once bravo's debounce fires and resolves, only its results show.
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    resolveBravo([{ ...memory, id: 'mb', content: 'bravo hit' }])
+    await flushPromises()
+    expect(wrapper.text()).toContain('bravo hit')
+    expect(wrapper.text()).not.toContain('alpha hit')
   })
 
   it('clear removed zero toasts and keeps the list', async () => {
@@ -536,5 +660,91 @@ describe('MemoryManagerDialog persona draft approval (SDD-6)', () => {
     await flushPromises()
     // The non-active 'p-old' version is the one offering an anchor toggle.
     expect(memoryClient.setPersonaAnchor).toHaveBeenCalledWith('a', 'p-old', true)
+  })
+})
+
+describe('MemoryManagerDialog manual add (PR-5)', () => {
+  const addToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper.findAll('button').find((b) => b.attributes('aria-expanded') !== undefined)
+  const addSubmit = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper
+      .findAll('button')
+      .find(
+        (b) =>
+          b.attributes('aria-expanded') === undefined &&
+          b.text().includes('settings.deepchatAgents.memoryManager.addMemory')
+      )
+
+  it('submits the form content with default kind/importance and reloads', async () => {
+    const { wrapper, memoryClient } = await setup()
+    await addToggle(wrapper)!.trigger('click')
+
+    await wrapper.find('textarea').setValue('remember the deploy runbook')
+    await addSubmit(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.add).toHaveBeenCalledWith('a', {
+      content: 'remember the deploy runbook',
+      kind: 'semantic',
+      importance: 0.5
+    })
+    // A successful add reloads the authoritative list.
+    expect(memoryClient.list).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not submit when the content is blank', async () => {
+    const { wrapper, memoryClient } = await setup()
+    await addToggle(wrapper)!.trigger('click')
+
+    await wrapper.find('textarea').setValue('   ')
+    const submit = addSubmit(wrapper)
+    await submit!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.add).not.toHaveBeenCalled()
+  })
+
+  it('toasts the duplicate outcome only on an exact-content no-op', async () => {
+    const { wrapper, toast } = await setup({ addResult: { action: 'noop', reason: 'duplicate' } })
+    await addToggle(wrapper)!.trigger('click')
+
+    await wrapper.find('textarea').setValue('redis fact')
+    await addSubmit(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.deepchatAgents.memoryManager.addDuplicate'
+    })
+  })
+
+  it('toasts "not added" (not duplicate) for a non-duplicate no-op', async () => {
+    const { wrapper, toast } = await setup({ addResult: { action: 'noop', reason: 'disposed' } })
+    await addToggle(wrapper)!.trigger('click')
+
+    await wrapper.find('textarea').setValue('redis fact')
+    await addSubmit(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'settings.deepchatAgents.memoryManager.addSkipped'
+    })
+    expect(toast).not.toHaveBeenCalledWith({
+      title: 'settings.deepchatAgents.memoryManager.addDuplicate'
+    })
+  })
+
+  it('disables the add button and never calls the client when memory is disabled', async () => {
+    const { wrapper, memoryClient } = await setup({ memoryEnabled: false })
+
+    const toggle = addToggle(wrapper)
+    expect(toggle!.attributes('disabled')).toBeDefined()
+    // The enable-first hint explains why adding is blocked.
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.addDisabledHint')
+
+    // Even a forced click cannot open the form or reach the backend.
+    await toggle!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(memoryClient.add).not.toHaveBeenCalled()
   })
 })

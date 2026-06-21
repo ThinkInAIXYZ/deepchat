@@ -2216,11 +2216,11 @@
     "subagentTargetAgentLabel": "Målagent",
     "subagentLimit": "{count}/{max} pladser",
     "addSubagentSlot": "+ Tilføj slot",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Langtidshukommelse",
+    "memoryEnabled": "Aktivér langtidshukommelse",
+    "memoryDescription": "Lad denne agent huske varige fakta på tværs af sessioner og udvikle en selvmodel. Slået fra som standard af hensyn til privatlivet.",
+    "memoryEmbeddingModel": "Embedding-model til hukommelse",
+    "memoryEmbeddingHint": "Bruges til semantisk genfinding. Hvis den ikke er valgt, falder genfinding tilbage til søgeordssøgning (virker stadig).",
     "memoryManager": {
       "openButton": "Administrer hukommelse",
       "title": "Administrer hukommelse",
@@ -2276,11 +2276,27 @@
       "manifestIncluded": "Medtaget {count}",
       "manifestExcluded": "Udelukket {count}",
       "manifestSelected": "Valgt {count}",
-      "manifestDropped": "Fravalgt {count}"
+      "manifestDropped": "Fravalgt {count}",
+      "searchPlaceholder": "Søg i minder",
+      "noSearchResults": "Ingen minder matcher din søgning.",
+      "addMemory": "Tilføj minde",
+      "addContentPlaceholder": "Det, du vil have denne assistent til at huske…",
+      "kindSemantic": "Faktum",
+      "kindEpisodic": "Hændelse",
+      "importanceLow": "Vigtighed: Lav",
+      "importanceMedium": "Vigtighed: Mellem",
+      "importanceHigh": "Vigtighed: Høj",
+      "addSuccess": "Minde tilføjet.",
+      "addConflict": "Tilføjet, men er i konflikt med et eksisterende minde — løs det i listen.",
+      "addDuplicate": "Et lignende minde findes allerede; intet blev tilføjet.",
+      "addDisabledHint": "Hukommelse er slået fra for denne assistent. Aktivér den i Konfiguration, før du tilføjer minder.",
+      "addSkipped": "Intet minde blev tilføjet."
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",
-    "personaEvolutionWarning": "Destillerede personaer kan drive eller forstærke bias fra tidligere chats. Hver ændring kræver din udtrykkelige godkendelse — den opdateres aldrig i stilhed."
+    "personaEvolutionWarning": "Destillerede personaer kan drive eller forstærke bias fra tidligere chats. Hver ændring kræver din udtrykkelige godkendelse — den opdateres aldrig i stilhed.",
+    "memoryManageLink": "Administrer i Hukommelse-indstillinger →",
+    "memoryManageLinkHint": "Genfinding, modeller, injektionsbudget og persona-udvikling findes alle på siden Hukommelse-indstillinger."
   },
   "plugins": {
     "title": "Plugins",
@@ -2384,6 +2400,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "Gennemse, konfigurer og administrer, hvad hver agent husker på tværs af sessioner. Hukommelsen er afgrænset pr. agent.",
+    "empty": "Ingen DeepChat-agenter tilgængelige endnu.",
+    "agentPicker": "Agent",
+    "tabConfig": "Konfiguration",
+    "tabManage": "Administrer",
+    "config": {
+      "rootHint": "deepchat er den indbyggede agent og konfigurationsroden: værdier, der angives her, bliver standardværdier, som andre agenter arver.",
+      "extractionModel": "Model til hukommelsesværktøj",
+      "extractionModelHint": "Model, der bruges til at udtrække og deduplikere minder. Falder tilbage til chatmodellen, hvis den ikke er valgt.",
+      "injectionBudget": "Injektionsbudget (tokens)",
+      "injectionBudgetHint": "Omtrentligt token-loft for den samlede hukommelsesinjektion. Lad være tom for at arve standardværdien ({default}).",
+      "retrievalTitle": "Rangering af genfinding",
+      "retrievalHint": "Tilsidesæt, hvordan genfundne minder rangeres; arver standardværdierne, når den er slået fra.",
+      "retrievalOverride": "Tilsidesæt genfindingsparametre",
+      "topK": "Antal genfindinger (topK)",
+      "rrfK": "Fusionskonstant (rrfK)",
+      "similarityThreshold": "Lighedstærskel",
+      "weightSimilarity": "Vægt · lighed",
+      "weightRecency": "Vægt · aktualitet",
+      "weightImportance": "Vægt · vigtighed"
     }
   }
 }

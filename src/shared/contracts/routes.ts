@@ -27,6 +27,7 @@ import {
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
 import {
+  memoryAddRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
@@ -42,6 +43,7 @@ import {
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySearchRoute,
   memorySetPersonaAnchorRoute
 } from './routes/memory.routes'
 import {
@@ -789,6 +791,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [databaseSecurityDisableRoute.name]: databaseSecurityDisableRoute,
   [databaseSecurityRepairSchemaRoute.name]: databaseSecurityRepairSchemaRoute,
   [memoryListRoute.name]: memoryListRoute,
+  [memorySearchRoute.name]: memorySearchRoute,
+  [memoryAddRoute.name]: memoryAddRoute,
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryListAuditEventsRoute.name]: memoryListAuditEventsRoute,
   [memoryListViewManifestsRoute.name]: memoryListViewManifestsRoute,

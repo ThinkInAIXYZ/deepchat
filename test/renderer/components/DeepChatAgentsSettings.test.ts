@@ -108,6 +108,11 @@ vi.mock('@api/ToolClient', () => ({
   createToolClient: () => clientMocks.toolClient
 }))
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRoute: () => ({ query: {} })
+}))
+
 vi.mock('@/components/ModelSelect.vue', () => ({
   default: defineComponent({
     name: 'ModelSelect',
@@ -659,6 +664,108 @@ describe('DeepChatAgentsSettings', () => {
     const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(91)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(6)
+  })
+
+  it('keeps an inherited memoryEnabled out of the payload when the switch is not toggled', async () => {
+    vi.resetModules()
+
+    const builtin = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: { memoryEnabled: true }
+    }
+    const child = {
+      id: 'child',
+      type: 'deepchat',
+      name: 'Child',
+      enabled: true,
+      protected: false,
+      avatar: null,
+      config: {}
+    }
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue([builtin, child]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(child),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+    }
+    const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const projectPresenter = {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    bindClientMocks(projectPresenter, toolPresenter)
+    const modelStore = { allProviderModels: [], findModelByIdOrName: vi.fn(() => null) }
+
+    vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configPresenter }))
+    vi.doMock('@/stores/modelStore', () => ({ useModelStore: () => modelStore }))
+    vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+    vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          ModelSelect: passthrough('ModelSelect'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    // Select the child agent, which inherits memoryEnabled=true from the builtin deepchat.
+    await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    await flushPromises()
+
+    const memorySwitch = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(agentId).toBe('child')
+    // The inherited value must not be ossified into an explicit override.
+    expect('memoryEnabled' in payload.config).toBe(false)
   })
 
   it('falls back to default auto compaction values when inputs are blank or invalid', async () => {

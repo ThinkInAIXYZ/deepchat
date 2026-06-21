@@ -527,7 +527,8 @@ const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
   'settings-display': 'settings-tab-appearance',
   'settings-provider': 'settings-tab-model-providers',
   'settings-mcp': 'settings-tab-mcp',
-  'settings-acp': 'settings-tab-acp-agents'
+  'settings-acp': 'settings-tab-acp-agents',
+  'settings-memory': 'settings-tab-memory'
 }
 
 const getSettingsTabTestId = (name: string) =>

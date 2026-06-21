@@ -132,7 +132,9 @@ describe('MemoryPresenter.extractAndStore', () => {
     expect(created.createdIds).toHaveLength(1)
     // triage (KEEP) + extraction
     expect(generateText).toHaveBeenCalledTimes(2)
-    expect(repo.countByAgent('on')).toBe(1)
+    // listByAgent hides the internal working-memory cache row a mutation rebuilds, so this counts
+    // only the extracted memory (countByAgent would also include that internal row).
+    expect(repo.listByAgent('on').length).toBe(1)
 
     // second identical extraction succeeds but dedupes → no new ids
     const again = await presenter.extractAndStore({
@@ -141,7 +143,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       model: { providerId: 'p', modelId: 'm' }
     })
     expect(again).toEqual({ ok: true, createdIds: [] })
-    expect(repo.countByAgent('on')).toBe(1)
+    expect(repo.listByAgent('on').length).toBe(1)
   })
 
   it('returns ok:false on extraction failure without writing (cursor caller can retry)', async () => {

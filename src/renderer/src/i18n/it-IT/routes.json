@@ -21,5 +21,6 @@
   "settings-remote": "Remoto",
   "settings-plugins": "Plugin",
   "settings-overview": "Panoramica impostazioni",
-  "settings-scheduled-tasks": "Attività pianificate"
+  "settings-scheduled-tasks": "Attività pianificate",
+  "settings-memory": "Memoria"
 }

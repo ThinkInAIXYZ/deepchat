@@ -2216,11 +2216,11 @@
     "subagentTargetAgentLabel": "대상 에이전트",
     "subagentLimit": "{count}/{max}개 슬롯",
     "addSubagentSlot": "+ 슬롯 추가",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "장기 메모리",
+    "memoryEnabled": "장기 메모리 사용",
+    "memoryDescription": "이 에이전트가 세션 전반에 걸쳐 지속적인 사실을 기억하고 자기 모델을 발전시키도록 합니다. 개인정보 보호를 위해 기본적으로 꺼져 있습니다.",
+    "memoryEmbeddingModel": "메모리 임베딩 모델",
+    "memoryEmbeddingHint": "의미 기반 검색에 사용됩니다. 선택하지 않으면 검색이 키워드 검색으로 대체됩니다(계속 작동함).",
     "memoryManager": {
       "openButton": "메모리 관리",
       "title": "메모리 관리",
@@ -2276,11 +2276,27 @@
       "manifestIncluded": "{count}개 포함됨",
       "manifestExcluded": "{count}개 제외됨",
       "manifestSelected": "{count}개 선택됨",
-      "manifestDropped": "{count}개 폐기됨"
+      "manifestDropped": "{count}개 폐기됨",
+      "searchPlaceholder": "메모리 검색",
+      "noSearchResults": "검색과 일치하는 메모리가 없습니다.",
+      "addMemory": "메모리 추가",
+      "addContentPlaceholder": "이 어시스턴트가 기억하길 원하는 내용…",
+      "kindSemantic": "사실",
+      "kindEpisodic": "사건",
+      "importanceLow": "중요도: 낮음",
+      "importanceMedium": "중요도: 보통",
+      "importanceHigh": "중요도: 높음",
+      "addSuccess": "메모리를 추가했습니다.",
+      "addConflict": "추가했지만 기존 메모리와 충돌합니다. 목록에서 해결하세요.",
+      "addDuplicate": "유사한 메모리가 이미 있어 추가하지 않았습니다.",
+      "addDisabledHint": "이 어시스턴트의 메모리가 꺼져 있습니다. 메모리를 추가하려면 먼저 구성에서 활성화하세요.",
+      "addSkipped": "메모리가 추가되지 않았습니다."
     },
     "personaEvolutionTitle": "페르소나 진화 (실험적)",
     "personaEvolutionDescription": "리플렉션이 업데이트된 자기 모델을 초안으로 제안하여 승인을 받도록 합니다. 메모리와 독립적이며 기본값은 꺼짐입니다.",
-    "personaEvolutionWarning": "증류된 페르소나는 과거 대화의 편향을 표류시키거나 증폭할 수 있습니다. 모든 변경에는 명시적 승인이 필요하며 조용히 업데이트되지 않습니다."
+    "personaEvolutionWarning": "증류된 페르소나는 과거 대화의 편향을 표류시키거나 증폭할 수 있습니다. 모든 변경에는 명시적 승인이 필요하며 조용히 업데이트되지 않습니다.",
+    "memoryManageLink": "메모리 설정에서 관리 →",
+    "memoryManageLinkHint": "검색, 모델, 주입 예산, 페르소나 진화가 모두 메모리 설정 페이지에 있습니다."
   },
   "plugins": {
     "title": "Plugins",
@@ -2384,6 +2400,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "각 에이전트가 세션 전반에 걸쳐 기억하는 내용을 검토, 구성, 관리합니다. 메모리는 에이전트별로 분리됩니다.",
+    "empty": "아직 사용할 수 있는 DeepChat 에이전트가 없습니다.",
+    "agentPicker": "에이전트",
+    "tabConfig": "구성",
+    "tabManage": "관리",
+    "config": {
+      "rootHint": "deepchat는 기본 제공 에이전트이자 구성의 루트입니다. 여기서 설정한 값이 다른 에이전트가 상속하는 기본값이 됩니다.",
+      "extractionModel": "메모리 도구 모델",
+      "extractionModelHint": "메모리를 추출하고 중복을 제거하는 데 사용하는 모델입니다. 선택하지 않으면 채팅 모델로 대체됩니다.",
+      "injectionBudget": "주입 예산(토큰)",
+      "injectionBudgetHint": "구성된 메모리 주입의 대략적인 토큰 상한입니다. 비워 두면 기본값({default})을 상속합니다.",
+      "retrievalTitle": "검색 순위",
+      "retrievalHint": "검색된 메모리의 순위 방식을 재정의합니다. 꺼져 있으면 기본값을 상속합니다.",
+      "retrievalOverride": "검색 매개변수 재정의",
+      "topK": "검색 수(topK)",
+      "rrfK": "융합 상수(rrfK)",
+      "similarityThreshold": "유사도 임계값",
+      "weightSimilarity": "가중치 · 유사도",
+      "weightRecency": "가중치 · 최신성",
+      "weightImportance": "가중치 · 중요도"
     }
   }
 }

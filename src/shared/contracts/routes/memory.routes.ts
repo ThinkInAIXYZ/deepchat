@@ -25,6 +25,24 @@ export const MemoryItemSchema = z.object({
   needsReview: z.boolean().optional()
 })
 
+// Search results reuse the management DTO and add the retrieval score plus which path(s) surfaced
+// the row. Persona/working/archived/conflicted rows are excluded by the retrieval semantics.
+export const MemorySearchResultSchema = MemoryItemSchema.extend({
+  score: z.number(),
+  sources: z.object({ vec: z.boolean().optional(), fts: z.boolean().optional() }).optional(),
+  similarity: z.number().optional()
+})
+
+// Flattened write outcome for a user-added memory: the decision ring may create, dedupe-update,
+// supersede, challenge a conflicting row, or no-op on an exact duplicate.
+export const MemoryAddResultSchema = z.object({
+  action: z.enum(['created', 'updated', 'superseded', 'challenged', 'noop']),
+  memoryId: z.string().optional(),
+  supersededId: z.string().optional(),
+  conflictWith: z.string().optional(),
+  reason: z.string().optional()
+})
+
 export const MemoryStatusSchema = z.object({
   total: z.number(),
   pendingEmbedding: z.number(),
@@ -72,6 +90,28 @@ export const memoryGetStatusRoute = defineRouteContract({
   name: 'memory.getStatus',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ status: MemoryStatusSchema })
+})
+
+export const memorySearchRoute = defineRouteContract({
+  name: 'memory.search',
+  input: z.object({
+    agentId: AgentIdSchema,
+    query: z.string(),
+    // Caps the result count only; it cannot widen the agent's configured topK.
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: z.object({ results: z.array(MemorySearchResultSchema) })
+})
+
+export const memoryAddRoute = defineRouteContract({
+  name: 'memory.add',
+  input: z.object({
+    agentId: AgentIdSchema,
+    content: z.string().min(1),
+    kind: z.enum(['episodic', 'semantic']).optional(),
+    importance: z.number().min(0).max(1).optional()
+  }),
+  output: z.object({ result: MemoryAddResultSchema })
 })
 
 export const memoryListAuditEventsRoute = defineRouteContract({
@@ -193,6 +233,8 @@ export const memorySetPersonaAnchorRoute = defineRouteContract({
 })
 
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
+export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>
+export type MemoryAddResult = z.infer<typeof MemoryAddResultSchema>
 export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
 export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
 export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>

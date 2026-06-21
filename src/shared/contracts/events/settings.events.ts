@@ -18,6 +18,7 @@ const SettingsRouteNameSchema = z.enum([
   'settings-plugins',
   'settings-skills',
   'settings-prompt',
+  'settings-memory',
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',

@@ -187,6 +187,16 @@ export interface MemoryRecallItem {
   }
 }
 
+// A retrieval hit paired with its authoritative row for the read-only search facade. The route
+// layer projects the row to the memory DTO and attaches the score; keeping the row here avoids the
+// presenter depending on the DTO projection that lives at the IPC boundary.
+export interface MemorySearchHit {
+  row: AgentMemoryRow
+  score: number
+  sources?: { vec?: boolean; fts?: boolean }
+  similarity?: number
+}
+
 // One ranked candidate from a single retrieval path, fed into RRF fusion.
 export interface RetrievalCandidate {
   row: AgentMemoryRow

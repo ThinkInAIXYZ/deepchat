@@ -204,14 +204,30 @@
       "rollbackConfirmTitle": "回滚到此自我模型？",
       "rollbackConfirmBody": "此操作会将所选版本设为生效的自我模型，并替换当前版本。",
       "personaEvolutionOnHint": "人格演化为实验功能。新的自我模型会以草稿形式出现在这里，仅在你批准后才会注入。",
-      "personaEvolutionOffHint": "人格演化是实验性的可选功能，当前该 agent 未开启。"
+      "personaEvolutionOffHint": "人格演化是实验性的可选功能，当前该 agent 未开启。",
+      "searchPlaceholder": "搜索记忆",
+      "noSearchResults": "没有匹配的记忆。",
+      "addMemory": "添加记忆",
+      "addContentPlaceholder": "想让该助手记住的内容…",
+      "kindSemantic": "事实",
+      "kindEpisodic": "事件",
+      "importanceLow": "重要性：低",
+      "importanceMedium": "重要性：中",
+      "importanceHigh": "重要性：高",
+      "addSuccess": "记忆已添加。",
+      "addConflict": "已添加，但与现有记忆冲突，请在列表中裁决。",
+      "addDuplicate": "已记住类似内容，未重复添加。",
+      "addDisabledHint": "该助手的记忆已关闭，请先在「配置」中启用后再添加记忆。",
+      "addSkipped": "未添加记忆。"
     },
     "compactionThreshold": "触发阈值",
     "compactionRetainPairs": "保留最近消息对",
     "deleteConfirm": "确定删除 Agent “{name}” 吗？它的历史会话会自动回落到内置 DeepChat。",
     "personaEvolutionTitle": "人格演化（实验）",
     "personaEvolutionDescription": "让反思以草稿形式提出更新后的自我模型，交由你审批。独立于记忆开关，默认关闭。",
-    "personaEvolutionWarning": "蒸馏出的人格可能产生漂移或放大既往对话中的偏差。每次变更都需你显式批准，绝不会静默更新。"
+    "personaEvolutionWarning": "蒸馏出的人格可能产生漂移或放大既往对话中的偏差。每次变更都需你显式批准，绝不会静默更新。",
+    "memoryManageLink": "在 Memory 设置中管理 →",
+    "memoryManageLinkHint": "记忆的检索、模型、注入预算与人格演化等富配置都集中在 Memory 设置页。"
   },
   "notificationsHooks": {
     "title": "Hooks",
@@ -2375,6 +2391,29 @@
       "backupCreated": "创建备份：{name}",
       "backupImported": "导入备份：{name}",
       "databaseRepaired": "数据库修复完成：{status}"
+    }
+  },
+  "memory": {
+    "description": "查看、配置并管理每个 Agent 跨会话记住的内容。记忆按 Agent 隔离。",
+    "empty": "暂无可用的 DeepChat Agent。",
+    "agentPicker": "Agent",
+    "tabConfig": "配置",
+    "tabManage": "管理",
+    "config": {
+      "rootHint": "deepchat 是内置 Agent，也是配置继承根：在此设置的值会成为其它 Agent 的默认值。",
+      "extractionModel": "记忆工具模型",
+      "extractionModelHint": "用于抽取与去重记忆的模型。不选则回落到对话模型。",
+      "injectionBudget": "注入预算（tokens）",
+      "injectionBudgetHint": "组装记忆注入的大致 token 上限。留空则继承默认值（{default}）。",
+      "retrievalTitle": "检索排序",
+      "retrievalHint": "覆盖记忆召回的排序参数；关闭则继承默认。",
+      "retrievalOverride": "覆盖检索参数",
+      "topK": "召回数量 (topK)",
+      "rrfK": "融合常数 (rrfK)",
+      "similarityThreshold": "相似度阈值",
+      "weightSimilarity": "权重 · 相似度",
+      "weightRecency": "权重 · 时近度",
+      "weightImportance": "权重 · 重要度"
     }
   }
 }

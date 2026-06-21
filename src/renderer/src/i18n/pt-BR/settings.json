@@ -2216,11 +2216,11 @@
     "subagentTargetAgentLabel": "Agente de destino",
     "subagentLimit": "{count}/{max} slots",
     "addSubagentSlot": "+ Adicionar slot",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Memória de longo prazo",
+    "memoryEnabled": "Ativar memória de longo prazo",
+    "memoryDescription": "Permite que este agente lembre fatos duradouros entre sessões e desenvolva um automodelo. Desativado por padrão por privacidade.",
+    "memoryEmbeddingModel": "Modelo de embedding de memória",
+    "memoryEmbeddingHint": "Usado para recuperação semântica. Se não selecionado, a recuperação recorre à busca por palavras-chave (ainda funciona).",
     "memoryManager": {
       "openButton": "Gerenciar memórias",
       "title": "Gerenciar memórias",
@@ -2276,11 +2276,27 @@
       "manifestIncluded": "{count} incluídos",
       "manifestExcluded": "{count} excluídos",
       "manifestSelected": "{count} selecionados",
-      "manifestDropped": "{count} descartados"
+      "manifestDropped": "{count} descartados",
+      "searchPlaceholder": "Buscar memórias",
+      "noSearchResults": "Nenhuma memória corresponde à sua busca.",
+      "addMemory": "Adicionar memória",
+      "addContentPlaceholder": "O que você quer que este assistente lembre…",
+      "kindSemantic": "Fato",
+      "kindEpisodic": "Evento",
+      "importanceLow": "Importância: baixa",
+      "importanceMedium": "Importância: média",
+      "importanceHigh": "Importância: alta",
+      "addSuccess": "Memória adicionada.",
+      "addConflict": "Adicionada, mas entra em conflito com uma memória existente — resolva na lista.",
+      "addDuplicate": "Já existe uma memória semelhante; nada foi adicionado.",
+      "addDisabledHint": "A memória está desativada para este assistente. Ative-a na Configuração antes de adicionar memórias.",
+      "addSkipped": "Nenhuma memória foi adicionada."
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",
     "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",
-    "personaEvolutionWarning": "Personas destiladas podem desviar ou amplificar vieses de conversas anteriores. Toda mudança exige sua aprovação explícita — nunca é atualizada silenciosamente."
+    "personaEvolutionWarning": "Personas destiladas podem desviar ou amplificar vieses de conversas anteriores. Toda mudança exige sua aprovação explícita — nunca é atualizada silenciosamente.",
+    "memoryManageLink": "Gerenciar nas configurações de Memória →",
+    "memoryManageLinkHint": "Recuperação, modelos, orçamento de injeção e evolução da persona ficam todos na página de configurações de Memória."
   },
   "plugins": {
     "title": "Plugins",
@@ -2384,6 +2400,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "Revise, configure e gerencie o que cada agente lembra entre sessões. A memória é separada por agente.",
+    "empty": "Nenhum agente DeepChat disponível ainda.",
+    "agentPicker": "Agente",
+    "tabConfig": "Configuração",
+    "tabManage": "Gerenciar",
+    "config": {
+      "rootHint": "deepchat é o agente integrado e a raiz de configuração: os valores definidos aqui tornam-se os padrões herdados pelos outros agentes.",
+      "extractionModel": "Modelo da ferramenta de memória",
+      "extractionModelHint": "Modelo usado para extrair e desduplicar memórias. Se não selecionado, usa o modelo de chat.",
+      "injectionBudget": "Orçamento de injeção (tokens)",
+      "injectionBudgetHint": "Limite aproximado de tokens para a injeção de memória montada. Deixe em branco para herdar o padrão ({default}).",
+      "retrievalTitle": "Classificação de recuperação",
+      "retrievalHint": "Substitui como as memórias recuperadas são classificadas; herda os padrões quando desativado.",
+      "retrievalOverride": "Substituir parâmetros de recuperação",
+      "topK": "Quantidade de recuperação (topK)",
+      "rrfK": "Constante de fusão (rrfK)",
+      "similarityThreshold": "Limiar de similaridade",
+      "weightSimilarity": "Peso · similaridade",
+      "weightRecency": "Peso · recência",
+      "weightImportance": "Peso · importância"
     }
   }
 }

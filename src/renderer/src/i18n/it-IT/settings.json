@@ -147,11 +147,11 @@
     "compactionThreshold": "Soglia di attivazione",
     "compactionRetainPairs": "Mantieni coppie messaggi recenti",
     "deleteConfirm": "Eliminare l'Agent \"{name}\"? Le sue sessioni storiche passeranno automaticamente al DeepChat integrato.",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Memoria a lungo termine",
+    "memoryEnabled": "Abilita memoria a lungo termine",
+    "memoryDescription": "Consenti a questo agente di ricordare fatti duraturi tra le sessioni e di evolvere un automodello. Disattivato per impostazione predefinita per la privacy.",
+    "memoryEmbeddingModel": "Modello di embedding della memoria",
+    "memoryEmbeddingHint": "Usato per il recupero semantico. Se non selezionato, il recupero ricorre alla ricerca per parole chiave (funziona comunque).",
     "memoryManager": {
       "openButton": "Gestisci memorie",
       "title": "Gestisci memorie",
@@ -207,11 +207,27 @@
       "manifestIncluded": "{count} inclusi",
       "manifestExcluded": "{count} esclusi",
       "manifestSelected": "{count} selezionati",
-      "manifestDropped": "{count} scartati"
+      "manifestDropped": "{count} scartati",
+      "searchPlaceholder": "Cerca memorie",
+      "noSearchResults": "Nessuna memoria corrisponde alla tua ricerca.",
+      "addMemory": "Aggiungi memoria",
+      "addContentPlaceholder": "Ciò che vuoi che questo assistente ricordi…",
+      "kindSemantic": "Fatto",
+      "kindEpisodic": "Evento",
+      "importanceLow": "Importanza: bassa",
+      "importanceMedium": "Importanza: media",
+      "importanceHigh": "Importanza: alta",
+      "addSuccess": "Memoria aggiunta.",
+      "addConflict": "Aggiunta, ma è in conflitto con una memoria esistente: risolvilo nell'elenco.",
+      "addDuplicate": "Esiste già una memoria simile; non è stato aggiunto nulla.",
+      "addDisabledHint": "La memoria è disattivata per questo assistente. Attivala nella configurazione prima di aggiungere memorie.",
+      "addSkipped": "Nessuna memoria è stata aggiunta."
     },
     "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",
     "personaEvolutionDescription": "Lascia che la riflessione proponga modelli di sé aggiornati come bozze da approvare. Indipendente dalla memoria; disattivata per impostazione predefinita.",
-    "personaEvolutionWarning": "Le persone distillate possono andare alla deriva o amplificare i bias delle chat passate. Ogni modifica richiede la tua approvazione esplicita — non si aggiorna mai in silenzio."
+    "personaEvolutionWarning": "Le persone distillate possono andare alla deriva o amplificare i bias delle chat passate. Ogni modifica richiede la tua approvazione esplicita — non si aggiorna mai in silenzio.",
+    "memoryManageLink": "Gestisci nelle impostazioni Memoria →",
+    "memoryManageLinkHint": "Recupero, modelli, budget di iniezione ed evoluzione della persona si trovano tutti nella pagina delle impostazioni Memoria."
   },
   "notificationsHooks": {
     "title": "Hooks",
@@ -2375,6 +2391,29 @@
       "once": "{time}",
       "daily": "Ogni giorno alle {time}",
       "weekly": "{day} alle {time}"
+    }
+  },
+  "memory": {
+    "description": "Esamina, configura e gestisci ciò che ogni agente ricorda tra le sessioni. La memoria è separata per ogni agente.",
+    "empty": "Nessun agente DeepChat ancora disponibile.",
+    "agentPicker": "Agente",
+    "tabConfig": "Configurazione",
+    "tabManage": "Gestisci",
+    "config": {
+      "rootHint": "deepchat è l’agente integrato e la radice di configurazione: i valori impostati qui diventano i predefiniti ereditati dagli altri agenti.",
+      "extractionModel": "Modello dello strumento di memoria",
+      "extractionModelHint": "Modello usato per estrarre e deduplicare i ricordi. Se non selezionato, viene usato il modello di chat.",
+      "injectionBudget": "Budget di iniezione (token)",
+      "injectionBudgetHint": "Limite approssimativo di token per l’iniezione di memoria assemblata. Lascia vuoto per ereditare il valore predefinito ({default}).",
+      "retrievalTitle": "Classificazione del recupero",
+      "retrievalHint": "Sostituisce l’ordinamento dei ricordi recuperati; eredita i valori predefiniti quando disattivato.",
+      "retrievalOverride": "Sostituisci i parametri di recupero",
+      "topK": "Numero di recuperi (topK)",
+      "rrfK": "Costante di fusione (rrfK)",
+      "similarityThreshold": "Soglia di similarità",
+      "weightSimilarity": "Peso · similarità",
+      "weightRecency": "Peso · recency",
+      "weightImportance": "Peso · importanza"
     }
   }
 }

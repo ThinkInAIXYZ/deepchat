@@ -147,11 +147,11 @@
     "compactionThreshold": "Tetik eşiği",
     "compactionRetainPairs": "Son çiftleri koru",
     "deleteConfirm": "agent \"{name}\" silinsin mi? Geçmişi yerleşik DeepChat agent'e geri dönecektir.",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Uzun süreli bellek",
+    "memoryEnabled": "Uzun süreli belleği etkinleştir",
+    "memoryDescription": "Bu aracının oturumlar arasında kalıcı gerçekleri hatırlamasına ve bir öz model geliştirmesine izin verin. Gizlilik için varsayılan olarak kapalıdır.",
+    "memoryEmbeddingModel": "Bellek gömme modeli",
+    "memoryEmbeddingHint": "Anlamsal getirme için kullanılır. Seçilmezse getirme, anahtar kelime aramasına geri döner (yine de çalışır).",
     "memoryManager": {
       "openButton": "Anıları yönet",
       "title": "Anıları yönet",
@@ -207,11 +207,27 @@
       "manifestIncluded": "{count} dahil edildi",
       "manifestExcluded": "{count} hariç tutuldu",
       "manifestSelected": "{count} seçildi",
-      "manifestDropped": "{count} atıldı"
+      "manifestDropped": "{count} atıldı",
+      "searchPlaceholder": "Anılarda ara",
+      "noSearchResults": "Aramanızla eşleşen anı yok.",
+      "addMemory": "Anı ekle",
+      "addContentPlaceholder": "Bu asistanın hatırlamasını istediğiniz şey…",
+      "kindSemantic": "Gerçek",
+      "kindEpisodic": "Olay",
+      "importanceLow": "Önem: Düşük",
+      "importanceMedium": "Önem: Orta",
+      "importanceHigh": "Önem: Yüksek",
+      "addSuccess": "Anı eklendi.",
+      "addConflict": "Eklendi ancak mevcut bir anıyla çakışıyor — listede çözün.",
+      "addDuplicate": "Benzer bir anı zaten var; hiçbir şey eklenmedi.",
+      "addDisabledHint": "Bu asistan için bellek kapalı. Anı eklemeden önce Yapılandırma'dan etkinleştirin.",
+      "addSkipped": "Hiçbir anı eklenmedi."
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
     "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",
-    "personaEvolutionWarning": "Damıtılmış kişilikler geçmiş sohbetlerdeki önyargıları kaydırabilir veya artırabilir. Her değişiklik açık onayınızı gerektirir — asla sessizce güncellenmez."
+    "personaEvolutionWarning": "Damıtılmış kişilikler geçmiş sohbetlerdeki önyargıları kaydırabilir veya artırabilir. Her değişiklik açık onayınızı gerektirir — asla sessizce güncellenmez.",
+    "memoryManageLink": "Bellek ayarlarında yönet →",
+    "memoryManageLinkHint": "Getirme, modeller, enjeksiyon bütçesi ve persona evrimi tümü Bellek ayarları sayfasında bulunur."
   },
   "notificationsHooks": {
     "title": "Kancalar",
@@ -2375,6 +2391,29 @@
       "once": "{time}",
       "daily": "Her gün {time}",
       "weekly": "{day} {time}"
+    }
+  },
+  "memory": {
+    "description": "Her aracının oturumlar arasında neyi hatırladığını inceleyin, yapılandırın ve yönetin. Bellek her aracı için ayrıdır.",
+    "empty": "Henüz kullanılabilir DeepChat aracısı yok.",
+    "agentPicker": "Aracı",
+    "tabConfig": "Yapılandırma",
+    "tabManage": "Yönet",
+    "config": {
+      "rootHint": "deepchat yerleşik aracıdır ve yapılandırma kökü: burada ayarlanan değerler, diğer aracıların devraldığı varsayılanlar olur.",
+      "extractionModel": "Bellek aracı modeli",
+      "extractionModelHint": "Anıları çıkarmak ve yinelenenleri kaldırmak için kullanılan model. Seçilmezse sohbet modeline geri döner.",
+      "injectionBudget": "Enjeksiyon bütçesi (token)",
+      "injectionBudgetHint": "Birleştirilmiş bellek enjeksiyonu için yaklaşık token üst sınırı. Varsayılanı ({default}) devralmak için boş bırakın.",
+      "retrievalTitle": "Getirme sıralaması",
+      "retrievalHint": "Getirilen anıların nasıl sıralandığını geçersiz kılar; kapalıyken varsayılanları devralır.",
+      "retrievalOverride": "Getirme parametrelerini geçersiz kıl",
+      "topK": "Getirme sayısı (topK)",
+      "rrfK": "Füzyon sabiti (rrfK)",
+      "similarityThreshold": "Benzerlik eşiği",
+      "weightSimilarity": "Ağırlık · benzerlik",
+      "weightRecency": "Ağırlık · güncellik",
+      "weightImportance": "Ağırlık · önem"
     }
   }
 }

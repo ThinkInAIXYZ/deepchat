@@ -2216,11 +2216,11 @@
     "subagentTargetAgentLabel": "ایجنت مقصد",
     "subagentLimit": "{count}/{max} اسلات",
     "addSubagentSlot": "+ افزودن اسلات",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "حافظهٔ بلندمدت",
+    "memoryEnabled": "فعال‌سازی حافظهٔ بلندمدت",
+    "memoryDescription": "به این عامل اجازه دهید واقعیت‌های پایدار را در طول نشست‌ها به‌خاطر بسپارد و یک خودمدل را تکامل دهد. به‌دلیل حریم خصوصی به‌طور پیش‌فرض خاموش است.",
+    "memoryEmbeddingModel": "مدل تعبیهٔ حافظه",
+    "memoryEmbeddingHint": "برای بازیابی معنایی استفاده می‌شود. در صورت انتخاب‌نشدن، بازیابی به جست‌وجوی کلیدواژه بازمی‌گردد (هنوز کار می‌کند).",
     "memoryManager": {
       "openButton": "مدیریت حافظه‌ها",
       "title": "مدیریت حافظه‌ها",
@@ -2276,11 +2276,27 @@
       "manifestIncluded": "{count} گنجانده شد",
       "manifestExcluded": "{count} حذف شد",
       "manifestSelected": "{count} انتخاب شد",
-      "manifestDropped": "{count} کنار گذاشته شد"
+      "manifestDropped": "{count} کنار گذاشته شد",
+      "searchPlaceholder": "جست‌وجوی حافظه‌ها",
+      "noSearchResults": "هیچ حافظه‌ای با جست‌وجوی شما مطابقت ندارد.",
+      "addMemory": "افزودن حافظه",
+      "addContentPlaceholder": "آنچه می‌خواهید این دستیار به خاطر بسپارد…",
+      "kindSemantic": "واقعیت",
+      "kindEpisodic": "رویداد",
+      "importanceLow": "اهمیت: کم",
+      "importanceMedium": "اهمیت: متوسط",
+      "importanceHigh": "اهمیت: زیاد",
+      "addSuccess": "حافظه افزوده شد.",
+      "addConflict": "افزوده شد، اما با یک حافظهٔ موجود تداخل دارد — آن را در فهرست حل کنید.",
+      "addDuplicate": "حافظهٔ مشابهی از قبل وجود دارد؛ چیزی افزوده نشد.",
+      "addDisabledHint": "حافظه برای این دستیار غیرفعال است. پیش از افزودن حافظه، آن را در «پیکربندی» فعال کنید.",
+      "addSkipped": "هیچ حافظه‌ای افزوده نشد."
     },
     "personaEvolutionTitle": "تکامل پرسونا (آزمایشی)",
     "personaEvolutionDescription": "اجازه دهید بازتاب، مدل‌های خودِ به‌روزشده را به‌صورت پیش‌نویس برای تأیید شما پیشنهاد دهد. مستقل از حافظه؛ به‌طور پیش‌فرض خاموش.",
-    "personaEvolutionWarning": "پرسوناهای تقطیرشده می‌توانند از گفتگوهای گذشته منحرف شوند یا سوگیری‌ها را تقویت کنند. هر تغییر به تأیید صریح شما نیاز دارد — هرگز بی‌صدا به‌روزرسانی نمی‌شود."
+    "personaEvolutionWarning": "پرسوناهای تقطیرشده می‌توانند از گفتگوهای گذشته منحرف شوند یا سوگیری‌ها را تقویت کنند. هر تغییر به تأیید صریح شما نیاز دارد — هرگز بی‌صدا به‌روزرسانی نمی‌شود.",
+    "memoryManageLink": "مدیریت در تنظیمات حافظه →",
+    "memoryManageLinkHint": "بازیابی، مدل‌ها، بودجهٔ تزریق و تکامل شخصیت همگی در صفحهٔ تنظیمات حافظه قرار دارند."
   },
   "plugins": {
     "title": "Plugins",
@@ -2384,6 +2400,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "آنچه را که هر عامل در طول نشست‌ها به‌خاطر می‌سپارد بررسی، پیکربندی و مدیریت کنید. حافظه برای هر عامل جداست.",
+    "empty": "هنوز هیچ عامل DeepChat در دسترس نیست.",
+    "agentPicker": "عامل",
+    "tabConfig": "پیکربندی",
+    "tabManage": "مدیریت",
+    "config": {
+      "rootHint": "deepchat عامل داخلی و ریشهٔ پیکربندی است: مقادیری که اینجا تنظیم می‌شوند به مقادیر پیش‌فرضی تبدیل می‌شوند که عامل‌های دیگر به ارث می‌برند.",
+      "extractionModel": "مدل ابزار حافظه",
+      "extractionModelHint": "مدلی که برای استخراج و حذف تکراری حافظه‌ها استفاده می‌شود. در صورت انتخاب‌نشدن، از مدل گفت‌وگو استفاده می‌شود.",
+      "injectionBudget": "بودجهٔ تزریق (توکن)",
+      "injectionBudgetHint": "سقف تقریبی توکن برای تزریق حافظهٔ مونتاژشده. برای ارث‌بری مقدار پیش‌فرض ({default}) خالی بگذارید.",
+      "retrievalTitle": "رتبه‌بندی بازیابی",
+      "retrievalHint": "نحوهٔ رتبه‌بندی حافظه‌های بازیابی‌شده را بازنویسی می‌کند؛ در حالت خاموش مقادیر پیش‌فرض را به ارث می‌برد.",
+      "retrievalOverride": "بازنویسی پارامترهای بازیابی",
+      "topK": "تعداد بازیابی (topK)",
+      "rrfK": "ثابت ادغام (rrfK)",
+      "similarityThreshold": "آستانهٔ شباهت",
+      "weightSimilarity": "وزن · شباهت",
+      "weightRecency": "وزن · تازگی",
+      "weightImportance": "وزن · اهمیت"
     }
   }
 }

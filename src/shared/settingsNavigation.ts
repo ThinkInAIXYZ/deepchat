@@ -15,6 +15,7 @@ export interface SettingsNavigationItem {
     | 'settings-plugins'
     | 'settings-skills'
     | 'settings-prompt'
+    | 'settings-memory'
     | 'settings-knowledge-base'
     | 'settings-database'
     | 'settings-shortcut'
@@ -231,6 +232,15 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 7,
     groupKey: 'knowledge',
     keywords: ['prompt', 'system prompt', '提示词']
+  },
+  {
+    routeName: 'settings-memory',
+    path: '/memory',
+    titleKey: 'routes.settings-memory',
+    icon: 'lucide:brain',
+    position: 7.5,
+    groupKey: 'knowledge',
+    keywords: ['memory', 'memories', 'persona', 'recall', '记忆', '长期记忆', '人格']
   },
   {
     routeName: 'settings-knowledge-base',

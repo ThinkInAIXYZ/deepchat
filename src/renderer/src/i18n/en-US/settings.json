@@ -204,14 +204,30 @@
       "rollbackConfirmTitle": "Roll back to this self-model?",
       "rollbackConfirmBody": "This makes the selected version the active self-model and supersedes the current one.",
       "personaEvolutionOnHint": "Persona evolution is experimental. New self-models appear here as drafts and are only injected after you approve them.",
-      "personaEvolutionOffHint": "Persona evolution is an experimental, opt-in feature and is currently off for this agent."
+      "personaEvolutionOffHint": "Persona evolution is an experimental, opt-in feature and is currently off for this agent.",
+      "searchPlaceholder": "Search memories",
+      "noSearchResults": "No memories match your search.",
+      "addMemory": "Add memory",
+      "addContentPlaceholder": "What you want this assistant to remember…",
+      "kindSemantic": "Fact",
+      "kindEpisodic": "Event",
+      "importanceLow": "Importance: Low",
+      "importanceMedium": "Importance: Medium",
+      "importanceHigh": "Importance: High",
+      "addSuccess": "Memory added.",
+      "addConflict": "Added, but it conflicts with an existing memory — resolve it in the list.",
+      "addDuplicate": "A similar memory already exists; nothing was added.",
+      "addDisabledHint": "Memory is off for this assistant. Enable it in Config before adding memories.",
+      "addSkipped": "No memory was added."
     },
     "compactionThreshold": "Trigger threshold",
     "compactionRetainPairs": "Retain recent pairs",
     "deleteConfirm": "Delete agent \"{name}\"? Its history will fall back to the built-in DeepChat agent.",
     "personaEvolutionTitle": "Persona evolution (experimental)",
     "personaEvolutionDescription": "Let reflection propose updated self-models as drafts for your approval. Independent of memory; off by default.",
-    "personaEvolutionWarning": "Distilled personas can drift or amplify biases from past chats. Every change needs your explicit approval — it never updates silently."
+    "personaEvolutionWarning": "Distilled personas can drift or amplify biases from past chats. Every change needs your explicit approval — it never updates silently.",
+    "memoryManageLink": "Manage in Memory settings →",
+    "memoryManageLinkHint": "Recall, models, injection budget, and persona evolution all live in the Memory settings page."
   },
   "notificationsHooks": {
     "title": "Hooks",
@@ -2375,6 +2391,29 @@
       "backupCreated": "Created backup: {name}",
       "backupImported": "Imported backup: {name}",
       "databaseRepaired": "Database repair finished: {status}"
+    }
+  },
+  "memory": {
+    "description": "Review, configure, and manage what each agent remembers across sessions. Memory is scoped per agent.",
+    "empty": "No DeepChat agents available yet.",
+    "agentPicker": "Agent",
+    "tabConfig": "Configuration",
+    "tabManage": "Manage",
+    "config": {
+      "rootHint": "deepchat is the built-in agent and the configuration root: values set here become the defaults inherited by other agents.",
+      "extractionModel": "Memory tool model",
+      "extractionModelHint": "Model used to extract and deduplicate memories. Falls back to the chat model when unset.",
+      "injectionBudget": "Injection budget (tokens)",
+      "injectionBudgetHint": "Approximate token ceiling for the assembled memory injection. Leave empty to inherit the default ({default}).",
+      "retrievalTitle": "Retrieval ranking",
+      "retrievalHint": "Override how recalled memories are ranked; inherits the defaults when off.",
+      "retrievalOverride": "Override retrieval parameters",
+      "topK": "Recall count (topK)",
+      "rrfK": "Fusion constant (rrfK)",
+      "similarityThreshold": "Similarity threshold",
+      "weightSimilarity": "Weight · similarity",
+      "weightRecency": "Weight · recency",
+      "weightImportance": "Weight · importance"
     }
   }
 }

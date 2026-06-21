@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
-import { memoryListRoute, memoryRestoreRoute } from '@shared/contracts/routes'
+import {
+  memoryAddRoute,
+  memoryListRoute,
+  memoryRestoreRoute,
+  memorySearchRoute
+} from '@shared/contracts/routes'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
@@ -91,6 +96,78 @@ describe('memory.restore route contract round-trip', () => {
     for (const agentId of ['../etc', 'has space', '']) {
       expect(memoryRestoreRoute.input.safeParse({ agentId, memoryId: 'm1' }).success).toBe(false)
     }
+  })
+})
+
+describe('memory.search route contract', () => {
+  it('round-trips input with an optional limit and rejects a bad agentId', () => {
+    expect(memorySearchRoute.input.parse({ agentId: 'deepchat', query: 'redis' })).toEqual({
+      agentId: 'deepchat',
+      query: 'redis'
+    })
+    expect(
+      memorySearchRoute.input.parse({ agentId: 'deepchat', query: 'redis', limit: 5 }).limit
+    ).toBe(5)
+    expect(memorySearchRoute.input.safeParse({ agentId: 'has space', query: 'x' }).success).toBe(
+      false
+    )
+  })
+
+  it('carries the retrieval score and source flags on a projected memory row', () => {
+    const result = {
+      ...toMemoryItemDto(makeRow({ id: 'm1' })),
+      score: 0.83,
+      sources: { fts: true },
+      similarity: 0.42
+    }
+    const parsed = memorySearchRoute.output.parse({ results: [result] })
+    expect(parsed.results[0].id).toBe('m1')
+    expect(parsed.results[0].score).toBe(0.83)
+    expect(parsed.results[0].sources).toEqual({ fts: true })
+    expect(parsed.results[0].similarity).toBe(0.42)
+  })
+})
+
+describe('memory.add route contract', () => {
+  it('round-trips input with optional kind/importance and rejects bad agentId or empty content', () => {
+    expect(memoryAddRoute.input.parse({ agentId: 'deepchat', content: 'redis on 6379' })).toEqual({
+      agentId: 'deepchat',
+      content: 'redis on 6379'
+    })
+    const full = memoryAddRoute.input.parse({
+      agentId: 'deepchat',
+      content: 'redis on 6379',
+      kind: 'episodic',
+      importance: 0.8
+    })
+    expect(full.kind).toBe('episodic')
+    expect(full.importance).toBe(0.8)
+    expect(memoryAddRoute.input.safeParse({ agentId: 'has space', content: 'x' }).success).toBe(
+      false
+    )
+    expect(memoryAddRoute.input.safeParse({ agentId: 'deepchat', content: '' }).success).toBe(false)
+    expect(
+      memoryAddRoute.input.safeParse({ agentId: 'deepchat', content: 'x', importance: 2 }).success
+    ).toBe(false)
+  })
+
+  it('accepts each flattened write outcome shape on output', () => {
+    expect(
+      memoryAddRoute.output.parse({ result: { action: 'created', memoryId: 'm1' } }).result.action
+    ).toBe('created')
+    expect(
+      memoryAddRoute.output.parse({
+        result: { action: 'superseded', memoryId: 'm2', supersededId: 'm1' }
+      }).result.supersededId
+    ).toBe('m1')
+    expect(
+      memoryAddRoute.output.parse({
+        result: { action: 'challenged', memoryId: 'm3', conflictWith: 'm1' }
+      }).result.conflictWith
+    ).toBe('m1')
+    expect(
+      memoryAddRoute.output.parse({ result: { action: 'noop', reason: 'duplicate' } }).result.reason
+    ).toBe('duplicate')
   })
 })
 

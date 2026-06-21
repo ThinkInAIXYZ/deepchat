@@ -10,6 +10,7 @@ import {
   type MemoryConflictResolution,
   type MemoryPresenterDeps,
   type MemoryRecallItem,
+  type MemorySearchHit,
   type MemoryStatus,
   type MemoryVectorRecord,
   type MemoryWriteOutcome,
@@ -130,6 +131,51 @@ function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
 
 function outcomeTouched(outcome: MemoryWriteOutcome): boolean {
   return outcome.action !== 'noop'
+}
+
+// Maps a write outcome to its user-add audit shape. outputRefs carries only ids and the action,
+// never raw content; a no-op records why it was skipped while a challenge surfaces the conflict.
+function userAddAuditFromOutcome(outcome: MemoryWriteOutcome): {
+  status: 'completed' | 'skipped'
+  reason: string | null
+  outputRefs: Record<string, unknown>
+} {
+  switch (outcome.action) {
+    case 'created':
+      return {
+        status: 'completed',
+        reason: null,
+        outputRefs: { action: 'created', memoryId: outcome.id }
+      }
+    case 'updated':
+      return {
+        status: 'completed',
+        reason: null,
+        outputRefs: { action: 'updated', memoryId: outcome.id }
+      }
+    case 'superseded':
+      return {
+        status: 'completed',
+        reason: null,
+        outputRefs: {
+          action: 'superseded',
+          memoryId: outcome.id,
+          supersededId: outcome.supersededId
+        }
+      }
+    case 'challenged':
+      return {
+        status: 'completed',
+        reason: 'challenged',
+        outputRefs: {
+          action: 'challenged',
+          memoryId: outcome.challengerId,
+          conflictWith: outcome.targetId
+        }
+      }
+    case 'noop':
+      return { status: 'skipped', reason: outcome.reason, outputRefs: { action: 'noop' } }
+  }
 }
 
 export class MemoryPresenter implements MemoryRuntimePort {
@@ -1346,6 +1392,70 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     if (!this.canReadAgentMemory(agentId)) return []
     return this.retrieve(agentId, query, now, true)
+  }
+
+  // Read-only search for the management surface: the same hybrid retrieval as recall, but it never
+  // records access, so browsing memories does not inflate access_count or skew archive-eligibility
+  // fairness. Re-queries the authoritative row for each hit and pairs it with its score; limit caps
+  // the result count only (it cannot widen the agent's configured topK).
+  async searchMemories(
+    agentId: string,
+    query: string,
+    options: { limit?: number } = {}
+  ): Promise<MemorySearchHit[]> {
+    if (!this.canReadAgentMemory(agentId)) return []
+    const hits = await this.retrieve(agentId, query, Date.now(), false)
+    const limited =
+      options.limit != null ? hits.slice(0, Math.max(0, Math.floor(options.limit))) : hits
+    const results: MemorySearchHit[] = []
+    for (const hit of limited) {
+      const row = this.deps.repository.getById(hit.id)
+      if (row)
+        results.push({ row, score: hit.score, sources: hit.sources, similarity: hit.similarity })
+    }
+    return results
+  }
+
+  // User-initiated manual write from the management surface. Shares the exact write path as the
+  // tool/extraction flow (decision ring when an extraction model is configured, otherwise a direct
+  // dedupe-add), so manual memories receive no recall or forgetting exemption. Records a user audit
+  // whose refs carry provenance metadata and ids only, never the raw content.
+  async addUserMemory(
+    agentId: string,
+    input: { content: string; kind?: 'episodic' | 'semantic'; importance?: number },
+    sessionId?: string | null
+  ): Promise<MemoryWriteOutcome> {
+    this.assertSafeAgentId(agentId)
+    if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
+    const candidate: MemoryCandidate = {
+      kind: input.kind ?? 'semantic',
+      content: input.content,
+      importance: input.importance
+    }
+    const configured = this.deps.resolveAgentConfig(agentId)?.memoryExtractionModel
+    const model =
+      configured?.providerId && configured?.modelId
+        ? { providerId: configured.providerId, modelId: configured.modelId }
+        : null
+    const outcome = await this.rememberMemory(
+      candidate,
+      { agentId, sourceSession: sessionId ?? null },
+      model
+    )
+    // Teardown may begin during the write above; no audit row may outlive the closing database.
+    if (!this.canWriteAgentMemory(agentId)) return outcome
+    const audit = userAddAuditFromOutcome(outcome)
+    this.writeAudit(agentId, {
+      eventType: 'memory/add',
+      actorType: 'user',
+      status: audit.status,
+      reason: audit.reason,
+      inputRefs: { kind: candidate.kind, importance: candidate.importance ?? null },
+      outputRefs: audit.outputRefs,
+      model,
+      sessionId: sessionId ?? null
+    })
+    return outcome
   }
 
   // Core hybrid retrieval. recordAccessHits is false for internal lookups (the decision ring's

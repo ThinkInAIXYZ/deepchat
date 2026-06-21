@@ -606,98 +606,26 @@
             <Switch
               :model-value="form.memoryEnabled"
               :aria-label="t('settings.deepchatAgents.memoryEnabled')"
-              @update:model-value="form.memoryEnabled = $event"
+              @update:model-value="setMemoryEnabled"
             />
           </div>
 
-          <div v-if="form.memoryEnabled" class="space-y-1.5">
-            <div class="text-[11px] font-medium text-muted-foreground">
-              {{ t('settings.deepchatAgents.memoryEmbeddingModel') }}
-            </div>
-            <Popover v-model:open="memoryEmbeddingOpen">
-              <PopoverTrigger as-child>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs md:w-[320px]"
-                >
-                  <div class="flex min-w-0 items-center gap-1.5">
-                    <ModelIcon
-                      v-if="getModelIconId('memoryEmbedding')"
-                      :model-id="getModelIconId('memoryEmbedding')"
-                      custom-class="h-3.5 w-3.5 shrink-0"
-                    />
-                    <Icon
-                      v-else
-                      icon="lucide:box"
-                      class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span class="truncate">{{ getModelLabel('memoryEmbedding') }}</span>
-                  </div>
-                  <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0 text-muted-foreground" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent class="w-[320px] p-0" align="start">
-                <div class="flex items-center justify-between border-b px-3 py-2">
-                  <div class="text-sm font-medium">
-                    {{ t('settings.deepchatAgents.memoryEmbeddingModel') }}
-                  </div>
-                  <Button
-                    v-if="form.memoryEmbedding"
-                    variant="ghost"
-                    size="sm"
-                    class="h-7 px-2 text-xs"
-                    @click="clearModel('memoryEmbedding')"
-                  >
-                    {{ t('common.clear') }}
-                  </Button>
-                </div>
-                <ModelSelect
-                  :exclude-providers="['acp']"
-                  :respect-chat-mode="false"
-                  :type="getModelSelectTypes('memoryEmbedding')"
-                  @update:model="
-                    (model, providerId) => selectModel('memoryEmbedding', model, providerId)
-                  "
-                />
-              </PopoverContent>
-            </Popover>
+          <div
+            v-if="form.memoryEnabled && form.id && form.id !== DRAFT_AGENT_ID"
+            class="space-y-1.5"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 gap-1.5 rounded-lg text-xs"
+              @click="openMemorySettings"
+            >
+              <Icon icon="lucide:brain" class="h-3.5 w-3.5" />
+              {{ t('settings.deepchatAgents.memoryManageLink') }}
+            </Button>
             <p class="text-[11px] text-muted-foreground">
-              {{ t('settings.deepchatAgents.memoryEmbeddingHint') }}
+              {{ t('settings.deepchatAgents.memoryManageLinkHint') }}
             </p>
-
-            <div class="mt-2 space-y-2 rounded-xl border border-border p-3">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <div class="text-xs font-medium">
-                    {{ t('settings.deepchatAgents.personaEvolutionTitle') }}
-                  </div>
-                  <p class="mt-0.5 text-[11px] text-muted-foreground">
-                    {{ t('settings.deepchatAgents.personaEvolutionDescription') }}
-                  </p>
-                </div>
-                <Switch
-                  :model-value="form.personaEvolutionEnabled"
-                  :aria-label="t('settings.deepchatAgents.personaEvolutionTitle')"
-                  @update:model-value="form.personaEvolutionEnabled = $event"
-                />
-              </div>
-              <p class="rounded-lg bg-muted px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                {{ t('settings.deepchatAgents.personaEvolutionWarning') }}
-              </p>
-            </div>
-
-            <div v-if="form.id && form.id !== DRAFT_AGENT_ID" class="pt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                class="h-8 gap-1.5 rounded-lg text-xs"
-                @click="memoryManagerOpen = true"
-              >
-                <Icon icon="lucide:brain" class="h-3.5 w-3.5" />
-                {{ t('settings.deepchatAgents.memoryManager.openButton') }}
-              </Button>
-            </div>
           </div>
         </section>
       </div>
@@ -748,14 +676,6 @@
       @confirm-move="handleDeleteAgentWithMove"
       @confirm-delete="handleDeleteAgentWithSessions"
     />
-
-    <MemoryManagerDialog
-      v-if="form.id && form.id !== DRAFT_AGENT_ID"
-      v-model:open="memoryManagerOpen"
-      :agent-id="form.id"
-      :has-embedding-configured="Boolean(form.memoryEmbedding)"
-      :persona-evolution-enabled="form.personaEvolutionEnabled"
-    />
   </div>
 </template>
 
@@ -777,8 +697,8 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import { useRouter } from 'vue-router'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
-import MemoryManagerDialog from './MemoryManagerDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
@@ -806,12 +726,7 @@ import {
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
 
-type ModelKey =
-  | 'chatModel'
-  | 'assistantModel'
-  | 'visionModel'
-  | 'imageGenerationModel'
-  | 'memoryEmbedding'
+type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
 type EditableModel = { providerId: string; modelId: string } | null
 type SidebarAgentItem = {
@@ -859,8 +774,6 @@ type FormState = {
   autoCompactionTriggerThreshold: EditableNumberValue
   autoCompactionRetainRecentPairs: EditableNumberValue
   memoryEnabled: boolean
-  memoryEmbedding: EditableModel
-  personaEvolutionEnabled: boolean
 }
 
 const LUCIDE_ICONS = ['bot', 'sparkles', 'brain', 'code', 'book-open', 'pen-tool', 'rocket']
@@ -881,6 +794,7 @@ const GROUP_ORDER = [
   'yobrowser'
 ]
 const { t } = useI18n()
+const router = useRouter()
 const configClient = createConfigClient()
 const projectClient = createProjectClient()
 const toolClient = createToolClient()
@@ -898,8 +812,6 @@ const chatOpen = ref(false)
 const assistantOpen = ref(false)
 const visionOpen = ref(false)
 const imageGenerationOpen = ref(false)
-const memoryEmbeddingOpen = ref(false)
-const memoryManagerOpen = ref(false)
 const systemPromptDialogOpen = ref(false)
 const loadingSystemPrompts = ref(false)
 const systemPromptTemplates = ref<SystemPrompt[]>([])
@@ -935,9 +847,7 @@ const form = reactive<FormState>({
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
-  memoryEnabled: false,
-  memoryEmbedding: null,
-  personaEvolutionEnabled: false
+  memoryEnabled: false
 })
 
 const avatarKindOptions = computed(() => [
@@ -1091,6 +1001,10 @@ const deepchatAgents = computed(() =>
       a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
     )
 )
+// The builtin deepchat agent is the inheritance base, so an agent without its own override resolves
+// memoryEnabled from it. Used to display the inherited value without ossifying it on save.
+const inheritedMemoryEnabled = () =>
+  allAgents.value.find((agent) => agent.id === 'deepchat')?.config?.memoryEnabled ?? false
 const isAvailableSubagentTargetAgent = (agent: Agent) => {
   if (agent.type === 'deepchat') {
     return true
@@ -1190,12 +1104,14 @@ const emptyForm = (): FormState => ({
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
-  memoryEnabled: false,
-  memoryEmbedding: null,
-  personaEvolutionEnabled: false
+  memoryEnabled: inheritedMemoryEnabled()
 })
 
-const assignForm = (next: FormState) => Object.assign(form, next)
+const memoryEnabledTouched = ref(false)
+const assignForm = (next: FormState) => {
+  Object.assign(form, next)
+  memoryEnabledTouched.value = false
+}
 const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
@@ -1310,11 +1226,8 @@ const fromAgent = (agent?: Agent | null): FormState => {
     autoCompactionRetainRecentPairs: numText(
       config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
     ),
-    memoryEnabled: config.memoryEnabled ?? false,
-    memoryEmbedding: config.memoryEmbedding
-      ? { providerId: config.memoryEmbedding.providerId, modelId: config.memoryEmbedding.modelId }
-      : null,
-    personaEvolutionEnabled: config.personaEvolutionEnabled ?? false
+    memoryEnabled:
+      'memoryEnabled' in config ? Boolean(config.memoryEnabled) : inheritedMemoryEnabled()
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1336,11 +1249,7 @@ const modelText = (selection: EditableModel | undefined) => {
 const getModelLabel = (key: ModelKey) => modelText(form[key])
 const getModelIconId = (key: ModelKey) => form[key]?.modelId ?? ''
 const getModelSelectTypes = (key: ModelKey) =>
-  key === 'imageGenerationModel'
-    ? [ModelType.ImageGeneration]
-    : key === 'memoryEmbedding'
-      ? [ModelType.Embedding]
-      : undefined
+  key === 'imageGenerationModel' ? [ModelType.ImageGeneration] : undefined
 const getSubagentTargetValue = (slot: EditableSubagentSlot) =>
   slot.targetType === 'self'
     ? CURRENT_SUBAGENT_TARGET
@@ -1388,13 +1297,20 @@ const removeSubagentSlot = (index: number) => {
 const clearModel = (key: ModelKey) => {
   form[key] = null
 }
+const setMemoryEnabled = (value: boolean) => {
+  form.memoryEnabled = value
+  memoryEnabledTouched.value = true
+}
+const openMemorySettings = () => {
+  if (!form.id || form.id === DRAFT_AGENT_ID) return
+  void router.push({ name: 'settings-memory', query: { agentId: form.id } })
+}
 const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: string) => {
   form[key] = { providerId, modelId: model.id }
   if (key === 'chatModel') chatOpen.value = false
   if (key === 'assistantModel') assistantOpen.value = false
   if (key === 'visionModel') visionOpen.value = false
   if (key === 'imageGenerationModel') imageGenerationOpen.value = false
-  if (key === 'memoryEmbedding') memoryEmbeddingOpen.value = false
 }
 const loadSystemPromptTemplates = async () => {
   loadingSystemPrompts.value = true
@@ -1540,9 +1456,9 @@ const saveAgent = async () => {
         autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
           form.autoCompactionRetainRecentPairs
         ),
-        memoryEnabled: form.memoryEnabled,
-        memoryEmbedding: buildModelSelection(form.memoryEmbedding),
-        personaEvolutionEnabled: form.personaEvolutionEnabled
+        // Only persist memoryEnabled when the user actually toggled it; otherwise omit so the
+        // shallow merge keeps the inherited value instead of ossifying it.
+        ...(memoryEnabledTouched.value ? { memoryEnabled: form.memoryEnabled } : {})
       }
     }
     if (form.id) {

@@ -147,11 +147,11 @@
     "compactionThreshold": "ambang pencetus",
     "compactionRetainPairs": "Simpan mesej terbaharu",
     "deleteConfirm": "Adakah anda pasti mahu memadamkan Agent \"{name}\"? Sesi sejarahnya secara automatik kembali kepada DeepChat terbina dalam.",
-    "memoryTitle": "Long-term Memory",
-    "memoryEnabled": "Enable long-term memory",
-    "memoryDescription": "Let this agent remember durable facts across sessions and evolve a self-model. Off by default for privacy.",
-    "memoryEmbeddingModel": "Memory embedding model",
-    "memoryEmbeddingHint": "Used for semantic recall. If unset, recall falls back to keyword search (still works).",
+    "memoryTitle": "Memori jangka panjang",
+    "memoryEnabled": "Dayakan memori jangka panjang",
+    "memoryDescription": "Benarkan ejen ini mengingati fakta yang berkekalan merentas sesi dan membangunkan model diri. Dimatikan secara lalai demi privasi.",
+    "memoryEmbeddingModel": "Model embedding memori",
+    "memoryEmbeddingHint": "Digunakan untuk perolehan semantik. Jika tidak dipilih, perolehan kembali kepada carian kata kunci (masih berfungsi).",
     "memoryManager": {
       "openButton": "Urus ingatan",
       "title": "Urus ingatan",
@@ -207,11 +207,27 @@
       "manifestIncluded": "{count} disertakan",
       "manifestExcluded": "{count} dikecualikan",
       "manifestSelected": "{count} dipilih",
-      "manifestDropped": "{count} digugurkan"
+      "manifestDropped": "{count} digugurkan",
+      "searchPlaceholder": "Cari ingatan",
+      "noSearchResults": "Tiada ingatan sepadan dengan carian anda.",
+      "addMemory": "Tambah ingatan",
+      "addContentPlaceholder": "Perkara yang anda mahu pembantu ini ingat…",
+      "kindSemantic": "Fakta",
+      "kindEpisodic": "Peristiwa",
+      "importanceLow": "Kepentingan: Rendah",
+      "importanceMedium": "Kepentingan: Sederhana",
+      "importanceHigh": "Kepentingan: Tinggi",
+      "addSuccess": "Ingatan ditambah.",
+      "addConflict": "Ditambah, tetapi bercanggah dengan ingatan sedia ada — selesaikannya dalam senarai.",
+      "addDuplicate": "Ingatan serupa sudah wujud; tiada apa-apa ditambah.",
+      "addDisabledHint": "Ingatan dimatikan untuk pembantu ini. Aktifkannya dalam Konfigurasi sebelum menambah ingatan.",
+      "addSkipped": "Tiada ingatan ditambah."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",
-    "personaEvolutionWarning": "Persona yang disuling boleh menyimpang atau membesarkan berat sebelah daripada perbualan lalu. Setiap perubahan memerlukan kelulusan jelas anda — ia tidak pernah dikemas kini secara senyap."
+    "personaEvolutionWarning": "Persona yang disuling boleh menyimpang atau membesarkan berat sebelah daripada perbualan lalu. Setiap perubahan memerlukan kelulusan jelas anda — ia tidak pernah dikemas kini secara senyap.",
+    "memoryManageLink": "Urus dalam tetapan Memori →",
+    "memoryManageLinkHint": "Perolehan, model, bajet suntikan dan evolusi persona semuanya berada di halaman tetapan Memori."
   },
   "notificationsHooks": {
     "title": "Hooks",
@@ -2375,6 +2391,29 @@
       "once": "{time}",
       "daily": "Setiap hari pada {time}",
       "weekly": "{day} pada {time}"
+    }
+  },
+  "memory": {
+    "description": "Semak, konfigur dan urus apa yang diingati oleh setiap ejen merentas sesi. Memori berasingan bagi setiap ejen.",
+    "empty": "Belum ada ejen DeepChat tersedia.",
+    "agentPicker": "Ejen",
+    "tabConfig": "Konfigurasi",
+    "tabManage": "Urus",
+    "config": {
+      "rootHint": "deepchat ialah ejen terbina dan akar konfigurasi: nilai yang ditetapkan di sini menjadi lalai yang diwarisi oleh ejen lain.",
+      "extractionModel": "Model alat memori",
+      "extractionModelHint": "Model yang digunakan untuk mengekstrak dan menyahduplikasi memori. Jika tidak dipilih, ia kembali kepada model sembang.",
+      "injectionBudget": "Bajet suntikan (token)",
+      "injectionBudgetHint": "Had token anggaran untuk suntikan memori yang dipasang. Biarkan kosong untuk mewarisi lalai ({default}).",
+      "retrievalTitle": "Kedudukan perolehan",
+      "retrievalHint": "Mengatasi cara memori yang diperoleh disusun; mewarisi lalai apabila dimatikan.",
+      "retrievalOverride": "Atasi parameter perolehan",
+      "topK": "Bilangan perolehan (topK)",
+      "rrfK": "Pemalar gabungan (rrfK)",
+      "similarityThreshold": "Ambang persamaan",
+      "weightSimilarity": "Berat · persamaan",
+      "weightRecency": "Berat · kebaharuan",
+      "weightImportance": "Berat · kepentingan"
     }
   }
 }
