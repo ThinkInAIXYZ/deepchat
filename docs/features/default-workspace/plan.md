@@ -10,6 +10,8 @@ and lets the renderer distinguish that path from user-selected project folders:
 3. Return a typed built-in chat workspace marker in bootstrap.
 4. Render built-in default workspace sessions under `Chats` / `聊天`, separate from normal project
    folders.
+5. Treat explicit no-project DeepChat sessions as `Chats` entries without forcing the default
+   workdir.
 
 ## Default Workspace Rules
 
@@ -57,12 +59,22 @@ their global default.
 - `src/renderer/src/stores/ui/project.ts`
   - Keep the built-in chat workspace path from bootstrap so renderer code can identify it without
     guessing from the folder basename.
-- `src/renderer/src/stores/ui/session.ts`
-  - In project grouping mode, map sessions whose `projectDir` matches the built-in chat workspace
-    path to a `Chats` group with an i18n label key instead of a path-basename project group.
 - `src/renderer/src/components/WindowSideBar.vue`
-  - Keep user project folder groups under the normal project area and render the built-in chat
-    workspace group as a separate non-reorderable `Chats` section.
+  - In project grouping mode, relabel the group whose id matches the built-in chat workspace path as
+    `Chats`.
+  - Also relabel the no-project group as `Chats`.
+  - Keep that group outside project-folder reordering while preserving its environment position.
+- `src/renderer/src/pages/NewThreadPage.vue`
+  - Label the selected built-in chat workspace as `Chats` in the project picker while keeping the
+    stored path unchanged.
+  - When the user manually clears project selection for a DeepChat session, submit `projectDir:
+    null` so main-process creation does not apply default workdir fallback.
+- `src/shared/contracts/routes/sessions.routes.ts`
+  - Allow nullable `projectDir` in `sessions.create` input. `undefined` keeps default fallback;
+    `null` means explicit no project.
+- `src/main/presenter/agentSessionPresenter/index.ts`
+  - Preserve existing default fallback for omitted project dirs.
+  - Honor explicit nullable project dirs by creating the session with no workdir.
 - `src/renderer/src/i18n/*/chat.json`
   - Add sidebar label keys for `Chats` / `聊天`.
 
@@ -90,8 +102,11 @@ No new renderer API or preload route is required; startup bootstrap metadata is 
   renderer receives it.
 - Add renderer store/component tests for:
   - built-in default workspace sessions render under `Chats` / `聊天`;
+  - explicitly no-project sessions render under `Chats` / `聊天`;
   - user-selected folders remain under project folder groups;
   - the `Chats` section is not included in project-folder reordering.
+- Add session creation tests proving `projectDir: null` suppresses agent/global default workdir
+  fallback.
 - Run the repository-required checks after implementation:
   - `pnpm run format`
   - `pnpm run i18n`
@@ -101,5 +116,5 @@ No new renderer API or preload route is required; startup bootstrap metadata is 
 
 - No one-time initialization flag. The ensure method is cheap and idempotent.
 - No opt-out setting in the first increment. Existing users are protected by the guard.
-- No new workspace/domain type table. A nullable bootstrap marker is enough for one built-in chat
-  workspace.
+- No new workspace/domain type table and no session-store regrouping. A nullable bootstrap marker
+  plus sidebar display mapping is enough for one built-in chat workspace.

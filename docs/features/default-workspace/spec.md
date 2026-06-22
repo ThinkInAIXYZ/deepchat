@@ -28,6 +28,8 @@ it must not look like a normal user project in the main session sidebar.
 - The renderer project store already selects a non-null bootstrap default path.
 - Project-mode session grouping currently groups sessions by `projectDir` and labels each path by
   its basename, so `Documents/DeepChat` would appear as a normal `DeepChat` project group.
+- Project-mode session grouping uses a separate no-project group for sessions with no `projectDir`;
+  this group also belongs under `Chats` / `聊天`, not under normal project folders.
 - `WorkspacePanel.vue` shows the `chat.workspace.files.noWorkspace.*` empty state when there is no
   workspace path.
 - Local and remote agent workdir resolution already falls back to the global default project path.
@@ -89,11 +91,18 @@ entry; the `Chats` section should still be visible once it has sessions.
   selection.
 - User-facing labels for the built-in default workspace use `Chats` / `聊天`; the UI must not expose
   it as a normal `DeepChat` project group in the main session sidebar.
+- Chat/no-project affordances in the new-thread selector and sidebar use a chat icon, not a folder
+  icon.
 - Project-mode sidebar grouping separates sessions backed by the built-in default workspace from
   sessions backed by user-selected project folders.
+- Project-mode sidebar grouping also renders explicitly no-project sessions under `Chats` /
+  `聊天`.
 - User-selected project folders remain under the normal `Projects` area and keep existing project
   group ordering/reordering behavior.
 - The built-in `Chats` section is not reorderable with user project folders.
+- When the user explicitly chooses no project for a DeepChat session, session creation passes a
+  nullable `projectDir` through to the main process and does not fall back to the global default
+  workdir.
 - Manual folder selection still overrides the selected workspace for the current session as it does
   today.
 - Removing or archiving the default workspace through existing directory management clears or changes

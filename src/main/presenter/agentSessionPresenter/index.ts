@@ -313,11 +313,10 @@ export class AgentSessionPresenter {
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
       agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir =
-      input.projectDir?.trim() ||
-      deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.getDefaultProjectPathCompat() ||
-      null
+    const projectDir = this.resolveCreateSessionProjectDir(
+      input.projectDir,
+      deepChatAgentConfig?.defaultProjectPath
+    )
     const disabledAgentTools =
       agentType === 'deepchat'
         ? this.normalizeDisabledAgentTools(
@@ -2678,6 +2677,22 @@ export class AgentSessionPresenter {
     }
 
     return this.configPresenter.getDefaultProjectPath() ?? null
+  }
+
+  private resolveCreateSessionProjectDir(
+    inputProjectDir: string | null | undefined,
+    agentDefaultProjectDir: string | null | undefined
+  ): string | null {
+    if (inputProjectDir === null) {
+      return null
+    }
+
+    return (
+      inputProjectDir?.trim() ||
+      agentDefaultProjectDir?.trim() ||
+      this.getDefaultProjectPathCompat() ||
+      null
+    )
   }
 
   private async resolveAssistantModelSelection(

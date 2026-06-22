@@ -57,6 +57,7 @@ const setup = async (options?: {
   } | null
   isDirectory?: boolean | ((path: string) => Promise<boolean> | boolean)
   defaultProjectPath?: string | null
+  defaultChatWorkspacePath?: string | null
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
@@ -68,15 +69,22 @@ const setup = async (options?: {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
   chatInputPendingSkillsSnapshotRef.value = []
+  const initialSelectedProject = Object.prototype.hasOwnProperty.call(
+    options ?? {},
+    'selectedProject'
+  )
+    ? (options?.selectedProject ?? null)
+    : {
+        path: '/tmp/workspace',
+        name: 'workspace'
+      }
 
   const projectStore = reactive({
-    selectedProject: (options?.selectedProject ?? {
-      path: '/tmp/workspace',
-      name: 'workspace'
-    }) as { path: string; name: string } | null,
-    selectedProjectName: options?.selectedProject?.name ?? 'workspace',
+    selectedProject: initialSelectedProject as { path: string; name: string } | null,
+    selectedProjectName: initialSelectedProject?.name ?? 'workspace',
     selectionSource: 'manual' as 'manual' | 'default',
     defaultProjectPath: options?.defaultProjectPath ?? null,
+    defaultChatWorkspacePath: options?.defaultChatWorkspacePath ?? null,
     projects: [],
     environments: [],
     archivedEnvironments: [],
@@ -331,6 +339,72 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       projectDir: '/tmp/default-workspace',
       permissionMode: 'full_access'
     })
+  })
+
+  it('labels the built-in default workspace as chats instead of its folder name', async () => {
+    const { wrapper } = await setup({
+      selectedProject: {
+        path: '/Users/test/Documents/DeepChat',
+        name: 'DeepChat'
+      },
+      defaultChatWorkspacePath: '/Users/test/Documents/DeepChat/'
+    })
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(
+      wrapper.get('[data-testid="new-thread-project-trigger-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+    expect(wrapper.get('[data-testid="new-thread-clear-project"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(wrapper.text()).not.toContain('common.project.none')
+    expect(
+      wrapper.get('[data-testid="new-thread-clear-project-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+  })
+
+  it('labels an explicit no-project DeepChat draft as chats and submits null projectDir', async () => {
+    const { wrapper, sessionStore, agentStore, modelStore } = await setup({
+      selectedProject: {
+        path: '/Users/test/Documents/DeepChat',
+        name: 'DeepChat'
+      },
+      defaultProjectPath: '/Users/test/Documents/DeepChat',
+      defaultChatWorkspacePath: '/Users/test/Documents/DeepChat'
+    })
+
+    agentStore.selectedAgentId = 'deepchat'
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    await flushPromises()
+
+    ;(wrapper.vm as any).clearSelectedProject()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(
+      wrapper.get('[data-testid="new-thread-project-trigger-icon"]').attributes('data-icon')
+    ).toBe('lucide:message-square')
+
+    ;(wrapper.vm as any).message = 'hello no project'
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'hello no project',
+        agentId: 'deepchat',
+        projectDir: null
+      })
+    )
   })
 
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {

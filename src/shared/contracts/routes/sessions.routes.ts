@@ -63,7 +63,7 @@ export const CreateSessionInputSchema = z.object({
   agentId: EntityIdSchema,
   message: z.string(),
   files: z.array(MessageFileSchema).optional(),
-  projectDir: z.string().optional(),
+  projectDir: z.string().nullable().optional(),
   providerId: z.string().optional(),
   modelId: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),

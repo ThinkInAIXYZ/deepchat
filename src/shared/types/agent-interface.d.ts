@@ -869,7 +869,7 @@ export interface CreateSessionInput {
   agentId: string
   message: string
   files?: MessageFile[]
-  projectDir?: string
+  projectDir?: string | null
   providerId?: string
   modelId?: string
   permissionMode?: PermissionMode

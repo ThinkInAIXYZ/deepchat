@@ -373,6 +373,7 @@
     "moveProjectGroupDown": "Move Down",
     "moveProjectGroupBottom": "Move to Bottom",
     "pinned": "Pinned",
+    "chats": "Chats",
     "emptyTitle": "No conversations yet",
     "emptyDescription": "Start a new chat to begin",
     "searchPlaceholder": "Search chats",

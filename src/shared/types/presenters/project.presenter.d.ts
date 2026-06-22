@@ -1,6 +1,7 @@
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '../agent-interface'
 
 export interface IProjectPresenter {
+  ensureDefaultWorkspace(): Promise<string | null>
   getProjects(): Promise<Project[]>
   getRecentProjects(limit?: number): Promise<Project[]>
   getEnvironments(options?: { status?: EnvironmentStatus }): Promise<EnvironmentSummary[]>

@@ -2476,6 +2476,7 @@ export async function dispatchDeepchatRoute(
       const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
 
       if (!coordinator) {
+        const defaultChatWorkspacePath = await runtime.projectPresenter.ensureDefaultWorkspace()
         const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
           context.webContentsId
         )
@@ -2507,7 +2508,8 @@ export async function dispatchDeepchatRoute(
               source: agent.source,
               avatar: agent.avatar
             })),
-          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+          defaultChatWorkspacePath
         }
 
         return startupGetBootstrapRoute.output.parse({ bootstrap })
@@ -2523,6 +2525,7 @@ export async function dispatchDeepchatRoute(
         dedupeKey: 'main.bootstrap:route',
         runId: coordinator.getRunId('main'),
         run: async () => {
+          const defaultChatWorkspacePath = await runtime.projectPresenter.ensureDefaultWorkspace()
           const startupRunId = coordinator.getRunId('main')
           const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
             context.webContentsId
@@ -2555,7 +2558,8 @@ export async function dispatchDeepchatRoute(
                 source: agent.source,
                 avatar: agent.avatar
               })),
-            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+            defaultChatWorkspacePath
           }
 
           coordinator.replayTarget('main')

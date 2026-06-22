@@ -332,6 +332,7 @@
     "groupByDate": "日付でグループ化",
     "groupByProject": "プロジェクトでグループ化",
     "pinned": "ピン留め",
+    "chats": "チャット",
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう",
     "remoteControlDisabled": "無効",

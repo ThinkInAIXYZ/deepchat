@@ -510,6 +510,29 @@ describe('AgentSessionPresenter', () => {
       )
     })
 
+    it('honors explicit null projectDir without applying default directory fallbacks', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultProjectPath: '/workspaces/agent-default'
+      })
+      configPresenter.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Hi', projectDir: null }, 1)
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          projectDir: null
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat',
+        'Hi',
+        null,
+        expect.any(Object)
+      )
+    })
+
     it('uses input provider/model when specified', async () => {
       await presenter.createSession(
         { agentId: 'deepchat', message: 'Hi', providerId: 'anthropic', modelId: 'claude-3' },

@@ -129,6 +129,22 @@ describe('projectStore default project handling', () => {
     })
   })
 
+  it('keeps bootstrap chat workspace metadata and clears it when the default changes', async () => {
+    const { store, emitDefaultProjectPathChanged } = await setupStore({
+      recentProjects: [],
+      defaultProjectPath: '/work/default'
+    })
+
+    store.applyBootstrapDefaultProjectPath('/work/default', '/work/default')
+
+    expect(store.defaultChatWorkspacePath.value).toBe('/work/default')
+
+    emitDefaultProjectPathChanged('/work/custom')
+
+    expect(store.defaultProjectPath.value).toBe('/work/custom')
+    expect(store.defaultChatWorkspacePath.value).toBeNull()
+  })
+
   it('keeps a manual project selection when the default project changes later', async () => {
     const { store, emitDefaultProjectPathChanged } = await setupStore({
       recentProjects: [{ path: '/work/recent', name: 'recent', icon: null, exists: true }],

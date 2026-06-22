@@ -26,7 +26,12 @@
               data-testid="new-thread-project-trigger"
               class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
             >
-              <Icon icon="lucide:folder" class="w-3.5 h-3.5" />
+              <Icon
+                :icon="selectedProjectIcon"
+                :data-icon="selectedProjectIcon"
+                data-testid="new-thread-project-trigger-icon"
+                class="w-3.5 h-3.5"
+              />
               <span>{{ selectedProjectName }}</span>
               <Icon
                 v-if="selectedProjectDirectoryInvalid"
@@ -49,8 +54,13 @@
               :disabled="!canClearProjectSelection"
               @click="clearSelectedProject"
             >
-              <Icon icon="lucide:folder-x" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.none') }}</span>
+              <Icon
+                :icon="chatProjectIcon"
+                :data-icon="chatProjectIcon"
+                data-testid="new-thread-clear-project-icon"
+                class="w-3.5 h-3.5 text-muted-foreground"
+              />
+              <span>{{ t('chat.sidebar.chats') }}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -59,9 +69,12 @@
               class="gap-2 text-xs py-1.5 px-2"
               @click="projectStore.selectProject(project.path)"
             >
-              <Icon icon="lucide:folder" class="w-3.5 h-3.5 text-muted-foreground" />
+              <Icon
+                :icon="getProjectMenuIcon(project.path)"
+                class="w-3.5 h-3.5 text-muted-foreground"
+              />
               <div class="flex flex-col min-w-0 flex-1">
-                <span class="truncate">{{ project.name }}</span>
+                <span class="truncate">{{ getProjectDisplayName(project) }}</span>
                 <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
               </div>
               <Icon
@@ -325,6 +338,12 @@ const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
+const normalizeComparableProjectPath = (value: string | null | undefined) =>
+  normalizeProjectPath(value)?.replace(/[\\/]+$/, '') ?? null
+const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
+  const chatWorkspacePath = normalizeComparableProjectPath(projectStore.defaultChatWorkspacePath)
+  return Boolean(chatWorkspacePath) && normalizeComparableProjectPath(path) === chatWorkspacePath
+}
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
 const archivedProjectPaths = computed(
   () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
@@ -353,12 +372,31 @@ const selectableProjects = computed(() =>
 const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
+const selectedSessionProjectDir = computed<string | null | undefined>(() =>
+  hasExplicitNoProjectSelection.value ? null : projectStore.selectedProject?.path
+)
+const isSelectedChatProject = computed(
+  () =>
+    hasExplicitNoProjectSelection.value ||
+    isDefaultChatWorkspaceProject(projectStore.selectedProject?.path)
+)
+const chatProjectIcon = 'lucide:message-square'
 const selectedProjectName = computed(() => {
+  if (isDefaultChatWorkspaceProject(projectStore.selectedProject?.path)) {
+    return t('chat.sidebar.chats')
+  }
   if (projectStore.selectedProject?.name) {
     return projectStore.selectedProject.name
   }
-  return hasExplicitNoProjectSelection.value ? t('common.project.none') : t('common.project.select')
+  return hasExplicitNoProjectSelection.value ? t('chat.sidebar.chats') : t('common.project.select')
 })
+const selectedProjectIcon = computed(() =>
+  isSelectedChatProject.value ? chatProjectIcon : 'lucide:folder'
+)
+const getProjectDisplayName = (project: { path: string; name: string }) =>
+  isDefaultChatWorkspaceProject(project.path) ? t('chat.sidebar.chats') : project.name
+const getProjectMenuIcon = (projectPath: string) =>
+  isDefaultChatWorkspaceProject(projectPath) ? chatProjectIcon : 'lucide:folder'
 const canClearProjectSelection = computed(() => Boolean(projectStore.selectedProject?.path?.trim()))
 type ProjectDirectoryStatus = 'none' | 'checking' | 'valid' | 'invalid'
 const selectedProjectDirectoryStatus = ref<ProjectDirectoryStatus>('none')
@@ -834,7 +872,7 @@ async function submitText(text: string, files: MessageFile[]) {
     await sessionStore.createSession({
       message: text,
       files,
-      projectDir: projectStore.selectedProject?.path,
+      projectDir: selectedSessionProjectDir.value,
       agentId,
       providerId,
       modelId,

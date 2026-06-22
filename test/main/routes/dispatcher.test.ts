@@ -113,7 +113,8 @@ function createRuntime() {
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
-    skillDraftSuggestionsEnabled: false
+    skillDraftSuggestionsEnabled: false,
+    defaultProjectPath: null as string | null
   }
   const knowledgeConfigs = [
     {
@@ -305,6 +306,10 @@ function createRuntime() {
     setCustomProxyUrl: vi.fn((url: string) => {
       settings.customProxyUrl = url
     }),
+    getDefaultProjectPath: vi.fn(() => settings.defaultProjectPath),
+    setDefaultProjectPath: vi.fn((projectPath: string | null) => {
+      settings.defaultProjectPath = projectPath
+    }),
     openLoggingFolder: vi.fn().mockResolvedValue(undefined),
     getUpdateChannel: vi.fn(() => settings.updateChannel),
     setUpdateChannel: vi.fn((channel: 'stable' | 'beta') => {
@@ -406,6 +411,8 @@ function createRuntime() {
   } as unknown as IConfigPresenter
 
   const agentSessionPresenter = {
+    getActiveSessionId: vi.fn(() => null),
+    getLightweightSessionsByIds: vi.fn().mockResolvedValue([]),
     createSession: vi.fn().mockResolvedValue({
       id: 'session-1',
       agentId: 'deepchat',
@@ -810,6 +817,7 @@ function createRuntime() {
   } as unknown as IDevicePresenter
 
   const projectPresenter = {
+    ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
     getRecentProjects: vi.fn().mockResolvedValue([
       {
         path: 'C:/workspace',
@@ -1193,6 +1201,28 @@ function createRuntime() {
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('ensures the built-in chat workspace before startup bootstrap returns', async () => {
+    const { runtime, settings, projectPresenter } = createRuntime()
+    vi.mocked(projectPresenter.ensureDefaultWorkspace).mockImplementation(async () => {
+      settings.defaultProjectPath = 'C:/Users/test/Documents/DeepChat'
+      return 'C:/Users/test/Documents/DeepChat'
+    })
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'startup.getBootstrap',
+      {},
+      {
+        webContentsId: 42,
+        windowId: 7
+      }
+    )
+
+    expect(projectPresenter.ensureDefaultWorkspace).toHaveBeenCalledTimes(1)
+    expect(result.bootstrap.defaultProjectPath).toBe('C:/Users/test/Documents/DeepChat')
+    expect(result.bootstrap.defaultChatWorkspacePath).toBe('C:/Users/test/Documents/DeepChat')
+  })
+
   it('reads a typed settings snapshot', async () => {
     const { runtime } = createRuntime()
 
