@@ -318,6 +318,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   const conversationMessages = [...messages]
   let currentTools = [...tools]
   let toolCallCount = 0
+  let firstProviderRoundReady = false
 
   logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
@@ -376,7 +377,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         `[ProcessStream] stream iteration done reason=${state.stopReason} events=${eventCount} blocks=${state.blocks.length}`
       )
 
-      // Break conditions: not tool_use, abort, no completed tool calls
       if (io.abortSignal.aborted) {
         finalizeUserCanceledErrorIfNeeded(state, io)
         return {
@@ -386,6 +386,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           usage: buildUsageSnapshot(state)
         }
       }
+      if (!firstProviderRoundReady && state.blocks.length > 0) {
+        firstProviderRoundReady = true
+        echo.flush()
+        try {
+          params.onFirstProviderRoundReady?.()
+        } catch (error) {
+          console.warn('[ProcessStream] first provider round readiness callback failed:', error)
+        }
+      }
+
+      // Break conditions: not tool_use, abort, no completed tool calls
       if (state.stopReason !== 'tool_use') break
       if (state.completedToolCalls.length === 0) break
 

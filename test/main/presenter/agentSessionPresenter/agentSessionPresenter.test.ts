@@ -386,6 +386,7 @@ describe('AgentSessionPresenter', () => {
       const result = await presenter.createSession({ agentId: 'deepchat', message: '' }, 1)
 
       expect(result.title).toBe('New Chat')
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
     })
 
     it('calls agent.initSession and queues the first message', async () => {
@@ -506,6 +507,29 @@ describe('AgentSessionPresenter', () => {
         'deepchat',
         'Hi',
         '/workspaces/global-default',
+        expect.any(Object)
+      )
+    })
+
+    it('honors explicit null projectDir without applying default directory fallbacks', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        defaultProjectPath: '/workspaces/agent-default'
+      })
+      configPresenter.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Hi', projectDir: null }, 1)
+
+      expect(deepChatAgent.initSession).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          projectDir: null
+        })
+      )
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-session-id',
+        'deepchat',
+        'Hi',
+        null,
         expect.any(Object)
       )
     })
@@ -695,6 +719,155 @@ describe('AgentSessionPresenter', () => {
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
         title: 'Async Generated Title'
       })
+    })
+
+    it('waits for persisted first-turn messages before generating title', async () => {
+      const sessions = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null) => {
+          sessions.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessions.get(id))
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = sessions.get(id)
+        if (!row) return
+        sessions.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      })
+
+      let messagesReady = false
+      deepChatAgent.getMessages.mockImplementation(async () =>
+        messagesReady
+          ? [
+              {
+                id: 'u1',
+                sessionId: 'mock-session-id',
+                orderSeq: 1,
+                role: 'user',
+                content: JSON.stringify({ text: 'Please summarize this chat', files: [] }),
+                status: 'sent',
+                isContextEdge: 0,
+                metadata: '{}',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              } as any
+            ]
+          : []
+      )
+
+      vi.useFakeTimers()
+      try {
+        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await vi.advanceTimersByTimeAsync(20)
+        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+
+        messagesReady = true
+        await vi.advanceTimersByTimeAsync(300)
+
+        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+          title: 'Async Generated Title'
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('generates title after first-turn readiness before session is idle', async () => {
+      const sessions = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null) => {
+          sessions.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessions.get(id))
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = sessions.get(id)
+        if (!row) return
+        sessions.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      })
+
+      let resolveReady: (ready: boolean) => void = () => undefined
+      const readyPromise = new Promise<boolean>((resolve) => {
+        resolveReady = resolve
+      })
+      ;(deepChatAgent as any).waitForFirstTurnReady = vi.fn(() => readyPromise)
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+      deepChatAgent.getMessages.mockResolvedValue([
+        {
+          id: 'u1',
+          sessionId: 'mock-session-id',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'Please summarize this chat', files: [] }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as any,
+        {
+          id: 'a1',
+          sessionId: 'mock-session-id',
+          orderSeq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: 'Summary body', status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as any
+      ])
+
+      vi.useFakeTimers()
+      try {
+        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await vi.advanceTimersByTimeAsync(20)
+        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+
+        resolveReady(true)
+        await vi.advanceTimersByTimeAsync(0)
+        await Promise.resolve()
+
+        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+          title: 'Async Generated Title'
+        })
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('syncs ACP workdir persistence before the first ACP message runs', async () => {

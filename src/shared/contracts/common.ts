@@ -259,7 +259,8 @@ export const StartupBootstrapShellSchema = z.object({
   activeSessionId: EntityIdSchema.nullable(),
   activeSession: SessionListItemSchema.nullable().optional(),
   agents: z.array(AgentBootstrapItemSchema),
-  defaultProjectPath: z.string().nullable()
+  defaultProjectPath: z.string().nullable(),
+  defaultChatWorkspacePath: z.string().nullable().optional()
 })
 
 export const StartupWorkloadTargetSchema = z.enum(['main', 'settings'])

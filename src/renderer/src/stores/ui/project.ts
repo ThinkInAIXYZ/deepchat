@@ -29,6 +29,7 @@ export const useProjectStore = defineStore('project', () => {
   const removedEnvironments = ref<EnvironmentSummary[]>([])
   const selectedProjectPath = ref<string | null>(null)
   const defaultProjectPath = ref<string | null>(null)
+  const defaultChatWorkspacePath = ref<string | null>(null)
   const selectionSource = ref<ProjectSelectionSource>('none')
   const error = ref<string | null>(null)
   let listenersRegistered = false
@@ -100,8 +101,12 @@ export const useProjectStore = defineStore('project', () => {
     applyDefaultSelection()
   }
 
-  const applyBootstrapDefaultProjectPath = (path: string | null | undefined) => {
+  const applyBootstrapDefaultProjectPath = (
+    path: string | null | undefined,
+    chatWorkspacePath?: string | null
+  ) => {
     defaultProjectPath.value = normalizePath(path)
+    defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
     projects.value = reconcileProjects(projects.value)
     applyDefaultSelection()
   }
@@ -315,6 +320,7 @@ export const useProjectStore = defineStore('project', () => {
     removedEnvironments,
     selectedProjectPath,
     defaultProjectPath,
+    defaultChatWorkspacePath,
     selectionSource,
     error,
     selectedProject,

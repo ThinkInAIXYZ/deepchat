@@ -1080,6 +1080,49 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('resolves first-turn readiness before processMessage completes', async () => {
+      const streamDone = deferred<void>()
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        params.onFirstProviderRoundReady?.()
+        await streamDone.promise
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const readyPromise = agent.waitForFirstTurnReady('s1', { timeoutMs: 1000 })
+      const processPromise = agent.processMessage('s1', 'Hello')
+
+      await expect(readyPromise).resolves.toBe(true)
+      await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
+
+      streamDone.resolve()
+      await processPromise
+    })
+
+    it('ignores first-turn readiness from a stale destroyed run', async () => {
+      const streamDone = deferred<void>()
+      let markReady: (() => void) | null = null
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
+        markReady = params.onFirstProviderRoundReady ?? null
+        await streamDone.promise
+        return { status: 'completed' }
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const processPromise = agent.processMessage('s1', 'Hello')
+      await vi.waitFor(() => expect(markReady).toBeTypeOf('function'))
+
+      const readyBeforeDestroy = agent.waitForFirstTurnReady('s1', { timeoutMs: 1000 })
+      await agent.destroySession('s1')
+      await expect(readyBeforeDestroy).resolves.toBe(false)
+
+      markReady?.()
+
+      await expect(agent.waitForFirstTurnReady('s1', { timeoutMs: 0 })).resolves.toBe(false)
+      streamDone.resolve()
+      await processPromise
+    })
+
     it('queues steer during pre-stream setup and drains it as the next visible turn', async () => {
       let releaseTools: (() => void) | null = null
       toolPresenter.getAllToolDefinitions.mockImplementationOnce(

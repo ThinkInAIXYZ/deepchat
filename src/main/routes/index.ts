@@ -2484,9 +2484,10 @@ export async function dispatchDeepchatRoute(
               await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
             )[0] ?? null)
           : null
-        const [agents, acpEnabled] = await Promise.all([
+        const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
           runtime.configPresenter.listAgents(),
-          runtime.configPresenter.getAcpEnabled()
+          runtime.configPresenter.getAcpEnabled(),
+          runtime.projectPresenter.ensureDefaultWorkspace()
         ])
 
         const bootstrap = {
@@ -2507,7 +2508,8 @@ export async function dispatchDeepchatRoute(
               source: agent.source,
               avatar: agent.avatar
             })),
-          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+          defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+          defaultChatWorkspacePath
         }
 
         return startupGetBootstrapRoute.output.parse({ bootstrap })
@@ -2532,9 +2534,10 @@ export async function dispatchDeepchatRoute(
                 await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
               )[0] ?? null)
             : null
-          const [agents, acpEnabled] = await Promise.all([
+          const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
             runtime.configPresenter.listAgents(),
-            runtime.configPresenter.getAcpEnabled()
+            runtime.configPresenter.getAcpEnabled(),
+            runtime.projectPresenter.ensureDefaultWorkspace()
           ])
 
           const bootstrap = {
@@ -2555,7 +2558,8 @@ export async function dispatchDeepchatRoute(
                 source: agent.source,
                 avatar: agent.avatar
               })),
-            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath()
+            defaultProjectPath: runtime.configPresenter.getDefaultProjectPath(),
+            defaultChatWorkspacePath
           }
 
           coordinator.replayTarget('main')

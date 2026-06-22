@@ -170,6 +170,42 @@ export class ProjectPresenter {
     return dirPath
   }
 
+  async ensureDefaultWorkspace(): Promise<string | null> {
+    if (!this.configPresenter) {
+      return null
+    }
+
+    const candidates = this.getDefaultWorkspaceCandidates()
+    const currentDefault = this.configPresenter.getDefaultProjectPath()
+    const currentDefaultIsBuiltin = Boolean(
+      currentDefault && this.isDefaultWorkspaceCandidate(currentDefault, candidates)
+    )
+
+    if (currentDefault && !currentDefaultIsBuiltin) {
+      return null
+    }
+
+    if (!currentDefault && this.hasExistingWorkspaceHistory()) {
+      return null
+    }
+
+    const defaultPath = this.createFirstAvailableDefaultWorkspace(
+      currentDefaultIsBuiltin && currentDefault ? [currentDefault, ...candidates] : candidates
+    )
+    if (!defaultPath) {
+      return null
+    }
+
+    this.sqlitePresenter.newProjectsTable.upsert(defaultPath, 'DeepChat')
+    this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(defaultPath)
+
+    if (currentDefault !== defaultPath) {
+      this.configPresenter.setDefaultProjectPath(defaultPath)
+    }
+
+    return defaultPath
+  }
+
   private createEnvironmentSummary(
     environmentPath: string,
     usage: NewEnvironmentRow | undefined,
@@ -258,6 +294,67 @@ export class ProjectPresenter {
     }
 
     return normalizedPaths
+  }
+
+  private getDefaultWorkspaceCandidates(): string[] {
+    const candidates: string[] = []
+    const addCandidate = (basePath: string) => {
+      candidates.push(path.resolve(path.join(basePath, 'DeepChat')))
+    }
+
+    try {
+      addCandidate(app.getPath('documents'))
+    } catch (error) {
+      console.warn('[ProjectPresenter] Failed to resolve Documents path:', error)
+    }
+
+    try {
+      addCandidate(app.getPath('home'))
+    } catch (error) {
+      console.warn('[ProjectPresenter] Failed to resolve Home path:', error)
+    }
+
+    candidates.push(path.resolve(path.join(this.userDataWorkspacesRoot, 'DeepChat')))
+    return this.normalizeUniqueEnvironmentPaths(candidates)
+  }
+
+  private isDefaultWorkspaceCandidate(workspacePath: string, candidates: string[]): boolean {
+    const normalizedPath = path.resolve(workspacePath)
+    return candidates.some((candidate) => path.resolve(candidate) === normalizedPath)
+  }
+
+  private hasExistingWorkspaceHistory(): boolean {
+    const hasProject = this.sqlitePresenter.newProjectsTable
+      .getAll()
+      .some((project) => !this.isRemovedEnvironment(project.path))
+    if (hasProject) {
+      return true
+    }
+
+    const hasEnvironment = this.sqlitePresenter.newEnvironmentsTable
+      .list()
+      .some((environment) => !this.isRemovedEnvironment(environment.path))
+    if (hasEnvironment) {
+      return true
+    }
+
+    return this.sqlitePresenter.newEnvironmentPreferencesTable.list().length > 0
+  }
+
+  private createFirstAvailableDefaultWorkspace(candidates: string[]): string | null {
+    for (const candidate of this.normalizeUniqueEnvironmentPaths(candidates)) {
+      try {
+        fs.mkdirSync(candidate, { recursive: true })
+        return candidate
+      } catch (error) {
+        console.warn(
+          `[ProjectPresenter] Failed to create default workspace at ${candidate}:`,
+          error
+        )
+      }
+    }
+
+    return null
   }
 
   private isTempPath(projectPath: string): boolean {

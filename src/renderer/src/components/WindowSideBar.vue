@@ -346,9 +346,9 @@
                   >
                     <span class="shrink-0 size-6 flex items-center justify-center">
                       <Icon
-                        :icon="
-                          isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
-                        "
+                        :icon="getGroupIcon(group)"
+                        :data-icon="getGroupIcon(group)"
+                        data-testid="window-sidebar-group-icon"
                         class="size-4"
                       />
                     </span>
@@ -728,6 +728,7 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
+const defaultCollapsedChatGroupIds = ref<Set<string>>(new Set())
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -763,11 +764,28 @@ const projectOrderIndex = computed(
 const archivedProjectPathSet = computed(
   () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
 )
+const normalizeProjectPath = (projectPath: string | null | undefined) =>
+  projectPath?.trim().replace(/[\\/]+$/, '') ?? ''
+const defaultChatWorkspacePath = computed(() =>
+  normalizeProjectPath(projectStore.defaultChatWorkspacePath)
+)
+const isChatsGroup = (group: SessionGroup) =>
+  sessionStore.groupMode === 'project' &&
+  (group.id === NO_PROJECT_GROUP_ID ||
+    (defaultChatWorkspacePath.value.length > 0 &&
+      normalizeProjectPath(group.id) === defaultChatWorkspacePath.value))
 const isProjectDirectoryGroup = (group: SessionGroup) =>
-  sessionStore.groupMode === 'project' && group.id !== NO_PROJECT_GROUP_ID && !group.labelKey
+  sessionStore.groupMode === 'project' &&
+  group.id !== NO_PROJECT_GROUP_ID &&
+  !group.labelKey &&
+  !isChatsGroup(group)
 const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
   isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
 const getProjectGroupRank = (group: SessionGroup) => {
+  if (isChatsGroup(group)) {
+    return -1
+  }
+
   if (!isProjectDirectoryGroup(group)) {
     return 2
   }
@@ -835,7 +853,15 @@ const deleteDialogOpen = computed({
 
 const getGroupIdentifier = (group: SessionGroup) => group.id
 
-const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+const getGroupLabel = (group: SessionGroup) =>
+  isChatsGroup(group) ? t('chat.sidebar.chats') : group.labelKey ? t(group.labelKey) : group.label
+const getGroupIcon = (group: SessionGroup) => {
+  if (isChatsGroup(group)) {
+    return 'lucide:message-square'
+  }
+
+  return isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
+}
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
@@ -1040,10 +1066,22 @@ watch(
         group.sessions.some((session) => session.id === activeSessionId)
       )
 
-      if (activeGroup) {
+      if (activeGroup && !isChatsGroup(activeGroup)) {
         nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
       }
     }
+
+    const nextDefaultCollapsedChatGroupIds = new Set(
+      [...defaultCollapsedChatGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
+    )
+    for (const group of groups) {
+      const groupId = getGroupIdentifier(group)
+      if (isChatsGroup(group) && !nextDefaultCollapsedChatGroupIds.has(groupId)) {
+        nextCollapsedGroupIds.add(groupId)
+        nextDefaultCollapsedChatGroupIds.add(groupId)
+      }
+    }
+    defaultCollapsedChatGroupIds.value = nextDefaultCollapsedChatGroupIds
 
     const stateChanged =
       nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||

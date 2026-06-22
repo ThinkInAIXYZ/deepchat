@@ -29,6 +29,7 @@ type SetupOptions = {
   platform?: 'darwin' | 'win32' | 'linux'
   projectEnvironments?: Array<{ path: string }>
   archivedProjectEnvironments?: Array<{ path: string }>
+  defaultChatWorkspacePath?: string | null
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -191,6 +192,7 @@ const setup = async (options: SetupOptions = {}) => {
   const projectStore = reactive({
     environments: options.projectEnvironments ?? [],
     archivedEnvironments: options.archivedProjectEnvironments ?? [],
+    defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
     fetchEnvironments: vi.fn().mockResolvedValue(undefined),
     reorderEnvironments: vi.fn().mockResolvedValue(undefined)
   })
@@ -1304,6 +1306,179 @@ describe('WindowSideBar agent switch', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it(
+    'labels the built-in chat workspace separately from reorderable project groups',
+    async () => {
+      const chatGroup = {
+        id: '/Users/test/Documents/DeepChat',
+        label: 'DeepChat',
+        sessions: [
+          {
+            id: 'chat-default',
+            title: 'Default Chat Session',
+            status: 'none'
+          }
+        ]
+      }
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        pinnedSessions: [
+          {
+            id: 'pinned-chat',
+            title: 'Pinned Session',
+            status: 'none',
+            isPinned: true
+          }
+        ],
+        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat',
+        projectEnvironments: [
+          { path: '/Users/test/Documents/DeepChat' },
+          { path: '/work/alpha' },
+          { path: '/work/beta' }
+        ],
+        groups: [chatGroup, alphaGroup, betaGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chats')
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__pinned__', '/Users/test/Documents/DeepChat', '/work/alpha', '/work/beta'])
+      expect(
+        wrapper.get('[data-group-id="/Users/test/Documents/DeepChat"]').attributes('aria-expanded')
+      ).toBe('false')
+      expect(
+        wrapper
+          .get('[data-group-id="/Users/test/Documents/DeepChat"]')
+          .find('[data-testid="window-sidebar-group-icon"]')
+          .attributes('data-icon')
+      ).toBe('lucide:message-square')
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [chatGroup, betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
+        '/Users/test/Documents/DeepChat',
+        '/work/beta',
+        '/work/alpha'
+      ])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'labels explicitly no-project sessions as chats outside project group reordering',
+    async () => {
+      const noProjectGroup = {
+        id: '__no_project__',
+        label: 'No Project',
+        labelKey: 'common.project.none',
+        sessions: [
+          {
+            id: 'chat-no-project',
+            title: 'No Project Chat',
+            status: 'none'
+          }
+        ]
+      }
+      const alphaGroup = {
+        id: '/work/alpha',
+        label: 'alpha',
+        sessions: [
+          {
+            id: 'project-alpha',
+            title: 'Alpha Session',
+            status: 'none'
+          }
+        ]
+      }
+      const betaGroup = {
+        id: '/work/beta',
+        label: 'beta',
+        sessions: [
+          {
+            id: 'project-beta',
+            title: 'Beta Session',
+            status: 'none'
+          }
+        ]
+      }
+      const { wrapper, projectStore } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
+        groups: [noProjectGroup, alphaGroup, betaGroup]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chats')
+      expect(wrapper.text()).not.toContain('common.project.none')
+      expect(wrapper.get('[data-group-id="__no_project__"]').attributes('aria-expanded')).toBe(
+        'false'
+      )
+      expect(
+        wrapper
+          .get('[data-group-id="__no_project__"]')
+          .find('[data-testid="window-sidebar-group-icon"]')
+          .attributes('data-icon')
+      ).toBe('lucide:message-square')
+      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
+
+      wrapper
+        .getComponent({ name: 'draggable' })
+        .vm.$emit('update:modelValue', [noProjectGroup, betaGroup, alphaGroup])
+      await flushPromises()
+
+      expect(projectStore.reorderEnvironments).toHaveBeenCalledWith(['/work/beta', '/work/alpha'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('does not render the chats group when it has no sessions', async () => {
+    const { wrapper } = await setup({
+      groupMode: 'project',
+      groups: [
+        {
+          id: '__no_project__',
+          label: 'No Project',
+          labelKey: 'common.project.none',
+          sessions: []
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('chat.sidebar.chats')
+  })
 
   it(
     'disables project group reordering while the sidebar search is active',

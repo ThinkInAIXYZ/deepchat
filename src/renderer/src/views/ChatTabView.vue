@@ -82,7 +82,10 @@ onMounted(async () => {
       activeSession: bootstrap.activeSession ?? null
     })
     agentStore.applyBootstrapAgents(bootstrap.agents)
-    projectStore.applyBootstrapDefaultProjectPath(bootstrap.defaultProjectPath)
+    projectStore.applyBootstrapDefaultProjectPath(
+      bootstrap.defaultProjectPath,
+      bootstrap.defaultChatWorkspacePath ?? null
+    )
 
     await pageRouter.initialize({
       activeSessionId: bootstrap.activeSessionId

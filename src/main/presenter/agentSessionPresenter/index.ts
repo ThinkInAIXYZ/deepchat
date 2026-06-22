@@ -313,11 +313,10 @@ export class AgentSessionPresenter {
     const agentType = await this.getAgentType(agentId)
     const deepChatAgentConfig =
       agentType === 'deepchat' ? await this.resolveDeepChatAgentConfigCompat(agentId) : null
-    const projectDir =
-      input.projectDir?.trim() ||
-      deepChatAgentConfig?.defaultProjectPath?.trim() ||
-      this.getDefaultProjectPathCompat() ||
-      null
+    const projectDir = this.resolveCreateSessionProjectDir(
+      input.projectDir,
+      deepChatAgentConfig?.defaultProjectPath
+    )
     const disabledAgentTools =
       agentType === 'deepchat'
         ? this.normalizeDisabledAgentTools(
@@ -432,7 +431,9 @@ export class AgentSessionPresenter {
     }
 
     // Start the first message (non-blocking) after returning session ID.
-    if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
+    const hasInitialTurn =
+      normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
+    if (hasInitialTurn) {
       logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent
@@ -448,8 +449,8 @@ export class AgentSessionPresenter {
           console.error('[AgentSessionPresenter] processMessage failed:', err)
         })
       }
+      void this.generateSessionTitle(sessionId, title, providerId, modelId)
     }
-    void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
     return sessionResult
   }
@@ -2442,17 +2443,12 @@ export class AgentSessionPresenter {
     fallbackModelId: string
   ): Promise<void> {
     try {
-      const settled = await this.waitForSessionIdle(sessionId)
-      if (!settled) return
+      const titleMessages = await this.waitForSessionTitleMessages(sessionId)
+      if (!titleMessages) return
 
       const currentSession = this.sessionManager.get(sessionId)
       if (!currentSession) return
       if (currentSession.title !== initialTitle) return
-
-      const agent = await this.resolveAgentImplementation(currentSession.agentId)
-      const records = await agent.getMessages(sessionId)
-      const titleMessages = this.buildTitleMessages(records)
-      if (titleMessages.length === 0) return
 
       const assistantSelection = await this.resolveAssistantModelSelection(
         currentSession.agentId,
@@ -2522,26 +2518,52 @@ export class AgentSessionPresenter {
     this.sessionUiPort?.refreshSessionUi()
   }
 
-  private async waitForSessionIdle(sessionId: string): Promise<boolean> {
+  private async waitForSessionTitleMessages(
+    sessionId: string
+  ): Promise<Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | null> {
     const MAX_WAIT_MS = 30000
     const POLL_MS = 250
     const startedAt = Date.now()
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const readTitleMessages = async (agent: IAgentImplementation) => {
+      const titleMessages = this.buildTitleMessages(await agent.getMessages(sessionId))
+      return titleMessages.length > 0 ? titleMessages : null
+    }
 
     while (Date.now() - startedAt < MAX_WAIT_MS) {
       const session = this.sessionManager.get(sessionId)
-      if (!session) return false
+      if (!session) return null
 
       const agent = await this.resolveAgentImplementation(session.agentId)
       const state = await agent.getSessionState(sessionId)
-      if (!state) return false
-      if (state.status === 'idle') return true
-      if (state.status === 'error') return false
+      if (!state) return null
+      if (state.status === 'error') return null
+      if (state.status === 'idle') {
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
+          return titleMessages
+        }
+      }
+
+      if (agent.waitForFirstTurnReady) {
+        const remainingMs = MAX_WAIT_MS - (Date.now() - startedAt)
+        const ready = await agent.waitForFirstTurnReady(sessionId, {
+          timeoutMs: Math.min(POLL_MS, Math.max(0, remainingMs))
+        })
+        if (!ready) {
+          continue
+        }
+
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
+          return titleMessages
+        }
+      }
 
       await sleep(POLL_MS)
     }
 
-    return false
+    return null
   }
 
   private async buildSessionWithState(
@@ -2678,6 +2700,22 @@ export class AgentSessionPresenter {
     }
 
     return this.configPresenter.getDefaultProjectPath() ?? null
+  }
+
+  private resolveCreateSessionProjectDir(
+    inputProjectDir: string | null | undefined,
+    agentDefaultProjectDir: string | null | undefined
+  ): string | null {
+    if (inputProjectDir === null) {
+      return null
+    }
+
+    return (
+      inputProjectDir?.trim() ||
+      agentDefaultProjectDir?.trim() ||
+      this.getDefaultProjectPathCompat() ||
+      null
+    )
   }
 
   private async resolveAssistantModelSelection(

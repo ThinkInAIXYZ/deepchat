@@ -308,6 +308,7 @@ const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, Sk
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 // Minimum new-message delta (since the memory cursor) before the fallback extracts.
 const MEMORY_FALLBACK_MIN_DELTA = 6
+const PRE_STREAM_SLOW_STEP_MS = 500
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
     return new DOMException('Aborted', 'AbortError')
@@ -346,6 +347,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
+  private readonly firstTurnReadySessions: Set<string> = new Set()
+  private readonly firstTurnReadyWaiters: Map<string, Set<(ready: boolean) => void>> = new Map()
   private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
@@ -508,6 +511,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode
     })
     this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
+    this.clearFirstTurnReady(sessionId)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
@@ -522,6 +526,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
+    this.clearFirstTurnReady(sessionId)
     this.activeSteerPendingInputIds.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
 
@@ -582,6 +587,73 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
     return this.pendingInputCoordinator.listPendingInputs(sessionId)
+  }
+
+  async waitForFirstTurnReady(
+    sessionId: string,
+    options?: { timeoutMs?: number }
+  ): Promise<boolean> {
+    if (this.firstTurnReadySessions.has(sessionId)) {
+      return true
+    }
+
+    const timeoutMs = Math.max(0, options?.timeoutMs ?? 30000)
+    if (timeoutMs === 0) {
+      return false
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      let settled = false
+      let timer: ReturnType<typeof setTimeout>
+
+      const waiters =
+        this.firstTurnReadyWaiters.get(sessionId) ?? new Set<(ready: boolean) => void>()
+      const cleanup = () => {
+        const current = this.firstTurnReadyWaiters.get(sessionId)
+        current?.delete(resolveWaiter)
+        if (current?.size === 0) {
+          this.firstTurnReadyWaiters.delete(sessionId)
+        }
+      }
+      const settle = (ready: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        cleanup()
+        resolve(ready)
+      }
+      const resolveWaiter = (ready: boolean) => settle(ready)
+
+      waiters.add(resolveWaiter)
+      this.firstTurnReadyWaiters.set(sessionId, waiters)
+      timer = setTimeout(() => settle(false), timeoutMs)
+    })
+  }
+
+  private markFirstTurnReady(sessionId: string): void {
+    if (this.firstTurnReadySessions.has(sessionId)) {
+      return
+    }
+
+    this.firstTurnReadySessions.add(sessionId)
+    this.settleFirstTurnReadyWaiters(sessionId, true)
+  }
+
+  private clearFirstTurnReady(sessionId: string): void {
+    this.firstTurnReadySessions.delete(sessionId)
+    this.settleFirstTurnReadyWaiters(sessionId, false)
+  }
+
+  private settleFirstTurnReadyWaiters(sessionId: string, ready: boolean): void {
+    const waiters = this.firstTurnReadyWaiters.get(sessionId)
+    if (!waiters) {
+      return
+    }
+
+    this.firstTurnReadyWaiters.delete(sessionId)
+    for (const waiter of waiters) {
+      waiter(ready)
+    }
   }
 
   async queuePendingInput(
@@ -800,8 +872,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let streamRunId: string | undefined
 
     try {
+      const preStreamStartedAt = Date.now()
       this.throwIfAbortRequested(preStreamAbortSignal)
+      let stepStartedAt = Date.now()
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
+      this.logSlowPreStreamStep(sessionId, 'generation-settings', stepStartedAt)
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
       const useContextBudget = this.shouldUseDeepChatContextBudget(state.providerId, modelConfig)
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -816,20 +891,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         modelConfig
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
+      stepStartedAt = Date.now()
       const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      this.logSlowPreStreamStep(sessionId, 'active-skills', stepStartedAt)
+      stepStartedAt = Date.now()
       const tools = await this.loadToolDefinitionsForSession(
         sessionId,
         projectDir,
         activeSkillNames
       )
+      this.logSlowPreStreamStep(sessionId, 'tool-definitions', stepStartedAt)
       const toolReserveTokens = estimateToolReserveTokens(tools)
       this.throwIfAbortRequested(preStreamAbortSignal)
+      stepStartedAt = Date.now()
       const baseSystemPrompt = await this.buildSystemPromptWithSkills(
         sessionId,
         generationSettings.systemPrompt,
         tools,
         activeSkillNames
       )
+      this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
       const tapeReady = this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
       const historyRecords = getTapeContextHistoryRecords(tapeReady.historyRecords)
@@ -841,25 +922,28 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         think: false
       }
 
-      const compactionIntent = useContextBudget
-        ? await this.compactionService.prepareForNextUserTurn({
-            sessionId,
-            providerId: state.providerId,
-            modelId: state.modelId,
-            systemPrompt: baseSystemPrompt,
-            contextLength: generationSettings.contextLength,
-            reserveTokens: maxTokens,
-            extraReserveTokens: toolReserveTokens,
-            supportsVision,
-            supportsAudioInput,
-            preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
-            preserveEmptyInterleavedReasoning:
-              interleavedReasoning.preserveEmptyReasoningContent === true,
-            newUserContent: normalizedInput,
-            historyRecords,
-            signal: preStreamAbortSignal
-          })
-        : null
+      let compactionIntent: CompactionIntent | null = null
+      if (useContextBudget) {
+        stepStartedAt = Date.now()
+        compactionIntent = await this.compactionService.prepareForNextUserTurn({
+          sessionId,
+          providerId: state.providerId,
+          modelId: state.modelId,
+          systemPrompt: baseSystemPrompt,
+          contextLength: generationSettings.contextLength,
+          reserveTokens: maxTokens,
+          extraReserveTokens: toolReserveTokens,
+          supportsVision,
+          supportsAudioInput,
+          preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
+          preserveEmptyInterleavedReasoning:
+            interleavedReasoning.preserveEmptyReasoningContent === true,
+          newUserContent: normalizedInput,
+          historyRecords,
+          signal: preStreamAbortSignal
+        })
+        this.logSlowPreStreamStep(sessionId, 'compaction-prepare', stepStartedAt)
+      }
       let summaryState: SessionSummaryState
 
       if (compactionIntent) {
@@ -908,6 +992,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir
       })
 
+      stepStartedAt = Date.now()
       const systemPrompt = await this.appendMemoryInjection(
         sessionId,
         appendReconstructionAnchorStateSection(
@@ -917,6 +1002,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         normalizedInput.text,
         userMessageId
       )
+      this.logSlowPreStreamStep(sessionId, 'memory-injection', stepStartedAt)
+      stepStartedAt = Date.now()
       const contextBuild = buildTapeChatView({
         sessionId,
         newUserContent: normalizedInput,
@@ -935,6 +1022,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             interleavedReasoning.preserveEmptyReasoningContent === true
         }
       })
+      this.logSlowPreStreamStep(sessionId, 'context-build', stepStartedAt)
       const messages = contextBuild.messages
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
@@ -969,6 +1057,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           supportsAudioInput,
           traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
         },
+        preStreamStartedAt,
         onRunRegistered: (runId) => {
           streamRunId = runId
         }
@@ -1102,6 +1191,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     } finally {
       this.clearSessionAbortController(sessionId, preStreamAbortController)
     }
+  }
+
+  private logSlowPreStreamStep(sessionId: string, step: string, startedAt: number): void {
+    const elapsed = Date.now() - startedAt
+    if (elapsed < PRE_STREAM_SLOW_STEP_MS) {
+      return
+    }
+
+    logger.warn(
+      `[DeepChatAgent] pre-stream step slow session=${sessionId} step=${step} elapsed=${elapsed}ms`
+    )
   }
 
   private resolveSkillDraftChoice(answerText: string): SkillDraftChoice | null {
@@ -2567,6 +2667,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.pendingInputCoordinator.deleteBySession(sessionId)
+    this.clearFirstTurnReady(sessionId)
     this.resetMemoryExtractionCursor(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.resetTape(sessionId)
@@ -2696,6 +2797,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
+    preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
   }): Promise<{ runId: string; result: ProcessResult }> {
     const {
@@ -2709,6 +2811,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
+      preStreamStartedAt,
       onRunRegistered
     } = args
     const state = this.runtimeState.get(sessionId)
@@ -2813,6 +2916,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
+    let loggedPreStreamBoundary = false
+    const logPreStreamBoundary = () => {
+      if (loggedPreStreamBoundary || preStreamStartedAt === undefined) {
+        return
+      }
+
+      loggedPreStreamBoundary = true
+      this.logSlowPreStreamStep(sessionId, 'pre-stream-provider-start', preStreamStartedAt)
+    }
 
     try {
       this.dispatchHook('SessionStart', {
@@ -2960,6 +3072,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               throw createAbortError()
             }
 
+            logPreStreamBoundary()
             for await (const event of provider.coreStream(
               providerMessages,
               requestModelId,
@@ -2986,6 +3099,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
+        onFirstProviderRoundReady: () => {
+          if (
+            !abortController.signal.aborted &&
+            this.isActiveRun(sessionId, activeGeneration.runId)
+          ) {
+            this.markFirstTurnReady(sessionId)
+          }
+        },
         shouldYieldForPendingInput: () =>
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
@@ -3767,6 +3888,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
+        const stepStartedAt = Date.now()
         try {
           const metadataList = await skillPresenter.getMetadataList()
           for (const metadata of metadataList) {
@@ -3786,9 +3908,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             error
           )
         }
+        this.logSlowPreStreamStep(sessionId, 'system-prompt.skills-metadata-load', stepStartedAt)
       }
 
       if (!activeSkillNamesOverride && skillPresenter.getActiveSkills) {
+        const stepStartedAt = Date.now()
         try {
           const activeSkills = await skillPresenter.getActiveSkills(sessionId)
           for (const skillName of activeSkills) {
@@ -3803,9 +3927,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             error
           )
         }
+        this.logSlowPreStreamStep(sessionId, 'system-prompt.active-skills-load', stepStartedAt)
       }
     }
 
+    let stepStartedAt = Date.now()
     const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
     const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
     const normalizedActiveSkills = this.normalizeSkillNames(
@@ -3823,6 +3949,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       toolSignature: this.buildToolSignature(toolDefinitions),
       skillDraftSuggestionsEnabled
     })
+    this.logSlowPreStreamStep(sessionId, 'system-prompt.fingerprint', stepStartedAt)
 
     const cachedPrompt = this.systemPromptCache.get(sessionId)
     if (
@@ -3855,6 +3982,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     let skillsPrompt = ''
     if (skillsEnabled && skillPresenter?.loadSkillContent && normalizedActiveSkills.length > 0) {
+      stepStartedAt = Date.now()
       const skillSections: string[] = []
       for (const skillName of normalizedActiveSkills) {
         try {
@@ -3871,10 +3999,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         }
       }
       skillsPrompt = this.buildPinnedSkillsPrompt(skillSections)
+      this.logSlowPreStreamStep(sessionId, 'system-prompt.pinned-skills-load', stepStartedAt)
     }
 
     let envPrompt = ''
     try {
+      stepStartedAt = Date.now()
       envPrompt = await buildSystemEnvPrompt({
         providerId,
         modelId,
@@ -3882,6 +4012,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         now,
         modelLookup: this.providerCatalogPort
       })
+      this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', stepStartedAt)
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
     }
@@ -3889,10 +4020,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let toolingPrompt = ''
     if (this.toolPresenter) {
       try {
+        stepStartedAt = Date.now()
         toolingPrompt = this.toolPresenter.buildToolSystemPrompt({
           conversationId: sessionId,
           toolDefinitions
         })
+        this.logSlowPreStreamStep(sessionId, 'system-prompt.tooling-prompt', stepStartedAt)
       } catch (error) {
         console.warn(
           `[DeepChatAgent] Failed to build tooling prompt for session ${sessionId}:`,
@@ -3901,6 +4034,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     }
 
+    stepStartedAt = Date.now()
     const composedPrompt = this.composePromptSections([
       normalizedBase,
       runtimePrompt,
@@ -3911,6 +4045,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.buildPermissionRulesPrompt(agentToolNames),
       this.buildVerificationPolicyPrompt(workdir)
     ])
+    this.logSlowPreStreamStep(sessionId, 'system-prompt.compose', stepStartedAt)
 
     this.systemPromptCache.set(sessionId, {
       prompt: composedPrompt,
