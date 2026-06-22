@@ -2291,10 +2291,10 @@
       "addDuplicate": "Et lignende minde findes allerede; intet blev tilføjet.",
       "addDisabledHint": "Hukommelse er slået fra for denne assistent. Aktivér den i Konfiguration, før du tilføjer minder.",
       "addSkipped": "Intet minde blev tilføjet.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Søgningen mislykkedes. Prøv igen.",
+      "deletePermanent": "Slet permanent",
+      "deleteConfirmTitle": "Slet denne hukommelse permanent?",
+      "deleteConfirmBody": "Dette fjerner hukommelsen i stedet for at arkivere den. Handlingen kan ikke fortrydes."
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",
@@ -2427,13 +2427,13 @@
       "weightSimilarity": "Vægt · lighed",
       "weightRecency": "Vægt · aktualitet",
       "weightImportance": "Vægt · vigtighed",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Avancerede hukommelsesindstillinger",
+      "advancedHint": "Juster udtrækning, promptbudget og rangering ved genfinding. Lad felter være tomme for at arve standardværdier.",
+      "inheritedHint": "Tomt felt bruger arvet/standardværdi.",
+      "topKHint": "Interval 1-100. Standard: {default}.",
+      "rrfKHint": "Interval 1-1000. Standard: {default}.",
+      "similarityThresholdHint": "Interval 0-1. Standard: {default}.",
+      "weightHint": "Ikke-negativ rangeringsvægt. Standard: {default}."
     }
   }
 }

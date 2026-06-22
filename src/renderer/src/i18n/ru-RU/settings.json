@@ -2291,10 +2291,10 @@
       "addDuplicate": "Похожее воспоминание уже есть; ничего не добавлено.",
       "addDisabledHint": "Память отключена для этого ассистента. Включите её в настройках, прежде чем добавлять воспоминания.",
       "addSkipped": "Воспоминание не добавлено.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Поиск не удался. Попробуйте ещё раз.",
+      "deletePermanent": "Удалить навсегда",
+      "deleteConfirmTitle": "Удалить эту память навсегда?",
+      "deleteConfirmBody": "Память будет удалена, а не архивирована. Это действие нельзя отменить."
     },
     "personaEvolutionTitle": "Эволюция персоны (эксперимент)",
     "personaEvolutionDescription": "Позвольте рефлексии предлагать обновлённые модели себя в виде черновиков для вашего одобрения. Независимо от памяти; по умолчанию выключено.",
@@ -2427,13 +2427,13 @@
       "weightSimilarity": "Вес · сходство",
       "weightRecency": "Вес · давность",
       "weightImportance": "Вес · важность",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Расширенные настройки памяти",
+      "advancedHint": "Настройте извлечение, бюджет промпта и ранжирование поиска. Оставьте поля пустыми, чтобы наследовать значения по умолчанию.",
+      "inheritedHint": "Пустое поле использует унаследованное/значение по умолчанию.",
+      "topKHint": "Диапазон 1-100. По умолчанию: {default}.",
+      "rrfKHint": "Диапазон 1-1000. По умолчанию: {default}.",
+      "similarityThresholdHint": "Диапазон 0-1. По умолчанию: {default}.",
+      "weightHint": "Неотрицательный вес ранжирования. По умолчанию: {default}."
     }
   }
 }

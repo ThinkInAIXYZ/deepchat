@@ -23,6 +23,7 @@
 3. Surface search errors distinctly from empty results.
 4. Rename default destructive memory operations to archive/restore semantics; keep permanent delete as an explicit dangerous action if still exposed.
 5. Move/label advanced retrieval tuning to reduce accidental misuse.
+6. Localize all newly added memory management and advanced settings copy in every supported locale, preserving interpolation placeholders.
 
 ## Tests
 

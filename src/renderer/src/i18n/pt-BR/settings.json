@@ -2291,10 +2291,10 @@
       "addDuplicate": "Já existe uma memória semelhante; nada foi adicionado.",
       "addDisabledHint": "A memória está desativada para este assistente. Ative-a na Configuração antes de adicionar memórias.",
       "addSkipped": "Nenhuma memória foi adicionada.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "A busca falhou. Tente novamente.",
+      "deletePermanent": "Excluir permanentemente",
+      "deleteConfirmTitle": "Excluir esta memória permanentemente?",
+      "deleteConfirmBody": "Isso remove a memória em vez de arquivá-la. Esta ação não pode ser desfeita."
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",
     "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",
@@ -2427,13 +2427,13 @@
       "weightSimilarity": "Peso · similaridade",
       "weightRecency": "Peso · recência",
       "weightImportance": "Peso · importância",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Configurações avançadas de memória",
+      "advancedHint": "Ajuste extração, orçamento de prompt e ranqueamento de recuperação. Deixe os campos vazios para herdar os padrões.",
+      "inheritedHint": "Vazio usa o valor herdado/padrão.",
+      "topKHint": "Intervalo 1-100. Padrão: {default}.",
+      "rrfKHint": "Intervalo 1-1000. Padrão: {default}.",
+      "similarityThresholdHint": "Intervalo 0-1. Padrão: {default}.",
+      "weightHint": "Peso de ranqueamento não negativo. Padrão: {default}."
     }
   }
 }

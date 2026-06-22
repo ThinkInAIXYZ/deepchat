@@ -2291,10 +2291,10 @@
       "addDuplicate": "Une mémoire similaire existe déjà ; rien n'a été ajouté.",
       "addDisabledHint": "La mémoire est désactivée pour cet assistant. Activez-la dans la configuration avant d'ajouter des mémoires.",
       "addSkipped": "Aucune mémoire n'a été ajoutée.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "La recherche a échoué. Réessayez.",
+      "deletePermanent": "Supprimer définitivement",
+      "deleteConfirmTitle": "Supprimer définitivement cette mémoire ?",
+      "deleteConfirmBody": "Cela supprime la mémoire au lieu de l’archiver. Cette action est irréversible."
     },
     "personaEvolutionTitle": "Évolution de la persona (expérimental)",
     "personaEvolutionDescription": "Laissez la réflexion proposer des modèles de soi mis à jour sous forme de brouillons à approuver. Indépendant de la mémoire ; désactivé par défaut.",
@@ -2427,13 +2427,13 @@
       "weightSimilarity": "Poids · similarité",
       "weightRecency": "Poids · récence",
       "weightImportance": "Poids · importance",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Paramètres avancés de la mémoire",
+      "advancedHint": "Ajustez l’extraction, le budget de prompt et le classement de récupération. Laissez les champs vides pour hériter des valeurs par défaut.",
+      "inheritedHint": "Vide utilise la valeur héritée/par défaut.",
+      "topKHint": "Plage 1-100. Par défaut : {default}.",
+      "rrfKHint": "Plage 1-1000. Par défaut : {default}.",
+      "similarityThresholdHint": "Plage 0-1. Par défaut : {default}.",
+      "weightHint": "Poids de classement non négatif. Par défaut : {default}."
     }
   }
 }

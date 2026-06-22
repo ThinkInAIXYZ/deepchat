@@ -11,6 +11,6 @@
 - [x] DB: harden clear/reset and new DB schema version initialization.
 - [x] UI: add MemorySettings error handling.
 - [x] UI: guard MemoryManagerPanel refresh and search errors.
-- [x] UI: clarify archive vs permanent delete and advanced settings.
+- [x] UI: localize new memory management and advanced settings strings for all supported locales.
 - [x] Tests: update memory extraction tests for `parseMemoryCandidates` union return.
 - [ ] Validation: `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and `pnpm run typecheck` passed under Node v26 warning; `pnpm test` was stopped per user instruction after memoryPresenter failures surfaced.

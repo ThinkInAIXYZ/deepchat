@@ -28,7 +28,7 @@ Fix the must-fix and medium-high priority review findings for PR #1794 while pre
 - Preserve backward compatibility with existing local SQLite databases.
 - Do not introduce new runtime dependencies.
 - Main-process DB operations remain synchronous where existing SQLite presenter patterns require it.
-- UI strings must use i18n keys.
+- UI strings must use i18n keys and newly added translations must be localized for each supported locale rather than copied from English.
 
 ## Non-goals
 

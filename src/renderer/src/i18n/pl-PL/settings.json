@@ -222,10 +222,10 @@
       "addDuplicate": "Podobne wspomnienie już istnieje; nic nie dodano.",
       "addDisabledHint": "Pamięć jest wyłączona dla tego asystenta. Włącz ją w Konfiguracji, zanim dodasz wspomnienia.",
       "addSkipped": "Nie dodano żadnego wspomnienia.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+      "deletePermanent": "Usuń trwale",
+      "deleteConfirmTitle": "Trwale usunąć tę pamięć?",
+      "deleteConfirmBody": "Spowoduje to usunięcie pamięci zamiast jej zarchiwizowania. Tej operacji nie można cofnąć."
     },
     "personaEvolutionTitle": "Ewolucja persony (eksperymentalna)",
     "personaEvolutionDescription": "Pozwól, aby refleksja proponowała zaktualizowane modele siebie jako wersje robocze do zatwierdzenia. Niezależna od pamięci; domyślnie wyłączona.",
@@ -2418,13 +2418,13 @@
       "weightSimilarity": "Waga · podobieństwo",
       "weightRecency": "Waga · aktualność",
       "weightImportance": "Waga · ważność",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Zaawansowane ustawienia pamięci",
+      "advancedHint": "Dostosuj ekstrakcję, budżet promptu i ranking wyszukiwania. Pozostaw pola puste, aby dziedziczyć wartości domyślne.",
+      "inheritedHint": "Puste używa wartości odziedziczonej/domyślnej.",
+      "topKHint": "Zakres 1-100. Domyślnie: {default}.",
+      "rrfKHint": "Zakres 1-1000. Domyślnie: {default}.",
+      "similarityThresholdHint": "Zakres 0-1. Domyślnie: {default}.",
+      "weightHint": "Nieujemna waga rankingu. Domyślnie: {default}."
     }
   }
 }

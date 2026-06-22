@@ -222,10 +222,10 @@
       "addDuplicate": "Eine ähnliche Erinnerung existiert bereits; nichts wurde hinzugefügt.",
       "addDisabledHint": "Das Gedächtnis ist für diesen Assistenten deaktiviert. Aktivieren Sie es zuerst in der Konfiguration, um Erinnerungen hinzuzufügen.",
       "addSkipped": "Es wurde keine Erinnerung hinzugefügt.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Suche fehlgeschlagen. Bitte erneut versuchen.",
+      "deletePermanent": "Endgültig löschen",
+      "deleteConfirmTitle": "Diese Erinnerung endgültig löschen?",
+      "deleteConfirmBody": "Dadurch wird die Erinnerung entfernt statt archiviert. Dies kann nicht rückgängig gemacht werden."
     },
     "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
     "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",
@@ -2418,13 +2418,13 @@
       "weightSimilarity": "Gewicht · Ähnlichkeit",
       "weightRecency": "Gewicht · Aktualität",
       "weightImportance": "Gewicht · Wichtigkeit",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Erweiterte Speichereinstellungen",
+      "advancedHint": "Passe Extraktion, Prompt-Budget und Abruf-Ranking an. Leere Felder übernehmen die Standardwerte.",
+      "inheritedHint": "Leer verwendet den geerbten/Standardwert.",
+      "topKHint": "Bereich 1-100. Standard: {default}.",
+      "rrfKHint": "Bereich 1-1000. Standard: {default}.",
+      "similarityThresholdHint": "Bereich 0-1. Standard: {default}.",
+      "weightHint": "Nicht-negative Ranking-Gewichtung. Standard: {default}."
     }
   }
 }

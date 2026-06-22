@@ -222,10 +222,10 @@
       "addDuplicate": "Ingatan serupa sudah wujud; tiada apa-apa ditambah.",
       "addDisabledHint": "Ingatan dimatikan untuk pembantu ini. Aktifkannya dalam Konfigurasi sebelum menambah ingatan.",
       "addSkipped": "Tiada ingatan ditambah.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Carian gagal. Cuba lagi.",
+      "deletePermanent": "Padam secara kekal",
+      "deleteConfirmTitle": "Padam memori ini secara kekal?",
+      "deleteConfirmBody": "Ini membuang memori dan bukannya mengarkibkannya. Tindakan ini tidak boleh dibuat asal."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",
@@ -2418,13 +2418,13 @@
       "weightSimilarity": "Berat · persamaan",
       "weightRecency": "Berat · kebaharuan",
       "weightImportance": "Berat · kepentingan",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Tetapan memori lanjutan",
+      "advancedHint": "Laraskan pengekstrakan, bajet prompt dan penarafan dapatan semula. Biarkan medan kosong untuk mewarisi lalai.",
+      "inheritedHint": "Kosong menggunakan nilai diwarisi/lalai.",
+      "topKHint": "Julat 1-100. Lalai: {default}.",
+      "rrfKHint": "Julat 1-1000. Lalai: {default}.",
+      "similarityThresholdHint": "Julat 0-1. Lalai: {default}.",
+      "weightHint": "Berat penarafan tidak negatif. Lalai: {default}."
     }
   }
 }

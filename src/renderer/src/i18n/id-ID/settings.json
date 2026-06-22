@@ -222,10 +222,10 @@
       "addDuplicate": "Memori serupa sudah ada; tidak ada yang ditambahkan.",
       "addDisabledHint": "Memori dinonaktifkan untuk asisten ini. Aktifkan di Konfigurasi sebelum menambahkan memori.",
       "addSkipped": "Tidak ada memori yang ditambahkan.",
-      "searchFailed": "Search failed. Try again.",
-      "deletePermanent": "Delete permanently",
-      "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "searchFailed": "Pencarian gagal. Coba lagi.",
+      "deletePermanent": "Hapus permanen",
+      "deleteConfirmTitle": "Hapus memori ini secara permanen?",
+      "deleteConfirmBody": "Ini menghapus memori alih-alih mengarsipkannya. Tindakan ini tidak dapat dibatalkan."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",
@@ -2418,13 +2418,13 @@
       "weightSimilarity": "Bobot · kemiripan",
       "weightRecency": "Bobot · kebaruan",
       "weightImportance": "Bobot · kepentingan",
-      "advancedTitle": "Advanced memory settings",
-      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
-      "inheritedHint": "Empty uses inherited/default value.",
-      "topKHint": "Range 1-100. Default: {default}.",
-      "rrfKHint": "Range 1-1000. Default: {default}.",
-      "similarityThresholdHint": "Range 0-1. Default: {default}.",
-      "weightHint": "Non-negative ranking weight. Default: {default}."
+      "advancedTitle": "Pengaturan memori lanjutan",
+      "advancedHint": "Sesuaikan ekstraksi, anggaran prompt, dan peringkat pengambilan. Kosongkan kolom untuk mewarisi nilai default.",
+      "inheritedHint": "Kosong berarti menggunakan nilai turunan/default.",
+      "topKHint": "Rentang 1-100. Default: {default}.",
+      "rrfKHint": "Rentang 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Rentang 0-1. Default: {default}.",
+      "weightHint": "Bobot peringkat non-negatif. Default: {default}."
     }
   }
 }
