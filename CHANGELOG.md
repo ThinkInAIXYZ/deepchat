@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.6 (2026-06-22)
+- Added S3-compatible cloud backup sync, OpenDAL-based backup storage, and workspace environment management
+- Added Agent Memory, Tape view manifests, replay lineage details, and focused workspace file inspection
+- Added OpenAI Codex runtime support, built-in API key providers, AWS Bedrock profile authentication, MiniMax M3 handling, and drag-and-drop skill installation
+- Added cross-platform Computer Use runtime packaging and improved agent runtime discovery, watcher reliability, and provider/ACP registry freshness
+- Fixed packaged cloud sync startup, Codex login behavior, memory followups, MCP server cleanup, steer abort queue handling, sidebar pagination, markdown scrollbar jitter, and settings save payloads
+- 新增 S3 兼容云备份同步、基于 OpenDAL 的备份存储，以及工作区环境管理
+- 新增 Agent Memory、Tape view manifests、replay lineage 详情，以及聚焦式工作区文件检查
+- 新增 OpenAI Codex runtime、内置 API key providers、AWS Bedrock profile 认证、MiniMax M3 处理和技能拖放安装
+- 新增跨平台 Computer Use runtime 打包，并改进 Agent runtime 发现、工作区监听可靠性和 Provider/ACP registry 更新
+- 修复打包版云同步启动、Codex 登录行为、memory followups、MCP server 清理、steer abort queue 处理、侧边栏分页、Markdown 滚动条抖动和设置保存 payload 问题
+
 ## v1.0.6-beta.8 (2026-06-20)
 - Added OpenAI Codex runtime support with OAuth authentication and provider-specific request handling
 - Added built-in API key providers and provider registry metadata for easier model setup
