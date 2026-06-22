@@ -97,9 +97,6 @@ export const useProjectStore = defineStore('project', () => {
     defaultProjectPath.value = normalizePath(
       typeof payload === 'string' ? payload : (payload?.path ?? null)
     )
-    if (defaultChatWorkspacePath.value !== defaultProjectPath.value) {
-      defaultChatWorkspacePath.value = null
-    }
     projects.value = reconcileProjects(projects.value)
     applyDefaultSelection()
   }

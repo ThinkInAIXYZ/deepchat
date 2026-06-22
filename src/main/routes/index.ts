@@ -2476,7 +2476,6 @@ export async function dispatchDeepchatRoute(
       const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
 
       if (!coordinator) {
-        const defaultChatWorkspacePath = await runtime.projectPresenter.ensureDefaultWorkspace()
         const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
           context.webContentsId
         )
@@ -2485,9 +2484,10 @@ export async function dispatchDeepchatRoute(
               await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
             )[0] ?? null)
           : null
-        const [agents, acpEnabled] = await Promise.all([
+        const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
           runtime.configPresenter.listAgents(),
-          runtime.configPresenter.getAcpEnabled()
+          runtime.configPresenter.getAcpEnabled(),
+          runtime.projectPresenter.ensureDefaultWorkspace()
         ])
 
         const bootstrap = {
@@ -2525,7 +2525,6 @@ export async function dispatchDeepchatRoute(
         dedupeKey: 'main.bootstrap:route',
         runId: coordinator.getRunId('main'),
         run: async () => {
-          const defaultChatWorkspacePath = await runtime.projectPresenter.ensureDefaultWorkspace()
           const startupRunId = coordinator.getRunId('main')
           const activeSessionId = runtime.agentSessionPresenter.getActiveSessionId(
             context.webContentsId
@@ -2535,9 +2534,10 @@ export async function dispatchDeepchatRoute(
                 await runtime.agentSessionPresenter.getLightweightSessionsByIds([activeSessionId])
               )[0] ?? null)
             : null
-          const [agents, acpEnabled] = await Promise.all([
+          const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
             runtime.configPresenter.listAgents(),
-            runtime.configPresenter.getAcpEnabled()
+            runtime.configPresenter.getAcpEnabled(),
+            runtime.projectPresenter.ensureDefaultWorkspace()
           ])
 
           const bootstrap = {

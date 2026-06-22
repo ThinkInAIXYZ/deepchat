@@ -386,6 +386,7 @@ describe('AgentSessionPresenter', () => {
       const result = await presenter.createSession({ agentId: 'deepchat', message: '' }, 1)
 
       expect(result.title).toBe('New Chat')
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
     })
 
     it('calls agent.initSession and queues the first message', async () => {
@@ -766,17 +767,22 @@ describe('AgentSessionPresenter', () => {
           : []
       )
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
-      await new Promise((r) => setTimeout(r, 20))
-      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+      vi.useFakeTimers()
+      try {
+        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await vi.advanceTimersByTimeAsync(20)
+        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
 
-      messagesReady = true
-      await new Promise((r) => setTimeout(r, 300))
+        messagesReady = true
+        await vi.advanceTimersByTimeAsync(300)
 
-      expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
-        title: 'Async Generated Title'
-      })
+        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+          title: 'Async Generated Title'
+        })
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('generates title after first-turn readiness before session is idle', async () => {
@@ -845,17 +851,23 @@ describe('AgentSessionPresenter', () => {
         } as any
       ])
 
-      await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
-      await new Promise((r) => setTimeout(r, 20))
-      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+      vi.useFakeTimers()
+      try {
+        await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+        await vi.advanceTimersByTimeAsync(20)
+        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
 
-      resolveReady(true)
-      await new Promise((r) => setTimeout(r, 20))
+        resolveReady(true)
+        await vi.advanceTimersByTimeAsync(0)
+        await Promise.resolve()
 
-      expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
-      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
-        title: 'Async Generated Title'
-      })
+        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+          title: 'Async Generated Title'
+        })
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('syncs ACP workdir persistence before the first ACP message runs', async () => {

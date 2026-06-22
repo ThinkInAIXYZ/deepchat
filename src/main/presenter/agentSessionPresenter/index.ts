@@ -431,7 +431,9 @@ export class AgentSessionPresenter {
     }
 
     // Start the first message (non-blocking) after returning session ID.
-    if (normalizedInput.text.trim() || (normalizedInput.files?.length ?? 0) > 0) {
+    const hasInitialTurn =
+      normalizedInput.text.trim().length > 0 || (normalizedInput.files?.length ?? 0) > 0
+    if (hasInitialTurn) {
       logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent
@@ -447,8 +449,8 @@ export class AgentSessionPresenter {
           console.error('[AgentSessionPresenter] processMessage failed:', err)
         })
       }
+      void this.generateSessionTitle(sessionId, title, providerId, modelId)
     }
-    void this.generateSessionTitle(sessionId, title, providerId, modelId)
 
     return sessionResult
   }

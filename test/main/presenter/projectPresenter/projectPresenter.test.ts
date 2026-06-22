@@ -180,17 +180,19 @@ describe('ProjectPresenter', () => {
       })
       presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
 
-      await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
+      try {
+        await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
 
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
-      expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/DeepChat', { recursive: true })
-      expect(configPresenter.setDefaultProjectPath).toHaveBeenCalledWith('/mock/home/DeepChat')
-      expect(warnSpy).toHaveBeenCalledWith(
-        '[ProjectPresenter] Failed to create default workspace at /mock/documents/DeepChat:',
-        expect.any(Error)
-      )
-
-      warnSpy.mockRestore()
+        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
+        expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/DeepChat', { recursive: true })
+        expect(configPresenter.setDefaultProjectPath).toHaveBeenCalledWith('/mock/home/DeepChat')
+        expect(warnSpy).toHaveBeenCalledWith(
+          '[ProjectPresenter] Failed to create default workspace at /mock/documents/DeepChat:',
+          expect.any(Error)
+        )
+      } finally {
+        warnSpy.mockRestore()
+      }
     })
   })
 

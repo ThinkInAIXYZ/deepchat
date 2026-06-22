@@ -1353,7 +1353,7 @@ describe('WindowSideBar agent switch', () => {
             isPinned: true
           }
         ],
-        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat/',
+        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat',
         projectEnvironments: [
           { path: '/Users/test/Documents/DeepChat' },
           { path: '/work/alpha' },

@@ -1038,7 +1038,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         this.emitMessageRefresh(sessionId, assistantMessageId)
       }
 
-      this.logSlowPreStreamStep(sessionId, 'pre-stream-total', preStreamStartedAt)
       const streamResult = await this.runStreamForMessage({
         sessionId,
         messageId: assistantMessageId,
@@ -1058,6 +1057,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           supportsAudioInput,
           traceDebugEnabled: this.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
         },
+        preStreamStartedAt,
         onRunRegistered: (runId) => {
           streamRunId = runId
         }
@@ -2797,6 +2797,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
+    preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
   }): Promise<{ runId: string; result: ProcessResult }> {
     const {
@@ -2810,6 +2811,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
+      preStreamStartedAt,
       onRunRegistered
     } = args
     const state = this.runtimeState.get(sessionId)
@@ -2914,6 +2916,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const rateLimitMessageId = this.buildRateLimitStreamMessageId(activeGeneration.runId)
     const emitRateLimitWaitingMessage = this.emitRateLimitWaitingMessage.bind(this)
     const clearRateLimitWaitingMessage = this.clearRateLimitWaitingMessage.bind(this)
+    let loggedPreStreamBoundary = false
+    const logPreStreamBoundary = () => {
+      if (loggedPreStreamBoundary || preStreamStartedAt === undefined) {
+        return
+      }
+
+      loggedPreStreamBoundary = true
+      this.logSlowPreStreamStep(sessionId, 'pre-stream-provider-start', preStreamStartedAt)
+    }
 
     try {
       this.dispatchHook('SessionStart', {
@@ -3061,6 +3072,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
               throw createAbortError()
             }
 
+            logPreStreamBoundary()
             for await (const event of provider.coreStream(
               providerMessages,
               requestModelId,
