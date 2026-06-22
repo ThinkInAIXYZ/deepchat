@@ -256,6 +256,7 @@
                   v-if="memory.status === 'archived'"
                   variant="ghost"
                   size="sm"
+                  :disabled="memoryDisabled"
                   class="h-7 px-2 text-xs"
                   :aria-label="t('settings.deepchatAgents.memoryManager.restore')"
                   @click="handleRestore(memory.id)"
@@ -1033,6 +1034,7 @@ async function handleSetAnchor(versionId: string, anchored: boolean): Promise<vo
 }
 
 async function handleRestore(memoryId: string): Promise<void> {
+  if (memoryDisabled.value) return
   try {
     const ok = await memoryClient.restore(props.agentId, memoryId)
     if (!ok) return notifyActionFailed()
