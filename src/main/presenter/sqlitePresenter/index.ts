@@ -33,9 +33,11 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
+import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
@@ -227,9 +229,11 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatPendingInputsTable!: DeepChatPendingInputsTable
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
+  public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
   public agentMemoryTable!: AgentMemoryTable
+  public agentMemoryAuditTable!: AgentMemoryAuditTable
   public configTables!: ConfigTables
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
@@ -404,9 +408,11 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
+    this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
     this.agentMemoryTable = new AgentMemoryTable(this.db)
+    this.agentMemoryAuditTable = new AgentMemoryAuditTable(this.db)
     this.configTables = new ConfigTables(this.db)
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
@@ -431,9 +437,11 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatPendingInputsTable.createTable()
     this.deepchatUsageStatsTable.createTable()
     this.deepchatTapeEntriesTable.createTable()
+    this.deepchatTapeSearchProjectionTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
     this.agentMemoryTable.createTable()
+    this.agentMemoryAuditTable.createTable()
     this.configTables.createTable()
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
@@ -476,9 +484,11 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatPendingInputsTable,
       this.deepchatUsageStatsTable,
       this.deepchatTapeEntriesTable,
+      this.deepchatTapeSearchProjectionTable,
       this.legacyImportStatusTable,
       this.agentsTable,
       this.agentMemoryTable,
+      this.agentMemoryAuditTable,
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,
@@ -568,6 +578,9 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_messages;
         DELETE FROM deepchat_usage_stats;
         DELETE FROM deepchat_tape_entries;
+        DELETE FROM deepchat_tape_search_projection;
+        DELETE FROM deepchat_tape_search_projection_meta;
+        DELETE FROM deepchat_tape_search_fts_meta;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;
@@ -575,6 +588,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM new_environments;
         DELETE FROM new_sessions;
       `)
+      this.deepchatTapeSearchProjectionTable.clearAll()
     })
   }
 

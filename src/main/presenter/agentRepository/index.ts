@@ -93,7 +93,13 @@ const mergeDeepChatConfig = (
       2,
     memoryEnabled: overrideConfig.memoryEnabled ?? baseConfig.memoryEnabled ?? false,
     memoryEmbedding: overrideConfig.memoryEmbedding ?? baseConfig.memoryEmbedding ?? null,
-    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null
+    memoryExtractionModel:
+      overrideConfig.memoryExtractionModel ?? baseConfig.memoryExtractionModel ?? null,
+    memoryRetrieval: overrideConfig.memoryRetrieval ?? baseConfig.memoryRetrieval ?? null,
+    memoryInjectionTokenBudget:
+      overrideConfig.memoryInjectionTokenBudget ?? baseConfig.memoryInjectionTokenBudget ?? null,
+    personaEvolutionEnabled:
+      overrideConfig.personaEvolutionEnabled ?? baseConfig.personaEvolutionEnabled ?? false
   })
 
 export class AgentRepository {
@@ -189,7 +195,7 @@ export class AgentRepository {
     return this.getAgent(agentId)
   }
 
-  deleteDeepChatAgent(agentId: string): boolean {
+  canDeleteDeepChatAgent(agentId: string): boolean {
     const row = this.sqlitePresenter.agentsTable.get(agentId)
     if (!row || row.agent_type !== 'deepchat' || row.protected === 1) {
       return false
@@ -203,8 +209,29 @@ export class AgentRepository {
       return false
     }
 
-    this.sqlitePresenter.agentsTable.delete(agentId)
     return true
+  }
+
+  deleteDeepChatAgent(agentId: string): boolean {
+    return this.sqlitePresenter.getDatabase().transaction(() => {
+      const row = this.sqlitePresenter.agentsTable.get(agentId)
+      if (!row || row.agent_type !== 'deepchat' || row.protected === 1) {
+        return false
+      }
+
+      const relatedSessions = this.sqlitePresenter.newSessionsTable.list({
+        agentId,
+        includeSubagents: true
+      })
+      if (relatedSessions.length > 0) {
+        return false
+      }
+
+      this.sqlitePresenter.agentMemoryTable.clearByAgent(agentId)
+      this.sqlitePresenter.agentMemoryAuditTable.clearByAgent(agentId)
+      this.sqlitePresenter.agentsTable.delete(agentId)
+      return true
+    })()
   }
 
   getDeepChatAgentConfig(agentId: string): DeepChatAgentConfig | null {

@@ -34,6 +34,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
@@ -63,7 +64,11 @@ import {
   sessionsUpdateGenerationSettingsRoute,
   sessionsUpdateQueuedInputRoute
 } from '@shared/contracts/routes'
-import type { CreateSessionInput, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  AgentTapeContextOptions,
+  CreateSessionInput,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
@@ -231,6 +236,19 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
       searchId
     })
     return result.results
+  }
+
+  async function getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ) {
+    const result = await bridge.invoke(sessionsGetTapeContextRoute.name, {
+      sessionId,
+      entryIds,
+      options
+    })
+    return result.context
   }
 
   async function listMessageTraces(messageId: string) {
@@ -550,6 +568,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     forkSession,
     searchHistory,
     getSearchResults,
+    getTapeContext,
     listMessageTraces,
     listMessageTraceDiagnostics,
     listMessageViewManifests,

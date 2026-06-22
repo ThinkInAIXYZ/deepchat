@@ -115,6 +115,20 @@ function expectPublished(eventName: string, payload: Record<string, unknown>): v
   expect(publishDeepchatEvent).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
 }
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {
+    throw new Error('Deferred promise resolved before initialization')
+  }
+  let reject: (error: unknown) => void = () => {
+    throw new Error('Deferred promise rejected before initialization')
+  }
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 function getSkillPresenterMock() {
   return presenter.skillPresenter as {
     getMetadataList: ReturnType<typeof vi.fn>
@@ -132,6 +146,7 @@ function createMockSqlitePresenter() {
     summary_cursor_order_seq: 1,
     summary_updated_at: null
   }
+  let memoryCursorOrderSeq = 0
   const tapeEntries: any[] = []
   const pendingRows: any[] = []
   let pendingRowClock = 1
@@ -266,6 +281,16 @@ function createMockSqlitePresenter() {
         summaryState.summary_text = null
         summaryState.summary_cursor_order_seq = 1
         summaryState.summary_updated_at = null
+      }),
+      getMemoryCursorOrderSeq: vi.fn(() => memoryCursorOrderSeq),
+      updateMemoryCursorOrderSeq: vi.fn((_id: string, cursorOrderSeq: number) => {
+        memoryCursorOrderSeq = Math.max(
+          memoryCursorOrderSeq,
+          Math.max(0, Math.floor(cursorOrderSeq))
+        )
+      }),
+      rewindMemoryCursorOrderSeq: vi.fn((_id: string, cursorOrderSeq: number) => {
+        memoryCursorOrderSeq = Math.max(0, Math.floor(cursorOrderSeq))
       }),
       delete: vi.fn()
     },
@@ -641,6 +666,119 @@ describe('AgentRuntimePresenter', () => {
       await fs.rm(tempHome, { recursive: true, force: true })
       tempHome = null
     }
+  })
+
+  describe('memory injection', () => {
+    it('keeps the injected prompt when the view anchor write fails', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        buildInjection: vi.fn(async () => ({
+          selfModel: null,
+          working: null,
+          memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }],
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [{ id: 'm1', kind: 'semantic', content: 'redis fact' }]
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [{ id: 'm1', kind: 'semantic', score: 1 }],
+            dropped: [],
+            tokenBudget: 1200,
+            estimatedTokens: 20,
+            queryHash: 'query-hash'
+          }
+        }))
+      }
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockImplementation(() => {
+        throw new Error('anchor failed')
+      })
+
+      const prompt = await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis')
+
+      expect(prompt).toContain('base prompt')
+      expect(prompt).toContain('## Relevant Memories')
+      expect(prompt).toContain('redis fact')
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: 's1', name: 'memory/view_assembled' })
+      )
+    })
+  })
+
+  describe('memory extraction lifecycle', () => {
+    function installDeferredExtraction() {
+      const extraction = deferred<{ ok: true; createdIds: string[] }>()
+      const extractAndStore = vi.fn(() => extraction.promise)
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        extractAndStore
+      }
+      return { extraction, extractAndStore }
+    }
+
+    function startExtraction(toOrderSeq = 10) {
+      const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
+      return (agent as any).runMemoryExtraction(
+        's1',
+        {
+          spanText: 'user prefers redis',
+          sourceEntryIds: [1],
+          toOrderSeq,
+          reason: 'fallback'
+        },
+        epoch
+      ) as Promise<void>
+    }
+
+    it('drops an in-flight extraction commit after clearMessages resets the session', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const { extraction, extractAndStore } = installDeferredExtraction()
+
+      const runPromise = startExtraction()
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
+      await agent.clearMessages('s1')
+
+      extraction.resolve({ ok: true, createdIds: ['m1'] })
+      await runPromise
+
+      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        0
+      )
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.filter(
+          ([input]) => input.name === 'memory/extract'
+        )
+      ).toEqual([])
+    })
+
+    it('drops an in-flight extraction commit after destroySession removes runtime state', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const { extraction, extractAndStore } = installDeferredExtraction()
+
+      const runPromise = startExtraction()
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
+      await agent.destroySession('s1')
+
+      extraction.resolve({ ok: true, createdIds: ['m1'] })
+      await runPromise
+
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
+    })
   })
 
   function installSessionRows(initialRows: any[]) {
@@ -3879,6 +4017,75 @@ describe('AgentRuntimePresenter', () => {
         cursorOrderSeq: 1,
         summaryUpdatedAt: null
       })
+    })
+
+    it('rewinds the memory cursor when deleting consumed history', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq('s1', 8)
+      sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        makeDeepchatUserRow(5, 'old', 'delete-user')
+      )
+
+      await agent.deleteMessage('s1', 'delete-user')
+
+      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        4
+      )
+    })
+
+    it('rewinds the memory cursor when retry truncates consumed history', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installSessionRows([
+        makeDeepchatUserRow(5, 'retry target', 'retry-user'),
+        makeDeepchatAssistantRow(6, 'failed answer', 'retry-assistant', 'error')
+      ])
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq('s1', 8)
+      sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
+
+      await agent.retryMessage('s1', 'retry-assistant')
+
+      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        4
+      )
+    })
+
+    it('rewinds the memory cursor when editing a consumed user message', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq('s1', 8)
+      sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        makeDeepchatUserRow(5, 'old text', 'edit-user')
+      )
+
+      await agent.editUserMessage('s1', 'edit-user', 'new text')
+
+      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        4
+      )
+    })
+
+    it('rewinds the memory cursor when rolling back a claimed pending input turn', () => {
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq('s1', 8)
+      sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(
+        makeDeepchatUserRow(5, 'pending text', 'pending-user')
+      )
+      const releaseSpy = vi
+        .spyOn((agent as any).pendingInputCoordinator, 'releaseClaimedQueueInput')
+        .mockImplementation(() => ({}) as any)
+
+      ;(agent as any).rollbackClaimedPendingInputTurn('s1', 'pending-1', 'queue', 'pending-user')
+
+      expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        4
+      )
+      expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith('s1', 5)
+      expect(releaseSpy).toHaveBeenCalledWith('s1', 'pending-1')
     })
   })
 

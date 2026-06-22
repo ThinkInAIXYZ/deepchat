@@ -442,7 +442,7 @@ describe('PluginPresenter', () => {
 
     const resolvedPlugin = (presenter as any).officialPlugins.get(pluginId)
     expect(resolvedPlugin.manifest.name).toBe('CUA Windows X64')
-    expect(resolvedPlugin.sourcePath).toBe(winX64Package)
+    expect(fs.realpathSync(resolvedPlugin.sourcePath)).toBe(fs.realpathSync(winX64Package))
     expect(presenter.__mocks.mcpPresenter.stopServer).not.toHaveBeenCalled()
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
   })

@@ -20,9 +20,11 @@ import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
+import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
@@ -200,6 +202,18 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatTapeEntriesTable(db)
   },
   {
+    name: 'deepchat_tape_search_projection',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_tape_search_projection_meta',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_tape_search_fts_meta',
+    createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
     name: 'legacy_import_status',
     createTable: (db) => new LegacyImportStatusTable(db)
   },
@@ -209,7 +223,20 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   },
   {
     name: 'agent_memory',
-    createTable: (db) => new AgentMemoryTable(db)
+    createTable: (db) => new AgentMemoryTable(db),
+    repairableColumns: {
+      source_entry_ids: 'ALTER TABLE agent_memory ADD COLUMN source_entry_ids TEXT;',
+      embedding_model: 'ALTER TABLE agent_memory ADD COLUMN embedding_model TEXT;',
+      confidence: 'ALTER TABLE agent_memory ADD COLUMN confidence REAL;',
+      last_consolidated_at: 'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
+      conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;',
+      conflict_with: 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;',
+      persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
+    }
+  },
+  {
+    name: 'agent_memory_audit',
+    createTable: (db) => new AgentMemoryAuditTable(db)
   },
   {
     name: 'new_session_active_skills',

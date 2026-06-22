@@ -599,7 +599,21 @@ export class DeepChatSessionsTable extends BaseTable {
 
   updateMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
     this.db
-      .prepare('UPDATE deepchat_sessions SET memory_cursor_order_seq = ? WHERE id = ?')
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET memory_cursor_order_seq = MAX(COALESCE(memory_cursor_order_seq, 0), ?)
+         WHERE id = ?`
+      )
+      .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
+  }
+
+  rewindMemoryCursorOrderSeq(id: string, cursorOrderSeq: number): void {
+    this.db
+      .prepare(
+        `UPDATE deepchat_sessions
+         SET memory_cursor_order_seq = ?
+         WHERE id = ?`
+      )
       .run(Math.max(0, Math.floor(cursorOrderSeq)), id)
   }
 

@@ -21,5 +21,6 @@
   "settings-remote": "Zdalny",
   "settings-plugins": "Wtyczki",
   "settings-overview": "Przegląd ustawień",
-  "settings-scheduled-tasks": "Zaplanowane zadania"
+  "settings-scheduled-tasks": "Zaplanowane zadania",
+  "settings-memory": "Pamięć"
 }

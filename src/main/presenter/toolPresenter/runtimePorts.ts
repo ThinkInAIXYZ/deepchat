@@ -9,6 +9,8 @@ import type {
   DeepChatSubagentSlot,
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
+  AgentTapeContextOptions,
+  AgentTapeContextResult,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -19,6 +21,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/types/skill'
 import type { DeepChatInternalSessionUpdate } from '../agentRuntimePresenter/internalSessionEvents'
+import type { MemoryWriteOutcome } from '../memoryPresenter/types'
 
 export interface ConversationSessionInfo {
   sessionId: string
@@ -63,6 +66,11 @@ export interface AgentToolRuntimePort {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
+  getTapeContext?(
+    conversationId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ): Promise<AgentTapeContextResult>
   listTapeAnchors?(
     conversationId: string,
     options?: AgentTapeAnchorsOptions
@@ -72,20 +80,20 @@ export interface AgentToolRuntimePort {
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
-  /** 当前对话所属 agent 是否启用了长期记忆。 */
+  /** Returns whether long-term memory is enabled for the active agent. */
   isMemoryEnabled?(agentId: string): boolean
-  /** 写入长期记忆，返回新建记忆 id（已去重）。 */
+  /** Writes a long-term memory through the shared semantic coordinator. */
   rememberMemory?(
     agentId: string,
     input: { content: string; kind: 'semantic' | 'episodic'; importance?: number },
-    sourceSession?: string | null
-  ): Promise<string[]>
-  /** 召回与 query 相关的长期记忆。 */
+    sourceSession?: string | null,
+    model?: { providerId: string; modelId: string } | null
+  ): Promise<MemoryWriteOutcome>
+  /** Recalls long-term memories related to the query. */
   recallMemory?(
     agentId: string,
     query: string
   ): Promise<Array<{ id: string; kind: string; content: string }>>
-  /** 删除一条长期记忆。 */
   forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
   mergeSubagentTape?(

@@ -184,6 +184,41 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     })
   })
 
+  it('updates the memory cursor with a monotonic MAX guard (C2, AC-2.1)', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.updateMemoryCursorOrderSeq('s1', 5)
+
+    expect(prepare).toHaveBeenCalledWith(
+      expect.stringContaining('MAX(COALESCE(memory_cursor_order_seq, 0), ?)')
+    )
+    expect(run).toHaveBeenCalledWith(5, 's1')
+  })
+
+  it('floors and clamps the memory cursor input to a non-negative integer', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.updateMemoryCursorOrderSeq('s1', -3)
+    expect(run).toHaveBeenLastCalledWith(0, 's1')
+
+    table.updateMemoryCursorOrderSeq('s1', 4.9)
+    expect(run).toHaveBeenLastCalledWith(4, 's1')
+  })
+
+  it('rewinds the memory cursor without the monotonic MAX guard', () => {
+    run.mockReturnValue({ changes: 1 })
+
+    table.rewindMemoryCursorOrderSeq('s1', 2.9)
+
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.stringContaining('SET memory_cursor_order_seq = ?')
+    )
+    expect(prepare).toHaveBeenLastCalledWith(
+      expect.not.stringContaining('MAX(COALESCE(memory_cursor_order_seq, 0), ?)')
+    )
+    expect(run).toHaveBeenCalledWith(2, 's1')
+  })
+
   it('writes image generation settings as normalized JSON', () => {
     run.mockReturnValue({ changes: 1 })
 

@@ -21,5 +21,6 @@
   "settings-remote": "Fjernstyring",
   "settings-deepchat-agents": "DeepChat-agenter",
   "settings-plugins": "Plugins",
-  "settings-overview": "Indstillingsoversigt"
+  "settings-overview": "Indstillingsoversigt",
+  "settings-memory": "Hukommelse"
 }

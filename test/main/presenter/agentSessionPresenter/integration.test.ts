@@ -199,7 +199,8 @@ function createMockSqlitePresenter() {
             verbosity: generationSettings.verbosity ?? null,
             summary_text: null,
             summary_cursor_order_seq: 1,
-            summary_updated_at: null
+            summary_updated_at: null,
+            memory_cursor_order_seq: null
           })
         }
       ),
@@ -303,6 +304,23 @@ function createMockSqlitePresenter() {
         row.summary_text = null
         row.summary_cursor_order_seq = 1
         row.summary_updated_at = null
+      }),
+      getMemoryCursorOrderSeq: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        return row?.memory_cursor_order_seq ?? null
+      }),
+      updateMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(
+          row.memory_cursor_order_seq ?? 0,
+          Math.max(0, Math.floor(cursorOrderSeq))
+        )
+      }),
+      rewindMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(0, Math.floor(cursorOrderSeq))
       }),
       delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
     },

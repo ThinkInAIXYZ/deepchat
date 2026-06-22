@@ -430,3 +430,50 @@ describe('setAgentRepository', () => {
     ])
   })
 })
+
+describe('deleteDeepChatAgent cleanup', () => {
+  it('runs cleanup after deleting a removable DeepChat agent', async () => {
+    const calls: string[] = []
+    const repository = {
+      deleteDeepChatAgent: vi.fn(() => {
+        calls.push('delete')
+        return true
+      })
+    }
+    const cleanup = vi.fn(async () => {
+      calls.push('cleanup')
+    })
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: cleanup,
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+
+    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('writer')
+
+    expect(removed).toBe(true)
+    expect(cleanup).toHaveBeenCalledWith('writer')
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(calls).toEqual(['delete', 'cleanup'])
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not cleanup memory when deletion is blocked', async () => {
+    const repository = {
+      deleteDeepChatAgent: vi.fn(() => false)
+    }
+    const cleanup = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      deepChatAgentDeleteCleanup: cleanup,
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      notifyAcpAgentsChanged: vi.fn()
+    })
+
+    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('deepchat')
+
+    expect(removed).toBe(false)
+    expect(cleanup).not.toHaveBeenCalled()
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('deepchat')
+    expect(presenter.notifyAcpAgentsChanged).not.toHaveBeenCalled()
+  })
+})

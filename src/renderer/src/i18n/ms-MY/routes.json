@@ -21,5 +21,6 @@
   "settings-remote": "jauh",
   "settings-plugins": "pemalam",
   "settings-overview": "Gambaran keseluruhan tetapan",
-  "settings-scheduled-tasks": "Tugasan Berjadual"
+  "settings-scheduled-tasks": "Tugasan Berjadual",
+  "settings-memory": "Memori"
 }

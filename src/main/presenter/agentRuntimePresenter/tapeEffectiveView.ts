@@ -5,9 +5,16 @@ import type {
   DeepChatTapeSearchInput
 } from '../sqlitePresenter/tables/deepchatTapeEntries'
 
+export interface EffectiveMessageEntry {
+  entryId: number
+  record: ChatMessageRecord
+}
+
 export interface EffectiveTapeView {
   rows: DeepChatTapeEntryRow[]
   messageRecords: ChatMessageRecord[]
+  /** Effective messages paired with their tape entry_id, ordered by orderSeq (for lineage). */
+  messageEntries: EffectiveMessageEntry[]
 }
 
 interface EffectiveTapeViewOptions {
@@ -312,7 +319,11 @@ export function buildEffectiveTapeView(
 
   return {
     rows: effectiveRows,
-    messageRecords: messageRows.map((candidate) => candidate.record)
+    messageRecords: messageRows.map((candidate) => candidate.record),
+    messageEntries: messageRows.map((candidate) => ({
+      entryId: candidate.row.entry_id,
+      record: candidate.record
+    }))
   }
 }
 

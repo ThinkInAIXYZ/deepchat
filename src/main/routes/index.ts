@@ -65,12 +65,24 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  memoryAddRoute,
+  memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
+  memoryGetSourceSpanRoute,
   memoryGetStatusRoute,
+  memoryListAuditEventsRoute,
+  memoryListConflictsRoute,
+  memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryListRoute,
+  memoryListViewManifestsRoute,
+  memoryRejectPersonaDraftRoute,
+  memoryResolveConflictRoute,
+  memoryRestoreRoute,
   memoryRollbackPersonaRoute,
+  memorySearchRoute,
+  memorySetPersonaAnchorRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -212,6 +224,7 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
   sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
   sessionsListMessagesPageRoute,
@@ -321,6 +334,8 @@ import {
   workspaceWatchRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
 import { ChatService } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'
@@ -343,7 +358,10 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
+import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMemory'
+import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/agentMemoryAudit'
+import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
@@ -354,6 +372,10 @@ import {
   scheduledTasksToggleRoute,
   scheduledTasksUpsertRoute
 } from '@shared/contracts/routes/scheduledTasks.routes'
+
+const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
+type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
+const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
 
 export type MainKernelRouteRuntime = {
   configPresenter: IConfigPresenter
@@ -391,7 +413,56 @@ export type MainKernelRouteRuntime = {
   scheduledTasks: ScheduledTasksService
 }
 
-function toMemoryItemDto(row: AgentMemoryRow) {
+function parseSourceEntryIds(raw: string | null): number[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    const ids = parsed.filter((v): v is number => Number.isInteger(v) && v >= 0)
+    return ids.length ? ids : null
+  } catch {
+    return null
+  }
+}
+
+export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
+  try {
+    const parsed = JSON.parse(record.content) as unknown
+    if (record.role === 'user') {
+      const text = (parsed as { text?: unknown })?.text
+      return typeof text === 'string' ? text.trim() : ''
+    }
+    const blockText = (block: unknown): string => {
+      const b = block as {
+        type?: string
+        content?: unknown
+        reasoning_content?: unknown
+        text?: unknown
+      }
+      if (b?.type === 'content' && typeof b.content === 'string') return b.content
+      if (b?.type === 'reasoning_content' && typeof b.content === 'string') return b.content
+      if (typeof b?.reasoning_content === 'string') return b.reasoning_content
+      if (b?.type === 'reasoning' && typeof b.text === 'string') return b.text
+      return ''
+    }
+    if (Array.isArray(parsed)) {
+      return parsed.map(blockText).filter(Boolean).join(' ').trim()
+    }
+    const objectText = blockText(parsed)
+    return objectText.trim()
+  } catch {
+    return ''
+  }
+}
+
+function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null {
+  if (typeof value === 'string' && MEMORY_PERSONA_STATE_SET.has(value)) {
+    return value as MemoryPersonaState
+  }
+  return null
+}
+
+export function toMemoryItemDto(row: AgentMemoryRow) {
   return {
     id: row.id,
     agentId: row.agent_id,
@@ -400,9 +471,152 @@ function toMemoryItemDto(row: AgentMemoryRow) {
     importance: row.importance,
     status: row.status,
     sourceSession: row.source_session,
+    sourceEntryIds: parseSourceEntryIds(row.source_entry_ids),
     supersededBy: row.superseded_by,
+    createdAt: row.created_at,
+    confidence: row.confidence,
+    conflictState: row.conflict_state,
+    conflictWith: row.conflict_with,
+    personaState: normalizeMemoryPersonaState(row.persona_state),
+    isAnchor: row.is_anchor === 1
+  }
+}
+
+function toMemoryAddResultDto(outcome: MemoryWriteOutcome) {
+  switch (outcome.action) {
+    case 'created':
+      return { action: 'created' as const, memoryId: outcome.id }
+    case 'updated':
+      return { action: 'updated' as const, memoryId: outcome.id }
+    case 'superseded':
+      return {
+        action: 'superseded' as const,
+        memoryId: outcome.id,
+        supersededId: outcome.supersededId
+      }
+    case 'challenged':
+      return {
+        action: 'challenged' as const,
+        memoryId: outcome.challengerId,
+        conflictWith: outcome.targetId
+      }
+    case 'noop':
+      return { action: 'noop' as const, reason: outcome.reason }
+  }
+}
+
+function parseJsonRecord(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {}
+  return {}
+}
+
+function sanitizeRouteRefs(record: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {}
+  const safeKey = /(id|ids|type|status|action|reason|policy|seq|count|hash)$/i
+  for (const [key, value] of Object.entries(record)) {
+    if (safeKey.test(key) || key === 'createdAt' || key === 'updatedAt') {
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        value === null
+      ) {
+        safe[key] = value
+      } else if (Array.isArray(value)) {
+        safe[key] = value.filter(
+          (item) =>
+            typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+        )
+      } else {
+        safe[key] = '{...}'
+      }
+    } else if (Array.isArray(value)) {
+      safe[key] = `[${value.length}]`
+    } else if (value && typeof value === 'object') {
+      safe[key] = '{...}'
+    } else if (value !== undefined) {
+      safe[key] = '[redacted]'
+    }
+  }
+  return safe
+}
+
+function toMemoryAuditEventDto(row: AgentMemoryAuditRow) {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    eventType: row.event_type,
+    actorType: row.actor_type,
+    sessionId: row.session_id,
+    inputRefs: sanitizeRouteRefs(parseJsonRecord(row.input_refs_json)),
+    outputRefs: sanitizeRouteRefs(parseJsonRecord(row.output_refs_json)),
+    modelProviderId: row.model_provider_id,
+    modelId: row.model_id,
+    status: row.status,
+    reason: row.reason,
     createdAt: row.created_at
   }
+}
+
+function readNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
+  const payload = parseJsonRecord(row.payload_json)
+  const meta = parseJsonRecord(row.meta_json)
+  const state = payload.state
+  const manifest =
+    state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : null
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return null
+  }
+  const record = manifest as Record<string, unknown>
+  const messageId = typeof meta.messageId === 'string' ? meta.messageId : null
+  return {
+    sessionId: row.session_id,
+    messageId,
+    entryId: row.entry_id,
+    policyVersion:
+      typeof record.policyVersion === 'number' && Number.isFinite(record.policyVersion)
+        ? record.policyVersion
+        : null,
+    tokenBudget: readNumber(record.tokenBudget),
+    estimatedTokens: readNumber(record.estimatedTokens),
+    selectedCount: Array.isArray(record.selected) ? record.selected.length : 0,
+    droppedCount: Array.isArray(record.dropped) ? record.dropped.length : 0,
+    queryHash: typeof record.queryHash === 'string' ? record.queryHash : null,
+    createdAt: row.created_at
+  }
+}
+
+function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
+  const row = runtime.memoryPresenter.listMemories(agentId).find((memory) => memory.id === memoryId)
+  if (!row || row.agent_id !== agentId || !row.source_session) return null
+  const sourceEntryIds = parseSourceEntryIds(row.source_entry_ids)
+  if (!sourceEntryIds?.length) return null
+  const sourceSet = new Set(sourceEntryIds)
+  const tapeEntriesTable = getMemorySourceTapeEntriesTable(runtime)
+  if (!tapeEntriesTable) return null
+  const rows = tapeEntriesTable.getBySession(row.source_session)
+  const entries = buildEffectiveTapeView(rows)
+    .messageEntries.filter((entry) => sourceSet.has(entry.entryId))
+    .map((entry) => ({
+      entryId: entry.entryId,
+      role: entry.record.role,
+      content: formatMemorySourceRecordContent(entry.record),
+      orderSeq: entry.record.orderSeq
+    }))
+    .filter((entry) => entry.content.length > 0)
+  if (!entries.length) return null
+  return { sessionId: row.source_session, entries }
 }
 
 export function createMainKernelRouteRuntime(deps: {
@@ -604,6 +818,30 @@ function getDatabaseSecuritySQLitePresenter(runtime: MainKernelRouteRuntime): SQ
     throw new Error('SQLite presenter is required for database encryption')
   }
   return runtime.sqlitePresenter as unknown as SQLitePresenter
+}
+
+function getMemorySourceTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.getBySession !== 'function') return null
+  return table
+}
+
+function getMemoryViewManifestTapeEntriesTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['deepchatTapeEntriesTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).deepchatTapeEntriesTable
+  if (!table || typeof table.listMemoryViewManifestAnchorsByAgent !== 'function') return null
+  return table
+}
+
+function getMemoryAuditTable(
+  runtime: MainKernelRouteRuntime
+): SQLitePresenter['agentMemoryAuditTable'] | null {
+  const table = (runtime.sqlitePresenter as Partial<SQLitePresenter>).agentMemoryAuditTable
+  if (!table || typeof table.listByAgent !== 'function') return null
+  return table
 }
 
 function recordSkillSettingsActivity(
@@ -1945,11 +2183,83 @@ export async function dispatchDeepchatRoute(
       return memoryListRoute.output.parse({ memories })
     }
 
+    case memorySearchRoute.name: {
+      const input = memorySearchRoute.input.parse(rawInput)
+      const hits = await runtime.memoryPresenter.searchMemories(input.agentId, input.query, {
+        limit: input.limit
+      })
+      const results = hits.map((hit) => ({
+        ...toMemoryItemDto(hit.row),
+        score: hit.score,
+        sources: hit.sources,
+        similarity: hit.similarity
+      }))
+      return memorySearchRoute.output.parse({ results })
+    }
+
+    case memoryAddRoute.name: {
+      const input = memoryAddRoute.input.parse(rawInput)
+      const outcome = await runtime.memoryPresenter.addUserMemory(input.agentId, {
+        content: input.content,
+        kind: input.kind,
+        importance: input.importance
+      })
+      return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })
+    }
+
     case memoryGetStatusRoute.name: {
       const input = memoryGetStatusRoute.input.parse(rawInput)
       return memoryGetStatusRoute.output.parse({
         status: runtime.memoryPresenter.getStatus(input.agentId)
       })
+    }
+
+    case memoryListAuditEventsRoute.name: {
+      const input = memoryListAuditEventsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const auditTable = getMemoryAuditTable(runtime)
+      if (!auditTable) {
+        return memoryListAuditEventsRoute.output.parse({ events: [] })
+      }
+      const events = auditTable
+        .listByAgent(input.agentId, {
+          eventType: input.eventType,
+          actorType: input.actorType,
+          sessionId: input.sessionId,
+          status: input.status,
+          startCreatedAt: input.startCreatedAt,
+          endCreatedAt: input.endCreatedAt,
+          limit: input.limit
+        })
+        .map(toMemoryAuditEventDto)
+      return memoryListAuditEventsRoute.output.parse({ events })
+    }
+
+    case memoryListViewManifestsRoute.name: {
+      const input = memoryListViewManifestsRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
+      const tapeEntriesTable = getMemoryViewManifestTapeEntriesTable(runtime)
+      if (!tapeEntriesTable) {
+        return memoryListViewManifestsRoute.output.parse({ manifests: [] })
+      }
+      const limit = input.limit ?? 100
+      const manifests = tapeEntriesTable
+        .listMemoryViewManifestAnchorsByAgent(input.agentId, {
+          sessionId: input.sessionId,
+          limit,
+          messageId: input.messageId
+        })
+        .map(toMemoryViewManifestDto)
+        .filter((manifest): manifest is NonNullable<typeof manifest> => Boolean(manifest))
+        .filter((manifest) => !input.messageId || manifest.messageId === input.messageId)
+        .slice(0, limit)
+      return memoryListViewManifestsRoute.output.parse({ manifests })
     }
 
     case memoryDeleteRoute.name: {
@@ -1964,6 +2274,38 @@ export async function dispatchDeepchatRoute(
       return memoryClearRoute.output.parse({ removed })
     }
 
+    case memoryRestoreRoute.name: {
+      const input = memoryRestoreRoute.input.parse(rawInput)
+      const ok = runtime.memoryPresenter.restoreMemory(input.agentId, input.memoryId)
+      return memoryRestoreRoute.output.parse({ ok })
+    }
+
+    case memoryGetSourceSpanRoute.name: {
+      const input = memoryGetSourceSpanRoute.input.parse(rawInput)
+      const span = getMemorySourceSpan(runtime, input.agentId, input.memoryId)
+      return memoryGetSourceSpanRoute.output.parse({ span })
+    }
+
+    case memoryListConflictsRoute.name: {
+      const input = memoryListConflictsRoute.input.parse(rawInput)
+      const conflicts = runtime.memoryPresenter.listConflicts(input.agentId).map((pair) => ({
+        challenger: toMemoryItemDto(pair.challenger),
+        target: toMemoryItemDto(pair.target)
+      }))
+      return memoryListConflictsRoute.output.parse({ conflicts })
+    }
+
+    case memoryResolveConflictRoute.name: {
+      const input = memoryResolveConflictRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.resolveConflict(
+        input.agentId,
+        input.challengerId,
+        input.outcome,
+        'user'
+      )
+      return memoryResolveConflictRoute.output.parse({ ok })
+    }
+
     case memoryListPersonaVersionsRoute.name: {
       const input = memoryListPersonaVersionsRoute.input.parse(rawInput)
       const versions = runtime.memoryPresenter
@@ -1974,8 +2316,38 @@ export async function dispatchDeepchatRoute(
 
     case memoryRollbackPersonaRoute.name: {
       const input = memoryRollbackPersonaRoute.input.parse(rawInput)
-      const ok = runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
+      const ok = await runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
       return memoryRollbackPersonaRoute.output.parse({ ok })
+    }
+
+    case memoryListPersonaDraftsRoute.name: {
+      const input = memoryListPersonaDraftsRoute.input.parse(rawInput)
+      const drafts = runtime.memoryPresenter
+        .listPersonaDrafts(input.agentId)
+        .map(({ row, needsReview }) => ({ ...toMemoryItemDto(row), needsReview }))
+      return memoryListPersonaDraftsRoute.output.parse({ drafts })
+    }
+
+    case memoryApprovePersonaDraftRoute.name: {
+      const input = memoryApprovePersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.approvePersonaDraft(input.agentId, input.draftId)
+      return memoryApprovePersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memoryRejectPersonaDraftRoute.name: {
+      const input = memoryRejectPersonaDraftRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.rejectPersonaDraft(input.agentId, input.draftId)
+      return memoryRejectPersonaDraftRoute.output.parse({ ok })
+    }
+
+    case memorySetPersonaAnchorRoute.name: {
+      const input = memorySetPersonaAnchorRoute.input.parse(rawInput)
+      const ok = await runtime.memoryPresenter.setPersonaAnchor(
+        input.agentId,
+        input.versionId,
+        input.anchored
+      )
+      return memorySetPersonaAnchorRoute.output.parse({ ok })
     }
 
     case onboardingGetStateRoute.name: {
@@ -2368,6 +2740,16 @@ export async function dispatchDeepchatRoute(
         input.searchId
       )
       return sessionsGetSearchResultsRoute.output.parse({ results })
+    }
+
+    case sessionsGetTapeContextRoute.name: {
+      const input = sessionsGetTapeContextRoute.input.parse(rawInput)
+      const context = await runtime.agentSessionPresenter.getTapeContext(
+        input.sessionId,
+        input.entryIds,
+        input.options
+      )
+      return sessionsGetTapeContextRoute.output.parse({ context })
     }
 
     case sessionsListMessageTracesRoute.name: {

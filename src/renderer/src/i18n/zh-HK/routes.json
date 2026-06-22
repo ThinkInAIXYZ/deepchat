@@ -21,5 +21,6 @@
   "settings-remote": "遠端",
   "settings-deepchat-agents": "DeepChat 智能體",
   "settings-plugins": "插件",
-  "settings-overview": "設定概覽"
+  "settings-overview": "設定概覽",
+  "settings-memory": "記憶"
 }

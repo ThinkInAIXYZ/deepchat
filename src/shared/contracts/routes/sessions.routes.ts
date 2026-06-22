@@ -3,6 +3,7 @@ import type { SearchResult } from '@shared/types/core/search'
 import type {
   Agent,
   AgentTransferImpact,
+  AgentTapeContextResult,
   MessageTraceRecord,
   PendingSessionInputRecord,
   SendMessageInput
@@ -30,6 +31,7 @@ import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()
+const AgentTapeContextResultSchema = z.custom<AgentTapeContextResult>()
 const DeepChatTapeViewManifestRecordSchema = z.custom<DeepChatTapeViewManifestRecord>()
 const DeepChatTapeReplaySliceSchema = z.custom<DeepChatTapeReplaySlice>().nullable()
 const HistorySearchHitSchema = z.custom<HistorySearchHit>()
@@ -326,6 +328,26 @@ export const sessionsGetSearchResultsRoute = defineRouteContract({
   }),
   output: z.object({
     results: z.array(SearchResultSchema)
+  })
+})
+
+export const sessionsGetTapeContextRoute = defineRouteContract({
+  name: 'sessions.getTapeContext',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    entryIds: z.array(z.number().int().positive()).min(1).max(100),
+    options: z
+      .object({
+        before: z.number().int().min(0).max(20).optional(),
+        after: z.number().int().min(0).max(20).optional(),
+        limit: z.number().int().positive().max(100).optional(),
+        maxBytesPerEntry: z.number().int().min(0).max(8192).optional(),
+        maxTotalBytes: z.number().int().min(0).max(65536).optional()
+      })
+      .optional()
+  }),
+  output: z.object({
+    context: AgentTapeContextResultSchema
   })
 })
 

@@ -31,6 +31,7 @@ const settingsRouteComponents = {
   'settings-plugins': () => import('./components/PluginsSettings.vue'),
   'settings-skills': () => import('./components/skills/SkillsSettings.vue'),
   'settings-prompt': () => import('./components/PromptSetting.vue'),
+  'settings-memory': () => import('./components/MemorySettings.vue'),
   'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),
   'settings-database': () => import('./components/DataSettings.vue'),
   'settings-shortcut': () => import('./components/ShortcutSettings.vue'),
