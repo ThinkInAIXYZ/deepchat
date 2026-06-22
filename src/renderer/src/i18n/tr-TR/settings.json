@@ -221,7 +221,11 @@
       "addConflict": "Eklendi ancak mevcut bir anıyla çakışıyor — listede çözün.",
       "addDuplicate": "Benzer bir anı zaten var; hiçbir şey eklenmedi.",
       "addDisabledHint": "Bu asistan için bellek kapalı. Anı eklemeden önce Yapılandırma'dan etkinleştirin.",
-      "addSkipped": "Hiçbir anı eklenmedi."
+      "addSkipped": "Hiçbir anı eklenmedi.",
+      "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
+      "deletePermanent": "Kalıcı olarak sil",
+      "deleteConfirmTitle": "Bu belleği kalıcı olarak sil?",
+      "deleteConfirmBody": "Bu işlem belleği arşivlemek yerine kaldırır. Geri alınamaz."
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
     "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Benzerlik eşiği",
       "weightSimilarity": "Ağırlık · benzerlik",
       "weightRecency": "Ağırlık · güncellik",
-      "weightImportance": "Ağırlık · önem"
+      "weightImportance": "Ağırlık · önem",
+      "advancedTitle": "Gelişmiş bellek ayarları",
+      "advancedHint": "Çıkarımı, istem bütçesini ve geri çağırma sıralamasını ayarlayın. Varsayılanları devralmak için alanları boş bırakın.",
+      "inheritedHint": "Boş bırakılırsa devralınan/varsayılan değer kullanılır.",
+      "topKHint": "Aralık 1-100. Varsayılan: {default}.",
+      "rrfKHint": "Aralık 1-1000. Varsayılan: {default}.",
+      "similarityThresholdHint": "Aralık 0-1. Varsayılan: {default}.",
+      "weightHint": "Negatif olmayan sıralama ağırlığı. Varsayılan: {default}."
     }
   }
 }

@@ -203,11 +203,12 @@ describe('formatMemorySourceRecordContent', () => {
             { type: 'content', content: 'answer body' },
             { type: 'reasoning', text: 'reasoning note' },
             { type: 'reasoning_content', content: 'reasoning block' },
+            { reasoning_content: 'legacy reasoning field' },
             { type: 'tool_call', content: '{"raw":true}' }
           ])
         )
       )
-    ).toBe('answer body reasoning note reasoning block')
+    ).toBe('answer body')
   })
 
   it('returns empty text for malformed or unsupported records', () => {

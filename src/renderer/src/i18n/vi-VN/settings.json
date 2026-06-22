@@ -221,7 +221,11 @@
       "addConflict": "Đã thêm, nhưng xung đột với một ký ức hiện có — hãy giải quyết trong danh sách.",
       "addDuplicate": "Đã có một ký ức tương tự; không có gì được thêm.",
       "addDisabledHint": "Bộ nhớ đã tắt cho trợ lý này. Hãy bật trong phần Cấu hình trước khi thêm ký ức.",
-      "addSkipped": "Không có ký ức nào được thêm."
+      "addSkipped": "Không có ký ức nào được thêm.",
+      "searchFailed": "Tìm kiếm thất bại. Hãy thử lại.",
+      "deletePermanent": "Xóa vĩnh viễn",
+      "deleteConfirmTitle": "Xóa vĩnh viễn ký ức này?",
+      "deleteConfirmBody": "Thao tác này xóa ký ức thay vì lưu trữ. Không thể hoàn tác."
     },
     "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",
     "personaEvolutionDescription": "Cho phép quá trình phản tư đề xuất các mô hình bản thân cập nhật dưới dạng bản nháp để bạn phê duyệt. Độc lập với bộ nhớ; mặc định tắt.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Ngưỡng tương đồng",
       "weightSimilarity": "Trọng số · tương đồng",
       "weightRecency": "Trọng số · gần đây",
-      "weightImportance": "Trọng số · quan trọng"
+      "weightImportance": "Trọng số · quan trọng",
+      "advancedTitle": "Cài đặt bộ nhớ nâng cao",
+      "advancedHint": "Tinh chỉnh trích xuất, ngân sách prompt và xếp hạng truy xuất. Để trống để kế thừa mặc định.",
+      "inheritedHint": "Để trống sẽ dùng giá trị kế thừa/mặc định.",
+      "topKHint": "Phạm vi 1-100. Mặc định: {default}.",
+      "rrfKHint": "Phạm vi 1-1000. Mặc định: {default}.",
+      "similarityThresholdHint": "Phạm vi 0-1. Mặc định: {default}.",
+      "weightHint": "Trọng số xếp hạng không âm. Mặc định: {default}."
     }
   }
 }

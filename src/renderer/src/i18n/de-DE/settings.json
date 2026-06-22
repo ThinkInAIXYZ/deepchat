@@ -221,7 +221,11 @@
       "addConflict": "Hinzugefügt, steht aber im Konflikt mit einer vorhandenen Erinnerung – bitte in der Liste klären.",
       "addDuplicate": "Eine ähnliche Erinnerung existiert bereits; nichts wurde hinzugefügt.",
       "addDisabledHint": "Das Gedächtnis ist für diesen Assistenten deaktiviert. Aktivieren Sie es zuerst in der Konfiguration, um Erinnerungen hinzuzufügen.",
-      "addSkipped": "Es wurde keine Erinnerung hinzugefügt."
+      "addSkipped": "Es wurde keine Erinnerung hinzugefügt.",
+      "searchFailed": "Suche fehlgeschlagen. Bitte erneut versuchen.",
+      "deletePermanent": "Endgültig löschen",
+      "deleteConfirmTitle": "Diese Erinnerung endgültig löschen?",
+      "deleteConfirmBody": "Dadurch wird die Erinnerung entfernt statt archiviert. Dies kann nicht rückgängig gemacht werden."
     },
     "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
     "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Ähnlichkeitsschwelle",
       "weightSimilarity": "Gewicht · Ähnlichkeit",
       "weightRecency": "Gewicht · Aktualität",
-      "weightImportance": "Gewicht · Wichtigkeit"
+      "weightImportance": "Gewicht · Wichtigkeit",
+      "advancedTitle": "Erweiterte Speichereinstellungen",
+      "advancedHint": "Passe Extraktion, Prompt-Budget und Abruf-Ranking an. Leere Felder übernehmen die Standardwerte.",
+      "inheritedHint": "Leer verwendet den geerbten/Standardwert.",
+      "topKHint": "Bereich 1-100. Standard: {default}.",
+      "rrfKHint": "Bereich 1-1000. Standard: {default}.",
+      "similarityThresholdHint": "Bereich 0-1. Standard: {default}.",
+      "weightHint": "Nicht-negative Ranking-Gewichtung. Standard: {default}."
     }
   }
 }

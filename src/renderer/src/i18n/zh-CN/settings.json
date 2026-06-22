@@ -218,7 +218,11 @@
       "addConflict": "已添加，但与现有记忆冲突，请在列表中裁决。",
       "addDuplicate": "已记住类似内容，未重复添加。",
       "addDisabledHint": "该助手的记忆已关闭，请先在「配置」中启用后再添加记忆。",
-      "addSkipped": "未添加记忆。"
+      "addSkipped": "未添加记忆。",
+      "searchFailed": "搜索失败，请重试。",
+      "deletePermanent": "永久删除",
+      "deleteConfirmTitle": "永久删除这条记忆？",
+      "deleteConfirmBody": "这会直接移除该记忆，而不是归档。此操作无法撤销。"
     },
     "compactionThreshold": "触发阈值",
     "compactionRetainPairs": "保留最近消息对",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "相似度阈值",
       "weightSimilarity": "权重 · 相似度",
       "weightRecency": "权重 · 时近度",
-      "weightImportance": "权重 · 重要度"
+      "weightImportance": "权重 · 重要度",
+      "advancedTitle": "高级记忆设置",
+      "advancedHint": "调整抽取、提示词预算和检索排序。字段留空则继承默认值。",
+      "inheritedHint": "留空使用继承值/默认值。",
+      "topKHint": "范围 1-100。默认：{default}。",
+      "rrfKHint": "范围 1-1000。默认：{default}。",
+      "similarityThresholdHint": "范围 0-1。默认：{default}。",
+      "weightHint": "非负排序权重。默认：{default}。"
     }
   }
 }

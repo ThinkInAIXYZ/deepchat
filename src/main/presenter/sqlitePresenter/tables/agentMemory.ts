@@ -78,6 +78,9 @@ export interface AgentMemoryListOptions {
 // persona lifecycle column; v35 adds conflict linkage.
 const AGENT_MEMORY_SCHEMA_VERSION = 35
 
+const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
+const AGENT_MEMORY_FTS_META_VERSION = 1
+
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
 const AGENT_MEMORY_INDEX_SQL = `
@@ -89,6 +92,14 @@ const AGENT_MEMORY_INDEX_SQL = `
     ON agent_memory(agent_id, provenance_key)
     WHERE provenance_key IS NOT NULL;
 `
+
+function tokenizeSearchQuery(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/u)
+    .map((term) => term.trim())
+    .filter(Boolean)
+}
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
@@ -210,6 +221,34 @@ export class AgentMemoryTable extends BaseTable {
     return !!row
   }
 
+  private readFtsMeta(): { schema_version: number; tokenizer: string } | undefined {
+    return this.db
+      .prepare('SELECT schema_version, tokenizer FROM agent_memory_fts_meta WHERE key = ?')
+      .get(AGENT_MEMORY_FTS_META_KEY) as { schema_version: number; tokenizer: string } | undefined
+  }
+
+  private writeFtsMeta(tokenizer: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO agent_memory_fts_meta (key, schema_version, tokenizer, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET
+           schema_version = excluded.schema_version,
+           tokenizer = excluded.tokenizer,
+           updated_at = excluded.updated_at`
+      )
+      .run(AGENT_MEMORY_FTS_META_KEY, AGENT_MEMORY_FTS_META_VERSION, tokenizer, Date.now())
+  }
+
+  private dropFtsIndex(): void {
+    this.db.exec(`
+      DROP TRIGGER IF EXISTS agent_memory_fts_ai;
+      DROP TRIGGER IF EXISTS agent_memory_fts_ad;
+      DROP TRIGGER IF EXISTS agent_memory_fts_au;
+      DROP TABLE IF EXISTS agent_memory_fts;
+    `)
+  }
+
   // Creates the external-content FTS5 mirror of agent_memory and the triggers that keep it in
   // sync, then backfills existing rows the first time it is built. Idempotent and a no-op when
   // FTS5 is unavailable (search falls back to LIKE). superseded rows stay in the index and are
@@ -220,37 +259,63 @@ export class AgentMemoryTable extends BaseTable {
       this.ftsReady = false
       return
     }
-    const alreadyBuilt = this.ftsTableExists()
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts USING fts5(
-        content,
-        agent_id UNINDEXED,
-        content='agent_memory',
-        content_rowid='rowid',
-        tokenize='${capability.tokenizer}'
-      );
-      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ai AFTER INSERT ON agent_memory BEGIN
-        INSERT INTO agent_memory_fts(rowid, content, agent_id)
-        VALUES (new.rowid, new.content, new.agent_id);
-      END;
-      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ad AFTER DELETE ON agent_memory BEGIN
-        INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
-        VALUES ('delete', old.rowid, old.content, old.agent_id);
-      END;
-      CREATE TRIGGER IF NOT EXISTS agent_memory_fts_au AFTER UPDATE OF content ON agent_memory BEGIN
-        INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
-        VALUES ('delete', old.rowid, old.content, old.agent_id);
-        INSERT INTO agent_memory_fts(rowid, content, agent_id)
-        VALUES (new.rowid, new.content, new.agent_id);
-      END;
-    `)
-    if (!alreadyBuilt) {
-      this.db.exec(
-        `INSERT INTO agent_memory_fts(rowid, content, agent_id)
-         SELECT rowid, content, agent_id FROM agent_memory;`
-      )
+    try {
+      this.db.transaction(() => {
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS agent_memory_fts_meta (
+            key TEXT PRIMARY KEY,
+            schema_version INTEGER NOT NULL,
+            tokenizer TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        `)
+        const meta = this.readFtsMeta()
+        const alreadyBuilt = this.ftsTableExists()
+        if (
+          alreadyBuilt &&
+          (!meta ||
+            meta.schema_version !== AGENT_MEMORY_FTS_META_VERSION ||
+            meta.tokenizer !== capability.tokenizer)
+        ) {
+          this.dropFtsIndex()
+        }
+        const shouldBackfill = !this.ftsTableExists()
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS agent_memory_fts USING fts5(
+            content,
+            agent_id UNINDEXED,
+            content='agent_memory',
+            content_rowid='rowid',
+            tokenize='${capability.tokenizer}'
+          );
+          CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ai AFTER INSERT ON agent_memory BEGIN
+            INSERT INTO agent_memory_fts(rowid, content, agent_id)
+            VALUES (new.rowid, new.content, new.agent_id);
+          END;
+          CREATE TRIGGER IF NOT EXISTS agent_memory_fts_ad AFTER DELETE ON agent_memory BEGIN
+            INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
+            VALUES ('delete', old.rowid, old.content, old.agent_id);
+          END;
+          CREATE TRIGGER IF NOT EXISTS agent_memory_fts_au AFTER UPDATE OF content ON agent_memory BEGIN
+            INSERT INTO agent_memory_fts(agent_memory_fts, rowid, content, agent_id)
+            VALUES ('delete', old.rowid, old.content, old.agent_id);
+            INSERT INTO agent_memory_fts(rowid, content, agent_id)
+            VALUES (new.rowid, new.content, new.agent_id);
+          END;
+        `)
+        if (shouldBackfill) {
+          this.db.exec(
+            `INSERT INTO agent_memory_fts(rowid, content, agent_id)
+             SELECT rowid, content, agent_id FROM agent_memory;`
+          )
+        }
+        this.writeFtsMeta(capability.tokenizer)
+      })()
+      this.ftsReady = true
+    } catch {
+      this.dropFtsIndex()
+      this.ftsReady = false
     }
-    this.ftsReady = true
   }
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
@@ -472,8 +537,11 @@ export class AgentMemoryTable extends BaseTable {
   }
 
   private searchFts(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
-    // Quote the whole query as a phrase so FTS5 operators in user text can never break the MATCH.
-    const match = `"${normalized.replace(/"/g, '""')}"`
+    const terms = tokenizeSearchQuery(normalized)
+    if (!terms.length) return []
+    // Quote each token so user text cannot inject FTS5 operators; join with AND so multi-word
+    // searches match memories containing all terms rather than requiring one exact phrase.
+    const match = terms.map((term) => `"${term.replace(/"/g, '""')}"`).join(' AND ')
     try {
       return this.db
         .prepare(
@@ -496,7 +564,10 @@ export class AgentMemoryTable extends BaseTable {
   }
 
   private searchLike(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
-    const pattern = `%${escapeLikePattern(normalized)}%`
+    const terms = tokenizeSearchQuery(normalized)
+    if (!terms.length) return []
+    const clauses = terms.map(() => "content LIKE ? ESCAPE '\\'")
+    const params = terms.map((term) => `%${escapeLikePattern(term)}%`)
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
@@ -505,11 +576,11 @@ export class AgentMemoryTable extends BaseTable {
            AND status != 'archived'
            AND status != 'conflicted'
            AND kind != 'working'
-           AND content LIKE ? ESCAPE '\\'
+           AND ${clauses.join(' AND ')}
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
       )
-      .all(agentId, pattern, limit) as AgentMemoryRow[]
+      .all(agentId, ...params, limit) as AgentMemoryRow[]
   }
 
   listPendingEmbedding(limit: number = 50, agentId?: string): AgentMemoryRow[] {

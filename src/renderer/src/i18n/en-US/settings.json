@@ -218,7 +218,11 @@
       "addConflict": "Added, but it conflicts with an existing memory — resolve it in the list.",
       "addDuplicate": "A similar memory already exists; nothing was added.",
       "addDisabledHint": "Memory is off for this assistant. Enable it in Config before adding memories.",
-      "addSkipped": "No memory was added."
+      "addSkipped": "No memory was added.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "compactionThreshold": "Trigger threshold",
     "compactionRetainPairs": "Retain recent pairs",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Similarity threshold",
       "weightSimilarity": "Weight · similarity",
       "weightRecency": "Weight · recency",
-      "weightImportance": "Weight · importance"
+      "weightImportance": "Weight · importance",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

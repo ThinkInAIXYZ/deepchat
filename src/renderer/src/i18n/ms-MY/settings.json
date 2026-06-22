@@ -221,7 +221,11 @@
       "addConflict": "Ditambah, tetapi bercanggah dengan ingatan sedia ada — selesaikannya dalam senarai.",
       "addDuplicate": "Ingatan serupa sudah wujud; tiada apa-apa ditambah.",
       "addDisabledHint": "Ingatan dimatikan untuk pembantu ini. Aktifkannya dalam Konfigurasi sebelum menambah ingatan.",
-      "addSkipped": "Tiada ingatan ditambah."
+      "addSkipped": "Tiada ingatan ditambah.",
+      "searchFailed": "Carian gagal. Cuba lagi.",
+      "deletePermanent": "Padam secara kekal",
+      "deleteConfirmTitle": "Padam memori ini secara kekal?",
+      "deleteConfirmBody": "Ini membuang memori dan bukannya mengarkibkannya. Tindakan ini tidak boleh dibuat asal."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Ambang persamaan",
       "weightSimilarity": "Berat · persamaan",
       "weightRecency": "Berat · kebaharuan",
-      "weightImportance": "Berat · kepentingan"
+      "weightImportance": "Berat · kepentingan",
+      "advancedTitle": "Tetapan memori lanjutan",
+      "advancedHint": "Laraskan pengekstrakan, bajet prompt dan penarafan dapatan semula. Biarkan medan kosong untuk mewarisi lalai.",
+      "inheritedHint": "Kosong menggunakan nilai diwarisi/lalai.",
+      "topKHint": "Julat 1-100. Lalai: {default}.",
+      "rrfKHint": "Julat 1-1000. Lalai: {default}.",
+      "similarityThresholdHint": "Julat 0-1. Lalai: {default}.",
+      "weightHint": "Berat penarafan tidak negatif. Lalai: {default}."
     }
   }
 }

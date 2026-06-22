@@ -95,178 +95,239 @@
               </p>
             </div>
 
-            <div class="space-y-1.5">
-              <div class="text-[11px] font-medium text-muted-foreground">
-                {{ t('settings.memory.config.extractionModel') }}
-              </div>
-              <Popover v-model:open="extractionOpen">
-                <PopoverTrigger as-child>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs md:w-[320px]"
-                  >
-                    <div class="flex min-w-0 items-center gap-1.5">
-                      <ModelIcon
-                        v-if="form.memoryExtractionModel?.modelId"
-                        :model-id="form.memoryExtractionModel.modelId"
-                        custom-class="h-3.5 w-3.5 shrink-0"
-                      />
-                      <Icon
-                        v-else
-                        icon="lucide:box"
-                        class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                      />
-                      <span class="truncate">{{ modelLabel(form.memoryExtractionModel) }}</span>
-                    </div>
-                    <Icon
-                      icon="lucide:chevron-down"
-                      class="h-3 w-3 shrink-0 text-muted-foreground"
-                    />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent class="w-[320px] p-0" align="start">
-                  <div class="flex items-center justify-between border-b px-3 py-2">
-                    <div class="text-sm font-medium">
-                      {{ t('settings.memory.config.extractionModel') }}
-                    </div>
-                    <Button
-                      v-if="form.memoryExtractionModel"
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 px-2 text-xs"
-                      @click="form.memoryExtractionModel = null"
-                    >
-                      {{ t('common.clear') }}
-                    </Button>
+            <div class="rounded-xl border border-border/70">
+              <button
+                type="button"
+                class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+                :aria-expanded="advancedOpen"
+                @click="advancedOpen = !advancedOpen"
+              >
+                <span>
+                  <span class="block text-sm font-semibold">
+                    {{ t('settings.memory.config.advancedTitle') }}
+                  </span>
+                  <span class="mt-0.5 block text-xs text-muted-foreground">
+                    {{ t('settings.memory.config.advancedHint') }}
+                  </span>
+                </span>
+                <Icon
+                  :icon="advancedOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                  class="h-4 w-4 shrink-0 text-muted-foreground"
+                />
+              </button>
+
+              <div v-if="advancedOpen" class="space-y-4 border-t border-border/70 p-3">
+                <div class="space-y-1.5">
+                  <div class="text-[11px] font-medium text-muted-foreground">
+                    {{ t('settings.memory.config.extractionModel') }}
                   </div>
-                  <ModelSelect
-                    :exclude-providers="['acp']"
-                    :respect-chat-mode="false"
-                    @update:model="
-                      (model, providerId) => {
-                        form.memoryExtractionModel = { providerId, modelId: model.id }
-                        extractionOpen = false
-                      }
-                    "
-                  />
-                </PopoverContent>
-              </Popover>
-              <p class="text-[11px] text-muted-foreground">
-                {{ t('settings.memory.config.extractionModelHint') }}
-              </p>
-            </div>
-
-            <div class="space-y-1.5">
-              <div class="text-[11px] font-medium text-muted-foreground">
-                {{ t('settings.memory.config.injectionBudget') }}
-              </div>
-              <Input
-                v-model="form.injectionBudget"
-                inputmode="numeric"
-                class="h-8 w-full rounded-lg text-xs md:w-[200px]"
-                :placeholder="String(resolvedBudget)"
-              />
-              <p class="text-[11px] text-muted-foreground">
-                {{ t('settings.memory.config.injectionBudgetHint', { default: DEFAULTS.budget }) }}
-              </p>
-            </div>
-          </section>
-
-          <section class="space-y-3 rounded-2xl border border-border p-5">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold">
-                  {{ t('settings.memory.config.retrievalTitle') }}
+                  <Popover v-model:open="extractionOpen">
+                    <PopoverTrigger as-child>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs md:w-[320px]"
+                      >
+                        <div class="flex min-w-0 items-center gap-1.5">
+                          <ModelIcon
+                            v-if="form.memoryExtractionModel?.modelId"
+                            :model-id="form.memoryExtractionModel.modelId"
+                            custom-class="h-3.5 w-3.5 shrink-0"
+                          />
+                          <Icon
+                            v-else
+                            icon="lucide:box"
+                            class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                          />
+                          <span class="truncate">{{ modelLabel(form.memoryExtractionModel) }}</span>
+                        </div>
+                        <Icon
+                          icon="lucide:chevron-down"
+                          class="h-3 w-3 shrink-0 text-muted-foreground"
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent class="w-[320px] p-0" align="start">
+                      <div class="flex items-center justify-between border-b px-3 py-2">
+                        <div class="text-sm font-medium">
+                          {{ t('settings.memory.config.extractionModel') }}
+                        </div>
+                        <Button
+                          v-if="form.memoryExtractionModel"
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 px-2 text-xs"
+                          @click="form.memoryExtractionModel = null"
+                        >
+                          {{ t('common.clear') }}
+                        </Button>
+                      </div>
+                      <ModelSelect
+                        :exclude-providers="['acp']"
+                        :respect-chat-mode="false"
+                        @update:model="
+                          (model, providerId) => {
+                            form.memoryExtractionModel = { providerId, modelId: model.id }
+                            extractionOpen = false
+                          }
+                        "
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ t('settings.memory.config.extractionModelHint') }}
+                  </p>
                 </div>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ t('settings.memory.config.retrievalHint') }}
-                </p>
-              </div>
-              <Switch
-                :model-value="form.overrideRetrieval"
-                :aria-label="t('settings.memory.config.retrievalOverride')"
-                @update:model-value="toggleRetrievalOverride"
-              />
-            </div>
 
-            <div
-              class="grid gap-3 sm:grid-cols-2"
-              :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
-            >
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.topK') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.topK"
-                  inputmode="numeric"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.topK)"
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.rrfK') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.rrfK"
-                  inputmode="numeric"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.rrfK)"
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.similarityThreshold') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.similarityThreshold"
-                  inputmode="decimal"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.similarityThreshold)"
-                />
-              </label>
-              <div class="hidden sm:block" />
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.weightSimilarity') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.weightSimilarity"
-                  inputmode="decimal"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.weights.similarity)"
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.weightRecency') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.weightRecency"
-                  inputmode="decimal"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.weights.recency)"
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-[11px] font-medium text-muted-foreground">
-                  {{ t('settings.memory.config.weightImportance') }}
-                </span>
-                <Input
-                  v-model="form.retrieval.weightImportance"
-                  inputmode="decimal"
-                  :disabled="!form.overrideRetrieval"
-                  class="h-8 rounded-lg text-xs"
-                  :placeholder="String(DEFAULTS.weights.importance)"
-                />
-              </label>
+                <div class="space-y-1.5">
+                  <div class="text-[11px] font-medium text-muted-foreground">
+                    {{ t('settings.memory.config.injectionBudget') }}
+                  </div>
+                  <Input
+                    v-model="form.injectionBudget"
+                    inputmode="numeric"
+                    class="h-8 w-full rounded-lg text-xs md:w-[200px]"
+                    :placeholder="String(resolvedBudget)"
+                  />
+                  <p class="text-[11px] text-muted-foreground">
+                    {{
+                      t('settings.memory.config.injectionBudgetHint', { default: DEFAULTS.budget })
+                    }}
+                    {{ t('settings.memory.config.inheritedHint') }}
+                  </p>
+                </div>
+
+                <section class="space-y-3 rounded-xl border border-border p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-semibold">
+                        {{ t('settings.memory.config.retrievalTitle') }}
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ t('settings.memory.config.retrievalHint') }}
+                      </p>
+                    </div>
+                    <Switch
+                      :model-value="form.overrideRetrieval"
+                      :aria-label="t('settings.memory.config.retrievalOverride')"
+                      @update:model-value="toggleRetrievalOverride"
+                    />
+                  </div>
+
+                  <div
+                    class="grid gap-3 sm:grid-cols-2"
+                    :class="form.overrideRetrieval ? '' : 'pointer-events-none opacity-50'"
+                  >
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.topK') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.topK"
+                        inputmode="numeric"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.topK)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{ t('settings.memory.config.topKHint', { default: DEFAULTS.topK }) }}
+                      </span>
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.rrfK') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.rrfK"
+                        inputmode="numeric"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.rrfK)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{ t('settings.memory.config.rrfKHint', { default: DEFAULTS.rrfK }) }}
+                      </span>
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.similarityThreshold') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.similarityThreshold"
+                        inputmode="decimal"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.similarityThreshold)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{
+                          t('settings.memory.config.similarityThresholdHint', {
+                            default: DEFAULTS.similarityThreshold
+                          })
+                        }}
+                      </span>
+                    </label>
+                    <div class="hidden sm:block" />
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.weightSimilarity') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.weightSimilarity"
+                        inputmode="decimal"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.weights.similarity)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{
+                          t('settings.memory.config.weightHint', {
+                            default: DEFAULTS.weights.similarity
+                          })
+                        }}
+                      </span>
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.weightRecency') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.weightRecency"
+                        inputmode="decimal"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.weights.recency)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{
+                          t('settings.memory.config.weightHint', {
+                            default: DEFAULTS.weights.recency
+                          })
+                        }}
+                      </span>
+                    </label>
+                    <label class="space-y-1">
+                      <span class="text-[11px] font-medium text-muted-foreground">
+                        {{ t('settings.memory.config.weightImportance') }}
+                      </span>
+                      <Input
+                        v-model="form.retrieval.weightImportance"
+                        inputmode="decimal"
+                        :disabled="!form.overrideRetrieval"
+                        class="h-8 rounded-lg text-xs"
+                        :placeholder="String(DEFAULTS.weights.importance)"
+                      />
+                      <span class="text-[10px] text-muted-foreground">
+                        {{
+                          t('settings.memory.config.weightHint', {
+                            default: DEFAULTS.weights.importance
+                          })
+                        }}
+                      </span>
+                    </label>
+                  </div>
+                </section>
+              </div>
             </div>
           </section>
 
@@ -352,6 +413,7 @@ const saving = ref(false)
 const saveError = ref<string | null>(null)
 const embeddingOpen = ref(false)
 const extractionOpen = ref(false)
+const advancedOpen = ref(false)
 
 const originalConfig = ref<DeepChatAgentConfig>({})
 const resolvedConfig = ref<DeepChatAgentConfig | null>(null)

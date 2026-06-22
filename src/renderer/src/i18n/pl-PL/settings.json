@@ -221,7 +221,11 @@
       "addConflict": "Dodano, ale jest sprzeczne z istniejącym wspomnieniem — rozwiąż to na liście.",
       "addDuplicate": "Podobne wspomnienie już istnieje; nic nie dodano.",
       "addDisabledHint": "Pamięć jest wyłączona dla tego asystenta. Włącz ją w Konfiguracji, zanim dodasz wspomnienia.",
-      "addSkipped": "Nie dodano żadnego wspomnienia."
+      "addSkipped": "Nie dodano żadnego wspomnienia.",
+      "searchFailed": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+      "deletePermanent": "Usuń trwale",
+      "deleteConfirmTitle": "Trwale usunąć tę pamięć?",
+      "deleteConfirmBody": "Spowoduje to usunięcie pamięci zamiast jej zarchiwizowania. Tej operacji nie można cofnąć."
     },
     "personaEvolutionTitle": "Ewolucja persony (eksperymentalna)",
     "personaEvolutionDescription": "Pozwól, aby refleksja proponowała zaktualizowane modele siebie jako wersje robocze do zatwierdzenia. Niezależna od pamięci; domyślnie wyłączona.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Próg podobieństwa",
       "weightSimilarity": "Waga · podobieństwo",
       "weightRecency": "Waga · aktualność",
-      "weightImportance": "Waga · ważność"
+      "weightImportance": "Waga · ważność",
+      "advancedTitle": "Zaawansowane ustawienia pamięci",
+      "advancedHint": "Dostosuj ekstrakcję, budżet promptu i ranking wyszukiwania. Pozostaw pola puste, aby dziedziczyć wartości domyślne.",
+      "inheritedHint": "Puste używa wartości odziedziczonej/domyślnej.",
+      "topKHint": "Zakres 1-100. Domyślnie: {default}.",
+      "rrfKHint": "Zakres 1-1000. Domyślnie: {default}.",
+      "similarityThresholdHint": "Zakres 0-1. Domyślnie: {default}.",
+      "weightHint": "Nieujemna waga rankingu. Domyślnie: {default}."
     }
   }
 }

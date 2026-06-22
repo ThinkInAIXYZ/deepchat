@@ -436,13 +436,8 @@ export function formatMemorySourceRecordContent(record: ChatMessageRecord): stri
       const b = block as {
         type?: string
         content?: unknown
-        reasoning_content?: unknown
-        text?: unknown
       }
       if (b?.type === 'content' && typeof b.content === 'string') return b.content
-      if (b?.type === 'reasoning_content' && typeof b.content === 'string') return b.content
-      if (typeof b?.reasoning_content === 'string') return b.reasoning_content
-      if (b?.type === 'reasoning' && typeof b.text === 'string') return b.text
       return ''
     }
     if (Array.isArray(parsed)) {

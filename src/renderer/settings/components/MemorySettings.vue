@@ -10,6 +10,16 @@
     </div>
 
     <div
+      v-else-if="loadError"
+      class="space-y-3 rounded-2xl border border-destructive/40 py-10 text-center text-sm text-destructive"
+    >
+      <div>{{ loadError }}</div>
+      <Button variant="outline" size="sm" @click="() => reload()">
+        {{ t('common.reset') }}
+      </Button>
+    </div>
+
+    <div
       v-else-if="agents.length === 0"
       class="rounded-2xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground"
     >
@@ -76,6 +86,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { createConfigClient } from '@api/ConfigClient'
+import { Button } from '@shadcn/components/ui/button'
 import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import MemoryConfigPanel from './MemoryConfigPanel.vue'
@@ -94,6 +105,7 @@ const selectedAgentId = ref('')
 const activeTab = ref<'config' | 'manage'>('config')
 const resolvedSelected = ref<DeepChatAgentConfig | null>(null)
 const resolvedAgentId = ref('')
+const loadError = ref<string | null>(null)
 
 // Resolved config describes the selected agent only once its own resolve has landed. Mid-switch the
 // manager panel remounts on the new agentId immediately, so these flags must not leak the previous
@@ -165,9 +177,24 @@ function onSelect(value: unknown): void {
   void router.replace({ query: { ...route.query, agentId: id } })
 }
 
+async function reload(preferred?: string | null): Promise<void> {
+  loading.value = true
+  loadError.value = null
+  try {
+    await loadAgents(preferred ?? selectedAgentId.value)
+    await loadResolved()
+  } catch (e) {
+    agents.value = []
+    resolvedSelected.value = null
+    resolvedAgentId.value = ''
+    loadError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    loading.value = false
+  }
+}
+
 async function onSaved(): Promise<void> {
-  await loadAgents(selectedAgentId.value)
-  await loadResolved()
+  await reload(selectedAgentId.value)
 }
 
 watch(selectedAgentId, loadResolved)
@@ -180,10 +207,8 @@ watch(
   }
 )
 
-onMounted(async () => {
+onMounted(() => {
   const fromQuery = typeof route.query.agentId === 'string' ? route.query.agentId : null
-  await loadAgents(fromQuery)
-  await loadResolved()
-  loading.value = false
+  void reload(fromQuery)
 })
 </script>

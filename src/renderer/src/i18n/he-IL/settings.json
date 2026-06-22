@@ -2328,7 +2328,11 @@
       "addConflict": "נוסף, אך מתנגש עם זיכרון קיים — פתור זאת ברשימה.",
       "addDuplicate": "כבר קיים זיכרון דומה; לא נוסף דבר.",
       "addDisabledHint": "הזיכרון כבוי עבור עוזר זה. הפעל אותו בהגדרות לפני הוספת זיכרונות.",
-      "addSkipped": "לא נוסף זיכרון."
+      "addSkipped": "לא נוסף זיכרון.",
+      "searchFailed": "החיפוש נכשל. נסה שוב.",
+      "deletePermanent": "מחיקה לצמיתות",
+      "deleteConfirmTitle": "למחוק את הזיכרון הזה לצמיתות?",
+      "deleteConfirmBody": "פעולה זו מסירה את הזיכרון במקום לארכב אותו. לא ניתן לבטל אותה."
     },
     "personaEvolutionTitle": "התפתחות פרסונה (ניסיוני)",
     "personaEvolutionDescription": "אפשר לרפלקציה להציע מודלים עצמיים מעודכנים כטיוטות לאישורך. בלתי תלוי בזיכרון; כבוי כברירת מחדל.",
@@ -2460,7 +2464,14 @@
       "similarityThreshold": "סף דמיון",
       "weightSimilarity": "משקל · דמיון",
       "weightRecency": "משקל · עדכניות",
-      "weightImportance": "משקל · חשיבות"
+      "weightImportance": "משקל · חשיבות",
+      "advancedTitle": "הגדרות זיכרון מתקדמות",
+      "advancedHint": "כוונן חילוץ, תקציב פרומפט ודירוג אחזור. השאר שדות ריקים כדי לרשת ברירות מחדל.",
+      "inheritedHint": "שדה ריק משתמש בערך בירושה/ברירת מחדל.",
+      "topKHint": "טווח 1-100. ברירת מחדל: {default}.",
+      "rrfKHint": "טווח 1-1000. ברירת מחדל: {default}.",
+      "similarityThresholdHint": "טווח 0-1. ברירת מחדל: {default}.",
+      "weightHint": "משקל דירוג לא שלילי. ברירת מחדל: {default}."
     }
   }
 }

@@ -2328,7 +2328,11 @@
       "addConflict": "追加しましたが、既存のメモリと競合しています。リストで解決してください。",
       "addDuplicate": "類似のメモリが既に存在するため、追加されませんでした。",
       "addDisabledHint": "このアシスタントのメモリは無効です。メモリを追加する前に「設定」で有効にしてください。",
-      "addSkipped": "メモリは追加されませんでした。"
+      "addSkipped": "メモリは追加されませんでした。",
+      "searchFailed": "検索に失敗しました。もう一度お試しください。",
+      "deletePermanent": "完全に削除",
+      "deleteConfirmTitle": "このメモリを完全に削除しますか？",
+      "deleteConfirmBody": "メモリをアーカイブせずに削除します。この操作は元に戻せません。"
     },
     "personaEvolutionTitle": "人格進化（実験的）",
     "personaEvolutionDescription": "リフレクションが更新後の自己モデルを下書きとして提案し、あなたの承認を待ちます。メモリとは独立で、既定では無効です。",
@@ -2460,7 +2464,14 @@
       "similarityThreshold": "類似度しきい値",
       "weightSimilarity": "重み · 類似度",
       "weightRecency": "重み · 新しさ",
-      "weightImportance": "重み · 重要度"
+      "weightImportance": "重み · 重要度",
+      "advancedTitle": "高度なメモリ設定",
+      "advancedHint": "抽出、プロンプト予算、検索ランキングを調整します。空欄にするとデフォルトを継承します。",
+      "inheritedHint": "空欄の場合は継承値/デフォルト値を使用します。",
+      "topKHint": "範囲 1-100。デフォルト: {default}。",
+      "rrfKHint": "範囲 1-1000。デフォルト: {default}。",
+      "similarityThresholdHint": "範囲 0-1。デフォルト: {default}。",
+      "weightHint": "負でないランキング重み。デフォルト: {default}。"
     }
   }
 }

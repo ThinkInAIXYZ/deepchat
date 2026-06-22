@@ -242,6 +242,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   private dbPath: string
   private password?: string
   private destructiveInitializationRetryCount = 0
+  private databaseFileExistedBeforeOpen = false
 
   constructor(dbPath: string, password?: string) {
     this.dbPath = dbPath
@@ -304,6 +305,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   }
 
   private initializeDatabase(): void {
+    this.databaseFileExistedBeforeOpen = fs.existsSync(this.dbPath)
     this.db = openSQLiteDatabase(this.dbPath, this.password)
     this.db.prepare('SELECT 1').get()
     this.initTables()
@@ -501,6 +503,14 @@ export class SQLitePresenter implements ISQLitePresenter {
       return Math.max(maxVersion, tableMaxVersion)
     }, 0)
 
+    if (!this.databaseFileExistedBeforeOpen && this.currentVersion === 0 && latestVersion > 0) {
+      this.db
+        .prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)')
+        .run(latestVersion, Date.now())
+      this.currentVersion = latestVersion
+      return
+    }
+
     // 只迁移未执行的版本
     tables.forEach((table) => {
       for (let version = this.currentVersion + 1; version <= latestVersion; version++) {
@@ -580,7 +590,6 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_tape_entries;
         DELETE FROM deepchat_tape_search_projection;
         DELETE FROM deepchat_tape_search_projection_meta;
-        DELETE FROM deepchat_tape_search_fts_meta;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;

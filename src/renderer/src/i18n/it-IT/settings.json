@@ -221,7 +221,11 @@
       "addConflict": "Aggiunta, ma è in conflitto con una memoria esistente: risolvilo nell'elenco.",
       "addDuplicate": "Esiste già una memoria simile; non è stato aggiunto nulla.",
       "addDisabledHint": "La memoria è disattivata per questo assistente. Attivala nella configurazione prima di aggiungere memorie.",
-      "addSkipped": "Nessuna memoria è stata aggiunta."
+      "addSkipped": "Nessuna memoria è stata aggiunta.",
+      "searchFailed": "Ricerca non riuscita. Riprova.",
+      "deletePermanent": "Elimina definitivamente",
+      "deleteConfirmTitle": "Eliminare definitivamente questa memoria?",
+      "deleteConfirmBody": "Questo rimuove la memoria invece di archiviarla. L’azione non può essere annullata."
     },
     "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",
     "personaEvolutionDescription": "Lascia che la riflessione proponga modelli di sé aggiornati come bozze da approvare. Indipendente dalla memoria; disattivata per impostazione predefinita.",
@@ -2451,7 +2455,14 @@
       "similarityThreshold": "Soglia di similarità",
       "weightSimilarity": "Peso · similarità",
       "weightRecency": "Peso · recency",
-      "weightImportance": "Peso · importanza"
+      "weightImportance": "Peso · importanza",
+      "advancedTitle": "Impostazioni avanzate della memoria",
+      "advancedHint": "Regola estrazione, budget del prompt e ranking del recupero. Lascia i campi vuoti per ereditare i valori predefiniti.",
+      "inheritedHint": "Vuoto usa il valore ereditato/predefinito.",
+      "topKHint": "Intervallo 1-100. Predefinito: {default}.",
+      "rrfKHint": "Intervallo 1-1000. Predefinito: {default}.",
+      "similarityThresholdHint": "Intervallo 0-1. Predefinito: {default}.",
+      "weightHint": "Peso di ranking non negativo. Predefinito: {default}."
     }
   }
 }

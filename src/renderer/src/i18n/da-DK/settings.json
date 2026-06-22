@@ -2328,7 +2328,11 @@
       "addConflict": "Tilføjet, men er i konflikt med et eksisterende minde — løs det i listen.",
       "addDuplicate": "Et lignende minde findes allerede; intet blev tilføjet.",
       "addDisabledHint": "Hukommelse er slået fra for denne assistent. Aktivér den i Konfiguration, før du tilføjer minder.",
-      "addSkipped": "Intet minde blev tilføjet."
+      "addSkipped": "Intet minde blev tilføjet.",
+      "searchFailed": "Søgningen mislykkedes. Prøv igen.",
+      "deletePermanent": "Slet permanent",
+      "deleteConfirmTitle": "Slet denne hukommelse permanent?",
+      "deleteConfirmBody": "Dette fjerner hukommelsen i stedet for at arkivere den. Handlingen kan ikke fortrydes."
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",
@@ -2460,7 +2464,14 @@
       "similarityThreshold": "Lighedstærskel",
       "weightSimilarity": "Vægt · lighed",
       "weightRecency": "Vægt · aktualitet",
-      "weightImportance": "Vægt · vigtighed"
+      "weightImportance": "Vægt · vigtighed",
+      "advancedTitle": "Avancerede hukommelsesindstillinger",
+      "advancedHint": "Juster udtrækning, promptbudget og rangering ved genfinding. Lad felter være tomme for at arve standardværdier.",
+      "inheritedHint": "Tomt felt bruger arvet/standardværdi.",
+      "topKHint": "Interval 1-100. Standard: {default}.",
+      "rrfKHint": "Interval 1-1000. Standard: {default}.",
+      "similarityThresholdHint": "Interval 0-1. Standard: {default}.",
+      "weightHint": "Ikke-negativ rangeringsvægt. Standard: {default}."
     }
   }
 }

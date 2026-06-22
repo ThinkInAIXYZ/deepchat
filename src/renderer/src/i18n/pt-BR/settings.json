@@ -2328,7 +2328,11 @@
       "addConflict": "Adicionada, mas entra em conflito com uma memória existente — resolva na lista.",
       "addDuplicate": "Já existe uma memória semelhante; nada foi adicionado.",
       "addDisabledHint": "A memória está desativada para este assistente. Ative-a na Configuração antes de adicionar memórias.",
-      "addSkipped": "Nenhuma memória foi adicionada."
+      "addSkipped": "Nenhuma memória foi adicionada.",
+      "searchFailed": "A busca falhou. Tente novamente.",
+      "deletePermanent": "Excluir permanentemente",
+      "deleteConfirmTitle": "Excluir esta memória permanentemente?",
+      "deleteConfirmBody": "Isso remove a memória em vez de arquivá-la. Esta ação não pode ser desfeita."
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",
     "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",
@@ -2460,7 +2464,14 @@
       "similarityThreshold": "Limiar de similaridade",
       "weightSimilarity": "Peso · similaridade",
       "weightRecency": "Peso · recência",
-      "weightImportance": "Peso · importância"
+      "weightImportance": "Peso · importância",
+      "advancedTitle": "Configurações avançadas de memória",
+      "advancedHint": "Ajuste extração, orçamento de prompt e ranqueamento de recuperação. Deixe os campos vazios para herdar os padrões.",
+      "inheritedHint": "Vazio usa o valor herdado/padrão.",
+      "topKHint": "Intervalo 1-100. Padrão: {default}.",
+      "rrfKHint": "Intervalo 1-1000. Padrão: {default}.",
+      "similarityThresholdHint": "Intervalo 0-1. Padrão: {default}.",
+      "weightHint": "Peso de ranqueamento não negativo. Padrão: {default}."
     }
   }
 }
