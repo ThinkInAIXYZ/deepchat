@@ -2290,7 +2290,11 @@
       "addConflict": "Добавлено, но конфликтует с существующим воспоминанием — разрешите это в списке.",
       "addDuplicate": "Похожее воспоминание уже есть; ничего не добавлено.",
       "addDisabledHint": "Память отключена для этого ассистента. Включите её в настройках, прежде чем добавлять воспоминания.",
-      "addSkipped": "Воспоминание не добавлено."
+      "addSkipped": "Воспоминание не добавлено.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Эволюция персоны (эксперимент)",
     "personaEvolutionDescription": "Позвольте рефлексии предлагать обновлённые модели себя в виде черновиков для вашего одобрения. Независимо от памяти; по умолчанию выключено.",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "Порог сходства",
       "weightSimilarity": "Вес · сходство",
       "weightRecency": "Вес · давность",
-      "weightImportance": "Вес · важность"
+      "weightImportance": "Вес · важность",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

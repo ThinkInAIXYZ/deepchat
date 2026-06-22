@@ -221,7 +221,11 @@
       "addConflict": "Ditambahkan, tetapi bertentangan dengan memori yang ada — selesaikan di daftar.",
       "addDuplicate": "Memori serupa sudah ada; tidak ada yang ditambahkan.",
       "addDisabledHint": "Memori dinonaktifkan untuk asisten ini. Aktifkan di Konfigurasi sebelum menambahkan memori.",
-      "addSkipped": "Tidak ada memori yang ditambahkan."
+      "addSkipped": "Tidak ada memori yang ditambahkan.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",
@@ -2413,7 +2417,14 @@
       "similarityThreshold": "Ambang kemiripan",
       "weightSimilarity": "Bobot · kemiripan",
       "weightRecency": "Bobot · kebaruan",
-      "weightImportance": "Bobot · kepentingan"
+      "weightImportance": "Bobot · kepentingan",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

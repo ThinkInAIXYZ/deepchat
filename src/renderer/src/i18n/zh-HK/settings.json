@@ -2290,7 +2290,11 @@
       "addConflict": "已新增，但與現有記憶衝突，請在清單中裁決。",
       "addDuplicate": "已記住類似內容，未重複新增。",
       "addDisabledHint": "此助手的記憶已關閉，請先在「配置」中啟用後再新增記憶。",
-      "addSkipped": "未新增記憶。"
+      "addSkipped": "未新增記憶。",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "人格演化（實驗）",
     "personaEvolutionDescription": "讓反思以草稿形式提出更新後的自我模型，交由你審核。獨立於記憶開關，預設關閉。",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "相似度閾值",
       "weightSimilarity": "權重 · 相似度",
       "weightRecency": "權重 · 時近度",
-      "weightImportance": "權重 · 重要度"
+      "weightImportance": "權重 · 重要度",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

@@ -221,7 +221,11 @@
       "addConflict": "Đã thêm, nhưng xung đột với một ký ức hiện có — hãy giải quyết trong danh sách.",
       "addDuplicate": "Đã có một ký ức tương tự; không có gì được thêm.",
       "addDisabledHint": "Bộ nhớ đã tắt cho trợ lý này. Hãy bật trong phần Cấu hình trước khi thêm ký ức.",
-      "addSkipped": "Không có ký ức nào được thêm."
+      "addSkipped": "Không có ký ức nào được thêm.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",
     "personaEvolutionDescription": "Cho phép quá trình phản tư đề xuất các mô hình bản thân cập nhật dưới dạng bản nháp để bạn phê duyệt. Độc lập với bộ nhớ; mặc định tắt.",
@@ -2413,7 +2417,14 @@
       "similarityThreshold": "Ngưỡng tương đồng",
       "weightSimilarity": "Trọng số · tương đồng",
       "weightRecency": "Trọng số · gần đây",
-      "weightImportance": "Trọng số · quan trọng"
+      "weightImportance": "Trọng số · quan trọng",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

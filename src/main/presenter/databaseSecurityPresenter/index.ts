@@ -63,6 +63,22 @@ type SqliteSchemaRow = {
 const quoteIdentifier = (value: string): string => `"${value.replace(/"/g, '""')}"`
 const getMigrationLockPath = (dbPath: string): string => path.resolve(dbPath)
 
+const FTS_SCHEMA_OBJECT_NAME_PATTERN = /(^|_)fts($|_)/i
+const FTS_TRIGGER_NAME_PATTERN = /_(ai|ad|au)$/i
+
+function isFtsMaintenanceSchemaObject(row: SqliteSchemaRow & { tbl_name?: string }): boolean {
+  const sql = row.sql.toLowerCase()
+  return (
+    FTS_SCHEMA_OBJECT_NAME_PATTERN.test(row.name) ||
+    (row.tbl_name ? FTS_SCHEMA_OBJECT_NAME_PATTERN.test(row.tbl_name) : false) ||
+    /\b[a-z0-9_]+_fts\b/i.test(row.sql) ||
+    /\busing\s+fts[345]?\b/i.test(row.sql) ||
+    (row.type === 'trigger' &&
+      FTS_TRIGGER_NAME_PATTERN.test(row.name) &&
+      sql.includes('insert into'))
+  )
+}
+
 export class DatabaseSecurityPresenter {
   private readonly store: ElectronStore<{ metadata: DatabaseSecurityMetadata }>
   private readonly dbPath: string
@@ -361,12 +377,61 @@ export class DatabaseSecurityPresenter {
         )
       }
 
+      this.copySchemaObjects(db)
       this.copySqliteSequence(db)
       db.exec('COMMIT')
     } catch (error) {
       db.exec('ROLLBACK')
       throw error
     }
+  }
+
+  private copySchemaObjects(db: Database.Database): void {
+    for (const object of this.listMigratableSchemaObjects(db)) {
+      db.exec(this.qualifyCreateSchemaObjectSql(object))
+    }
+  }
+
+  private listMigratableSchemaObjects(db: Database.Database): SqliteSchemaRow[] {
+    const virtualTableNames = new Set(
+      (
+        db
+          .prepare(
+            `SELECT name, sql FROM sqlite_master
+             WHERE type = 'table'
+               AND sql IS NOT NULL
+               AND name NOT LIKE 'sqlite_%'`
+          )
+          .all() as SqliteSchemaRow[]
+      )
+        .filter((row) => /^CREATE\s+VIRTUAL\s+TABLE\s+/i.test(row.sql))
+        .map((row) => row.name)
+    )
+    const rows = db
+      .prepare(
+        `SELECT type, name, tbl_name, sql FROM sqlite_master
+         WHERE type IN ('index', 'trigger', 'view')
+           AND sql IS NOT NULL
+           AND name NOT LIKE 'sqlite_%'
+         ORDER BY CASE type WHEN 'index' THEN 0 WHEN 'trigger' THEN 1 ELSE 2 END, name ASC`
+      )
+      .all() as Array<SqliteSchemaRow & { tbl_name?: string }>
+    return rows.filter((row) => {
+      if (shouldExcludeFromSqliteCopy(row.name)) return false
+      if (row.tbl_name && shouldExcludeFromSqliteCopy(row.tbl_name)) return false
+      if (isFtsMaintenanceSchemaObject(row)) return false
+      for (const virtualTableName of virtualTableNames) {
+        if (
+          row.name === virtualTableName ||
+          row.name.startsWith(`${virtualTableName}_`) ||
+          row.tbl_name === virtualTableName ||
+          row.sql.includes(virtualTableName)
+        ) {
+          return false
+        }
+      }
+      return true
+    })
   }
 
   private listMigratableTables(db: Database.Database): SqliteSchemaRow[] {
@@ -401,6 +466,28 @@ export class DatabaseSecurityPresenter {
       /^CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?/i,
       (_match, ifNotExists: string | undefined) =>
         `CREATE TABLE ${ifNotExists ?? ''}${MIGRATION_TARGET_SCHEMA}.`
+    )
+  }
+
+  private qualifyCreateSchemaObjectSql(row: SqliteSchemaRow): string {
+    if (row.type === 'index') {
+      return row.sql.replace(
+        /^CREATE\s+(UNIQUE\s+)?INDEX\s+(IF\s+NOT\s+EXISTS\s+)?/i,
+        (_match, unique: string | undefined, ifNotExists: string | undefined) =>
+          `CREATE ${unique ?? ''}INDEX ${ifNotExists ?? ''}${MIGRATION_TARGET_SCHEMA}.`
+      )
+    }
+    if (row.type === 'trigger') {
+      return row.sql.replace(
+        /^CREATE\s+(TEMP\s+|TEMPORARY\s+)?TRIGGER\s+(IF\s+NOT\s+EXISTS\s+)?/i,
+        (_match, temp: string | undefined, ifNotExists: string | undefined) =>
+          `CREATE ${temp ?? ''}TRIGGER ${ifNotExists ?? ''}${MIGRATION_TARGET_SCHEMA}.`
+      )
+    }
+    return row.sql.replace(
+      /^CREATE\s+(TEMP\s+|TEMPORARY\s+)?VIEW\s+(IF\s+NOT\s+EXISTS\s+)?/i,
+      (_match, temp: string | undefined, ifNotExists: string | undefined) =>
+        `CREATE ${temp ?? ''}VIEW ${ifNotExists ?? ''}${MIGRATION_TARGET_SCHEMA}.`
     )
   }
 

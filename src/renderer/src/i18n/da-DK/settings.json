@@ -2290,7 +2290,11 @@
       "addConflict": "Tilføjet, men er i konflikt med et eksisterende minde — løs det i listen.",
       "addDuplicate": "Et lignende minde findes allerede; intet blev tilføjet.",
       "addDisabledHint": "Hukommelse er slået fra for denne assistent. Aktivér den i Konfiguration, før du tilføjer minder.",
-      "addSkipped": "Intet minde blev tilføjet."
+      "addSkipped": "Intet minde blev tilføjet.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "Lighedstærskel",
       "weightSimilarity": "Vægt · lighed",
       "weightRecency": "Vægt · aktualitet",
-      "weightImportance": "Vægt · vigtighed"
+      "weightImportance": "Vægt · vigtighed",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

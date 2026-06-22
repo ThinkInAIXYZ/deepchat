@@ -2290,7 +2290,11 @@
       "addConflict": "נוסף, אך מתנגש עם זיכרון קיים — פתור זאת ברשימה.",
       "addDuplicate": "כבר קיים זיכרון דומה; לא נוסף דבר.",
       "addDisabledHint": "הזיכרון כבוי עבור עוזר זה. הפעל אותו בהגדרות לפני הוספת זיכרונות.",
-      "addSkipped": "לא נוסף זיכרון."
+      "addSkipped": "לא נוסף זיכרון.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "התפתחות פרסונה (ניסיוני)",
     "personaEvolutionDescription": "אפשר לרפלקציה להציע מודלים עצמיים מעודכנים כטיוטות לאישורך. בלתי תלוי בזיכרון; כבוי כברירת מחדל.",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "סף דמיון",
       "weightSimilarity": "משקל · דמיון",
       "weightRecency": "משקל · עדכניות",
-      "weightImportance": "משקל · חשיבות"
+      "weightImportance": "משקל · חשיבות",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

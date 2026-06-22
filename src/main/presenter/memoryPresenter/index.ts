@@ -477,6 +477,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
           this.isPendingEmbeddableRow(agentId, this.deps.repository.getById(record.memoryId))
         )
         if (!live.length) return { written: new Set<string>(), usable: true }
+        const currentEmbedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+        if (
+          !currentEmbedding?.providerId ||
+          !currentEmbedding?.modelId ||
+          embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId) !==
+            embeddingFingerprint(embedding.providerId, embedding.modelId)
+        ) {
+          return { written: new Set<string>(), usable: true }
+        }
         const store = await this.openVectorStoreLocked(
           agentId,
           { providerId: embedding.providerId, modelId: embedding.modelId },
@@ -492,6 +501,17 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
       if (!this.canContinueAgentMemoryTask(agentId)) return
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+      const currentEmbedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      const currentFingerprint =
+        currentEmbedding?.providerId && currentEmbedding?.modelId
+          ? embeddingFingerprint(currentEmbedding.providerId, currentEmbedding.modelId)
+          : null
+      if (currentFingerprint !== fingerprint) {
+        logger.info(
+          `[Memory] embedding config changed during drain for ${agentId}; discarding stale vectors`
+        )
+        return
+      }
       for (const record of records) {
         if (outcome.written.has(record.memoryId)) {
           this.deps.repository.updatePendingEmbeddingStatus(agentId, record.memoryId, 'embedded', {
@@ -541,6 +561,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
     // `force` rebuilds an unusable on-disk store even with nothing to re-queue (the foreign file is
     // itself what blocks recovery); otherwise skip the reset when there is no stale work.
     if (!requeued && !force) return
+    // Wait for a drain that captured the previous embedding config before resetting the sidecar,
+    // otherwise stale vectors can be written into the freshly reset store.
+    const inFlightDrain = this.embeddingDrains.get(agentId)
+    if (inFlightDrain) await inFlightDrain.catch(() => undefined)
+    if (!this.canContinueAgentMemoryTask(agentId)) return
     // Drop the stale-dimension store under the per-agent lock; the next embed rebuilds it.
     await this.runExclusiveForAgent(agentId, async () => {
       if (!this.canContinueAgentMemoryTask(agentId)) return
@@ -627,7 +652,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
       )
       // Teardown may have begun during the extraction await; stop before any candidate processing.
       if (!this.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
-      const candidates = parseMemoryCandidates(response)
+      const parsed = parseMemoryCandidates(response)
+      if (!parsed.ok) {
+        logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
+        return { ok: false }
+      }
+      const candidates = parsed.candidates
       const options: WriteMemoriesOptions = {
         agentId: input.agentId,
         sourceSession: input.sourceSession ?? null,
@@ -1136,7 +1166,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   restoreMemory(agentId: string, memoryId: string): boolean {
     if (this.disposed) return false
     this.assertSafeAgentId(agentId)
-    if (!this.isManagedAgent(agentId)) return false
+    if (!this.canWriteAgentMemory(agentId)) return false
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
     this.deps.repository.updateStatus(memoryId, 'pending_embedding')
@@ -1151,11 +1181,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async forgetMemory(agentId: string, memoryId: string): Promise<boolean> {
     if (this.disposed) return false
     this.assertSafeAgentId(agentId)
-    if (!this.isManagedAgent(agentId)) return false
+    if (!this.canWriteAgentMemory(agentId)) return false
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     if (row.status === 'archived') return true
     this.deps.repository.archive(row.id, Date.now())
+    await this.deleteVectorsForMemoryIds(agentId, [memoryId])
+    if (this.disposed) return true
     this.syncWorkingMemoryAfterMutation(agentId)
     this.emitChanged(agentId, 'extract')
     return true
@@ -2051,18 +2083,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (row.kind !== 'working') {
       this.syncWorkingMemoryAfterMutation(agentId)
     }
-    // Run the vector delete under the per-agent lock so dispose() awaits it (via vectorStoreLocks)
-    // before closing the sidecar — otherwise a teardown landing mid-DELETE could close the DuckDB
-    // connection while the statement runs. If teardown already began, skip it: the authoritative row
-    // is gone and an orphaned vector is harmless (recall skips matches whose SQLite row is missing).
-    await this.runExclusiveForAgent(agentId, async () => {
-      if (this.disposed) return
-      const store = await this.vectorStoreForAgent(agentId)
-      if (!store) return
-      await store.deleteByMemoryIds([memoryId]).catch((error) => {
-        logger.warn(`[Memory] vector delete failed: ${String(error)}`)
-      })
-    })
+    await this.deleteVectorsForMemoryIds(agentId, [memoryId])
     if (this.disposed) return true
     this.emitChanged(agentId, 'delete')
     return true
@@ -2117,6 +2138,21 @@ export class MemoryPresenter implements MemoryRuntimePort {
       await this.settleDeletedAgentInFlight(agentId)
     }
     if (resetError) throw resetError
+  }
+
+  private async deleteVectorsForMemoryIds(agentId: string, memoryIds: string[]): Promise<void> {
+    if (!memoryIds.length) return
+    // Run vector deletes under the per-agent lock so dispose() awaits them (via vectorStoreLocks)
+    // before closing the sidecar. If teardown already began, skip it: SQLite status is authoritative
+    // and recall ignores rows that are archived/deleted.
+    await this.runExclusiveForAgent(agentId, async () => {
+      if (this.disposed) return
+      const store = await this.vectorStoreForAgent(agentId)
+      if (!store) return
+      await store.deleteByMemoryIds(memoryIds).catch((error) => {
+        logger.warn(`[Memory] vector delete failed: ${String(error)}`)
+      })
+    })
   }
 
   private async settleDeletedAgentInFlight(agentId: string): Promise<void> {

@@ -53,19 +53,27 @@ export function buildExtractionPrompt(spanText: string): string {
   ].join('\n')
 }
 
-// Tolerant parse: code fences, surrounding noise, and missing fields all degrade to [].
-export function parseMemoryCandidates(raw: string): MemoryCandidate[] {
-  if (!raw) return []
+export type MemoryCandidateParseResult =
+  | { ok: true; candidates: MemoryCandidate[] }
+  | {
+      ok: false
+      reason: 'empty-response' | 'missing-json-array' | 'invalid-json' | 'non-array'
+    }
+
+// Tolerant per-entry parse: surrounding noise and malformed entries are ignored, but malformed
+// top-level model output is reported so callers can retry instead of advancing durable cursors.
+export function parseMemoryCandidates(raw: string): MemoryCandidateParseResult {
+  if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: 'empty-response' }
   const jsonText = extractJsonArray(raw)
-  if (!jsonText) return []
+  if (!jsonText) return { ok: false, reason: 'missing-json-array' }
 
   let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)
   } catch {
-    return []
+    return { ok: false, reason: 'invalid-json' }
   }
-  if (!Array.isArray(parsed)) return []
+  if (!Array.isArray(parsed)) return { ok: false, reason: 'non-array' }
 
   const candidates: MemoryCandidate[] = []
   for (const entry of parsed) {
@@ -78,7 +86,7 @@ export function parseMemoryCandidates(raw: string): MemoryCandidate[] {
     candidates.push({ kind, content, importance })
     if (candidates.length >= MAX_CANDIDATES) break
   }
-  return candidates
+  return { ok: true, candidates }
 }
 
 function clampImportance(value: unknown): number {

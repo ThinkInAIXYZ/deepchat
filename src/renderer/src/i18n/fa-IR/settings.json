@@ -2290,7 +2290,11 @@
       "addConflict": "افزوده شد، اما با یک حافظهٔ موجود تداخل دارد — آن را در فهرست حل کنید.",
       "addDuplicate": "حافظهٔ مشابهی از قبل وجود دارد؛ چیزی افزوده نشد.",
       "addDisabledHint": "حافظه برای این دستیار غیرفعال است. پیش از افزودن حافظه، آن را در «پیکربندی» فعال کنید.",
-      "addSkipped": "هیچ حافظه‌ای افزوده نشد."
+      "addSkipped": "هیچ حافظه‌ای افزوده نشد.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "تکامل پرسونا (آزمایشی)",
     "personaEvolutionDescription": "اجازه دهید بازتاب، مدل‌های خودِ به‌روزشده را به‌صورت پیش‌نویس برای تأیید شما پیشنهاد دهد. مستقل از حافظه؛ به‌طور پیش‌فرض خاموش.",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "آستانهٔ شباهت",
       "weightSimilarity": "وزن · شباهت",
       "weightRecency": "وزن · تازگی",
-      "weightImportance": "وزن · اهمیت"
+      "weightImportance": "وزن · اهمیت",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

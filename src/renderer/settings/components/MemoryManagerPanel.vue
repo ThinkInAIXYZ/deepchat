@@ -132,13 +132,16 @@
           </div>
         </div>
 
-        <div v-if="memories.length > 0 || searchActive" class="mb-3">
+        <div v-if="memories.length > 0 || searchActive" class="mb-3 space-y-1.5">
           <Input
             v-model="searchQuery"
             type="search"
             class="h-8 text-xs"
             :placeholder="t('settings.deepchatAgents.memoryManager.searchPlaceholder')"
           />
+          <p v-if="searchError" class="text-[11px] text-destructive">
+            {{ searchError }}
+          </p>
         </div>
 
         <div v-if="conflicts.length > 0" class="mb-3 space-y-2">
@@ -259,15 +262,37 @@
                 >
                   <Icon icon="lucide:archive-restore" class="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 text-xs text-destructive"
-                  :aria-label="t('common.delete')"
-                  @click="handleDelete(memory.id)"
-                >
-                  <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="h-7 px-2 text-xs text-destructive"
+                      :aria-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
+                    >
+                      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+                      <AlertDialogAction
+                        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        @click="handleDelete(memory.id)"
+                      >
+                        {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </li>
           </ul>
@@ -639,6 +664,7 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 // Monotonic dispatch id: only the latest search may write results, so a late response from a
 // superseded query (or a switched-away agent) cannot clobber the current one.
 let searchRequestId = 0
+let refreshRequestId = 0
 const conflicts = ref<MemoryConflictItem[]>([])
 const personaVersions = ref<MemoryItem[]>([])
 const personaDrafts = ref<MemoryItem[]>([])
@@ -647,6 +673,7 @@ const viewManifests = ref<MemoryViewManifest[]>([])
 const status = ref<MemoryStatusDto | null>(null)
 const sourceSpanOpen = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
+const searchError = ref<string | null>(null)
 
 const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === true)
 // Only gates the write surface when the caller explicitly reports memory disabled; existing rows
@@ -679,6 +706,8 @@ async function refreshActivity(agentId: string): Promise<void> {
 async function refresh(): Promise<void> {
   if (!props.agentId) return
   const agentId = props.agentId
+  refreshRequestId += 1
+  const requestId = refreshRequestId
   loading.value = true
   error.value = null
   try {
@@ -689,12 +718,12 @@ async function refresh(): Promise<void> {
       memoryClient.listPersonaDrafts(agentId),
       memoryClient.getStatus(agentId)
     ])
+    if (requestId !== refreshRequestId || props.agentId !== agentId) return
     memories.value = list
     conflicts.value = conflictPairs
     personaVersions.value = versions
     personaDrafts.value = drafts
     status.value = currentStatus
-    loading.value = false
     // Reconcile the search cache with server truth so a mutation that reloads memories does not
     // leave a stale (or already-deleted) row showing in search mode.
     if (searchActive.value) {
@@ -703,8 +732,10 @@ async function refresh(): Promise<void> {
     }
     void refreshActivity(agentId)
   } catch (e) {
+    if (requestId !== refreshRequestId || props.agentId !== agentId) return
     error.value = e instanceof Error ? e.message : String(e)
-    loading.value = false
+  } finally {
+    if (requestId === refreshRequestId && props.agentId === agentId) loading.value = false
   }
 }
 
@@ -723,11 +754,16 @@ function isCurrentSearch(agentId: string, query: string, requestId: number): boo
 
 async function runSearch(agentId: string, query: string, requestId: number): Promise<void> {
   searching.value = true
+  searchError.value = null
   try {
     const results = await memoryClient.search(agentId, query)
     if (isCurrentSearch(agentId, query, requestId)) searchResults.value = results
-  } catch {
-    if (isCurrentSearch(agentId, query, requestId)) searchResults.value = []
+  } catch (e) {
+    if (isCurrentSearch(agentId, query, requestId)) {
+      searchResults.value = []
+      searchError.value =
+        e instanceof Error ? e.message : t('settings.deepchatAgents.memoryManager.searchFailed')
+    }
   } finally {
     if (isCurrentSearch(agentId, query, requestId)) searching.value = false
   }
@@ -739,6 +775,7 @@ function resetSearch(): void {
   searchRequestId += 1
   searchQuery.value = ''
   searchResults.value = []
+  searchError.value = null
   searching.value = false
 }
 
@@ -751,6 +788,7 @@ watch(searchQuery, (value) => {
   const requestId = searchRequestId
   if (!query) {
     searchResults.value = []
+    searchError.value = null
     searching.value = false
     return
   }
@@ -852,8 +890,7 @@ async function handleDelete(memoryId: string): Promise<void> {
   try {
     const ok = await memoryClient.remove(props.agentId, memoryId)
     if (!ok) return notifyActionFailed()
-    memories.value = memories.value.filter((memory) => memory.id !== memoryId)
-    searchResults.value = searchResults.value.filter((memory) => memory.id !== memoryId)
+    await refresh()
   } catch (e) {
     notifyActionFailed(e)
   }

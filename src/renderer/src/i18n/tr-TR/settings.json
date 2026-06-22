@@ -221,7 +221,11 @@
       "addConflict": "Eklendi ancak mevcut bir anıyla çakışıyor — listede çözün.",
       "addDuplicate": "Benzer bir anı zaten var; hiçbir şey eklenmedi.",
       "addDisabledHint": "Bu asistan için bellek kapalı. Anı eklemeden önce Yapılandırma'dan etkinleştirin.",
-      "addSkipped": "Hiçbir anı eklenmedi."
+      "addSkipped": "Hiçbir anı eklenmedi.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
     "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",
@@ -2413,7 +2417,14 @@
       "similarityThreshold": "Benzerlik eşiği",
       "weightSimilarity": "Ağırlık · benzerlik",
       "weightRecency": "Ağırlık · güncellik",
-      "weightImportance": "Ağırlık · önem"
+      "weightImportance": "Ağırlık · önem",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

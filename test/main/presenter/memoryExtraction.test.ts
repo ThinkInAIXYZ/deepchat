@@ -33,43 +33,58 @@ describe('parseMemoryCandidates', () => {
     const out = parseMemoryCandidates(
       '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
     )
-    expect(out).toEqual([{ kind: 'semantic', content: 'user likes redis', importance: 0.8 }])
+    expect(out).toEqual({
+      ok: true,
+      candidates: [{ kind: 'semantic', content: 'user likes redis', importance: 0.8 }]
+    })
   })
 
   it('parses JSON inside ```json fences with surrounding prose', () => {
     const raw = 'Here you go:\n```json\n[{"kind":"episodic","content":"shipped v1"}]\n```\nDone.'
     const out = parseMemoryCandidates(raw)
-    expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ kind: 'episodic', content: 'shipped v1' })
-    expect(out[0].importance).toBe(0.5) // default
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected parse to succeed')
+    expect(out.candidates).toHaveLength(1)
+    expect(out.candidates[0]).toMatchObject({ kind: 'episodic', content: 'shipped v1' })
+    expect(out.candidates[0].importance).toBe(0.5) // default
   })
 
   it('defaults kind to semantic and clamps importance', () => {
     const out = parseMemoryCandidates(
       '[{"content":"x","importance":5},{"content":"y","importance":-2}]'
     )
-    expect(out[0]).toMatchObject({ kind: 'semantic', importance: 1 })
-    expect(out[1]).toMatchObject({ kind: 'semantic', importance: 0 })
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected parse to succeed')
+    expect(out.candidates[0]).toMatchObject({ kind: 'semantic', importance: 1 })
+    expect(out.candidates[1]).toMatchObject({ kind: 'semantic', importance: 0 })
   })
 
   it('drops entries without content', () => {
     const out = parseMemoryCandidates('[{"kind":"semantic"},{"content":"  "},{"content":"ok"}]')
-    expect(out).toHaveLength(1)
-    expect(out[0].content).toBe('ok')
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected parse to succeed')
+    expect(out.candidates).toHaveLength(1)
+    expect(out.candidates[0].content).toBe('ok')
   })
 
-  it('returns [] for empty / non-array / garbage', () => {
-    expect(parseMemoryCandidates('')).toEqual([])
-    expect(parseMemoryCandidates('not json')).toEqual([])
-    expect(parseMemoryCandidates('{"content":"x"}')).toEqual([])
-    expect(parseMemoryCandidates('[broken')).toEqual([])
+  it('returns parse failures for empty / non-array / garbage', () => {
+    expect(parseMemoryCandidates('')).toEqual({ ok: false, reason: 'empty-response' })
+    expect(parseMemoryCandidates('not json')).toEqual({ ok: false, reason: 'missing-json-array' })
+    expect(parseMemoryCandidates('{"content":"x"}')).toEqual({
+      ok: false,
+      reason: 'missing-json-array'
+    })
+    expect(parseMemoryCandidates('[broken')).toEqual({ ok: false, reason: 'missing-json-array' })
   })
 
   it('caps at 8 candidates', () => {
     const many = JSON.stringify(
       Array.from({ length: 20 }, (_, i) => ({ kind: 'semantic', content: `c${i}` }))
     )
-    expect(parseMemoryCandidates(many)).toHaveLength(8)
+    const out = parseMemoryCandidates(many)
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected parse to succeed')
+    expect(out.candidates).toHaveLength(8)
   })
 })
 

@@ -218,7 +218,11 @@
       "addConflict": "已添加，但与现有记忆冲突，请在列表中裁决。",
       "addDuplicate": "已记住类似内容，未重复添加。",
       "addDisabledHint": "该助手的记忆已关闭，请先在「配置」中启用后再添加记忆。",
-      "addSkipped": "未添加记忆。"
+      "addSkipped": "未添加记忆。",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "compactionThreshold": "触发阈值",
     "compactionRetainPairs": "保留最近消息对",
@@ -2413,7 +2417,14 @@
       "similarityThreshold": "相似度阈值",
       "weightSimilarity": "权重 · 相似度",
       "weightRecency": "权重 · 时近度",
-      "weightImportance": "权重 · 重要度"
+      "weightImportance": "权重 · 重要度",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

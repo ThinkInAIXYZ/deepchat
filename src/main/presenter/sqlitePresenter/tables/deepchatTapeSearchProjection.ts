@@ -226,20 +226,24 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
   ): void {
     try {
       this.db.transaction(() => {
+        if (this.ftsReady) {
+          this.db
+            .prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?')
+            .run(sessionId)
+          this.db
+            .prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?')
+            .run(sessionId)
+        } else {
+          this.clearSessionFtsForBaseWrite(sessionId)
+        }
         this.db
           .prepare('DELETE FROM deepchat_tape_search_projection WHERE session_id = ?')
           .run(sessionId)
         this.db
           .prepare('DELETE FROM deepchat_tape_search_projection_meta WHERE session_id = ?')
           .run(sessionId)
-        if (!this.ftsReady) {
-          this.clearSessionFtsForBaseWrite(sessionId)
-        }
         this.insertProjectionRows(rows)
         if (this.ftsReady) {
-          this.db
-            .prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?')
-            .run(sessionId)
           this.insertFtsRows(rows)
           this.upsertFtsMeta(sessionId, projectionVersion, maxEntryId)
         }
@@ -403,7 +407,9 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
   clearAll(): void {
     this.db.prepare('DELETE FROM deepchat_tape_search_projection').run()
     this.db.prepare('DELETE FROM deepchat_tape_search_projection_meta').run()
-    this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    if (this.ftsMetaTableExists()) {
+      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    }
     this.clearFts()
   }
 
@@ -499,17 +505,48 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
     return Boolean(row)
   }
 
+  private ftsMetaTableExists(): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT name
+         FROM sqlite_master
+         WHERE type = 'table' AND name = 'deepchat_tape_search_fts_meta'
+         LIMIT 1`
+      )
+      .get() as { name: string } | undefined
+    return Boolean(row)
+  }
+
   private clearSessionFtsForBaseWrite(sessionId: string): void {
-    this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?').run(sessionId)
+    if (this.ftsMetaTableExists()) {
+      this.db
+        .prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?')
+        .run(sessionId)
+    }
     if (this.ftsTableExists()) {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?').run(sessionId)
     }
+  }
+
+  private getProjectionRowId(sessionId: string, entryId: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT rowid
+         FROM deepchat_tape_search_projection
+         WHERE session_id = ? AND entry_id = ?`
+      )
+      .get(sessionId, entryId) as { rowid: number } | undefined
+    if (!row) {
+      throw new Error(`Missing tape search projection row for ${sessionId}:${entryId}`)
+    }
+    return row.rowid
   }
 
   private insertFtsRows(rows: DeepChatTapeSearchProjectionInput[]): void {
     if (!rows.length) return
     const insertFts = this.db.prepare(
       `INSERT INTO deepchat_tape_search_fts (
+         rowid,
          search_text,
          name,
          session_id,
@@ -522,13 +559,14 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
          refs_json,
          created_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const row of rows) {
       this.db
         .prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ? AND entry_id = ?')
         .run(row.sessionId, row.entryId)
       insertFts.run(
+        this.getProjectionRowId(row.sessionId, row.entryId),
         row.searchText,
         row.name ?? '',
         row.sessionId,
@@ -601,12 +639,18 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
 
   dropFtsForTesting(): void {
     this.db.exec('DROP TABLE IF EXISTS deepchat_tape_search_fts')
-    this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    if (this.ftsMetaTableExists()) {
+      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    }
     this.ftsReady = false
   }
 
   private deleteSessionFts(sessionId: string): void {
-    this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?').run(sessionId)
+    if (this.ftsMetaTableExists()) {
+      this.db
+        .prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?')
+        .run(sessionId)
+    }
     if (!this.ftsTableExists()) return
     try {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?').run(sessionId)
@@ -616,7 +660,9 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
   }
 
   private clearFts(): void {
-    this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    if (this.ftsMetaTableExists()) {
+      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    }
     if (!this.ftsTableExists()) return
     try {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts').run()
@@ -658,9 +704,7 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
              bm25(deepchat_tape_search_fts) AS score
            FROM deepchat_tape_search_fts
            INNER JOIN deepchat_tape_search_projection AS projection
-             ON projection.session_id = deepchat_tape_search_fts.session_id
-            AND projection.entry_id = CAST(deepchat_tape_search_fts.entry_id AS INTEGER)
-            AND projection.search_text = deepchat_tape_search_fts.search_text
+             ON projection.rowid = deepchat_tape_search_fts.rowid
            WHERE ${whereClauses.join(' AND ')}
            ORDER BY score ASC, projection.entry_id DESC
            LIMIT ?`

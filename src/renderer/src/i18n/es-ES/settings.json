@@ -221,7 +221,11 @@
       "addConflict": "Añadida, pero entra en conflicto con una memoria existente; resuélvelo en la lista.",
       "addDuplicate": "Ya existe una memoria similar; no se añadió nada.",
       "addDisabledHint": "La memoria está desactivada para este asistente. Actívala en Configuración antes de añadir memorias.",
-      "addSkipped": "No se añadió ninguna memoria."
+      "addSkipped": "No se añadió ninguna memoria.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "Evolución de la persona (experimental)",
     "personaEvolutionDescription": "Permite que la reflexión proponga modelos de sí mismo actualizados como borradores para tu aprobación. Independiente de la memoria; desactivado por defecto.",
@@ -2413,7 +2417,14 @@
       "similarityThreshold": "Umbral de similitud",
       "weightSimilarity": "Peso · similitud",
       "weightRecency": "Peso · actualidad",
-      "weightImportance": "Peso · importancia"
+      "weightImportance": "Peso · importancia",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }

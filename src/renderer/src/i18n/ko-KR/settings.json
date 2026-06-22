@@ -2290,7 +2290,11 @@
       "addConflict": "추가했지만 기존 메모리와 충돌합니다. 목록에서 해결하세요.",
       "addDuplicate": "유사한 메모리가 이미 있어 추가하지 않았습니다.",
       "addDisabledHint": "이 어시스턴트의 메모리가 꺼져 있습니다. 메모리를 추가하려면 먼저 구성에서 활성화하세요.",
-      "addSkipped": "메모리가 추가되지 않았습니다."
+      "addSkipped": "메모리가 추가되지 않았습니다.",
+      "searchFailed": "Search failed. Try again.",
+      "deletePermanent": "Delete permanently",
+      "deleteConfirmTitle": "Delete this memory permanently?",
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
     },
     "personaEvolutionTitle": "페르소나 진화 (실험적)",
     "personaEvolutionDescription": "리플렉션이 업데이트된 자기 모델을 초안으로 제안하여 승인을 받도록 합니다. 메모리와 독립적이며 기본값은 꺼짐입니다.",
@@ -2422,7 +2426,14 @@
       "similarityThreshold": "유사도 임계값",
       "weightSimilarity": "가중치 · 유사도",
       "weightRecency": "가중치 · 최신성",
-      "weightImportance": "가중치 · 중요도"
+      "weightImportance": "가중치 · 중요도",
+      "advancedTitle": "Advanced memory settings",
+      "advancedHint": "Tune extraction, prompt budget, and retrieval ranking. Leave fields empty to inherit defaults.",
+      "inheritedHint": "Empty uses inherited/default value.",
+      "topKHint": "Range 1-100. Default: {default}.",
+      "rrfKHint": "Range 1-1000. Default: {default}.",
+      "similarityThresholdHint": "Range 0-1. Default: {default}.",
+      "weightHint": "Non-negative ranking weight. Default: {default}."
     }
   }
 }
