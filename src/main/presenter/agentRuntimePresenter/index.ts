@@ -3099,7 +3099,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
-        onFirstProviderRoundReady: () => this.markFirstTurnReady(sessionId),
+        onFirstProviderRoundReady: () => {
+          if (
+            !abortController.signal.aborted &&
+            this.isActiveRun(sessionId, activeGeneration.runId)
+          ) {
+            this.markFirstTurnReady(sessionId)
+          }
+        },
         shouldYieldForPendingInput: () =>
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
