@@ -2523,6 +2523,10 @@ export class AgentSessionPresenter {
     const POLL_MS = 250
     const startedAt = Date.now()
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+    const readTitleMessages = async (agent: IAgentImplementation) => {
+      const titleMessages = this.buildTitleMessages(await agent.getMessages(sessionId))
+      return titleMessages.length > 0 ? titleMessages : null
+    }
 
     while (Date.now() - startedAt < MAX_WAIT_MS) {
       const session = this.sessionManager.get(sessionId)
@@ -2533,8 +2537,23 @@ export class AgentSessionPresenter {
       if (!state) return null
       if (state.status === 'error') return null
       if (state.status === 'idle') {
-        const titleMessages = this.buildTitleMessages(await agent.getMessages(sessionId))
-        if (titleMessages.length > 0) {
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
+          return titleMessages
+        }
+      }
+
+      if (agent.waitForFirstTurnReady) {
+        const remainingMs = MAX_WAIT_MS - (Date.now() - startedAt)
+        const ready = await agent.waitForFirstTurnReady(sessionId, {
+          timeoutMs: Math.min(POLL_MS, Math.max(0, remainingMs))
+        })
+        if (!ready) {
+          continue
+        }
+
+        const titleMessages = await readTitleMessages(agent)
+        if (titleMessages) {
           return titleMessages
         }
       }

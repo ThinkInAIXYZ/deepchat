@@ -360,6 +360,69 @@ describe('processStream', () => {
     expect(toolResultMsg.content).toBe('Sunny, 72F')
   })
 
+  it('signals first provider round after flushing without blocking tool loop', async () => {
+    const order: string[] = []
+    let callCount = 0
+    const coreStream = vi.fn(function () {
+      callCount++
+      if (callCount === 1) {
+        return (async function* () {
+          yield {
+            type: 'tool_call_start',
+            tool_call_id: 'tc1',
+            tool_call_name: 'get_weather'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+        })()
+      }
+
+      return (async function* () {
+        yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    messageStore.updateAssistantContent.mockImplementation(() => {
+      order.push('flush')
+    })
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny' })
+    ;(toolPresenter.callTool as ReturnType<typeof vi.fn>).mockImplementation(async (request) => {
+      order.push('tool')
+      return {
+        content: `result for ${request.function.name}`,
+        rawData: {
+          toolCallId: request.id,
+          content: `result for ${request.function.name}`,
+          isError: false
+        }
+      }
+    })
+    const onFirstProviderRoundReady = vi.fn(() => {
+      order.push('ready')
+      return new Promise(() => {})
+    }) as unknown as () => void
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      onFirstProviderRoundReady
+    })
+
+    await processStream(params)
+
+    expect(onFirstProviderRoundReady).toHaveBeenCalledTimes(1)
+    expect(order.indexOf('flush')).toBeLessThan(order.indexOf('ready'))
+    expect(order.indexOf('ready')).toBeLessThan(order.indexOf('tool'))
+    expect(coreStream).toHaveBeenCalledTimes(2)
+    expect(toolPresenter.callTool).toHaveBeenCalledTimes(1)
+  })
+
   it('yields after completed tool calls when a pending input should run next', async () => {
     const coreStream = vi.fn(() =>
       (async function* () {

@@ -779,6 +779,85 @@ describe('AgentSessionPresenter', () => {
       })
     })
 
+    it('generates title after first-turn readiness before session is idle', async () => {
+      const sessions = new Map<string, any>()
+      sqlitePresenter.newSessionsTable.create.mockImplementation(
+        (id: string, agentId: string, title: string, projectDir: string | null) => {
+          sessions.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            created_at: Date.now(),
+            updated_at: Date.now()
+          })
+        }
+      )
+      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) => sessions.get(id))
+      sqlitePresenter.newSessionsTable.update.mockImplementation((id: string, fields: any) => {
+        const row = sessions.get(id)
+        if (!row) return
+        sessions.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      })
+
+      let resolveReady: (ready: boolean) => void = () => undefined
+      const readyPromise = new Promise<boolean>((resolve) => {
+        resolveReady = resolve
+      })
+      ;(deepChatAgent as any).waitForFirstTurnReady = vi.fn(() => readyPromise)
+      deepChatAgent.getSessionState.mockResolvedValue({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+      deepChatAgent.getMessages.mockResolvedValue([
+        {
+          id: 'u1',
+          sessionId: 'mock-session-id',
+          orderSeq: 1,
+          role: 'user',
+          content: JSON.stringify({ text: 'Please summarize this chat', files: [] }),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as any,
+        {
+          id: 'a1',
+          sessionId: 'mock-session-id',
+          orderSeq: 2,
+          role: 'assistant',
+          content: JSON.stringify([
+            { type: 'content', content: 'Summary body', status: 'success', timestamp: Date.now() }
+          ]),
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as any
+      ])
+
+      await presenter.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
+      await new Promise((r) => setTimeout(r, 20))
+      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+
+      resolveReady(true)
+      await new Promise((r) => setTimeout(r, 20))
+
+      expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
+        title: 'Async Generated Title'
+      })
+    })
+
     it('syncs ACP workdir persistence before the first ACP message runs', async () => {
       configPresenter.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }

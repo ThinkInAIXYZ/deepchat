@@ -155,6 +155,9 @@ export interface IAgentImplementation {
   /** Get lightweight runtime state for session list hydration */
   getSessionListState?(sessionId: string): Promise<DeepChatSessionState | null>
 
+  /** Wait until the first provider round has been persisted for title generation */
+  waitForFirstTurnReady?(sessionId: string, options?: { timeoutMs?: number }): Promise<boolean>
+
   /** Process a user message: persist, call LLM, stream response */
   processMessage(
     sessionId: string,

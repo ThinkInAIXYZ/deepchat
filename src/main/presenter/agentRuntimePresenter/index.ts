@@ -347,6 +347,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly abortControllers: Map<string, AbortController> = new Map()
   private readonly deferredToolAbortControllers: Map<string, AbortController> = new Map()
   private readonly activeGenerations: Map<string, ActiveGeneration> = new Map()
+  private readonly firstTurnReadySessions: Set<string> = new Set()
+  private readonly firstTurnReadyWaiters: Map<string, Set<(ready: boolean) => void>> = new Map()
   private readonly activeSteerPendingInputIds: Map<string, string> = new Map()
   private readonly sessionAgentIds: Map<string, string> = new Map()
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
@@ -509,6 +511,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       permissionMode
     })
     this.sessionCompactionStates.set(sessionId, this.buildIdleCompactionState())
+    this.clearFirstTurnReady(sessionId)
     this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
@@ -523,6 +526,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
     this.abortDeferredToolAbortControllers(sessionId)
     this.activeGenerations.delete(sessionId)
+    this.clearFirstTurnReady(sessionId)
     this.activeSteerPendingInputIds.delete(sessionId)
     this.clearActiveProviderPermissionsForSession(sessionId)
 
@@ -583,6 +587,73 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
     return this.pendingInputCoordinator.listPendingInputs(sessionId)
+  }
+
+  async waitForFirstTurnReady(
+    sessionId: string,
+    options?: { timeoutMs?: number }
+  ): Promise<boolean> {
+    if (this.firstTurnReadySessions.has(sessionId)) {
+      return true
+    }
+
+    const timeoutMs = Math.max(0, options?.timeoutMs ?? 30000)
+    if (timeoutMs === 0) {
+      return false
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      let settled = false
+      let timer: ReturnType<typeof setTimeout>
+
+      const waiters =
+        this.firstTurnReadyWaiters.get(sessionId) ?? new Set<(ready: boolean) => void>()
+      const cleanup = () => {
+        const current = this.firstTurnReadyWaiters.get(sessionId)
+        current?.delete(resolveWaiter)
+        if (current?.size === 0) {
+          this.firstTurnReadyWaiters.delete(sessionId)
+        }
+      }
+      const settle = (ready: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        cleanup()
+        resolve(ready)
+      }
+      const resolveWaiter = (ready: boolean) => settle(ready)
+
+      waiters.add(resolveWaiter)
+      this.firstTurnReadyWaiters.set(sessionId, waiters)
+      timer = setTimeout(() => settle(false), timeoutMs)
+    })
+  }
+
+  private markFirstTurnReady(sessionId: string): void {
+    if (this.firstTurnReadySessions.has(sessionId)) {
+      return
+    }
+
+    this.firstTurnReadySessions.add(sessionId)
+    this.settleFirstTurnReadyWaiters(sessionId, true)
+  }
+
+  private clearFirstTurnReady(sessionId: string): void {
+    this.firstTurnReadySessions.delete(sessionId)
+    this.settleFirstTurnReadyWaiters(sessionId, false)
+  }
+
+  private settleFirstTurnReadyWaiters(sessionId: string, ready: boolean): void {
+    const waiters = this.firstTurnReadyWaiters.get(sessionId)
+    if (!waiters) {
+      return
+    }
+
+    this.firstTurnReadyWaiters.delete(sessionId)
+    for (const waiter of waiters) {
+      waiter(ready)
+    }
   }
 
   async queuePendingInput(
@@ -2596,6 +2667,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     await this.cancelGeneration(sessionId)
     this.pendingInputCoordinator.deleteBySession(sessionId)
+    this.clearFirstTurnReady(sessionId)
     this.resetMemoryExtractionCursor(sessionId)
     this.messageStore.deleteBySession(sessionId)
     this.sessionStore.resetTape(sessionId)
@@ -3015,6 +3087,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         permissionMode: state.permissionMode,
         toolOutputGuard: this.toolOutputGuard,
         initialBlocks,
+        onFirstProviderRoundReady: () => this.markFirstTurnReady(sessionId),
         shouldYieldForPendingInput: () =>
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
