@@ -1,7 +1,7 @@
 # Default Workspace
 
 Related issue: https://github.com/ThinkInAIXYZ/deepchat/issues/1795
-Status: proposal
+Status: implemented
 Date: 2026-06-22
 
 ## User Need
@@ -64,17 +64,16 @@ After first-run initialization in the main sidebar project mode:
 Pinned
   pinned session
 
+Chats
+  (collapsed by default)
+
 Projects
   user-project-folder
     project-backed session
-
-Chats
-  first cold-start chat
-  another default-workspace chat
 ```
 
 When no user project folders exist, the `Projects` area may only show the existing folder picker
-entry; the `Chats` section should still be visible once it has sessions.
+entry. The `Chats` section is hidden when it has no sessions and visible once it has sessions.
 
 ## Acceptance Criteria
 
@@ -97,6 +96,8 @@ entry; the `Chats` section should still be visible once it has sessions.
   sessions backed by user-selected project folders.
 - Project-mode sidebar grouping also renders explicitly no-project sessions under `Chats` /
   `聊天`.
+- The `Chats` section appears directly below pinned sessions, is collapsed by default, and is hidden
+  when it contains no sessions.
 - User-selected project folders remain under the normal `Projects` area and keep existing project
   group ordering/reordering behavior.
 - The built-in `Chats` section is not reorderable with user project folders.

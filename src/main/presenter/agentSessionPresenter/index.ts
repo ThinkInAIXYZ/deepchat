@@ -2441,17 +2441,12 @@ export class AgentSessionPresenter {
     fallbackModelId: string
   ): Promise<void> {
     try {
-      const settled = await this.waitForSessionIdle(sessionId)
-      if (!settled) return
+      const titleMessages = await this.waitForSessionTitleMessages(sessionId)
+      if (!titleMessages) return
 
       const currentSession = this.sessionManager.get(sessionId)
       if (!currentSession) return
       if (currentSession.title !== initialTitle) return
-
-      const agent = await this.resolveAgentImplementation(currentSession.agentId)
-      const records = await agent.getMessages(sessionId)
-      const titleMessages = this.buildTitleMessages(records)
-      if (titleMessages.length === 0) return
 
       const assistantSelection = await this.resolveAssistantModelSelection(
         currentSession.agentId,
@@ -2521,7 +2516,9 @@ export class AgentSessionPresenter {
     this.sessionUiPort?.refreshSessionUi()
   }
 
-  private async waitForSessionIdle(sessionId: string): Promise<boolean> {
+  private async waitForSessionTitleMessages(
+    sessionId: string
+  ): Promise<Array<{ role: 'system' | 'user' | 'assistant'; content: string }> | null> {
     const MAX_WAIT_MS = 30000
     const POLL_MS = 250
     const startedAt = Date.now()
@@ -2529,18 +2526,23 @@ export class AgentSessionPresenter {
 
     while (Date.now() - startedAt < MAX_WAIT_MS) {
       const session = this.sessionManager.get(sessionId)
-      if (!session) return false
+      if (!session) return null
 
       const agent = await this.resolveAgentImplementation(session.agentId)
       const state = await agent.getSessionState(sessionId)
-      if (!state) return false
-      if (state.status === 'idle') return true
-      if (state.status === 'error') return false
+      if (!state) return null
+      if (state.status === 'error') return null
+      if (state.status === 'idle') {
+        const titleMessages = this.buildTitleMessages(await agent.getMessages(sessionId))
+        if (titleMessages.length > 0) {
+          return titleMessages
+        }
+      }
 
       await sleep(POLL_MS)
     }
 
-    return false
+    return null
   }
 
   private async buildSessionWithState(

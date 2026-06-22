@@ -1345,6 +1345,14 @@ describe('WindowSideBar agent switch', () => {
       }
       const { wrapper, projectStore } = await setup({
         groupMode: 'project',
+        pinnedSessions: [
+          {
+            id: 'pinned-chat',
+            title: 'Pinned Session',
+            status: 'none',
+            isPinned: true
+          }
+        ],
         defaultChatWorkspacePath: '/Users/test/Documents/DeepChat/',
         projectEnvironments: [
           { path: '/Users/test/Documents/DeepChat' },
@@ -1357,6 +1365,12 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('chat.sidebar.chats')
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__pinned__', '/Users/test/Documents/DeepChat', '/work/alpha', '/work/beta'])
+      expect(
+        wrapper.get('[data-group-id="/Users/test/Documents/DeepChat"]').attributes('aria-expanded')
+      ).toBe('false')
       expect(
         wrapper
           .get('[data-group-id="/Users/test/Documents/DeepChat"]')
@@ -1426,6 +1440,9 @@ describe('WindowSideBar agent switch', () => {
 
       expect(wrapper.text()).toContain('chat.sidebar.chats')
       expect(wrapper.text()).not.toContain('common.project.none')
+      expect(wrapper.get('[data-group-id="__no_project__"]').attributes('aria-expanded')).toBe(
+        'false'
+      )
       expect(
         wrapper
           .get('[data-group-id="__no_project__"]')
@@ -1443,6 +1460,25 @@ describe('WindowSideBar agent switch', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it('does not render the chats group when it has no sessions', async () => {
+    const { wrapper } = await setup({
+      groupMode: 'project',
+      groups: [
+        {
+          id: '__no_project__',
+          label: 'No Project',
+          labelKey: 'common.project.none',
+          sessions: []
+        }
+      ]
+    })
+
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('chat.sidebar.chats')
+  })
 
   it(
     'disables project group reordering while the sidebar search is active',

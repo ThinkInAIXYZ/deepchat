@@ -728,6 +728,7 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
+const defaultCollapsedChatGroupIds = ref<Set<string>>(new Set())
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -781,6 +782,10 @@ const isProjectDirectoryGroup = (group: SessionGroup) =>
 const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
   isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
 const getProjectGroupRank = (group: SessionGroup) => {
+  if (isChatsGroup(group)) {
+    return -1
+  }
+
   if (!isProjectDirectoryGroup(group)) {
     return 2
   }
@@ -1061,10 +1066,22 @@ watch(
         group.sessions.some((session) => session.id === activeSessionId)
       )
 
-      if (activeGroup) {
+      if (activeGroup && !isChatsGroup(activeGroup)) {
         nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
       }
     }
+
+    const nextDefaultCollapsedChatGroupIds = new Set(
+      [...defaultCollapsedChatGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
+    )
+    for (const group of groups) {
+      const groupId = getGroupIdentifier(group)
+      if (isChatsGroup(group) && !nextDefaultCollapsedChatGroupIds.has(groupId)) {
+        nextCollapsedGroupIds.add(groupId)
+        nextDefaultCollapsedChatGroupIds.add(groupId)
+      }
+    }
+    defaultCollapsedChatGroupIds.value = nextDefaultCollapsedChatGroupIds
 
     const stateChanged =
       nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||
