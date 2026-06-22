@@ -212,7 +212,11 @@ final boundary and never trusts an upstream size cap.
 
 Extraction is triggered after a turn/resume completes or on compaction, serialized per session, and never
 on the hot path. It builds its span from the **effective** tape view (after retract/replace/tool-dedup),
-not from raw messages.
+not from raw messages. The span carries only user-visible text: a user entry contributes its message text and
+an assistant entry contributes only its `content` blocks — assistant reasoning (`reasoning_content` /
+`reasoning` blocks) is deliberately excluded so internal chain-of-thought never becomes a durable memory. The
+raw tape still records reasoning in full; only the extraction input drops it (a message contributing no
+visible text appears in neither the span nor the lineage).
 
 ```mermaid
 flowchart TD
@@ -245,8 +249,12 @@ doubly fail-open: `parseTriageDecision` skips only on an explicit `SKIP` without
 call is caught and extraction proceeds anyway. A SKIP still advances the cursor (the span is consumed).
 
 **Extraction.** Over the span's last 12000 chars, the model returns at most **8** candidates (enforced both
-in the prompt and as a hard parse cap), each `{kind, content, importance}`. Parsing is tolerant — every
-malformed shape degrades to `[]` or a skipped entry, never a throw. Missing/NaN importance becomes `0.5`.
+in the prompt and as a hard parse cap), each `{kind, content, importance}`. Parsing is tolerant **per entry** —
+a malformed individual entry is skipped and missing/NaN importance becomes `0.5`, never a throw. A **top-level**
+parse failure (empty response, no JSON array, invalid JSON, or a non-array), however, is reported as a
+discriminated `MemoryCandidateParseResult` (`{ ok: false, reason }`) rather than silently degraded to `[]`, so
+the caller can retry the span instead of consuming it; a successful parse returns `{ ok: true, candidates }`
+(an empty array is a valid success).
 
 **The extraction model is not a hardcoded "small" model.** Two resolvers exist. `resolveExtractionModel` uses
 the agent's configured `memoryExtractionModel` when set; the extraction/triage/decision path falls back to the
@@ -281,9 +289,10 @@ never terminal); a dimension mismatch marks the row `error`; a vector-store writ
 embed is terminal `error`.
 
 **Cursor.** `memory_cursor_order_seq` (on `deepchat_sessions`) is written `SET = MAX(existing, floor(x), 0)`,
-so a late/stale extraction can never roll it back. It advances only on extraction success (even when zero
-candidates were produced); a failure leaves it for retry. A `memory/extract` anchor is written only when at
-least one row was created.
+so a late/stale extraction can never roll it back. It advances only when `extractAndStore` returns `ok: true`
+— i.e. the model output parsed into a (possibly empty) candidate array; a transient LLM error or a top-level
+parse failure returns `ok: false` and leaves the cursor for retry, so a span is never consumed by an output
+the model could not understand. A `memory/extract` anchor is written only when at least one row was created.
 
 ---
 
@@ -293,9 +302,14 @@ least one row was created.
 and trims to `topK`.
 
 - **Keyword path.** `agent_memory_fts` (FTS5, BM25-ranked) with the tokenizer chosen at runtime — `trigram`
-  for CJK/substring matching, else `unicode61`. `LIKE` always runs and is unioned in, so the result is never
-  a subset of the legacy `LIKE` behavior; if FTS5 is unavailable the path is pure `LIKE`. Persona, working,
-  archived, conflicted, and superseded rows are excluded.
+  for CJK/substring matching, else `unicode61`. The query is tokenized on whitespace; each term is quoted
+  independently (so user text can never inject an FTS5 operator) and the terms are joined with `AND`, so a
+  multi-word query matches rows containing **all** terms in any order rather than only an exact phrase (a
+  single-term query is unchanged). `LIKE` runs the same per-term `AND` and is unioned in, so the result is
+  never a subset of the legacy `LIKE` behavior; if FTS5 is unavailable the path is pure `LIKE`. Persona,
+  working, archived, conflicted, and superseded rows are excluded. The FTS index records its tokenizer and
+  version in `agent_memory_fts_meta`; if the runtime tokenizer choice changes (e.g. content starts containing
+  CJK), the index is dropped and rebuilt so a stale tokenizer can never silently degrade keyword recall.
 - **Vector path.** Only when an embedding model is configured. The query is embedded, DuckDB returns nearest
   neighbors by cosine distance, distances are converted to similarity and filtered by `similarityThreshold`,
   and the same row-class exclusions as the keyword path (persona, working, archived, conflicted, superseded)
@@ -464,6 +478,16 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   full file reset (`destroyFile` + recreate), not an in-place migration.
 - **Transactional vector upsert.** `upsert` wraps delete-then-insert in `BEGIN/COMMIT` with `ROLLBACK` on
   error, so there is no "deleted-but-not-inserted" hole.
+- **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` archives the row **and** deletes its
+  vector (`deleteVectorsForMemoryIds`, under the per-agent lock, best-effort) so an archived fact stops
+  occupying the sidecar; `restoreMemory` re-marks the row `pending_embedding` and re-embeds it. Both are gated
+  by `canWriteAgentMemory` (managed agent · memory enabled · not disposed), so a disabled agent neither
+  schedules new embeddings nor mutates rows — while a permanent UI delete (`deleteMemory`) only requires a
+  managed agent and so stays available for cleanup even when memory is off.
+- **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
+  with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
+  fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
+  vectors from a superseded model into a freshly reset sidecar.
 - **Provenance revival (`absorbProvenanceHit`).** When an archived/superseded fact is re-asserted, it is
   revived and the contradicting supersede lineage is retired back into it so the revived row becomes current
   truth (cycle- and cross-agent-guarded). `applyContentUpdate` keeps a row's `provenance_key` aligned with
@@ -618,8 +642,10 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 - **Triage SKIP is permanent.** A wrongly-SKIPped durable span is consumed and not re-extracted; mitigated by
   the conservative fail-open triage (KEEP unless an explicit SKIP).
 - **DuckDB disk reclaim.** Per-memory hard delete does not shrink the file; only a whole-store reset reclaims
-  (no `VACUUM`), so the file grows between resets. A per-row `deleteMemory` only removes the vector from the
-  cached/opened store; an orphan vector is harmless because recall re-checks the authoritative SQLite row.
+  (no `VACUUM`), so the file grows between resets. `deleteMemory` (and now `forgetMemory`) removes the row's
+  vector from the cached/opened store under the per-agent lock; if teardown is already underway the delete is
+  skipped, and the orphan vector is harmless because recall excludes archived rows and re-checks the
+  authoritative SQLite row.
 - **FTS5 native dependency.** Under vitest with an unloadable native ABI, the real FTS5/trigram eval skips;
   CI needs a working native build to exercise it.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
