@@ -37,9 +37,9 @@ These hold across every module and are the system's core invariants.
    gate, and even that runs inside the background extraction chain, not in the send path.
 6. **Expensive work is offline.** Consolidation/merge/reflection/persona run on a self-scheduled
    sleep-time pass gated by a restart-durable cooldown and an LLM budget.
-7. **Auditable, content-free observability.** Sessionless background maintenance records *provenance
-   metadata only* (ids/action/model — never raw text) in an audit table; injection manifests are
-   persisted as tape anchors.
+7. **Auditable, content-free observability.** Maintenance and user audit rows record *provenance
+   metadata only* (ids/action/model, with an optional `session_id` — never raw text) in an audit table;
+   injection manifests are persisted as tape anchors.
 
 ---
 
@@ -305,7 +305,7 @@ and trims to `topK`.
 **RRF fusion (`fuse`).** Each path contributes `1/(rrfK + rank + 1)` per item, accumulated when a memory
 appears in both lists. The final order is:
 
-```
+```text
 combined = retrievalScore + RRF
 ```
 
@@ -316,7 +316,7 @@ an additive boost that lifts dual-path evidence above equally-scored single-path
 
 **`retrievalScore` (recall ranking).**
 
-```
+```text
 recency        = 0.5 ^ (age / halfLifeForKind)        # semantic 14d · episodic 30d · reflection 60d
 base           = w.sim·similarity + w.rec·recency + w.imp·importance
 confidenceFactor = max(0, 1 + 0.5·(confidence − 0.7))  # default confidence 0.7
@@ -329,7 +329,7 @@ importance 0.15}`. Malformed config clamps to defaults (`topK ≤ 100`, `rrfK �
 
 **`decayScore` (forgetting, separate from recall).**
 
-```
+```text
 anchor       = last_accessed ?? created_at
 decayScore   = 0.5 ^ ( (now − anchor) / (30d · (1 + clamp01(importance))) )
 ```
@@ -573,7 +573,7 @@ selectively ignored, so the v32 backfill is safe against DBs that already have t
 
 ## 17. End-to-end flow
 
-```
+```text
 enable memory (top-level Memory page / agent toggle)
 → appendMemoryInjection (unified across normal / compaction-recovery / resume)
 → buildInjection: active persona (drafts excluded) + working L1 (no bump) + recall
@@ -624,8 +624,6 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
   CI needs a working native build to exercise it.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
   `similarityThreshold` is enforced presenter-side after distance→similarity conversion.
-- **Persona-drift history.** The old hot-path automatic persona write existed until reflection was moved
-  offline (#5) and gated by approval (#6); this work closes it, but the historical path carried that risk.
 
 ---
 
