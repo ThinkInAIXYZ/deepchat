@@ -114,3 +114,4 @@ flowchart LR
 4. [architecture/agent-system.md](./architecture/agent-system.md)
 5. [architecture/tool-system.md](./architecture/tool-system.md)
 6. [architecture/session-management.md](./architecture/session-management.md)
+7. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)
