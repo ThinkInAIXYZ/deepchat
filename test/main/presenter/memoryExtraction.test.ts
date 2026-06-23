@@ -270,6 +270,10 @@ describe('triage prompt + decision', () => {
     expect(prompt).toContain('KEEP')
     expect(prompt).toContain('SKIP')
     expect(prompt).toContain('untrusted')
+    expect(prompt).toContain('project facts')
+    expect(prompt).toContain('durable task outcomes')
+    expect(prompt).toContain('heuristics')
+    expect(prompt).toContain('anti-patterns')
   })
 
   it('parseTriageDecision keeps unless SKIP is the clear, sole verdict', () => {
