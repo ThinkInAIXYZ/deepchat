@@ -33,6 +33,41 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
   }) as any
 
 describe('Agent memory tools', () => {
+  it('passes memory_remember category through to the runtime port', async () => {
+    const runtimePort = buildRuntimePort({
+      rememberMemory: vi.fn().mockResolvedValue({ action: 'created', id: 'mem-1' })
+    })
+    const handler = new AgentMemoryToolHandler(runtimePort)
+
+    const rememberDef = handler
+      .getToolDefinitions()
+      .find((definition) => definition.function.name === MEMORY_TOOL_NAMES.remember)
+    const result = await handler.call(
+      MEMORY_TOOL_NAMES.remember,
+      {
+        content: 'repo uses pnpm',
+        kind: 'episodic',
+        category: 'project_fact',
+        importance: 0.1
+      },
+      'conv-1'
+    )
+
+    expect(JSON.stringify(rememberDef?.function.parameters)).toContain('project_fact')
+    expect(runtimePort.rememberMemory).toHaveBeenCalledWith(
+      'deepchat',
+      {
+        content: 'repo uses pnpm',
+        kind: 'episodic',
+        category: 'project_fact',
+        importance: 0.1
+      },
+      'conv-1',
+      { providerId: 'openai', modelId: 'gpt-4.1' }
+    )
+    expect(JSON.parse(result.content)).toMatchObject({ ok: true, action: 'created', id: 'mem-1' })
+  })
+
   it('exposes memory_forget as a soft forget operation', async () => {
     const runtimePort = buildRuntimePort()
     const handler = new AgentMemoryToolHandler(runtimePort)

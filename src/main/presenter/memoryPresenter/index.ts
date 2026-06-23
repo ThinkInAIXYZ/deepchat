@@ -8,6 +8,7 @@ import {
   type MemoryCandidate,
   type MemoryConflictPair,
   type MemoryConflictResolution,
+  type NormalizedMemoryCandidate,
   type MemoryPresenterDeps,
   type MemoryRecallItem,
   type MemorySearchHit,
@@ -16,6 +17,11 @@ import {
   type MemoryWriteOutcome,
   type WriteMemoriesOptions
 } from './types'
+import {
+  CATEGORY_IMPORTANCE_FLOOR,
+  isAgentMemoryCategory,
+  type AgentMemoryCategory
+} from '@shared/types/agent-memory'
 import {
   buildMemoryProvenanceKey,
   decayScore,
@@ -131,6 +137,40 @@ function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
 
 function outcomeTouched(outcome: MemoryWriteOutcome): boolean {
   return outcome.action !== 'noop'
+}
+
+function clampImportance(value: unknown): number {
+  const num = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(num)) return 0.5
+  return Math.min(1, Math.max(0, num))
+}
+
+function normalizeMemoryCandidate(candidate: MemoryCandidate): NormalizedMemoryCandidate | null {
+  const content = candidate.content.trim()
+  if (!content) return null
+
+  const rawCategory = typeof candidate.category === 'string' ? candidate.category.trim() : ''
+  const category = isAgentMemoryCategory(rawCategory) ? rawCategory : null
+  const categoryWasProvided = rawCategory.length > 0
+  const kind =
+    category !== null
+      ? category === 'task_outcome'
+        ? 'episodic'
+        : 'semantic'
+      : categoryWasProvided
+        ? 'semantic'
+        : candidate.kind === 'episodic' || candidate.kind === 'semantic'
+          ? candidate.kind
+          : 'semantic'
+  const importance = category
+    ? Math.max(clampImportance(candidate.importance), CATEGORY_IMPORTANCE_FLOOR[category])
+    : clampImportance(candidate.importance)
+
+  return { kind, category, content, importance }
+}
+
+function canCarryCategory(kind: AgentMemoryRow['kind']): boolean {
+  return kind === 'episodic' || kind === 'semantic'
 }
 
 // Maps a write outcome to its user-add audit shape. outputRefs carries only ids and the action,
@@ -341,15 +381,16 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (!candidates.length) return []
     const created: string[] = []
     for (const candidate of candidates) {
-      const content = candidate.content.trim()
-      if (!content) continue
-      const provenanceKey = buildMemoryProvenanceKey(options.agentId, candidate.kind, content)
+      const normalized = normalizeMemoryCandidate(candidate)
+      if (!normalized) continue
+      const content = normalized.content
+      const provenanceKey = buildMemoryProvenanceKey(options.agentId, normalized.kind, content)
       const duplicate = this.deps.repository.getByProvenanceKey(options.agentId, provenanceKey)
       if (duplicate) {
         if (this.absorbProvenanceHit(options.agentId, duplicate)) created.push(duplicate.id)
         continue
       }
-      const id = this.insertMemory(options.agentId, candidate, content, provenanceKey, options)
+      const id = this.insertMemory(options.agentId, normalized, content, provenanceKey, options)
       if (id) created.push(id)
     }
     return created
@@ -360,7 +401,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // resolve it against. A unique-index race is treated as already present and skipped (returns null).
   private insertMemory(
     agentId: string,
-    candidate: MemoryCandidate,
+    candidate: NormalizedMemoryCandidate,
     content: string,
     provenanceKey: string,
     options: WriteMemoriesOptions
@@ -373,6 +414,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         id,
         agentId,
         kind: candidate.kind,
+        category: candidate.category,
         content,
         importance: candidate.importance,
         status: 'pending_embedding',
@@ -698,13 +740,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
     options: WriteMemoriesOptions,
     now: number
   ): Promise<MemoryWriteOutcome> {
-    const content = candidate.content.trim()
-    if (!content) return { action: 'noop', reason: 'empty' }
+    const normalized = normalizeMemoryCandidate(candidate)
+    if (!normalized) return { action: 'noop', reason: 'empty' }
+    const content = normalized.content
     // Each disposed re-check below guards a write that follows an await: teardown may begin between
     // the candidate arriving and its decision landing, and no repository write may outlive it.
     if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
 
-    const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, content)
+    const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.deps.repository.getByProvenanceKey(agentId, provenanceKey)
     if (duplicate) {
       const touched = this.absorbProvenanceHit(agentId, duplicate)
@@ -722,7 +765,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
     if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
     if (!neighbors.length) {
-      const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+      const id = this.insertMemory(agentId, normalized, content, provenanceKey, options)
       return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
     }
 
@@ -732,7 +775,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         model.providerId,
         model.modelId,
         buildDecisionPrompt(
-          candidate,
+          normalized,
           neighbors.map((neighbor) => ({ content: neighbor.content }))
         )
       )
@@ -751,7 +794,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
           const targetRow = this.deps.repository.getById(target.id)
           if (targetRow) {
             const merged = decision.mergedContent ?? content
-            const survivorId = this.applyContentUpdate(agentId, targetRow, merged, now)
+            const survivorId = this.applyContentUpdate(
+              agentId,
+              targetRow,
+              merged,
+              now,
+              normalized.category
+            )
             this.bumpConfidence(survivorId)
             this.deps.repository.updateStatus(survivorId, 'pending_embedding')
             return { action: 'updated', id: survivorId }
@@ -761,8 +810,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
       case 'SUPERSEDE':
         if (target) {
           const merged = decision.mergedContent ?? content
-          const mergedKey = buildMemoryProvenanceKey(agentId, candidate.kind, merged)
-          const newId = this.insertMemory(agentId, candidate, merged, mergedKey, options)
+          const mergedKey = buildMemoryProvenanceKey(agentId, normalized.kind, merged)
+          const newId = this.insertMemory(agentId, normalized, merged, mergedKey, options)
           if (newId) {
             this.deps.repository.markSuperseded(target.id, newId)
             return { action: 'superseded', id: newId, supersededId: target.id, created: true }
@@ -773,6 +822,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
           const existing = this.deps.repository.getByProvenanceKey(agentId, mergedKey)
           if (existing && existing.id !== target.id) {
             this.absorbProvenanceHit(agentId, existing)
+            if (existing.category === null && normalized.category !== null) {
+              this.deps.repository.updateContent(
+                existing.id,
+                existing.content,
+                existing.provenance_key,
+                now,
+                normalized.category
+              )
+            }
             this.deps.repository.markSuperseded(target.id, existing.id)
             return {
               action: 'superseded',
@@ -788,7 +846,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         if (target) {
           const challengerId = this.insertConflictedMemory(
             agentId,
-            candidate,
+            normalized,
             content,
             provenanceKey,
             target.id,
@@ -813,13 +871,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
         }
         break
     }
-    const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+    const id = this.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
   private insertConflictedMemory(
     agentId: string,
-    candidate: MemoryCandidate,
+    candidate: NormalizedMemoryCandidate,
     content: string,
     provenanceKey: string,
     targetId: string,
@@ -833,6 +891,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         id,
         agentId,
         kind: candidate.kind,
+        category: candidate.category,
         content,
         importance: candidate.importance,
         status: 'conflicted',
@@ -864,18 +923,29 @@ export class MemoryPresenter implements MemoryRuntimePort {
     agentId: string,
     row: AgentMemoryRow,
     content: string,
-    now: number
+    now: number,
+    category?: AgentMemoryCategory | null
   ): string {
     const newKey = buildMemoryProvenanceKey(agentId, row.kind, content)
+    const nextCategory = canCarryCategory(row.kind) ? (row.category ?? category ?? null) : undefined
     if (newKey !== row.provenance_key) {
       const owner = this.deps.repository.getByProvenanceKey(agentId, newKey)
       if (owner && owner.id !== row.id) {
         this.absorbProvenanceHit(agentId, owner)
+        if (canCarryCategory(owner.kind) && owner.category === null && nextCategory != null) {
+          this.deps.repository.updateContent(
+            owner.id,
+            owner.content,
+            owner.provenance_key,
+            now,
+            nextCategory
+          )
+        }
         this.deps.repository.markSuperseded(row.id, owner.id)
         return owner.id
       }
     }
-    this.deps.repository.updateContent(row.id, content, newKey, now)
+    this.deps.repository.updateContent(row.id, content, newKey, now, nextCategory)
     return row.id
   }
 
@@ -1076,10 +1146,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
       )
       if (!neighbor) continue
 
-      const prompt = buildDecisionPrompt(
-        { kind: row.kind === 'episodic' ? 'episodic' : 'semantic', content: row.content },
-        [{ content: neighbor.content }]
-      )
+      const promptCandidate = normalizeMemoryCandidate({
+        kind: row.kind === 'episodic' ? 'episodic' : 'semantic',
+        category: row.category,
+        content: row.content,
+        importance: row.importance
+      })
+      if (!promptCandidate) continue
+      const prompt = buildDecisionPrompt(promptCandidate, [{ content: neighbor.content }])
       calls += 1
       inputTokens += estimateTokens(prompt)
       let decision: MemoryDecision = ADD_DECISION
@@ -1101,7 +1175,16 @@ export class MemoryPresenter implements MemoryRuntimePort {
         const [primary, secondary] =
           row.created_at >= neighborRow.created_at ? [row, neighborRow] : [neighborRow, row]
         const mergedContent = decision.mergedContent ?? primary.content
-        const survivorId = this.applyContentUpdate(agentId, primary, mergedContent, now)
+        const secondaryCategory = isAgentMemoryCategory(secondary.category)
+          ? secondary.category
+          : null
+        const survivorId = this.applyContentUpdate(
+          agentId,
+          primary,
+          mergedContent,
+          now,
+          secondaryCategory
+        )
         this.bumpConfidence(survivorId)
         this.deps.repository.setImportance(survivorId, secondary.importance)
         this.deps.repository.updateStatus(survivorId, 'pending_embedding')
@@ -1181,12 +1264,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async forgetMemory(agentId: string, memoryId: string): Promise<boolean> {
     if (this.disposed) return false
     this.assertSafeAgentId(agentId)
-    if (!this.canWriteAgentMemory(agentId)) return false
+    if (!this.isManagedAgent(agentId)) return false
     const row = this.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     if (row.status === 'archived') return true
     this.deps.repository.archive(row.id, Date.now())
-    await this.deleteVectorsForMemoryIds(agentId, [memoryId])
     if (this.disposed) return true
     this.syncWorkingMemoryAfterMutation(agentId)
     this.emitChanged(agentId, 'extract')
@@ -1302,13 +1384,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
   ): Promise<boolean> {
     let touched = false
     for (const pair of this.listConflicts(agentId)) {
-      const prompt = buildDecisionPrompt(
-        {
-          kind: pair.challenger.kind === 'episodic' ? 'episodic' : 'semantic',
-          content: pair.challenger.content
-        },
-        [{ content: pair.target.content }]
-      )
+      const promptCandidate = normalizeMemoryCandidate({
+        kind: pair.challenger.kind === 'episodic' ? 'episodic' : 'semantic',
+        category: pair.challenger.category,
+        content: pair.challenger.content,
+        importance: pair.challenger.importance
+      })
+      if (!promptCandidate) continue
+      const prompt = buildDecisionPrompt(promptCandidate, [{ content: pair.target.content }])
       let decision: MemoryDecision = ADD_DECISION
       try {
         const raw = await this.deps.generateText(model.providerId, model.modelId, prompt)
@@ -1404,9 +1487,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     candidate: MemoryCandidate,
     options: WriteMemoriesOptions
   ): MemoryWriteOutcome {
-    const content = candidate.content.trim()
-    if (!content) return { action: 'noop', reason: 'empty' }
-    const provenanceKey = buildMemoryProvenanceKey(agentId, candidate.kind, content)
+    const normalized = normalizeMemoryCandidate(candidate)
+    if (!normalized) return { action: 'noop', reason: 'empty' }
+    const content = normalized.content
+    const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.deps.repository.getByProvenanceKey(agentId, provenanceKey)
     if (duplicate) {
       const touched = this.absorbProvenanceHit(agentId, duplicate)
@@ -1414,7 +1498,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         ? { action: 'updated', id: duplicate.id }
         : { action: 'noop', reason: 'duplicate', id: duplicate.id }
     }
-    const id = this.insertMemory(agentId, candidate, content, provenanceKey, options)
+    const id = this.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
@@ -1454,13 +1538,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // whose refs carry provenance metadata and ids only, never the raw content.
   async addUserMemory(
     agentId: string,
-    input: { content: string; kind?: 'episodic' | 'semantic'; importance?: number },
+    input: {
+      content: string
+      kind?: 'episodic' | 'semantic'
+      category?: string | null
+      importance?: number
+    },
     sessionId?: string | null
   ): Promise<MemoryWriteOutcome> {
     this.assertSafeAgentId(agentId)
     if (!this.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
     const candidate: MemoryCandidate = {
       kind: input.kind ?? 'semantic',
+      category: input.category,
       content: input.content,
       importance: input.importance
     }
@@ -1482,7 +1572,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
       actorType: 'user',
       status: audit.status,
       reason: audit.reason,
-      inputRefs: { kind: candidate.kind, importance: candidate.importance ?? null },
+      inputRefs: {
+        kind: candidate.kind,
+        category: candidate.category ?? null,
+        importance: candidate.importance ?? null
+      },
       outputRefs: audit.outputRefs,
       model,
       sessionId: sessionId ?? null

@@ -231,7 +231,8 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       last_consolidated_at: 'ALTER TABLE agent_memory ADD COLUMN last_consolidated_at INTEGER;',
       conflict_state: 'ALTER TABLE agent_memory ADD COLUMN conflict_state TEXT;',
       conflict_with: 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;',
-      persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;'
+      persona_state: 'ALTER TABLE agent_memory ADD COLUMN persona_state TEXT;',
+      category: 'ALTER TABLE agent_memory ADD COLUMN category TEXT;'
     }
   },
   {

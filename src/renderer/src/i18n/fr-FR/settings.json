@@ -2332,7 +2332,18 @@
       "searchFailed": "La recherche a échoué. Réessayez.",
       "deletePermanent": "Supprimer définitivement",
       "deleteConfirmTitle": "Supprimer définitivement cette mémoire ?",
-      "deleteConfirmBody": "Cela supprime la mémoire au lieu de l’archiver. Cette action est irréversible."
+      "deleteConfirmBody": "Cela supprime la mémoire au lieu de l’archiver. Cette action est irréversible.",
+      "categoryFilterLabel": "Catégorie",
+      "categoryFilterAll": "Toutes les catégories",
+      "categoryUncategorized": "Non classé",
+      "noCategoryResults": "Aucune mémoire dans cette catégorie.",
+      "category": {
+        "user_preference": "Préférence utilisateur",
+        "project_fact": "Fait de projet",
+        "task_outcome": "Résultat de tâche",
+        "heuristic": "Règle empirique",
+        "anti_pattern": "Anti-modèle"
+      }
     },
     "personaEvolutionTitle": "Évolution de la persona (expérimental)",
     "personaEvolutionDescription": "Laissez la réflexion proposer des modèles de soi mis à jour sous forme de brouillons à approuver. Indépendant de la mémoire ; désactivé par défaut.",

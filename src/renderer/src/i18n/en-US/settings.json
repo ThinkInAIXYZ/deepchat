@@ -222,7 +222,18 @@
       "searchFailed": "Search failed. Try again.",
       "deletePermanent": "Delete permanently",
       "deleteConfirmTitle": "Delete this memory permanently?",
-      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone."
+      "deleteConfirmBody": "This removes the memory instead of archiving it. This cannot be undone.",
+      "categoryFilterLabel": "Category",
+      "categoryFilterAll": "All categories",
+      "categoryUncategorized": "Uncategorized",
+      "noCategoryResults": "No memories in this category.",
+      "category": {
+        "user_preference": "User preference",
+        "project_fact": "Project fact",
+        "task_outcome": "Task outcome",
+        "heuristic": "Heuristic",
+        "anti_pattern": "Anti-pattern"
+      }
     },
     "compactionThreshold": "Trigger threshold",
     "compactionRetainPairs": "Retain recent pairs",

@@ -4,10 +4,10 @@ import { buildDecisionPrompt, parseDecision } from '@/presenter/memoryPresenter/
 
 describe('buildDecisionPrompt', () => {
   it('embeds the candidate, indexes neighbors, and declares the data untrusted', () => {
-    const prompt = buildDecisionPrompt({ kind: 'semantic', content: 'user prefers redis' }, [
-      { content: 'user likes databases' },
-      { content: 'user lives in berlin' }
-    ])
+    const prompt = buildDecisionPrompt(
+      { kind: 'semantic', category: null, content: 'user prefers redis', importance: 0.5 },
+      [{ content: 'user likes databases' }, { content: 'user lives in berlin' }]
+    )
     expect(prompt).toContain('user prefers redis')
     expect(prompt).toContain('[0] user likes databases')
     expect(prompt).toContain('[1] user lives in berlin')
@@ -16,7 +16,10 @@ describe('buildDecisionPrompt', () => {
   })
 
   it('renders (none) when there are no neighbors', () => {
-    const prompt = buildDecisionPrompt({ kind: 'semantic', content: 'x' }, [])
+    const prompt = buildDecisionPrompt(
+      { kind: 'semantic', category: null, content: 'x', importance: 0.5 },
+      []
+    )
     expect(prompt).toContain('(none)')
   })
 })

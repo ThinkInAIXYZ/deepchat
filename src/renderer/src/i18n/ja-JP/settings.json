@@ -2332,7 +2332,18 @@
       "searchFailed": "検索に失敗しました。もう一度お試しください。",
       "deletePermanent": "完全に削除",
       "deleteConfirmTitle": "このメモリを完全に削除しますか？",
-      "deleteConfirmBody": "メモリをアーカイブせずに削除します。この操作は元に戻せません。"
+      "deleteConfirmBody": "メモリをアーカイブせずに削除します。この操作は元に戻せません。",
+      "categoryFilterLabel": "カテゴリ",
+      "categoryFilterAll": "すべてのカテゴリ",
+      "categoryUncategorized": "未分類",
+      "noCategoryResults": "このカテゴリには記憶がありません。",
+      "category": {
+        "user_preference": "ユーザーの好み",
+        "project_fact": "プロジェクト情報",
+        "task_outcome": "タスク結果",
+        "heuristic": "経験則",
+        "anti_pattern": "アンチパターン"
+      }
     },
     "personaEvolutionTitle": "人格進化（実験的）",
     "personaEvolutionDescription": "リフレクションが更新後の自己モデルを下書きとして提案し、あなたの承認を待ちます。メモリとは独立で、既定では無効です。",

@@ -57,4 +57,57 @@ describe('discoverSkillMetadataInWorker', () => {
       ])
     )
   })
+
+  it('discovers the bundled memory-management skill without tool restrictions', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const path = await vi.importActual<typeof import('node:path')>('node:path')
+    const skillsDir = path.resolve(process.cwd(), 'resources/skills')
+    const skillPath = path.join(skillsDir, 'memory-management', 'SKILL.md')
+    const raw = fs.readFileSync(skillPath, 'utf-8')
+    const frontmatter = raw.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
+    const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '')
+
+    expect(frontmatter).toContain('name: memory-management')
+    expect(frontmatter).toContain('description:')
+    expect(raw).not.toMatch(/\ballowedTools\b|\ballowed-tools\b/)
+
+    const result = await discoverSkillMetadataInWorker({
+      skillsDir,
+      sidecarDirName: '.deepchat-meta',
+      maxDepth: 10
+    })
+    const skill = result.skills.find((metadata) => metadata.name === 'memory-management')
+
+    expect(result.warnings.map((warning) => JSON.stringify(warning)).join('\n')).not.toContain(
+      'memory-management'
+    )
+    expect(skill).toEqual(
+      expect.objectContaining({
+        name: 'memory-management',
+        path: skillPath,
+        skillRoot: path.dirname(skillPath),
+        category: null,
+        allowedTools: undefined
+      })
+    )
+    expect(skill?.description).toEqual(expect.any(String))
+    expect(skill?.description.length).toBeGreaterThan(0)
+    expect(skill?.description).toContain('recall')
+    expect(skill?.description).toContain('remember')
+    expect(skill?.description).toContain('Memory')
+
+    for (const anchor of [
+      'memory_recall',
+      'memory_remember',
+      'tape_search',
+      'tape_context',
+      'skill_manage',
+      'Scheduled Task',
+      'verbatim',
+      'hidden reasoning',
+      'secrets'
+    ]) {
+      expect(body).toContain(anchor)
+    }
+  })
 })

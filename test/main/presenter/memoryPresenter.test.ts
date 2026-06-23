@@ -473,6 +473,21 @@ describe('memory scoring', () => {
     expect(score).toBeCloseTo(0.6 + 0.25 + 0.15)
   })
 
+  it('category does not affect retrieval or decay scoring', () => {
+    const now = 10 * DAY
+    const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
+    const uncategorized = makeRow('uncategorized', { category: null, created_at: now - DAY })
+    const categorized = makeRow('categorized', {
+      category: 'project_fact',
+      created_at: now - DAY
+    })
+
+    expect(decayScore(uncategorized, now)).toBeCloseTo(decayScore(categorized, now))
+    expect(retrievalScore(uncategorized, 0.8, now, weights)).toBeCloseTo(
+      retrievalScore(categorized, 0.8, now, weights)
+    )
+  })
+
   it('resolveRetrieval falls back to defaults and validates rrfK / similarityThreshold', () => {
     const defaults = resolveRetrieval(null)
     expect(defaults.topK).toBe(6)
@@ -522,6 +537,7 @@ function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemo
     agent_id: 'a',
     user_scope: null,
     kind: 'semantic',
+    category: null,
     content: id,
     importance: 0.5,
     status: 'embedded',
@@ -541,6 +557,7 @@ function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemo
     last_consolidated_at: null,
     conflict_state: null,
     conflict_with: null,
+    persona_state: null,
     ...overrides
   }
 }
@@ -2724,6 +2741,37 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.countByAgent('a')).toBe(1)
   })
 
+  it('does not write candidate category onto a reflection UPDATE target', async () => {
+    const generateText = routedLLM({
+      decision:
+        '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis reflection"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    repo.insert({
+      id: 'reflection-target',
+      agentId: 'a',
+      kind: 'reflection',
+      content: 'user likes redis',
+      importance: 0.8,
+      status: 'pending_embedding'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    const outcome = await presenter.rememberMemory(
+      {
+        content: 'user likes redis preference',
+        category: 'user_preference',
+        importance: 0.2
+      },
+      { agentId: 'a' },
+      { providerId: 'main', modelId: 'main' }
+    )
+
+    expect(outcome).toMatchObject({ action: 'updated', id: 'reflection-target' })
+    expect(repo.getById('reflection-target')?.kind).toBe('reflection')
+    expect(repo.getById('reflection-target')?.category).toBeNull()
+  })
+
   it('explicit rememberMemory uses the decision ring when a model is available', async () => {
     const generateText = routedLLM({
       decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
@@ -3098,6 +3146,103 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     await presenter.runConsolidationPass('a', now)
     expect(repo.getById(newId)?.superseded_by).toBeNull()
     expect(repo.getById(newId)?.importance).toBe(0.9)
+  })
+
+  it('does not write secondary category onto a reflection merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'semantic-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis semantic',
+      importance: 0.7,
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'reflection-primary',
+      agentId: 'a',
+      kind: 'reflection',
+      content: 'user likes redis reflection',
+      importance: 0.8,
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('reflection-primary')?.superseded_by).toBeNull()
+    expect(repo.getById('reflection-primary')?.category).toBeNull()
+    expect(repo.getById('semantic-secondary')?.superseded_by).toBe('reflection-primary')
+  })
+
+  it('absorbs secondary category into an uncategorized atomic merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'categorized-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis project',
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'uncategorized-primary',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'user likes redis current',
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('uncategorized-primary')?.category).toBe('project_fact')
+    expect(repo.getById('categorized-secondary')?.superseded_by).toBe('uncategorized-primary')
+  })
+
+  it('preserves existing category on an atomic merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'project-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis project',
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'preference-primary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'user_preference',
+      content: 'user likes redis preference',
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('preference-primary')?.category).toBe('user_preference')
+    expect(repo.getById('project-secondary')?.superseded_by).toBe('preference-primary')
   })
 
   it('the cooldown survives a fresh presenter via the completed maintenance audit (T-B5)', async () => {

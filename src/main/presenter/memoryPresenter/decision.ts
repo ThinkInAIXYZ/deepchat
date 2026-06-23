@@ -1,4 +1,4 @@
-import type { MemoryCandidate } from './types'
+import type { NormalizedMemoryCandidate } from './types'
 
 export type MemoryDecisionKind = 'ADD' | 'UPDATE' | 'SUPERSEDE' | 'NOOP' | 'CHALLENGE'
 
@@ -38,7 +38,7 @@ export const ADD_DECISION: MemoryDecision = {
 }
 
 export function buildDecisionPrompt(
-  candidate: MemoryCandidate,
+  candidate: NormalizedMemoryCandidate,
   neighbors: DecisionNeighbor[]
 ): string {
   const neighborList = neighbors
