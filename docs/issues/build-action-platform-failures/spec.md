@@ -22,11 +22,6 @@ GitHub Actions run `27634409921` failed on two jobs:
 - The follow-up run `27636722380` passed Windows x64, Windows arm64, and Linux x64, then failed
   `build-mac (arm64)` during `vue-tsgo` because `vuedraggable` module typing was not resolved on
   that runner.
-- The CUA helper identity branch run `28011329887` passed CUA macOS runtime staging and signing, but
-  failed the manual Build Application macOS arm64 job during app notarization. `notarytool` returned
-  HTTP 403 because the Apple Developer account had a missing or expired required agreement. This is
-  an external release-account state, not a CUA packaging failure, but it should not block
-  non-release branch artifact builds.
 
 ## Acceptance Criteria
 
@@ -38,8 +33,6 @@ GitHub Actions run `27634409921` failed on two jobs:
 - Linux x64 CUA runtime smoke checks run when the host loader can execute the binary and skip only
   for a detected glibc loader-version mismatch.
 - macOS arm64 typecheck resolves `vuedraggable` for the existing draggable list components.
-- Manual Build Application macOS jobs do not invoke Apple notarization. Release workflow macOS jobs
-  continue to notarize release artifacts.
 - The Build Application workflow can be pushed again for maintainer validation.
 
 ## Non-Goals
@@ -47,4 +40,3 @@ GitHub Actions run `27634409921` failed on two jobs:
 - Change the pinned CUA upstream release.
 - Change the packaged Linux runner baseline.
 - Redesign ACP registry runtime loading.
-- Disable notarization in the release workflow.
