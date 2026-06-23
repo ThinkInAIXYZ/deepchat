@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type {
   MemoryAuditEvent,
@@ -35,10 +35,19 @@ const InputStub = defineComponent({
   template: `<input v-bind="$attrs" :value="modelValue ?? ''" @input="$emit('update:modelValue', $event.target.value)" />`
 })
 
+const SelectStub = defineComponent({
+  name: 'Select',
+  inheritAttrs: false,
+  props: { modelValue: { type: String, default: '' } },
+  emits: ['update:modelValue'],
+  template: `<div v-bind="$attrs"><slot /></div>`
+})
+
 const memory: MemoryItem = {
   id: 'm1',
   agentId: 'a',
   kind: 'semantic',
+  category: null,
   content: 'redis fact',
   importance: 0.5,
   status: 'embedded',
@@ -149,7 +158,7 @@ async function setup(
     })
   }))
   vi.doMock('@shadcn/components/ui/select', () => ({
-    Select: passStub('Select'),
+    Select: SelectStub,
     SelectContent: passStub('SelectContent'),
     SelectItem: passStub('SelectItem'),
     SelectTrigger: passStub('SelectTrigger'),
@@ -195,12 +204,130 @@ async function setup(
 }
 
 const deleteButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
-  wrapper.findAll('button').find((b) => b.attributes('aria-label') === 'common.delete')
+  wrapper
+    .findAllComponents(AlertDialogActionStub)
+    .find((b) => b.text().includes('settings.deepchatAgents.memoryManager.deletePermanent'))
 
 const failedToast = {
   variant: 'destructive',
   title: 'settings.deepchatAgents.memoryManager.actionFailed'
 }
+
+async function setCategoryFilter(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  value: string
+): Promise<void> {
+  wrapper.findComponent({ name: 'Select' }).vm.$emit('update:modelValue', value)
+  await nextTick()
+}
+
+describe('MemoryManagerDialog category UI (PR-3)', () => {
+  it('renders category badges for categorized and uncategorized memories', async () => {
+    const projectFact: MemoryItem = {
+      ...memory,
+      id: 'm-project',
+      content: 'repo uses pnpm',
+      category: 'project_fact'
+    }
+    const legacy: MemoryItem = { ...memory, id: 'm-legacy', content: 'legacy row', category: null }
+    const { wrapper } = await setup({ items: [projectFact, legacy] })
+
+    const projectRow = wrapper.findAll('li').find((li) => li.text().includes('repo uses pnpm'))
+    const legacyRow = wrapper.findAll('li').find((li) => li.text().includes('legacy row'))
+
+    expect(projectRow?.text()).toContain(
+      'settings.deepchatAgents.memoryManager.category.project_fact'
+    )
+    expect(legacyRow?.text()).toContain(
+      'settings.deepchatAgents.memoryManager.categoryUncategorized'
+    )
+  })
+
+  it('filters the loaded list by category, uncategorized, and all', async () => {
+    const items: MemoryItem[] = [
+      { ...memory, id: 'm-project', content: 'repo uses pnpm', category: 'project_fact' },
+      {
+        ...memory,
+        id: 'm-pref',
+        content: 'user prefers terse answers',
+        category: 'user_preference'
+      },
+      { ...memory, id: 'm-legacy', content: 'legacy row', category: null }
+    ]
+    const { wrapper } = await setup({ items })
+
+    await setCategoryFilter(wrapper, 'project_fact')
+    expect(wrapper.text()).toContain('repo uses pnpm')
+    expect(wrapper.text()).not.toContain('user prefers terse answers')
+    expect(wrapper.text()).not.toContain('legacy row')
+
+    await setCategoryFilter(wrapper, 'uncategorized')
+    expect(wrapper.text()).not.toContain('repo uses pnpm')
+    expect(wrapper.text()).not.toContain('user prefers terse answers')
+    expect(wrapper.text()).toContain('legacy row')
+
+    await setCategoryFilter(wrapper, 'all')
+    expect(wrapper.text()).toContain('repo uses pnpm')
+    expect(wrapper.text()).toContain('user prefers terse answers')
+    expect(wrapper.text()).toContain('legacy row')
+  })
+
+  it('filters search results locally without sending category to search', async () => {
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory, id: 'm-base', content: 'base row', category: null }],
+      searchResults: [
+        { ...memory, id: 'm-project', content: 'repo search hit', category: 'project_fact' },
+        { ...memory, id: 'm-pref', content: 'preference search hit', category: 'user_preference' }
+      ]
+    })
+
+    await wrapper.find('input[type="search"]').setValue('repo')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await flushPromises()
+    expect(memoryClient.search).toHaveBeenCalledWith('a', 'repo')
+    expect(wrapper.text()).toContain('repo search hit')
+    expect(wrapper.text()).toContain('preference search hit')
+
+    await setCategoryFilter(wrapper, 'project_fact')
+    expect(wrapper.text()).toContain('repo search hit')
+    expect(wrapper.text()).not.toContain('preference search hit')
+    expect(memoryClient.search).toHaveBeenCalledWith('a', 'repo')
+  })
+
+  it('shows the category empty state when a loaded list has no category matches', async () => {
+    const { wrapper } = await setup({
+      items: [
+        {
+          ...memory,
+          id: 'm-pref',
+          content: 'user prefers terse answers',
+          category: 'user_preference'
+        }
+      ]
+    })
+
+    await setCategoryFilter(wrapper, 'project_fact')
+
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.noCategoryResults')
+    expect(wrapper.text()).not.toContain('user prefers terse answers')
+  })
+
+  it('keeps search-empty copy ahead of category-empty copy', async () => {
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory, id: 'm-base', content: 'base row', category: null }],
+      searchResults: []
+    })
+
+    await setCategoryFilter(wrapper, 'project_fact')
+    await wrapper.find('input[type="search"]').setValue('missing')
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await flushPromises()
+
+    expect(memoryClient.search).toHaveBeenCalledWith('a', 'missing')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.noSearchResults')
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.memoryManager.noCategoryResults')
+  })
+})
 
 describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
   it('delete failure toasts and does not optimistically remove (AC-6.1)', async () => {
@@ -214,7 +341,8 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
   })
 
   it('delete success removes the item from the list (AC-6.2)', async () => {
-    const { wrapper, toast } = await setup({ remove: true })
+    const { wrapper, memoryClient, toast } = await setup({ remove: true })
+    memoryClient.list.mockResolvedValueOnce([])
     await deleteButton(wrapper)!.trigger('click')
     await flushPromises()
 
@@ -238,6 +366,8 @@ describe('MemoryManagerDialog action consistency (C6, AC-6.1~6.3)', () => {
     expect(wrapper.text()).not.toContain('vue fact')
 
     // Deleting the only visible result must remove it, not leave a stale search row behind.
+    memoryClient.list.mockResolvedValueOnce([other])
+    memoryClient.search.mockResolvedValueOnce([])
     await deleteButton(wrapper)!.trigger('click')
     await flushPromises()
     expect(memoryClient.remove).toHaveBeenCalledWith('a', 'm1')

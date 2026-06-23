@@ -2332,7 +2332,18 @@
       "searchFailed": "검색에 실패했습니다. 다시 시도하세요.",
       "deletePermanent": "영구 삭제",
       "deleteConfirmTitle": "이 메모리를 영구 삭제할까요?",
-      "deleteConfirmBody": "메모리를 보관하지 않고 제거합니다. 이 작업은 되돌릴 수 없습니다."
+      "deleteConfirmBody": "메모리를 보관하지 않고 제거합니다. 이 작업은 되돌릴 수 없습니다.",
+      "categoryFilterLabel": "카테고리",
+      "categoryFilterAll": "모든 카테고리",
+      "categoryUncategorized": "미분류",
+      "noCategoryResults": "이 카테고리에 해당하는 기억이 없습니다.",
+      "category": {
+        "user_preference": "사용자 선호",
+        "project_fact": "프로젝트 사실",
+        "task_outcome": "작업 결과",
+        "heuristic": "경험칙",
+        "anti_pattern": "안티 패턴"
+      }
     },
     "personaEvolutionTitle": "페르소나 진화 (실험적)",
     "personaEvolutionDescription": "리플렉션이 업데이트된 자기 모델을 초안으로 제안하여 승인을 받도록 합니다. 메모리와 독립적이며 기본값은 꺼짐입니다.",

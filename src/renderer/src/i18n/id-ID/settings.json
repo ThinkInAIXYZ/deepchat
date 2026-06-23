@@ -225,7 +225,18 @@
       "searchFailed": "Pencarian gagal. Coba lagi.",
       "deletePermanent": "Hapus permanen",
       "deleteConfirmTitle": "Hapus memori ini secara permanen?",
-      "deleteConfirmBody": "Ini menghapus memori alih-alih mengarsipkannya. Tindakan ini tidak dapat dibatalkan."
+      "deleteConfirmBody": "Ini menghapus memori alih-alih mengarsipkannya. Tindakan ini tidak dapat dibatalkan.",
+      "categoryFilterLabel": "Kategori",
+      "categoryFilterAll": "Semua kategori",
+      "categoryUncategorized": "Tanpa kategori",
+      "noCategoryResults": "Tidak ada memori dalam kategori ini.",
+      "category": {
+        "user_preference": "Preferensi pengguna",
+        "project_fact": "Fakta proyek",
+        "task_outcome": "Hasil tugas",
+        "heuristic": "Heuristik",
+        "anti_pattern": "Anti-pola"
+      }
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Biarkan refleksi mengusulkan model diri yang diperbarui sebagai draf untuk persetujuan Anda. Independen dari memori; nonaktif secara default.",

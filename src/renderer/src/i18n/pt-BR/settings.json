@@ -2332,7 +2332,18 @@
       "searchFailed": "A busca falhou. Tente novamente.",
       "deletePermanent": "Excluir permanentemente",
       "deleteConfirmTitle": "Excluir esta memória permanentemente?",
-      "deleteConfirmBody": "Isso remove a memória em vez de arquivá-la. Esta ação não pode ser desfeita."
+      "deleteConfirmBody": "Isso remove a memória em vez de arquivá-la. Esta ação não pode ser desfeita.",
+      "categoryFilterLabel": "Categoria",
+      "categoryFilterAll": "Todas as categorias",
+      "categoryUncategorized": "Sem categoria",
+      "noCategoryResults": "Nenhuma memória nesta categoria.",
+      "category": {
+        "user_preference": "Preferência do usuário",
+        "project_fact": "Fato do projeto",
+        "task_outcome": "Resultado da tarefa",
+        "heuristic": "Heurística",
+        "anti_pattern": "Antipadrão"
+      }
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",
     "personaEvolutionDescription": "Permita que a reflexão proponha modelos de si atualizados como rascunhos para sua aprovação. Independente da memória; desativado por padrão.",
