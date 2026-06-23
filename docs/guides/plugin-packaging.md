@@ -119,7 +119,7 @@ deepchat-plugin-cua-<version>-linux-x64.dcplugin
 Runtime detection inside the package uses architecture-specific paths:
 
 ```text
-plugin:runtime/darwin/<arch>/CuaDriver.app/Contents/MacOS/cua-driver
+plugin:runtime/darwin/<arch>/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
 plugin:runtime/win32/<arch>/cua-driver.exe
 plugin:runtime/linux/<arch>/cua-driver
 ```

@@ -180,8 +180,8 @@ describe('useMcpStore toggleServer rollback', () => {
           enabled: true
         },
         'cua-driver': {
-          command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
-          args: ['mcp'],
+          command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+          args: ['mcp', '--no-daemon-relaunch'],
           env: {},
           descriptions: 'Computer Use',
           icons: 'plugin',

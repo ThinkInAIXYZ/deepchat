@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unzipSync } from 'fflate'
 import { signMacHelperForRelease } from './sign-cua-helper.mjs'
 
@@ -20,7 +20,11 @@ const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
   : path.join(pluginDir, 'vendor', 'cua-driver')
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
 const helperBinaryName = 'cua-driver'
-const helperAppDirName = 'CuaDriver.app'
+const upstreamDarwinHelperAppDirName = 'CuaDriver.app'
+export const darwinHelperAppDirName = 'DeepChat Computer Use.app'
+export const darwinHelperBinaryName = 'deepchat-cua-driver'
+export const darwinHelperBundleIdentifier = 'com.deepchat.computeruse.helper'
+const darwinHelperBundleName = 'DeepChat Computer Use'
 
 const targetAssetKeys = {
   'darwin/arm64': 'darwin-arm64',
@@ -31,7 +35,7 @@ const targetAssetKeys = {
 }
 
 const executableByTarget = {
-  darwin: path.join(helperAppDirName, 'Contents', 'MacOS', helperBinaryName),
+  darwin: path.join(darwinHelperAppDirName, 'Contents', 'MacOS', darwinHelperBinaryName),
   win32: `${helperBinaryName}.exe`,
   linux: helperBinaryName
 }
@@ -262,15 +266,76 @@ async function findDirectory(root, directoryName) {
   return undefined
 }
 
-async function stageDarwinRuntime(extractDir, runtimeDir) {
-  const sourceApp = await findDirectory(extractDir, helperAppDirName)
-  if (!sourceApp) {
-    throw new Error(`CUA macOS archive is missing ${helperAppDirName}`)
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function escapeXml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
+function upsertPlistString(contents, key, value) {
+  const escapedKey = escapeRegExp(key)
+  const nextEntry = `    <key>${key}</key>\n    <string>${escapeXml(value)}</string>`
+  const existingPattern = new RegExp(`(<key>${escapedKey}</key>\\s*)<string>[^<]*</string>`)
+  if (existingPattern.test(contents)) {
+    return contents.replace(existingPattern, `$1<string>${escapeXml(value)}</string>`)
   }
-  await fs.cp(sourceApp, path.join(runtimeDir, helperAppDirName), {
+
+  const dictCloseIndex = contents.lastIndexOf('</dict>')
+  if (dictCloseIndex === -1) {
+    throw new Error(`CUA macOS helper Info.plist is missing </dict>`)
+  }
+  return `${contents.slice(0, dictCloseIndex)}${nextEntry}\n${contents.slice(dictCloseIndex)}`
+}
+
+export async function rewriteDarwinHelperInfoPlist(appPath) {
+  const infoPlistPath = path.join(appPath, 'Contents', 'Info.plist')
+  let contents = await fs.readFile(infoPlistPath, 'utf8')
+  contents = upsertPlistString(contents, 'CFBundleIdentifier', darwinHelperBundleIdentifier)
+  contents = upsertPlistString(contents, 'CFBundleName', darwinHelperBundleName)
+  contents = upsertPlistString(contents, 'CFBundleDisplayName', darwinHelperBundleName)
+  contents = upsertPlistString(contents, 'CFBundleExecutable', darwinHelperBinaryName)
+  await fs.writeFile(infoPlistPath, contents)
+}
+
+async function renameDarwinHelperExecutable(appPath) {
+  const macOsDir = path.join(appPath, 'Contents', 'MacOS')
+  const upstreamExecutable = path.join(macOsDir, helperBinaryName)
+  const deepchatExecutable = path.join(macOsDir, darwinHelperBinaryName)
+  if (await pathExists(deepchatExecutable)) {
+    await fs.rm(upstreamExecutable, { force: true })
+    return
+  }
+  if (!(await pathExists(upstreamExecutable))) {
+    throw new Error(`CUA macOS archive is missing ${helperBinaryName}`)
+  }
+  await fs.rename(upstreamExecutable, deepchatExecutable)
+}
+
+export async function normalizeDarwinHelperBundle(appPath) {
+  await renameDarwinHelperExecutable(appPath)
+  await rewriteDarwinHelperInfoPlist(appPath)
+  await fs.rm(path.join(appPath, 'Contents', '_CodeSignature'), { recursive: true, force: true })
+  await fs.rm(path.join(appPath, 'Contents', 'CodeResources'), { force: true })
+}
+
+export async function stageDarwinRuntime(extractDir, runtimeDir) {
+  const sourceApp = await findDirectory(extractDir, upstreamDarwinHelperAppDirName)
+  if (!sourceApp) {
+    throw new Error(`CUA macOS archive is missing ${upstreamDarwinHelperAppDirName}`)
+  }
+  const targetApp = path.join(runtimeDir, darwinHelperAppDirName)
+  await fs.cp(sourceApp, targetApp, {
     recursive: true,
     force: true
   })
+  await normalizeDarwinHelperBundle(targetApp)
 }
 
 async function stageWindowsRuntime(extractDir, runtimeDir) {
@@ -375,7 +440,7 @@ async function signDarwinHelper(runtimeDir, targetPlatform) {
     return
   }
   ensureTool('codesign', ['--version'])
-  const helperAppPath = path.join(runtimeDir, helperAppDirName)
+  const helperAppPath = path.join(runtimeDir, darwinHelperAppDirName)
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
   const signedForRelease = await signMacHelperForRelease({
     appPath: helperAppPath,
@@ -441,7 +506,9 @@ async function main() {
   console.log(`CUA Driver ${metadata.tag} staged at ${relativeRuntimePath}`)
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  })
+}

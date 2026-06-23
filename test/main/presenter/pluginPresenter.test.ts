@@ -964,13 +964,14 @@ describe('PluginPresenter', () => {
     const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
 
     expect(manifest.runtime.detect).toEqual([
-      'plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver',
+      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
       'plugin:runtime/win32/${arch}/cua-driver.exe',
-      'plugin:runtime/linux/${arch}/cua-driver',
-      '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+      'plugin:runtime/linux/${arch}/cua-driver'
     ])
+    expect(server.args).toEqual(['mcp', '--no-daemon-relaunch'])
     expect(server.env).toEqual({
       CUA_DRIVER_MCP_MODE: '1',
+      CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
       DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
       DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
     })
@@ -1108,7 +1109,7 @@ describe('PluginPresenter', () => {
     expect(combined).toContain('get_window_state')
     expect(combined).toContain('check_permissions')
     expect(combined).toContain('set_agent_cursor_style')
-    expect(combined).toContain('CuaDriver.app')
+    expect(combined).toContain('DeepChat Computer Use.app')
     expect(combined).toContain('win32/x64')
     expect(combined).toContain('linux/x64')
     expect(combined).toContain('win32/arm64')

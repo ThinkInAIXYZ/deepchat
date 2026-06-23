@@ -21,7 +21,7 @@ Update `plugins/cua/plugin.json`:
 - Add or enforce arch-aware visibility metadata so `linux/arm64` does not show CUA as an available
   official plugin.
 - Replace macOS-only runtime candidates with platform-specific candidates:
-  - `plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver`
+  - `plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver`
   - `plugin:runtime/win32/${arch}/cua-driver.exe`
   - `plugin:runtime/linux/${arch}/cua-driver`
 - Keep plugin-local runtime candidates first.

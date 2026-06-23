@@ -124,9 +124,9 @@ The packaged plugin should stage only the target runtime needed by the artifact 
 plugins/cua/runtime/
   darwin/
     arm64/
-      CuaDriver.app/Contents/MacOS/cua-driver
+      DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
     x64/
-      CuaDriver.app/Contents/MacOS/cua-driver
+      DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
   win32/
     x64/
       cua-driver.exe
@@ -139,9 +139,9 @@ plugins/cua/runtime/
       cua-driver
 ```
 
-If implementation inspection shows that DeepChat must keep the previous helper app display name,
-the macOS app directory may remain `DeepChat Computer Use.app`, but the staged bundle must still
-preserve a valid Info.plist, executable path, and code signature after any rename or re-sign step.
+The macOS app directory is `DeepChat Computer Use.app` and the executable is
+`deepchat-cua-driver`, so packaged DeepChat does not collide with upstream `CuaDriver.app` while
+still consuming verified upstream release artifacts.
 
 ## Tool Surface
 

@@ -4,6 +4,9 @@ import { createHash } from 'node:crypto'
 import { zipSync } from 'fflate'
 
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
+const CUA_DARWIN_HELPER_APP = 'DeepChat Computer Use.app'
+const CUA_DARWIN_HELPER_EXECUTABLE = 'deepchat-cua-driver'
+const CUA_DARWIN_HELPER_BUNDLE_ID = 'com.deepchat.computeruse.helper'
 
 function fail(message) {
   console.error(message)
@@ -92,6 +95,24 @@ function assertFile(pluginDir, relativePath, label) {
     throw new Error(`Missing ${label}: ${relativePath}`)
   }
   return absolutePath
+}
+
+function fileExists(pluginDir, relativePath) {
+  const normalized = assertSafeRelativePath(relativePath, relativePath)
+  const absolutePath = path.resolve(pluginDir, ...normalized.split('/').filter(Boolean))
+  const relativeToRoot = path.relative(pluginDir, absolutePath)
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
+    throw new Error(`Path escapes plugin root: ${relativePath}`)
+  }
+  return fs.existsSync(absolutePath)
+}
+
+function readPlistString(plistContents, key) {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = plistContents.match(
+    new RegExp(`<key>${escapedKey}</key>\\s*<string>([^<]*)</string>`)
+  )
+  return match?.[1]
 }
 
 function readManifest(pluginDir) {
@@ -254,7 +275,7 @@ function validateCuaRuntime(pluginDir, manifest, args) {
 
   const requiredByTarget = {
     [`darwin/${args.targetArch}`]: [
-      `runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`
+      `runtime/darwin/${args.targetArch}/${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`
     ],
     [`win32/${args.targetArch}`]: [
       `runtime/win32/${args.targetArch}/cua-driver.exe`,
@@ -269,16 +290,27 @@ function validateCuaRuntime(pluginDir, manifest, args) {
   for (const relativePath of requiredFiles) {
     assertFile(pluginDir, relativePath, `CUA runtime binary ${key}`)
   }
+  if (targetPlatform === 'darwin') {
+    validateCuaDarwinRuntime(pluginDir, args.targetArch)
+  }
 
   const expectedDetect = [
-    `plugin:runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`,
+    `plugin:runtime/darwin/${args.targetArch}/${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`,
     `plugin:runtime/win32/${args.targetArch}/cua-driver.exe`,
-    `plugin:runtime/linux/${args.targetArch}/cua-driver`,
-    '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+    `plugin:runtime/linux/${args.targetArch}/cua-driver`
   ]
   for (const detectPath of expectedDetect) {
     if (!manifest.runtime?.detect?.includes(detectPath)) {
       throw new Error(`CUA runtime detect paths must include ${detectPath}`)
+    }
+  }
+  const forbiddenDetect = [
+    `plugin:runtime/darwin/${args.targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`,
+    '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+  ]
+  for (const detectPath of forbiddenDetect) {
+    if (manifest.runtime?.detect?.includes(detectPath)) {
+      throw new Error(`CUA runtime detect paths must not include ${detectPath}`)
     }
   }
 
@@ -289,9 +321,14 @@ function validateCuaRuntime(pluginDir, manifest, args) {
   if (cuaServer.command !== '${runtime.cua-driver.command}') {
     throw new Error('CUA MCP server command must reference ${runtime.cua-driver.command}')
   }
+  const expectedArgs = ['mcp', '--no-daemon-relaunch']
+  if (JSON.stringify(cuaServer.args ?? []) !== JSON.stringify(expectedArgs)) {
+    throw new Error(`CUA MCP server args must be ${JSON.stringify(expectedArgs)}`)
+  }
   const env = cuaServer.env ?? {}
   const requiredEnv = {
     CUA_DRIVER_MCP_MODE: '1',
+    CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
     DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
     DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
   }
@@ -299,6 +336,32 @@ function validateCuaRuntime(pluginDir, manifest, args) {
     if (env[key] !== expected) {
       throw new Error(`CUA MCP server env ${key} must be ${expected}`)
     }
+  }
+}
+
+function validateCuaDarwinRuntime(pluginDir, targetArch) {
+  const helperRoot = `runtime/darwin/${targetArch}/${CUA_DARWIN_HELPER_APP}`
+  const legacyExecutablePath = `runtime/darwin/${targetArch}/CuaDriver.app/Contents/MacOS/cua-driver`
+  const legacyCodeResourcesPath = `${helperRoot}/Contents/CodeResources`
+  if (fileExists(pluginDir, legacyExecutablePath)) {
+    throw new Error(`CUA macOS runtime must not stage legacy helper path ${legacyExecutablePath}`)
+  }
+  if (fileExists(pluginDir, legacyCodeResourcesPath)) {
+    throw new Error(`CUA macOS runtime must not stage legacy signature file ${legacyCodeResourcesPath}`)
+  }
+
+  const infoPlistPath = `${helperRoot}/Contents/Info.plist`
+  const infoPlistFile = assertFile(pluginDir, infoPlistPath, `CUA macOS helper Info.plist ${targetArch}`)
+  const infoPlist = fs.readFileSync(infoPlistFile, 'utf8')
+  const bundleIdentifier = readPlistString(infoPlist, 'CFBundleIdentifier')
+  if (bundleIdentifier !== CUA_DARWIN_HELPER_BUNDLE_ID) {
+    throw new Error(
+      `CUA macOS helper CFBundleIdentifier must be ${CUA_DARWIN_HELPER_BUNDLE_ID}`
+    )
+  }
+  const executable = readPlistString(infoPlist, 'CFBundleExecutable')
+  if (executable !== CUA_DARWIN_HELPER_EXECUTABLE) {
+    throw new Error(`CUA macOS helper CFBundleExecutable must be ${CUA_DARWIN_HELPER_EXECUTABLE}`)
   }
 }
 
