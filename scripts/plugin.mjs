@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
+const CUA_MANAGED_HELPER_APP = 'DeepChat Computer Use.app'
+const CUA_MANAGED_HELPER_EXECUTABLE = 'deepchat-cua-driver'
 
 function parseArgs(argv) {
   const args = {
@@ -136,6 +138,25 @@ function verifyArtifacts(options) {
   }
 }
 
+function stageCuaManagedHelper(pluginDir, targetPlatform, targetArch) {
+  if (targetPlatform !== 'darwin') {
+    return
+  }
+
+  const source = path.join(pluginDir, 'runtime', 'darwin', targetArch, CUA_MANAGED_HELPER_APP)
+  const executable = path.join(source, 'Contents', 'MacOS', CUA_MANAGED_HELPER_EXECUTABLE)
+  if (!existsSync(executable) || !statSync(executable).isFile()) {
+    throw new Error(`Missing CUA managed helper executable: ${executable}`)
+  }
+
+  const outRoot = path.resolve('build', 'managed-helpers')
+  const target = path.join(outRoot, CUA_MANAGED_HELPER_APP)
+  rmSync(target, { recursive: true, force: true })
+  mkdirSync(outRoot, { recursive: true })
+  cpSync(source, target, { recursive: true })
+  console.log(`Staged CUA managed helper: ${path.relative(process.cwd(), target)}`)
+}
+
 try {
   if (args.action === 'verify') {
     verifyArtifacts(args)
@@ -151,6 +172,10 @@ try {
     if (args.platform) buildArgs.push('--platform', args.platform)
     if (args.arch) buildArgs.push('--arch', args.arch)
     execFileSync('node', buildArgs, { stdio: 'inherit' })
+  }
+
+  if (args.action === 'bundle' && args.name === 'cua') {
+    stageCuaManagedHelper(pluginDir, args.platform, args.arch)
   }
 
   // Delegate to package-plugin.mjs

@@ -7,6 +7,7 @@ const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
 const CUA_DARWIN_HELPER_APP = 'DeepChat Computer Use.app'
 const CUA_DARWIN_HELPER_EXECUTABLE = 'deepchat-cua-driver'
 const CUA_DARWIN_HELPER_BUNDLE_ID = 'com.deepchat.computeruse.helper'
+const CUA_DARWIN_MANAGED_HELPER_DETECT = `app-helper:${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`
 
 function fail(message) {
   console.error(message)
@@ -292,9 +293,13 @@ function validateCuaRuntime(pluginDir, manifest, args) {
   }
   if (targetPlatform === 'darwin') {
     validateCuaDarwinRuntime(pluginDir, args.targetArch)
+    if (manifest.runtime?.detect?.[0] !== CUA_DARWIN_MANAGED_HELPER_DETECT) {
+      throw new Error(`CUA macOS runtime detect path must prefer ${CUA_DARWIN_MANAGED_HELPER_DETECT}`)
+    }
   }
 
   const expectedDetect = [
+    CUA_DARWIN_MANAGED_HELPER_DETECT,
     `plugin:runtime/darwin/${args.targetArch}/${CUA_DARWIN_HELPER_APP}/Contents/MacOS/${CUA_DARWIN_HELPER_EXECUTABLE}`,
     `plugin:runtime/win32/${args.targetArch}/cua-driver.exe`,
     `plugin:runtime/linux/${args.targetArch}/cua-driver`

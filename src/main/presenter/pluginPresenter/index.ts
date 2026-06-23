@@ -1560,6 +1560,9 @@ export class PluginPresenter {
 
   private resolveRuntimeCandidate(candidate: string, pluginRoot: string): string | null {
     candidate = candidate.replaceAll('${arch}', this.arch)
+    if (candidate.startsWith('app-helper:')) {
+      return this.resolveAppHelperRelativePath(candidate.slice('app-helper:'.length))
+    }
     if (candidate.startsWith('plugin:')) {
       return this.resolvePluginRelativePath(pluginRoot, candidate.slice('plugin:'.length))
     }
@@ -1570,6 +1573,21 @@ export class PluginPresenter {
       return path.join(app.getPath('home'), candidate.slice(2))
     }
     return candidate
+  }
+
+  private resolveAppHelperRelativePath(relativePath: string): string | null {
+    if (this.platform !== 'darwin' || !this.isPackaged || !this.resourcesPath) {
+      return null
+    }
+
+    const normalized = this.assertSafeRelativePath(relativePath, 'app helper path')
+    const helperRoot = path.resolve(path.dirname(this.resourcesPath), 'Helpers')
+    const resolved = path.resolve(helperRoot, ...normalized.split('/').filter(Boolean))
+    const relativeToHelperRoot = path.relative(helperRoot, resolved)
+    if (relativeToHelperRoot.startsWith('..') || path.isAbsolute(relativeToHelperRoot)) {
+      throw new Error(`App helper path escapes helper root: ${relativePath}`)
+    }
+    return resolved
   }
 
   private resolvePluginTemplateRecord(

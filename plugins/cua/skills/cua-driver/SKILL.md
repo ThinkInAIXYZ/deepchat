@@ -23,7 +23,9 @@ bundled DeepChat plugin.
 - Supported targets: `darwin/arm64`, `darwin/x64`, `win32/x64`, `win32/arm64`,
   `linux/x64`.
 - Unsupported targets: `linux/arm64`.
-- macOS helper app: `${PLUGIN_ROOT}/runtime/darwin/${PROCESS_ARCH}/DeepChat Computer Use.app`.
+- macOS helper app: packaged builds prefer
+  `DeepChat.app/Contents/Helpers/DeepChat Computer Use.app`; the plugin-local fallback is
+  `${PLUGIN_ROOT}/runtime/darwin/${PROCESS_ARCH}/DeepChat Computer Use.app`.
 - Windows helper binary: `${PLUGIN_ROOT}/runtime/win32/${PROCESS_ARCH}/cua-driver.exe`.
 - Linux helper binary: `${PLUGIN_ROOT}/runtime/linux/${PROCESS_ARCH}/cua-driver`.
 
@@ -48,7 +50,8 @@ Re-snapshot when an index is missing, stale, or from another window.
 ## Platform Notes
 
 - macOS: use `check_permissions` for Accessibility and Screen Recording status. If a grant is
-  missing, ask the user to grant it to the staged `DeepChat Computer Use.app` helper.
+  missing, ask the user to grant it to the detected `DeepChat Computer Use.app` helper opened by
+  DeepChat.
 - Windows: prefer background dispatch when available. Resolve targets with `list_apps`, then call
   `launch_app` with a Windows `name`, `path`, `launch_path`, or `aumid`. Do not use macOS bundle
   ids on Windows. Use `bring_to_front` only when foreground interaction is necessary for the task.

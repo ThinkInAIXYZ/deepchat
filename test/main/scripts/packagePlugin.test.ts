@@ -59,6 +59,7 @@ async function createCuaPluginFixture() {
       type: 'external-helper',
       displayName: 'CUA Driver',
       detect: [
+        'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
         'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
         'plugin:runtime/win32/${arch}/cua-driver.exe',
         'plugin:runtime/linux/${arch}/cua-driver'
@@ -177,6 +178,7 @@ describe('package-plugin', () => {
 
       expect(manifest.engines.targets).toEqual([`darwin/${arch}`])
       expect(manifest.runtime.detect).toEqual([
+        'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
         `plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver`,
         `plugin:runtime/win32/${arch}/cua-driver.exe`,
         `plugin:runtime/linux/${arch}/cua-driver`
@@ -264,7 +266,7 @@ describe('package-plugin', () => {
 
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain(
-      'CUA runtime detect paths must include plugin:runtime/darwin/x64/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver'
+      'CUA macOS runtime detect path must prefer app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver'
     )
   })
 

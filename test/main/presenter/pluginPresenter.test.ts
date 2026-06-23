@@ -925,10 +925,54 @@ describe('PluginPresenter', () => {
 
     expect(presenterSource).toContain('helperAppPath')
     expect(presenterSource).toContain('resolveHelperAppPath')
+    expect(presenterSource).toContain('resolveAppHelperRelativePath')
     expect(presenterSource).toContain('resolvePluginTemplateRecord')
     expect(presenterSource).toContain('startPluginMcpServersIfReady')
     expect(presenterSource).toContain('this.mcpPresenter.startServer(serverName)')
     expect(presenterSource).not.toContain('if (!(await this.configPresenter.getMcpEnabled()))')
+  })
+
+  it('resolves packaged macOS CUA helpers from the managed app bundle', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-managed-helper-'))
+    tempRoots.push(root)
+    const resourcesPath = path.join(root, 'DeepChat.app', 'Contents', 'Resources')
+    const presenter = await createPluginPresenter('darwin', {
+      appPath: path.join(root, 'DeepChat.app'),
+      isPackaged: true,
+      resourcesPath
+    })
+
+    const command = (presenter as any).resolveRuntimeCandidate(
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+      path.join(root, 'plugin')
+    )
+
+    expect(command).toBe(
+      path.join(
+        root,
+        'DeepChat.app',
+        'Contents',
+        'Helpers',
+        'DeepChat Computer Use.app',
+        'Contents',
+        'MacOS',
+        'deepchat-cua-driver'
+      )
+    )
+  })
+
+  it('skips managed app helpers outside packaged macOS', async () => {
+    const presenter = await createPluginPresenter('win32', {
+      isPackaged: true,
+      resourcesPath: path.join('C:', 'DeepChat', 'resources')
+    })
+
+    const command = (presenter as any).resolveRuntimeCandidate(
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+      path.join('C:', 'plugin')
+    )
+
+    expect(command).toBeNull()
   })
 
   it('starts plugin MCP servers even when the global MCP switch is off', async () => {
@@ -1022,6 +1066,7 @@ describe('PluginPresenter', () => {
     const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
 
     expect(manifest.runtime.detect).toEqual([
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
       'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
       'plugin:runtime/win32/${arch}/cua-driver.exe',
       'plugin:runtime/linux/${arch}/cua-driver'
@@ -1241,6 +1286,7 @@ describe('PluginPresenter', () => {
     expect(packageJson.scripts['plugin:cua:build:linux:x64']).toContain(
       '--platform linux --arch x64'
     )
+    expect(packageJson.scripts['plugin:bundle:clean']).toContain('build/managed-helpers')
     expect(packageJson.scripts['build:mac:arm64']).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch arm64'
     )
@@ -1284,7 +1330,10 @@ describe('PluginPresenter', () => {
     expect(packageScript).toContain('parts[1] !== args.targetPlatform')
     expect(packageScript).toContain('parts[2] !== args.targetArch')
     expect(packageScript).toContain('CUA plugin does not support')
+    expect(packageScript).toContain('CUA_DARWIN_MANAGED_HELPER_DETECT')
     expect(guide).toContain('build/bundled-plugins/')
+    expect(guide).toContain('build/managed-helpers/')
+    expect(guide).toContain('Contents/Helpers/DeepChat Computer Use.app')
     expect(guide).toContain('app.asar.unpacked/plugins/')
     expect(guide).toContain('win32/arm64')
     expect(guide).toContain('linux/arm64')
