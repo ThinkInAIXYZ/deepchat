@@ -15,6 +15,7 @@
     "skills.register",
     "settings.contribute",
     "shell.openExternal",
+    "shell.openPath",
     "process.execDeclared"
   ],
   "source": {

@@ -8,6 +8,7 @@ export type PluginCapability =
   | 'skills.register'
   | 'settings.contribute'
   | 'shell.openExternal'
+  | 'shell.openPath'
   | 'process.execDeclared'
 
 export type PluginActivationEvent = 'onEnable'

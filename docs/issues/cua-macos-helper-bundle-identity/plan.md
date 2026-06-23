@@ -49,6 +49,19 @@ manifest path or behind an explicit development-only mechanism.
 Update `DEEPCHAT_COMPUTER_USE_APP_PATH` and `DEEPCHAT_COMPUTER_USE_BINARY_PATH` resolution through
 the existing runtime variable expansion, not hardcoded plugin settings code.
 
+## Permission Guide Flow
+
+For `runtime.openPermissionGuide` on macOS:
+
+1. Resolve the installed plugin and refresh the runtime status.
+2. If `helperAppPath` is present, open that `.app` bundle with Electron `shell.openPath`.
+3. Return immediately when the helper app opens successfully, allowing the helper-owned permission
+   UI/TCC prompts to use the DeepChat-owned bundle identity.
+4. If the helper path is missing or cannot be opened, fall back to the manifest `guideUrl`.
+
+For Windows and Linux, keep the existing guide URL behavior. Permission diagnostics continue to use
+the existing `check_permissions` fallback and do not change the CUA MCP tool policy.
+
 ## Validation
 
 Extend CUA packaging/runtime validation to assert on macOS:
@@ -67,6 +80,7 @@ Extend CUA packaging/runtime validation to assert on macOS:
 - Add unit coverage around CUA packaging validation so manifests that still reference
   `CuaDriver.app`, `com.trycua.driver`, or `cua-driver` as the macOS command are rejected.
 - Add staging-script tests for plist rewriting with a fixture `.app` bundle.
+- Add PluginPresenter coverage for macOS permission guide helper launch and guide URL fallback.
 - Keep Windows and Linux packaging tests unchanged except for shared fixture updates.
 - Run:
   - `pnpm run format`

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -134,7 +134,13 @@ const createBundledFixture = async (
       id: 'fixture-runtime',
       type: 'external-helper',
       displayName: 'Fixture Runtime',
-      detect: [`PATH:${process.execPath}`]
+      detect: [`PATH:${process.execPath}`],
+      install: {
+        mode: 'user-confirmed',
+        provider: 'fixture',
+        strategy: 'bundled-plugin-helper',
+        guideUrl: 'https://example.com/runtime-guide'
+      }
     },
     mcpServers: [
       {
@@ -830,6 +836,58 @@ describe('PluginPresenter', () => {
     expect(presenterSource).toContain('Runtime permission probe failed')
   })
 
+  it('opens the detected macOS helper app for runtime permission guidance', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const helperAppPath = path.join(
+      fixture.userDataPath,
+      'plugins',
+      fixture.pluginId,
+      'runtime',
+      'darwin',
+      process.arch,
+      'DeepChat Computer Use.app'
+    )
+    const helperCommand = path.join(helperAppPath, 'Contents', 'MacOS', 'deepchat-cua-driver')
+    vi.mocked(shell.openPath).mockResolvedValue('')
+    vi.mocked(shell.openExternal).mockResolvedValue(undefined)
+    await presenter.enablePlugin(fixture.pluginId)
+    ;(presenter as any).refreshRuntime = vi.fn().mockResolvedValue({
+      runtimeId: 'fixture-runtime',
+      displayName: 'Fixture Runtime',
+      state: 'installed',
+      command: helperCommand,
+      helperAppPath
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'runtime.openPermissionGuide')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(shell.openPath).toHaveBeenCalledWith(helperAppPath)
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the declared runtime guide when no macOS helper path is available', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    vi.mocked(shell.openPath).mockResolvedValue('')
+    vi.mocked(shell.openExternal).mockResolvedValue(undefined)
+    await presenter.enablePlugin(fixture.pluginId)
+    vi.mocked(shell.openPath).mockClear()
+    vi.mocked(shell.openExternal).mockClear()
+    ;(presenter as any).refreshRuntime = vi.fn().mockResolvedValue({
+      runtimeId: 'fixture-runtime',
+      displayName: 'Fixture Runtime',
+      state: 'missing'
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'runtime.openPermissionGuide')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(shell.openPath).not.toHaveBeenCalled()
+    expect(shell.openExternal).toHaveBeenCalledWith('https://example.com/runtime-guide')
+  })
+
   it('parses Windows CUA permission JSON diagnostics', async () => {
     const presenter = await createPluginPresenter('win32')
 
@@ -968,6 +1026,7 @@ describe('PluginPresenter', () => {
       'plugin:runtime/win32/${arch}/cua-driver.exe',
       'plugin:runtime/linux/${arch}/cua-driver'
     ])
+    expect(manifest.capabilities).toContain('shell.openPath')
     expect(server.args).toEqual(['mcp', '--no-daemon-relaunch'])
     expect(server.env).toEqual({
       CUA_DRIVER_MCP_MODE: '1',

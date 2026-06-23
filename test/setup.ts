@@ -162,7 +162,8 @@ vi.mock('electron', () => ({
     send: vi.fn()
   },
   shell: {
-    openExternal: vi.fn()
+    openExternal: vi.fn(),
+    openPath: vi.fn()
   }
 }))
 

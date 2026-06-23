@@ -56,6 +56,10 @@ channel, platform, or architecture in the identifier.
 - Packaged macOS CUA runtime does not use `com.trycua.driver` as the helper bundle identifier.
 - DeepChat plugin runtime detection resolves only the DeepChat-owned macOS helper path for packaged
   CUA.
+- The runtime permission guide action on macOS opens the detected DeepChat-owned helper app first,
+  so TCC prompts are attributed to `DeepChat Computer Use.app` instead of a generic upstream guide.
+- If the macOS helper path is unavailable, the permission guide action falls back to the declared
+  runtime guide URL.
 - Release staging still verifies upstream checksums before mutation.
 - All bundle mutations happen before signing.
 - The final staged helper passes architecture validation, code-signature validation, and a low-risk
@@ -79,6 +83,8 @@ channel, platform, or architecture in the identifier.
   that app name is safer than inventing a different visible name.
 - Some upstream diagnostics and legacy cleanup paths mention `com.trycua.*`; those should be treated
   as upstream diagnostics unless they affect packaged DeepChat runtime behavior.
+- Permission checks may continue to use the existing probe/fallback CLI path, but any user-initiated
+  permission guide must launch the currently detected DeepChat helper bundle when available.
 
 ## Non-Goals
 

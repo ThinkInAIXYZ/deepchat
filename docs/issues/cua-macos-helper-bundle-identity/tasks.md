@@ -8,6 +8,8 @@
 - [x] T5 Extend CUA packaging validation for app name, bundle id, executable name, and signature.
 - [x] T6 Add focused tests for macOS helper bundle rewriting and validation.
 - [x] T7 Run formatting, i18n, lint, focused tests, and macOS bundle verification.
+- [x] T8 Review and update the permission guide launch chain to open the detected DeepChat helper
+  app on macOS before falling back to the external runtime guide.
 
 ## Verification Notes
 
@@ -19,3 +21,7 @@
 - `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64` reached upstream asset
   download and failed with transient GitHub DNS/connection errors in this environment; package tests
   cover the darwin/arm64 manifest and staged runtime layout.
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`,
+  `pnpm vitest run test/main/presenter/pluginPresenter.test.ts`, and
+  `pnpm vitest run test/main/scripts/packagePlugin.test.ts test/main/scripts/buildCuaPluginRuntime.test.ts test/renderer/stores/mcpStore.test.ts`
+  passed after the permission guide launch-chain review.

@@ -885,8 +885,39 @@ export class PluginPresenter {
 
   private async openRuntimeGuide(pluginId: string): Promise<void> {
     const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
+    let helperOpenError: string | undefined
+
+    if (this.platform === 'darwin' && plugin.manifest.runtime) {
+      try {
+        const runtime = await this.refreshRuntime(pluginId)
+        if (runtime.helperAppPath) {
+          const openError = await shell.openPath(runtime.helperAppPath)
+          if (!openError) {
+            return
+          }
+          helperOpenError = openError
+          console.warn('[PluginHost] Runtime helper permission guide failed to open:', {
+            pluginId,
+            helperAppPath: runtime.helperAppPath,
+            error: openError
+          })
+        }
+      } catch (error) {
+        helperOpenError = this.describeError(error)
+        console.warn('[PluginHost] Runtime helper permission guide unavailable:', {
+          pluginId,
+          error
+        })
+      }
+    }
+
     const guideUrl = plugin.manifest.runtime?.install?.guideUrl?.trim()
     if (!guideUrl) {
+      if (helperOpenError) {
+        throw new Error(
+          `Failed to open runtime helper and plugin ${pluginId} does not declare a runtime guide URL. Helper: ${helperOpenError}`
+        )
+      }
       throw new Error(`Plugin ${pluginId} does not declare a runtime guide URL`)
     }
     await shell.openExternal(guideUrl)
