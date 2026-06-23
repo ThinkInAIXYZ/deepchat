@@ -37,7 +37,7 @@
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.5.5",
+      "minVersion": "0.6.5",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -88,6 +88,7 @@
         "get_recording_state": "allow",
         "get_agent_cursor_state": "allow",
         "check_for_update": "allow",
+        "health_report": "allow",
         "debug_window_info": "allow",
         "start_session": "allow",
         "end_session": "allow",

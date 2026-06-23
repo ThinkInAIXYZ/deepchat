@@ -1100,6 +1100,7 @@ describe('PluginPresenter', () => {
       'get_recording_state',
       'get_agent_cursor_state',
       'check_for_update',
+      'health_report',
       'debug_window_info',
       'start_session',
       'end_session'
@@ -1160,15 +1161,15 @@ describe('PluginPresenter', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.5.5',
-      commit: 'd6dea4bc3c3a65ce821261752067cae8200fe5d6',
-      version: '0.5.5',
+      tag: 'cua-driver-rs-v0.6.5',
+      commit: '61f7624789adfeb771561e035c7e7c2ba94ab03d',
+      version: '0.6.5',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.5.5-windows-x86_64.zip')
-    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.5.5-windows-arm64.zip')
-    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.5.5-linux-x86_64-binary.tar.gz')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.5-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.5-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.5-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')

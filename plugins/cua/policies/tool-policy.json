@@ -12,6 +12,7 @@
     "get_recording_state": "allow",
     "get_agent_cursor_state": "allow",
     "check_for_update": "allow",
+    "health_report": "allow",
     "debug_window_info": "allow",
     "start_session": "allow",
     "end_session": "allow",
