@@ -1267,6 +1267,8 @@ describe('PluginPresenter', () => {
     )
     expect(buildWorkflow).toContain('- name: Build Windows\n        shell: bash')
     expect(buildWorkflow).not.toContain('if ("${{ matrix.arch }}" -eq "x64")')
+    expect(buildWorkflow).not.toContain('build_for_release')
+    expect(buildWorkflow).not.toContain('DEEPCHAT_APPLE_NOTARY_USERNAME')
     expect(buildWorkflow).toContain('Verify bundled plugins')
     expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
     expect(releaseWorkflow).toContain(
@@ -1278,6 +1280,8 @@ describe('PluginPresenter', () => {
     expect(releaseWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
     )
+    expect(releaseWorkflow).toContain("build_for_release: '2'")
+    expect(releaseWorkflow).toContain('DEEPCHAT_APPLE_NOTARY_USERNAME')
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")
