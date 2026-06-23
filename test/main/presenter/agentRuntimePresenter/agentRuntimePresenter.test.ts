@@ -3,7 +3,11 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { app } from 'electron'
-import type { DeepChatSessionState } from '@shared/types/agent-interface'
+import type {
+  AssistantMessageBlock,
+  ChatMessageRecord,
+  DeepChatSessionState
+} from '@shared/types/agent-interface'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import logger from '@shared/logger'
@@ -13,6 +17,7 @@ import {
   estimateToolReserveTokens,
   getUsableContextLength
 } from '@/presenter/agentRuntimePresenter/contextBudget'
+import { appendMessageRecordToTape } from '@/presenter/agentRuntimePresenter/tapeFacts'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -718,6 +723,103 @@ describe('AgentRuntimePresenter', () => {
       return { extraction, extractAndStore }
     }
 
+    function installResolvedExtraction() {
+      const extractAndStore = vi.fn().mockResolvedValue({ ok: true, createdIds: [] })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        extractAndStore
+      }
+      return extractAndStore
+    }
+
+    function userRecord(id: string, orderSeq: number, text: string): ChatMessageRecord {
+      const now = 1_700_000_000_000 + orderSeq
+      return {
+        id,
+        sessionId: 's1',
+        orderSeq,
+        role: 'user',
+        content: JSON.stringify({ text, files: [], links: [], search: false, think: false }),
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{}',
+        traceCount: 0,
+        createdAt: now,
+        updatedAt: now
+      }
+    }
+
+    function assistantRecord(
+      id: string,
+      orderSeq: number,
+      blocks: AssistantMessageBlock[]
+    ): ChatMessageRecord {
+      const now = 1_700_000_000_000 + orderSeq
+      return {
+        id,
+        sessionId: 's1',
+        orderSeq,
+        role: 'assistant',
+        content: JSON.stringify(blocks),
+        status: 'sent',
+        isContextEdge: 0,
+        metadata: '{}',
+        traceCount: 0,
+        createdAt: now,
+        updatedAt: now
+      }
+    }
+
+    function contentBlock(content: string, timestamp = 1): AssistantMessageBlock {
+      return {
+        type: 'content',
+        content,
+        status: 'success',
+        timestamp
+      }
+    }
+
+    function toolBlock(id: string, timestamp = 1): AssistantMessageBlock {
+      return {
+        type: 'tool_call',
+        status: 'success',
+        timestamp,
+        tool_call: {
+          id,
+          name: 'read_file',
+          params: '{"path":"package.json"}',
+          response: 'ok'
+        }
+      }
+    }
+
+    function installRuntimeRecords(records: ChatMessageRecord[]) {
+      installSessionRows(
+        records.map((record) => ({
+          id: record.id,
+          session_id: record.sessionId,
+          order_seq: record.orderSeq,
+          role: record.role,
+          content: record.content,
+          status: record.status,
+          is_context_edge: record.isContextEdge,
+          metadata: record.metadata,
+          trace_count: record.traceCount,
+          created_at: record.createdAt,
+          updated_at: record.updatedAt
+        }))
+      )
+      for (const record of records) {
+        appendMessageRecordToTape(sqlitePresenter.deepchatTapeEntriesTable, record, 'live')
+      }
+    }
+
+    async function triggerFallbackAndWait() {
+      ;(agent as any).triggerMemoryExtractionFallback('s1')
+      const chain = (agent as any).memoryExtractionChains.get('s1') as Promise<void> | undefined
+      await chain
+    }
+
     function startExtraction(toOrderSeq = 10) {
       const epoch = (agent as any).ensureMemoryExtractionEpoch('s1') as number
       return (agent as any).runMemoryExtraction(
@@ -731,6 +833,102 @@ describe('AgentRuntimePresenter', () => {
         epoch
       ) as Promise<void>
     }
+
+    it('admits a short single-turn span when the window used a tool', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Read package metadata.'),
+        assistantRecord('a1', 2, [toolBlock('tool-1')])
+      ])
+      const extractAndStore = installResolvedExtraction()
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await triggerFallbackAndWait()
+
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+      expect(extractAndStore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'deepchat',
+          sourceSession: 's1',
+          spanText: 'User: Read package metadata.'
+        })
+      )
+      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        2
+      )
+    })
+
+    it('does not consume the cursor when the fallback span has no visible text', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords(
+        Array.from({ length: 6 }, (_, index) =>
+          assistantRecord(`a${index + 1}`, index + 1, [toolBlock(`tool-${index + 1}`)])
+        )
+      )
+      const extractAndStore = installResolvedExtraction()
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await triggerFallbackAndWait()
+
+      expect(extractAndStore).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).not.toHaveBeenCalled()
+    })
+
+    it('keeps short non-tool spans below the fallback threshold', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Hi'),
+        assistantRecord('a1', 2, [contentBlock('Ok')])
+      ])
+      const extractAndStore = installResolvedExtraction()
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await triggerFallbackAndWait()
+
+      expect(extractAndStore).not.toHaveBeenCalled()
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).not.toHaveBeenCalled()
+    })
+
+    it('admits substantial non-tool spans after one full turn', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installRuntimeRecords([
+        userRecord('u1', 1, 'x'.repeat(170)),
+        assistantRecord('a1', 2, [contentBlock('Done')])
+      ])
+      const extractAndStore = installResolvedExtraction()
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+
+      await triggerFallbackAndWait()
+
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
+        's1',
+        2
+      )
+    })
+
+    it('computes tool admission signals from one tape read', async () => {
+      installRuntimeRecords([
+        userRecord('u1', 1, 'Read package metadata.'),
+        assistantRecord('a1', 2, [toolBlock('tool-1')])
+      ])
+      sqlitePresenter.deepchatTapeEntriesTable.getBySession.mockClear()
+
+      const span = (agent as any).buildMemorySpanFromTape('s1', 0, 2)
+
+      expect(span).toEqual(
+        expect.objectContaining({
+          hadToolUse: true,
+          visibleTextChars: 'User: Read package metadata.'.length
+        })
+      )
+      expect(sqlitePresenter.deepchatTapeEntriesTable.getBySession).toHaveBeenCalledTimes(1)
+    })
 
     it('drops an in-flight extraction commit after clearMessages resets the session', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
