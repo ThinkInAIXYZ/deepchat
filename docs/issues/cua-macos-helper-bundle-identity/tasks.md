@@ -10,6 +10,8 @@
 - [x] T7 Run formatting, i18n, lint, focused tests, and macOS bundle verification.
 - [x] T8 Review and update the permission guide launch chain to open the detected DeepChat helper
   app on macOS before falling back to the external runtime guide.
+- [x] T9 Address PR review feedback by filling the renderer MCP store CUA fixture with the
+  resolved sidecar env used by the plugin-owned server config.
 
 ## Verification Notes
 
