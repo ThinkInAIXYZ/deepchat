@@ -12,6 +12,7 @@ export type {
   SupportedProviderInstallCustomType
 } from '../providerDeeplink'
 export * from './browser'
+export * from './agent-memory'
 export * from './chatSettings'
 export * from './plugin'
 export * from './skill'

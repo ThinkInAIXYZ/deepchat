@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
+import { AGENT_MEMORY_CATEGORIES } from '@shared/types/agent-memory'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
@@ -26,6 +27,10 @@ const rememberSchema = z
       .optional()
       .default('semantic')
       .describe('semantic = stable fact/preference; episodic = a specific event.'),
+    category: z
+      .enum(AGENT_MEMORY_CATEGORIES)
+      .optional()
+      .describe('Optional agentic memory category; when provided it takes precedence over kind.'),
     importance: z
       .number()
       .min(0)
@@ -174,7 +179,12 @@ export class AgentMemoryToolHandler {
       const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
       const outcome = await this.runtimePort.rememberMemory!(
         agentId,
-        { content: args.content, kind: args.kind, importance: args.importance },
+        {
+          content: args.content,
+          kind: args.kind,
+          category: args.category,
+          importance: args.importance
+        },
         conversationId,
         session ? { providerId: session.providerId, modelId: session.modelId } : null
       )

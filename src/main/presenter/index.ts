@@ -303,6 +303,7 @@ export class Presenter implements IPresenter {
         this.memoryPresenter.rememberMemory(
           {
             kind: input.kind,
+            category: input.category,
             content: input.content,
             importance: input.importance
           },

@@ -991,4 +991,34 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(versions.map((entry) => entry.version)).toContain(22)
     checkDb.close()
   })
+
+  it('repairs a missing agent_memory category column', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrap = new SQLitePresenterCtor(dbPath)
+    bootstrap.close()
+
+    const corruptDb = new DatabaseCtor(dbPath)
+    corruptDb.exec('ALTER TABLE agent_memory DROP COLUMN category;')
+    corruptDb.close()
+
+    const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(
+      diagnosis.issues.some((issue) => issue.kind === 'missing_column' && issue.name === 'category')
+    ).toBe(true)
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.status).toBe('repaired')
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const columns = checkDb.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
+      name: string
+    }>
+    expect(new Set(columns.map((column) => column.name)).has('category')).toBe(true)
+    checkDb.close()
+  })
 })

@@ -20,6 +20,7 @@ import type {
   SessionKind
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/types/skill'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { DeepChatInternalSessionUpdate } from '../agentRuntimePresenter/internalSessionEvents'
 import type { MemoryWriteOutcome } from '../memoryPresenter/types'
 
@@ -85,7 +86,12 @@ export interface AgentToolRuntimePort {
   /** Writes a long-term memory through the shared semantic coordinator. */
   rememberMemory?(
     agentId: string,
-    input: { content: string; kind: 'semantic' | 'episodic'; importance?: number },
+    input: {
+      content: string
+      kind: 'semantic' | 'episodic'
+      category?: AgentMemoryCategory | null
+      importance?: number
+    },
     sourceSession?: string | null,
     model?: { providerId: string; modelId: string } | null
   ): Promise<MemoryWriteOutcome>
