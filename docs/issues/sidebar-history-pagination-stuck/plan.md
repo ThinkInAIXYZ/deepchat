@@ -1,80 +1,59 @@
-# 实施计划：侧边栏历史会话分页加载卡死
+# Plan
 
-## 目标
+## Current data flow
 
-修复 #1762：让侧边栏能持续加载并展示全部 regular 历史会话。核心两改 + 一项次要增强。
+1. Renderer calls `sessionClient.listLightweight({ limit: 30, cursor, includeSubagents: false })` from the session store.
+2. Main presenter delegates to `NewSessionManager.listPage` and SQLite `new_sessions` cursor pagination ordered by `updated_at DESC, id DESC`.
+3. Store maps rows to `UISession`, merges pages, and exposes `sessions`, `hasMore`, and `nextCursor`.
+4. `WindowSideBar.vue` derives pinned sessions and grouped sessions from the loaded `sessions` array, then applies agent filter and local title search.
+5. Pagination is triggered by scroll-near-bottom and by an auto-fill loop for non-overflowing content.
 
-## 方案概述
+## Failure modes
 
-### 改动 1 — 分页不再携带子代理会话（页槽修正）
+- The existing auto-fill watcher observes raw session count, `hasMore`, loading state, and selected agent, but not all rendered-height inputs. Group mode changes, collapsed/expanded groups, search text, pinned collapse, and project metadata ordering can drastically alter visible height without changing `sessions.length`.
+- The scroll check only runs on actual scroll events. If content shrinks below the viewport after grouping/filtering, no scroll event fires.
+- Agent filtering is applied after the global page is fetched. A specific agent or All agents visible state may be too short even while the global cursor has more rows.
+- The current loop stops when `sessions.length` does not increase. If the fetched page is deduped because of prioritized sessions or cursor overlap, it can stop even while `hasMore` remains true.
+- Confirmed runtime root cause: `nextCursor.value` is a Pinia/Vue reactive object. Passing it directly through the IPC bridge for `sessionClient.listLightweight()` can fail structured clone with `An object could not be cloned`, leaving the renderer at the first 30 rows while `hasMore` remains true.
 
-**文件**：`src/renderer/src/stores/ui/session.ts`
+## Implementation approach
 
-将 `loadSessionPage` 中两处分页请求的 `includeSubagents: true` 改为 `false`
-（`:512` 首屏、`:551` 翻页）。
+1. Extend `WindowSideBar.vue` pagination fill triggers to observe rendered list drivers:
+   - `filteredGroups` shape / visible session ids
+   - `pinnedSessions` ids
+   - `collapsedGroupIds` and pinned section collapsed state
+   - `sessionStore.groupMode`
+   - `normalizedSessionSearchQuery`
+   - sidebar collapsed state
+2. Add a `ResizeObserver` on the session list container so height changes re-run the fill check.
+3. After group expand/collapse and pinned expand/collapse, schedule a post-render fill check.
+4. Harden `ensureSessionListFilled`:
+   - keep the max-round guard
+   - stop on missing cursor, no `hasMore`, active loading, drag, collapsed sidebar, or errors
+   - treat `hasMore`/cursor progress as the primary signal, not only `sessions.length`
+5. Clone the pagination cursor into a plain object before sending it over IPC so Vue/Pinia proxies do not hit structured clone errors.
+6. Keep backend pagination unchanged unless tests reveal cursor/filtering bugs.
 
-- 后端 `newSessions.ts:240` 在 `includeSubagents !== true` 时自动加
-  `WHERE session_kind = 'regular'`，使一页 30 条全部为 regular 会话。
-- `nextCursor` / `hasMore`（`sessionManager.ts:107-113`、`newSessions.ts:262`）随之只基于
-  regular 会话计算，语义与显示层一致。
-- 影响面已核实安全（见 spec「影响面评估」）。
+## Affected files
 
-### 改动 2 — 加载后自动填充视口（根治"无滚动条→不加载"）
-
-**文件**：`src/renderer/src/components/WindowSideBar.vue`
-
-新增 `ensureSessionListFilled()`：在首屏加载完成、列表渲染更新（`nextTick`）后，检测
-`scrollHeight <= clientHeight && sessionStore.hasMore && !sessionStore.loadingMore`，
-若成立则 `await sessionStore.loadNextPage()` 并循环复检，直到视口被填满或 `hasMore = false`。
-
-触发时机：
-- `onMounted` 首屏 `fetchSessions` 之后；
-- `watch(filteredGroups / pinnedSessions)` 或 `watch(sessionStore.sessions.length)` 变化后
-  （会话列表内容变化、agent 切换过滤后内容变矮时复检）。
-
-防护：
-- 用一个 `isFilling` 本地标志避免并发重入；
-- 设置最大循环轮数上限（如 `hasMore` 为真但连续加载无新增时退出）防止异常死循环；
-- 复用现有 `performSessionListScrollCheck` 的 96px 阈值常量，逻辑保持一致。
-
-### 改动 3（次要）— 侧边栏搜索接入后端 FTS
-
-**文件**：`src/renderer/src/components/WindowSideBar.vue`（+ 可能 `session.ts` / `SessionClient`）
-
-当前 `matchesSessionSearch` 仅前端过滤。增强为：搜索关键词非空时，调用已有
-`sessionClient.searchHistory(query)`（FTS 直查 DB），将命中的历史会话合并进可显示集合。
-
-- 优先复用 `spotlight.ts:305` 已验证的 `searchHistory` 调用方式。
-- 加 debounce，避免逐字符请求。
-- 若本增强工作量偏大，可拆为独立后续 PR，先合入改动 1+2 即可让"滚动加载"恢复正常。
-
-## 涉及模块
-
-| 层 | 文件 | 改动 |
-|---|---|---|
-| Renderer Store | `src/renderer/src/stores/ui/session.ts` | `includeSubagents: false` ×2 |
-| Renderer 组件 | `src/renderer/src/components/WindowSideBar.vue` | 视口自动填充；（次要）搜索接 FTS |
-| Renderer Client | `src/renderer/api/SessionClient.ts` | （次要）如需暴露 searchHistory |
-
-主进程 / DB / 契约层**无需改动**（透传逻辑已正确）。
-
-## 测试策略
-
-- `test/renderer/stores/sessionStore.test.ts`
-  - 断言 `loadSessionPage` 发出的请求 `includeSubagents === false`。
-  - 断言翻页 cursor 推进、`hasMore` 收敛、`sessions` 累积去重。
+- `src/renderer/src/components/WindowSideBar.vue`
 - `test/renderer/components/WindowSideBar.test.ts`
-  - 模拟 `scrollHeight <= clientHeight && hasMore` 场景，断言 `loadNextPage` 被自动调用
-    直到 `hasMore = false`。
-  - 模拟首屏已填满视口（`scrollHeight > clientHeight`）时，不应额外自动加载。
-- 回归：`pnpm test:renderer` 全绿。
+- Potentially `src/renderer/src/stores/ui/session.ts` and store tests if cursor/dedupe behavior needs a small guard.
 
-## 兼容性 / 风险
+## Test strategy
 
-- 分页协议、存储数据、契约类型均不变，无数据迁移。
-- 风险点：自动填充循环若与 cursor 异常叠加可能多拉数据 → 用 `isFilling` 标志 + 轮数上限兜底。
-- 性能：改动 1 减少传输的无关子代理会话，整体更优。
+- Add/adjust renderer component tests for:
+  - auto-fill after a group collapses and visible content no longer fills the viewport
+  - auto-fill after switching to All agents or an agent filter with too few visible items
+  - auto-fill after search filters the visible list down while more pages exist
+  - no extra fetch when `hasMore` is false or a page is already loading
+- Keep existing store tests for `includeSubagents: false` and cursor propagation.
 
-## 质量门禁
+## Validation
 
-实现后执行：`pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck && pnpm test:renderer`
+Run at minimum:
+
+- `pnpm vitest run test/renderer/components/WindowSideBar.test.ts`
+- `pnpm run format`
+- `pnpm run i18n`
+- `pnpm run lint`

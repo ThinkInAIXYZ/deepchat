@@ -624,6 +624,8 @@ let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
 let pinFeedbackTimer: number | null = null
 let sessionListScrollFrame: number | null = null
+let sessionListFillFrame: number | null = null
+let sessionListResizeObserver: ResizeObserver | null = null
 let shortcutBadgeTimer: number | null = null
 const shortcutPlatform = ref<ShortcutPlatform>(
   navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
@@ -913,8 +915,20 @@ const getShortcutBadgeLabelForSession = (sessionId: string) =>
 const hasShortcutBadgeForSession = (sessionId: string) =>
   showShortcutBadges.value && shortcutBadgeLabelBySessionId.value.has(sessionId)
 
+const scheduleSessionListFillCheck = () => {
+  if (sessionListFillFrame !== null) {
+    return
+  }
+
+  sessionListFillFrame = window.requestAnimationFrame(() => {
+    sessionListFillFrame = null
+    void ensureSessionListFilled()
+  })
+}
+
 const togglePinnedSection = () => {
   isPinnedSectionCollapsed.value = !isPinnedSectionCollapsed.value
+  scheduleSessionListFillCheck()
 }
 
 const toggleGroup = (group: SessionGroup) => {
@@ -928,6 +942,7 @@ const toggleGroup = (group: SessionGroup) => {
   }
 
   collapsedGroupIds.value = nextCollapsedGroupIds
+  scheduleSessionListFillCheck()
 }
 
 const isProjectGroupReorderTarget = (group: SessionGroup) => isActiveProjectDirectoryGroup(group)
@@ -1438,7 +1453,7 @@ const handleSessionListScroll = () => {
 // 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
 let isFillingSessionList = false
 const ensureSessionListFilled = async () => {
-  if (isFillingSessionList || isProjectGroupDragging.value) {
+  if (isFillingSessionList || isProjectGroupDragging.value || collapsed.value) {
     return
   }
   isFillingSessionList = true
@@ -1451,6 +1466,7 @@ const ensureSessionListFilled = async () => {
       if (
         !listElement ||
         isProjectGroupDragging.value ||
+        collapsed.value ||
         !sessionStore.hasMore ||
         sessionStore.loadingMore ||
         sessionStore.loading
@@ -1462,9 +1478,13 @@ const ensureSessionListFilled = async () => {
         return
       }
       const beforeCount = sessionStore.sessions.length
+      const beforeHasMore = sessionStore.hasMore
       await sessionStore.loadNextPage()
-      // 没有新增会话说明已到底或加载失败，停止以防空转。
-      if (sessionStore.sessions.length <= beforeCount) {
+      if (
+        beforeHasMore === sessionStore.hasMore &&
+        sessionStore.hasMore &&
+        sessionStore.sessions.length <= beforeCount
+      ) {
         return
       }
     }
@@ -1473,17 +1493,32 @@ const ensureSessionListFilled = async () => {
   }
 }
 
-// 会话列表内容或 agent 过滤变化后，若视口未被填满则继续加载，
-// 保证「滚动加载更多」在首屏内容过少时也能启动（issue #1762）。
+const visibleSessionFingerprint = computed(() =>
+  [
+    isPinnedSectionCollapsed.value ? 'pinned:collapsed' : 'pinned:expanded',
+    ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
+    ...filteredGroups.value.flatMap((group) => [
+      `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
+      ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
+    ])
+  ].join('|')
+)
+
+// 会话列表内容、过滤、分组折叠或容器高度变化后，若视口未被填满则继续加载，
+// 保证「滚动加载更多」在首屏内容过少或可见内容被过滤/折叠后也能启动（issue #1762）。
 watch(
   [
     () => sessionStore.sessions.length,
     () => sessionStore.hasMore,
     () => sessionStore.loading,
-    sidebarSelectedAgentId
+    () => sessionStore.groupMode,
+    sidebarSelectedAgentId,
+    normalizedSessionSearchQuery,
+    visibleSessionFingerprint,
+    collapsed
   ],
   () => {
-    void ensureSessionListFilled()
+    scheduleSessionListFillCheck()
   },
   { immediate: true }
 )
@@ -1740,6 +1775,16 @@ onMounted(() => {
   window.addEventListener('blur', handleWindowShortcutBlur)
   document.addEventListener('visibilitychange', handleDocumentVisibilityChange)
 
+  if (typeof ResizeObserver !== 'undefined') {
+    sessionListResizeObserver = new ResizeObserver(() => {
+      scheduleSessionListFillCheck()
+    })
+    if (sessionListRef.value) {
+      sessionListResizeObserver.observe(sessionListRef.value)
+    }
+  }
+
+  scheduleSessionListFillCheck()
   void refreshRemoteControlStatus()
   remoteControlStatusTimer = setInterval(() => {
     void refreshRemoteControlStatus()
@@ -1760,6 +1805,16 @@ onUnmounted(() => {
   if (sessionListScrollFrame !== null) {
     window.cancelAnimationFrame(sessionListScrollFrame)
     sessionListScrollFrame = null
+  }
+
+  if (sessionListFillFrame !== null) {
+    window.cancelAnimationFrame(sessionListFillFrame)
+    sessionListFillFrame = null
+  }
+
+  if (sessionListResizeObserver) {
+    sessionListResizeObserver.disconnect()
+    sessionListResizeObserver = null
   }
 
   pinFlightSessionId.value = null

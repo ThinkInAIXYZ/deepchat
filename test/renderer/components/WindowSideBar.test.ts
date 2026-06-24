@@ -77,6 +77,29 @@ const dispatchWindowKeyup = (
     })
   )
 
+const flushSidebarFillFrame = async () => {
+  vi.advanceTimersByTime(16)
+  await flushPromises()
+}
+
+const setSidebarListSize = (
+  wrapper: { get: (selector: string) => { element: Element } },
+  sizes: {
+    scrollHeight: number
+    clientHeight: number
+  }
+) => {
+  const listElement = wrapper.get('.session-list').element
+  Object.defineProperty(listElement, 'scrollHeight', {
+    configurable: true,
+    value: sizes.scrollHeight
+  })
+  Object.defineProperty(listElement, 'clientHeight', {
+    configurable: true,
+    value: sizes.clientHeight
+  })
+}
+
 const mountedWrappers: Array<{ unmount: () => void }> = []
 
 const trackMountedWrapper = <T extends { unmount: () => void }>(wrapper: T): T => {
@@ -1669,7 +1692,7 @@ describe('WindowSideBar viewport auto-fill', () => {
         ]
       })
 
-      await flushPromises()
+      await flushSidebarFillFrame()
 
       // jsdom 下 scrollHeight/clientHeight 均为 0（未填满视口），
       // 自动填充应持续翻页直到 hasMore 收敛为 false。
@@ -1694,9 +1717,82 @@ describe('WindowSideBar viewport auto-fill', () => {
         hasMore: false
       })
 
-      await flushPromises()
+      await flushSidebarFillFrame()
 
       expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'rechecks pagination after a group collapse makes the visible list too short',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }, { id: 'session-2' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              { id: 'session-1', title: 'Alpha', status: 'none' },
+              { id: 'session-2', title: 'Bravo', status: 'none' }
+            ]
+          }
+        ],
+        nextPages: [{ items: [{ id: 'session-3' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 240, clientHeight: 120 })
+      await flushSidebarFillFrame()
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      await wrapper.get('[data-group-id="common.time.today"]').trigger('click')
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual([
+        'session-1',
+        'session-2',
+        'session-3'
+      ])
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'rechecks pagination when local search filters visible sessions below the viewport',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }, { id: 'session-2' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              { id: 'session-1', title: 'Alpha', status: 'none' },
+              { id: 'session-2', title: 'Bravo', status: 'none' }
+            ]
+          }
+        ],
+        nextPages: [{ items: [{ id: 'session-3' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 240, clientHeight: 120 })
+      await flushSidebarFillFrame()
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      await wrapper.get('[data-testid="window-sidebar-search"] input').setValue('missing older')
+      setSidebarListSize(wrapper, { scrollHeight: 60, clientHeight: 120 })
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
 
       wrapper.unmount()
     },
