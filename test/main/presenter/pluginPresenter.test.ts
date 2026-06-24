@@ -1107,7 +1107,7 @@ describe('PluginPresenter', () => {
     expect(mcpConfig.env).toEqual(server.env)
   })
 
-  it('keeps CUA v0.5.5 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.6.7 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1185,15 +1185,15 @@ describe('PluginPresenter', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.5.5',
-      commit: 'd6dea4bc3c3a65ce821261752067cae8200fe5d6',
-      version: '0.5.5',
+      tag: 'cua-driver-rs-v0.6.7',
+      commit: '2cba1e769264a18f5a9d5f4e419729eb7fc17962',
+      version: '0.6.7',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.5.5-windows-x86_64.zip')
-    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.5.5-windows-arm64.zip')
-    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.5.5-linux-x86_64-binary.tar.gz')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.7-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.7-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.7-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')
