@@ -473,6 +473,21 @@ describe('memory scoring', () => {
     expect(score).toBeCloseTo(0.6 + 0.25 + 0.15)
   })
 
+  it('category does not affect retrieval or decay scoring', () => {
+    const now = 10 * DAY
+    const weights = { similarity: 0.6, recency: 0.25, importance: 0.15 }
+    const uncategorized = makeRow('uncategorized', { category: null, created_at: now - DAY })
+    const categorized = makeRow('categorized', {
+      category: 'project_fact',
+      created_at: now - DAY
+    })
+
+    expect(decayScore(uncategorized, now)).toBeCloseTo(decayScore(categorized, now))
+    expect(retrievalScore(uncategorized, 0.8, now, weights)).toBeCloseTo(
+      retrievalScore(categorized, 0.8, now, weights)
+    )
+  })
+
   it('resolveRetrieval falls back to defaults and validates rrfK / similarityThreshold', () => {
     const defaults = resolveRetrieval(null)
     expect(defaults.topK).toBe(6)
@@ -522,6 +537,7 @@ function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemo
     agent_id: 'a',
     user_scope: null,
     kind: 'semantic',
+    category: null,
     content: id,
     importance: 0.5,
     status: 'embedded',
@@ -541,6 +557,7 @@ function makeRow(id: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemo
     last_consolidated_at: null,
     conflict_state: null,
     conflict_with: null,
+    persona_state: null,
     ...overrides
   }
 }
@@ -1078,7 +1095,6 @@ describe('MemoryPresenter management', () => {
       resetVectorStore
     })
     const internals = presenter as unknown as {
-      maintenanceAgents: Set<string>
       lastConsolidationAt: Map<string, number>
       reflectionAttemptWatermark: Map<string, number>
       personaAttemptWatermark: Map<string, number>
@@ -1092,7 +1108,6 @@ describe('MemoryPresenter management', () => {
     }
     const timer = setTimeout(() => {}, 10000)
     if (typeof timer.unref === 'function') timer.unref()
-    internals.maintenanceAgents.add('a')
     internals.lastConsolidationAt.set('a', 1)
     internals.reflectionAttemptWatermark.set('a', 2)
     internals.personaAttemptWatermark.set('a', 3)
@@ -1107,7 +1122,6 @@ describe('MemoryPresenter management', () => {
     await expect(presenter.cleanupDeletedAgentResources('a')).rejects.toThrow('reset failed')
 
     expect(resetVectorStore).toHaveBeenCalledWith('a')
-    expect(internals.maintenanceAgents.has('a')).toBe(false)
     expect(internals.lastConsolidationAt.has('a')).toBe(false)
     expect(internals.reflectionAttemptWatermark.has('a')).toBe(false)
     expect(internals.personaAttemptWatermark.has('a')).toBe(false)
@@ -2724,6 +2738,37 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.countByAgent('a')).toBe(1)
   })
 
+  it('does not write candidate category onto a reflection UPDATE target', async () => {
+    const generateText = routedLLM({
+      decision:
+        '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis reflection"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    repo.insert({
+      id: 'reflection-target',
+      agentId: 'a',
+      kind: 'reflection',
+      content: 'user likes redis',
+      importance: 0.8,
+      status: 'pending_embedding'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    const outcome = await presenter.rememberMemory(
+      {
+        content: 'user likes redis preference',
+        category: 'user_preference',
+        importance: 0.2
+      },
+      { agentId: 'a' },
+      { providerId: 'main', modelId: 'main' }
+    )
+
+    expect(outcome).toMatchObject({ action: 'updated', id: 'reflection-target' })
+    expect(repo.getById('reflection-target')?.kind).toBe('reflection')
+    expect(repo.getById('reflection-target')?.category).toBeNull()
+  })
+
   it('explicit rememberMemory uses the decision ring when a model is available', async () => {
     const generateText = routedLLM({
       decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
@@ -3100,6 +3145,103 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     expect(repo.getById(newId)?.importance).toBe(0.9)
   })
 
+  it('does not write secondary category onto a reflection merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'semantic-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis semantic',
+      importance: 0.7,
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'reflection-primary',
+      agentId: 'a',
+      kind: 'reflection',
+      content: 'user likes redis reflection',
+      importance: 0.8,
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('reflection-primary')?.superseded_by).toBeNull()
+    expect(repo.getById('reflection-primary')?.category).toBeNull()
+    expect(repo.getById('semantic-secondary')?.superseded_by).toBe('reflection-primary')
+  })
+
+  it('absorbs secondary category into an uncategorized atomic merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'categorized-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis project',
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'uncategorized-primary',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'user likes redis current',
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('uncategorized-primary')?.category).toBe('project_fact')
+    expect(repo.getById('categorized-secondary')?.superseded_by).toBe('uncategorized-primary')
+  })
+
+  it('preserves existing category on an atomic merge survivor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user likes redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    repo.insert({
+      id: 'project-secondary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'user likes redis project',
+      status: 'pending_embedding',
+      createdAt: now - 2000
+    })
+    repo.insert({
+      id: 'preference-primary',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'user_preference',
+      content: 'user likes redis preference',
+      status: 'pending_embedding',
+      createdAt: now - 1000
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('preference-primary')?.category).toBe('user_preference')
+    expect(repo.getById('project-secondary')?.superseded_by).toBe('preference-primary')
+  })
+
   it('the cooldown survives a fresh presenter via the completed maintenance audit (T-B5)', async () => {
     const generateText = routedLLM({
       decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user prefers redis"}'
@@ -3155,6 +3297,340 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
       await presenter.dispose()
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an earlier write debounce when a config arm would fire later (SDD-13)', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
+    try {
+      let extracted = 0
+      const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+        if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+        if (prompt.includes('JSON array')) {
+          extracted += 1
+          return `[{"kind":"semantic","content":"fact ${extracted}","importance":0.5}]`
+        }
+        if (prompt.includes('Choose exactly ONE decision')) {
+          return '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+        }
+        return ''
+      })
+      const { presenter } = makeLLMPresenter(generateText)
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      await presenter.extractAndStore({
+        agentId: 'a',
+        spanText: 'User: one',
+        model: { providerId: 'main', modelId: 'main' }
+      })
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000 - 1)
+      expect(passSpy).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['a'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('arms startup maintenance once with deterministic stagger and no periodic sweep (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      repo.rows.set('b1', makeRow('b1', { agent_id: 'agent-b' }))
+      repo.rows.set('disabled1', makeRow('disabled1', { agent_id: 'disabled' }))
+      repo.rows.set('orphan1', makeRow('orphan1', { agent_id: 'orphan' }))
+      repo.rows.set('archived1', makeRow('archived1', { agent_id: 'archived', status: 'archived' }))
+
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: (agentId) =>
+          agentId === 'disabled' ? { memoryEnabled: false } : enabledConfig,
+        isManagedAgent: (agentId) => agentId !== 'orphan',
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      presenter.startBackgroundMaintenance()
+
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000 - 1)
+      expect(passSpy).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+
+      await vi.advanceTimersByTimeAsync(5 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a', 'agent-b'])
+
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      expect(passSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not arm startup maintenance after dispose during the startup delay (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      const listSpy = vi.spyOn(repo, 'listAgentIdsWithMemories')
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      await presenter.dispose()
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+
+      expect(listSpy).not.toHaveBeenCalled()
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips startup maintenance when active-agent enumeration fails (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      vi.spyOn(repo, 'listAgentIdsWithMemories').mockImplementation(() => {
+        throw new Error('repo unavailable')
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('lets a non-write config arm replace a later pending arm (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      repo.rows.set('b1', makeRow('b1', { agent_id: 'agent-b' }))
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-b')
+
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a', 'agent-b'])
+
+      await vi.advanceTimersByTimeAsync(5 * 1000)
+      expect(passSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips builtin config fan-out when active-agent enumeration fails (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      vi.spyOn(repo, 'listAgentIdsWithMemories').mockImplementation(() => {
+        throw new Error('repo unavailable')
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      expect(() => presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()).not.toThrow()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 5 * 1000)
+
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('arms memory config changes only for agents with active memory (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      repo.rows.set('disabled1', makeRow('disabled1', { agent_id: 'disabled' }))
+      repo.rows.set('orphan1', makeRow('orphan1', { agent_id: 'orphan' }))
+      repo.rows.set('archived1', makeRow('archived1', { agent_id: 'archived', status: 'archived' }))
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: (agentId) =>
+          agentId === 'disabled' ? { memoryEnabled: false } : enabledConfig,
+        isManagedAgent: (agentId) => agentId !== 'orphan',
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.onAgentMemoryMaintenanceConfigChanged('empty')
+      presenter.onAgentMemoryMaintenanceConfigChanged('archived')
+      presenter.onAgentMemoryMaintenanceConfigChanged('disabled')
+      presenter.onAgentMemoryMaintenanceConfigChanged('orphan')
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
+
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not arm memory config changes after dispose (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      const listSpy = vi.spyOn(repo, 'listAgentIdsWithMemories')
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      await presenter.dispose()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
+      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 5 * 1000)
+
+      expect(listSpy).not.toHaveBeenCalled()
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not advance cooldown on missing-model skip and can be re-armed later (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      const auditRepo = new FakeAuditRepository()
+      const store = new FakeVectorStore()
+      const generateText = routedLLM({
+        decision: '{"decision":"NOOP","targetIndex":0,"mergedContent":null}'
+      })
+      let agentDefaultModel: { providerId: string; modelId: string } | null = null
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        auditRepository: auditRepo,
+        resolveAgentConfig: () => ({
+          memoryEnabled: true,
+          memoryEmbedding: { providerId: 'p', modelId: 'm' },
+          memoryExtractionModel: null
+        }),
+        resolveAgentDefaultModel: () => agentDefaultModel,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText,
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined
+      })
+
+      const now = 1_000 * DAY
+      const firstId = await seedEmbedded(presenter, 'user likes redis a')
+      const secondId = await seedEmbedded(presenter, 'user likes redis b')
+      repo.rows.get(firstId)!.created_at = now
+      repo.rows.get(secondId)!.created_at = now + 1
+
+      await presenter.runConsolidationPass('a', now)
+      expect(auditRepo.listByAgent('a')[0]).toMatchObject({
+        event_type: 'memory/maintenance_llm',
+        status: 'skipped',
+        reason: 'missing-model'
+      })
+      expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+
+      const retryAt = now + 1
+      vi.setSystemTime(retryAt)
+      agentDefaultModel = { providerId: 'default', modelId: 'default' }
+      presenter.onAgentMemoryMaintenanceConfigChanged('a')
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+
+      expect(decisionCalls(generateText)).toBeGreaterThan(0)
+      expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(
+        retryAt + 5 * 60 * 1000
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fans out builtin config changes with deterministic stagger (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      repo.rows.set('b1', makeRow('b1', { agent_id: 'agent-b' }))
+      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
+      repo.rows.set('disabled1', makeRow('disabled1', { agent_id: 'agent-aa-disabled' }))
+      repo.rows.set('orphan1', makeRow('orphan1', { agent_id: 'agent-ab-orphan' }))
+      repo.rows.set('archived1', makeRow('archived1', { agent_id: 'archived', status: 'archived' }))
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: (agentId) =>
+          agentId === 'agent-aa-disabled' ? { memoryEnabled: false } : enabledConfig,
+        isManagedAgent: (agentId) => agentId !== 'agent-ab-orphan',
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+
+      await vi.advanceTimersByTimeAsync(5 * 1000)
+      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a', 'agent-b'])
     } finally {
       vi.useRealTimers()
     }

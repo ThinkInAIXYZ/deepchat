@@ -74,7 +74,7 @@ import { ProjectPresenter } from './projectPresenter'
 import { RemoteControlPresenter } from './remoteControlPresenter'
 import type { RemoteControlPresenterLike } from './remoteControlPresenter/interface'
 import { PluginPresenter } from './pluginPresenter'
-import { AgentRepository } from './agentRepository'
+import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
@@ -92,6 +92,22 @@ import {
 } from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from './startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
+
+type MemoryMaintenanceConfigChangeTarget = Pick<
+  MemoryPresenter,
+  'onAgentMemoryMaintenanceConfigChanged' | 'onBuiltinDeepChatMemoryMaintenanceConfigChanged'
+>
+
+export const routeDeepChatAgentMemoryMaintenanceConfigChanged = (
+  memoryPresenter: MemoryMaintenanceConfigChangeTarget,
+  agentId: string
+): void => {
+  if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
+    memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+  } else {
+    memoryPresenter.onAgentMemoryMaintenanceConfigChanged(agentId)
+  }
+}
 
 // Coordinates presenters and owns main-process IPC wiring.
 export class Presenter implements IPresenter {
@@ -303,6 +319,7 @@ export class Presenter implements IPresenter {
         this.memoryPresenter.rememberMemory(
           {
             kind: input.kind,
+            category: input.category,
             content: input.content,
             importance: input.importance
           },
@@ -586,7 +603,15 @@ export class Presenter implements IPresenter {
     ).setDeepChatAgentDeleteCleanup?.(async (agentId) => {
       await this.memoryPresenter.cleanupDeletedAgentResources(agentId)
     })
-    this.memoryPresenter.startBackgroundMaintenance()
+    ;(
+      this.configPresenter as IConfigPresenter & {
+        setDeepChatAgentMemoryMaintenanceConfigChanged?: (
+          callback: (agentId: string) => void
+        ) => void
+      }
+    ).setDeepChatAgentMemoryMaintenanceConfigChanged?.((agentId) =>
+      routeDeepChatAgentMemoryMaintenanceConfigChanged(this.memoryPresenter, agentId)
+    )
 
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(

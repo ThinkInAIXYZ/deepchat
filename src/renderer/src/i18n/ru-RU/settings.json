@@ -2332,7 +2332,18 @@
       "searchFailed": "Поиск не удался. Попробуйте ещё раз.",
       "deletePermanent": "Удалить навсегда",
       "deleteConfirmTitle": "Удалить эту память навсегда?",
-      "deleteConfirmBody": "Память будет удалена, а не архивирована. Это действие нельзя отменить."
+      "deleteConfirmBody": "Память будет удалена, а не архивирована. Это действие нельзя отменить.",
+      "categoryFilterLabel": "Категория",
+      "categoryFilterAll": "Все категории",
+      "categoryUncategorized": "Без категории",
+      "noCategoryResults": "В этой категории нет воспоминаний.",
+      "category": {
+        "user_preference": "Предпочтение пользователя",
+        "project_fact": "Факт проекта",
+        "task_outcome": "Итог задачи",
+        "heuristic": "Эвристика",
+        "anti_pattern": "Антипаттерн"
+      }
     },
     "personaEvolutionTitle": "Эволюция персоны (эксперимент)",
     "personaEvolutionDescription": "Позвольте рефлексии предлагать обновлённые модели себя в виде черновиков для вашего одобрения. Независимо от памяти; по умолчанию выключено.",

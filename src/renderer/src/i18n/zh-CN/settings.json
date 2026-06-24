@@ -222,7 +222,18 @@
       "searchFailed": "搜索失败，请重试。",
       "deletePermanent": "永久删除",
       "deleteConfirmTitle": "永久删除这条记忆？",
-      "deleteConfirmBody": "这会直接移除该记忆，而不是归档。此操作无法撤销。"
+      "deleteConfirmBody": "这会直接移除该记忆，而不是归档。此操作无法撤销。",
+      "categoryFilterLabel": "分类",
+      "categoryFilterAll": "全部分类",
+      "categoryUncategorized": "未分类",
+      "noCategoryResults": "该分类下暂无记忆。",
+      "category": {
+        "user_preference": "用户偏好",
+        "project_fact": "项目事实",
+        "task_outcome": "任务结论",
+        "heuristic": "经验规则",
+        "anti_pattern": "反例"
+      }
     },
     "compactionThreshold": "触发阈值",
     "compactionRetainPairs": "保留最近消息对",

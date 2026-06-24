@@ -95,6 +95,7 @@ flowchart TD
 | Kernel | `memoryPresenter/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
 | Kernel | `memoryPresenter/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
 | Kernel | `memoryPresenter/types.ts` | Ports, DTO/enum types, and the retrieval/scoring/decay tunable constants (injection-budget constants live in `injectionPort.ts`; `WORKING_BLOB_TOKEN_LIMIT` in `index.ts`) |
+| Shared | `shared/types/agent-memory.ts` | `AgentMemoryCategory`, `AGENT_MEMORY_CATEGORIES`, and deterministic category importance floors |
 | Storage | `sqlitePresenter/tables/agentMemory.ts` | `agent_memory` table + `agent_memory_fts` FTS5 + keyword search |
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
 | Storage | `sqlitePresenter/tables/deepchatTapeSearchProjection.ts` | `deepchat_tape_search_projection` (+ meta + FTS) evidence projection |
@@ -102,6 +103,7 @@ flowchart TD
 | Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
 | Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
+| Skills | `resources/skills/memory-management/SKILL.md` | Discoverable guidance for recall/remember discipline and Memory vs Skill vs Scheduled Task routing |
 | Contracts | `shared/contracts/routes/memory.routes.ts` | All `memory.*` IPC routes + DTO schemas |
 | Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event + reason enum |
 | Renderer | `renderer/settings/components/Memory*.vue`, `renderer/api/MemoryClient.ts` | The settings IA (page, config tab, manage tab) |
@@ -114,7 +116,7 @@ Memory is split across five stores. Each has one job; none is authoritative for 
 
 | Store | Holds | Rebuildable? |
 | --- | --- | --- |
-| SQLite `agent_memory` | Authoritative memory rows: content, kind, status, importance, confidence, decay, lineage (`source_entry_ids`), supersede chain, persona state, conflict link | No — source of truth for synthesized memory |
+| SQLite `agent_memory` | Authoritative memory rows: content, kind, optional agentic category, status, importance, confidence, decay, lineage (`source_entry_ids`), supersede chain, persona state, conflict link | No — source of truth for synthesized memory |
 | SQLite `agent_memory_fts` | Keyword recall (BM25), external-content mirror of `agent_memory` | Yes — rebuilt idempotently; degrades to `LIKE` |
 | SQLite `agent_memory_audit` | Maintenance/user provenance ledger (ids/action/model; `scheduler`/`user` actors + optional `session_id`; drives the cooldown) | No — but content-free |
 | SQLite `deepchat_tape_search_projection` | Searchable evidence projection of the effective tape (summary + refs + FTS) | Yes — rebuilt from raw tape entries |
@@ -125,7 +127,7 @@ The raw tape (`deepchat_tape_entries`) remains the ultimate evidence source of t
 
 ### 6.1 `agent_memory` columns
 
-`id`, `agent_id`, `user_scope`, `kind`, `content`, `importance`, `status`, `embedding_id`,
+`id`, `agent_id`, `user_scope`, `kind`, `category`, `content`, `importance`, `status`, `embedding_id`,
 `embedding_dim`, `embedding_model`, `source_session`, `provenance_key`, `is_anchor`, `superseded_by`,
 `created_at`, `last_accessed`, `access_count`, `decay_score`, `source_entry_ids`, `confidence`,
 `last_consolidated_at`, `conflict_state`, `conflict_with`, `persona_state`.
@@ -137,6 +139,7 @@ A unique partial index on `(agent_id, provenance_key)` enforces idempotent dedup
 | Enum | Members | Notes |
 | --- | --- | --- |
 | `AgentMemoryKind` | `episodic`, `semantic`, `reflection`, `persona`, `working` | `working` is an internal single-blob session-open cache (never recalled/embedded/archived). `crystal` is reserved (no read/write path). |
+| `AgentMemoryCategory` | `user_preference`, `project_fact`, `task_outcome`, `heuristic`, `anti_pattern` | Optional agentic write contract. `task_outcome` normalizes to `episodic`; the other categories normalize to `semantic`. `reflection`/`persona`/`working` rows always carry `NULL`. |
 | `AgentMemoryStatus` | `pending_embedding`, `embedded`, `error`, `fts_only`, `archived`, `conflicted` | `fts_only` = recallable by keyword but not vector (no embedding config / transient). `archived` = soft-deleted. `conflicted` = a `CHALLENGE` row. |
 | `AgentMemoryPersonaState` | `draft`, `active`, `superseded`, `rejected` | Only meaningful for `kind='persona'`; `NULL` for everything else. Legacy persona rows are read as active while not superseded. |
 | `AgentMemoryConflictState` | `challenged` | Marks the *target* of an open challenge. |
@@ -218,10 +221,18 @@ an assistant entry contributes only its `content` blocks — assistant reasoning
 raw tape still records reasoning in full; only the extraction input drops it (a message contributing no
 visible text appears in neither the span nor the lineage).
 
+Fallback extraction is task-aware. The span builder computes `hadToolUse` and `visibleTextChars` in the same
+effective-view pass that collects text and lineage. `hadToolUse` is derived by matching effective `tool_call`
+rows' `payload.messageId` against the selected message window; raw tape rows are not filtered by `orderSeq`.
+A fallback span is admitted only when it has visible text and either used a tool, reaches the long-span
+backstop (`delta >= 6`), or is a short but substantive text span (`delta >= 2` and at least 160 visible
+characters). Empty visible-text spans return before extraction and do **not** advance the memory cursor.
+Compaction-triggered extraction keeps its old behavior.
+
 ```mermaid
 flowchart TD
   T["turn / resume done or compaction"] --> EQ["enqueueSessionExtraction<br/>(per-session serial chain, epoch-guarded)"]
-  EQ --> CUR["read cursor + buildEffectiveTapeView span (from,to]<br/>collect source_entry_ids lineage"]
+  EQ --> CUR["read cursor + buildEffectiveTapeView span (from,to]<br/>collect source_entry_ids + admission signals"]
   CUR --> TRI{"triage gate<br/>(cheap KEEP/SKIP, fail-open)"}
   TRI -- SKIP --> ADV0["advance cursor, no write"]
   TRI -- KEEP --> EX["extraction → JSON candidates (≤8)"]
@@ -244,17 +255,28 @@ flowchart TD
   EMB --> DUCK["DuckDB memory_vector + status=embedded"]
 ```
 
-**Triage gate.** A cheap `KEEP/SKIP` pass runs before full extraction over the span's last 4000 chars. It is
-doubly fail-open: `parseTriageDecision` skips only on an explicit `SKIP` without `KEEP`, and a thrown triage
-call is caught and extraction proceeds anyway. A SKIP still advances the cursor (the span is consumed).
+**Triage gate.** A cheap `KEEP/SKIP` pass runs before full extraction over the span's last 4000 chars. The
+KEEP criteria include stable user preferences, project facts, durable task outcomes, heuristics,
+anti-patterns, constraints, and notable decisions. It is doubly fail-open: `parseTriageDecision` skips only on
+an explicit `SKIP` without `KEEP`, and a thrown triage call is caught and extraction proceeds anyway. A SKIP
+still advances the cursor (the span is consumed).
 
-**Extraction.** Over the span's last 12000 chars, the model returns at most **8** candidates (enforced both
-in the prompt and as a hard parse cap), each `{kind, content, importance}`. Parsing is tolerant **per entry** —
-a malformed individual entry is skipped and missing/NaN importance becomes `0.5`, never a throw. A **top-level**
-parse failure (empty response, no JSON array, invalid JSON, or a non-array), however, is reported as a
-discriminated `MemoryCandidateParseResult` (`{ ok: false, reason }`) rather than silently degraded to `[]`, so
-the caller can retry the span instead of consuming it; a successful parse returns `{ ok: true, candidates }`
-(an empty array is a valid success).
+**Extraction.** Over the span's last 12000 chars, the model returns at most **8** raw candidates (enforced
+both in the prompt and as a hard parse cap), each `{category, content, importance}`. Parsing is tolerant
+**per entry** — a malformed individual entry or empty content is skipped, raw `category`/legacy `kind` are
+preserved, malformed importance is left for normalization, and each span keeps at most one `task_outcome`.
+A **top-level** parse failure (empty response, no JSON array, invalid JSON, or a non-array), however, is
+reported as a discriminated `MemoryCandidateParseResult` (`{ ok: false, reason }`) rather than silently
+degraded to `[]`, so the caller can retry the span instead of consuming it; a successful parse returns
+`{ ok: true, candidates }` (an empty array is a valid success).
+
+**Candidate normalization.** Every write entry point (`coordinateWrite`, `directAddMemory`, and
+`writeMemoriesSync`) normalizes candidates before provenance-key generation or storage. A valid category
+takes precedence over legacy `kind`: `task_outcome` becomes `episodic`, all other valid categories become
+`semantic`; a missing category may keep a valid legacy `episodic`/`semantic` kind with `category=NULL`;
+an invalid category becomes `semantic` + `NULL`. Importance is clamped/defaulted and then raised to
+`CATEGORY_IMPORTANCE_FLOOR[category]` when a category is present. `reflection`, `persona`, and `working` rows
+are never allowed to carry a category.
 
 **The extraction model is not a hardcoded "small" model.** Two resolvers exist. `resolveExtractionModel` uses
 the agent's configured `memoryExtractionModel` when set; the extraction/triage/decision path falls back to the
@@ -272,9 +294,11 @@ unavailable to them. The cost saving comes from the triage gate avoiding the lar
 3. Otherwise retrieve up to **10** neighbors and run the decision model (`buildDecisionPrompt` →
    `parseDecision`). Any decision-model failure or out-of-range target index degrades to `ADD` so a
    hallucinated index can never touch the wrong row.
-4. Apply: `ADD` inserts; `UPDATE` rewrites the target content + bumps confidence + re-queues embedding;
-   `SUPERSEDE` inserts the merged row and supersedes the target; `NOOP` does nothing; `CHALLENGE` inserts a
-   `conflicted` row linked via `conflict_with` and marks the target `challenged`.
+4. Apply: `ADD` inserts with the candidate category; `UPDATE` rewrites the target content + bumps confidence
+   + re-queues embedding and only absorbs the candidate category when the target category is `NULL`;
+   `SUPERSEDE` inserts the merged row with the candidate category and supersedes the target; `NOOP` does
+   nothing; `CHALLENGE` inserts a `conflicted` row linked via `conflict_with` and marks the target
+   `challenged`.
 
 The write outcome is a discriminated union `MemoryWriteOutcome` (`created` / `updated` / `superseded` /
 `noop` / `challenged`). The same coordinator backs both extraction and the agent-facing `memory_remember`
@@ -350,6 +374,8 @@ decayScore   = 0.5 ^ ( (now − anchor) / (30d · (1 + clamp01(importance))) )
 
 Important memories stretch their half-life, so they survive longer before becoming archive-eligible. Recall
 and forgetting are deliberately two different scores: a memory can rank low for recall yet still be retained.
+`category` is not a second scoring axis: it is ignored by retrieval, decay, RRF, and rerank logic. Its only
+ranking/retention effect is indirect, through the deterministic importance floor applied at write time.
 
 ---
 
@@ -359,7 +385,7 @@ Memory schedules its **own** maintenance — it does not rely on the repo-wide s
 
 ```mermaid
 flowchart TD
-  TM["own timers:<br/>60s after start + every 30min (sweep)<br/>5min idle debounce after each write"] --> CP["runConsolidationPass(agent)"]
+  TM["event-driven arms:<br/>60s after start one-shot batch<br/>5min idle debounce after each write<br/>config-change arm on enable / model-available"] --> CP["runConsolidationPass(agent)"]
   CP --> CD{"6h LLM cooldown<br/>seeded from agent_memory_audit"}
   CD -- within --> CHEAP["cheap maintenance only:<br/>decay refresh + archiveStale + working sync"]
   CD -- past --> LLMJOB["mergeNearDuplicates + runChallengeResolutionPass<br/>+ maybeReflect(kind=reflection)<br/>+ maybeEvolvePersona(draft, default-off)"]
@@ -368,9 +394,15 @@ flowchart TD
   AUD --> EV["memory.updated → UI refresh<br/>(post-audit emit gated on touched;<br/>archiveStale emits its own when archived&gt;0)"]
 ```
 
-**Two independent drivers, one pass.** A per-agent **5-minute idle debounce** is armed on every mutating
-write, and a **global sweep** (a one-shot 60s after start, then every 30min) iterates every enabled agent.
-Both funnel into `runConsolidationPass`, which then enforces the cooldown.
+**Event-driven arms, one pass.** A per-agent **5-minute idle debounce** is armed on every mutating write.
+After app start, a one-shot 60-second startup timer lists agents with active memories, filters them through
+`shouldArmMaintenance` (safe id · managed agent · memory enabled), sorts them, and schedules deterministic
+5-second-staggered idle timers. Maintenance-relevant DeepChat config writes also arm eligible agents:
+`memoryEnabled`, `memoryExtractionModel`, `assistantModel`, and `defaultModelPreset` trigger the arm because
+they affect enablement or consolidation model resolution. Custom-agent changes arm that agent, while builtin
+changes fan out to active inheritors with the same deterministic stagger. Renderer update saves send diff-only
+config patches, so unchanged model keys do not reach this field-presence gate. Every arm funnels into
+`runConsolidationPass`, which then enforces the cooldown.
 
 **Restart-durable cooldown.** The LLM-backed work runs at most once per **6 hours** per agent. The watermark
 is seeded from the audit table (`getLatestCompletedEventAt('memory/maintenance_llm')`) when the in-memory
@@ -478,12 +510,12 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   full file reset (`destroyFile` + recreate), not an in-place migration.
 - **Transactional vector upsert.** `upsert` wraps delete-then-insert in `BEGIN/COMMIT` with `ROLLBACK` on
   error, so there is no "deleted-but-not-inserted" hole.
-- **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` archives the row **and** deletes its
-  vector (`deleteVectorsForMemoryIds`, under the per-agent lock, best-effort) so an archived fact stops
-  occupying the sidecar; `restoreMemory` re-marks the row `pending_embedding` and re-embeds it. Both are gated
-  by `canWriteAgentMemory` (managed agent · memory enabled · not disposed), so a disabled agent neither
-  schedules new embeddings nor mutates rows — while a permanent UI delete (`deleteMemory`) only requires a
-  managed agent and so stays available for cleanup even when memory is off.
+- **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` is a soft archive: it marks the row
+  `archived`, leaves any existing vector in place, and relies on recall's status filters plus SQLite
+  re-checks to keep archived facts out of results. It only requires a managed agent, so users can forget
+  while memory is disabled. `restoreMemory` re-marks the row `pending_embedding` and re-embeds it, and remains
+  gated by `canWriteAgentMemory` (managed agent · memory enabled · not disposed). Permanent UI delete
+  (`deleteMemory`) hard-deletes the row and best-effort deletes its vector.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
@@ -496,10 +528,10 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   `absorbProvenanceHit`, then `markSuperseded(row, owner)`) and returns the owner's id.
 - **Close-safe teardown (`dispose`).** A `disposed` flag is set first so any already-fired timer's pass
   becomes a no-op; `canWriteAgentMemory` / `canReadAgentMemory` both include `!disposed` and are re-checked
-  after every `await`. Dispose stops the sweep, clears timers, bounded-drains in-flight consolidation /
-  reindex / backfill / embedding writers, awaits per-agent locks, and closes every DuckDB store — before the
-  SQLite connection closes. (The fire-and-forget extraction chain is not drained by `dispose`; it self-guards
-  on `disposed`.)
+  after every `await`. Dispose stops the startup maintenance timer, clears per-agent idle timers,
+  bounded-drains in-flight consolidation / reindex / backfill / embedding writers, awaits per-agent locks,
+  and closes every DuckDB store — before the SQLite connection closes. (The fire-and-forget extraction chain
+  is not drained by `dispose`; it self-guards on `disposed`.)
 - **Agent-deletion cleanup.** Deleting a DeepChat agent atomically clears `agent_memory` +
   `agent_memory_audit` in one SQLite transaction, then best-effort destroys that agent's DuckDB sidecar file.
 - **Disk reclaim.** A per-row hard delete does not shrink the DuckDB file; only a whole-store reset
@@ -514,7 +546,7 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
 
 | Server | Tool | Behavior |
 | --- | --- | --- |
-| `agent-memory` | `memory_remember` | Persist a durable fact/event; routes through the decision ring (`coordinateWrite`). |
+| `agent-memory` | `memory_remember` | Persist a durable fact/event with optional category; routes through the decision ring (`coordinateWrite`). |
 | `agent-memory` | `memory_recall` | Recall relevant memories for a query (ranking/limit are kernel-side). |
 | `agent-memory` | `memory_forget` | **Archive** (soft delete) a memory by id so it is no longer recalled. |
 | `agent-tape` | `tape_info` / `tape_anchors` / `tape_handoff` | Tape introspection and subagent handoff. |
@@ -534,11 +566,11 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 
 - `memory.search` is read-only: it caps the result count but cannot widen the agent's configured `topK`, and
   does not bump `access_count`.
-- `memory.add` runs the decision ring and writes a `memory/add` user audit row.
+- `memory.add` accepts optional `category`, runs the decision ring, and writes a `memory/add` user audit row.
 - `memory.getSourceSpan` resolves a memory's `source_entry_ids` to readable role/content via the effective
   tape view (powers the lineage UI).
-- `MemoryItemSchema` carries `sourceEntryIds`, `conflictWith`, `personaState`, `isAnchor`, `needsReview`; the
-  status enum includes `conflicted`/`archived`/`fts_only`.
+- `MemoryItemSchema` carries `category`, `sourceEntryIds`, `conflictWith`, `personaState`, `isAnchor`,
+  `needsReview`; the status enum includes `conflicted`/`archived`/`fts_only`.
 
 ### 15.3 Events
 
@@ -568,7 +600,9 @@ Memory is a first-class, top-level settings section, configured strictly per-age
   constants exactly (topK 6 / rrfK 60 / threshold 0.2 / budget 1200; ranges topK 1–100, rrfK 1–1000, budget
   64–8000).
 - **Manage tab** reuses `MemoryManagerPanel` (Memories / Persona / Activity) and is the only surface that
-  uses `MemoryClient`.
+  uses `MemoryClient`. Memory rows show a category badge and the Memories list has a local category filter;
+  `NULL` / missing categories are displayed and filtered as `uncategorized`. The manual add form exposes
+  `kind` and importance but not category.
 - **Inheritance.** Per-agent config inherits the builtin `deepchat` root then applies its own overrides
   (`override ?? base ?? default`). Clearing an override writes an **explicit `null`** (so an inherited value
   is never ossified onto a child agent); untouched booleans are omitted from the patch. The agent editor
@@ -579,13 +613,13 @@ Memory is a first-class, top-level settings section, configured strictly per-age
 ## 16. Schema and migrations
 
 A single global schema version is shared across all SQLite tables (the migration runner takes the max of
-every table's latest version). The memory work advanced it from 31 to **36**.
+every table's latest version). The memory work advanced it from 31 to **37**.
 
 | Table | Change | Migration |
 | --- | --- | --- |
-| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`. `getCreateTableSQL` is authoritative (new DB == migrated old DB). **Purely additive.** | Yes (`getMigrationSQL`) |
+| `agent_memory` | v32 backfills `embedding_model` + `source_entry_ids`; v33 adds `confidence` + `last_consolidated_at` + `conflict_state`; v34 adds `persona_state`; v35 adds `conflict_with`; v37 adds nullable `category`. `getCreateTableSQL` is authoritative (new DB == migrated old DB). `schemaCatalog.agent_memory.repairableColumns` can repair a missing `category` column. **Purely additive.** | Yes (`getMigrationSQL`) |
 | `agent_memory_fts` | FTS5 external-content virtual table + `ai`/`ad`/`au` triggers; tokenizer probed at runtime | No — built idempotently |
-| `agent_memory_audit` | **New table at v36** (the current global version): maintenance/user provenance ledger (`scheduler`/`user` actors + optional `session_id`), ids/metadata only | Yes (whole table) |
+| `agent_memory_audit` | New table at v36: maintenance/user provenance ledger (`scheduler`/`user` actors + optional `session_id`), ids/metadata only | Yes (whole table) |
 | `deepchat_tape_search_projection` (+ meta + FTS meta) | Searchable projection of the effective tape + FTS5 (content `PROJECTION_VERSION=2`) | No — version-exempt, rebuilt idempotently from raw tape |
 | `deepchat_sessions` | `memory_cursor_order_seq` now written monotonically (`MAX(...)`) | — |
 | DuckDB (per agent) | `memory_vector` (HNSW/cosine, `M=16`, `ef_construction=200`) + `embedding_meta` (identity; mismatch → fail-closed to FTS) | No — built at runtime |
@@ -606,8 +640,10 @@ enable memory (top-level Memory page / agent toggle)
 → <context-data kind="memory"> appended; persist memory/view_assembled manifest anchor
 → model replies
 → turn/resume/compaction → enqueueSessionExtraction (per-session serial, epoch-guarded)
-→ cursor + effective-view span + source_entry_ids lineage
-→ triage gate → extraction → decision ring (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with revival)
+→ cursor + effective-view span + source_entry_ids lineage + admission signals
+→ fallback admission (visible text + tool/backstop/substantive text) or compaction
+→ triage gate → extraction raw category candidates → normalization → decision ring
+  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with revival)
 → SQLite pending_embedding → cursor advances MAX + memory/extract anchor
 → background per-agent embedding (batched · fair · transactional) → DuckDB
 → [offline] self-scheduled sleep-time pass (6h cooldown): merge + conflict adjudication
@@ -624,12 +660,14 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
 - Injection sanitization; per-session serial extraction lock; monotonic cursor; insert error
   classification.
 - Vector upsert transaction + identity guard (fail-closed to FTS); reindex on dimension change.
-- Decision ring (five branches + fallbacks); provenance revival; conflict closure / resolution.
+- Decision ring (five branches + fallbacks); provenance revival; conflict closure / resolution; category
+  propagation and reflection/persona/working category guards.
 - Dual-score forgetting / four-condition archival; offline consolidation (cooldown / budget /
   restart-durable / idle debounce); reflection recall; working blob; guarded persona (default-off / draft /
   anchor / eval gate).
 - Lineage DTO + source span; tape projection FTS/BM25 + `tape_context`; atomic agent-deletion cleanup.
-- Settings surface (override clear / inheritance / clamp); retrieval eval (hit@3 / MRR / nDCG).
+- Settings surface (override clear / inheritance / clamp; category badge/filter); retrieval eval (hit@3 / MRR /
+  nDCG).
 
 The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is loadable (force with
 `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`); it is not wired to a CI Action. Run before merge: `pnpm run typecheck`,
@@ -641,11 +679,18 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 
 - **Triage SKIP is permanent.** A wrongly-SKIPped durable span is consumed and not re-extracted; mitigated by
   the conservative fail-open triage (KEEP unless an explicit SKIP).
+- **Category prose can drift.** The category enum/floors have one shared source of truth, but the automatic
+  extraction prompt and the `memory-management` skill intentionally carry separate prose for different
+  audiences.
+- **Manual add category is hidden.** `memory.add` supports category, but the Manage-tab manual add form only
+  exposes `kind` and importance; user-added rows default to uncategorized unless another caller supplies
+  category.
+- **Memory-management skill is opt-in.** The bundled skill is discoverable and has no `allowedTools`, but it
+  is not auto-pinned into every conversation to avoid permanent prompt cost.
 - **DuckDB disk reclaim.** Per-memory hard delete does not shrink the file; only a whole-store reset reclaims
-  (no `VACUUM`), so the file grows between resets. `deleteMemory` (and now `forgetMemory`) removes the row's
-  vector from the cached/opened store under the per-agent lock; if teardown is already underway the delete is
-  skipped, and the orphan vector is harmless because recall excludes archived rows and re-checks the
-  authoritative SQLite row.
+  (no `VACUUM`), so the file grows between resets. Permanent `deleteMemory` removes the row's vector from the
+  cached/opened store under the per-agent lock; `forgetMemory` is a soft archive and may leave an orphan
+  vector, which is harmless because recall excludes archived rows and re-checks the authoritative SQLite row.
 - **FTS5 native dependency.** Under vitest with an unloadable native ABI, the real FTS5/trigram eval skips;
   CI needs a working native build to exercise it.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
@@ -668,13 +713,15 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `IMPORTANCE_FLOOR_COEF` | 0.15 | recall floor |
 | `FTS_SIMILARITY_BASELINE` | 0.3 | keyword-only hit similarity |
 | `FORGET_HALF_LIFE_MS` | 30d (× `1 + importance`) | `decayScore` |
+| `CATEGORY_IMPORTANCE_FLOOR` | user_preference 0.5 · project_fact 0.6 · task_outcome 0.55 · heuristic 0.5 · anti_pattern 0.6 | write-time category floor |
 | archive thresholds | decay < 0.05 · access = 0 · age > 90d | `archiveStale` |
 | `DECISION_NEIGHBOR_TOP_S` | 10 | neighbors fed to the decision model |
 | `MAX_CANDIDATES` | 8 | extraction candidates per span |
 | triage / extraction span | last 4000 / 12000 chars | prompt truncation (tail) |
 | `MEMORY_FALLBACK_MIN_DELTA` | 6 | min orderSeq delta before fallback extraction |
+| `MEMORY_MIN_AGENTIC_TEXT_CHARS` | 160 | short non-tool fallback text threshold |
 | `CONSOLIDATION_IDLE_MS` | 5min | idle debounce after a write |
-| maintenance sweep | 60s after start + every 30min | global background sweep |
+| `MAINTENANCE_START_DELAY_MS` / `STARTUP_ARM_STAGGER_MS` | 60s / 5s | one-shot startup batch arm for active enabled agents |
 | `CONSOLIDATION_COOLDOWN_MS` | 6h | LLM-backed pass cooldown (restart-durable) |
 | `CONSOLIDATION_MAX_LLM_CALLS` / tokens | 8 / 24000 | `mergeNearDuplicates` budget |
 | `CONSOLIDATION_MERGE_SIMILARITY` | 0.85 | near-duplicate merge threshold |

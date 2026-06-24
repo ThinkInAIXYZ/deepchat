@@ -39,6 +39,7 @@ describeIfSqlite('AgentMemoryTable', () => {
         id: 'm1',
         agentId: 'deepchat',
         kind: 'semantic',
+        category: 'project_fact',
         content: '用户偏好简洁的中文回答',
         createdAt: 1000
       })
@@ -50,6 +51,7 @@ describeIfSqlite('AgentMemoryTable', () => {
       const fetched = table.getById('m1')
       expect(fetched?.content).toBe('用户偏好简洁的中文回答')
       expect(fetched?.agent_id).toBe('deepchat')
+      expect(fetched?.category).toBe('project_fact')
     } finally {
       db.close()
     }
@@ -107,6 +109,25 @@ describeIfSqlite('AgentMemoryTable', () => {
       expect(xMemories).toHaveLength(1)
       expect(xMemories[0]?.id).toBe('a1')
       expect(table.countByAgent('agent-y')).toBe(1)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('detects active memories and ignores archived-only agents', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'active-1', agentId: 'active-agent', kind: 'semantic', content: 'a' })
+      table.insert({ id: 'archived-1', agentId: 'archived-agent', kind: 'semantic', content: 'b' })
+      table.archive('archived-1')
+
+      expect(table.hasActiveMemory('active-agent')).toBe(true)
+      expect(table.hasActiveMemory('archived-agent')).toBe(false)
+      expect(table.hasActiveMemory('empty-agent')).toBe(false)
+      expect(table.listAgentIdsWithMemories()).toEqual(['active-agent'])
     } finally {
       db.close()
     }
@@ -375,11 +396,13 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(createSql).toContain('conflict_state')
       expect(createSql).toContain('persona_state')
       expect(createSql).toContain('conflict_with')
-      expect(table.getLatestVersion()).toBe(35)
+      expect(createSql).toContain('category')
+      expect(table.getLatestVersion()).toBe(37)
       expect(table.getMigrationSQL(32)).toMatch(/ADD COLUMN embedding_model/)
       expect(table.getMigrationSQL(33)).toMatch(/ADD COLUMN confidence/)
       expect(table.getMigrationSQL(34)).toMatch(/ADD COLUMN persona_state/)
       expect(table.getMigrationSQL(35)).toMatch(/ADD COLUMN conflict_with/)
+      expect(table.getMigrationSQL(37)).toMatch(/ADD COLUMN category/)
       expect(table.getMigrationSQL(31)).toBeNull()
 
       table.createTable()
@@ -389,6 +412,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(columns).toContain('embedding_model')
       expect(columns).toContain('persona_state')
       expect(columns).toContain('conflict_with')
+      expect(columns).toContain('category')
     } finally {
       db.close()
     }
@@ -695,6 +719,39 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('v37 migration adds nullable category to a legacy table', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      db.exec('ALTER TABLE agent_memory DROP COLUMN category')
+      db.prepare(
+        'INSERT INTO agent_memory (id, agent_id, kind, content, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('legacy-category', 'a', 'semantic', 'legacy fact', 1000)
+
+      const sql = table.getMigrationSQL(37)
+      expect(sql).toBeTruthy()
+      db.exec(sql as string)
+
+      const columns = (
+        db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{ name: string }>
+      ).map((column) => column.name)
+      expect(columns).toContain('category')
+      expect(table.getById('legacy-category')?.category).toBe(null)
+
+      table.insert({
+        id: 'categorized',
+        agentId: 'a',
+        kind: 'semantic',
+        category: 'project_fact',
+        content: 'categorized fact'
+      })
+      expect(table.getById('categorized')?.category).toBe('project_fact')
+    } finally {
+      db.close()
+    }
+  })
+
   it('getActivePersona honors the lifecycle tristate (legacy active / superseded / draft) (AC-1.6)', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -780,9 +837,12 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.updateContent('m1', 'new', 'new-key', 1234)
       expect(table.getById('m1')?.content).toBe('new')
       expect(table.getById('m1')?.provenance_key).toBe('new-key')
+      expect(table.getById('m1')?.category).toBeNull()
       expect(table.getById('m1')?.last_consolidated_at).toBeNull()
       // A content rewrite re-anchors the forgetting clock so the row reads as freshly touched.
       expect(table.getById('m1')?.last_accessed).toBe(1234)
+      table.updateContent('m1', 'newer', 'newer-key', 1235, 'project_fact')
+      expect(table.getById('m1')?.category).toBe('project_fact')
 
       table.setConfidence('m1', 0.8)
       expect(table.getById('m1')?.confidence).toBe(0.8)

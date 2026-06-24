@@ -714,10 +714,12 @@ import type {
   AgentAvatar as AgentAvatarValue,
   AgentTransferImpact,
   CreateDeepChatAgentInput,
+  DeepChatAgentConfig,
   DeepChatAgentModelSelection,
   DeepChatSubagentSlot,
   PermissionMode,
-  Project
+  Project,
+  UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import {
@@ -785,6 +787,22 @@ const AUTO_COMPACTION_TRIGGER_THRESHOLD_MAX = 95
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT = 2
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MIN = 1
 const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
+const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
+  'defaultModelPreset',
+  'assistantModel',
+  'visionModel',
+  'imageGenerationModel',
+  'defaultProjectPath',
+  'systemPrompt',
+  'permissionMode',
+  'subagentEnabled',
+  'subagents',
+  'disabledAgentTools',
+  'autoCompactionEnabled',
+  'autoCompactionTriggerThreshold',
+  'autoCompactionRetainRecentPairs',
+  'memoryEnabled'
+]
 const GROUP_ORDER = [
   'agent-filesystem',
   'agent-core',
@@ -821,6 +839,7 @@ const transferDialogBusy = ref(false)
 const transferDialogError = ref<string | null>(null)
 const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
+const originalForm = ref<FormState | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -1108,8 +1127,10 @@ const emptyForm = (): FormState => ({
 })
 
 const memoryEnabledTouched = ref(false)
+const cloneForm = (state: FormState): FormState => JSON.parse(JSON.stringify(state)) as FormState
 const assignForm = (next: FormState) => {
   Object.assign(form, next)
+  originalForm.value = cloneForm(next)
   memoryEnabledTouched.value = false
 }
 const normalizePath = (value: string | null | undefined) => {
@@ -1154,6 +1175,66 @@ const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | n
     max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
     integer: true
   })
+const buildEditableConfig = (
+  state: FormState,
+  options: { includeMemoryEnabled: boolean }
+): DeepChatAgentConfig => {
+  const config: DeepChatAgentConfig = {
+    defaultModelPreset: buildModelSelection(state.chatModel),
+    assistantModel: buildModelSelection(state.assistantModel),
+    visionModel: buildModelSelection(state.visionModel),
+    imageGenerationModel: buildModelSelection(state.imageGenerationModel),
+    defaultProjectPath: normalizePath(state.defaultProjectPath),
+    systemPrompt: state.systemPrompt,
+    permissionMode: state.permissionMode,
+    subagentEnabled: state.subagentEnabled,
+    subagents: normalizeDeepChatSubagentSlots(state.subagents),
+    disabledAgentTools: [...state.disabledAgentTools],
+    autoCompactionEnabled: state.autoCompactionEnabled,
+    autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
+      state.autoCompactionTriggerThreshold
+    ),
+    autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
+      state.autoCompactionRetainRecentPairs
+    )
+  }
+
+  if (options.includeMemoryEnabled) {
+    config.memoryEnabled = state.memoryEnabled
+  }
+
+  return config
+}
+const hasOwn = (value: object, key: PropertyKey): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key)
+const isSameConfigValue = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+const setConfigValue = <K extends keyof DeepChatAgentConfig>(
+  patch: DeepChatAgentConfig,
+  key: K,
+  value: DeepChatAgentConfig[K]
+) => {
+  patch[key] = value
+}
+const buildUpdateConfigPatch = (): DeepChatAgentConfig | undefined => {
+  const baselineForm = originalForm.value
+  if (!baselineForm) {
+    return buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+  }
+
+  const current = buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+  const baseline = buildEditableConfig(baselineForm, { includeMemoryEnabled: true })
+  const patch: DeepChatAgentConfig = {}
+
+  for (const key of CONFIG_DIFF_KEYS) {
+    if (!hasOwn(current, key)) continue
+    if (!isSameConfigValue(current[key], baseline[key])) {
+      setConfigValue(patch, key, current[key])
+    }
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined
+}
 const createAgentSlotId = () =>
   `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
@@ -1433,38 +1514,25 @@ const saveAgent = async () => {
   saving.value = true
   saveError.value = null
   try {
-    const payload: CreateDeepChatAgentInput = {
+    const basePayload = {
       name: form.name.trim(),
       enabled: form.enabled,
       description: form.description.trim() || undefined,
-      avatar: buildAvatar(),
-      config: {
-        defaultModelPreset: buildModelSelection(form.chatModel),
-        assistantModel: buildModelSelection(form.assistantModel),
-        visionModel: buildModelSelection(form.visionModel),
-        imageGenerationModel: buildModelSelection(form.imageGenerationModel),
-        defaultProjectPath: normalizePath(form.defaultProjectPath),
-        systemPrompt: form.systemPrompt,
-        permissionMode: form.permissionMode,
-        subagentEnabled: form.subagentEnabled,
-        subagents: normalizeDeepChatSubagentSlots(form.subagents),
-        disabledAgentTools: [...form.disabledAgentTools],
-        autoCompactionEnabled: form.autoCompactionEnabled,
-        autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
-          form.autoCompactionTriggerThreshold
-        ),
-        autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
-          form.autoCompactionRetainRecentPairs
-        ),
-        // Only persist memoryEnabled when the user actually toggled it; otherwise omit so the
-        // shallow merge keeps the inherited value instead of ossifying it.
-        ...(memoryEnabledTouched.value ? { memoryEnabled: form.memoryEnabled } : {})
-      }
+      avatar: buildAvatar()
     }
     if (form.id) {
+      const configPatch = buildUpdateConfigPatch()
+      const payload: UpdateDeepChatAgentInput = {
+        ...basePayload,
+        ...(configPatch ? { config: configPatch } : {})
+      }
       const updated = await configClient.updateDeepChatAgent(form.id, payload)
       await loadAgents(updated?.id ?? form.id)
     } else {
+      const payload: CreateDeepChatAgentInput = {
+        ...basePayload,
+        config: buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+      }
       const created = await configClient.createDeepChatAgent(payload)
       await loadAgents(created.id)
     }

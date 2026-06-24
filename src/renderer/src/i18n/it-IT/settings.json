@@ -225,7 +225,18 @@
       "searchFailed": "Ricerca non riuscita. Riprova.",
       "deletePermanent": "Elimina definitivamente",
       "deleteConfirmTitle": "Eliminare definitivamente questa memoria?",
-      "deleteConfirmBody": "Questo rimuove la memoria invece di archiviarla. L’azione non può essere annullata."
+      "deleteConfirmBody": "Questo rimuove la memoria invece di archiviarla. L’azione non può essere annullata.",
+      "categoryFilterLabel": "Categoria",
+      "categoryFilterAll": "Tutte le categorie",
+      "categoryUncategorized": "Senza categoria",
+      "noCategoryResults": "Nessuna memoria in questa categoria.",
+      "category": {
+        "user_preference": "Preferenza utente",
+        "project_fact": "Fatto di progetto",
+        "task_outcome": "Esito dell'attività",
+        "heuristic": "Euristica",
+        "anti_pattern": "Anti-modello"
+      }
     },
     "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",
     "personaEvolutionDescription": "Lascia che la riflessione proponga modelli di sé aggiornati come bozze da approvare. Indipendente dalla memoria; disattivata per impostazione predefinita.",

@@ -3,7 +3,7 @@
 ## Task List
 
 - [x] T01 - Update CUA upstream metadata
-  - Replace old Swift fork metadata with pinned `cua-driver-rs-v0.5.5` metadata.
+  - Replace old Swift fork metadata with pinned `cua-driver-rs-v0.6.7` metadata.
   - Record supported and unsupported platform/arch targets.
   - Add expected upstream asset names and checksum source.
 
@@ -30,7 +30,7 @@
 
 - [x] T05 - Update CUA tool policies
   - Remove Swift-era `screenshot` and `set_recording` assumptions.
-  - Add policies for v0.5.5 read-only, action, recording, session, update, and platform-specific
+  - Add policies for v0.6.7 read-only, action, recording, session, update, and platform-specific
     tools.
   - Add a test that fails when a known upstream tool lacks an explicit policy.
 
@@ -54,10 +54,10 @@
   - Keep official plugin verification failing on missing expected artifacts.
 
 - [x] T09 - Update DeepChat skill docs
-  - Adapt upstream v0.5.5 skill guidance to DeepChat's bundled integration.
+  - Adapt upstream v0.6.7 skill guidance to DeepChat's bundled integration.
   - Remove manual installer, PATH, and user-managed MCP setup language.
   - Add macOS, Windows, and Linux platform caveats.
-  - Replace old tool names with v0.5.5 tool names.
+  - Replace old tool names with v0.6.7 tool names.
 
 - [x] T10 - Update settings and permission status
   - Keep macOS accessibility and screen-capture permission handling.

@@ -2332,7 +2332,18 @@
       "searchFailed": "החיפוש נכשל. נסה שוב.",
       "deletePermanent": "מחיקה לצמיתות",
       "deleteConfirmTitle": "למחוק את הזיכרון הזה לצמיתות?",
-      "deleteConfirmBody": "פעולה זו מסירה את הזיכרון במקום לארכב אותו. לא ניתן לבטל אותה."
+      "deleteConfirmBody": "פעולה זו מסירה את הזיכרון במקום לארכב אותו. לא ניתן לבטל אותה.",
+      "categoryFilterLabel": "קטגוריה",
+      "categoryFilterAll": "כל הקטגוריות",
+      "categoryUncategorized": "ללא קטגוריה",
+      "noCategoryResults": "אין זיכרונות בקטגוריה זו.",
+      "category": {
+        "user_preference": "העדפת משתמש",
+        "project_fact": "עובדת פרויקט",
+        "task_outcome": "תוצאת משימה",
+        "heuristic": "כלל אצבע",
+        "anti_pattern": "אנטי-תבנית"
+      }
     },
     "personaEvolutionTitle": "התפתחות פרסונה (ניסיוני)",
     "personaEvolutionDescription": "אפשר לרפלקציה להציע מודלים עצמיים מעודכנים כטיוטות לאישורך. בלתי תלוי בזיכרון; כבוי כברירת מחדל.",

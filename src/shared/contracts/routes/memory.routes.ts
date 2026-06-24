@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
+import { AGENT_MEMORY_CATEGORIES } from '../../types/agent-memory'
 
 /** URL-safe agent ids, matching the main-process memory storage guard. */
 const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentId')
@@ -8,6 +9,7 @@ export const MemoryItemSchema = z.object({
   id: z.string(),
   agentId: z.string(),
   kind: z.enum(['episodic', 'semantic', 'reflection', 'persona']),
+  category: z.enum(AGENT_MEMORY_CATEGORIES).nullable(),
   content: z.string(),
   importance: z.number(),
   status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived', 'conflicted']),
@@ -109,6 +111,7 @@ export const memoryAddRoute = defineRouteContract({
     agentId: AgentIdSchema,
     content: z.string().min(1),
     kind: z.enum(['episodic', 'semantic']).optional(),
+    category: z.enum(AGENT_MEMORY_CATEGORIES).optional(),
     importance: z.number().min(0).max(1).optional()
   }),
   output: z.object({ result: MemoryAddResultSchema })

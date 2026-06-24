@@ -133,12 +133,38 @@
         </div>
 
         <div v-if="memories.length > 0 || searchActive" class="mb-3 space-y-1.5">
-          <Input
-            v-model="searchQuery"
-            type="search"
-            class="h-8 text-xs"
-            :placeholder="t('settings.deepchatAgents.memoryManager.searchPlaceholder')"
-          />
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <Input
+              v-model="searchQuery"
+              type="search"
+              class="h-8 text-xs sm:flex-1"
+              :placeholder="t('settings.deepchatAgents.memoryManager.searchPlaceholder')"
+            />
+            <Select v-model="categoryFilter">
+              <SelectTrigger
+                class="h-8 text-xs sm:w-44"
+                :aria-label="t('settings.deepchatAgents.memoryManager.categoryFilterLabel')"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" class="text-xs">
+                  {{ t('settings.deepchatAgents.memoryManager.categoryFilterAll') }}
+                </SelectItem>
+                <SelectItem
+                  v-for="category in AGENT_MEMORY_CATEGORIES"
+                  :key="category"
+                  :value="category"
+                  class="text-xs"
+                >
+                  {{ categoryLabel(category) }}
+                </SelectItem>
+                <SelectItem value="uncategorized" class="text-xs">
+                  {{ t('settings.deepchatAgents.memoryManager.categoryUncategorized') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <p v-if="searchError" class="text-[11px] text-destructive">
             {{ searchError }}
           </p>
@@ -204,11 +230,7 @@
           v-else-if="displayedMemories.length === 0"
           class="py-10 text-center text-sm text-muted-foreground"
         >
-          {{
-            searchActive
-              ? t('settings.deepchatAgents.memoryManager.noSearchResults')
-              : t('settings.deepchatAgents.memoryManager.emptyMemories')
-          }}
+          {{ emptyMemoryMessage }}
         </div>
         <ScrollArea v-else class="h-[360px] pr-3">
           <ul class="space-y-2">
@@ -222,6 +244,9 @@
                 <p class="wrap-break-word text-sm">{{ memory.content }}</p>
                 <div class="mt-1 flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline" class="text-[10px]">{{ memory.kind }}</Badge>
+                  <Badge variant="secondary" class="text-[10px]">
+                    {{ categoryLabel(memory.category) }}
+                  </Badge>
                   <Badge :variant="statusVariant(memory.status)" class="text-[10px]">
                     {{ t(`settings.deepchatAgents.memoryManager.status.${memory.status}`) }}
                   </Badge>
@@ -625,6 +650,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { createMemoryClient } from '@api/MemoryClient'
 import { useToast } from '@/components/use-toast'
+import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import type {
   MemoryAddResult,
   MemoryAuditEvent,
@@ -635,6 +661,8 @@ import type {
   MemoryStatusDto,
   MemoryViewManifest
 } from '@shared/contracts/routes'
+
+type MemoryCategoryFilter = AgentMemoryCategory | 'all' | 'uncategorized'
 
 const props = defineProps<{
   agentId: string
@@ -656,6 +684,7 @@ const searchQuery = ref('')
 const searchResults = ref<MemorySearchResult[]>([])
 const searching = ref(false)
 const IMPORTANCE_VALUES: Record<string, number> = { low: 0.3, medium: 0.5, high: 0.8 }
+const categoryFilter = ref<MemoryCategoryFilter>('all')
 const showAddForm = ref(false)
 const addContent = ref('')
 const addKind = ref<'episodic' | 'semantic'>('semantic')
@@ -741,9 +770,22 @@ async function refresh(): Promise<void> {
 }
 
 const searchActive = computed(() => searchQuery.value.trim().length > 0)
-const displayedMemories = computed<MemoryItem[]>(() =>
+const categoryFilterActive = computed(() => categoryFilter.value !== 'all')
+const baseDisplayedMemories = computed<MemoryItem[]>(() =>
   searchActive.value ? searchResults.value : memories.value
 )
+const displayedMemories = computed<MemoryItem[]>(() =>
+  baseDisplayedMemories.value.filter(matchesCategoryFilter)
+)
+const emptyMemoryMessage = computed(() => {
+  if (searchActive.value && baseDisplayedMemories.value.length === 0) {
+    return t('settings.deepchatAgents.memoryManager.noSearchResults')
+  }
+  if (categoryFilterActive.value) {
+    return t('settings.deepchatAgents.memoryManager.noCategoryResults')
+  }
+  return t('settings.deepchatAgents.memoryManager.emptyMemories')
+})
 
 // A response may only write when it is still the latest dispatch (requestId) for the current agent
 // and query. The id carries ordering; the agent/query checks make the staleness guard self-evident.
@@ -778,6 +820,17 @@ function resetSearch(): void {
   searchResults.value = []
   searchError.value = null
   searching.value = false
+}
+
+function matchesCategoryFilter(memory: MemoryItem): boolean {
+  if (categoryFilter.value === 'all') return true
+  if (categoryFilter.value === 'uncategorized') return memory.category == null
+  return memory.category === categoryFilter.value
+}
+
+function categoryLabel(category: AgentMemoryCategory | null | undefined): string {
+  if (category == null) return t('settings.deepchatAgents.memoryManager.categoryUncategorized')
+  return t(`settings.deepchatAgents.memoryManager.category.${category}`)
 }
 
 watch(searchQuery, (value) => {
@@ -1048,6 +1101,7 @@ watch(
   () => props.agentId,
   () => {
     activeTab.value = 'memories'
+    categoryFilter.value = 'all'
     resetSearch()
     resetAddForm()
     void refresh()

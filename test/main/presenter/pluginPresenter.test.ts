@@ -829,11 +829,16 @@ describe('PluginPresenter', () => {
     expect(presenterSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
 
-  it('uses the CUA permission probe for runtime checks', async () => {
+  it('uses upstream-compatible CUA permission tool args for runtime checks', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+    const presenter = await createPluginPresenter('darwin')
 
-    expect(presenterSource).toContain('deepchat-permission-probe')
-    expect(presenterSource).toContain('Runtime permission probe failed')
+    expect((presenter as any).runtimePermissionToolArgs()).toEqual([
+      'check_permissions',
+      '{"prompt":false}'
+    ])
+    expect(presenterSource).not.toContain('deepchat-permission-probe')
+    expect(presenterSource).not.toContain('Runtime permission probe failed')
   })
 
   it('opens the detected macOS helper app for runtime permission guidance', async () => {
@@ -918,6 +923,26 @@ describe('PluginPresenter', () => {
       }
     })
     expect(result.error).toBeUndefined()
+  })
+
+  it('parses CUA permission text and removes misleading shell hints', async () => {
+    const presenter = await createPluginPresenter('darwin')
+
+    const result = (presenter as any).parseRuntimePermissionToolResult(
+      '/mock/deepchat-cua-driver',
+      '❌ Accessibility: NOT granted.\n✅ Screen Recording: granted.\n',
+      ''
+    )
+    const message = (presenter as any).sanitizePermissionError(
+      'Command failed. hint: PowerShell 5.1 strips quotes around JSON field names. Fallback: Command failed.'
+    )
+
+    expect(result).toMatchObject({
+      accessibility: 'missing',
+      screenRecording: 'granted'
+    })
+    expect(message).not.toContain('PowerShell')
+    expect(message).toContain('Fallback: Command failed.')
   })
 
   it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {
@@ -1082,7 +1107,7 @@ describe('PluginPresenter', () => {
     expect(mcpConfig.env).toEqual(server.env)
   })
 
-  it('keeps CUA v0.5.5 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.6.7 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1161,15 +1186,15 @@ describe('PluginPresenter', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.6.5',
-      commit: '61f7624789adfeb771561e035c7e7c2ba94ab03d',
-      version: '0.6.5',
+      tag: 'cua-driver-rs-v0.6.7',
+      commit: '2cba1e769264a18f5a9d5f4e419729eb7fc17962',
+      version: '0.6.7',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.5-windows-x86_64.zip')
-    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.5-windows-arm64.zip')
-    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.5-linux-x86_64-binary.tar.gz')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.7-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.7-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.7-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')

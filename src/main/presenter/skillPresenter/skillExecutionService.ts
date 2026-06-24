@@ -178,7 +178,7 @@ export class SkillExecutionService {
   private async resolveExecutionCwd(conversationId: string, skillRoot: string): Promise<string> {
     const normalizedSkillRoot = path.resolve(skillRoot)
     if (!this.resolveConversationWorkdir) {
-      return normalizedSkillRoot
+      return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
     }
 
     try {
@@ -191,22 +191,16 @@ export class SkillExecutionService {
           if (stat.isDirectory()) {
             return resolvedPath
           }
-          logger.warn(
-            '[SkillExecutionService] Conversation workdir is not a directory, falling back to skill root',
-            {
-              conversationId,
-              invalidWorkdir: resolvedPath
-            }
-          )
+          logger.warn('[SkillExecutionService] Conversation workdir is not a directory', {
+            conversationId,
+            invalidWorkdir: resolvedPath
+          })
         } catch (error) {
-          logger.warn(
-            '[SkillExecutionService] Conversation workdir is invalid, falling back to skill root',
-            {
-              conversationId,
-              invalidWorkdir: resolvedPath,
-              error
-            }
-          )
+          logger.warn('[SkillExecutionService] Conversation workdir is invalid', {
+            conversationId,
+            invalidWorkdir: resolvedPath,
+            error
+          })
         }
       }
     } catch (error) {
@@ -216,14 +210,35 @@ export class SkillExecutionService {
       })
     }
 
-    logger.warn(
-      '[SkillExecutionService] Missing conversation workdir, falling back to skill root',
-      {
-        conversationId,
-        skillRoot: normalizedSkillRoot
-      }
-    )
-    return normalizedSkillRoot
+    logger.warn('[SkillExecutionService] Missing conversation workdir, using session directory', {
+      conversationId,
+      skillRoot: normalizedSkillRoot
+    })
+    return this.resolveFallbackExecutionCwd(conversationId, normalizedSkillRoot)
+  }
+
+  private resolveFallbackExecutionCwd(conversationId: string, skillRoot: string): string {
+    const sessionDir = resolveSessionDir(conversationId)
+    if (!sessionDir) {
+      return skillRoot
+    }
+
+    try {
+      fs.mkdirSync(sessionDir, { recursive: true })
+      return sessionDir
+    } catch (error) {
+      logger.warn(
+        '[SkillExecutionService] Failed to create session directory, falling back to skill root',
+        {
+          conversationId,
+          sessionDir,
+          skillRoot,
+          error
+        }
+      )
+    }
+
+    return skillRoot
   }
 
   private resolveRequestedScript(

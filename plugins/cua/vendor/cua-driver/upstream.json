@@ -2,29 +2,29 @@
   "sourceKind": "upstream-release",
   "upstreamRepo": "https://github.com/trycua/cua.git",
   "upstreamSubdir": "libs/cua-driver/rust",
-  "tag": "cua-driver-rs-v0.6.5",
-  "commit": "61f7624789adfeb771561e035c7e7c2ba94ab03d",
-  "version": "0.6.5",
-  "updatedAt": "2026-06-23",
-  "releaseUrl": "https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.6.5",
+  "tag": "cua-driver-rs-v0.6.7",
+  "commit": "2cba1e769264a18f5a9d5f4e419729eb7fc17962",
+  "version": "0.6.7",
+  "updatedAt": "2026-06-24",
+  "releaseUrl": "https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.6.7",
   "checksumsAsset": "checksums.txt",
   "supportedTargets": ["darwin/arm64", "darwin/x64", "win32/x64", "win32/arm64", "linux/x64"],
   "unsupportedTargets": ["linux/arm64"],
   "assets": {
     "darwin-arm64": {
-      "name": "cua-driver-rs-0.6.5-darwin-arm64.tar.gz"
+      "name": "cua-driver-rs-0.6.7-darwin-arm64.tar.gz"
     },
     "darwin-x64": {
-      "name": "cua-driver-rs-0.6.5-darwin-x86_64.tar.gz"
+      "name": "cua-driver-rs-0.6.7-darwin-x86_64.tar.gz"
     },
     "windows-x64": {
-      "name": "cua-driver-rs-0.6.5-windows-x86_64.zip"
+      "name": "cua-driver-rs-0.6.7-windows-x86_64.zip"
     },
     "windows-arm64": {
-      "name": "cua-driver-rs-0.6.5-windows-arm64.zip"
+      "name": "cua-driver-rs-0.6.7-windows-arm64.zip"
     },
     "linux-x64": {
-      "name": "cua-driver-rs-0.6.5-linux-x86_64-binary.tar.gz"
+      "name": "cua-driver-rs-0.6.7-linux-x86_64-binary.tar.gz"
     }
   },
   "releasePolicy": "Stage pinned upstream release assets at build time. Do not run upstream installers or require PATH-installed runtime binaries for the bundled DeepChat plugin."

@@ -1021,10 +1021,13 @@ describe('sessionStore pagination', () => {
     })
     await store.fetchSessions()
 
-    sessionClient.listLightweight.mockResolvedValueOnce({
-      items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
-      hasMore: false,
-      nextCursor: null
+    sessionClient.listLightweight.mockImplementationOnce(async (input: { cursor?: unknown }) => {
+      structuredClone(input.cursor)
+      return {
+        items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
+        hasMore: false,
+        nextCursor: null
+      }
     })
     await store.loadNextPage()
 
@@ -1033,6 +1036,7 @@ describe('sessionStore pagination', () => {
       includeSubagents: false,
       cursor: { updatedAt: 30, id: 'session-a' }
     })
+    expect(lastCall.cursor).not.toBe(store.nextCursor?.value)
     expect(store.hasMore.value).toBe(false)
     expect(store.sessions.value.map((session: { id: string }) => session.id)).toEqual([
       'session-a',

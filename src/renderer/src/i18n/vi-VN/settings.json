@@ -225,7 +225,18 @@
       "searchFailed": "Tìm kiếm thất bại. Hãy thử lại.",
       "deletePermanent": "Xóa vĩnh viễn",
       "deleteConfirmTitle": "Xóa vĩnh viễn ký ức này?",
-      "deleteConfirmBody": "Thao tác này xóa ký ức thay vì lưu trữ. Không thể hoàn tác."
+      "deleteConfirmBody": "Thao tác này xóa ký ức thay vì lưu trữ. Không thể hoàn tác.",
+      "categoryFilterLabel": "Danh mục",
+      "categoryFilterAll": "Tất cả danh mục",
+      "categoryUncategorized": "Chưa phân loại",
+      "noCategoryResults": "Không có bộ nhớ nào trong danh mục này.",
+      "category": {
+        "user_preference": "Sở thích người dùng",
+        "project_fact": "Thông tin dự án",
+        "task_outcome": "Kết quả tác vụ",
+        "heuristic": "Quy tắc kinh nghiệm",
+        "anti_pattern": "Phản mẫu"
+      }
     },
     "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",
     "personaEvolutionDescription": "Cho phép quá trình phản tư đề xuất các mô hình bản thân cập nhật dưới dạng bản nháp để bạn phê duyệt. Độc lập với bộ nhớ; mặc định tắt.",

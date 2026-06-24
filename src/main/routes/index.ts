@@ -26,6 +26,7 @@ import type {
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
+import { isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
@@ -457,11 +458,16 @@ function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null 
   return null
 }
 
+function normalizeMemoryCategory(value: unknown) {
+  return isAgentMemoryCategory(value) ? value : null
+}
+
 export function toMemoryItemDto(row: AgentMemoryRow) {
   return {
     id: row.id,
     agentId: row.agent_id,
     kind: row.kind,
+    category: normalizeMemoryCategory(row.category),
     content: row.content,
     importance: row.importance,
     status: row.status,
@@ -2197,6 +2203,7 @@ export async function dispatchDeepchatRoute(
       const outcome = await runtime.memoryPresenter.addUserMemory(input.agentId, {
         content: input.content,
         kind: input.kind,
+        category: input.category,
         importance: input.importance
       })
       return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })

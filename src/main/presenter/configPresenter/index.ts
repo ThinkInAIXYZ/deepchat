@@ -199,6 +199,22 @@ const DEPRECATED_PROVIDER_MODEL_SETTING_KEYS: ProviderModelSettingKey[] = [
   'defaultVisionModel',
   'preferredModel'
 ]
+const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
+  'memoryEnabled',
+  'memoryExtractionModel',
+  'personaEvolutionEnabled',
+  'assistantModel',
+  'defaultModelPreset'
+]
+
+const hasMemoryMaintenanceTriggerConfigUpdate = (
+  updates: Partial<DeepChatAgentConfig> | null | undefined
+): boolean => {
+  if (!updates) return false
+  return MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS.some((key) =>
+    Object.prototype.hasOwnProperty.call(updates, key)
+  )
+}
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
   Object.prototype.hasOwnProperty.call(provider, 'authMode') || provider.oauthToken !== undefined
@@ -419,6 +435,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
   private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
+  private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
@@ -591,6 +608,8 @@ export class ConfigPresenter implements IConfigPresenter {
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
     this.initializeUnifiedAgents()
+    // The memory-maintenance callback is wired later by Presenter, so these migration writes may
+    // intentionally no-op for maintenance arming during construction.
     this.reconcileLegacyBuiltinAgentSelections()
     this.cleanupDeprecatedBuiltinAgentSelections()
   }
@@ -608,6 +627,20 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setDeepChatAgentDeleteCleanup(cleanup: (agentId: string) => Promise<void>): void {
     this.deepChatAgentDeleteCleanup = cleanup
+  }
+
+  setDeepChatAgentMemoryMaintenanceConfigChanged(callback: (agentId: string) => void): void {
+    this.deepChatAgentMemoryMaintenanceConfigChanged = callback
+  }
+
+  private notifyDeepChatAgentMemoryMaintenanceConfigChanged(agentId: string): void {
+    try {
+      this.deepChatAgentMemoryMaintenanceConfigChanged?.(agentId)
+    } catch (error) {
+      logger.warn(
+        `[Config] DeepChat agent memory maintenance config callback failed: ${String(error)}`
+      )
+    }
   }
 
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {
@@ -951,9 +984,12 @@ export class ConfigPresenter implements IConfigPresenter {
       return
     }
 
-    this.agentRepository.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
+    const updated = this.agentRepository.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
       config: updates
     })
+    if (updated && hasMemoryMaintenanceTriggerConfigUpdate(updates)) {
+      this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(BUILTIN_DEEPCHAT_AGENT_ID)
+    }
     this.notifyAcpAgentsChanged()
   }
 
@@ -2683,6 +2719,9 @@ export class ConfigPresenter implements IConfigPresenter {
   ): Promise<Agent | null> {
     const updated = this.getAgentRepositoryOrThrow().updateDeepChatAgent(agentId, updates)
     if (updated) {
+      if (hasMemoryMaintenanceTriggerConfigUpdate(updates.config)) {
+        this.notifyDeepChatAgentMemoryMaintenanceConfigChanged(agentId)
+      }
       this.notifyAcpAgentsChanged()
     }
     return updated

@@ -1457,6 +1457,64 @@ describe('SkillPresenter', () => {
       expect(result.error).toContain('already exists')
     })
 
+    it('should reinstall over stale residue without backup rename', async () => {
+      const targetDir = `${DEFAULT_SKILLS_DIR}/reloaded-skill`
+      let removed = false
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === '/source/reloaded' || target === '/source/reloaded/SKILL.md') return true
+        if (target === targetDir) return !removed
+        if (target === `${targetDir}/SKILL.md`) return false
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === targetDir) {
+          removed = true
+        }
+      })
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(fs.readdirSync as Mock).mockReturnValue([])
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'reloaded-skill', description: 'Reloaded skill' },
+        content: '# Content'
+      })
+
+      const result = await skillPresenter.installFromFolder('/source/reloaded', { overwrite: true })
+
+      expect(result).toEqual({ success: true, skillName: 'reloaded-skill' })
+      expect(fs.rmSync).toHaveBeenCalledWith(targetDir, { recursive: true, force: true })
+      expect(fs.renameSync).not.toHaveBeenCalled()
+    })
+
+    it('should return target_locked when overwrite backup rename is denied', async () => {
+      const targetDir = `${DEFAULT_SKILLS_DIR}/locked-skill`
+      const lockError = Object.assign(new Error('EPERM: operation not permitted, rename'), {
+        code: 'EPERM'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === '/source/locked' || target === '/source/locked/SKILL.md') return true
+        if (target === targetDir || target === `${targetDir}/SKILL.md`) return true
+        return false
+      })
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'locked-skill', description: 'Locked skill' },
+        content: '# Content'
+      })
+      ;(fs.renameSync as Mock).mockImplementation(() => {
+        throw lockError
+      })
+
+      const result = await skillPresenter.installFromFolder('/source/locked', { overwrite: true })
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'target_locked',
+        skillName: 'locked-skill',
+        targetPath: targetDir
+      })
+      expect(fs.rmSync).not.toHaveBeenCalledWith(targetDir, { recursive: true, force: true })
+    })
+
     it('should successfully install a valid skill', async () => {
       // Mock path functions first
       ;(path.resolve as Mock).mockImplementation((p: string) => {
@@ -1536,18 +1594,51 @@ describe('SkillPresenter', () => {
   })
 
   describe('uninstallSkill', () => {
-    it('should fail if skill does not exist', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(false)
+    it('should clean stale local state when skill directory no longer exists', async () => {
+      const sidecarPath = `${DEFAULT_SKILLS_DIR}/.deepchat-meta/nonexistent.json`
+      ;(skillPresenter as any).metadataCache.set(
+        'nonexistent',
+        createSkillMetadata('nonexistent', 'nonexistent')
+      )
+      ;(skillPresenter as any).contentCache.set('nonexistent', {
+        name: 'nonexistent',
+        content: 'content'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => target === sidecarPath)
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.uninstallSkill('nonexistent')
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('not found')
+      expect(result.errorCode).toBe('not_found')
+      expect(fs.rmSync).toHaveBeenCalledWith(sidecarPath, { force: true })
+      expect((skillPresenter as any).metadataCache.has('nonexistent')).toBe(false)
+      expect((skillPresenter as any).contentCache.has('nonexistent')).toBe(false)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+    })
+
+    it('should not remove sidecar paths for invalid missing skill names', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(false)
+
+      const result = await skillPresenter.uninstallSkill('../outside')
+
+      expect(result.errorCode).toBe('not_found')
+      expect(fs.rmSync).not.toHaveBeenCalled()
     })
 
     it('should successfully uninstall a skill', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(true)
-      ;(fs.rmSync as Mock).mockReturnValue(undefined)
+      const skillDir = `${DEFAULT_SKILLS_DIR}/test-skill`
+      let removed = false
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) return !removed
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) {
+          removed = true
+        }
+      })
 
       const result = await skillPresenter.uninstallSkill('test-skill')
 
@@ -1562,6 +1653,38 @@ describe('SkillPresenter', () => {
           version: expect.any(Number)
         })
       )
+    })
+
+    it('should not clear caches or publish success when uninstall cannot remove the folder', async () => {
+      const skillDir = `${DEFAULT_SKILLS_DIR}/locked-skill`
+      const lockError = Object.assign(new Error('EPERM: operation not permitted, rmdir'), {
+        code: 'EPERM'
+      })
+      ;(skillPresenter as any).metadataCache.set(
+        'locked-skill',
+        createSkillMetadata('locked-skill', 'locked-skill')
+      )
+      ;(skillPresenter as any).contentCache.set('locked-skill', {
+        name: 'locked-skill',
+        content: 'content'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => target === skillDir)
+      ;(fs.rmSync as Mock).mockImplementation(() => {
+        throw lockError
+      })
+      publishDeepchatEventMock.mockClear()
+
+      const result = await skillPresenter.uninstallSkill('locked-skill')
+
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'target_locked',
+        skillName: 'locked-skill',
+        targetPath: skillDir
+      })
+      expect((skillPresenter as any).metadataCache.has('locked-skill')).toBe(true)
+      expect((skillPresenter as any).contentCache.has('locked-skill')).toBe(true)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
 
@@ -1843,7 +1966,17 @@ describe('SkillPresenter', () => {
     })
 
     it('should remove sidecar config when uninstalling a skill', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(true)
+      const skillDir = `${DEFAULT_SKILLS_DIR}/test-skill`
+      let removed = false
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) return !removed
+        return true
+      })
+      ;(fs.rmSync as Mock).mockImplementation((target: string) => {
+        if (target === skillDir) {
+          removed = true
+        }
+      })
 
       await skillPresenter.uninstallSkill('test-skill')
 
