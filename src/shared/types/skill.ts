@@ -78,9 +78,10 @@ export interface SkillScriptDescriptor {
 export interface SkillInstallResult {
   success: boolean
   error?: string
-  errorCode?: 'conflict' | 'invalid_skill' | 'not_found' | 'io_error'
+  errorCode?: 'conflict' | 'invalid_skill' | 'not_found' | 'io_error' | 'target_locked'
   skillName?: string
   existingSkillName?: string
+  targetPath?: string
 }
 
 /**

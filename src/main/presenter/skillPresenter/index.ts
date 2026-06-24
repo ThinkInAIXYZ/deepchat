@@ -1318,7 +1318,10 @@ export class SkillPresenter implements ISkillPresenter {
             existingSkillName: skillName
           }
         }
-        this.backupExistingSkill(skillName)
+        const replaceResult = this.prepareExistingSkillTargetForInstall(skillName, resolvedTarget)
+        if (replaceResult) {
+          return replaceResult
+        }
         this.metadataCache.delete(skillName)
         this.contentCache.delete(skillName)
       }
@@ -1346,6 +1349,26 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  private prepareExistingSkillTargetForInstall(
+    skillName: string,
+    targetDir: string
+  ): SkillInstallResult | null {
+    try {
+      const existingSkillPath = path.join(targetDir, 'SKILL.md')
+      if (fs.existsSync(existingSkillPath)) {
+        this.backupExistingSkill(skillName)
+      } else {
+        fs.rmSync(targetDir, { recursive: true, force: true })
+        if (fs.existsSync(targetDir)) {
+          return this.createTargetLockedFailure(skillName, targetDir, 'replace')
+        }
+      }
+      return null
+    } catch (error) {
+      return this.createTargetOperationFailure(skillName, targetDir, 'replace', error)
+    }
+  }
+
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -1357,6 +1380,46 @@ export class SkillPresenter implements ISkillPresenter {
     }
     fs.renameSync(sourceDir, backupDir)
     return backupDir
+  }
+
+  private createTargetLockedFailure(
+    skillName: string,
+    targetPath: string,
+    operation: 'replace' | 'remove'
+  ): SkillInstallResult {
+    const verb = operation === 'remove' ? 'removed' : 'replaced'
+    return {
+      success: false,
+      error: `Skill "${skillName}" cannot be ${verb} because its folder is in use: ${targetPath}`,
+      errorCode: 'target_locked',
+      skillName,
+      targetPath
+    }
+  }
+
+  private createTargetOperationFailure(
+    skillName: string,
+    targetPath: string,
+    operation: 'replace' | 'remove',
+    error: unknown
+  ): SkillInstallResult {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    if (this.isFileSystemLockError(error)) {
+      return this.createTargetLockedFailure(skillName, targetPath, operation)
+    }
+
+    return {
+      success: false,
+      error: errorMsg,
+      errorCode: 'io_error',
+      skillName,
+      targetPath
+    }
+  }
+
+  private isFileSystemLockError(error: unknown): boolean {
+    const code = (error as { code?: unknown } | null)?.code
+    return code === 'EPERM' || code === 'EBUSY' || code === 'EACCES' || code === 'ENOTEMPTY'
   }
 
   private extractZipToDirectory(zipPath: string, targetDir: string): void {
@@ -1490,16 +1553,25 @@ export class SkillPresenter implements ISkillPresenter {
       const skillDir = path.join(this.skillsDir, name)
 
       if (!fs.existsSync(skillDir)) {
-        return { success: false, error: `Skill "${name}" not found` }
+        return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
 
-      // Remove from caches
+      fs.rmSync(skillDir, { recursive: true, force: true })
+      if (fs.existsSync(skillDir)) {
+        return this.createTargetLockedFailure(name, skillDir, 'remove')
+      }
+
+      try {
+        this.deleteSkillExtension(name)
+      } catch (error) {
+        logger.warn('[SkillPresenter] Failed to delete skill sidecar after uninstall', {
+          name,
+          error
+        })
+      }
+
       this.metadataCache.delete(name)
       this.contentCache.delete(name)
-
-      // Delete the directory
-      fs.rmSync(skillDir, { recursive: true, force: true })
-      this.deleteSkillExtension(name)
 
       publishDeepchatEvent('skills.catalog.changed', {
         reason: 'uninstalled',
@@ -1509,8 +1581,12 @@ export class SkillPresenter implements ISkillPresenter {
 
       return { success: true, skillName: name }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      return { success: false, error: errorMsg }
+      return this.createTargetOperationFailure(
+        name,
+        path.join(this.skillsDir, name),
+        'remove',
+        error
+      )
     }
   }
 
