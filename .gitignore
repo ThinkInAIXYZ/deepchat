@@ -15,6 +15,7 @@ build/macx64.json
 build/winarm.json
 build/winx64.json
 build/bundled-plugins/
+build/managed-helpers/
 runtime/**/*
 plugins/*/runtime/**/*
 .eslintcache

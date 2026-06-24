@@ -20,8 +20,8 @@ The current plugin is macOS-only:
 - Skill docs, runtime permission wording, tests, and packaging docs assume macOS.
 
 Upstream `trycua/cua` now publishes the Rust CUA driver as cross-platform release artifacts. The
-latest verified driver release for this plan is `cua-driver-rs-v0.5.5`, published on
-2026-06-16. DeepChat support for this feature is limited to the targets that have upstream release
+latest verified driver release for this plan is `cua-driver-rs-v0.6.7`, published on
+2026-06-24. DeepChat support for this feature is limited to the targets that have upstream release
 assets and have been validated for bundled plugin packaging:
 
 - macOS arm64 and x86_64, plus universal variants.
@@ -101,9 +101,9 @@ DeepChat must continue to own the integration boundary:
 
 Pin the CUA runtime to a specific upstream release:
 
-- Tag: `cua-driver-rs-v0.5.5`.
+- Tag: `cua-driver-rs-v0.6.7`.
 - Commit: `d6dea4bc3c3a65ce821261752067cae8200fe5d6`.
-- Version: `0.5.5`.
+- Version: `0.6.7`.
 
 The build step must stage release artifacts instead of relying on local Swift-only source builds.
 Every staged asset must be validated before packaging:
@@ -124,9 +124,9 @@ The packaged plugin should stage only the target runtime needed by the artifact 
 plugins/cua/runtime/
   darwin/
     arm64/
-      CuaDriver.app/Contents/MacOS/cua-driver
+      DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
     x64/
-      CuaDriver.app/Contents/MacOS/cua-driver
+      DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
   win32/
     x64/
       cua-driver.exe
@@ -139,13 +139,13 @@ plugins/cua/runtime/
       cua-driver
 ```
 
-If implementation inspection shows that DeepChat must keep the previous helper app display name,
-the macOS app directory may remain `DeepChat Computer Use.app`, but the staged bundle must still
-preserve a valid Info.plist, executable path, and code signature after any rename or re-sign step.
+The macOS app directory is `DeepChat Computer Use.app` and the executable is
+`deepchat-cua-driver`, so packaged DeepChat does not collide with upstream `CuaDriver.app` while
+still consuming verified upstream release artifacts.
 
 ## Tool Surface
 
-The plugin policy and skill docs must match upstream v0.5.5 tool names.
+The plugin policy and skill docs must match upstream v0.6.7 tool names.
 
 Removed or renamed assumptions:
 
@@ -224,7 +224,7 @@ The packaged app must keep CUA usable after Electron packaging:
 - Optional MCP capabilities not implemented by the CUA driver, such as prompts and resources, are
   treated as absent capabilities and must not produce error-level log spam.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
-- Tool policies cover all upstream v0.5.5 tools known to this integration.
+- Tool policies cover all upstream v0.6.7 tools known to this integration.
 - Packaging docs and tests no longer describe CUA as macOS-only.
 - Build, lint, i18n, and focused test suites pass after implementation.
 

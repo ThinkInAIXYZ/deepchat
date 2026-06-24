@@ -15,6 +15,7 @@
     "skills.register",
     "settings.contribute",
     "shell.openExternal",
+    "shell.openPath",
     "process.execDeclared"
   ],
   "source": {
@@ -27,16 +28,16 @@
     "type": "external-helper",
     "displayName": "Cua Driver",
     "detect": [
-      "plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver",
+      "app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver",
+      "plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver",
       "plugin:runtime/win32/${arch}/cua-driver.exe",
-      "plugin:runtime/linux/${arch}/cua-driver",
-      "/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
+      "plugin:runtime/linux/${arch}/cua-driver"
     ],
     "install": {
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.5.5",
+      "minVersion": "0.6.7",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -46,9 +47,10 @@
       "displayName": "CUA Driver",
       "transport": "stdio",
       "command": "${runtime.cua-driver.command}",
-      "args": ["mcp"],
+      "args": ["mcp", "--no-daemon-relaunch"],
       "env": {
         "CUA_DRIVER_MCP_MODE": "1",
+        "CUA_DRIVER_RS_MCP_NO_RELAUNCH": "1",
         "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
         "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
       },
@@ -86,6 +88,7 @@
         "get_recording_state": "allow",
         "get_agent_cursor_state": "allow",
         "check_for_update": "allow",
+        "health_report": "allow",
         "debug_window_info": "allow",
         "start_session": "allow",
         "end_session": "allow",

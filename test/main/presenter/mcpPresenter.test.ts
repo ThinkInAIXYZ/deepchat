@@ -247,6 +247,53 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     consoleErrorSpy.mockRestore()
   })
 
+  it('is safe to call shutdown repeatedly', async () => {
+    const configPresenter = createConfigPresenter(true)
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      getRunningClients: serverManagerMocks.getRunningClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    serverManagerMocks.getRunningClients
+      .mockResolvedValueOnce([{ serverName: 'first' }])
+      .mockResolvedValueOnce([])
+    serverManagerMocks.stopServer.mockResolvedValue(undefined)
+
+    await presenter.shutdown()
+    await presenter.shutdown()
+
+    expect(serverManagerMocks.getRunningClients).toHaveBeenCalledTimes(2)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('first')
+  })
+
+  it('shares one in-flight shutdown across concurrent callers', async () => {
+    const configPresenter = createConfigPresenter(true)
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      getRunningClients: serverManagerMocks.getRunningClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    let resolveStop: (() => void) | undefined
+    serverManagerMocks.getRunningClients.mockResolvedValue([{ serverName: 'first' }])
+    serverManagerMocks.stopServer.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStop = resolve
+        })
+    )
+
+    const firstShutdown = presenter.shutdown()
+    const secondShutdown = presenter.shutdown()
+    await Promise.resolve()
+
+    expect(serverManagerMocks.getRunningClients).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(1)
+
+    resolveStop?.()
+    await Promise.all([firstShutdown, secondShutdown])
+  })
+
   it('keeps plugin-owned tool definitions available when MCP is globally disabled', async () => {
     const configPresenter = createConfigPresenter(false, false, {
       regular: { enabled: true },

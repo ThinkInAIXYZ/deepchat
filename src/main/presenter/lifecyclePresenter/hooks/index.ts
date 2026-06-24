@@ -18,6 +18,7 @@ export { sqliteMainlineNormalizationHook } from './after-start/sqliteMainlineNor
 export { disabledSearchToolCleanupHook } from './after-start/disabledSearchToolCleanupHook'
 export { scheduledTasksStartHook } from './after-start/scheduledTasksStartHook'
 export { memoryMaintenanceStartHook } from './after-start/memoryMaintenanceStartHook'
+export { mcpShutdownHook } from './beforeQuit/mcpShutdownHook'
 export { trayDestroyHook } from './beforeQuit/trayDestroyHook'
 export { floatingDestroyHook } from './beforeQuit/floatingDestroyHook'
 export { presenterDestroyHook } from './beforeQuit/presenterDestroyHook'

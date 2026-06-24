@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -134,7 +134,13 @@ const createBundledFixture = async (
       id: 'fixture-runtime',
       type: 'external-helper',
       displayName: 'Fixture Runtime',
-      detect: [`PATH:${process.execPath}`]
+      detect: [`PATH:${process.execPath}`],
+      install: {
+        mode: 'user-confirmed',
+        provider: 'fixture',
+        strategy: 'bundled-plugin-helper',
+        guideUrl: 'https://example.com/runtime-guide'
+      }
     },
     mcpServers: [
       {
@@ -823,11 +829,68 @@ describe('PluginPresenter', () => {
     expect(presenterSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
 
-  it('uses the CUA permission probe for runtime checks', async () => {
+  it('uses upstream-compatible CUA permission tool args for runtime checks', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+    const presenter = await createPluginPresenter('darwin')
 
-    expect(presenterSource).toContain('deepchat-permission-probe')
-    expect(presenterSource).toContain('Runtime permission probe failed')
+    expect((presenter as any).runtimePermissionToolArgs()).toEqual([
+      'check_permissions',
+      '{"prompt":false}'
+    ])
+    expect(presenterSource).not.toContain('deepchat-permission-probe')
+    expect(presenterSource).not.toContain('Runtime permission probe failed')
+  })
+
+  it('opens the detected macOS helper app for runtime permission guidance', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const helperAppPath = path.join(
+      fixture.userDataPath,
+      'plugins',
+      fixture.pluginId,
+      'runtime',
+      'darwin',
+      process.arch,
+      'DeepChat Computer Use.app'
+    )
+    const helperCommand = path.join(helperAppPath, 'Contents', 'MacOS', 'deepchat-cua-driver')
+    vi.mocked(shell.openPath).mockResolvedValue('')
+    vi.mocked(shell.openExternal).mockResolvedValue(undefined)
+    await presenter.enablePlugin(fixture.pluginId)
+    ;(presenter as any).refreshRuntime = vi.fn().mockResolvedValue({
+      runtimeId: 'fixture-runtime',
+      displayName: 'Fixture Runtime',
+      state: 'installed',
+      command: helperCommand,
+      helperAppPath
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'runtime.openPermissionGuide')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(shell.openPath).toHaveBeenCalledWith(helperAppPath)
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the declared runtime guide when no macOS helper path is available', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    vi.mocked(shell.openPath).mockResolvedValue('')
+    vi.mocked(shell.openExternal).mockResolvedValue(undefined)
+    await presenter.enablePlugin(fixture.pluginId)
+    vi.mocked(shell.openPath).mockClear()
+    vi.mocked(shell.openExternal).mockClear()
+    ;(presenter as any).refreshRuntime = vi.fn().mockResolvedValue({
+      runtimeId: 'fixture-runtime',
+      displayName: 'Fixture Runtime',
+      state: 'missing'
+    })
+
+    const action = await presenter.invokeAction(fixture.pluginId, 'runtime.openPermissionGuide')
+
+    expect(action).toMatchObject({ ok: true })
+    expect(shell.openPath).not.toHaveBeenCalled()
+    expect(shell.openExternal).toHaveBeenCalledWith('https://example.com/runtime-guide')
   })
 
   it('parses Windows CUA permission JSON diagnostics', async () => {
@@ -862,15 +925,79 @@ describe('PluginPresenter', () => {
     expect(result.error).toBeUndefined()
   })
 
+  it('parses CUA permission text and removes misleading shell hints', async () => {
+    const presenter = await createPluginPresenter('darwin')
+
+    const result = (presenter as any).parseRuntimePermissionToolResult(
+      '/mock/deepchat-cua-driver',
+      '❌ Accessibility: NOT granted.\n✅ Screen Recording: granted.\n',
+      ''
+    )
+    const message = (presenter as any).sanitizePermissionError(
+      'Command failed. hint: PowerShell 5.1 strips quotes around JSON field names. Fallback: Command failed.'
+    )
+
+    expect(result).toMatchObject({
+      accessibility: 'missing',
+      screenRecording: 'granted'
+    })
+    expect(message).not.toContain('PowerShell')
+    expect(message).toContain('Fallback: Command failed.')
+  })
+
   it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
 
     expect(presenterSource).toContain('helperAppPath')
     expect(presenterSource).toContain('resolveHelperAppPath')
+    expect(presenterSource).toContain('resolveAppHelperRelativePath')
     expect(presenterSource).toContain('resolvePluginTemplateRecord')
     expect(presenterSource).toContain('startPluginMcpServersIfReady')
     expect(presenterSource).toContain('this.mcpPresenter.startServer(serverName)')
     expect(presenterSource).not.toContain('if (!(await this.configPresenter.getMcpEnabled()))')
+  })
+
+  it('resolves packaged macOS CUA helpers from the managed app bundle', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-managed-helper-'))
+    tempRoots.push(root)
+    const resourcesPath = path.join(root, 'DeepChat.app', 'Contents', 'Resources')
+    const presenter = await createPluginPresenter('darwin', {
+      appPath: path.join(root, 'DeepChat.app'),
+      isPackaged: true,
+      resourcesPath
+    })
+
+    const command = (presenter as any).resolveRuntimeCandidate(
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+      path.join(root, 'plugin')
+    )
+
+    expect(command).toBe(
+      path.join(
+        root,
+        'DeepChat.app',
+        'Contents',
+        'Helpers',
+        'DeepChat Computer Use.app',
+        'Contents',
+        'MacOS',
+        'deepchat-cua-driver'
+      )
+    )
+  })
+
+  it('skips managed app helpers outside packaged macOS', async () => {
+    const presenter = await createPluginPresenter('win32', {
+      isPackaged: true,
+      resourcesPath: path.join('C:', 'DeepChat', 'resources')
+    })
+
+    const command = (presenter as any).resolveRuntimeCandidate(
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+      path.join('C:', 'plugin')
+    )
+
+    expect(command).toBeNull()
   })
 
   it('starts plugin MCP servers even when the global MCP switch is off', async () => {
@@ -964,20 +1091,23 @@ describe('PluginPresenter', () => {
     const server = manifest.mcpServers.find((item: { id: string }) => item.id === 'cua-driver')
 
     expect(manifest.runtime.detect).toEqual([
-      'plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver',
+      'app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
+      'plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
       'plugin:runtime/win32/${arch}/cua-driver.exe',
-      'plugin:runtime/linux/${arch}/cua-driver',
-      '/Applications/CuaDriver.app/Contents/MacOS/cua-driver'
+      'plugin:runtime/linux/${arch}/cua-driver'
     ])
+    expect(manifest.capabilities).toContain('shell.openPath')
+    expect(server.args).toEqual(['mcp', '--no-daemon-relaunch'])
     expect(server.env).toEqual({
       CUA_DRIVER_MCP_MODE: '1',
+      CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
       DEEPCHAT_COMPUTER_USE_APP_PATH: '${runtime.cua-driver.helperAppPath}',
       DEEPCHAT_COMPUTER_USE_BINARY_PATH: '${runtime.cua-driver.command}'
     })
     expect(mcpConfig.env).toEqual(server.env)
   })
 
-  it('keeps CUA v0.5.5 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.6.7 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -995,6 +1125,7 @@ describe('PluginPresenter', () => {
       'get_recording_state',
       'get_agent_cursor_state',
       'check_for_update',
+      'health_report',
       'debug_window_info',
       'start_session',
       'end_session'
@@ -1055,15 +1186,15 @@ describe('PluginPresenter', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.5.5',
-      commit: 'd6dea4bc3c3a65ce821261752067cae8200fe5d6',
-      version: '0.5.5',
+      tag: 'cua-driver-rs-v0.6.7',
+      commit: '2cba1e769264a18f5a9d5f4e419729eb7fc17962',
+      version: '0.6.7',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.5.5-windows-x86_64.zip')
-    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.5.5-windows-arm64.zip')
-    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.5.5-linux-x86_64-binary.tar.gz')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.7-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.7-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.7-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')
@@ -1108,7 +1239,7 @@ describe('PluginPresenter', () => {
     expect(combined).toContain('get_window_state')
     expect(combined).toContain('check_permissions')
     expect(combined).toContain('set_agent_cursor_style')
-    expect(combined).toContain('CuaDriver.app')
+    expect(combined).toContain('DeepChat Computer Use.app')
     expect(combined).toContain('win32/x64')
     expect(combined).toContain('linux/x64')
     expect(combined).toContain('win32/arm64')
@@ -1181,6 +1312,7 @@ describe('PluginPresenter', () => {
     expect(packageJson.scripts['plugin:cua:build:linux:x64']).toContain(
       '--platform linux --arch x64'
     )
+    expect(packageJson.scripts['plugin:bundle:clean']).toContain('build/managed-helpers')
     expect(packageJson.scripts['build:mac:arm64']).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch arm64'
     )
@@ -1224,7 +1356,10 @@ describe('PluginPresenter', () => {
     expect(packageScript).toContain('parts[1] !== args.targetPlatform')
     expect(packageScript).toContain('parts[2] !== args.targetArch')
     expect(packageScript).toContain('CUA plugin does not support')
+    expect(packageScript).toContain('CUA_DARWIN_MANAGED_HELPER_DETECT')
     expect(guide).toContain('build/bundled-plugins/')
+    expect(guide).toContain('build/managed-helpers/')
+    expect(guide).toContain('Contents/Helpers/DeepChat Computer Use.app')
     expect(guide).toContain('app.asar.unpacked/plugins/')
     expect(guide).toContain('win32/arm64')
     expect(guide).toContain('linux/arm64')

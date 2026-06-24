@@ -116,10 +116,12 @@ deepchat-plugin-cua-<version>-win32-arm64.dcplugin
 deepchat-plugin-cua-<version>-linux-x64.dcplugin
 ```
 
-Runtime detection inside the package uses architecture-specific paths:
+Runtime detection inside the package uses architecture-specific paths. Packaged macOS builds prefer
+the helper staged into the main app bundle, then fall back to the plugin-local helper:
 
 ```text
-plugin:runtime/darwin/<arch>/CuaDriver.app/Contents/MacOS/cua-driver
+app-helper:DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
+plugin:runtime/darwin/<arch>/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver
 plugin:runtime/win32/<arch>/cua-driver.exe
 plugin:runtime/linux/<arch>/cua-driver
 ```
@@ -154,6 +156,12 @@ Bundled packages (embedded into the Electron app):
 build/bundled-plugins/
 ```
 
+Managed macOS helpers copied into the Electron app bundle:
+
+```text
+build/managed-helpers/
+```
+
 ## CI and Release
 
 The build matrix in `.github/workflows/build.yml` bundles plugins before running `electron-builder`
@@ -169,6 +177,12 @@ Electron Builder embeds `.dcplugin` files from `build/bundled-plugins/` into:
 ```text
 <app>/Contents/Resources/app.asar.unpacked/plugins/     (macOS)
 <app>/resources/app.asar.unpacked/plugins/               (Windows/Linux)
+```
+
+On macOS, Electron Builder also embeds `build/managed-helpers/DeepChat Computer Use.app` into:
+
+```text
+<app>/Contents/Helpers/DeepChat Computer Use.app
 ```
 
 Each matrix job verifies the expected bundled `.dcplugin` files exist inside the app before

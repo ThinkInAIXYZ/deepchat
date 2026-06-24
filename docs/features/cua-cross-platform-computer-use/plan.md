@@ -21,12 +21,12 @@ Update `plugins/cua/plugin.json`:
 - Add or enforce arch-aware visibility metadata so `linux/arm64` does not show CUA as an available
   official plugin.
 - Replace macOS-only runtime candidates with platform-specific candidates:
-  - `plugin:runtime/darwin/${arch}/CuaDriver.app/Contents/MacOS/cua-driver`
+  - `plugin:runtime/darwin/${arch}/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver`
   - `plugin:runtime/win32/${arch}/cua-driver.exe`
   - `plugin:runtime/linux/${arch}/cua-driver`
 - Keep plugin-local runtime candidates first.
 - Update packaged download URL conventions to include target platform and arch.
-- Update tool policies for upstream v0.5.5 tools.
+- Update tool policies for upstream v0.6.7 tools.
 - Keep the internal tool server declaration owned by the plugin host; do not add user-facing MCP
   setup instructions.
 
@@ -36,9 +36,9 @@ Update `plugins/cua/vendor/cua-driver/upstream.json` from the old Swift fork met
 Rust driver release:
 
 - `source`: upstream `trycua/cua`.
-- `tag`: `cua-driver-rs-v0.5.5`.
+- `tag`: `cua-driver-rs-v0.6.7`.
 - `commit`: `d6dea4bc3c3a65ce821261752067cae8200fe5d6`.
-- `version`: `0.5.5`.
+- `version`: `0.6.7`.
 - Include the expected asset map and checksums source.
 - Record Windows arm64 as supported and Linux arm64 as unsupported for this pinned DeepChat
   integration.
@@ -104,13 +104,13 @@ Update `.github/workflows/build.yml` and `.github/workflows/release.yml`:
 
 ### Skill Docs
 
-Adapt CUA skill docs from upstream v0.5.5 into DeepChat-specific docs:
+Adapt CUA skill docs from upstream v0.6.7 into DeepChat-specific docs:
 
 - Remove upstream manual install, PATH, and standalone MCP setup requirements.
 - Describe the DeepChat tool surface and platform behavior.
 - Add platform caveats for macOS permissions, Windows foreground/background dispatch, and Linux
   pre-release limitations.
-- Replace Swift-era tool names with v0.5.5 tool names.
+- Replace Swift-era tool names with v0.6.7 tool names.
 - Keep plugin support metadata aligned with the supported platform/arch matrix.
 
 ### Settings and Permission UX
@@ -136,7 +136,7 @@ Update and add focused tests for:
 - CUA manifest hydration and visibility for supported platform/arch targets.
 - Runtime packaging validation per platform and arch.
 - Unsupported Linux arm64 behavior.
-- Tool policy coverage for upstream v0.5.5 known tools.
+- Tool policy coverage for upstream v0.6.7 known tools.
 - Skill docs no longer asserting macOS-only or user-managed MCP-only language.
 - Build and release workflow assertions for CUA on Windows x64/arm64, macOS, and Linux x64.
 

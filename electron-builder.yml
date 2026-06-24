@@ -90,6 +90,10 @@ afterSign: scripts/notarize.js
 afterPack: scripts/afterPack.js
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  extraFiles:
+    - from: ./build/managed-helpers/
+      to: Helpers
+      filter: ['**/*']
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.

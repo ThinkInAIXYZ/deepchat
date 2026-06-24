@@ -7,7 +7,7 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CUA Computer Use Runtime</title>
+    <title>Computer Use</title>
     <link rel="stylesheet" href="./assets/index.css" />
   </head>
   <body>
@@ -15,55 +15,72 @@
       <header class="header">
         <div>
           <p class="eyebrow">Official Runtime Plugin</p>
-          <h1>CUA Computer Use Runtime</h1>
+          <h1>Computer Use</h1>
         </div>
         <span id="plugin-state" class="state state-muted">Loading</span>
       </header>
 
-      <section class="panel">
-        <div class="row">
+      <section class="summary-grid" aria-label="Runtime status">
+        <div class="summary-item">
           <span>Runtime</span>
           <strong id="runtime-state">Unknown</strong>
         </div>
-        <div class="row">
-          <span>Version</span>
-          <strong id="runtime-version">Unknown</strong>
+        <div class="summary-item">
+          <span>MCP</span>
+          <strong id="mcp-state">Unknown</strong>
         </div>
-        <div class="row">
+        <div class="summary-item">
           <span>Platform</span>
           <strong id="runtime-platform">Unknown</strong>
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <div class="section-title" id="diagnostics-title">Permissions</div>
+            <p class="section-copy">Accessibility and Screen Recording are required on macOS.</p>
+          </div>
+          <button id="check" class="primary">Check Permissions</button>
+        </div>
+        <div id="diagnostics-rows" class="diagnostics"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <div class="section-title">Permission Setup</div>
+            <p class="section-copy">Open the managed helper when macOS needs a grant.</p>
+          </div>
+          <button id="guide">Open Setup</button>
+        </div>
+        <p id="message" class="message" role="status"></p>
+        <details id="message-detail" class="details message-detail" hidden>
+          <summary>Message details</summary>
+          <pre id="message-detail-text"></pre>
+        </details>
+      </section>
+
+      <details class="panel details" id="technical-details">
+        <summary>Technical Details</summary>
         <div class="row">
-          <span>Command</span>
-          <code id="runtime-command">Unknown</code>
+          <span>Version</span>
+          <strong id="runtime-version">Unknown</strong>
         </div>
         <div class="row">
           <span>Helper App</span>
           <code id="runtime-helper-app">Unknown</code>
         </div>
         <div class="row">
-          <span>MCP</span>
-          <strong id="mcp-state">Unknown</strong>
+          <span>Command</span>
+          <code id="runtime-command">Unknown</code>
         </div>
-      </section>
+      </details>
 
-      <section class="panel">
-        <div class="section-title" id="diagnostics-title">Permissions</div>
-        <div id="diagnostics-rows"></div>
-      </section>
-
-      <footer class="actions">
-        <button id="check">Check</button>
-        <button id="guide">Permission Guide</button>
+      <footer class="footer">
+        <a id="project-link" href="https://github.com/trycua/cua">trycua/cua</a>
         <button id="disable" class="danger">Disable Plugin</button>
       </footer>
-
-      <p class="source">
-        Based on
-        <a id="project-link" href="https://github.com/trycua/cua">trycua/cua</a>
-      </p>
-
-      <p id="message" class="message" role="status"></p>
     </main>
     <script src="./assets/index.js"></script>
   </body>

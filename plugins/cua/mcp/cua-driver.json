@@ -3,9 +3,10 @@
   "displayName": "CUA Driver",
   "transport": "stdio",
   "command": "${runtime.cua-driver.command}",
-  "args": ["mcp"],
+  "args": ["mcp", "--no-daemon-relaunch"],
   "env": {
     "CUA_DRIVER_MCP_MODE": "1",
+    "CUA_DRIVER_RS_MCP_NO_RELAUNCH": "1",
     "DEEPCHAT_COMPUTER_USE_APP_PATH": "${runtime.cua-driver.helperAppPath}",
     "DEEPCHAT_COMPUTER_USE_BINARY_PATH": "${runtime.cua-driver.command}"
   },
