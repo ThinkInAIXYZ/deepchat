@@ -483,6 +483,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
   it.each([
     ['memoryEnabled', { memoryEnabled: true }],
     ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
+    ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
     ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
     ['defaultModelPreset', { defaultModelPreset: createModelSelection('anthropic', 'claude') }]
   ])('runs after a custom DeepChat agent %s config update succeeds', async (_name, config) => {
@@ -527,9 +528,18 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
       config: { systemPrompt: 'You are concise.' }
     })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { memoryRetrieval: { topK: 20 } }
+    })
+    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      config: { memoryInjectionTokenBudget: 4096 }
+    })
 
     expect(callback).not.toHaveBeenCalled()
-    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(2)
+    expect(presenter.notifyAcpAgentsChanged).toHaveBeenCalledTimes(5)
   })
 
   it('does not notify when a maintenance-relevant custom update finds no agent', async () => {
@@ -579,6 +589,7 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
   it.each([
     ['memoryEnabled', { memoryEnabled: true }],
     ['memoryExtractionModel', { memoryExtractionModel: createModelSelection('openai', 'gpt-4o') }],
+    ['personaEvolutionEnabled', { personaEvolutionEnabled: true }],
     ['assistantModel', { assistantModel: createModelSelection('openai', 'gpt-4o-mini') }],
     ['defaultModelPreset', { defaultModelPreset: createModelSelection('anthropic', 'claude') }]
   ])('runs after builtin DeepChat %s config updates succeed', (_name, updates) => {
@@ -609,7 +620,13 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
   it.each([
     ['systemPrompt', { systemPrompt: 'You are concise.' }],
     ['autoCompactionEnabled', { autoCompactionEnabled: false }],
-    ['disabledAgentTools', { disabledAgentTools: ['builtin/web-search'] }]
+    ['disabledAgentTools', { disabledAgentTools: ['builtin/web-search'] }],
+    [
+      'memoryEmbedding',
+      { memoryEmbedding: createModelSelection('openai', 'text-embedding-3-small') }
+    ],
+    ['memoryRetrieval', { memoryRetrieval: { topK: 20 } }],
+    ['memoryInjectionTokenBudget', { memoryInjectionTokenBudget: 4096 }]
   ])('does not notify after builtin DeepChat %s config updates', (_name, updates) => {
     const updated = { id: BUILTIN_DEEPCHAT_AGENT_ID }
     const repository = {

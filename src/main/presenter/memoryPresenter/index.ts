@@ -269,7 +269,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.maintenanceStartTimer = setTimeout(() => {
       this.maintenanceStartTimer = null
       if (this.disposed) return
-      this.armActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
+      this.armCurrentActiveAgents()
     }, MAINTENANCE_START_DELAY_MS)
     if (typeof this.maintenanceStartTimer.unref === 'function') this.maintenanceStartTimer.unref()
   }
@@ -283,6 +283,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   private shouldArmMaintenance(agentId: string): boolean {
     return isSafeAgentId(agentId) && this.isManagedAgent(agentId) && this.isEnabled(agentId)
+  }
+
+  private armCurrentActiveAgents(): void {
+    try {
+      this.armActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
+    } catch (error) {
+      logger.warn(`[Memory] maintenance arm skipped: ${String(error)}`)
+    }
   }
 
   private armActiveAgentsStaggered(agentIds: string[]): void {
@@ -988,7 +996,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
     if (this.disposed) return
-    this.armActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
+    this.armCurrentActiveAgents()
   }
 
   // Arms (or resets) the per-agent idle timer so a burst of extractions collapses into one pass

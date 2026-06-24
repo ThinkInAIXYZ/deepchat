@@ -3408,6 +3408,32 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     }
   })
 
+  it('skips startup maintenance when active-agent enumeration fails (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      vi.spyOn(repo, 'listAgentIdsWithMemories').mockImplementation(() => {
+        throw new Error('repo unavailable')
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      presenter.startBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
+
+      expect(passSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('lets a non-write config arm replace a later pending arm (SDD-13)', async () => {
     vi.useFakeTimers()
     try {
@@ -3432,6 +3458,32 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
 
       await vi.advanceTimersByTimeAsync(5 * 1000)
       expect(passSpy).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips builtin config fan-out when active-agent enumeration fails (SDD-13)', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      vi.spyOn(repo, 'listAgentIdsWithMemories').mockImplementation(() => {
+        throw new Error('repo unavailable')
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined
+      })
+      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+
+      expect(() => presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()).not.toThrow()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 5 * 1000)
+
+      expect(passSpy).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
