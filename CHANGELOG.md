@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.7-beta.1 (2026-06-24)
+- Added the default chat workspace so new chats start with prepared workspace context
+- Added task-aware Agent Memory with improved maintenance scheduling and management controls
+- Improved Computer Use helper runtime isolation, packaging, and shutdown cleanup
+- Fixed sidebar history pagination, locked skill reinstall handling, and refreshed Markstream Vue
+- 新增默认聊天工作区，让新聊天具备预设工作区上下文
+- 新增任务感知 Agent Memory，并改进维护调度与管理控制
+- 优化 Computer Use helper runtime 的隔离、打包和退出清理
+- 修复侧边栏历史分页、技能重装锁定目录处理，并刷新 Markstream Vue
+
 ## v1.0.6 (2026-06-22)
 - Added S3-compatible cloud backup sync, OpenDAL-based backup storage, and workspace environment management
 - Added Agent Memory, Tape view manifests, replay lineage details, and focused workspace file inspection
