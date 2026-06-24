@@ -107,7 +107,7 @@ const CONSOLIDATION_MAX_LLM_CALLS = 8
 const CONSOLIDATION_MAX_INPUT_TOKENS = 24000
 const CONSOLIDATION_MERGE_SIMILARITY = 0.85
 const MAINTENANCE_START_DELAY_MS = 60 * 1000
-const MAINTENANCE_INTERVAL_MS = 30 * 60 * 1000
+const STARTUP_ARM_STAGGER_MS = 5 * 1000
 const ARCHIVE_DECAY_THRESHOLD = 0.05
 const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -236,13 +236,13 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly backfilling = new Map<string, Promise<void>>()
   // Per-agent idle timer that debounces bursts of extractions into one offline consolidation pass.
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
+  private readonly consolidationTimerDueAt = new Map<string, number>()
   // Last time a pass actually ran, per agent; enforces the cooldown between passes.
   private readonly lastConsolidationAt = new Map<string, number>()
   // In-flight timer-fired consolidation passes; dispose() awaits them so none writes after teardown.
   private readonly consolidationRuns = new Set<Promise<unknown>>()
-  private readonly maintenanceAgents = new Set<string>()
   private maintenanceStartTimer: NodeJS.Timeout | null = null
-  private maintenanceInterval: NodeJS.Timeout | null = null
+  private maintenanceStarted = false
   // Per-agent watermark for a reflection attempt that ran the model but wrote nothing new (empty or
   // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
   // newer ones arrive. In-memory only: a restart costs at most one redundant attempt.
@@ -264,20 +264,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
   constructor(private readonly deps: MemoryPresenterDeps) {}
 
   startBackgroundMaintenance(): void {
-    if (this.disposed || this.maintenanceStartTimer || this.maintenanceInterval) return
-    for (const agentId of this.deps.repository.listAgentIdsWithMemories()) {
-      this.registerMaintenanceAgent(agentId)
-    }
+    if (this.disposed || this.maintenanceStarted) return
+    this.maintenanceStarted = true
     this.maintenanceStartTimer = setTimeout(() => {
       this.maintenanceStartTimer = null
-      this.runBackgroundMaintenanceSweep()
+      if (this.disposed) return
+      this.armActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
     }, MAINTENANCE_START_DELAY_MS)
     if (typeof this.maintenanceStartTimer.unref === 'function') this.maintenanceStartTimer.unref()
-    this.maintenanceInterval = setInterval(
-      () => this.runBackgroundMaintenanceSweep(),
-      MAINTENANCE_INTERVAL_MS
-    )
-    if (typeof this.maintenanceInterval.unref === 'function') this.maintenanceInterval.unref()
   }
 
   stopBackgroundMaintenance(): void {
@@ -285,28 +279,23 @@ export class MemoryPresenter implements MemoryRuntimePort {
       clearTimeout(this.maintenanceStartTimer)
       this.maintenanceStartTimer = null
     }
-    if (this.maintenanceInterval) {
-      clearInterval(this.maintenanceInterval)
-      this.maintenanceInterval = null
-    }
   }
 
-  private registerMaintenanceAgent(agentId: string): void {
-    if (isSafeAgentId(agentId) && this.isManagedAgent(agentId) && this.isEnabled(agentId)) {
-      this.maintenanceAgents.add(agentId)
-    }
+  private shouldArmMaintenance(agentId: string): boolean {
+    return isSafeAgentId(agentId) && this.isManagedAgent(agentId) && this.isEnabled(agentId)
   }
 
-  private runBackgroundMaintenanceSweep(): void {
+  private armActiveAgentsStaggered(agentIds: string[]): void {
     if (this.disposed) return
-    for (const agentId of this.maintenanceAgents) {
-      if (!this.isEnabled(agentId)) continue
-      const run = this.runConsolidationPass(agentId).catch((error) => {
-        logger.warn(`[Memory] maintenance sweep failed for ${agentId}: ${String(error)}`)
+    agentIds
+      .filter((agentId) => this.shouldArmMaintenance(agentId))
+      .sort()
+      .forEach((agentId, index) => {
+        this.onAgentMemoryMaintenanceConfigChanged(
+          agentId,
+          CONSOLIDATION_IDLE_MS + index * STARTUP_ARM_STAGGER_MS
+        )
       })
-      this.consolidationRuns.add(run)
-      void run.finally(() => this.consolidationRuns.delete(run))
-    }
   }
 
   isEnabled(agentId: string): boolean {
@@ -714,7 +703,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
         if (outcomeTouched(outcome)) touched = true
       }
       if (createdIds.length || touched) {
-        this.registerMaintenanceAgent(input.agentId)
         this.syncWorkingMemoryAfterMutation(input.agentId)
         this.emitChanged(input.agentId, 'extract')
         // Phase 2 embedding runs in the background; it must not block the caller.
@@ -987,24 +975,56 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   // ==================== Offline consolidation ====================
 
+  onAgentMemoryMaintenanceConfigChanged(
+    agentId: string,
+    delayMs: number = CONSOLIDATION_IDLE_MS
+  ): void {
+    if (this.disposed || !this.shouldArmMaintenance(agentId)) return
+    // Batched startup/builtin callers already start from active-memory ids, but the single-agent
+    // config-change entrypoint does not. Keep the guard centralized; batched redundancy is expected.
+    if (!this.deps.repository.hasActiveMemory(agentId)) return
+    this.scheduleConsolidation(agentId, delayMs, { preserveEarlier: true })
+  }
+
+  onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
+    if (this.disposed) return
+    this.armActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
+  }
+
   // Arms (or resets) the per-agent idle timer so a burst of extractions collapses into one pass
   // that fires after the burst settles. The timer is unref'd so it never keeps the process alive.
-  private scheduleConsolidation(agentId: string): void {
+  private scheduleConsolidation(
+    agentId: string,
+    delayMs: number = CONSOLIDATION_IDLE_MS,
+    options: { preserveEarlier?: boolean } = {}
+  ): void {
     if (this.disposed) return
-    this.registerMaintenanceAgent(agentId)
+    const dueAt = Date.now() + delayMs
     const existing = this.consolidationTimers.get(agentId)
+    const existingDueAt = this.consolidationTimerDueAt.get(agentId)
+    if (
+      options.preserveEarlier === true &&
+      existing &&
+      existingDueAt !== undefined &&
+      existingDueAt <= dueAt
+    ) {
+      return
+    }
     if (existing) clearTimeout(existing)
+    this.consolidationTimerDueAt.delete(agentId)
     const timer = setTimeout(() => {
       this.consolidationTimers.delete(agentId)
+      this.consolidationTimerDueAt.delete(agentId)
       // Track the in-flight pass so dispose() can await it before the database is closed.
       const run = this.runConsolidationPass(agentId).catch((error) => {
         logger.warn(`[Memory] consolidation pass failed for ${agentId}: ${String(error)}`)
       })
       this.consolidationRuns.add(run)
       void run.finally(() => this.consolidationRuns.delete(run))
-    }, CONSOLIDATION_IDLE_MS)
+    }, delayMs)
     if (typeof timer.unref === 'function') timer.unref()
     this.consolidationTimers.set(agentId, timer)
+    this.consolidationTimerDueAt.set(agentId, dueAt)
   }
 
   // Offline maintenance: cheap local upkeep always runs when due, while model-backed work is gated
@@ -1469,7 +1489,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
       ? await this.coordinateWrite(options.agentId, candidate, resolvedModel, options, Date.now())
       : this.directAddMemory(options.agentId, candidate, options)
     if (outcomeTouched(outcome)) {
-      this.registerMaintenanceAgent(options.agentId)
       this.syncWorkingMemoryAfterMutation(options.agentId)
       this.emitChanged(options.agentId, 'extract')
       if (outcome.action !== 'challenged') {
@@ -2203,7 +2222,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
     })
     if (removed > 0) this.emitChanged(agentId, 'clear')
     if (removed > 0 && this.deps.repository.countByAgent(agentId) === 0) {
-      this.maintenanceAgents.delete(agentId)
       this.lastConsolidationAt.delete(agentId)
     }
     return removed
@@ -2224,7 +2242,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       const timer = this.consolidationTimers.get(agentId)
       if (timer) clearTimeout(timer)
       this.consolidationTimers.delete(agentId)
-      this.maintenanceAgents.delete(agentId)
+      this.consolidationTimerDueAt.delete(agentId)
       this.lastConsolidationAt.delete(agentId)
       this.reflectionAttemptWatermark.delete(agentId)
       this.personaAttemptWatermark.delete(agentId)
@@ -2288,6 +2306,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.stopBackgroundMaintenance()
     for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
     this.consolidationTimers.clear()
+    this.consolidationTimerDueAt.clear()
     this.lastConsolidationAt.clear()
     // Drain every background writer started before teardown so none touches the database after it
     // closes: consolidation passes, plus the reindex/backfill/embedding drains a pass's retrieve()

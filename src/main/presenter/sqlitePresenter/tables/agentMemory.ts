@@ -845,6 +845,18 @@ export class AgentMemoryTable extends BaseTable {
     return row?.count ?? 0
   }
 
+  hasActiveMemory(agentId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS present
+         FROM agent_memory
+         WHERE agent_id = ? AND status != 'archived'
+         LIMIT 1`
+      )
+      .get(agentId) as { present: number } | undefined
+    return row !== undefined
+  }
+
   listAgentIdsWithMemories(): string[] {
     const rows = this.db
       .prepare(

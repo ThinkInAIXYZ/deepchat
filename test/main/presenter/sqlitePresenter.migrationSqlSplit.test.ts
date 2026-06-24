@@ -31,6 +31,7 @@ describe('sqlitePresenter migration SQL splitting', () => {
       prepare
     }
     presenter.currentVersion = 0
+    presenter.databaseFileExistedBeforeOpen = true
 
     const emptyTable = {
       getLatestVersion: () => 0,
@@ -51,6 +52,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
 
     presenter.acpSessionsTable = migrationTable
     presenter.newEnvironmentsTable = emptyTable
+    presenter.newEnvironmentPreferencesTable = emptyTable
     presenter.newSessionsTable = emptyTable
     presenter.newProjectsTable = emptyTable
     presenter.deepchatSessionsTable = emptyTable

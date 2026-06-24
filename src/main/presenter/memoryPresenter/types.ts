@@ -87,6 +87,7 @@ export interface MemoryRepositoryPort {
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
+  hasActiveMemory(agentId: string): boolean
   listAgentIdsWithMemories(): string[]
 }
 

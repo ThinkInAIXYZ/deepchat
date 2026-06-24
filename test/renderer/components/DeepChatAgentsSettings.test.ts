@@ -120,6 +120,7 @@ vi.mock('@/components/ModelSelect.vue', () => ({
       type: { type: Array, default: undefined },
       visionOnly: { type: Boolean, default: false }
     },
+    emits: ['update:model'],
     template: '<div data-testid="model-select-stub"></div>'
   })
 }))
@@ -131,6 +132,113 @@ describe('DeepChatAgentsSettings', () => {
     clientMocks.projectClient.selectDirectory.mockReset()
     clientMocks.toolClient.getAllToolDefinitions.mockReset()
   })
+
+  const mountSettings = async (options: {
+    agents: unknown[]
+    modelStore?: unknown
+    toolDefinitions?: unknown[]
+    projectPresenter?: {
+      getRecentProjects: ReturnType<typeof vi.fn>
+      selectDirectory: ReturnType<typeof vi.fn>
+    }
+    configPresenter?: Partial<{
+      listAgents: ReturnType<typeof vi.fn>
+      getSystemPrompts: ReturnType<typeof vi.fn>
+      updateDeepChatAgent: ReturnType<typeof vi.fn>
+      createDeepChatAgent: ReturnType<typeof vi.fn>
+      deleteDeepChatAgent: ReturnType<typeof vi.fn>
+    }>
+  }) => {
+    vi.resetModules()
+
+    const configPresenter = {
+      listAgents: vi.fn().mockResolvedValue(options.agents),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      updateDeepChatAgent: vi.fn().mockResolvedValue(options.agents[0]),
+      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
+      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined),
+      ...options.configPresenter
+    }
+    const toolPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
+    }
+    const projectPresenter = options.projectPresenter ?? {
+      getRecentProjects: vi.fn().mockResolvedValue([]),
+      selectDirectory: vi.fn().mockResolvedValue(null)
+    }
+    const modelStore =
+      options.modelStore ??
+      ({
+        allProviderModels: [],
+        findModelByIdOrName: vi.fn(() => null)
+      } as const)
+
+    bindClientMocks(projectPresenter, toolPresenter)
+
+    vi.doMock('@api/ConfigClient', () => ({
+      createConfigClient: () => configPresenter
+    }))
+    vi.doMock('@/stores/modelStore', () => ({
+      useModelStore: () => modelStore
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+    vi.doMock('@iconify/vue', () => ({
+      Icon: {
+        name: 'Icon',
+        template: '<span />'
+      }
+    }))
+
+    const DeepChatAgentsSettings = (
+      await import('../../../src/renderer/settings/components/DeepChatAgentsSettings.vue')
+    ).default
+
+    const wrapper = mount(DeepChatAgentsSettings, {
+      global: {
+        stubs: {
+          Button: ButtonStub,
+          Badge: passthrough('Badge'),
+          Input: InputStub,
+          Textarea: TextareaStub,
+          Switch: SwitchStub,
+          Dialog: DialogStub,
+          DialogContent: passthrough('DialogContent'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: DropdownMenuItemStub,
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          Popover: passthrough('Popover'),
+          PopoverContent: passthrough('PopoverContent'),
+          PopoverTrigger: passthrough('PopoverTrigger'),
+          Select: passthrough('Select'),
+          SelectContent: passthrough('SelectContent'),
+          SelectItem: passthrough('SelectItem'),
+          SelectTrigger: passthrough('SelectTrigger'),
+          SelectValue: passthrough('SelectValue'),
+          AgentAvatar: passthrough('AgentAvatar'),
+          AgentTransferDialog: passthrough('AgentTransferDialog'),
+          ModelIcon: passthrough('ModelIcon'),
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    return {
+      wrapper,
+      configPresenter,
+      toolPresenter,
+      projectPresenter
+    }
+  }
 
   it('mounts and saves DeepChat agents with cloneable model selections', async () => {
     vi.resetModules()
@@ -268,7 +376,6 @@ describe('DeepChatAgentsSettings', () => {
           SelectItem: passthrough('SelectItem'),
           SelectTrigger: passthrough('SelectTrigger'),
           SelectValue: passthrough('SelectValue'),
-          ModelSelect: passthrough('ModelSelect'),
           AgentAvatar: passthrough('AgentAvatar'),
           ModelIcon: passthrough('ModelIcon'),
           Icon: true
@@ -289,6 +396,20 @@ describe('DeepChatAgentsSettings', () => {
       wrapper.text().indexOf('settings.deepchatAgents.imageGenerationModel')
     )
 
+    const modelSelects = wrapper.findAllComponents({ name: 'ModelSelect' })
+    expect(modelSelects).toHaveLength(4)
+    modelSelects[0].vm.$emit(
+      'update:model',
+      {
+        id: 'gpt-4.1-mini',
+        name: 'GPT-4.1 Mini',
+        temperature: 0.2,
+        contextLength: 128000
+      },
+      'openai'
+    )
+    await flushPromises()
+
     const saveButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('common.save'))
@@ -304,41 +425,133 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload).toMatchObject({
       name: 'DeepChat',
       enabled: true,
-      description: 'Writer agent',
-      config: {
-        defaultModelPreset: {
-          providerId: 'openai',
-          modelId: 'gpt-4.1'
-        },
-        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
-        visionModel: { providerId: 'openai', modelId: 'gpt-4.1-vision' },
-        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' },
-        defaultProjectPath: null,
-        systemPrompt: 'system prompt',
-        permissionMode: 'default',
-        disabledAgentTools: ['tool_beta'],
-        autoCompactionEnabled: false,
-        autoCompactionTriggerThreshold: 72,
-        autoCompactionRetainRecentPairs: 4
+      description: 'Writer agent'
+    })
+    expect(payload.config).toEqual({
+      defaultModelPreset: {
+        providerId: 'openai',
+        modelId: 'gpt-4.1-mini'
       }
     })
-    expect(payload.config.defaultModelPreset).toEqual({
+    expect(payload.config.defaultModelPreset).toStrictEqual({
       providerId: 'openai',
-      modelId: 'gpt-4.1'
+      modelId: 'gpt-4.1-mini'
     })
-    expect(payload.config.assistantModel).toEqual({
-      providerId: 'anthropic',
-      modelId: 'claude-3-5-sonnet'
-    })
-    expect(payload.config.visionModel).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-4.1-vision'
-    })
-    expect(payload.config.imageGenerationModel).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-image-1'
-    })
+    expect(payload.config.defaultModelPreset).not.toHaveProperty('temperature')
+    expect(payload.config.defaultModelPreset).not.toHaveProperty('contextLength')
     expect(() => structuredClone(payload)).not.toThrow()
+  })
+
+  it('saves only systemPrompt when that builtin config field changes', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'old system prompt',
+        permissionMode: 'default',
+        disabledAgentTools: []
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    const systemPromptTextarea = wrapper
+      .findAll('textarea')
+      .find((textarea) =>
+        textarea
+          .attributes('placeholder')
+          ?.includes('settings.deepchatAgents.systemPromptPlaceholder')
+      )
+    expect(systemPromptTextarea).toBeDefined()
+
+    await systemPromptTextarea!.setValue('new system prompt')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ systemPrompt: 'new system prompt' })
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('omits config when only the builtin agent name changes', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'system prompt'
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('DeepChat Renamed')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.name).toBe('DeepChat Renamed')
+    expect(payload).not.toHaveProperty('config')
+  })
+
+  it('sends null when an existing chat model override is cleared', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        systemPrompt: 'system prompt'
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+
+    const clearButtons = wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('common.clear'))
+    expect(clearButtons.length).toBeGreaterThan(0)
+
+    await clearButtons[0].trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ defaultModelPreset: null })
   })
 
   it('filters the image generation model selector to image models', async () => {
@@ -664,6 +877,55 @@ describe('DeepChatAgentsSettings', () => {
     const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(91)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(6)
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('saves only changed disabled tools without carrying model keys', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {
+        defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
+        assistantModel: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
+        disabledAgentTools: []
+      }
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({
+      agents: [existingAgent],
+      toolDefinitions: [
+        {
+          source: 'agent',
+          function: { name: 'tool_alpha', description: 'Alpha tool' },
+          server: { name: 'agent-core' }
+        }
+      ]
+    })
+
+    const toolButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('tool_alpha'))
+    expect(toolButton).toBeDefined()
+
+    await toolButton!.trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({ disabledAgentTools: ['tool_alpha'] })
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
   it('keeps an inherited memoryEnabled out of the payload when the switch is not toggled', async () => {
@@ -765,7 +1027,58 @@ describe('DeepChatAgentsSettings', () => {
     const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(agentId).toBe('child')
     // The inherited value must not be ossified into an explicit override.
-    expect('memoryEnabled' in payload.config).toBe(false)
+    expect(payload.config?.memoryEnabled).toBeUndefined()
+  })
+
+  it('sends memoryEnabled when an inherited memory switch is explicitly toggled', async () => {
+    const builtin = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: { memoryEnabled: true }
+    }
+    const child = {
+      id: 'child',
+      type: 'deepchat',
+      name: 'Child',
+      enabled: true,
+      protected: false,
+      avatar: null,
+      config: {}
+    }
+
+    const { wrapper, configPresenter } = await mountSettings({
+      agents: [builtin, child],
+      configPresenter: {
+        updateDeepChatAgent: vi.fn().mockResolvedValue(child)
+      }
+    })
+
+    await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    await flushPromises()
+
+    const memorySwitch = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+
+    await memorySwitch!.trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(agentId).toBe('child')
+    expect(payload.config).toEqual({ memoryEnabled: false })
+    expect(payload.config).not.toHaveProperty('assistantModel')
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
   })
 
   it('falls back to default auto compaction values when inputs are blank or invalid', async () => {
@@ -890,6 +1203,8 @@ describe('DeepChatAgentsSettings', () => {
     const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(80)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(2)
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
   it('fills the system prompt field from a prompt template dialog', async () => {
@@ -1291,6 +1606,9 @@ describe('DeepChatAgentsSettings', () => {
         })
       })
     )
+    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
   it('uses a flat target agent select for subagent slots', async () => {
@@ -1462,5 +1780,7 @@ describe('DeepChatAgentsSettings', () => {
         description: ''
       }
     ])
+    expect(payload.config).not.toHaveProperty('defaultModelPreset')
+    expect(payload.config).not.toHaveProperty('assistantModel')
   })
 })
