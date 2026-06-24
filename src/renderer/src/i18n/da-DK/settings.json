@@ -2332,7 +2332,18 @@
       "searchFailed": "Søgningen mislykkedes. Prøv igen.",
       "deletePermanent": "Slet permanent",
       "deleteConfirmTitle": "Slet denne hukommelse permanent?",
-      "deleteConfirmBody": "Dette fjerner hukommelsen i stedet for at arkivere den. Handlingen kan ikke fortrydes."
+      "deleteConfirmBody": "Dette fjerner hukommelsen i stedet for at arkivere den. Handlingen kan ikke fortrydes.",
+      "categoryFilterLabel": "Kategori",
+      "categoryFilterAll": "Alle kategorier",
+      "categoryUncategorized": "Ukategoriseret",
+      "noCategoryResults": "Ingen minder i denne kategori.",
+      "category": {
+        "user_preference": "Brugerpræference",
+        "project_fact": "Projektfaktum",
+        "task_outcome": "Opgaveresultat",
+        "heuristic": "Heuristik",
+        "anti_pattern": "Antimønster"
+      }
     },
     "personaEvolutionTitle": "Personaudvikling (eksperimentel)",
     "personaEvolutionDescription": "Lad refleksion foreslå opdaterede selvmodeller som kladder til din godkendelse. Uafhængig af hukommelse; slået fra som standard.",

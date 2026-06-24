@@ -225,7 +225,18 @@
       "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
       "deletePermanent": "Kalıcı olarak sil",
       "deleteConfirmTitle": "Bu belleği kalıcı olarak sil?",
-      "deleteConfirmBody": "Bu işlem belleği arşivlemek yerine kaldırır. Geri alınamaz."
+      "deleteConfirmBody": "Bu işlem belleği arşivlemek yerine kaldırır. Geri alınamaz.",
+      "categoryFilterLabel": "Kategori",
+      "categoryFilterAll": "Tüm kategoriler",
+      "categoryUncategorized": "Kategorisiz",
+      "noCategoryResults": "Bu kategoride bellek kaydı yok.",
+      "category": {
+        "user_preference": "Kullanıcı tercihi",
+        "project_fact": "Proje bilgisi",
+        "task_outcome": "Görev sonucu",
+        "heuristic": "Sezgisel kural",
+        "anti_pattern": "Karşı kalıp"
+      }
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",
     "personaEvolutionDescription": "Yansımanın güncellenmiş benlik modellerini onayınız için taslak olarak önermesine izin verin. Bellekten bağımsızdır; varsayılan olarak kapalıdır.",

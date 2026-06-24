@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
@@ -26,6 +27,7 @@ export interface AgentMemoryRow {
   agent_id: string
   user_scope: string | null
   kind: AgentMemoryKind
+  category: string | null
   content: string
   importance: number
   status: AgentMemoryStatus
@@ -52,6 +54,7 @@ export interface AgentMemoryInsertInput {
   id: string
   agentId: string
   kind: AgentMemoryKind
+  category?: AgentMemoryCategory | null
   content: string
   importance?: number
   status?: AgentMemoryStatus
@@ -75,8 +78,8 @@ export interface AgentMemoryListOptions {
 
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
-// persona lifecycle column; v35 adds conflict linkage.
-const AGENT_MEMORY_SCHEMA_VERSION = 35
+// persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category.
+const AGENT_MEMORY_SCHEMA_VERSION = 37
 
 const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
 const AGENT_MEMORY_FTS_META_VERSION = 1
@@ -126,6 +129,7 @@ export class AgentMemoryTable extends BaseTable {
         agent_id TEXT NOT NULL,
         user_scope TEXT,
         kind TEXT NOT NULL,
+        category TEXT,
         content TEXT NOT NULL,
         importance REAL NOT NULL DEFAULT 0.5,
         status TEXT NOT NULL DEFAULT 'pending_embedding',
@@ -183,6 +187,9 @@ export class AgentMemoryTable extends BaseTable {
     }
     if (version === 35) {
       return 'ALTER TABLE agent_memory ADD COLUMN conflict_with TEXT;'
+    }
+    if (version === 37) {
+      return 'ALTER TABLE agent_memory ADD COLUMN category TEXT;'
     }
     return null
   }
@@ -324,6 +331,7 @@ export class AgentMemoryTable extends BaseTable {
       agent_id: input.agentId,
       user_scope: input.userScope ?? null,
       kind: input.kind,
+      category: input.category ?? null,
       content: input.content,
       importance: input.importance ?? 0.5,
       status: input.status ?? 'pending_embedding',
@@ -353,6 +361,7 @@ export class AgentMemoryTable extends BaseTable {
            agent_id,
            user_scope,
            kind,
+           category,
            content,
            importance,
            status,
@@ -374,13 +383,14 @@ export class AgentMemoryTable extends BaseTable {
            conflict_with,
            persona_state
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
         row.agent_id,
         row.user_scope,
         row.kind,
+        row.category,
         row.content,
         row.importance,
         row.status,
@@ -731,8 +741,19 @@ export class AgentMemoryTable extends BaseTable {
     id: string,
     content: string,
     provenanceKey: string | null,
-    at: number = Date.now()
+    at: number = Date.now(),
+    category?: string | null
   ): void {
+    if (category !== undefined) {
+      this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET content = ?, provenance_key = ?, last_accessed = ?, category = ?
+           WHERE id = ?`
+        )
+        .run(content, provenanceKey, at, category, id)
+      return
+    }
     this.db
       .prepare(
         `UPDATE agent_memory
@@ -822,6 +843,18 @@ export class AgentMemoryTable extends BaseTable {
       .prepare('SELECT COUNT(*) AS count FROM agent_memory WHERE agent_id = ?')
       .get(agentId) as { count: number } | undefined
     return row?.count ?? 0
+  }
+
+  hasActiveMemory(agentId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS present
+         FROM agent_memory
+         WHERE agent_id = ? AND status != 'archived'
+         LIMIT 1`
+      )
+      .get(agentId) as { present: number } | undefined
+    return row !== undefined
   }
 
   listAgentIdsWithMemories(): string[] {

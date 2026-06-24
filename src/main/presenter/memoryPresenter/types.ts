@@ -17,6 +17,7 @@ import type {
   DeepChatAgentConfig,
   DeepChatAgentMemoryRetrieval
 } from '@shared/types/agent-interface'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 
 export type {
   AgentMemoryKind,
@@ -68,7 +69,13 @@ export interface MemoryRepositoryPort {
   markSuperseded(id: string, supersededBy: string | null): void
   recordAccess(id: string, accessedAt?: number): void
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
-  updateContent(id: string, content: string, provenanceKey: string | null, at?: number): void
+  updateContent(
+    id: string,
+    content: string,
+    provenanceKey: string | null,
+    at?: number,
+    category?: string | null
+  ): void
   setConfidence(id: string, confidence: number): void
   setImportance(id: string, importance: number): void
   markConflict(id: string, state: AgentMemoryConflictState | null): void
@@ -80,6 +87,7 @@ export interface MemoryRepositoryPort {
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
+  hasActiveMemory(agentId: string): boolean
   listAgentIdsWithMemories(): string[]
 }
 
@@ -131,9 +139,17 @@ export interface IMemoryVectorStore {
 }
 
 export interface MemoryCandidate {
-  kind: Extract<AgentMemoryKind, 'episodic' | 'semantic'>
+  kind?: Extract<AgentMemoryKind, 'episodic' | 'semantic'> | null
+  category?: string | null
   content: string
   importance?: number
+}
+
+export interface NormalizedMemoryCandidate {
+  kind: Extract<AgentMemoryKind, 'episodic' | 'semantic'>
+  category: AgentMemoryCategory | null
+  content: string
+  importance: number
 }
 
 export interface WriteMemoriesOptions {

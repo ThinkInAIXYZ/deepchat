@@ -2332,7 +2332,18 @@
       "searchFailed": "جستجو ناموفق بود. دوباره تلاش کنید.",
       "deletePermanent": "حذف دائمی",
       "deleteConfirmTitle": "این حافظه برای همیشه حذف شود؟",
-      "deleteConfirmBody": "این کار حافظه را به‌جای بایگانی، حذف می‌کند. قابل بازگشت نیست."
+      "deleteConfirmBody": "این کار حافظه را به‌جای بایگانی، حذف می‌کند. قابل بازگشت نیست.",
+      "categoryFilterLabel": "دسته‌بندی",
+      "categoryFilterAll": "همهٔ دسته‌ها",
+      "categoryUncategorized": "بدون دسته‌بندی",
+      "noCategoryResults": "حافظه‌ای در این دسته وجود ندارد.",
+      "category": {
+        "user_preference": "ترجیح کاربر",
+        "project_fact": "واقعیت پروژه",
+        "task_outcome": "نتیجهٔ کار",
+        "heuristic": "قاعدهٔ تجربی",
+        "anti_pattern": "ضدالگو"
+      }
     },
     "personaEvolutionTitle": "تکامل پرسونا (آزمایشی)",
     "personaEvolutionDescription": "اجازه دهید بازتاب، مدل‌های خودِ به‌روزشده را به‌صورت پیش‌نویس برای تأیید شما پیشنهاد دهد. مستقل از حافظه؛ به‌طور پیش‌فرض خاموش.",

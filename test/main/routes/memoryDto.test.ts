@@ -16,6 +16,7 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     agent_id: 'agent',
     user_scope: null,
     kind: 'semantic',
+    category: null,
     content: 'redis listens on 6379',
     importance: 0.5,
     status: 'embedded',
@@ -88,6 +89,15 @@ describe('toMemoryItemDto sourceEntryIds passthrough', () => {
     const parsed = memoryListRoute.output.parse({ memories: [dto] })
     expect(parsed.memories[0].personaState).toBeNull()
   })
+
+  it('passes valid categories through and normalizes invalid values to null', () => {
+    expect(toMemoryItemDto(makeRow({ category: 'project_fact' })).category).toBe('project_fact')
+    expect(toMemoryItemDto(makeRow({ category: 'unknown' })).category).toBeNull()
+    const parsed = memoryListRoute.output.parse({
+      memories: [toMemoryItemDto(makeRow({ category: null }))]
+    })
+    expect(parsed.memories[0].category).toBeNull()
+  })
 })
 
 describe('memory.restore route contract round-trip', () => {
@@ -144,9 +154,11 @@ describe('memory.add route contract', () => {
       agentId: 'deepchat',
       content: 'redis on 6379',
       kind: 'episodic',
+      category: 'project_fact',
       importance: 0.8
     })
     expect(full.kind).toBe('episodic')
+    expect(full.category).toBe('project_fact')
     expect(full.importance).toBe(0.8)
     expect(memoryAddRoute.input.safeParse({ agentId: 'has space', content: 'x' }).success).toBe(
       false
@@ -154,6 +166,13 @@ describe('memory.add route contract', () => {
     expect(memoryAddRoute.input.safeParse({ agentId: 'deepchat', content: '' }).success).toBe(false)
     expect(
       memoryAddRoute.input.safeParse({ agentId: 'deepchat', content: 'x', importance: 2 }).success
+    ).toBe(false)
+    expect(
+      memoryAddRoute.input.safeParse({
+        agentId: 'deepchat',
+        content: 'x',
+        category: 'unknown'
+      }).success
     ).toBe(false)
   })
 

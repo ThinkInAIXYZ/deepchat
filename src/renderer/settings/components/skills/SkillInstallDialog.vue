@@ -164,6 +164,7 @@ import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
+import type { SkillInstallResult } from '@shared/types/skill'
 
 const props = defineProps<{
   open: boolean
@@ -349,7 +350,7 @@ const tryInstallFromUrl = async (url: string, overwrite = false) => {
 
 // Common result handling
 const handleInstallResult = (
-  result: { success: boolean; error?: string; skillName?: string },
+  result: SkillInstallResult,
   retryWithOverwrite: () => Promise<void>
 ) => {
   if (result.success) {
@@ -359,8 +360,8 @@ const handleInstallResult = (
     })
     emit('installed')
     isOpen.value = false
-  } else if (result.error?.includes('already exists')) {
-    const skillName = result.error.match(/"([^"]+)"/)?.[1] || ''
+  } else if (result.errorCode === 'conflict') {
+    const skillName = result.existingSkillName || result.error?.match(/"([^"]+)"/)?.[1] || ''
     conflictSkillName.value = skillName
     pendingInstallAction.value = retryWithOverwrite
     conflictDialogOpen.value = true

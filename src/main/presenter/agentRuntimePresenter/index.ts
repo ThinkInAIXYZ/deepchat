@@ -290,6 +290,13 @@ type ActiveGeneration = {
   abortController: AbortController
 }
 
+type MemoryAdmissionSpan = {
+  spanText: string
+  sourceEntryIds: number[]
+  hadToolUse: boolean
+  visibleTextChars: number
+}
+
 type SkillDraftStatus = 'pending' | 'viewed' | 'installed' | 'discarded' | 'error'
 
 type SkillDraftChoice = 'view' | 'install' | 'discard'
@@ -308,6 +315,8 @@ const SKILL_DRAFT_STATUS_BY_CHOICE: Record<Exclude<SkillDraftChoice, 'view'>, Sk
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 // Minimum new-message delta (since the memory cursor) before the fallback extracts.
 const MEMORY_FALLBACK_MIN_DELTA = 6
+// Minimum visible text for short non-tool fallback spans.
+const MEMORY_MIN_AGENTIC_TEXT_CHARS = 160
 const PRE_STREAM_SLOW_STEP_MS = 500
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -2042,7 +2051,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
       const span = this.buildMemorySpanFromTape(sessionId, cursor, toOrderSeq)
-      if (!span) return
+      if (!span || span.visibleTextChars <= 0) return
       await this.runMemoryExtraction(
         sessionId,
         {
@@ -2101,9 +2110,15 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const tailOrderSeq = this.messageStore.getNextOrderSeq(sessionId) - 1
       const cursor =
         this.sqlitePresenter.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId) ?? 0
-      if (tailOrderSeq <= cursor || tailOrderSeq - cursor < MEMORY_FALLBACK_MIN_DELTA) return
+      if (tailOrderSeq <= cursor) return
       const span = this.buildMemorySpanFromTape(sessionId, cursor, tailOrderSeq)
-      if (!span) return
+      if (!span || span.visibleTextChars <= 0) return
+      const delta = tailOrderSeq - cursor
+      const admit =
+        span.hadToolUse ||
+        delta >= MEMORY_FALLBACK_MIN_DELTA ||
+        (delta >= 2 && span.visibleTextChars >= MEMORY_MIN_AGENTIC_TEXT_CHARS)
+      if (!admit) return
       await this.runMemoryExtraction(
         sessionId,
         {
@@ -2186,14 +2201,21 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     sessionId: string,
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number
-  ): { spanText: string; sourceEntryIds: number[] } | null {
+  ): MemoryAdmissionSpan | null {
     if (toOrderSeqInclusive <= fromOrderSeqExclusive) return null
     const rows = this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId)
-    const selected = buildEffectiveTapeView(rows).messageEntries.filter(
+    const view = buildEffectiveTapeView(rows)
+    const selected = view.messageEntries.filter(
       (entry) =>
         entry.record.orderSeq > fromOrderSeqExclusive &&
         entry.record.orderSeq <= toOrderSeqInclusive
     )
+    if (selected.length === 0) return null
+    const windowMsgIds = new Set(selected.map((entry) => entry.record.id))
+    const hadToolUse = view.rows.some((row) => {
+      const messageId = this.readToolCallMessageId(row)
+      return messageId !== null && windowMsgIds.has(messageId)
+    })
     const lines: string[] = []
     const sourceEntryIds: number[] = []
     for (const entry of selected) {
@@ -2203,8 +2225,24 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       sourceEntryIds.push(entry.entryId)
     }
     const spanText = lines.join('\n').trim()
-    if (!spanText) return null
-    return { spanText, sourceEntryIds }
+    return {
+      spanText,
+      sourceEntryIds,
+      hadToolUse,
+      visibleTextChars: spanText.length
+    }
+  }
+
+  private readToolCallMessageId(row: DeepChatTapeEntryRow): string | null {
+    if (row.kind !== 'tool_call') return null
+    try {
+      const payload = JSON.parse(row.payload_json) as { messageId?: unknown }
+      return typeof payload.messageId === 'string' && payload.messageId.length > 0
+        ? payload.messageId
+        : null
+    } catch {
+      return null
+    }
   }
 
   private extractPlainTextFromRecord(record: ChatMessageRecord): string {

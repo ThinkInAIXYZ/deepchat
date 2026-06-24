@@ -225,7 +225,18 @@
       "searchFailed": "Suche fehlgeschlagen. Bitte erneut versuchen.",
       "deletePermanent": "Endgültig löschen",
       "deleteConfirmTitle": "Diese Erinnerung endgültig löschen?",
-      "deleteConfirmBody": "Dadurch wird die Erinnerung entfernt statt archiviert. Dies kann nicht rückgängig gemacht werden."
+      "deleteConfirmBody": "Dadurch wird die Erinnerung entfernt statt archiviert. Dies kann nicht rückgängig gemacht werden.",
+      "categoryFilterLabel": "Kategorie",
+      "categoryFilterAll": "Alle Kategorien",
+      "categoryUncategorized": "Nicht kategorisiert",
+      "noCategoryResults": "Keine Erinnerungen in dieser Kategorie.",
+      "category": {
+        "user_preference": "Benutzerpräferenz",
+        "project_fact": "Projektfakt",
+        "task_outcome": "Aufgabenergebnis",
+        "heuristic": "Heuristik",
+        "anti_pattern": "Antimuster"
+      }
     },
     "personaEvolutionTitle": "Persona-Entwicklung (experimentell)",
     "personaEvolutionDescription": "Lassen Sie die Reflexion aktualisierte Selbstmodelle als Entwürfe zur Freigabe vorschlagen. Unabhängig vom Speicher; standardmäßig deaktiviert.",

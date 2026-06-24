@@ -225,7 +225,18 @@
       "searchFailed": "Carian gagal. Cuba lagi.",
       "deletePermanent": "Padam secara kekal",
       "deleteConfirmTitle": "Padam memori ini secara kekal?",
-      "deleteConfirmBody": "Ini membuang memori dan bukannya mengarkibkannya. Tindakan ini tidak boleh dibuat asal."
+      "deleteConfirmBody": "Ini membuang memori dan bukannya mengarkibkannya. Tindakan ini tidak boleh dibuat asal.",
+      "categoryFilterLabel": "Kategori",
+      "categoryFilterAll": "Semua kategori",
+      "categoryUncategorized": "Tidak dikategorikan",
+      "noCategoryResults": "Tiada memori dalam kategori ini.",
+      "category": {
+        "user_preference": "Keutamaan pengguna",
+        "project_fact": "Fakta projek",
+        "task_outcome": "Hasil tugasan",
+        "heuristic": "Heuristik",
+        "anti_pattern": "Anti-corak"
+      }
     },
     "personaEvolutionTitle": "Evolusi persona (eksperimental)",
     "personaEvolutionDescription": "Benarkan refleksi mencadangkan model diri yang dikemas kini sebagai draf untuk kelulusan anda. Bebas daripada memori; dimatikan secara lalai.",

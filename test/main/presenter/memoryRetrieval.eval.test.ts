@@ -93,6 +93,7 @@ function makeRow(id: string, content: string): AgentMemoryRow {
     agent_id: 'a',
     user_scope: null,
     kind: 'semantic',
+    category: null,
     content,
     importance: 0.5,
     status: 'embedded',

@@ -34,6 +34,7 @@ export class FakeRepository implements MemoryRepositoryPort {
       agent_id: input.agentId,
       user_scope: input.userScope ?? null,
       kind: input.kind,
+      category: input.category ?? null,
       content: input.content,
       importance: input.importance ?? 0.5,
       status: input.status ?? 'pending_embedding',
@@ -251,12 +252,19 @@ export class FakeRepository implements MemoryRepositoryPort {
     }
   }
 
-  updateContent(id: string, content: string, provenanceKey: string | null, at = 0) {
+  updateContent(
+    id: string,
+    content: string,
+    provenanceKey: string | null,
+    at = 0,
+    category?: string | null
+  ) {
     const row = this.rows.get(id)
     if (row) {
       row.content = content
       row.provenance_key = provenanceKey
       row.last_accessed = at
+      if (category !== undefined) row.category = category
     }
   }
 
@@ -337,8 +345,20 @@ export class FakeRepository implements MemoryRepositoryPort {
     return this.listByAgent(agentId, { includeSuperseded: true }).length
   }
 
+  hasActiveMemory(agentId: string) {
+    return [...this.rows.values()].some(
+      (row) => row.agent_id === agentId && row.status !== 'archived'
+    )
+  }
+
   listAgentIdsWithMemories() {
-    return [...new Set([...this.rows.values()].map((row) => row.agent_id))]
+    return [
+      ...new Set(
+        [...this.rows.values()]
+          .filter((row) => row.status !== 'archived')
+          .map((row) => row.agent_id)
+      )
+    ]
   }
 }
 

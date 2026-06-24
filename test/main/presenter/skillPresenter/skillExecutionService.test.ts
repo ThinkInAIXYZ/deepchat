@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
@@ -57,6 +58,7 @@ describe('SkillExecutionService', () => {
     vi.clearAllMocks()
     vi.mocked(shellEnvHelper.getUserShell).mockReturnValue({ shell: '/bin/zsh', args: ['-c'] })
     vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined)
     vi.mocked(fs.promises.stat).mockResolvedValue({
       isDirectory: () => true
     } as never)
@@ -134,7 +136,7 @@ describe('SkillExecutionService', () => {
     expect(plan.args).toEqual(['run', '/skills/ocr/scripts/run.py', '--lang', 'en'])
   })
 
-  it('falls back to skill root cwd when the session workdir is unavailable', async () => {
+  it('uses a session cwd when the conversation workdir is unavailable', async () => {
     resolveConversationWorkdir.mockResolvedValueOnce(null)
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
@@ -149,13 +151,36 @@ describe('SkillExecutionService', () => {
       'conv-1'
     )
 
-    expect(plan.cwd).toBe(resolvePath('/skills/ocr'))
+    const sessionDir = path.resolve(os.homedir(), '.deepchat', 'sessions', 'conv-1')
+    expect(plan.cwd).toBe(sessionDir)
+    expect(fs.mkdirSync).toHaveBeenCalledWith(sessionDir, { recursive: true })
   })
 
-  it('falls back to skill root cwd when the resolved session workdir is not a directory', async () => {
+  it('uses a session cwd when the resolved conversation workdir is not a directory', async () => {
     vi.mocked(fs.promises.stat).mockResolvedValueOnce({
       isDirectory: () => false
     } as never)
+    vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
+      command: 'uv',
+      mode: 'uv'
+    })
+
+    const plan = await (service as never).buildSpawnPlan(
+      {
+        skill: 'ocr',
+        script: 'scripts/run.py'
+      },
+      'conv-1'
+    )
+
+    expect(plan.cwd).toBe(path.resolve(os.homedir(), '.deepchat', 'sessions', 'conv-1'))
+  })
+
+  it('falls back to skill root cwd when a session cwd cannot be created', async () => {
+    resolveConversationWorkdir.mockResolvedValueOnce(null)
+    vi.mocked(fs.mkdirSync).mockImplementationOnce(() => {
+      throw new Error('mkdir failed')
+    })
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'uv',
       mode: 'uv'

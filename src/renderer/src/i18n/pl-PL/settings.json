@@ -225,7 +225,18 @@
       "searchFailed": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
       "deletePermanent": "Usuń trwale",
       "deleteConfirmTitle": "Trwale usunąć tę pamięć?",
-      "deleteConfirmBody": "Spowoduje to usunięcie pamięci zamiast jej zarchiwizowania. Tej operacji nie można cofnąć."
+      "deleteConfirmBody": "Spowoduje to usunięcie pamięci zamiast jej zarchiwizowania. Tej operacji nie można cofnąć.",
+      "categoryFilterLabel": "Kategoria",
+      "categoryFilterAll": "Wszystkie kategorie",
+      "categoryUncategorized": "Bez kategorii",
+      "noCategoryResults": "Brak wspomnień w tej kategorii.",
+      "category": {
+        "user_preference": "Preferencja użytkownika",
+        "project_fact": "Fakt projektu",
+        "task_outcome": "Wynik zadania",
+        "heuristic": "Heurystyka",
+        "anti_pattern": "Antywzorzec"
+      }
     },
     "personaEvolutionTitle": "Ewolucja persony (eksperymentalna)",
     "personaEvolutionDescription": "Pozwól, aby refleksja proponowała zaktualizowane modele siebie jako wersje robocze do zatwierdzenia. Niezależna od pamięci; domyślnie wyłączona.",

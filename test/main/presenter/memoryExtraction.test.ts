@@ -31,11 +31,18 @@ describe('personaChangeRatio', () => {
 describe('parseMemoryCandidates', () => {
   it('parses a plain JSON array', () => {
     const out = parseMemoryCandidates(
-      '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      '[{"category":"user_preference","content":"user likes redis","importance":0.8}]'
     )
     expect(out).toEqual({
       ok: true,
-      candidates: [{ kind: 'semantic', content: 'user likes redis', importance: 0.8 }]
+      candidates: [
+        {
+          category: 'user_preference',
+          kind: undefined,
+          content: 'user likes redis',
+          importance: 0.8
+        }
+      ]
     })
   })
 
@@ -46,17 +53,21 @@ describe('parseMemoryCandidates', () => {
     if (!out.ok) throw new Error('expected parse to succeed')
     expect(out.candidates).toHaveLength(1)
     expect(out.candidates[0]).toMatchObject({ kind: 'episodic', content: 'shipped v1' })
-    expect(out.candidates[0].importance).toBe(0.5) // default
+    expect(out.candidates[0].importance).toBeUndefined()
   })
 
-  it('defaults kind to semantic and clamps importance', () => {
+  it('preserves raw category/kind and leaves importance clamping to normalization', () => {
     const out = parseMemoryCandidates(
-      '[{"content":"x","importance":5},{"content":"y","importance":-2}]'
+      '[{"category":"unknown","kind":"other","content":"x","importance":5},{"kind":"semantic","content":"y","importance":-2}]'
     )
     expect(out.ok).toBe(true)
     if (!out.ok) throw new Error('expected parse to succeed')
-    expect(out.candidates[0]).toMatchObject({ kind: 'semantic', importance: 1 })
-    expect(out.candidates[1]).toMatchObject({ kind: 'semantic', importance: 0 })
+    expect(out.candidates[0]).toMatchObject({
+      category: 'unknown',
+      kind: undefined,
+      importance: 5
+    })
+    expect(out.candidates[1]).toMatchObject({ kind: 'semantic', importance: -2 })
   })
 
   it('drops entries without content', () => {
@@ -86,6 +97,22 @@ describe('parseMemoryCandidates', () => {
     if (!out.ok) throw new Error('expected parse to succeed')
     expect(out.candidates).toHaveLength(8)
   })
+
+  it('keeps at most one task_outcome candidate', () => {
+    const out = parseMemoryCandidates(
+      JSON.stringify([
+        { category: 'task_outcome', content: 'task finished', importance: 0.8 },
+        { category: 'task_outcome', content: 'second outcome', importance: 0.9 },
+        { category: 'project_fact', content: 'repo uses pnpm', importance: 0.7 }
+      ])
+    )
+    expect(out.ok).toBe(true)
+    if (!out.ok) throw new Error('expected parse to succeed')
+    expect(out.candidates.map((candidate) => candidate.content)).toEqual([
+      'task finished',
+      'repo uses pnpm'
+    ])
+  })
 })
 
 describe('buildExtractionPrompt', () => {
@@ -94,6 +121,13 @@ describe('buildExtractionPrompt', () => {
     expect(prompt).toContain('I prefer concise answers')
     expect(prompt).toContain('JSON array')
     expect(prompt).toContain('untrusted')
+    expect(prompt).toContain('user_preference')
+    expect(prompt).toContain('project_fact')
+    expect(prompt).toContain('task_outcome')
+    expect(prompt).toContain('heuristic')
+    expect(prompt).toContain('anti_pattern')
+    expect(prompt).toContain('raw tool results')
+    expect(prompt).toContain('Return at most one task_outcome')
   })
 
   it('truncates very long spans to the tail', () => {
@@ -161,6 +195,42 @@ describe('MemoryPresenter.extractAndStore', () => {
     expect(repo.listByAgent('on').length).toBe(1)
   })
 
+  it('applies category-derived kind and importance floor through extraction writes', async () => {
+    const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
+    const repo = makeFakeRepo()
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      return '[{"category":"task_outcome","content":"PR-2 review fix completed","importance":0.1}]'
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({ memoryEnabled: true }),
+      getEmbeddings: async () => [],
+      generateText,
+      createVectorStore: async () => ({
+        upsert: async () => {},
+        query: async () => [],
+        deleteByMemoryIds: async () => {},
+        clear: async () => {},
+        close: async () => {}
+      })
+    })
+
+    const result = await presenter.extractAndStore({
+      agentId: 'on',
+      spanText: 'Assistant: PR-2 review fix completed.',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+
+    if (!result.ok) throw new Error('expected extraction to succeed')
+    const row = repo.getById(result.createdIds[0])
+    expect(row).toMatchObject({
+      kind: 'episodic',
+      category: 'task_outcome',
+      importance: 0.55
+    })
+  })
+
   it('returns ok:false on extraction failure without writing (cursor caller can retry)', async () => {
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
     const repo = makeFakeRepo()
@@ -200,6 +270,10 @@ describe('triage prompt + decision', () => {
     expect(prompt).toContain('KEEP')
     expect(prompt).toContain('SKIP')
     expect(prompt).toContain('untrusted')
+    expect(prompt).toContain('project facts')
+    expect(prompt).toContain('durable task outcomes')
+    expect(prompt).toContain('heuristics')
+    expect(prompt).toContain('anti-patterns')
   })
 
   it('parseTriageDecision keeps unless SKIP is the clear, sole verdict', () => {
@@ -463,6 +537,7 @@ function makeFakeRepo() {
         id: input.id,
         agent_id: input.agentId,
         kind: input.kind,
+        category: input.category ?? null,
         content: input.content,
         importance: input.importance ?? 0.5,
         status: input.status ?? 'pending_embedding',
@@ -505,6 +580,20 @@ function makeFakeRepo() {
     updateStatus: (id: string, status: string) => {
       const r = rows.get(id)
       if (r) r.status = status
+    },
+    updateContent: (
+      id: string,
+      content: string,
+      provenanceKey: string | null,
+      at = 0,
+      category?: string | null
+    ) => {
+      const r = rows.get(id)
+      if (!r) return
+      r.content = content
+      r.provenance_key = provenanceKey
+      r.last_accessed = at
+      if (category !== undefined) r.category = category
     },
     markSuperseded: () => {},
     recordAccess: () => {},

@@ -2332,7 +2332,18 @@
       "searchFailed": "搜尋失敗，請再試一次。",
       "deletePermanent": "永久刪除",
       "deleteConfirmTitle": "永久刪除這段記憶？",
-      "deleteConfirmBody": "這會直接移除該記憶，而不是封存。此操作無法復原。"
+      "deleteConfirmBody": "這會直接移除該記憶，而不是封存。此操作無法復原。",
+      "categoryFilterLabel": "分類",
+      "categoryFilterAll": "全部分類",
+      "categoryUncategorized": "未分類",
+      "noCategoryResults": "此分類下沒有記憶。",
+      "category": {
+        "user_preference": "用戶偏好",
+        "project_fact": "專案事實",
+        "task_outcome": "任務結論",
+        "heuristic": "經驗法則",
+        "anti_pattern": "反例"
+      }
     },
     "personaEvolutionTitle": "人格演化（實驗）",
     "personaEvolutionDescription": "讓反思以草稿形式提出更新後的自我模型，交由你審核。獨立於記憶開關，預設關閉。",
