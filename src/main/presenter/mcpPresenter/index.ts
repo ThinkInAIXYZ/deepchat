@@ -33,6 +33,7 @@ export class McpPresenter implements IMCPPresenter {
   // McpRouter
   private mcprouter?: McpRouterManager
   private cacheImage?: (data: string) => Promise<string>
+  private shutdownPromise: Promise<void> | null = null
   private pendingSamplingRequests = new Map<
     string,
     { resolve: (decision: McpSamplingDecision) => void; reject: (error: Error) => void }
@@ -170,6 +171,19 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   async shutdown(): Promise<void> {
+    if (this.shutdownPromise) {
+      return this.shutdownPromise
+    }
+
+    this.shutdownPromise = this.shutdownRunningClients()
+    try {
+      await this.shutdownPromise
+    } finally {
+      this.shutdownPromise = null
+    }
+  }
+
+  private async shutdownRunningClients(): Promise<void> {
     const runningClients = await this.serverManager.getRunningClients()
     for (const client of runningClients) {
       try {
