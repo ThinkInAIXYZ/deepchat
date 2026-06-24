@@ -250,6 +250,12 @@ function mergeSessions(current: UISession[], updates: UISession[]): UISession[] 
   return sortSessions(Array.from(next.values()))
 }
 
+function cloneSessionPageCursor(
+  cursor: { updatedAt: number; id: string } | null
+): { updatedAt: number; id: string } | null {
+  return cursor ? { updatedAt: cursor.updatedAt, id: cursor.id } : null
+}
+
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
@@ -549,7 +555,7 @@ export const useSessionStore = defineStore('session', () => {
     try {
       const result = await sessionClient.listLightweight({
         limit: DEFAULT_SESSION_PAGE_SIZE,
-        cursor: nextCursor.value,
+        cursor: cloneSessionPageCursor(nextCursor.value),
         // 与首屏一致：仅分页 regular 会话，避免子代理会话占用页槽。
         includeSubagents: false
       })
