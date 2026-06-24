@@ -37,14 +37,6 @@ export class NewSessionsTable extends BaseTable {
     return this.getCreateTableSQLForVersion(this.getLatestVersion())
   }
 
-  override createTable(): void {
-    if (this.tableExists()) {
-      return
-    }
-
-    this.db.exec(this.getCreateTableSQLForVersion(this.getRecordedSchemaVersion()))
-  }
-
   private getCreateTableSQLForVersion(version: number): string {
     const columns = [
       'id TEXT PRIMARY KEY',

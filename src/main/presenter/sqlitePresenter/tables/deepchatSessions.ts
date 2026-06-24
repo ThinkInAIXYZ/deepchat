@@ -87,7 +87,7 @@ export class DeepChatSessionsTable extends BaseTable {
       throw new Error(message)
     }
 
-    this.db.exec(this.getCreateTableSQLForVersion(recordedVersion))
+    this.db.exec(this.getCreateTableSQL())
   }
 
   private getCreateTableSQLForVersion(version: number): string {

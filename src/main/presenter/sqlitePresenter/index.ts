@@ -43,6 +43,7 @@ import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { configureSQLiteConnection } from './connectionConfig'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
@@ -85,11 +86,17 @@ export function openSQLiteDatabase(dbPath: string, password?: string): Database.
   return db
 }
 
-export function repairSQLiteDatabaseFile(dbPath: string, password?: string): DatabaseRepairReport {
+export function repairSQLiteDatabaseFile(
+  dbPath: string,
+  password?: string,
+  options?: {
+    catalog?: SchemaTableSpec[]
+  }
+): DatabaseRepairReport {
   const db = openSQLiteDatabase(dbPath, password)
 
   try {
-    return new DatabaseRepairService(db, dbPath).repair()
+    return new DatabaseRepairService(db, dbPath, options?.catalog).repair()
   } finally {
     db.close()
   }
@@ -279,8 +286,8 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.reopen()
   }
 
-  public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
-    return new SchemaInspector(this.db).diagnose()
+  public async diagnoseSchema(catalog?: SchemaTableSpec[]): Promise<DatabaseSchemaDiagnosis> {
+    return new SchemaInspector(this.db, catalog).diagnose()
   }
 
   public async repairSchema(): Promise<DatabaseRepairReport> {

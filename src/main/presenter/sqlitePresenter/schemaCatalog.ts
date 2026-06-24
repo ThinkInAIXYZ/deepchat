@@ -30,10 +30,14 @@ import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAg
 import { SettingsActivityTable } from './tables/settingsActivity'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
+import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
 
 interface CatalogDefinition {
   name: string
   createTable: (db: Database.Database) => BaseTable
+  // Per-table override for exceptional cases. When omitted, schemaCatalogMetadata.ts decides
+  // whether the table belongs to the fresh startup catalog.
+  createdOnFreshInstall?: boolean
   repairableColumns?: Record<string, string>
   typeCheckedColumns?: string[]
   afterRepair?: (db: Database.Database) => void
@@ -286,6 +290,10 @@ export function getSchemaCatalog(): SchemaTableSpec[] {
       return {
         name: definition.name,
         createSql,
+        // Explicit catalog definitions win; otherwise the shared metadata supplies the startup
+        // diagnosis/repair default.
+        createdOnFreshInstall:
+          definition.createdOnFreshInstall ?? isSchemaTableCreatedOnFreshInstall(definition.name),
         columns: columns.map((column) => ({
           name: column.name,
           declaredType: normalizeDeclaredType(column.type),
@@ -304,4 +312,8 @@ export function getSchemaCatalog(): SchemaTableSpec[] {
   } finally {
     catalogDb.close()
   }
+}
+
+export function getStartupSchemaCatalog(): SchemaTableSpec[] {
+  return getSchemaCatalog().filter((table) => table.createdOnFreshInstall)
 }

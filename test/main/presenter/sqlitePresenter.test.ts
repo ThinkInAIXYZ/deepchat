@@ -12,8 +12,14 @@ const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() =>
 const sqlitePresenterModule = sqliteModule
   ? await import('../../../src/main/presenter/sqlitePresenter').catch(() => null)
   : null
+const schemaCatalogModule = sqliteModule
+  ? await import('../../../src/main/presenter/sqlitePresenter/schemaCatalog').catch(() => null)
+  : null
 const Database = sqliteModule?.default
 const SQLitePresenter = sqlitePresenterModule?.SQLitePresenter
+const getStartupSchemaCatalog = schemaCatalogModule?.getStartupSchemaCatalog
+const sqliteSkipReason = 'skipped: better-sqlite3-multiple-ciphers is unavailable'
+const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
 let sqliteAvailable = false
 if (Database) {
   try {
@@ -26,7 +32,20 @@ if (Database) {
 }
 const DatabaseCtor = Database!
 const SQLitePresenterCtor = SQLitePresenter!
-const describeIfSqlite = sqliteAvailable && SQLitePresenter ? describe : describe.skip
+const sqliteHarnessAvailable = sqliteAvailable && SQLitePresenter && getStartupSchemaCatalog
+const sqliteHarnessSkipReason = sqliteAvailable
+  ? 'skipped: SQLitePresenter startup schema catalog is unavailable'
+  : sqliteSkipReason
+const describeIfSqlite = sqliteHarnessAvailable
+  ? describe
+  : requireNativeSqlite
+    ? (name: string, _suite: () => void) =>
+        describe(name, () => {
+          it('requires native SQLite support', () => {
+            throw new Error(sqliteHarnessSkipReason)
+          })
+        })
+    : describe.skip
 
 describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
   const tempDirs: string[] = []
@@ -131,19 +150,29 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
-  it('creates fresh new_sessions tables with disabled_agent_tools column', async () => {
+  it('creates fresh session tables with latest schema columns', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
     const dbPath = path.join(tempDir, 'agent.db')
     const presenter = new SQLitePresenterCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
     presenter.close()
+
+    const startupSchemaTableNames = new Set(getStartupSchemaCatalog!().map((table) => table.name))
+    expect(diagnosis.issues.filter((issue) => startupSchemaTableNames.has(issue.table))).toEqual([])
 
     const checkDb = new DatabaseCtor(dbPath)
     const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
       name: string
     }>
     const columnNames = new Set(newSessionColumns.map((column) => column.name))
+    const deepchatSessionColumns = checkDb
+      .prepare('PRAGMA table_info(deepchat_sessions)')
+      .all() as Array<{
+      name: string
+    }>
+    const deepchatColumnNames = new Set(deepchatSessionColumns.map((column) => column.name))
     const environmentColumns = checkDb
       .prepare('PRAGMA table_info(new_environments)')
       .all() as Array<{
@@ -154,12 +183,27 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     expect(columnNames.has('is_draft')).toBe(true)
     expect(columnNames.has('active_skills')).toBe(true)
     expect(columnNames.has('disabled_agent_tools')).toBe(true)
+    expect(columnNames.has('subagent_enabled')).toBe(true)
+    expect(columnNames.has('session_kind')).toBe(true)
+    expect(columnNames.has('parent_session_id')).toBe(true)
+    expect(columnNames.has('subagent_meta_json')).toBe(true)
+    expect(deepchatColumnNames.has('system_prompt')).toBe(true)
+    expect(deepchatColumnNames.has('summary_text')).toBe(true)
+    expect(deepchatColumnNames.has('summary_cursor_order_seq')).toBe(true)
+    expect(deepchatColumnNames.has('force_interleaved_thinking_compat')).toBe(true)
+    expect(deepchatColumnNames.has('reasoning_visibility')).toBe(true)
+    expect(deepchatColumnNames.has('timeout_ms')).toBe(true)
+    expect(deepchatColumnNames.has('image_generation_options_json')).toBe(true)
+    expect(deepchatColumnNames.has('video_generation_options_json')).toBe(true)
+    expect(deepchatColumnNames.has('top_p')).toBe(true)
+    expect(deepchatColumnNames.has('memory_cursor_order_seq')).toBe(true)
     expect(environmentColumnNames).toEqual(new Set(['path', 'session_count', 'last_used_at']))
 
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
-    expect(versions.map((row) => row.version)).toEqual(expect.arrayContaining([11, 15, 16, 17]))
+    expect(versions).toHaveLength(1)
+    expect(versions[0].version).toBeGreaterThan(0)
     checkDb.close()
   })
 
