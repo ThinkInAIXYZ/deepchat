@@ -829,11 +829,16 @@ describe('PluginPresenter', () => {
     expect(presenterSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
 
-  it('uses the CUA permission probe for runtime checks', async () => {
+  it('uses upstream-compatible CUA permission tool args for runtime checks', async () => {
     const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+    const presenter = await createPluginPresenter('darwin')
 
-    expect(presenterSource).toContain('deepchat-permission-probe')
-    expect(presenterSource).toContain('Runtime permission probe failed')
+    expect((presenter as any).runtimePermissionToolArgs()).toEqual([
+      'check_permissions',
+      '{"prompt":false}'
+    ])
+    expect(presenterSource).not.toContain('deepchat-permission-probe')
+    expect(presenterSource).not.toContain('Runtime permission probe failed')
   })
 
   it('opens the detected macOS helper app for runtime permission guidance', async () => {
@@ -918,6 +923,26 @@ describe('PluginPresenter', () => {
       }
     })
     expect(result.error).toBeUndefined()
+  })
+
+  it('parses CUA permission text and removes misleading shell hints', async () => {
+    const presenter = await createPluginPresenter('darwin')
+
+    const result = (presenter as any).parseRuntimePermissionToolResult(
+      '/mock/deepchat-cua-driver',
+      '❌ Accessibility: NOT granted.\n✅ Screen Recording: granted.\n',
+      ''
+    )
+    const message = (presenter as any).sanitizePermissionError(
+      'Command failed. hint: PowerShell 5.1 strips quotes around JSON field names. Fallback: Command failed.'
+    )
+
+    expect(result).toMatchObject({
+      accessibility: 'missing',
+      screenRecording: 'granted'
+    })
+    expect(message).not.toContain('PowerShell')
+    expect(message).toContain('Fallback: Command failed.')
   })
 
   it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {

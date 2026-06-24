@@ -20,6 +20,11 @@ const renderSettingsDom = (): void => {
     <div id="diagnostics-title"></div>
     <div id="diagnostics-rows"></div>
     <p id="message"></p>
+    <details id="message-detail" hidden>
+      <summary>Message details</summary>
+      <pre id="message-detail-text"></pre>
+    </details>
+    <details id="technical-details"></details>
     <a id="project-link"></a>
     <button id="check"></button>
     <button id="guide"></button>
@@ -47,7 +52,7 @@ describe('CUA plugin settings', () => {
     delete (window as CuaSettingsWindow).deepchatPlugin
   })
 
-  it('clears the bottom message after a successful permission check', async () => {
+  it('shows clear permission guidance after a successful permission check', async () => {
     const pluginWindow = window as CuaSettingsWindow
 
     pluginWindow.deepchatPlugin = {
@@ -87,10 +92,15 @@ describe('CUA plugin settings', () => {
 
     expect(document.getElementById('diagnostics-title')?.textContent).toBe('macOS Permissions')
     expect(getDiagnosticRows()).toEqual(['Accessibility:Granted', 'Screen Recording:Denied'])
-    expect(document.getElementById('message')?.textContent).toBe('')
+    expect(document.getElementById('message')?.textContent).toBe(
+      'Grant the missing permissions, then check again.'
+    )
+    expect(document.getElementById('runtime-helper-app')?.textContent).toBe(
+      '/mock/DeepChat Computer Use.app'
+    )
   })
 
-  it('shows plugin MCP errors in the status row and message area', async () => {
+  it('shows plugin MCP errors as friendly status with folded details', async () => {
     const pluginWindow = window as CuaSettingsWindow
 
     pluginWindow.deepchatPlugin = {
@@ -119,6 +129,53 @@ describe('CUA plugin settings', () => {
     await flushPromises()
 
     expect(document.getElementById('mcp-state')?.textContent).toBe('Error')
-    expect(document.getElementById('message')?.textContent).toBe('connect failed')
+    expect(document.getElementById('message')?.textContent).toBe(
+      'MCP server is not running correctly.'
+    )
+    expect(document.getElementById('message-detail')?.hidden).toBe(false)
+    expect(document.getElementById('message-detail-text')?.textContent).toBe('connect failed')
+  })
+
+  it('hides misleading PowerShell hints from the primary permission error', async () => {
+    const pluginWindow = window as CuaSettingsWindow
+
+    pluginWindow.deepchatPlugin = {
+      getStatus: vi.fn().mockResolvedValue({
+        enabled: true,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtime: {
+          state: 'ready',
+          version: '0.1.5',
+          command: '/mock/cua-driver',
+          helperAppPath: '/mock/DeepChat Computer Use.app'
+        },
+        mcpServers: [
+          {
+            serverId: 'cua-driver',
+            enabled: true,
+            running: true
+          }
+        ]
+      }),
+      invokeAction: vi.fn().mockResolvedValue({
+        ok: false,
+        error:
+          'Command failed: deepchat-permission-probe --output /tmp/status.json hint: PowerShell 5.1 strips quotes around JSON field names.'
+      }),
+      disable: vi.fn()
+    }
+
+    await runSettingsScript()
+    await flushPromises()
+
+    document.getElementById('check')?.click()
+    await flushPromises()
+
+    expect(document.getElementById('message')?.textContent).toBe(
+      'Permission status could not be read from this CUA build. Open setup, then check again.'
+    )
+    expect(document.getElementById('message')?.textContent).not.toContain('PowerShell')
+    expect(document.getElementById('message-detail-text')?.textContent).toContain('PowerShell')
   })
 })
