@@ -385,7 +385,7 @@ Memory schedules its **own** maintenance — it does not rely on the repo-wide s
 
 ```mermaid
 flowchart TD
-  TM["own timers:<br/>60s after start + every 30min (sweep)<br/>5min idle debounce after each write"] --> CP["runConsolidationPass(agent)"]
+  TM["event-driven arms:<br/>60s after start one-shot batch<br/>5min idle debounce after each write<br/>config-change arm on enable / model-available"] --> CP["runConsolidationPass(agent)"]
   CP --> CD{"6h LLM cooldown<br/>seeded from agent_memory_audit"}
   CD -- within --> CHEAP["cheap maintenance only:<br/>decay refresh + archiveStale + working sync"]
   CD -- past --> LLMJOB["mergeNearDuplicates + runChallengeResolutionPass<br/>+ maybeReflect(kind=reflection)<br/>+ maybeEvolvePersona(draft, default-off)"]
@@ -394,9 +394,15 @@ flowchart TD
   AUD --> EV["memory.updated → UI refresh<br/>(post-audit emit gated on touched;<br/>archiveStale emits its own when archived&gt;0)"]
 ```
 
-**Two independent drivers, one pass.** A per-agent **5-minute idle debounce** is armed on every mutating
-write, and a **global sweep** (a one-shot 60s after start, then every 30min) iterates every enabled agent.
-Both funnel into `runConsolidationPass`, which then enforces the cooldown.
+**Event-driven arms, one pass.** A per-agent **5-minute idle debounce** is armed on every mutating write.
+After app start, a one-shot 60-second startup timer lists agents with active memories, filters them through
+`shouldArmMaintenance` (safe id · managed agent · memory enabled), sorts them, and schedules deterministic
+5-second-staggered idle timers. Maintenance-relevant DeepChat config writes also arm eligible agents:
+`memoryEnabled`, `memoryExtractionModel`, `assistantModel`, and `defaultModelPreset` trigger the arm because
+they affect enablement or consolidation model resolution. Custom-agent changes arm that agent, while builtin
+changes fan out to active inheritors with the same deterministic stagger. Renderer update saves send diff-only
+config patches, so unchanged model keys do not reach this field-presence gate. Every arm funnels into
+`runConsolidationPass`, which then enforces the cooldown.
 
 **Restart-durable cooldown.** The LLM-backed work runs at most once per **6 hours** per agent. The watermark
 is seeded from the audit table (`getLatestCompletedEventAt('memory/maintenance_llm')`) when the in-memory
@@ -522,10 +528,10 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   `absorbProvenanceHit`, then `markSuperseded(row, owner)`) and returns the owner's id.
 - **Close-safe teardown (`dispose`).** A `disposed` flag is set first so any already-fired timer's pass
   becomes a no-op; `canWriteAgentMemory` / `canReadAgentMemory` both include `!disposed` and are re-checked
-  after every `await`. Dispose stops the sweep, clears timers, bounded-drains in-flight consolidation /
-  reindex / backfill / embedding writers, awaits per-agent locks, and closes every DuckDB store — before the
-  SQLite connection closes. (The fire-and-forget extraction chain is not drained by `dispose`; it self-guards
-  on `disposed`.)
+  after every `await`. Dispose stops the startup maintenance timer, clears per-agent idle timers,
+  bounded-drains in-flight consolidation / reindex / backfill / embedding writers, awaits per-agent locks,
+  and closes every DuckDB store — before the SQLite connection closes. (The fire-and-forget extraction chain
+  is not drained by `dispose`; it self-guards on `disposed`.)
 - **Agent-deletion cleanup.** Deleting a DeepChat agent atomically clears `agent_memory` +
   `agent_memory_audit` in one SQLite transaction, then best-effort destroys that agent's DuckDB sidecar file.
 - **Disk reclaim.** A per-row hard delete does not shrink the DuckDB file; only a whole-store reset
@@ -715,7 +721,7 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `MEMORY_FALLBACK_MIN_DELTA` | 6 | min orderSeq delta before fallback extraction |
 | `MEMORY_MIN_AGENTIC_TEXT_CHARS` | 160 | short non-tool fallback text threshold |
 | `CONSOLIDATION_IDLE_MS` | 5min | idle debounce after a write |
-| maintenance sweep | 60s after start + every 30min | global background sweep |
+| `MAINTENANCE_START_DELAY_MS` / `STARTUP_ARM_STAGGER_MS` | 60s / 5s | one-shot startup batch arm for active enabled agents |
 | `CONSOLIDATION_COOLDOWN_MS` | 6h | LLM-backed pass cooldown (restart-durable) |
 | `CONSOLIDATION_MAX_LLM_CALLS` / tokens | 8 / 24000 | `mergeNearDuplicates` budget |
 | `CONSOLIDATION_MERGE_SIMILARITY` | 0.85 | near-duplicate merge threshold |

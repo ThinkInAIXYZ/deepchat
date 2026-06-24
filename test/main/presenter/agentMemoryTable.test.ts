@@ -114,6 +114,25 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('detects active memories and ignores archived-only agents', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'active-1', agentId: 'active-agent', kind: 'semantic', content: 'a' })
+      table.insert({ id: 'archived-1', agentId: 'archived-agent', kind: 'semantic', content: 'b' })
+      table.archive('archived-1')
+
+      expect(table.hasActiveMemory('active-agent')).toBe(true)
+      expect(table.hasActiveMemory('archived-agent')).toBe(false)
+      expect(table.hasActiveMemory('empty-agent')).toBe(false)
+      expect(table.listAgentIdsWithMemories()).toEqual(['active-agent'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('tracks active persona and supersede chain', () => {
     const db = new DatabaseCtor(':memory:')
     try {
