@@ -26,6 +26,8 @@ like a confusing overwrite failure.
   error instead of a raw rename stack message.
 - Skill uninstall does not publish a successful uninstall or clear caches before the target folder
   is actually removed.
+- Skill uninstall clears stale sidecar and cache state when the skill folder was already removed
+  outside DeepChat.
 - Skill script execution should avoid using the skill root as the process working directory when a
   safer session directory is available or creatable.
 - Tests cover stale-folder reinstall, locked-folder error mapping, uninstall failure ordering, and

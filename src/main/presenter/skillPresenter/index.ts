@@ -1553,6 +1553,7 @@ export class SkillPresenter implements ISkillPresenter {
       const skillDir = path.join(this.skillsDir, name)
 
       if (!fs.existsSync(skillDir)) {
+        this.cleanupUninstalledSkillState(name)
         return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
 
@@ -1561,17 +1562,7 @@ export class SkillPresenter implements ISkillPresenter {
         return this.createTargetLockedFailure(name, skillDir, 'remove')
       }
 
-      try {
-        this.deleteSkillExtension(name)
-      } catch (error) {
-        logger.warn('[SkillPresenter] Failed to delete skill sidecar after uninstall', {
-          name,
-          error
-        })
-      }
-
-      this.metadataCache.delete(name)
-      this.contentCache.delete(name)
+      this.cleanupUninstalledSkillState(name)
 
       publishDeepchatEvent('skills.catalog.changed', {
         reason: 'uninstalled',
@@ -1588,6 +1579,26 @@ export class SkillPresenter implements ISkillPresenter {
         error
       )
     }
+  }
+
+  private cleanupUninstalledSkillState(name: string): void {
+    if (this.isSafeSkillName(name)) {
+      try {
+        this.deleteSkillExtension(name)
+      } catch (error) {
+        logger.warn('[SkillPresenter] Failed to delete skill sidecar after uninstall', {
+          name,
+          error
+        })
+      }
+    }
+
+    this.metadataCache.delete(name)
+    this.contentCache.delete(name)
+  }
+
+  private isSafeSkillName(name: string): boolean {
+    return SKILL_NAME_PATTERN.test(name) && !name.includes('/') && !name.includes('\\')
   }
 
   /**

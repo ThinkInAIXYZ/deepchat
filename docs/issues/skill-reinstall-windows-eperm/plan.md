@@ -19,6 +19,8 @@
 5. Change skill execution working-directory fallback away from the skill root by creating a
    per-conversation session directory when no valid conversation workdir exists. Keep `SKILL_ROOT`
    and absolute script paths unchanged so scripts can still locate bundled resources.
+6. Keep the uninstall not-found path in sync with normal local cleanup for safe skill names, so an
+   externally removed folder cannot leave stale extension sidecars or cached metadata behind.
 
 ## Compatibility
 
@@ -34,5 +36,7 @@
 - Unit-test `installFromFolder` when replacement rename throws `EPERM`; assert
   `errorCode: 'target_locked'`.
 - Unit-test `uninstallSkill` when removal throws; assert caches/events are not updated as success.
+- Unit-test `uninstallSkill` when the directory is already gone; assert stale cache and sidecar
+  state is cleared without publishing a successful uninstall event.
 - Unit-test `SkillExecutionService` fallback cwd resolves to a session directory rather than the
   skill root.

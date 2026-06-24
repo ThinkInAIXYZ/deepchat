@@ -1594,13 +1594,37 @@ describe('SkillPresenter', () => {
   })
 
   describe('uninstallSkill', () => {
-    it('should fail if skill does not exist', async () => {
-      ;(fs.existsSync as Mock).mockReturnValue(false)
+    it('should clean stale local state when skill directory no longer exists', async () => {
+      const sidecarPath = `${DEFAULT_SKILLS_DIR}/.deepchat-meta/nonexistent.json`
+      ;(skillPresenter as any).metadataCache.set(
+        'nonexistent',
+        createSkillMetadata('nonexistent', 'nonexistent')
+      )
+      ;(skillPresenter as any).contentCache.set('nonexistent', {
+        name: 'nonexistent',
+        content: 'content'
+      })
+      ;(fs.existsSync as Mock).mockImplementation((target: string) => target === sidecarPath)
+      publishDeepchatEventMock.mockClear()
 
       const result = await skillPresenter.uninstallSkill('nonexistent')
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('not found')
+      expect(result.errorCode).toBe('not_found')
+      expect(fs.rmSync).toHaveBeenCalledWith(sidecarPath, { force: true })
+      expect((skillPresenter as any).metadataCache.has('nonexistent')).toBe(false)
+      expect((skillPresenter as any).contentCache.has('nonexistent')).toBe(false)
+      expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+    })
+
+    it('should not remove sidecar paths for invalid missing skill names', async () => {
+      ;(fs.existsSync as Mock).mockReturnValue(false)
+
+      const result = await skillPresenter.uninstallSkill('../outside')
+
+      expect(result.errorCode).toBe('not_found')
+      expect(fs.rmSync).not.toHaveBeenCalled()
     })
 
     it('should successfully uninstall a skill', async () => {
