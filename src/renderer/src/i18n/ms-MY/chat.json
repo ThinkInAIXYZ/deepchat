@@ -245,9 +245,9 @@
         "pending": "Belum selesai",
         "in_progress": "sedang berjalan",
         "completed": "Selesai",
-        "failed": "gagal",
-        "skipped": "dilangkau"
-      }
+        "interrupted": "Terganggu"
+      },
+      "completedCount": "{completed}/{total} selesai"
     },
     "files": {
       "section": "dokumen",

@@ -5,11 +5,7 @@ import {
   TimestampMsSchema,
   defineEventContract
 } from '../common'
-
-const AgentPlanItemSchema = z.object({
-  step: z.string(),
-  status: z.enum(['pending', 'in_progress', 'completed'])
-})
+import { agentPlanItemSchema, agentPlanTerminalReasonSchema } from '../../types/agent-plan'
 
 export const chatStreamUpdatedEvent = defineEventContract({
   name: 'chat.stream.updated',
@@ -50,9 +46,10 @@ export const chatPlanUpdatedEvent = defineEventContract({
     sessionId: EntityIdSchema,
     messageId: EntityIdSchema,
     toolCallId: z.string().optional(),
-    plan: z.array(AgentPlanItemSchema),
+    plan: z.array(agentPlanItemSchema),
     explanation: z.string().optional(),
     revision: z.number().int().positive(),
-    updatedAt: z.string()
+    updatedAt: z.string(),
+    terminalReason: agentPlanTerminalReasonSchema.optional()
   })
 })

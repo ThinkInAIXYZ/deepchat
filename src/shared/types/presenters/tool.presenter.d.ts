@@ -99,6 +99,11 @@ export interface IToolPresenter {
   clearConversationToolMapping?(conversationId: string): void
 
   /**
+   * Reset only the per-turn agent plan state for a conversation.
+   */
+  clearAgentPlanState?(conversationId: string): void
+
+  /**
    * Build system prompt section for tool-related behavior.
    */
   buildToolSystemPrompt(context: {

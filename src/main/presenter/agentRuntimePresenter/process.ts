@@ -11,7 +11,13 @@ import type {
 import { createState } from './types'
 import { accumulate, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
-import { executeTools, finalize, finalizeError, finalizePaused } from './dispatch'
+import {
+  executeTools,
+  finalize,
+  finalizeError,
+  finalizePaused,
+  persistAbortExceptionPlanState
+} from './dispatch'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
@@ -405,6 +411,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         logger.info(
           `[ProcessStream] max tool calls reached (${toolCallCount + state.completedToolCalls.length} > ${MAX_TOOL_CALLS}), stopping`
         )
+        state.planTerminalReason = 'max_steps'
         break
       }
 
@@ -527,6 +534,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   } catch (err) {
     if (io.abortSignal.aborted || isAbortError(err)) {
       logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      persistAbortExceptionPlanState(state, io)
       return {
         status: 'aborted' as const,
         stopReason: 'user_stop',

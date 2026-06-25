@@ -2,6 +2,7 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { StreamState } from './types'
+import { upsertAgentPlanBlock } from '@shared/chat/agentPlanBlock'
 
 export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): void {
   const last = blocks[blocks.length - 1]
@@ -104,6 +105,19 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       }
       const reasoningTime = block.reasoning_time as { start: number; end: number }
       updateReasoningMetadata(state, reasoningTime.start, reasoningTime.end)
+      state.dirty = true
+      break
+    }
+    case 'plan': {
+      finalizeTrailingPendingNarrativeBlocks(state.blocks)
+      upsertAgentPlanBlock(state.blocks, {
+        sessionId: '',
+        plan: event.plan,
+        ...(event.explanation ? { explanation: event.explanation } : {}),
+        revision: event.revision ?? 1,
+        updatedAt: event.updatedAt ?? new Date().toISOString(),
+        ...(event.terminalReason ? { terminalReason: event.terminalReason } : {})
+      })
       state.dirty = true
       break
     }

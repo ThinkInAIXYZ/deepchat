@@ -55,7 +55,8 @@ vi.mock('@/presenter', () => ({
 import {
   executeTools as executeToolsInternal,
   finalize,
-  finalizeError
+  finalizeError,
+  persistAbortExceptionPlanState
 } from '@/presenter/agentRuntimePresenter/dispatch'
 import type { EchoHandle } from '@/presenter/agentRuntimePresenter/echo'
 import { accumulate } from '@/presenter/agentRuntimePresenter/accumulator'
@@ -296,7 +297,7 @@ describe('dispatch', () => {
       expect(toolBlock!.status).toBe('success')
     })
 
-    it('publishes plan update events without inserting plan blocks into messages', async () => {
+    it('upserts a single plan block and publishes plan update events', async () => {
       const tools = [makeAgentTool('update_plan')]
       const snapshot = {
         sessionId: 's1',
@@ -357,7 +358,17 @@ describe('dispatch', () => {
       const planBlock = state.blocks.find((block) => block.type === 'plan')
       const toolBlock = state.blocks.find((block) => block.type === 'tool_call')
 
-      expect(planBlock).toBeUndefined()
+      expect(planBlock).toMatchObject({
+        type: 'plan',
+        content: 'Repository inspected',
+        extra: {
+          plan_entries: snapshot.plan,
+          plan_explanation: 'Repository inspected',
+          plan_revision: 1,
+          plan_updated_at: snapshot.updatedAt
+        }
+      })
+      expect(state.blocks.indexOf(planBlock!)).toBe(state.blocks.indexOf(toolBlock!) + 1)
       expect(toolBlock?.extra?.internalTool).toBe(true)
 
       const planEventCall = publishDeepchatEventMock.mock.calls.find(
@@ -372,6 +383,154 @@ describe('dispatch', () => {
         revision: 1,
         updatedAt: snapshot.updatedAt
       })
+    })
+
+    it('mutates the existing plan block across revisions without duplicating it', async () => {
+      const tools = [makeAgentTool('update_plan')]
+      const snapshots = [
+        {
+          sessionId: 's1',
+          toolCallId: 'tc-plan',
+          plan: [{ step: 'Inspect runtime', status: 'in_progress' as const }],
+          revision: 1,
+          updatedAt: '2026-05-18T00:00:00.000Z'
+        },
+        {
+          sessionId: 's1',
+          toolCallId: 'tc-plan',
+          plan: [
+            { step: 'Inspect runtime', status: 'completed' as const },
+            { step: 'Write tests', status: 'in_progress' as const }
+          ],
+          revision: 2,
+          updatedAt: '2026-05-18T00:00:01.000Z'
+        }
+      ]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (_request, options) => {
+          for (const snapshot of snapshots) {
+            options?.onProgress?.({
+              kind: 'agent_plan',
+              toolCallId: 'tc-plan',
+              snapshot
+            })
+          }
+          return {
+            content: '{}',
+            rawData: {
+              toolCallId: 'tc-plan',
+              content: '{}',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Plan this' }]
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: { id: 'tc-plan', name: 'update_plan', params: '{}', response: '' }
+      })
+      state.completedToolCalls = [{ id: 'tc-plan', name: 'update_plan', arguments: '{}' }]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        'openai'
+      )
+
+      const planBlocks = state.blocks.filter((block) => block.type === 'plan')
+      expect(planBlocks).toHaveLength(1)
+      expect(planBlocks[0].extra).toMatchObject({
+        plan_entries: snapshots[1].plan,
+        plan_revision: 2,
+        plan_updated_at: snapshots[1].updatedAt
+      })
+    })
+
+    it('ignores agent plan progress from parallel read-only tool batches', async () => {
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = {
+        ...createMockToolPresenter(),
+        callTool: vi.fn(async (request, options) => {
+          options?.onProgress?.({
+            kind: 'agent_plan',
+            toolCallId: request.id,
+            snapshot: {
+              sessionId: 's1',
+              toolCallId: request.id,
+              plan: [{ step: 'Subagent-only progress', status: 'in_progress' }],
+              revision: 1,
+              updatedAt: '2026-05-18T00:00:00.000Z'
+            }
+          })
+          return {
+            content: '{}',
+            rawData: {
+              toolCallId: request.id,
+              content: '{}',
+              isError: false
+            }
+          }
+        })
+      } as unknown as IToolPresenter
+      const conversation = [{ role: 'user' as const, content: 'Read in parallel' }]
+
+      state.blocks.push(
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc-read-a', name: 'read', params: '{}', response: '' }
+        },
+        {
+          type: 'tool_call',
+          content: '',
+          status: 'pending',
+          timestamp: Date.now(),
+          tool_call: { id: 'tc-read-b', name: 'read', params: '{}', response: '' }
+        }
+      )
+      state.completedToolCalls = [
+        { id: 'tc-read-a', name: 'read', arguments: '{}' },
+        { id: 'tc-read-b', name: 'read', arguments: '{}' }
+      ]
+
+      await executeTools(
+        state,
+        conversation,
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'full_access',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        undefined,
+        'openai'
+      )
+
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(
+        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
+      ).toBe(false)
     })
 
     it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {
@@ -2486,6 +2645,35 @@ describe('dispatch', () => {
         blocks: expect.any(Array)
       })
     })
+
+    it('stamps open plan blocks with max_steps before finalizing', () => {
+      state.planTerminalReason = 'max_steps'
+      state.blocks.push({
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
+          plan_revision: 3,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      })
+
+      finalize(state, io)
+
+      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('max_steps')
+      expect(io.messageStore.finalizeAssistantMessage).toHaveBeenCalledWith(
+        'm1',
+        state.blocks,
+        expect.any(String)
+      )
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'max_steps'
+      })
+    })
   })
 
   describe('finalizeError', () => {
@@ -2538,6 +2726,128 @@ describe('dispatch', () => {
 
       const errorBlock = state.blocks.find((b) => b.type === 'error')
       expect(errorBlock!.content).toBe('string error')
+    })
+
+    it('stamps open plan blocks with error before setMessageError', () => {
+      const errorWrites: any[] = []
+      ;(io.messageStore.setMessageError as ReturnType<typeof vi.fn>).mockImplementation(
+        (_messageId, blocks) => {
+          errorWrites.push(structuredClone(blocks))
+        }
+      )
+      state.blocks.push({
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      })
+
+      finalizeError(state, io, new Error('boom'))
+
+      const persistedPlanBlock = errorWrites[0]?.find(
+        (block: { type: string }) => block.type === 'plan'
+      )
+      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('error')
+      expect(persistedPlanBlock?.extra?.plan_terminal_reason).toBe('error')
+      expect(io.messageStore.setMessageError).toHaveBeenCalledWith(
+        'm1',
+        state.blocks,
+        expect.any(String)
+      )
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'error'
+      })
+    })
+
+    it('stamps user cancel as aborted', () => {
+      state.blocks.push({
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      })
+
+      finalizeError(state, io, 'common.error.userCanceledGeneration')
+
+      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('aborted')
+      expectDeepchatEvent('chat.plan.updated', {
+        terminalReason: 'aborted'
+      })
+    })
+  })
+
+  describe('persistAbortExceptionPlanState', () => {
+    it('persists the aborted terminal marker for abort-exception early returns', () => {
+      const persistedWrites: any[] = []
+      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockImplementation(
+        (_messageId, blocks) => {
+          persistedWrites.push(structuredClone(blocks))
+        }
+      )
+      state.blocks.push({
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      })
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('aborted')
+      expect(persistedWrites[0][0].extra?.plan_terminal_reason).toBe('aborted')
+      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
+      expectDeepchatEvent('chat.plan.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        terminalReason: 'aborted'
+      })
+      expectDeepchatEvent('chat.stream.updated', {
+        sessionId: 's1',
+        messageId: 'm1',
+        requestId: 'req-1'
+      })
+    })
+
+    it('is idempotent for already stamped plan blocks', () => {
+      state.blocks.push({
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: Date.now(),
+        extra: {
+          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      })
+
+      persistAbortExceptionPlanState(state, io)
+      publishDeepchatEventMock.mockClear()
+      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockClear()
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
+      expect(
+        publishDeepchatEventMock.mock.calls.some(([eventName]) => eventName === 'chat.plan.updated')
+      ).toBe(false)
     })
   })
 })

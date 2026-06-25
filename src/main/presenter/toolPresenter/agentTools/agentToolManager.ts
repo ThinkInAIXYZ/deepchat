@@ -892,6 +892,10 @@ export class AgentToolManager {
     }
   }
 
+  public clearPlanState(conversationId: string): void {
+    this.planTool?.clearState(conversationId)
+  }
+
   private async callFileSystemTool(
     toolName: string,
     args: Record<string, unknown>,

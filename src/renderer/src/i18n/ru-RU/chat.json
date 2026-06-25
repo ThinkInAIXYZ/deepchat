@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Завершенный",
-        "failed": "неудача",
         "in_progress": "в ходе выполнения",
         "pending": "В ожидании",
-        "skipped": "пропущен"
-      }
+        "interrupted": "Прервано"
+      },
+      "completedCount": "{completed}/{total} завершено"
     },
     "terminal": {
       "empty": "Выходных данных пока нет",

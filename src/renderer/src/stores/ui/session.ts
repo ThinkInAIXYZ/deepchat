@@ -24,6 +24,7 @@ import {
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
+import { useAgentPlanStore } from './agentPlan'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
@@ -265,6 +266,7 @@ export const useSessionStore = defineStore('session', () => {
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
+  const agentPlanStore = useAgentPlanStore()
   const myWebContentsId = ref<number | null>(null)
   let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
@@ -357,6 +359,9 @@ export const useSessionStore = defineStore('session', () => {
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
+    for (const sessionId of targetIds) {
+      agentPlanStore.purge(sessionId)
+    }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
       bootstrapActiveSession.value = null

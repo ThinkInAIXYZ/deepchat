@@ -2,27 +2,23 @@ import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
-import type { AgentPlanState, AgentPlanSnapshot, UpdatePlanArgs } from '@shared/types/agent-plan'
+import {
+  UPDATE_PLAN_TOOL_NAME,
+  agentPlanItemSchema,
+  type AgentPlanState,
+  type AgentPlanSnapshot,
+  type UpdatePlanArgs
+} from '@shared/types/agent-plan'
 
-export const UPDATE_PLAN_TOOL_NAME = 'update_plan'
+export { UPDATE_PLAN_TOOL_NAME }
 export const AGENT_CORE_TOOL_SERVER_NAME = 'agent-core'
 
 const MAX_PLAN_ITEMS = 12
 
-const planItemSchema = z
-  .object({
-    step: z
-      .string()
-      .transform((value) => value.trim())
-      .refine((value) => value.length > 0, 'step must be a non-empty string'),
-    status: z.enum(['pending', 'in_progress', 'completed'])
-  })
-  .strict()
-
 export const updatePlanToolArgsSchema = z
   .object({
     explanation: z.string().optional(),
-    plan: z.array(planItemSchema).max(MAX_PLAN_ITEMS)
+    plan: z.array(agentPlanItemSchema).max(MAX_PLAN_ITEMS)
   })
   .strict()
   .superRefine((value, context) => {
@@ -91,13 +87,17 @@ export class AgentPlanTool {
     }
 
     const normalizedArgs = this.normalizeArgs(validationResult.data)
+    const toolCallId = options?.toolCallId?.trim() || undefined
+    if (!toolCallId) {
+      throw new Error('update_plan requires a tool call ID')
+    }
+
     const previous = this.states.get(sessionId)
     const revision = (previous?.revision ?? 0) + 1
     const updatedAt = new Date().toISOString()
-    const toolCallId = options?.toolCallId?.trim() || undefined
     const snapshot: AgentPlanSnapshot = {
       sessionId,
-      ...(toolCallId ? { toolCallId } : {}),
+      toolCallId,
       ...(normalizedArgs.explanation ? { explanation: normalizedArgs.explanation } : {}),
       plan: normalizedArgs.plan,
       revision,
@@ -105,40 +105,23 @@ export class AgentPlanTool {
     }
 
     this.states.set(sessionId, {
-      current: normalizedArgs,
-      revision,
-      updatedAt
+      revision
     })
 
-    if (toolCallId) {
-      options?.onProgress?.({
-        kind: 'agent_plan',
-        toolCallId,
-        snapshot
-      })
-    }
+    options?.onProgress?.({
+      kind: 'agent_plan',
+      toolCallId,
+      snapshot
+    })
 
     return {
       content: '{}',
       rawData: {
         content: '{}',
         isError: false,
-        toolResult: {
-          kind: 'agent_plan',
-          snapshot
-        }
+        toolResult: { kind: 'agent_plan' }
       }
     }
-  }
-
-  getState(conversationId: string): AgentPlanState {
-    return (
-      this.states.get(conversationId) ?? {
-        current: null,
-        revision: 0,
-        updatedAt: null
-      }
-    )
   }
 
   clearState(conversationId: string): void {
