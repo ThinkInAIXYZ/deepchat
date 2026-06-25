@@ -1036,6 +1036,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       const assistantOrderSeq = this.messageStore.getNextOrderSeq(sessionId)
       assistantMessageId = this.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
+      this.toolPresenter?.clearAgentPlanState?.(sessionId)
       this.throwIfAbortRequested(preStreamAbortSignal)
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {

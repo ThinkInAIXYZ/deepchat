@@ -245,9 +245,9 @@
         "pending": "Askıda olması",
         "in_progress": "Devam etmekte",
         "completed": "Tamamlanmış",
-        "failed": "Arızalı",
-        "skipped": "Atlandı"
-      }
+        "interrupted": "Kesintiye uğradı"
+      },
+      "completedCount": "{completed}/{total} tamamlandı"
     },
     "files": {
       "section": "Dosyalar",

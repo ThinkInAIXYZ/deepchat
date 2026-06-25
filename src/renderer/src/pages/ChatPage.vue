@@ -220,6 +220,7 @@ import type {
   MessageMetadata,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
+import { snapshotFromAgentPlanBlock } from '@shared/types/agent-plan-block'
 
 const props = defineProps<{
   sessionId: string
@@ -264,6 +265,41 @@ const applyRestoredSessionSummary = (session: unknown) => {
   if (typeof applyRestoredSession === 'function') {
     applyRestoredSession(session)
   }
+}
+
+function rehydrateAgentPlanFromMessages(sessionId: string): void {
+  let latestSnapshot: ReturnType<typeof snapshotFromAgentPlanBlock> = null
+  for (let messageIndex = messageStore.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messageStore.messages[messageIndex]
+    if (message.role !== 'assistant') {
+      continue
+    }
+
+    const blocks = messageStore.getAssistantMessageBlocks(message)
+    for (let blockIndex = blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+      const block = blocks[blockIndex]
+      const snapshot = snapshotFromAgentPlanBlock(sessionId, message.id, block)
+      if (snapshot) {
+        latestSnapshot = snapshot
+        break
+      }
+    }
+
+    if (latestSnapshot) {
+      break
+    }
+  }
+
+  agentPlanStore.clearSnapshot(sessionId)
+  if (latestSnapshot) {
+    agentPlanStore.applySnapshot(latestSnapshot)
+  }
+}
+
+async function loadMessagesAndRehydrate(sessionId: string, count?: number) {
+  const restoredSession = await messageStore.loadMessages(sessionId, count)
+  rehydrateAgentPlanFromMessages(sessionId)
+  return restoredSession
 }
 
 // --- Auto-scroll ---
@@ -799,7 +835,7 @@ watch(
 
         console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
         const [restoredSession] = await Promise.all([
-          messageStore.loadMessages(id, INITIAL_MESSAGE_RESTORE_COUNT),
+          loadMessagesAndRehydrate(id, INITIAL_MESSAGE_RESTORE_COUNT),
           pendingInputStore.loadPendingInputs(id)
         ])
 
@@ -977,6 +1013,10 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
 })
 
 const latestPlanSnapshot = computed(() => {
+  if (!agentPlanStore.isVisible(props.sessionId)) {
+    return null
+  }
+
   const snapshot = agentPlanStore.snapshots[props.sessionId]
   if (!snapshot || snapshot.plan.length === 0) {
     return null
@@ -997,8 +1037,7 @@ const messageSearchRootStyle = computed(() => {
 })
 
 function onDismissPlanFloat() {
-  agentPlanStore.setCollapsed(props.sessionId, true)
-  agentPlanStore.clear(props.sessionId)
+  agentPlanStore.dismiss(props.sessionId)
   planFloatReservedHeight.value = 0
 }
 
@@ -1590,7 +1629,7 @@ async function onSubmit() {
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
-    agentPlanStore.clear(props.sessionId)
+    agentPlanStore.beginTurn(props.sessionId)
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
   message.value = ''
@@ -1613,7 +1652,7 @@ async function onCommandSubmit(command: string) {
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, { text, files })
   } else {
-    agentPlanStore.clear(props.sessionId)
+    agentPlanStore.beginTurn(props.sessionId)
     await chatClient.sendMessage(props.sessionId, { text, files })
   }
   attachedFiles.value = []
@@ -1633,7 +1672,7 @@ async function handleManualCompactionCommand(text: string): Promise<boolean> {
 
   try {
     const result = await sessionClient.compactSession(props.sessionId)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
     if (!result.compacted) {
       toast({
         title: t('chat.compaction.noopTitle'),
@@ -1676,7 +1715,7 @@ async function onSteer() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
-  agentPlanStore.clear(props.sessionId)
+  agentPlanStore.beginTurn(props.sessionId)
   await chatClient.steerActiveTurn(props.sessionId, { text, files })
   message.value = ''
   attachedFiles.value = []
@@ -1722,7 +1761,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
       toolCallId: interaction.toolCallId,
       response
     })
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
     if (result.handledInline) {
       return
     }
@@ -1737,6 +1776,7 @@ async function onStop() {
   if (isReadOnlySession.value) return
   if (!isGenerating.value) return
   try {
+    agentPlanStore.freezeActive(props.sessionId)
     await chatClient.stopStream({ sessionId: props.sessionId })
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
@@ -1748,11 +1788,12 @@ async function onMessageRetry(messageId: string) {
   if (!messageId) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
+    agentPlanStore.beginTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] retry message failed:', error)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
   }
 }
 
@@ -1762,7 +1803,7 @@ async function onMessageDelete(messageId: string) {
   try {
     messageStore.clearStreamingState()
     await sessionClient.deleteMessage(props.sessionId, messageId)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
   }
@@ -1798,11 +1839,12 @@ async function onMessageContinue(_conversationId: string, messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
   try {
+    agentPlanStore.beginTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] continue message failed:', error)
-    applyRestoredSessionSummary(await messageStore.loadMessages(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
   }
 }
 
@@ -1840,7 +1882,7 @@ async function onPendingInputSteer(itemId: string) {
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
     await pendingInputStore.steerPendingInput(props.sessionId, itemId)
-    agentPlanStore.clear(props.sessionId)
+    agentPlanStore.beginTurn(props.sessionId)
   } catch (error) {
     console.error('[ChatPage] steer queued input failed:', error)
     toast({

@@ -1,6 +1,6 @@
 import { FileMetaData } from './presenter'
 import type { ToolCallImagePreview } from './types/core/mcp'
-import type { AgentPlanDisplayItem } from './types/agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
 
 export type Message = {
   id: string
@@ -193,6 +193,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
 }

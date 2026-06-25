@@ -4,7 +4,12 @@
       <Icon icon="lucide:list-checks" class="h-4 w-4 text-primary" />
       <span class="text-sm font-medium">{{ t('chat.workspace.plan.section') }}</span>
       <span class="text-xs text-muted-foreground">
-        {{ completedCount }}/{{ totalCount }} {{ t('chat.workspace.plan.status.completed') }}
+        {{
+          t('chat.workspace.plan.completedCount', {
+            completed: completedCount,
+            total: totalCount
+          })
+        }}
       </span>
     </div>
 
@@ -22,22 +27,22 @@
       {{ explanation }}
     </p>
 
-    <div v-if="entries.length > 0" class="mt-3 space-y-2">
+    <div v-if="entries.length > 0" class="mt-3 space-y-2" role="status" aria-live="polite">
       <div
         v-for="(entry, index) in entries"
-        :key="`${entry.status}-${index}-${entry.label}`"
+        :key="`${entry.status}-${index}-${entry.step}`"
         class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2 text-sm leading-5"
-        :class="entry.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'"
+        :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).textClass"
         :aria-label="getEntryAriaLabel(entry)"
       >
         <Icon
-          :icon="getStatusIcon(entry.status)"
+          :icon="resolveStepPresentation(entry.status, { terminal: isTerminal }).icon"
           class="mt-0.5 h-4 w-4 shrink-0"
-          :class="getStatusIconClass(entry.status)"
+          :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).iconClass"
           aria-hidden="true"
         />
         <span class="min-w-0 whitespace-pre-wrap break-words">
-          {{ entry.label }}
+          {{ entry.step }}
         </span>
       </div>
     </div>
@@ -55,13 +60,14 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import type { AgentPlanStepStatus } from '@shared/types/agent-plan'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
-
-type NormalizedPlanEntry = {
-  label: string
-  status: AgentPlanStepStatus
-}
+import { normalizeAgentPlanTerminalReason } from '@shared/types/agent-plan-block'
+import {
+  entryAriaLabel,
+  normalizePlanEntry,
+  resolveStepPresentation,
+  type NormalizedAgentPlanEntry
+} from '@/composables/useAgentPlanStatus'
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -69,43 +75,15 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-
-const normalizeStatus = (value: unknown): AgentPlanStepStatus => {
-  if (value === 'completed' || value === 'done') {
-    return 'completed'
-  }
-  if (value === 'in_progress') {
-    return 'in_progress'
-  }
-  return 'pending'
-}
-
-const entries = computed<NormalizedPlanEntry[]>(() => {
+const entries = computed<NormalizedAgentPlanEntry[]>(() => {
   const rawEntries = props.block.extra?.plan_entries
   if (!Array.isArray(rawEntries)) {
     return []
   }
 
-  return rawEntries
-    .map((entry) => {
-      if (!isRecord(entry)) {
-        return null
-      }
-
-      const rawLabel = typeof entry.step === 'string' ? entry.step : entry.content
-      const label = typeof rawLabel === 'string' ? rawLabel.trim() : ''
-      if (!label) {
-        return null
-      }
-
-      return {
-        label,
-        status: normalizeStatus(entry.status)
-      }
-    })
-    .filter((entry): entry is NormalizedPlanEntry => entry !== null)
+  return rawEntries.map(normalizePlanEntry).filter((entry): entry is NormalizedAgentPlanEntry => {
+    return entry !== null
+  })
 })
 
 const explanation = computed(() => {
@@ -128,21 +106,10 @@ const progressPercent = computed(() => {
   return Math.round((completedCount.value / totalCount.value) * 100)
 })
 
-const getStatusIcon = (status: AgentPlanStepStatus): string => {
-  if (status === 'completed') return 'lucide:circle-check'
-  if (status === 'in_progress') return 'lucide:loader-circle'
-  return 'lucide:circle'
-}
+const isTerminal = computed(() =>
+  Boolean(normalizeAgentPlanTerminalReason(props.block.extra?.plan_terminal_reason))
+)
 
-const getStatusIconClass = (status: AgentPlanStepStatus): string => {
-  if (status === 'completed') return 'text-muted-foreground'
-  if (status === 'in_progress') return 'animate-spin text-primary'
-  return 'text-muted-foreground/80'
-}
-
-const getEntryAriaLabel = (entry: NormalizedPlanEntry): string =>
-  t('chat.workspace.plan.itemAriaLabel', {
-    status: t(`chat.workspace.plan.status.${entry.status}`),
-    step: entry.label
-  })
+const getEntryAriaLabel = (entry: NormalizedAgentPlanEntry): string =>
+  entryAriaLabel(t, entry, { terminal: isTerminal.value })
 </script>

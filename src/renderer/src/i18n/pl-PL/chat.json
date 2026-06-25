@@ -245,9 +245,9 @@
         "pending": "Oczekujące",
         "in_progress": "W toku",
         "completed": "Ukończono",
-        "failed": "Nie udało się",
-        "skipped": "Pominięte"
-      }
+        "interrupted": "Przerwano"
+      },
+      "completedCount": "{completed}/{total} ukończono"
     },
     "files": {
       "section": "Pliki",

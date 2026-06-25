@@ -549,6 +549,7 @@ function createMockToolPresenter(toolDefs: any[] = []) {
       content: 'tool result',
       rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
     }),
+    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
 }
@@ -1276,6 +1277,15 @@ describe('AgentRuntimePresenter', () => {
           })
         })
       )
+    })
+
+    it('resets agent plan state for each new assistant turn', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      await agent.processMessage('s1', 'Hello')
+
+      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledTimes(1)
+      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledWith('s1')
     })
 
     it('resolves first-turn readiness before processMessage completes', async () => {
@@ -4197,6 +4207,10 @@ describe('AgentRuntimePresenter', () => {
         expect(processStream).toHaveBeenCalledTimes(2)
         expect(await agent.listPendingInputs('s1')).toEqual([])
       })
+
+      expect(toolPresenter.clearAgentPlanState).toHaveBeenCalledTimes(2)
+      expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(1, 's1')
+      expect(toolPresenter.clearAgentPlanState).toHaveBeenNthCalledWith(2, 's1')
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)

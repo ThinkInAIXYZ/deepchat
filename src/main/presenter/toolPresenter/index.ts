@@ -79,6 +79,7 @@ export interface IToolPresenter {
     options?: { permissionMode?: PermissionMode }
   ): Promise<PreCheckedPermissionResult | null>
   clearConversationToolMapping?(conversationId: string): void
+  clearAgentPlanState?(conversationId: string): void
   buildToolSystemPrompt(context: {
     conversationId?: string
     toolDefinitions?: MCPToolDefinition[]
@@ -238,6 +239,16 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     this.conversationMappers.delete(normalizedConversationId)
+    this.clearAgentPlanState(normalizedConversationId)
+  }
+
+  clearAgentPlanState(conversationId: string): void {
+    const normalizedConversationId = conversationId.trim()
+    if (!normalizedConversationId) {
+      return
+    }
+
+    this.agentToolManager?.clearPlanState(normalizedConversationId)
   }
 
   /**
@@ -652,6 +663,7 @@ export class ToolPresenter implements IToolPresenter {
       'Keep the checklist current as work progresses.',
       'At most one step may be in_progress at a time.',
       'When a step completes, update the checklist immediately and move the next active step to in_progress in the same call.',
+      'Before ending the turn, reconcile the checklist so no step remains in_progress.',
       'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')
   }

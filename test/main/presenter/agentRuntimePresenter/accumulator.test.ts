@@ -85,6 +85,35 @@ describe('accumulate', () => {
     expect(state.blocks[1].type).toBe('content')
   })
 
+  it('upserts plan events into a plan block', () => {
+    accumulate(state, {
+      type: 'plan',
+      plan: [{ step: 'Inspect runtime', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+    accumulate(state, {
+      type: 'plan',
+      plan: [
+        { step: 'Inspect runtime', status: 'completed' },
+        { step: 'Write tests', status: 'in_progress' }
+      ],
+      revision: 2,
+      updatedAt: '2026-05-18T00:00:01.000Z'
+    })
+
+    const planBlocks = state.blocks.filter((block) => block.type === 'plan')
+    expect(planBlocks).toHaveLength(1)
+    expect(planBlocks[0].extra).toMatchObject({
+      plan_entries: [
+        { step: 'Inspect runtime', status: 'completed' },
+        { step: 'Write tests', status: 'in_progress' }
+      ],
+      plan_revision: 2,
+      plan_updated_at: '2026-05-18T00:00:01.000Z'
+    })
+  })
+
   it('finalizes trailing content before a tool call starts', () => {
     accumulate(state, { type: 'text', content: 'Draft answer' })
     accumulate(state, {
