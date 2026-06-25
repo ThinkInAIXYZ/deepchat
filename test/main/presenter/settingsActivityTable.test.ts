@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
@@ -26,11 +26,14 @@ const describeIfSqlite = sqliteAvailable && SettingsActivityTable ? describe : d
 describeIfSqlite('SettingsActivityTable', () => {
   it('lists newest records first and caps list requests at 200', () => {
     const db = new DatabaseCtor(':memory:')
+    vi.useFakeTimers()
     try {
       const table = new SettingsActivityTableCtor(db)
       table.createTable()
 
+      const baseTime = 1_700_000_000_000
       for (let index = 0; index < 210; index += 1) {
+        vi.setSystemTime(baseTime + index)
         table.record({
           category: 'provider',
           action: 'updated',
@@ -51,6 +54,7 @@ describeIfSqlite('SettingsActivityTable', () => {
       expect(records[0]?.targetLabel).toBe('Provider 209')
       expect(records.at(-1)?.targetLabel).toBe('Provider 10')
     } finally {
+      vi.useRealTimers()
       db.close()
     }
   })

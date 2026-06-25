@@ -704,7 +704,9 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
              bm25(deepchat_tape_search_fts) AS score
            FROM deepchat_tape_search_fts
            INNER JOIN deepchat_tape_search_projection AS projection
-             ON projection.rowid = deepchat_tape_search_fts.rowid
+             ON projection.session_id = deepchat_tape_search_fts.session_id
+             AND projection.entry_id = CAST(deepchat_tape_search_fts.entry_id AS INTEGER)
+             AND projection.search_text = deepchat_tape_search_fts.search_text
            WHERE ${whereClauses.join(' AND ')}
            ORDER BY score ASC, projection.entry_id DESC
            LIMIT ?`

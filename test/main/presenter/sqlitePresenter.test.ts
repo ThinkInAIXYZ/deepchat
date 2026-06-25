@@ -676,7 +676,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     checkDb.close()
   })
 
-  it('repairs missing deepchat_sessions columns when schema version is already 22', async () => {
+  it('repairs missing deepchat_sessions columns when schema version is already 23', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
     tempDirs.push(tempDir)
 
@@ -687,7 +687,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
         version INTEGER PRIMARY KEY,
         applied_at INTEGER NOT NULL
       );
-      INSERT INTO schema_versions (version, applied_at) VALUES (22, ${Date.now()});
+      INSERT INTO schema_versions (version, applied_at) VALUES (23, ${Date.now()});
       CREATE TABLE IF NOT EXISTS deepchat_sessions (
         id TEXT PRIMARY KEY,
         provider_id TEXT NOT NULL,
