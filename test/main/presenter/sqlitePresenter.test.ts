@@ -156,11 +156,11 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
 
     const dbPath = path.join(tempDir, 'agent.db')
     const presenter = new SQLitePresenterCtor(dbPath)
-    const diagnosis = await presenter.diagnoseSchema()
+    const diagnosis = await presenter.diagnoseSchema(getStartupSchemaCatalog!())
+    const latestSchemaVersion = presenter.getLatestSchemaVersion()
     presenter.close()
 
-    const startupSchemaTableNames = new Set(getStartupSchemaCatalog!().map((table) => table.name))
-    expect(diagnosis.issues.filter((issue) => startupSchemaTableNames.has(issue.table))).toEqual([])
+    expect(diagnosis.issues).toEqual([])
 
     const checkDb = new DatabaseCtor(dbPath)
     const newSessionColumns = checkDb.prepare('PRAGMA table_info(new_sessions)').all() as Array<{
@@ -202,8 +202,7 @@ describeIfSqlite('SQLitePresenter legacy schema bootstrap', () => {
     const versions = checkDb
       .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
       .all() as Array<{ version: number }>
-    expect(versions).toHaveLength(1)
-    expect(versions[0].version).toBeGreaterThan(0)
+    expect(versions).toEqual([{ version: latestSchemaVersion }])
     checkDb.close()
   })
 

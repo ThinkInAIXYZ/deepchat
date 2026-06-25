@@ -71,7 +71,9 @@ export class DatabaseInitializer implements IDatabaseInitializer {
                 )}`
               )
               this.warnManualSchemaIssues(diagnosis)
-              logger.info('DatabaseInitializer: Database initialization completed successfully')
+              logger.info(
+                'DatabaseInitializer: Database initialization continued with residual startup schema issues'
+              )
               return this.database
             }
 

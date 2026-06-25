@@ -42,6 +42,7 @@ import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
@@ -281,6 +282,13 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.password
   }
 
+  public getLatestSchemaVersion(): number {
+    return this.getMigrationTables().reduce((maxVersion, table) => {
+      const tableMaxVersion = table.getLatestVersion()
+      return Math.max(maxVersion, tableMaxVersion)
+    }, 0)
+  }
+
   public reopenWithPassword(password?: string): void {
     this.password = password
     this.reopen()
@@ -472,10 +480,8 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.currentVersion = result?.version || 0
   }
 
-  private migrate() {
-    // 获取所有表的迁移脚本
-    const migrations = new Map<number, string[]>()
-    const tables = [
+  private getMigrationTables(): BaseTable[] {
+    return [
       this.acpSessionsTable,
       this.newEnvironmentsTable,
       this.newEnvironmentPreferencesTable,
@@ -503,12 +509,15 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newSessionDisabledAgentToolsTable,
       this.settingsActivityTable
     ]
+  }
+
+  private migrate() {
+    // 获取所有表的迁移脚本
+    const migrations = new Map<number, string[]>()
+    const tables = this.getMigrationTables()
 
     // 获取最新的迁移版本
-    const latestVersion = tables.reduce((maxVersion, table) => {
-      const tableMaxVersion = table.getLatestVersion?.() || 0
-      return Math.max(maxVersion, tableMaxVersion)
-    }, 0)
+    const latestVersion = this.getLatestSchemaVersion()
 
     if (!this.databaseFileExistedBeforeOpen && this.currentVersion === 0 && latestVersion > 0) {
       this.db
