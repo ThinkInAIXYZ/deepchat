@@ -1,6 +1,6 @@
 # Tape ViewManifest PR Review Fixes - Spec
 
-Status: active issue-fix SDD for PR #1768 review follow-up.
+Status: implemented issue-fix SDD for PR #1768 review follow-up.
 
 ## Problem
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress.
+Resolved; retained as a build-workflow regression record.
 
 ## Goal
 

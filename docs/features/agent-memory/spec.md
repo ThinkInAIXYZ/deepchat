@@ -1,7 +1,7 @@
 # Agent Memory & Persona — Specification
 
-> SDD 阶段 1：Specification。定义 WHAT 与 WHY，不展开 HOW（HOW 见 plan.md）。
-> 日期：2026-06-12 ｜ 状态：待评审 ｜ 关联：[research.md](./research.md)、[tape-memory-integration.md](./tape-memory-integration.md)、[README.md](./README.md)
+> SDD 阶段 1：Specification。保留已落地 Agent Memory 的维护契约。
+> 日期：2026-06-12 ｜ 状态：已实现，保留为维护契约 ｜ 关联：[research.md](./research.md)、[tape-memory-integration.md](./tape-memory-integration.md)、[README.md](./README.md)
 
 ---
 

@@ -1,10 +1,10 @@
 # DeepChat Tape System - Implementation Baseline
 
-Status: current implementation direction. Active SDD goals are
+Status: current implementation baseline. Retained Tape implementation specs are
 [deepchat-tape-view-manifest](../deepchat-tape-view-manifest/spec.md),
-[deepchat-tape-replay-contract](../deepchat-tape-replay-contract/spec.md), and
-[deepchat-tape-view-assembler](../deepchat-tape-view-assembler/spec.md), and
-[deepchat-tape-view-policy](../deepchat-tape-view-policy/spec.md), and
+[deepchat-tape-replay-contract](../deepchat-tape-replay-contract/spec.md),
+[deepchat-tape-view-assembler](../deepchat-tape-view-assembler/spec.md),
+[deepchat-tape-view-policy](../deepchat-tape-view-policy/spec.md),
 [deepchat-tape-policy-provenance](../deepchat-tape-policy-provenance/spec.md), and
 [deepchat-tape-policy-selector](../deepchat-tape-policy-selector/spec.md).
 
@@ -42,38 +42,26 @@ DeepChat already has the main Tape primitives.
 The first implementation step uses this baseline as the single runtime path. `DeepChatTapeService`
 remains the Tape service boundary.
 
-## Active SDD
+## Retained Specs
 
-The active SDD folders are:
+The retained Tape specs are:
 
 ```text
 docs/architecture/deepchat-tape-view-manifest/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 docs/architecture/deepchat-tape-replay-contract/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 docs/architecture/deepchat-tape-view-assembler/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 docs/architecture/deepchat-tape-view-policy/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 docs/architecture/deepchat-tape-policy-provenance/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 docs/architecture/deepchat-tape-policy-selector/
-├── spec.md
-├── plan.md
-└── tasks.md
+└── spec.md
 ```
 
-The current SDD scopes are `Existing TapeService + ViewManifest shadow mode`, replay/export
+The retained scopes are `Existing TapeService + ViewManifest shadow mode`, replay/export
 contracts, `TapeViewAssembler` as the production context assembly entry, and `TapeViewPolicy` as
 the policy replacement boundary, `ViewManifest` policy provenance, and policy selector registry.
 
