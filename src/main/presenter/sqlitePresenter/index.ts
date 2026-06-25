@@ -42,7 +42,9 @@ import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
+import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { configureSQLiteConnection } from './connectionConfig'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
@@ -85,11 +87,17 @@ export function openSQLiteDatabase(dbPath: string, password?: string): Database.
   return db
 }
 
-export function repairSQLiteDatabaseFile(dbPath: string, password?: string): DatabaseRepairReport {
+export function repairSQLiteDatabaseFile(
+  dbPath: string,
+  password?: string,
+  options?: {
+    catalog?: SchemaTableSpec[]
+  }
+): DatabaseRepairReport {
   const db = openSQLiteDatabase(dbPath, password)
 
   try {
-    return new DatabaseRepairService(db, dbPath).repair()
+    return new DatabaseRepairService(db, dbPath, options?.catalog).repair()
   } finally {
     db.close()
   }
@@ -274,13 +282,20 @@ export class SQLitePresenter implements ISQLitePresenter {
     return this.password
   }
 
+  public getLatestSchemaVersion(): number {
+    return this.getMigrationTables().reduce((maxVersion, table) => {
+      const tableMaxVersion = table.getLatestVersion()
+      return Math.max(maxVersion, tableMaxVersion)
+    }, 0)
+  }
+
   public reopenWithPassword(password?: string): void {
     this.password = password
     this.reopen()
   }
 
-  public async diagnoseSchema(): Promise<DatabaseSchemaDiagnosis> {
-    return new SchemaInspector(this.db).diagnose()
+  public async diagnoseSchema(catalog?: SchemaTableSpec[]): Promise<DatabaseSchemaDiagnosis> {
+    return new SchemaInspector(this.db, catalog).diagnose()
   }
 
   public async repairSchema(): Promise<DatabaseRepairReport> {
@@ -465,10 +480,8 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.currentVersion = result?.version || 0
   }
 
-  private migrate() {
-    // 获取所有表的迁移脚本
-    const migrations = new Map<number, string[]>()
-    const tables = [
+  private getMigrationTables(): BaseTable[] {
+    return [
       this.acpSessionsTable,
       this.newEnvironmentsTable,
       this.newEnvironmentPreferencesTable,
@@ -496,12 +509,15 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newSessionDisabledAgentToolsTable,
       this.settingsActivityTable
     ]
+  }
+
+  private migrate() {
+    // 获取所有表的迁移脚本
+    const migrations = new Map<number, string[]>()
+    const tables = this.getMigrationTables()
 
     // 获取最新的迁移版本
-    const latestVersion = tables.reduce((maxVersion, table) => {
-      const tableMaxVersion = table.getLatestVersion?.() || 0
-      return Math.max(maxVersion, tableMaxVersion)
-    }, 0)
+    const latestVersion = this.getLatestSchemaVersion()
 
     if (!this.databaseFileExistedBeforeOpen && this.currentVersion === 0 && latestVersion > 0) {
       this.db
