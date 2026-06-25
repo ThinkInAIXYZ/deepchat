@@ -91,6 +91,7 @@
 - [x] Keep `所有 Agents` title.
 - [x] Wire `New Chat` row to navigate to `/chat` and start a new conversation.
 - [x] Wire `Search` row to existing Spotlight behavior.
+- [x] Localize the `Search` command label for Chinese locales.
 - [x] Wire `Plugins` row to `router.push({ name: 'plugins' })`.
 - [x] Add a blank spacer after the `Plugins` command row.
 - [x] Render `Pinned` only when pinned sessions exist.
