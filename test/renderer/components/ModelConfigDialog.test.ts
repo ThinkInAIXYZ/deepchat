@@ -697,6 +697,32 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
 })
 
 describe('ModelConfigDialog new-api endpoint normalization', () => {
+  it('uses selectable endpoint types without mutating supported endpoint types', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-5.5',
+      modelName: 'GPT-5.5',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-5.5',
+          name: 'GPT-5.5',
+          type: ModelType.Chat,
+          supportedEndpointTypes: ['openai'],
+          selectableEndpointTypes: ['openai', 'openai-response'],
+          endpointType: 'openai'
+        }
+      ],
+      modelConfig: {
+        endpointType: undefined
+      }
+    })
+
+    expect((wrapper.vm as any).providerModelMeta.supportedEndpointTypes).toEqual(['openai'])
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['openai', 'openai-response'])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+  })
+
   it('restores chat routing and provider model type when switching away from image-generation', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'new-api',

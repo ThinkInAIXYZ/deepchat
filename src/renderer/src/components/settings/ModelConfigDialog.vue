@@ -1067,6 +1067,14 @@ const syncCapabilityProviderId = () => {
 }
 
 const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+  const selectableEndpointTypes = providerModelMeta.value?.selectableEndpointTypes
+  if (Array.isArray(selectableEndpointTypes) && selectableEndpointTypes.length > 0) {
+    const normalizedEndpointTypes = selectableEndpointTypes.filter(isNewApiEndpointType)
+    if (normalizedEndpointTypes.length > 0) {
+      return normalizedEndpointTypes
+    }
+  }
+
   const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
   if (Array.isArray(supportedEndpointTypes) && supportedEndpointTypes.length > 0) {
     const normalizedEndpointTypes = supportedEndpointTypes.filter(isNewApiEndpointType)

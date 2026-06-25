@@ -717,6 +717,7 @@ type VirtualModelListItem =
       maxTokens: RENDERER_MODEL_META['maxTokens']
       isCustom: boolean
       supportedEndpointTypes: RENDERER_MODEL_META['supportedEndpointTypes']
+      selectableEndpointTypes: RENDERER_MODEL_META['selectableEndpointTypes']
       endpointType: RENDERER_MODEL_META['endpointType']
     }
 
@@ -795,6 +796,7 @@ const createModelItem = (model: RENDERER_MODEL_META) =>
       maxTokens: model.maxTokens,
       isCustom: model.isCustom ?? false,
       supportedEndpointTypes: model.supportedEndpointTypes,
+      selectableEndpointTypes: model.selectableEndpointTypes,
       endpointType: model.endpointType
     }),
     (item) => {
@@ -814,6 +816,7 @@ const createModelItem = (model: RENDERER_MODEL_META) =>
       item.maxTokens = model.maxTokens
       item.isCustom = model.isCustom ?? false
       item.supportedEndpointTypes = model.supportedEndpointTypes
+      item.selectableEndpointTypes = model.selectableEndpointTypes
       item.endpointType = model.endpointType
     }
   )
@@ -941,6 +944,7 @@ const toRendererModel = (item: VirtualModelItem): RENDERER_MODEL_META => ({
   enableSearch: item.enableSearch,
   type: item.typeValue,
   supportedEndpointTypes: item.supportedEndpointTypes,
+  selectableEndpointTypes: item.selectableEndpointTypes,
   endpointType: item.endpointType
 })
 
