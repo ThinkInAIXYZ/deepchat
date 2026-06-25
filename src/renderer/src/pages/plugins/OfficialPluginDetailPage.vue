@@ -1,15 +1,102 @@
 <template>
-  <div v-if="remoteChannel" class="flex h-full min-h-0 w-full flex-col bg-background">
-    <div class="shrink-0 px-6 pt-6">
-      <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
-        <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
-        {{ t('common.back') }}
-      </Button>
+  <ScrollArea v-if="remoteChannel" class="h-full w-full">
+    <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+          <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
+          {{ t('common.back') }}
+        </Button>
+      </div>
+
+      <div v-if="remoteLoading" class="space-y-3">
+        <div class="h-8 w-56 animate-pulse rounded bg-muted"></div>
+        <div class="h-24 animate-pulse rounded-lg bg-muted/60"></div>
+      </div>
+
+      <div
+        v-else-if="remoteErrorMessage"
+        class="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive"
+      >
+        {{ remoteErrorMessage }}
+      </div>
+
+      <template v-else>
+        <header
+          class="flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-start sm:justify-between"
+        >
+          <div class="min-w-0 space-y-2">
+            <div class="flex min-w-0 items-center gap-3">
+              <div
+                class="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40"
+              >
+                <Icon :icon="remoteIcon" class="size-6" />
+              </div>
+              <div class="min-w-0">
+                <h1 class="truncate text-2xl font-semibold tracking-normal">
+                  {{ remoteTitle }}
+                </h1>
+                <p class="truncate text-sm text-muted-foreground">
+                  {{ remoteDescription }}
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs">
+              <span
+                class="rounded-full border px-2 py-1"
+                :class="
+                  remoteEnabled
+                    ? 'border-emerald-500/40 text-emerald-600'
+                    : 'border-border text-muted-foreground'
+                "
+              >
+                {{
+                  remoteEnabled
+                    ? t('settings.plugins.status.enabled')
+                    : t('settings.plugins.status.disabled')
+                }}
+              </span>
+              <span v-if="remoteStatus" class="rounded-full border border-border px-2 py-1">
+                {{ t(`chat.sidebar.remoteControlStatus.${remoteStatus.state}`) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <Button v-if="!remoteEnabled" :disabled="pending" size="sm" @click="enableRemotePlugin">
+              <Icon icon="lucide:power" class="mr-2 size-4" />
+              {{ t('settings.plugins.enable') }}
+            </Button>
+            <Button
+              v-if="remoteEnabled"
+              :disabled="pending"
+              size="sm"
+              variant="outline"
+              @click="disableRemotePlugin"
+            >
+              <Icon icon="lucide:power-off" class="mr-2 size-4" />
+              {{ t('settings.plugins.disable') }}
+            </Button>
+          </div>
+        </header>
+
+        <div
+          v-if="errorMessage"
+          class="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive"
+        >
+          {{ errorMessage }}
+        </div>
+
+        <RemoteSettings
+          :key="`${remoteChannel}:${remoteSettingsVersion}`"
+          :channel="remoteChannel"
+          embedded
+          hide-channel-toggle
+          hide-header
+          single-channel
+        />
+      </template>
     </div>
-    <div class="min-h-0 flex-1">
-      <RemoteSettings :channel="remoteChannel" single-channel />
-    </div>
-  </div>
+  </ScrollArea>
 
   <ScrollArea v-else class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
@@ -181,7 +268,12 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
-import type { RemoteChannel } from '@shared/presenter'
+import type {
+  ChannelSettingsMap,
+  RemoteChannel,
+  RemoteChannelSettings,
+  RemoteChannelStatus
+} from '@shared/presenter'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
 
 const { t } = useI18n()
@@ -192,10 +284,29 @@ const remoteControlClient = createRemoteControlClient()
 
 const plugin = ref<PluginListItem | null>(null)
 const loading = ref(false)
+const remoteLoading = ref(false)
 const pending = ref(false)
 const errorMessage = ref('')
+const remoteErrorMessage = ref('')
 const lastActionData = ref('')
+const remoteSettings = ref<RemoteChannelSettings | null>(null)
+const remoteStatus = ref<RemoteChannelStatus | null>(null)
+const remoteSettingsVersion = ref(0)
 const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
+const remoteI18nKeyByChannel: Record<RemoteChannel, string> = {
+  telegram: 'telegram',
+  feishu: 'feishu',
+  qqbot: 'qqbot',
+  discord: 'discord',
+  'weixin-ilink': 'weixinIlink'
+}
+const remoteIconByChannel: Record<RemoteChannel, string> = {
+  telegram: 'lucide:send',
+  feishu: 'lucide:message-circle',
+  qqbot: 'lucide:bot',
+  discord: 'lucide:radio-tower',
+  'weixin-ilink': 'lucide:messages-square'
+}
 
 const pluginId = computed(() => String(route.params.pluginId ?? ''))
 const remoteChannel = computed<RemoteChannel | null>(() => {
@@ -210,6 +321,19 @@ const remoteChannel = computed<RemoteChannel | null>(() => {
     : null
 })
 const isFeishuPlugin = computed(() => pluginId.value === FEISHU_PLUGIN_ID)
+const remoteEnabled = computed(() => Boolean(remoteSettings.value?.remoteEnabled))
+const remoteTitle = computed(() => {
+  const channel = remoteChannel.value
+  return channel ? t(`settings.remote.${remoteI18nKeyByChannel[channel]}.title`) : ''
+})
+const remoteDescription = computed(() => {
+  const channel = remoteChannel.value
+  return channel ? t(`settings.remote.${remoteI18nKeyByChannel[channel]}.description`) : ''
+})
+const remoteIcon = computed(() => {
+  const channel = remoteChannel.value
+  return channel ? remoteIconByChannel[channel] : 'lucide:puzzle'
+})
 
 function formatRuntimeState(state?: PluginRuntimeState): string {
   if (!state) {
@@ -219,11 +343,6 @@ function formatRuntimeState(state?: PluginRuntimeState): string {
 }
 
 async function loadPlugin(): Promise<void> {
-  if (remoteChannel.value) {
-    plugin.value = null
-    return
-  }
-
   if (!pluginId.value) {
     plugin.value = null
     return
@@ -238,6 +357,46 @@ async function loadPlugin(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+async function loadRemotePlugin(): Promise<void> {
+  const channel = remoteChannel.value
+  if (!channel) {
+    remoteSettings.value = null
+    remoteStatus.value = null
+    return
+  }
+
+  plugin.value = null
+  remoteLoading.value = true
+  remoteErrorMessage.value = ''
+  errorMessage.value = ''
+  try {
+    const [settings, status] = await Promise.all([
+      remoteControlClient.getChannelSettings(channel),
+      remoteControlClient.getChannelStatus(channel)
+    ])
+    remoteSettings.value = settings
+    remoteStatus.value = status
+  } catch (error) {
+    remoteSettings.value = null
+    remoteStatus.value = null
+    remoteErrorMessage.value =
+      error instanceof Error ? error.message : t('common.error.requestFailed')
+  } finally {
+    remoteLoading.value = false
+  }
+}
+
+async function loadCurrentDetail(): Promise<void> {
+  if (remoteChannel.value) {
+    await loadRemotePlugin()
+    return
+  }
+
+  remoteSettings.value = null
+  remoteStatus.value = null
+  await loadPlugin()
 }
 
 async function runPluginAction(action: () => Promise<PluginActionResult>): Promise<void> {
@@ -258,16 +417,37 @@ async function runPluginAction(action: () => Promise<PluginActionResult>): Promi
   }
 }
 
-async function setFeishuRemoteEnabled(remoteEnabled: boolean): Promise<void> {
-  const settings = await remoteControlClient.getChannelSettings('feishu')
+async function setRemoteChannelEnabled<T extends RemoteChannel>(
+  channel: T,
+  remoteEnabled: boolean
+): Promise<void> {
+  const settings = await remoteControlClient.getChannelSettings(channel)
   if (settings.remoteEnabled === remoteEnabled) {
     return
   }
 
-  await remoteControlClient.saveChannelSettings('feishu', {
+  await remoteControlClient.saveChannelSettings(channel, {
     ...settings,
     remoteEnabled
-  })
+  } as ChannelSettingsMap[T])
+}
+
+async function setFeishuRemoteEnabled(remoteEnabled: boolean): Promise<void> {
+  await setRemoteChannelEnabled('feishu', remoteEnabled)
+}
+
+async function runRemoteAction(action: () => Promise<void>): Promise<void> {
+  pending.value = true
+  errorMessage.value = ''
+  try {
+    await action()
+    await loadRemotePlugin()
+    remoteSettingsVersion.value += 1
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+  } finally {
+    pending.value = false
+  }
 }
 
 function enablePlugin(): void {
@@ -298,11 +478,27 @@ function disablePlugin(): void {
   })
 }
 
+function enableRemotePlugin(): void {
+  const channel = remoteChannel.value
+  if (!channel) {
+    return
+  }
+  void runRemoteAction(() => setRemoteChannelEnabled(channel, true))
+}
+
+function disableRemotePlugin(): void {
+  const channel = remoteChannel.value
+  if (!channel) {
+    return
+  }
+  void runRemoteAction(() => setRemoteChannelEnabled(channel, false))
+}
+
 watch(pluginId, () => {
-  void loadPlugin()
+  void loadCurrentDetail()
 })
 
 onMounted(() => {
-  void loadPlugin()
+  void loadCurrentDetail()
 })
 </script>

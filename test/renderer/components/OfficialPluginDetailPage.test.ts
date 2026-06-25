@@ -21,16 +21,42 @@ const remoteSettingsStub = defineComponent({
   name: 'RemoteSettings',
   props: {
     channel: { type: String, default: '' },
-    hideChannelToggle: { type: Boolean, default: false }
+    hideChannelToggle: { type: Boolean, default: false },
+    hideHeader: { type: Boolean, default: false }
   },
   template:
-    '<div data-testid="remote-settings" :data-channel="channel" :data-hide-toggle="String(hideChannelToggle)"></div>'
+    '<div data-testid="remote-settings" :data-channel="channel" :data-hide-toggle="String(hideChannelToggle)" :data-hide-header="String(hideHeader)"></div>'
 })
 
-async function mountFeishuDetail(options: { enabled?: boolean; remoteEnabled?: boolean } = {}) {
+const defaultFeishuSettings = (remoteEnabled: boolean) => ({
+  brand: 'feishu',
+  appId: 'cli_a',
+  appSecret: 'secret',
+  verificationToken: '',
+  encryptKey: '',
+  remoteEnabled,
+  defaultAgentId: 'feishu-bot',
+  defaultWorkdir: '',
+  pairedUserOpenIds: []
+})
+
+const defaultTelegramSettings = (remoteEnabled: boolean) => ({
+  botToken: 'token',
+  remoteEnabled,
+  defaultAgentId: 'telegram-bot',
+  defaultWorkdir: '',
+  allowedUserIds: []
+})
+
+async function mountDetail(
+  options: { enabled?: boolean; pluginId?: string; remoteEnabled?: boolean } = {}
+) {
   vi.resetModules()
   vi.clearAllMocks()
 
+  const pluginId = options.pluginId ?? 'com.deepchat.plugins.feishu'
+  const remoteChannel = pluginId.startsWith('remote:') ? pluginId.slice('remote:'.length) : 'feishu'
+  const remoteEnabled = options.remoteEnabled ?? false
   const pluginClient = {
     getPlugin: vi.fn().mockResolvedValue({
       id: 'com.deepchat.plugins.feishu',
@@ -45,16 +71,20 @@ async function mountFeishuDetail(options: { enabled?: boolean; remoteEnabled?: b
     disablePlugin: vi.fn().mockResolvedValue({ ok: true })
   }
   const remoteControlClient = {
-    getChannelSettings: vi.fn().mockResolvedValue({
-      brand: 'feishu',
-      appId: 'cli_a',
-      appSecret: 'secret',
-      verificationToken: '',
-      encryptKey: '',
-      remoteEnabled: options.remoteEnabled ?? false,
-      defaultAgentId: 'feishu-bot',
-      defaultWorkdir: '',
-      pairedUserOpenIds: []
+    getChannelSettings: vi
+      .fn()
+      .mockResolvedValue(
+        remoteChannel === 'telegram'
+          ? defaultTelegramSettings(remoteEnabled)
+          : defaultFeishuSettings(remoteEnabled)
+      ),
+    getChannelStatus: vi.fn().mockResolvedValue({
+      channel: remoteChannel,
+      enabled: remoteEnabled,
+      state: remoteEnabled ? 'running' : 'disabled',
+      bindingCount: 1,
+      allowedUserCount: 1,
+      lastError: null
     }),
     saveChannelSettings: vi.fn().mockResolvedValue({})
   }
@@ -73,7 +103,7 @@ async function mountFeishuDetail(options: { enabled?: boolean; remoteEnabled?: b
     return {
       ...actual,
       useRoute: () => ({
-        params: { pluginId: 'com.deepchat.plugins.feishu' }
+        params: { pluginId }
       }),
       useRouter: () => router
     }
@@ -114,7 +144,7 @@ async function mountFeishuDetail(options: { enabled?: boolean; remoteEnabled?: b
 
 describe('OfficialPluginDetailPage', () => {
   it('uses the plugin enable button to start Feishu remote too', async () => {
-    const { wrapper, pluginClient, remoteControlClient } = await mountFeishuDetail()
+    const { wrapper, pluginClient, remoteControlClient } = await mountDetail()
 
     expect(wrapper.find('[data-testid="remote-settings"]').attributes('data-hide-toggle')).toBe(
       'true'
@@ -134,7 +164,7 @@ describe('OfficialPluginDetailPage', () => {
   })
 
   it('uses the plugin disable button to stop Feishu remote too', async () => {
-    const { wrapper, pluginClient, remoteControlClient } = await mountFeishuDetail({
+    const { wrapper, pluginClient, remoteControlClient } = await mountDetail({
       enabled: true,
       remoteEnabled: true
     })
@@ -148,6 +178,48 @@ describe('OfficialPluginDetailPage', () => {
     expect(pluginClient.disablePlugin).toHaveBeenCalledWith('com.deepchat.plugins.feishu')
     expect(remoteControlClient.saveChannelSettings).toHaveBeenCalledWith(
       'feishu',
+      expect.objectContaining({ remoteEnabled: false })
+    )
+  })
+
+  it('uses the top detail button to start remote virtual plugins', async () => {
+    const { wrapper, pluginClient, remoteControlClient } = await mountDetail({
+      pluginId: 'remote:telegram'
+    })
+
+    expect(pluginClient.getPlugin).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="remote-settings"]').attributes()).toMatchObject({
+      'data-channel': 'telegram',
+      'data-hide-toggle': 'true',
+      'data-hide-header': 'true'
+    })
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.plugins.enable')!
+      .trigger('click')
+    await flushPromises()
+
+    expect(remoteControlClient.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
+      expect.objectContaining({ remoteEnabled: true })
+    )
+  })
+
+  it('uses the top detail button to stop remote virtual plugins', async () => {
+    const { wrapper, remoteControlClient } = await mountDetail({
+      pluginId: 'remote:telegram',
+      remoteEnabled: true
+    })
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.plugins.disable')!
+      .trigger('click')
+    await flushPromises()
+
+    expect(remoteControlClient.saveChannelSettings).toHaveBeenCalledWith(
+      'telegram',
       expect.objectContaining({ remoteEnabled: false })
     )
   })

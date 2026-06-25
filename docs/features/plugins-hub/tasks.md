@@ -77,6 +77,7 @@
 - [x] Route remote virtual plugin cards through `/plugins/:pluginId` using `remote:<channel>` ids.
 - [x] Remove the Remote top tab/product list route.
 - [x] Reuse `RemoteSettings` in single-channel mode inside plugin detail pages.
+- [x] Use the plugin detail top-level enable/disable button for remote virtual plugin state.
 - [x] Auto-enable configured legacy channels when the explicit enabled flag is missing.
 - [x] Preserve credentials fields and password reveal behavior.
 - [x] Preserve enable/disable save behavior.

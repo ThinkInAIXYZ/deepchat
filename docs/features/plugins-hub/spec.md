@@ -299,6 +299,7 @@ Compatibility behavior:
 - Plugin-owned MCP errors remain visible.
 - Opening a plugin settings/detail uses `/plugins/:pluginId`, not Settings and not a per-plugin BrowserWindow.
 - CUA detail includes runtime/MCP status, permission checks and permission guide actions.
+- Remote virtual plugin detail pages use the same top-level enable/disable button style as official plugin details. The embedded remote form must not show a second channel toggle.
 - Feishu/Lark Integration detail includes Feishu/Lark Remote configuration instead of showing a separate Feishu/Lark Remote card.
 - Feishu/Lark Integration has one top-level enable/disable control; it enables/disables both the official plugin and the embedded Feishu/Lark Remote configuration. The embedded remote form must not show a second channel toggle.
 - Legacy `settings.open` plugin action is not used as the primary UI path after migration.
