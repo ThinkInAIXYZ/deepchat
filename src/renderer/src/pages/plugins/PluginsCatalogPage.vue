@@ -142,7 +142,6 @@ type AddedItem = {
   id: string
   kind: 'official' | 'remote'
   pluginId?: string
-  channel?: RemoteChannel
   title: string
   icon: string
   iconClass?: string
@@ -223,6 +222,9 @@ const remoteIconClassByChannel: Record<RemoteChannel, string> = {
   discord: 'text-indigo-500',
   'weixin-ilink': 'text-green-500'
 }
+const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
+const remotePluginId = (channel: RemoteChannel): string => `remote:${channel}`
+const isFeishuOfficialPlugin = (plugin: PluginListItem): boolean => plugin.id === FEISHU_PLUGIN_ID
 
 const filters: Array<{ key: CatalogFilter; titleKey: string }> = [
   { key: 'official', titleKey: 'settings.pluginsHub.filters.official' },
@@ -249,25 +251,32 @@ const isPending = (itemId: string) => pendingItemId.value === itemId
 const implementedRemoteChannels = computed(() =>
   remoteChannels.value.filter((channel) => channel.implemented)
 )
+const hasFeishuOfficialPlugin = computed(() => plugins.value.some(isFeishuOfficialPlugin))
 
 const addedItems = computed<AddedItem[]>(() => {
   const officialItems = plugins.value
-    .filter((plugin) => plugin.enabled)
+    .filter(
+      (plugin) =>
+        plugin.enabled || (isFeishuOfficialPlugin(plugin) && remoteStatuses.value.feishu?.enabled)
+    )
     .map((plugin) => ({
       id: `official:${plugin.id}`,
       kind: 'official' as const,
       pluginId: plugin.id,
       title: plugin.name,
-      icon: 'lucide:puzzle',
-      iconClass: 'text-foreground'
+      icon: isFeishuOfficialPlugin(plugin) ? remoteIconByChannel.feishu : 'lucide:puzzle',
+      iconClass: isFeishuOfficialPlugin(plugin)
+        ? remoteIconClassByChannel.feishu
+        : 'text-foreground'
     }))
 
   const remoteItems = implementedRemoteChannels.value
+    .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
     .filter((channel) => remoteStatuses.value[channel.id]?.enabled)
     .map((channel) => ({
       id: `remote:${channel.id}`,
       kind: 'remote' as const,
-      channel: channel.id,
+      pluginId: remotePluginId(channel.id),
       title: t(channel.titleKey),
       icon: remoteIconByChannel[channel.id],
       iconClass: remoteIconClassByChannel[channel.id]
@@ -286,27 +295,33 @@ const catalogItems = computed<CatalogItem[]>(() => {
     badge: plugin.enabled
       ? t('settings.plugins.status.enabled')
       : t('settings.plugins.status.disabled'),
-    icon: 'lucide:puzzle',
-    actionLabel: plugin.enabled ? t('settings.pluginsHub.manage') : t('settings.plugins.enable')
+    icon: isFeishuOfficialPlugin(plugin) ? remoteIconByChannel.feishu : 'lucide:puzzle',
+    iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
+    actionLabel:
+      plugin.enabled || isFeishuOfficialPlugin(plugin)
+        ? t('settings.pluginsHub.manage')
+        : t('settings.plugins.enable')
   }))
 
-  const remoteItems = implementedRemoteChannels.value.map((channel) => {
-    const status = remoteStatuses.value[channel.id]
-    return {
-      id: `remote:${channel.id}`,
-      kind: 'remote' as const,
-      channel: channel.id,
-      title: t(channel.titleKey),
-      description: t(channel.descriptionKey),
-      badge:
-        status?.enabled && status.state
-          ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
-          : t('chat.sidebar.remoteControlDisabled'),
-      icon: remoteIconByChannel[channel.id],
-      iconClass: remoteIconClassByChannel[channel.id],
-      actionLabel: t('settings.pluginsHub.manage')
-    }
-  })
+  const remoteItems = implementedRemoteChannels.value
+    .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
+    .map((channel) => {
+      const status = remoteStatuses.value[channel.id]
+      return {
+        id: `remote:${channel.id}`,
+        kind: 'remote' as const,
+        channel: channel.id,
+        title: t(channel.titleKey),
+        description: t(channel.descriptionKey),
+        badge:
+          status?.enabled && status.state
+            ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
+            : t('chat.sidebar.remoteControlDisabled'),
+        icon: remoteIconByChannel[channel.id],
+        iconClass: remoteIconClassByChannel[channel.id],
+        actionLabel: t('settings.pluginsHub.manage')
+      }
+    })
 
   return [...officialItems, ...remoteItems]
 })
@@ -377,20 +392,16 @@ async function runPluginAction(
 }
 
 function openAddedItem(item: AddedItem): void {
-  if (item.kind === 'official' && item.pluginId) {
-    void router.push({ name: 'plugins-official-detail', params: { pluginId: item.pluginId } })
-    return
-  }
-  if (item.kind === 'remote' && item.channel) {
-    void router.push({ name: 'plugins-remote-detail', params: { channel: item.channel } })
+  if (item.pluginId) {
+    void router.push({ name: 'plugins-detail', params: { pluginId: item.pluginId } })
   }
 }
 
 function handleCatalogAction(item: CatalogItem): void {
   if (item.kind === 'official' && item.plugin) {
     const plugin = item.plugin
-    if (item.plugin.enabled) {
-      void router.push({ name: 'plugins-official-detail', params: { pluginId: plugin.id } })
+    if (item.plugin.enabled || isFeishuOfficialPlugin(plugin)) {
+      void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
     } else {
       void runPluginAction(item.id, () => pluginClient.enablePlugin(plugin.id))
     }
@@ -398,7 +409,7 @@ function handleCatalogAction(item: CatalogItem): void {
   }
 
   if (item.kind === 'remote' && item.channel) {
-    void router.push({ name: 'plugins-remote-detail', params: { channel: item.channel } })
+    void router.push({ name: 'plugins-detail', params: { pluginId: remotePluginId(item.channel) } })
     return
   }
 }

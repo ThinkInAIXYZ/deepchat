@@ -468,7 +468,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         await router.push({ name: 'plugins-mcp' })
         return
       case 'open-remote':
-        await router.push({ name: 'plugins-remote' })
+        await router.push({ name: 'plugins' })
         return
       default:
         return

@@ -232,7 +232,7 @@ const setup = async (options: SetupOptions = {}) => {
       query: {},
       params: {}
     }),
-    hasRoute: vi.fn((name: string) => ['chat', 'plugins', 'plugins-remote'].includes(String(name))),
+    hasRoute: vi.fn((name: string) => ['chat', 'plugins', 'plugins-detail'].includes(String(name))),
     push: vi.fn(async (location: { name?: string }) => {
       router.currentRoute.value = {
         name: location.name ?? router.currentRoute.value.name,
@@ -1650,7 +1650,7 @@ describe('WindowSideBar agent switch', () => {
     disabledSetup.wrapper.unmount()
   })
 
-  it('routes to Plugins Remote when remote button is clicked', async () => {
+  it('routes to the first enabled remote plugin when remote button is clicked', async () => {
     const { wrapper, settingsClient, router } = await setup({
       remoteStatus: {
         enabled: true,
@@ -1660,7 +1660,10 @@ describe('WindowSideBar agent switch', () => {
 
     await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
     await flushPromises()
-    expect(router.push).toHaveBeenCalledWith({ name: 'plugins-remote' })
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'plugins-detail',
+      params: { pluginId: 'remote:telegram' }
+    })
     expect(settingsClient.openSettings).not.toHaveBeenCalled()
 
     wrapper.unmount()

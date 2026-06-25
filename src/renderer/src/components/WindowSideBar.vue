@@ -719,6 +719,12 @@ const showRemoteControlButton = computed(() =>
     Boolean(getRemoteChannelStatus(channel)?.enabled)
   )
 )
+const firstEnabledRemoteChannel = computed<RemoteChannel | null>(
+  () =>
+    implementedRemoteChannels.value.find((channel) =>
+      Boolean(getRemoteChannelStatus(channel)?.enabled)
+    ) ?? null
+)
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   const states = implementedRemoteChannels.value
     .map((channel) => getRemoteChannelStatus(channel))
@@ -1172,8 +1178,11 @@ const openPlugins = () => {
 }
 
 const openRemoteSettings = async () => {
-  if (router?.hasRoute?.('plugins-remote')) {
-    await router.push({ name: 'plugins-remote' })
+  if (router?.hasRoute?.('plugins-detail') && firstEnabledRemoteChannel.value) {
+    await router.push({
+      name: 'plugins-detail',
+      params: { pluginId: `remote:${firstEnabledRemoteChannel.value}` }
+    })
     return
   }
 

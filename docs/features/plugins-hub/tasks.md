@@ -11,7 +11,7 @@
 
 - [x] Add `/plugins` route family to the existing main renderer router.
 - [x] Add `PluginsHubPage.vue` inside `src/renderer/src/pages/plugins/`.
-- [x] Add top tab navigation for Plugins, Skills, MCP and Remote or the chosen first-increment subset.
+- [x] Add top tab navigation for Plugins, Skills and MCP.
 - [x] Add Codex-like catalog placeholder with title, subtitle, search, added strip and featured sections.
 - [x] Keep MCP and Skills as top tabs only, not plugin catalog cards.
 - [x] Keep `WindowSideBar`, `AppBar`, global overlays, theme and i18n behavior intact.
@@ -60,11 +60,11 @@
 ## 6. Official Plugins Section
 
 - [x] Create official plugin list route from `PluginClient.listPlugins`.
-- [x] Add detail route `/plugins/official/:pluginId`.
+- [x] Add unified detail route `/plugins/:pluginId`.
 - [x] Keep enable/disable actions.
 - [x] Show runtime status, plugin-owned MCP status and last errors.
 - [ ] Add native CUA detail sections for runtime status, permissions and permission guide actions.
-- [ ] Add native Feishu/Lark Integration detail that distinguishes it from Feishu/Lark Remote.
+- [x] Merge Feishu/Lark Remote configuration into the Feishu/Lark Integration detail page.
 - [x] Stop first-party Plugins UI from calling `settings.open`.
 - [x] Keep `settings.open` only as temporary compatibility fallback.
 - [ ] Add tests for list/detail action behavior.
@@ -73,16 +73,17 @@
 
 - [x] Build remote virtual cards from `remoteControl.listChannels`.
 - [x] Fetch and display per-channel status.
-- [x] Add `/plugins/remote` route.
-- [x] Add `/plugins/remote/:channel` detail route.
-- [ ] Extract only the needed RemoteSettings channel sections into reusable components.
+- [x] Route remote virtual plugin cards through `/plugins/:pluginId` using `remote:<channel>` ids.
+- [x] Remove the Remote top tab/product list route.
+- [x] Reuse `RemoteSettings` in single-channel mode inside plugin detail pages.
+- [x] Auto-enable configured legacy channels when the explicit enabled flag is missing.
 - [x] Preserve credentials fields and password reveal behavior.
 - [x] Preserve enable/disable save behavior.
 - [x] Preserve default agent and default workdir behavior.
 - [x] Preserve pairing flow for Telegram, Feishu/Lark, QQBot and Discord.
 - [x] Preserve binding/principal removal behavior.
 - [x] Preserve WeChat iLink login/account controls.
-- [x] Route sidebar remote status button to `/plugins/remote` or selected channel detail.
+- [x] Route sidebar remote status button to the first enabled remote plugin detail.
 - [ ] Add tests for card mapping, save, pairing and bindings.
 
 ## 8. Main Sidebar Layout

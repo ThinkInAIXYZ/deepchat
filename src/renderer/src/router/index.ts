@@ -53,25 +53,25 @@ const router = createRouter({
         },
         {
           path: 'remote',
-          name: 'plugins-remote',
-          component: () => import('@/pages/plugins/RemotePluginsPage.vue'),
-          meta: {
-            titleKey: 'routes.settings-remote',
-            icon: 'lucide:smartphone'
-          }
+          redirect: { name: 'plugins' }
         },
         {
           path: 'remote/:channel',
-          name: 'plugins-remote-detail',
-          component: () => import('@/pages/plugins/RemotePluginsPage.vue'),
-          meta: {
-            titleKey: 'routes.settings-remote',
-            icon: 'lucide:smartphone'
-          }
+          redirect: (to) => ({
+            name: 'plugins-detail',
+            params: { pluginId: `remote:${String(to.params.channel)}` }
+          })
         },
         {
           path: 'official/:pluginId',
-          name: 'plugins-official-detail',
+          redirect: (to) => ({
+            name: 'plugins-detail',
+            params: { pluginId: String(to.params.pluginId) }
+          })
+        },
+        {
+          path: ':pluginId',
+          name: 'plugins-detail',
           component: () => import('@/pages/plugins/OfficialPluginDetailPage.vue'),
           meta: {
             titleKey: 'routes.plugins',

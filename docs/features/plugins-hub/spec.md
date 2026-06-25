@@ -89,9 +89,7 @@ src/renderer/src/router/index.ts
     ├── tab=plugins or child /plugins
     ├── /plugins/skills
     ├── /plugins/mcp
-    ├── /plugins/remote
-    ├── /plugins/official/:pluginId
-    └── /plugins/remote/:channel
+    └── /plugins/:pluginId
 ```
 
 Implementation can use nested Vue routes or one `/plugins` route with internal tab state. The URL must be shareable enough for internal navigation and redirects:
@@ -101,9 +99,9 @@ Implementation can use nested Vue routes or one `/plugins` route with internal t
 | Plugins catalog | `/plugins` |
 | Skills | `/plugins/skills` |
 | MCP | `/plugins/mcp` |
-| Remote list | `/plugins/remote` |
-| Official plugin detail | `/plugins/official/:pluginId` |
-| Remote channel detail | `/plugins/remote/:channel` |
+| Plugin detail | `/plugins/:pluginId` |
+
+Legacy `/plugins/official/:pluginId`, `/plugins/remote` and `/plugins/remote/:channel` paths may redirect for compatibility, but they are not product routes.
 
 ## Proposed Information Architecture
 
@@ -114,17 +112,12 @@ Top-level sections:
 | Plugins | Plugins | official plugin packages, added/recommended plugin cards, Remote virtual plugin cards |
 | Skills | Skills | installed skills, install, edit, sync import/export, draft suggestion toggle |
 | MCP | MCP Servers | user MCP servers, plugin-owned MCP status, MCP market/add flow |
-| Remote | Remote | virtual plugin cards for Telegram, Feishu/Lark Remote, QQBot, Discord, WeChat iLink |
 
-The visual top tab row uses `Plugins`, `Skills`, `MCP` and `Remote`. `MCP` and `Skills` are sibling tabs, not plugin catalog cards.
+The visual top tab row uses `Plugins`, `Skills` and `MCP`. `Remote` is not a top tab; each remote channel is a virtual plugin card in the catalog.
 
-Remote naming must avoid collision with official plugins:
+Remote virtual plugin ids use `remote:<channel>`. Feishu/Lark is special: when the official Feishu/Lark Integration plugin is installed, the Feishu/Lark Remote card is merged into that official plugin detail page.
 
-| Existing item | Display name in Plugins |
-| --- | --- |
-| `com.deepchat.plugins.feishu` official plugin | `Feishu/Lark Integration` |
-| `remote:feishu` virtual plugin | `Feishu/Lark Remote` |
-| `remote:telegram` virtual plugin | `Telegram Remote` |
+Historical remote settings compatibility: if a channel has credentials/accounts from an older configuration and no explicit enabled flag, that virtual plugin starts enabled by default. Explicit `enabled: false` still stays disabled.
 
 ## Main Window Plugins UX
 
@@ -134,7 +127,7 @@ Remote naming must avoid collision with official plugins:
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ AppBar                                                                       │
 ├───────────────┬──────────────────────────────────────────────────────────────┤
-│rail│ expanded sidebar │  [Plugins] [Skills] [MCP] [Remote]          +  ↻    │
+│rail│ expanded sidebar │  [Plugins] [Skills] [MCP]                   +  ↻    │
 │    │ 所有 Agents      │                                                              │
 │    │ New Chat         │                         Plugins                             │
 │    │ Search           │          Work with DeepChat across your favorite tools       │
@@ -157,7 +150,7 @@ Remote naming must avoid collision with official plugins:
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ AppBar                                                                       │
 ├───────────────┬──────────────────────────────────────────────────────────────┤
-│rail│ expanded sidebar │  [Plugins] [Skills] [MCP] [Remote]                  │
+│rail│ expanded sidebar │  [Plugins] [Skills] [MCP]                           │
 │    │ 所有 Agents      │  ← Back to Plugins                                   │
 │    │ New Chat         │  Telegram Remote                              on/off │
 │    │ Search           │  Status: running · bindings: 2 · last error: none    │
@@ -183,7 +176,6 @@ At constrained widths, keep the same app shell and avoid modal navigation:
 │ AppBar                             │
 ├────┬───────────────────────────────┤
 │rail│ [Plugins][Skills][MCP]        │
-│    │ [Remote]                      │
 │⚙︎  ├───────────────────────────────┤
 │    │ Search                        │
 │    │                               │
@@ -305,9 +297,9 @@ Compatibility behavior:
 
 - Official plugin list keeps enable/disable/status behavior.
 - Plugin-owned MCP errors remain visible.
-- Opening an official plugin settings/detail uses `/plugins/official/:pluginId`, not Settings and not a per-plugin BrowserWindow.
+- Opening a plugin settings/detail uses `/plugins/:pluginId`, not Settings and not a per-plugin BrowserWindow.
 - CUA detail includes runtime/MCP status, permission checks and permission guide actions.
-- Feishu/Lark Integration detail distinguishes MCP/Skill integration from Feishu/Lark Remote control.
+- Feishu/Lark Integration detail includes Feishu/Lark Remote configuration instead of showing a separate Feishu/Lark Remote card.
 - Legacy `settings.open` plugin action is not used as the primary UI path after migration.
 
 ### MCP
@@ -326,8 +318,8 @@ Compatibility behavior:
 
 - Every implemented `RemoteChannelDescriptor` appears as a Remote virtual plugin card.
 - Each card shows enabled state, runtime state, binding/pairing summary and last error when present.
-- Each card opens `/plugins/remote/:channel`.
-- Channel settings preserve current behavior:
+- Each card opens `/plugins/:pluginId`; remote virtual plugin ids use `remote:<channel>`.
+- Channel settings render inside the plugin detail page and preserve current behavior:
   - credentials
   - enable/disable
   - default agent

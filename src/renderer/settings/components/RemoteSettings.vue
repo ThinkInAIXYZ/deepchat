@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea data-testid="settings-remote-page" class="h-full w-full">
+  <component :is="rootComponent" data-testid="settings-remote-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="space-y-4 animate-pulse">
         <div class="h-6 w-48 rounded bg-muted/50"></div>
@@ -25,20 +25,27 @@
         {{ t('common.error.requestFailed') }}
       </div>
       <template v-else>
-        <div class="space-y-1">
+        <div v-if="!props.hideHeader" class="space-y-1">
           <div class="flex items-center gap-2">
-            <div class="text-base font-medium">{{ t('settings.remote.title') }}</div>
+            <div class="text-base font-medium">
+              {{ singleChannelMode ? channelTitle(activeChannel) : t('settings.remote.title') }}
+            </div>
             <span v-if="isAnySaving" class="text-xs text-muted-foreground">
               {{ t('common.saving') }}
             </span>
           </div>
           <div class="text-sm text-muted-foreground">
-            {{ t('settings.remote.description') }}
+            {{
+              singleChannelMode
+                ? channelDescription(activeChannel)
+                : t('settings.remote.description')
+            }}
           </div>
         </div>
 
         <Tabs v-model="activeChannel" class="space-y-4">
           <TabsList
+            v-if="!singleChannelMode"
             class="grid w-full"
             :style="{ gridTemplateColumns: `repeat(${implementedChannelCount}, minmax(0, 1fr))` }"
           >
@@ -1274,7 +1281,7 @@
         </Tabs>
       </template>
     </div>
-  </ScrollArea>
+  </component>
 
   <Dialog v-model:open="pairDialogVisible">
     <DialogContent class="sm:max-w-md">
@@ -1517,7 +1524,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -1632,9 +1638,13 @@ const remoteControlClient = createRemoteControlClient()
 const projectClient = createProjectClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
-const route = useRoute()
-const router = useRouter()
 const { toast } = useToast()
+const props = defineProps<{
+  channel?: RemoteChannel
+  embedded?: boolean
+  hideHeader?: boolean
+  singleChannel?: boolean
+}>()
 
 const channelI18nKeyMap: Record<RemoteChannel, string> = {
   telegram: 'telegram',
@@ -1649,6 +1659,13 @@ function channelTitle(channel: RemoteChannel | null | undefined): string {
     return ''
   }
   return t(`settings.remote.${channelI18nKeyMap[channel]}.title`)
+}
+
+function channelDescription(channel: RemoteChannel | null | undefined): string {
+  if (!channel) {
+    return ''
+  }
+  return t(`settings.remote.${channelI18nKeyMap[channel]}.description`)
 }
 
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
@@ -1919,15 +1936,14 @@ const implementedChannels = computed(() =>
     .map((descriptor) => descriptor.id)
 )
 const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const rootComponent = computed(() => (props.embedded ? 'div' : ScrollArea))
+const singleChannelMode = computed(() => Boolean(props.singleChannel || props.channel))
 const isRemoteChannel = (value: unknown): value is RemoteChannel =>
   typeof value === 'string' &&
   fallbackChannelDescriptors.some((descriptor) => descriptor.id === value)
-const syncActiveChannelFromRoute = () => {
-  const routeChannel = route?.params?.channel
-  const channel = Array.isArray(routeChannel) ? routeChannel[0] : routeChannel
-
-  if (isRemoteChannel(channel) && implementedChannels.value.includes(channel)) {
-    activeChannel.value = channel
+const syncActiveChannelFromProps = () => {
+  if (props.channel && isRemoteChannel(props.channel)) {
+    activeChannel.value = props.channel
   }
 }
 const isAnySaving = computed(
@@ -2272,7 +2288,7 @@ const loadState = async () => {
     discordStatus.value = loadedDiscordStatus
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
-    syncActiveChannelFromRoute()
+    syncActiveChannelFromProps()
     if (!implementedChannels.value.includes(activeChannel.value)) {
       activeChannel.value = implementedChannels.value[0] ?? 'telegram'
     }
@@ -3015,16 +3031,10 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   })
 }
 
-watch(() => route?.params?.channel, syncActiveChannelFromRoute)
-watch(activeChannel, (channel) => {
-  if (!router || route?.name !== 'plugins-remote-detail' || route?.params?.channel === channel) {
-    return
-  }
-  void router.replace({ name: 'plugins-remote-detail', params: { channel } })
-})
+watch(() => props.channel, syncActiveChannelFromProps)
 
 onMounted(() => {
-  syncActiveChannelFromRoute()
+  syncActiveChannelFromProps()
   void loadState()
   statusRefreshTimer = setInterval(() => {
     void refreshStatus()

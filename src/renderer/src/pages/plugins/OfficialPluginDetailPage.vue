@@ -1,5 +1,17 @@
 <template>
-  <ScrollArea class="h-full w-full">
+  <div v-if="remoteChannel" class="flex h-full min-h-0 w-full flex-col bg-background">
+    <div class="shrink-0 px-6 pt-6">
+      <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+        <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
+        {{ t('common.back') }}
+      </Button>
+    </div>
+    <div class="min-h-0 flex-1">
+      <RemoteSettings :channel="remoteChannel" single-channel />
+    </div>
+  </div>
+
+  <ScrollArea v-else class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
       <div class="flex items-center gap-2">
         <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
@@ -139,6 +151,14 @@
           </div>
         </section>
 
+        <RemoteSettings
+          v-if="isFeishuPlugin"
+          channel="feishu"
+          embedded
+          hide-header
+          single-channel
+        />
+
         <section v-if="lastActionData" class="rounded-lg border border-border p-4">
           <div class="mb-3 text-sm font-semibold">{{ t('settings.pluginsHub.actionResult') }}</div>
           <pre class="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{{
@@ -158,6 +178,8 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
+import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
+import type { RemoteChannel } from '@shared/presenter'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
 
 const { t } = useI18n()
@@ -170,8 +192,21 @@ const loading = ref(false)
 const pending = ref(false)
 const errorMessage = ref('')
 const lastActionData = ref('')
+const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
 
 const pluginId = computed(() => String(route.params.pluginId ?? ''))
+const remoteChannel = computed<RemoteChannel | null>(() => {
+  const id = pluginId.value
+  if (!id.startsWith('remote:')) {
+    return null
+  }
+
+  const channel = id.slice('remote:'.length)
+  return ['telegram', 'feishu', 'qqbot', 'discord', 'weixin-ilink'].includes(channel)
+    ? (channel as RemoteChannel)
+    : null
+})
+const isFeishuPlugin = computed(() => pluginId.value === FEISHU_PLUGIN_ID)
 
 function formatRuntimeState(state?: PluginRuntimeState): string {
   if (!state) {
@@ -181,6 +216,11 @@ function formatRuntimeState(state?: PluginRuntimeState): string {
 }
 
 async function loadPlugin(): Promise<void> {
+  if (remoteChannel.value) {
+    plugin.value = null
+    return
+  }
+
   if (!pluginId.value) {
     plugin.value = null
     return

@@ -54,12 +54,6 @@ const tabs = [
     name: 'plugins-mcp',
     titleKey: 'routes.settings-mcp',
     icon: 'lucide:server'
-  },
-  {
-    key: 'remote',
-    name: 'plugins-remote',
-    titleKey: 'routes.settings-remote',
-    icon: 'lucide:smartphone'
   }
 ] as const
 
@@ -70,9 +64,6 @@ const activeTab = computed(() => {
   }
   if (routeName.includes('mcp')) {
     return 'mcp'
-  }
-  if (routeName.includes('remote')) {
-    return 'remote'
   }
   return 'plugins'
 })

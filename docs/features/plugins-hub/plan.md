@@ -30,9 +30,7 @@ Main window
          /plugins
          /plugins/skills
          /plugins/mcp
-         /plugins/remote
-         /plugins/official/:pluginId
-         /plugins/remote/:channel
+         /plugins/:pluginId
 ```
 
 Use the existing `src/renderer/src/router/index.ts`. Do not add `src/renderer/plugins`, a new Vite
@@ -44,9 +42,7 @@ Route names can be:
 plugins
 plugins-skills
 plugins-mcp
-plugins-remote
-plugins-official-detail
-plugins-remote-detail
+plugins-detail
 ```
 
 External/main-process callers should not know UI component internals. Reuse the existing app-runtime event path where possible. Only add a narrow route if a future main-process caller needs generic main-window navigation:
@@ -104,8 +100,6 @@ src/renderer/src/pages/plugins/
 ├── OfficialPluginDetailPage.vue
 ├── McpPluginsPage.vue
 ├── SkillsPluginsPage.vue
-├── RemotePluginsPage.vue
-├── RemotePluginDetailPage.vue
 ├── components/
 │   ├── PluginsTopTabs.vue
 │   ├── PluginCatalogGrid.vue
@@ -121,9 +115,10 @@ Keep this list flexible during implementation; do not split files unless the com
 
 Visual baseline:
 
-- Main content starts with top tabs (`Plugins`, `Skills`, `MCP`, `Remote`).
+- Main content starts with top tabs (`Plugins`, `Skills`, `MCP`).
 - Catalog page uses the Codex-like layout: title, subtitle, search, added strip, segmented filters, sectioned list.
-- Catalog cards include official plugins and Remote virtual plugins only; MCP and Skills remain reachable through top tabs.
+- Catalog cards include official plugins and Remote virtual plugins; MCP and Skills remain reachable through top tabs.
+- Remote does not have a top tab or product list route. Each channel opens as a virtual plugin detail.
 - Avoid settings-style full-width form pages for the catalog. Detail routes may use denser settings sections.
 - Cards are individual repeated items only. Do not put page sections inside floating cards.
 
@@ -136,9 +131,8 @@ Renderer-side navigation:
 | Sidebar `Plugins` row | `router.push({ name: 'plugins' })` |
 | Top tab `Skills` | `router.push({ name: 'plugins-skills' })` |
 | Top tab `MCP` | `router.push({ name: 'plugins-mcp' })` |
-| Top tab `Remote` | `router.push({ name: 'plugins-remote' })` |
-| Official plugin card/detail | `router.push({ name: 'plugins-official-detail', params: { pluginId } })` |
-| Remote channel card/detail | `router.push({ name: 'plugins-remote-detail', params: { channel } })` |
+| Plugin card/detail | `router.push({ name: 'plugins-detail', params: { pluginId } })` |
+| Remote channel card/detail | `router.push({ name: 'plugins-detail', params: { pluginId: 'remote:<channel>' } })` |
 | `New Chat` row while on `/plugins` | `router.push({ name: 'chat' })`, then start new conversation |
 
 Main-process initiated navigation:
@@ -153,7 +147,7 @@ Current behavior opens `PluginPresenter.openPluginSettingsWindow(pluginId)`.
 
 Target behavior:
 
-- List page opens `/plugins/official/:pluginId`.
+- List page opens `/plugins/:pluginId`.
 - Detail page loads `plugins.get(pluginId)`.
 - Enable/disable remains in detail and list.
 - Runtime status and MCP status remain visible.
@@ -216,16 +210,16 @@ Compatibility:
 
 ## Remote Migration
 
-First increment: reuse `RemoteSettings.vue` inside `/plugins/remote` and `/plugins/remote/:channel`, with route-param synchronization so direct channel links open the matching tab. This keeps the existing credential, pairing, default agent/workdir, bindings and WeChat iLink behavior intact.
+First increment: reuse `RemoteSettings.vue` inside `/plugins/:pluginId` for virtual plugin ids such as `remote:telegram`. Single-channel mode hides the old Remote tab strip and renders the existing channel form inside the plugin detail page. This keeps the existing credential, pairing, default agent/workdir, bindings and WeChat iLink behavior intact.
 
 Follow-up refactor: extract channel sections from `RemoteSettings.vue` into reusable components. The file is already large, but splitting it before moving the route would increase regression risk and delay the user-visible entry-point cleanup.
 
 Refactor only around real channel boundaries:
 
 ```text
-RemotePluginsPage
+PluginsCatalogPage
   -> virtual cards from listRemoteChannels()
-RemotePluginDetailPage(channel)
+PluginDetailPage(remote:<channel>)
   -> channel header/status/toggle
   -> credentials section
   -> default agent/workdir section
@@ -239,7 +233,7 @@ Suggested extracted components:
 | Component | Scope |
 | --- | --- |
 | `RemotePluginCard` | card summary for one channel |
-| `RemotePluginDetailPage` | detail shell and save status |
+| `PluginDetailPage(remote:<channel>)` | detail shell and save status |
 | `RemoteCredentialsSection` | token/app secret fields; channel-specific props |
 | `RemoteDefaultsSection` | default agent and default workdir |
 | `RemotePairingSection` | pair code and principals for pairable channels |
@@ -264,7 +258,7 @@ remote:<channel id>
   description: descriptor.descriptionKey
   enabled: status.enabled
   state: status.state
-  detailRoute: /plugins/remote/:channel
+  detailRoute: /plugins/:pluginId
 ```
 
 ## Settings Removal and Redirects
@@ -290,7 +284,7 @@ Mapping:
 | Old Settings route | Main window target |
 | --- | --- |
 | `settings-mcp` | `/plugins/mcp` |
-| `settings-remote` | `/plugins/remote` |
+| `settings-remote` | `/plugins` |
 | `settings-plugins` | `/plugins` |
 | `settings-skills` | `/plugins/skills` |
 
@@ -380,7 +374,7 @@ Update callers:
 | MCP install deeplink | focus main window, route to `/plugins/mcp`, dispatch MCP install event there |
 | Settings sidebar old MCP/Skills/Plugins/Remote | no visible entry |
 | Settings activity old route | focus main window and route to matching `/plugins...` page |
-| Sidebar remote status button | route to `/plugins/remote` or a selected channel detail |
+| Sidebar remote status button | route to the first enabled `remote:<channel>` plugin detail |
 | Chat input MCP indicator `openSettings` text | route to `/plugins/mcp` |
 
 Provider install deeplink stays in Settings Provider. Do not route provider/model setup to Plugins.
@@ -439,9 +433,9 @@ Renderer tests should be run for touched components. Full app smoke test should 
 | Risk | Mitigation |
 | --- | --- |
 | Settings routes are used by deeplinks/onboarding | Keep hidden compatibility routes and redirect to main `/plugins...` |
-| RemoteSettings monolith makes migration risky | Extract per-channel detail only; reuse current route/client behavior |
+| RemoteSettings monolith makes migration risky | Reuse it in single-channel mode; extract per-channel sections only when needed |
 | Plugin settings HTML depends on plugin preload | Do not embed arbitrary HTML in first increment; build first-party native details |
-| Feishu official plugin vs Feishu Remote naming collision | Use explicit `Integration` vs `Remote` labels and category badges |
+| Feishu official plugin vs Feishu Remote naming collision | Merge Feishu Remote into the Feishu/Lark Integration detail page |
 | Plugins page becomes another Settings | Catalog page stays Codex-like; detail pages are dense only where settings are unavoidable |
 | Main route conflicts with chat internal `pageRouter` | Use Vue router for `/plugins`; keep `pageRouter` scoped to ChatTabView |
 | Search behavior confusion | Sidebar Search row opens existing Spotlight; do not add a new search engine |
