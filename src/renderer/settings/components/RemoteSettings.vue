@@ -91,7 +91,10 @@
                     {{ telegramStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     telegramSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -307,7 +310,10 @@
                     {{ feishuStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     feishuSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -574,7 +580,10 @@
                     {{ qqbotStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     qqbotSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -784,7 +793,10 @@
                     {{ discordStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     discordSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -1004,7 +1016,10 @@
                     {{ weixinIlinkStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     weixinIlinkSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -1643,6 +1658,7 @@ const props = defineProps<{
   channel?: RemoteChannel
   embedded?: boolean
   hideHeader?: boolean
+  hideChannelToggle?: boolean
   singleChannel?: boolean
 }>()
 

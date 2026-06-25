@@ -155,6 +155,7 @@
           v-if="isFeishuPlugin"
           channel="feishu"
           embedded
+          hide-channel-toggle
           hide-header
           single-channel
         />
@@ -178,6 +179,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
 import type { RemoteChannel } from '@shared/presenter'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
@@ -186,6 +188,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const pluginClient = createPluginClient()
+const remoteControlClient = createRemoteControlClient()
 
 const plugin = ref<PluginListItem | null>(null)
 const loading = ref(false)
@@ -255,12 +258,30 @@ async function runPluginAction(action: () => Promise<PluginActionResult>): Promi
   }
 }
 
+async function setFeishuRemoteEnabled(remoteEnabled: boolean): Promise<void> {
+  const settings = await remoteControlClient.getChannelSettings('feishu')
+  if (settings.remoteEnabled === remoteEnabled) {
+    return
+  }
+
+  await remoteControlClient.saveChannelSettings('feishu', {
+    ...settings,
+    remoteEnabled
+  })
+}
+
 function enablePlugin(): void {
   const currentPlugin = plugin.value
   if (!currentPlugin) {
     return
   }
-  void runPluginAction(() => pluginClient.enablePlugin(currentPlugin.id))
+  void runPluginAction(async () => {
+    const result = await pluginClient.enablePlugin(currentPlugin.id)
+    if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
+      await setFeishuRemoteEnabled(true)
+    }
+    return result
+  })
 }
 
 function disablePlugin(): void {
@@ -268,7 +289,13 @@ function disablePlugin(): void {
   if (!currentPlugin) {
     return
   }
-  void runPluginAction(() => pluginClient.disablePlugin(currentPlugin.id))
+  void runPluginAction(async () => {
+    const result = await pluginClient.disablePlugin(currentPlugin.id)
+    if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
+      await setFeishuRemoteEnabled(false)
+    }
+    return result
+  })
 }
 
 watch(pluginId, () => {

@@ -210,7 +210,7 @@ Compatibility:
 
 ## Remote Migration
 
-First increment: reuse `RemoteSettings.vue` inside `/plugins/:pluginId` for virtual plugin ids such as `remote:telegram`. Single-channel mode hides the old Remote tab strip and renders the existing channel form inside the plugin detail page. This keeps the existing credential, pairing, default agent/workdir, bindings and WeChat iLink behavior intact.
+First increment: reuse `RemoteSettings.vue` inside `/plugins/:pluginId` for virtual plugin ids such as `remote:telegram`. Single-channel mode hides the old Remote tab strip and renders the existing channel form inside the plugin detail page. Feishu/Lark Integration passes a hide-toggle mode so its top-level plugin enable button controls both the official plugin and Feishu/Lark Remote. This keeps the existing credential, pairing, default agent/workdir, bindings and WeChat iLink behavior intact.
 
 Follow-up refactor: extract channel sections from `RemoteSettings.vue` into reusable components. The file is already large, but splitting it before moving the route would increase regression risk and delay the user-visible entry-point cleanup.
 

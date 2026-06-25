@@ -65,6 +65,7 @@
 - [x] Show runtime status, plugin-owned MCP status and last errors.
 - [ ] Add native CUA detail sections for runtime status, permissions and permission guide actions.
 - [x] Merge Feishu/Lark Remote configuration into the Feishu/Lark Integration detail page.
+- [x] Use the Feishu/Lark Integration top-level enable/disable button to control both the official plugin and Feishu/Lark Remote.
 - [x] Stop first-party Plugins UI from calling `settings.open`.
 - [x] Keep `settings.open` only as temporary compatibility fallback.
 - [ ] Add tests for list/detail action behavior.
