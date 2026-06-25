@@ -220,6 +220,51 @@ const getNewApiPreferredCapabilityProviderIds = (
   return providerIds
 }
 
+const isOpenAiFamilyNewApiModel = (modelId: string, ownedBy?: string): boolean => {
+  const normalizedOwner = ownedBy?.trim().toLowerCase() ?? ''
+  if (normalizedOwner.includes('openai')) {
+    return true
+  }
+
+  const normalizedModelId = modelId.trim().toLowerCase()
+  return /^(?:gpt-|chatgpt-|o[1-9](?:[.-]|$))/.test(normalizedModelId)
+}
+
+const isNewApiResponsesIncompatibleModelId = (modelId: string): boolean => {
+  const normalizedModelId = modelId.trim().toLowerCase()
+  return (
+    normalizedModelId.startsWith('tts-') ||
+    normalizedModelId.startsWith('whisper-') ||
+    normalizedModelId.startsWith('audio-') ||
+    normalizedModelId.includes('speech') ||
+    normalizedModelId.includes('transcribe')
+  )
+}
+
+const resolveNewApiSelectableEndpointTypes = (
+  supportedEndpointTypes: NewApiEndpointType[],
+  modelId: string,
+  normalizedRawType: string,
+  ownedBy?: string
+): NewApiEndpointType[] | undefined => {
+  if (
+    !supportedEndpointTypes.includes('openai') ||
+    supportedEndpointTypes.includes('openai-response') ||
+    normalizedRawType !== ModelType.Chat ||
+    !isOpenAiFamilyNewApiModel(modelId, ownedBy) ||
+    isNewApiResponsesIncompatibleModelId(modelId)
+  ) {
+    return undefined
+  }
+
+  const openaiIndex = supportedEndpointTypes.indexOf('openai')
+  return [
+    ...supportedEndpointTypes.slice(0, openaiIndex + 1),
+    'openai-response',
+    ...supportedEndpointTypes.slice(openaiIndex + 1)
+  ]
+}
+
 export function normalizeExtractedImageText(content: string): string {
   const normalized = content
     .replace(/\r\n/g, '\n')
@@ -1898,7 +1943,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           typeof rawModel.owned_by === 'string' && rawModel.owned_by.trim().length > 0
             ? rawModel.owned_by.trim()
             : undefined
-        const supportedEndpointTypes = Array.isArray(rawModel.supported_endpoint_types)
+        const rawSupportedEndpointTypes = Array.isArray(rawModel.supported_endpoint_types)
           ? rawModel.supported_endpoint_types.filter(isNewApiEndpointType)
           : []
 
@@ -1909,12 +1954,12 @@ export class AiSdkProvider extends BaseLLMProvider {
           normalizedRawType === 'imagegeneration' ||
           normalizedRawType === 'image-generation' ||
           normalizedRawType === 'image' ||
-          supportedEndpointTypes.includes('image-generation')
+          rawSupportedEndpointTypes.includes('image-generation')
             ? ModelType.ImageGeneration
             : normalizedRawType === 'videogeneration' ||
                 normalizedRawType === 'video-generation' ||
                 normalizedRawType === 'video' ||
-                supportedEndpointTypes.includes('video-generation')
+                rawSupportedEndpointTypes.includes('video-generation')
               ? ModelType.VideoGeneration
               : normalizedRawType === 'tts' ||
                   normalizedRawType === 'audio-speech' ||
@@ -1927,6 +1972,13 @@ export class AiSdkProvider extends BaseLLMProvider {
                   : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
                     ? ModelType.Rerank
                     : undefined
+        const supportedEndpointTypes = rawSupportedEndpointTypes
+        const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
+          rawSupportedEndpointTypes,
+          rawModel.id,
+          normalizedRawType,
+          ownedBy
+        )
 
         const contextLengthCandidate = [
           rawModel.context_length,
@@ -1998,6 +2050,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           providerId: this.provider.id,
           isCustom: false,
           supportedEndpointTypes,
+          ...(selectableEndpointTypes ? { selectableEndpointTypes } : {}),
           endpointType: defaultEndpointType,
           ownedBy,
           ...(capabilityVision !== undefined ? { vision: capabilityVision } : {}),

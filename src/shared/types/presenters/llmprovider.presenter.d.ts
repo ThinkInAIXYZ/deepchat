@@ -28,6 +28,7 @@ export type RENDERER_MODEL_META = {
   maxTokens?: number
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
+  selectableEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
   ownedBy?: string
 }
@@ -48,6 +49,7 @@ export type MODEL_META = {
   maxTokens?: number
   description?: string
   supportedEndpointTypes?: NewApiEndpointType[]
+  selectableEndpointTypes?: NewApiEndpointType[]
   endpointType?: NewApiEndpointType
   ownedBy?: string
 }

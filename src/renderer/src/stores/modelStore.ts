@@ -275,6 +275,7 @@ export const useModelStore = defineStore('model', () => {
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
+    selectableEndpointTypes: model.selectableEndpointTypes,
     endpointType: model.endpointType,
     ownedBy: model.ownedBy
   })
@@ -301,6 +302,7 @@ export const useModelStore = defineStore('model', () => {
     enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
     type: resolveRendererModelType(model),
     supportedEndpointTypes: model.supportedEndpointTypes,
+    selectableEndpointTypes: model.selectableEndpointTypes,
     endpointType: model.endpointType,
     ownedBy: model.ownedBy
   })
@@ -662,6 +664,7 @@ export const useModelStore = defineStore('model', () => {
         reasoning: meta.reasoning || false,
         type: (meta.type || ModelType.Chat) as ModelType,
         supportedEndpointTypes: meta.supportedEndpointTypes,
+        selectableEndpointTypes: meta.selectableEndpointTypes,
         endpointType: meta.endpointType,
         ownedBy: meta.ownedBy
       })
@@ -726,6 +729,8 @@ export const useModelStore = defineStore('model', () => {
             }),
             supportedEndpointTypes:
               model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+            selectableEndpointTypes:
+              model.selectableEndpointTypes ?? fallback?.selectableEndpointTypes,
             endpointType: model.endpointType ?? fallback?.endpointType,
             ownedBy: model.ownedBy ?? fallback?.ownedBy
           }
