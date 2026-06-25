@@ -384,13 +384,14 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         return
       }
 
-      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
-      if (!settingsWindowId) {
-        console.error('Failed to open Settings window for MCP install deeplink')
+      const targetWindow = await this.resolveChatWindow()
+      if (!targetWindow) {
+        console.error('Failed to resolve main window for MCP install deeplink')
         return
       }
 
-      presenter.windowPresenter.sendToWindow(settingsWindowId, DEEPLINK_EVENTS.MCP_INSTALL, {
+      await this.ensureChatWindowReady(targetWindow.id)
+      presenter.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.MCP_INSTALL, {
         mcpConfig: JSON.stringify(completeMcpConfig)
       })
 

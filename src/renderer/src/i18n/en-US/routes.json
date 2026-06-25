@@ -1,5 +1,6 @@
 {
   "chat": "Chat",
+  "plugins": "Plugins",
   "welcome": "Welcome",
   "settings": "Settings",
   "settings-common": "Common Settings",

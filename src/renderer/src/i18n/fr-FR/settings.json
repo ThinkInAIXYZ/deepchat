@@ -2484,5 +2484,23 @@
       "similarityThresholdHint": "Plage 0-1. Par défaut : {default}.",
       "weightHint": "Poids de classement non négatif. Par défaut : {default}."
     }
+  },
+  "pluginsHub": {
+    "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
+    "searchPlaceholder": "Search plugins, skills, MCP, and remote channels",
+    "added": "Added",
+    "manage": "Manage",
+    "noAdded": "No enabled plugins yet.",
+    "emptySearch": "No matching plugins.",
+    "pluginNotFound": "Plugin not found.",
+    "capabilities": "Capabilities",
+    "actionResult": "Action result",
+    "mcpDescription": "Configure MCP servers and marketplace entries.",
+    "skillsDescription": "Manage agent skills available to conversations.",
+    "filters": {
+      "official": "By DeepChat",
+      "workspace": "By your workspace",
+      "personal": "Personal"
+    }
   }
 }

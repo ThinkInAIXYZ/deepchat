@@ -2484,5 +2484,23 @@
       "similarityThresholdHint": "範圍 0-1。預設：{default}。",
       "weightHint": "非負排序權重。預設：{default}。"
     }
+  },
+  "pluginsHub": {
+    "subtitle": "統一管理 DeepChat 的 Skills、MCP、官方插件和遠端渠道。",
+    "searchPlaceholder": "搜尋插件、Skills、MCP 和遠端渠道",
+    "added": "已新增",
+    "manage": "管理",
+    "noAdded": "還沒有啟用任何插件。",
+    "emptySearch": "沒有符合的插件。",
+    "pluginNotFound": "找不到插件。",
+    "capabilities": "能力",
+    "actionResult": "操作結果",
+    "mcpDescription": "設定 MCP 服務和市場項目。",
+    "skillsDescription": "管理會話中可用的 Agent Skills。",
+    "filters": {
+      "official": "DeepChat 官方",
+      "workspace": "工作區",
+      "personal": "個人"
+    }
   }
 }

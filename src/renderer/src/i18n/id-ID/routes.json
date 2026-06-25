@@ -22,5 +22,6 @@
   "settings-plugins": "plugin",
   "settings-overview": "Ikhtisar pengaturan",
   "settings-scheduled-tasks": "Tugas Terjadwal",
-  "settings-memory": "Memori"
+  "settings-memory": "Memori",
+  "plugins": "Plugins"
 }

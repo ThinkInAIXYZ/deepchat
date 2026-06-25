@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "انتقال به بالاترین جایگاه",
     "moveProjectGroupUp": "انتقال به بالا",
     "moveProjectGroupDown": "انتقال به پایین",
-    "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه"
+    "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",

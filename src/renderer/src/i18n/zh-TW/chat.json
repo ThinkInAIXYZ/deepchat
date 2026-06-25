@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "移至最上方",
     "moveProjectGroupUp": "上移",
     "moveProjectGroupDown": "下移",
-    "moveProjectGroupBottom": "移至最下方"
+    "moveProjectGroupBottom": "移至最下方",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "工作區"
   },
   "floatingWidget": {
     "title": "任務總覽",

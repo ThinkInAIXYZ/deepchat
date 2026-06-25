@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "DeepChat 智能體",
   "settings-plugins": "插件",
   "settings-overview": "設定概覽",
-  "settings-memory": "記憶"
+  "settings-memory": "記憶",
+  "plugins": "插件"
 }

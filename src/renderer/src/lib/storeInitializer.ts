@@ -33,8 +33,21 @@ export const useMcpInstallDeeplinkHandler = () => {
     await router.isReady()
 
     const currentRoute = router.currentRoute.value
+    const hasPluginsMcpRoute = router.hasRoute('plugins-mcp')
     const hasSettingsMcpRoute = router.hasRoute('settings-mcp')
     const hasSettingsRootRoute = router.hasRoute('settings')
+
+    if (hasPluginsMcpRoute) {
+      if (currentRoute.name !== 'plugins-mcp') {
+        await router.push({ name: 'plugins-mcp' })
+      } else {
+        await router.replace({
+          name: 'plugins-mcp',
+          query: { ...currentRoute.query }
+        })
+      }
+      return
+    }
 
     if (hasSettingsMcpRoute) {
       if (currentRoute.name !== 'settings-mcp') {

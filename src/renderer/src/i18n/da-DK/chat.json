@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "Flyt til toppen",
     "moveProjectGroupUp": "Flyt op",
     "moveProjectGroupDown": "Flyt ned",
-    "moveProjectGroupBottom": "Flyt til bunden"
+    "moveProjectGroupBottom": "Flyt til bunden",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",

@@ -158,75 +158,42 @@
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
       >
-        <!-- Header -->
-        <div class="flex items-center justify-between px-3 h-10 shrink-0">
-          <span class="text-sm font-medium text-foreground truncate">
+        <!-- Header and command list -->
+        <div class="shrink-0 px-3 pb-3 pt-3">
+          <div class="truncate px-2 text-sm font-semibold text-foreground">
             {{ selectedAgentName }}
-          </span>
-          <div class="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  class="flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150"
-                  :class="
-                    sessionStore.groupMode === 'project'
-                      ? 'text-foreground bg-accent/80'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  "
-                  @click="sessionStore.toggleGroupMode()"
-                >
-                  <Icon icon="lucide:folder-kanban" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{
-                sessionStore.groupMode === 'project'
-                  ? t('chat.sidebar.groupByDate')
-                  : t('chat.sidebar.groupByProject')
-              }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  data-testid="app-new-chat-button"
-                  class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
-                  @click="handleNewChat"
-                >
-                  <Icon icon="lucide:plus" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
-            </Tooltip>
           </div>
-        </div>
 
-        <div
-          v-if="!collapsed"
-          data-testid="window-sidebar-search"
-          class="window-no-drag-region px-3 pb-2"
-        >
-          <div class="relative">
-            <Icon
-              icon="lucide:search"
-              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
-            />
-            <Input
-              v-model="sessionSearchQuery"
-              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
-              :placeholder="t('chat.sidebar.searchPlaceholder')"
-              :aria-label="t('chat.sidebar.searchAriaLabel')"
-              autocapitalize="off"
-              autocomplete="off"
-              spellcheck="false"
-            />
+          <div class="mt-3 space-y-1">
             <button
-              v-if="sessionSearchQuery"
+              data-testid="app-new-chat-button"
               type="button"
-              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-              :title="t('common.close')"
-              :aria-label="t('common.close')"
-              @click="sessionSearchQuery = ''"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="handleNewChat"
             >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+              <Icon icon="lucide:square-pen" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('common.newChat') }}</span>
+            </button>
+
+            <button
+              data-testid="app-search-command-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('chat.sidebar.searchCommand') }}</span>
+            </button>
+
+            <button
+              data-testid="app-plugins-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm transition-colors hover:bg-accent/60"
+              :class="pluginsRouteActive ? 'bg-accent/70 text-foreground' : 'text-foreground'"
+              @click="openPlugins"
+            >
+              <Icon icon="lucide:blocks" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('routes.plugins') }}</span>
             </button>
           </div>
         </div>
@@ -313,8 +280,87 @@
             </div>
           </div>
 
+          <div v-if="chatGroups.length > 0" class="pt-4">
+            <div class="px-2 py-1 text-xs font-semibold text-muted-foreground">
+              {{ t('chat.sidebar.chatSection') }}
+            </div>
+
+            <template v-for="group in chatGroups" :key="`chat-group-${getGroupIdentifier(group)}`">
+              <div
+                v-if="!isChatsGroup(group)"
+                class="mt-1 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+              >
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
+                  :data-group-id="getGroupIdentifier(group)"
+                  :aria-expanded="!isGroupCollapsed(group)"
+                  @click="toggleGroup(group)"
+                >
+                  <span class="shrink-0 size-6 flex items-center justify-center">
+                    <Icon
+                      :icon="getGroupIcon(group)"
+                      :data-icon="getGroupIcon(group)"
+                      data-testid="window-sidebar-group-icon"
+                      class="size-4"
+                    />
+                  </span>
+                  <span class="truncate">
+                    {{ getGroupLabel(group) }}
+                  </span>
+                </button>
+              </div>
+
+              <div v-show="isChatsGroup(group) || !isGroupCollapsed(group)" class="space-y-0.5">
+                <WindowSideBarSessionItem
+                  v-for="session in group.sessions"
+                  :key="session.id"
+                  :session="session"
+                  :active="sessionStore.activeSessionId === session.id"
+                  region="grouped"
+                  :hero-hidden="pinFlightSessionId === session.id"
+                  :hero-placeholder="pinFlightSessionId === session.id"
+                  :force-pin-docked="pinDockedSessionId === session.id"
+                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                  :search-query="sessionSearchQuery"
+                  :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                  :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                  @select="handleSessionClick"
+                  @toggle-pin="handleTogglePin"
+                  @delete="openDeleteDialog"
+                />
+              </div>
+            </template>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
+            <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+              {{ t('chat.sidebar.workspace') }}
+            </div>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  class="flex size-7 items-center justify-center rounded-md transition-all duration-150"
+                  :class="
+                    sessionStore.groupMode === 'project'
+                      ? 'bg-accent/80 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  "
+                  @click="sessionStore.toggleGroupMode()"
+                >
+                  <Icon icon="lucide:folder-kanban" class="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{
+                sessionStore.groupMode === 'project'
+                  ? t('chat.sidebar.groupByDate')
+                  : t('chat.sidebar.groupByProject')
+              }}</TooltipContent>
+            </Tooltip>
+          </div>
+
           <draggable
-            :model-value="filteredGroups"
+            :model-value="workspaceGroups"
             item-key="id"
             tag="div"
             handle=".sidebar-project-folder-target"
@@ -454,6 +500,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import {
@@ -463,7 +510,6 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -526,6 +572,7 @@ const settingsClient = createSettingsClient()
 const remoteControlClient = createRemoteControlClient()
 const deviceClient = createDeviceClient()
 const { t } = useI18n()
+const router = useRouter()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -609,6 +656,9 @@ const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
 
 const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
+const pluginsRouteActive = computed(() =>
+  String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
+)
 const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
 const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
   telegram: null,
@@ -827,8 +877,12 @@ const filteredGroups = computed(() => {
     )
     .map(({ group }) => group)
 })
+const chatGroups = computed(() =>
+  filteredGroups.value.filter((group) => !isProjectDirectoryGroup(group))
+)
+const workspaceGroups = computed(() => filteredGroups.value.filter(isProjectDirectoryGroup))
 const projectReorderableGroups = computed(() =>
-  filteredGroups.value.filter(isActiveProjectDirectoryGroup)
+  workspaceGroups.value.filter(isActiveProjectDirectoryGroup)
 )
 const canReorderProjectGroups = computed(
   () =>
@@ -1113,7 +1167,16 @@ const openSettings = () => {
   void settingsClient.openSettings()
 }
 
+const openPlugins = () => {
+  void router?.push({ name: 'plugins' })
+}
+
 const openRemoteSettings = async () => {
+  if (router?.hasRoute?.('plugins-remote')) {
+    await router.push({ name: 'plugins-remote' })
+    return
+  }
+
   await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
@@ -1162,8 +1225,24 @@ const refreshProjectEnvironmentMetadata = async () => {
   }
 }
 
-const handleNewChat = () => {
-  void sessionStore.startNewConversation({ refresh: true })
+const navigateToChat = async () => {
+  if (!router) {
+    return
+  }
+
+  if (router.currentRoute.value.name !== 'chat') {
+    await router.push({ name: 'chat' })
+  }
+}
+
+const handleNewChat = async () => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.startNewConversation({ refresh: true })
+  }
 }
 
 const handleAgentSelect = async (id: string | null) => {
@@ -1206,8 +1285,14 @@ const handleAgentSelect = async (id: string | null) => {
   await agentSwitchQueue
 }
 
-const handleSessionClick = (session: { id: string }) => {
-  void sessionStore.selectSession(session.id)
+const handleSessionClick = async (session: { id: string }) => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.selectSession(session.id)
+  }
 }
 
 const loadShortcutPlatform = async () => {

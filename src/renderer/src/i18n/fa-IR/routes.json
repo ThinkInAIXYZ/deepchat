@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "ایجنت‌های DeepChat",
   "settings-plugins": "افزونه‌ها",
   "settings-overview": "نمای کلی تنظیمات",
-  "settings-memory": "حافظه"
+  "settings-memory": "حافظه",
+  "plugins": "Plugins"
 }

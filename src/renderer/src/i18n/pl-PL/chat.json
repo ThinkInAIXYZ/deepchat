@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "Przenieś na górę",
     "moveProjectGroupUp": "Przenieś wyżej",
     "moveProjectGroupDown": "Przenieś niżej",
-    "moveProjectGroupBottom": "Przenieś na dół"
+    "moveProjectGroupBottom": "Przenieś na dół",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Przeszukuj czaty, agentów, ustawienia, działania…",

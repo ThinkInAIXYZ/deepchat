@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "Pindahkan ke paling atas",
     "moveProjectGroupUp": "Pindahkan ke atas",
     "moveProjectGroupDown": "Pindahkan ke bawah",
-    "moveProjectGroupBottom": "Pindahkan ke paling bawah"
+    "moveProjectGroupBottom": "Pindahkan ke paling bawah",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",

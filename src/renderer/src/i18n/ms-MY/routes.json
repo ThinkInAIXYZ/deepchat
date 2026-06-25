@@ -22,5 +22,6 @@
   "settings-plugins": "pemalam",
   "settings-overview": "Gambaran keseluruhan tetapan",
   "settings-scheduled-tasks": "Tugasan Berjadual",
-  "settings-memory": "Memori"
+  "settings-memory": "Memori",
+  "plugins": "Plugins"
 }

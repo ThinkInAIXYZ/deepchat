@@ -504,6 +504,14 @@ const openSettings = async (
   section?: string
 ) => {
   await syncOnboardingStep(stepId)
+  if (routeName === 'settings-mcp' && router.hasRoute('plugins-mcp')) {
+    await router.push({ name: 'plugins-mcp' })
+    return
+  }
+  if (routeName === 'settings-skills' && router.hasRoute('plugins-skills')) {
+    await router.push({ name: 'plugins-skills' })
+    return
+  }
   await configClient.openSettings({ routeName, section })
 }
 

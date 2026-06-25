@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "Agents DeepChat",
   "settings-plugins": "Plugins",
   "settings-overview": "Aperçu des paramètres",
-  "settings-memory": "Mémoire"
+  "settings-memory": "Mémoire",
+  "plugins": "Plugins"
 }

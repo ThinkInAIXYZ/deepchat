@@ -1515,8 +1515,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -1631,6 +1632,8 @@ const remoteControlClient = createRemoteControlClient()
 const projectClient = createProjectClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const { toast } = useToast()
 
 const channelI18nKeyMap: Record<RemoteChannel, string> = {
@@ -1916,6 +1919,17 @@ const implementedChannels = computed(() =>
     .map((descriptor) => descriptor.id)
 )
 const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const isRemoteChannel = (value: unknown): value is RemoteChannel =>
+  typeof value === 'string' &&
+  fallbackChannelDescriptors.some((descriptor) => descriptor.id === value)
+const syncActiveChannelFromRoute = () => {
+  const routeChannel = route?.params?.channel
+  const channel = Array.isArray(routeChannel) ? routeChannel[0] : routeChannel
+
+  if (isRemoteChannel(channel) && implementedChannels.value.includes(channel)) {
+    activeChannel.value = channel
+  }
+}
 const isAnySaving = computed(
   () => saving.telegram || saving.feishu || saving.qqbot || saving.discord || saving['weixin-ilink']
 )
@@ -2258,6 +2272,7 @@ const loadState = async () => {
     discordStatus.value = loadedDiscordStatus
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
+    syncActiveChannelFromRoute()
     if (!implementedChannels.value.includes(activeChannel.value)) {
       activeChannel.value = implementedChannels.value[0] ?? 'telegram'
     }
@@ -3000,7 +3015,16 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   })
 }
 
+watch(() => route?.params?.channel, syncActiveChannelFromRoute)
+watch(activeChannel, (channel) => {
+  if (!router || route?.name !== 'plugins-remote-detail' || route?.params?.channel === channel) {
+    return
+  }
+  void router.replace({ name: 'plugins-remote-detail', params: { channel } })
+})
+
 onMounted(() => {
+  syncActiveChannelFromRoute()
   void loadState()
   statusRefreshTimer = setInterval(() => {
     void refreshStatus()

@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "Di chuyển lên đầu",
     "moveProjectGroupUp": "Di chuyển lên",
     "moveProjectGroupDown": "Di chuyển xuống",
-    "moveProjectGroupBottom": "Di chuyển xuống cuối"
+    "moveProjectGroupBottom": "Di chuyển xuống cuối",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",

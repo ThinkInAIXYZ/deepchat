@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "Переместить в начало",
     "moveProjectGroupUp": "Переместить выше",
     "moveProjectGroupDown": "Переместить ниже",
-    "moveProjectGroupBottom": "Переместить в конец"
+    "moveProjectGroupBottom": "Переместить в конец",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Обзор задач",

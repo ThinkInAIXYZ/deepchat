@@ -49,13 +49,13 @@ plugins-official-detail
 plugins-remote-detail
 ```
 
-External/main-process callers should not know UI component internals. Add a narrow route or event only where the main process needs to focus the main window and navigate:
+External/main-process callers should not know UI component internals. Reuse the existing app-runtime event path where possible. Only add a narrow route if a future main-process caller needs generic main-window navigation:
 
 ```text
 system.openMainRoute({ routeName: 'plugins-mcp', params? }) -> { focused: boolean }
 ```
 
-If an existing main-window navigation route already exists during implementation, reuse it. Do not add a Plugins-specific window route.
+For the first increment, MCP install deeplinks reuse `DEEPLINK_EVENTS.MCP_INSTALL` and the main app deeplink handler routes the renderer to `/plugins/mcp`. Do not add a Plugins-specific window route.
 
 ## Affected Boundaries
 
@@ -64,7 +64,7 @@ If an existing main-window navigation route already exists during implementation
 | `src/renderer/src/router/index.ts` | Add `/plugins` route family |
 | `src/renderer/src/App.vue` | Keep existing shell; ensure `/plugins` receives same global overlays/theme/i18n |
 | `WindowSideBar.vue` | Add expanded command list and route Plugins row to `/plugins` |
-| `renderer/api` | Add or reuse a small main-window navigation client only for main-process initiated navigation |
+| `renderer/api` | Reuse existing clients; add a main-window navigation client only if a generic main-process caller appears |
 | `shared/contracts/routes` | Add narrow focus/navigate route only if deeplink/main process cannot use existing event path |
 | Settings renderer | Remove/hide Plugins-owned nav entries and overview links |
 | Deeplink presenter | Route MCP install deeplink to main `/plugins/mcp` page |
@@ -217,7 +217,9 @@ Compatibility:
 
 ## Remote Migration
 
-Do not keep `RemoteSettings.vue` as one giant page inside Plugins. It is already too large.
+First increment: reuse `RemoteSettings.vue` inside `/plugins/remote` and `/plugins/remote/:channel`, with route-param synchronization so direct channel links open the matching tab. This keeps the existing credential, pairing, default agent/workdir, bindings and WeChat iLink behavior intact.
+
+Follow-up refactor: extract channel sections from `RemoteSettings.vue` into reusable components. The file is already large, but splitting it before moving the route would increase regression risk and delay the user-visible entry-point cleanup.
 
 Refactor only around real channel boundaries:
 
