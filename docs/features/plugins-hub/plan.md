@@ -318,9 +318,11 @@ right column
 │   ├── New Chat
 │   ├── Search
 │   └── Plugins
-├── compact session controls when needed
-├── pinned section
-└── session groups
+├── blank spacer
+├── pinned section when non-empty
+├── Chat group
+├── 工作区 header + existing group-mode/sort toggle
+└── project groups
 ```
 
 Command behavior:
@@ -334,10 +336,12 @@ Command behavior:
 Keep:
 
 - Agent icon rail.
+- Settings/theme/sidebar controls in the existing left rail.
 - collapsed width and transitions.
 - session pagination and fill checks.
 - pinned collapse behavior.
 - project grouping/reorder behavior.
+- existing group-mode/sort behavior, moved to the `工作区` header.
 - shortcut badge logic for sessions.
 
 Question the old inline session search:
@@ -345,6 +349,26 @@ Question the old inline session search:
 - First increment should remove the inline search input from expanded sidebar to match the requested command-list shape.
 - Search row opens Spotlight, which already searches sessions/messages/settings/actions.
 - If users later need local-only filtering, add it inside Spotlight or as a session-list filter command, not as a second persistent input.
+
+Right column ordering:
+
+```text
+所有 Agents
+
+New Chat
+Search
+Plugins
+
+Pinned (only if any)
+...
+Chat
+...
+工作区                                      [group/sort toggle]
+project groups
+...
+```
+
+Do not add Settings, theme, collapse, remote status or other rail controls into this right column.
 
 ## Deeplinks and External Entry Points
 

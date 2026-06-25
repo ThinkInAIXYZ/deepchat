@@ -91,6 +91,12 @@
 - [ ] Wire `New Chat` row to navigate to `/chat` and start a new conversation.
 - [ ] Wire `Search` row to existing Spotlight behavior.
 - [ ] Wire `Plugins` row to `router.push({ name: 'plugins' })`.
+- [ ] Add a blank spacer after the `Plugins` command row.
+- [ ] Render `Pinned` only when pinned sessions exist.
+- [ ] Keep the `Chat` group after `Pinned`.
+- [ ] Add `工作区` header before project groups.
+- [ ] Move the existing group-mode/sort toggle to the `工作区` header.
+- [ ] Keep Settings/theme/sidebar controls in the existing left rail, not in the expanded right column.
 - [ ] Display shortcut badges only for existing shortcuts.
 - [ ] Keep collapsed sidebar visual behavior unchanged.
 - [ ] Preserve session list pagination, pinned section, project grouping and reorder.
