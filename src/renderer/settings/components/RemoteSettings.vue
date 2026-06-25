@@ -394,6 +394,174 @@
                     />
                   </div>
                 </div>
+
+                <div class="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.installTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.installDescription') }}
+                  </p>
+                  <div v-if="feishuInstallUserCode" class="mt-2 text-xs text-muted-foreground">
+                    {{
+                      t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode })
+                    }}
+                  </div>
+                  <div v-if="feishuInstallMessage" class="mt-2 text-xs text-muted-foreground">
+                    {{ feishuInstallMessage }}
+                  </div>
+                  <div v-if="feishuInstallError" class="mt-2 break-all text-xs text-destructive">
+                    {{ feishuInstallError }}
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      data-testid="feishu-install-open-web-button"
+                      variant="default"
+                      size="sm"
+                      :disabled="feishuInstallBusy || saving.feishu"
+                      @click="startFeishuInstall('web')"
+                    >
+                      <Icon
+                        :icon="
+                          feishuInstallBusy && feishuInstallMode === 'web'
+                            ? 'lucide:loader-2'
+                            : 'lucide:external-link'
+                        "
+                        :class="[
+                          'h-4 w-4',
+                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'web' }
+                        ]"
+                      />
+                      {{
+                        feishuInstallBusy && feishuInstallMode === 'web'
+                          ? t('settings.remote.feishu.installWaiting')
+                          : t('settings.remote.feishu.openInstallWeb')
+                      }}
+                    </Button>
+                    <Button
+                      data-testid="feishu-install-show-qr-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="feishuInstallBusy || saving.feishu"
+                      @click="startFeishuInstall('qr')"
+                    >
+                      <Icon
+                        :icon="
+                          feishuInstallBusy && feishuInstallMode === 'qr'
+                            ? 'lucide:loader-2'
+                            : 'lucide:qr-code'
+                        "
+                        :class="[
+                          'h-4 w-4',
+                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'qr' }
+                        ]"
+                      />
+                      {{
+                        feishuInstallBusy && feishuInstallMode === 'qr'
+                          ? t('settings.remote.feishu.installWaiting')
+                          : t('settings.remote.feishu.showInstallQr')
+                      }}
+                    </Button>
+                    <Button
+                      v-if="feishuInstallBusy"
+                      variant="outline"
+                      size="sm"
+                      @click="cancelFeishuInstall()"
+                    >
+                      {{ t('common.cancel') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-dashed bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.manualSetupTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.manualSetupDescription') }}
+                  </p>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    <li>{{ t('settings.remote.feishu.setupStepCreateApp') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepPermissions') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepEvents') }}</li>
+                    <li>{{ t('settings.remote.feishu.setupStepPublish') }}</li>
+                  </ul>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" @click="openFeishuSetupGuide">
+                      {{ t('settings.remote.feishu.openSetupGuide') }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="openFeishuDeveloperConsole">
+                      {{ t('settings.remote.feishu.openDeveloperConsole') }}
+                    </Button>
+                    <Button variant="outline" size="sm" @click="openFeishuBotChat">
+                      {{ t('settings.remote.feishu.openBotChat') }}
+                    </Button>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div class="font-medium">{{ t('settings.remote.feishu.userAuthTitle') }}</div>
+                  <p class="mt-1 text-muted-foreground">
+                    {{ t('settings.remote.feishu.userAuthDescription') }}
+                  </p>
+                  <div class="mt-3 grid gap-3 md:grid-cols-2">
+                    <div class="rounded-md border border-dashed bg-background/60 p-3">
+                      <div class="text-xs font-medium text-foreground">
+                        {{ t('settings.remote.feishu.pairAuthTitle') }}
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ t('settings.remote.feishu.pairAuthDescription') }}
+                      </p>
+                    </div>
+                    <div class="rounded-md border border-dashed bg-background/60 p-3">
+                      <div class="text-xs font-medium text-foreground">
+                        {{ t('settings.remote.feishu.scanAuthTitle') }}
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ t('settings.remote.feishu.scanAuthDescription') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div v-if="feishuAuthMessage" class="mt-2 text-xs text-muted-foreground">
+                    {{ feishuAuthMessage }}
+                  </div>
+                  <div v-if="feishuAuthError" class="mt-2 break-all text-xs text-destructive">
+                    {{ feishuAuthError }}
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      data-testid="feishu-pair-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="!feishuSettings.remoteEnabled || saving.feishu"
+                      @click="generatePairCodeAndOpenDialog('feishu')"
+                    >
+                      <Icon icon="lucide:key-round" class="h-4 w-4" />
+                      {{ t('settings.remote.remoteControl.openPairDialog') }}
+                    </Button>
+                    <Button
+                      data-testid="feishu-scan-auth-button"
+                      variant="outline"
+                      size="sm"
+                      :disabled="feishuAuthBusy || saving.feishu"
+                      @click="startFeishuScanAuth"
+                    >
+                      <Icon
+                        :icon="feishuAuthBusy ? 'lucide:loader-2' : 'lucide:scan-line'"
+                        :class="['h-4 w-4', { 'animate-spin': feishuAuthBusy }]"
+                      />
+                      {{
+                        feishuAuthBusy
+                          ? t('settings.remote.feishu.scanAuthWaiting')
+                          : t('settings.remote.feishu.startScanAuth')
+                      }}
+                    </Button>
+                    <Button
+                      v-if="feishuAuthBusy"
+                      variant="outline"
+                      size="sm"
+                      @click="cancelFeishuScanAuth()"
+                    >
+                      {{ t('common.cancel') }}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -519,15 +687,6 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <Button
-                    data-testid="feishu-pair-button"
-                    variant="outline"
-                    size="sm"
-                    :disabled="!feishuSettings.remoteEnabled || saving.feishu"
-                    @click="generatePairCodeAndOpenDialog('feishu')"
-                  >
-                    {{ t('settings.remote.remoteControl.openPairDialog') }}
-                  </Button>
                   <Button
                     data-testid="feishu-bindings-button"
                     variant="outline"
@@ -1340,6 +1499,55 @@
     </DialogContent>
   </Dialog>
 
+  <Dialog v-model:open="feishuInstallQrDialogVisible">
+    <DialogContent class="sm:max-w-md">
+      <div data-testid="feishu-install-qr-dialog" class="space-y-6">
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.remote.feishu.installQrTitle') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.remote.feishu.installQrDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4">
+          <div
+            class="rounded-lg border bg-muted/20 p-4 text-center"
+            data-testid="feishu-install-qr-code"
+            :data-qr-value="feishuInstallQrUrl"
+          >
+            <img
+              v-if="feishuInstallQrDataUrl"
+              :src="feishuInstallQrDataUrl"
+              :alt="t('settings.remote.feishu.installQrAlt')"
+              class="mx-auto h-56 w-56 rounded bg-white p-2"
+            />
+            <div v-else class="py-16 text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </div>
+          </div>
+          <div v-if="feishuInstallUserCode" class="text-xs text-muted-foreground">
+            {{ t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode }) }}
+          </div>
+          <div v-if="feishuInstallMessage" class="text-xs text-muted-foreground">
+            {{ feishuInstallMessage }}
+          </div>
+          <div v-if="feishuInstallError" class="break-all text-xs text-destructive">
+            {{ feishuInstallError }}
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <Button variant="outline" :disabled="!feishuInstallQrUrl" @click="openFeishuInstallQrUrl">
+            {{ t('settings.remote.feishu.openInstallWeb') }}
+          </Button>
+          <Button variant="outline" @click="closeFeishuInstallQrDialog">
+            {{ feishuInstallBusy ? t('common.cancel') : t('common.close') }}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  </Dialog>
+
   <Dialog v-model:open="bindingsDialogOpen">
     <DialogContent class="sm:max-w-lg">
       <div data-testid="remote-bindings-dialog" class="space-y-6">
@@ -1517,6 +1725,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
+import * as QRCode from 'qrcode'
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -1548,6 +1757,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/
 import { createProjectClient } from '@api/ProjectClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createSessionClient } from '@api/SessionClient'
+import { openRuntimeExternal } from '@api/runtime'
 import { useToast } from '@/components/use-toast'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
@@ -1556,6 +1766,10 @@ import type {
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
   DiscordRemoteStatus,
+  FeishuAuthResult,
+  FeishuAuthSession,
+  FeishuInstallResult,
+  FeishuInstallSession,
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
@@ -1679,6 +1893,21 @@ const bindingRemovingKey = ref<string | null>(null)
 const principalRemovingId = ref<string | null>(null)
 const bindings = ref<RemoteBindingSummary[]>([])
 const authorizedPrincipals = ref<string[]>([])
+const feishuAuthMessage = ref('')
+const feishuAuthError = ref<string | null>(null)
+const feishuAuthStarting = ref(false)
+const feishuAuthWaiting = ref(false)
+const feishuAuthSessionKey = ref<string | null>(null)
+const feishuInstallMessage = ref('')
+const feishuInstallError = ref<string | null>(null)
+const feishuInstallStarting = ref(false)
+const feishuInstallWaiting = ref(false)
+const feishuInstallSessionKey = ref<string | null>(null)
+const feishuInstallUserCode = ref('')
+const feishuInstallQrDialogOpen = ref(false)
+const feishuInstallQrUrl = ref('')
+const feishuInstallQrDataUrl = ref('')
+const feishuInstallMode = ref<'web' | 'qr' | null>(null)
 const weixinIlinkLoginMessage = ref('')
 const weixinIlinkLoginError = ref<string | null>(null)
 const weixinIlinkLoginStarting = ref(false)
@@ -1874,6 +2103,43 @@ const clearChannelPairCodeCompat = async (channel: PairableRemoteChannel): Promi
   await remoteControlClient.clearChannelPairCode(channel)
 }
 
+const startFeishuAuthCompat = async (input?: {
+  brand?: 'feishu' | 'lark'
+  appId?: string
+  appSecret?: string
+  redirectUri?: string
+}): Promise<FeishuAuthSession> => {
+  return await remoteControlClient.startFeishuAuth(input)
+}
+
+const waitForFeishuAuthCompat = async (input: {
+  sessionKey: string
+  timeoutMs?: number
+}): Promise<FeishuAuthResult> => {
+  return await remoteControlClient.waitForFeishuAuth(input)
+}
+
+const cancelFeishuAuthCompat = async (sessionKey: string): Promise<void> => {
+  await remoteControlClient.cancelFeishuAuth(sessionKey)
+}
+
+const startFeishuInstallCompat = async (input?: {
+  brand?: 'feishu' | 'lark'
+}): Promise<FeishuInstallSession> => {
+  return await remoteControlClient.startFeishuInstall(input)
+}
+
+const waitForFeishuInstallCompat = async (input: {
+  sessionKey: string
+  timeoutMs?: number
+}): Promise<FeishuInstallResult> => {
+  return await remoteControlClient.waitForFeishuInstall(input)
+}
+
+const cancelFeishuInstallCompat = async (sessionKey: string): Promise<void> => {
+  await remoteControlClient.cancelFeishuInstall(sessionKey)
+}
+
 const startWeixinIlinkLoginCompat = async (input?: {
   force?: boolean
 }): Promise<WeixinIlinkLoginSession> => {
@@ -1895,10 +2161,13 @@ const restartWeixinIlinkAccountCompat = async (accountId: string): Promise<void>
   await remoteControlClient.restartWeixinIlinkAccount(accountId)
 }
 
-const resolveWeixinIlinkLoginMessage = (input: {
-  message?: string | null
-  messageKey?: string | null
-}): string => {
+const resolveRemoteMessage = (
+  input: {
+    message?: string | null
+    messageKey?: string | null
+  },
+  fallbackKey: string
+): string => {
   if (input.messageKey?.trim()) {
     return t(input.messageKey.trim())
   }
@@ -1907,8 +2176,23 @@ const resolveWeixinIlinkLoginMessage = (input: {
     return input.message.trim()
   }
 
-  return t('settings.remote.weixinIlink.loginFailed')
+  return t(fallbackKey)
 }
+
+const resolveFeishuAuthMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.feishu.authFailed')
+
+const resolveFeishuInstallMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.feishu.installFailed')
+
+const resolveWeixinIlinkLoginMessage = (input: {
+  message?: string | null
+  messageKey?: string | null
+}): string => resolveRemoteMessage(input, 'settings.remote.weixinIlink.loginFailed')
 
 const implementedChannels = computed(() =>
   channelDescriptors.value
@@ -1919,6 +2203,19 @@ const implementedChannelCount = computed(() => Math.max(1, implementedChannels.v
 const isAnySaving = computed(
   () => saving.telegram || saving.feishu || saving.qqbot || saving.discord || saving['weixin-ilink']
 )
+const feishuAuthBusy = computed(() => feishuAuthStarting.value || feishuAuthWaiting.value)
+const feishuInstallBusy = computed(() => feishuInstallStarting.value || feishuInstallWaiting.value)
+const feishuInstallQrDialogVisible = computed({
+  get: () => feishuInstallQrDialogOpen.value,
+  set: (open: boolean) => {
+    if (open) {
+      feishuInstallQrDialogOpen.value = true
+      return
+    }
+
+    closeFeishuInstallQrDialog()
+  }
+})
 const isPairableChannel = (
   channel: RemoteChannel | null | undefined
 ): channel is PairableRemoteChannel =>
@@ -2571,7 +2868,309 @@ const updateWeixinIlinkDefaultAgentId = (value: string) => {
   queueWeixinIlinkSettingsPersist()
 }
 
+let feishuAuthRequestId = 0
+let feishuInstallRequestId = 0
 let weixinIlinkLoginRequestId = 0
+let remoteSettingsUnmounted = false
+
+const generateFeishuInstallQrDataUrl = async (installUrl: string): Promise<string> => {
+  return await QRCode.toDataURL(installUrl, {
+    errorCorrectionLevel: 'M',
+    margin: 2,
+    width: 256,
+    color: {
+      dark: '#000000ff',
+      light: '#ffffffff'
+    }
+  })
+}
+
+const waitForFeishuInstallResult = async (requestId: number, sessionKey: string) => {
+  if (requestId !== feishuInstallRequestId) {
+    return
+  }
+
+  feishuInstallWaiting.value = true
+
+  try {
+    const result = await waitForFeishuInstallCompat({
+      sessionKey,
+      timeoutMs: 5 * 60_000
+    })
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    feishuInstallMessage.value = resolveFeishuInstallMessage(result)
+    feishuInstallError.value = result.installed ? null : feishuInstallMessage.value
+
+    if (result.installed) {
+      const [settings, status] = await Promise.all([
+        getChannelSettingsCompat('feishu'),
+        getChannelStatusCompat('feishu')
+      ])
+      if (requestId !== feishuInstallRequestId) {
+        return
+      }
+
+      syncFeishuFields(settings)
+      feishuStatus.value = status
+
+      toast({
+        title: t('settings.remote.feishu.installSuccessTitle'),
+        description: result.appId
+          ? t('settings.remote.feishu.installSuccessDescription', { appId: result.appId })
+          : feishuInstallMessage.value
+      })
+      feishuInstallQrDialogOpen.value = false
+      feishuInstallMode.value = null
+    }
+  } catch (error) {
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    feishuInstallError.value = error instanceof Error ? error.message : String(error)
+    feishuInstallMessage.value = t('settings.remote.feishu.installFailed')
+  } finally {
+    if (requestId === feishuInstallRequestId) {
+      feishuInstallWaiting.value = false
+      feishuInstallSessionKey.value = null
+      if (!feishuInstallQrDialogOpen.value) {
+        feishuInstallMode.value = null
+      }
+    }
+  }
+}
+
+const startFeishuInstall = async (mode: 'web' | 'qr') => {
+  if (feishuInstallBusy.value || !feishuSettings.value) {
+    return
+  }
+
+  const requestId = ++feishuInstallRequestId
+  feishuInstallMode.value = mode
+  feishuInstallMessage.value = t('common.loading')
+  feishuInstallError.value = null
+  feishuInstallUserCode.value = ''
+  feishuInstallQrUrl.value = ''
+  feishuInstallQrDataUrl.value = ''
+  feishuInstallQrDialogOpen.value = mode === 'qr'
+  feishuInstallStarting.value = true
+  feishuInstallWaiting.value = false
+
+  let sessionKeyToCancel: string | null = null
+
+  try {
+    const session = await startFeishuInstallCompat({
+      brand: feishuSettings.value.brand
+    })
+    sessionKeyToCancel = session.sessionKey
+    if (requestId !== feishuInstallRequestId) {
+      await cancelFeishuInstallCompat(session.sessionKey).catch(() => undefined)
+      return
+    }
+
+    feishuInstallSessionKey.value = session.sessionKey
+    feishuInstallUserCode.value = session.userCode
+    feishuInstallMessage.value = resolveFeishuInstallMessage(session)
+
+    if (mode === 'qr') {
+      feishuInstallQrUrl.value = session.installUrl
+      const qrDataUrl = await generateFeishuInstallQrDataUrl(session.installUrl)
+      if (requestId !== feishuInstallRequestId) {
+        await cancelFeishuInstallCompat(session.sessionKey).catch(() => undefined)
+        return
+      }
+      feishuInstallQrDataUrl.value = qrDataUrl
+    } else {
+      await openExternalUrl(session.installUrl)
+    }
+
+    void waitForFeishuInstallResult(requestId, session.sessionKey)
+  } catch (error) {
+    if (requestId !== feishuInstallRequestId) {
+      return
+    }
+
+    if (sessionKeyToCancel) {
+      await cancelFeishuInstallCompat(sessionKeyToCancel).catch(() => undefined)
+      feishuInstallSessionKey.value = null
+    }
+    if (remoteSettingsUnmounted) {
+      return
+    }
+    feishuInstallError.value = error instanceof Error ? error.message : String(error)
+    feishuInstallMessage.value = t('settings.remote.feishu.installFailed')
+  } finally {
+    if (requestId === feishuInstallRequestId) {
+      feishuInstallStarting.value = false
+    }
+  }
+}
+
+const cancelFeishuInstall = async (resetUi = true) => {
+  feishuInstallRequestId += 1
+  const sessionKey = feishuInstallSessionKey.value
+  feishuInstallSessionKey.value = null
+  feishuInstallStarting.value = false
+  feishuInstallWaiting.value = false
+  if (resetUi) {
+    feishuInstallUserCode.value = ''
+    feishuInstallMessage.value = ''
+    feishuInstallError.value = null
+    feishuInstallQrUrl.value = ''
+    feishuInstallQrDataUrl.value = ''
+    feishuInstallQrDialogOpen.value = false
+    feishuInstallMode.value = null
+  }
+  if (sessionKey) {
+    await cancelFeishuInstallCompat(sessionKey).catch(() => undefined)
+  }
+}
+
+const closeFeishuInstallQrDialog = () => {
+  if (feishuInstallBusy.value) {
+    void cancelFeishuInstall()
+    return
+  }
+
+  feishuInstallQrDialogOpen.value = false
+}
+
+const openFeishuInstallQrUrl = async () => {
+  if (!feishuInstallQrUrl.value) {
+    return
+  }
+
+  await openExternalUrl(feishuInstallQrUrl.value)
+}
+
+const waitForFeishuAuthResult = async (requestId: number, sessionKey: string) => {
+  if (requestId !== feishuAuthRequestId) {
+    return
+  }
+
+  feishuAuthWaiting.value = true
+
+  try {
+    const result = await waitForFeishuAuthCompat({
+      sessionKey,
+      timeoutMs: 5 * 60_000
+    })
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    feishuAuthMessage.value = resolveFeishuAuthMessage(result)
+    feishuAuthError.value = result.authorized ? null : feishuAuthMessage.value
+
+    if (result.authorized) {
+      const [settings, status] = await Promise.all([
+        getChannelSettingsCompat('feishu'),
+        getChannelStatusCompat('feishu')
+      ])
+      if (requestId !== feishuAuthRequestId) {
+        return
+      }
+
+      syncFeishuFields(settings)
+      feishuStatus.value = status
+
+      toast({
+        title: t('settings.remote.feishu.authSuccessTitle'),
+        description: result.openId
+          ? t('settings.remote.feishu.authSuccessDescription', { openId: result.openId })
+          : feishuAuthMessage.value
+      })
+    }
+  } catch (error) {
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    feishuAuthError.value = error instanceof Error ? error.message : String(error)
+    feishuAuthMessage.value = t('settings.remote.feishu.authFailed')
+  } finally {
+    if (requestId === feishuAuthRequestId) {
+      feishuAuthWaiting.value = false
+      feishuAuthSessionKey.value = null
+    }
+  }
+}
+
+const startFeishuScanAuth = async () => {
+  if (feishuAuthBusy.value || !feishuSettings.value) {
+    return
+  }
+
+  if (!(await persistChannelDraftOrAbort('feishu'))) {
+    return
+  }
+  if (remoteSettingsUnmounted) {
+    return
+  }
+
+  const requestId = ++feishuAuthRequestId
+  feishuAuthMessage.value = t('common.loading')
+  feishuAuthError.value = null
+  feishuAuthStarting.value = true
+  feishuAuthWaiting.value = false
+
+  let sessionKeyToCancel: string | null = null
+
+  try {
+    const settings = feishuSettings.value
+    const session = await startFeishuAuthCompat({
+      brand: settings.brand,
+      appId: settings.appId,
+      appSecret: settings.appSecret
+    })
+    sessionKeyToCancel = session.sessionKey
+    if (requestId !== feishuAuthRequestId) {
+      await cancelFeishuAuthCompat(session.sessionKey).catch(() => undefined)
+      return
+    }
+
+    feishuAuthSessionKey.value = session.sessionKey
+    feishuAuthMessage.value = resolveFeishuAuthMessage(session)
+    void waitForFeishuAuthResult(requestId, session.sessionKey)
+  } catch (error) {
+    if (requestId !== feishuAuthRequestId) {
+      return
+    }
+
+    if (sessionKeyToCancel) {
+      await cancelFeishuAuthCompat(sessionKeyToCancel).catch(() => undefined)
+      feishuAuthSessionKey.value = null
+    }
+    if (remoteSettingsUnmounted) {
+      return
+    }
+
+    feishuAuthError.value = error instanceof Error ? error.message : String(error)
+    feishuAuthMessage.value = t('settings.remote.feishu.authFailed')
+  } finally {
+    if (requestId === feishuAuthRequestId) {
+      feishuAuthStarting.value = false
+    }
+  }
+}
+
+const cancelFeishuScanAuth = async (resetUi = true) => {
+  feishuAuthRequestId += 1
+  const sessionKey = feishuAuthSessionKey.value
+  feishuAuthSessionKey.value = null
+  feishuAuthStarting.value = false
+  feishuAuthWaiting.value = false
+  if (resetUi) {
+    feishuAuthMessage.value = ''
+    feishuAuthError.value = null
+  }
+  if (sessionKey) {
+    await cancelFeishuAuthCompat(sessionKey).catch(() => undefined)
+  }
+}
 
 const closeWeixinIlinkLoginDialog = () => {
   weixinIlinkLoginRequestId += 1
@@ -2933,6 +3532,45 @@ const statusDotClass = (state: RemoteRuntimeState, dotOnly = false) => {
   return dotOnly ? 'bg-muted-foreground/50' : 'bg-muted text-muted-foreground'
 }
 
+const selectedFeishuSetupUrls = computed(() => {
+  const brand = feishuSettings.value?.brand === 'lark' ? 'lark' : 'feishu'
+  const baseUrl = brand === 'lark' ? 'https://open.larksuite.com' : 'https://open.feishu.cn'
+  const appId = feishuSettings.value?.appId?.trim() ?? ''
+  return {
+    tutorial: `${baseUrl}/document/develop-an-echo-bot/introduction`,
+    developerConsole: `${baseUrl}/app`,
+    botChat:
+      brand === 'lark'
+        ? `https://applink.larksuite.com/client/bot/open?appId=${encodeURIComponent(appId)}`
+        : `https://applink.feishu.cn/client/bot/open?appId=${encodeURIComponent(appId)}`
+  }
+})
+
+const openExternalUrl = async (url: string) => {
+  await openRuntimeExternal(url)
+}
+
+const openFeishuSetupGuide = async () => {
+  await openExternalUrl(selectedFeishuSetupUrls.value.tutorial)
+}
+
+const openFeishuDeveloperConsole = async () => {
+  await openExternalUrl(selectedFeishuSetupUrls.value.developerConsole)
+}
+
+const openFeishuBotChat = async () => {
+  if (!feishuSettings.value?.appId?.trim()) {
+    toast({
+      title: t('settings.remote.feishu.openBotChatMissingAppIdTitle'),
+      description: t('settings.remote.feishu.openBotChatMissingAppIdDescription'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  await openExternalUrl(selectedFeishuSetupUrls.value.botChat)
+}
+
 const bindingKindClass = (kind: RemoteBindingSummary['kind']) => {
   if (kind === 'dm') {
     return 'bg-emerald-500/10 text-emerald-700'
@@ -3001,6 +3639,7 @@ const formatOverviewLine = (channel: RemoteChannel) => {
 }
 
 onMounted(() => {
+  remoteSettingsUnmounted = false
   void loadState()
   statusRefreshTimer = setInterval(() => {
     void refreshStatus()
@@ -3008,11 +3647,14 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  remoteSettingsUnmounted = true
   if (statusRefreshTimer) {
     clearInterval(statusRefreshTimer)
     statusRefreshTimer = null
   }
   stopPairDialogPolling()
+  void cancelFeishuInstall(false)
+  void cancelFeishuScanAuth(false)
   closeWeixinIlinkLoginDialog()
 })
 </script>

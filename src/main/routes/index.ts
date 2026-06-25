@@ -159,6 +159,8 @@ import {
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
+  remoteControlCancelFeishuAuthRoute,
+  remoteControlCancelFeishuInstallRoute,
   remoteControlClearChannelPairCodeRoute,
   remoteControlCreateChannelPairCodeRoute,
   remoteControlGetChannelBindingsRoute,
@@ -173,7 +175,11 @@ import {
   remoteControlRemoveWeixinIlinkAccountRoute,
   remoteControlRestartWeixinIlinkAccountRoute,
   remoteControlSaveChannelSettingsRoute,
+  remoteControlStartFeishuAuthRoute,
+  remoteControlStartFeishuInstallRoute,
   remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForFeishuAuthRoute,
+  remoteControlWaitForFeishuInstallRoute,
   remoteControlWaitForWeixinIlinkLoginRoute,
   pluginsDisableRoute,
   pluginsEnableRoute,
@@ -3541,6 +3547,42 @@ export async function dispatchDeepchatRoute(
       remoteControlGetTelegramStatusRoute.input.parse(rawInput)
       const status = await runtime.remoteControlPresenter.getTelegramStatus()
       return remoteControlGetTelegramStatusRoute.output.parse({ status })
+    }
+
+    case remoteControlStartFeishuAuthRoute.name: {
+      const input = remoteControlStartFeishuAuthRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startFeishuAuth(input)
+      return remoteControlStartFeishuAuthRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForFeishuAuthRoute.name: {
+      const input = remoteControlWaitForFeishuAuthRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForFeishuAuth(input)
+      return remoteControlWaitForFeishuAuthRoute.output.parse({ result })
+    }
+
+    case remoteControlCancelFeishuAuthRoute.name: {
+      const input = remoteControlCancelFeishuAuthRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.cancelFeishuAuth(input.sessionKey)
+      return remoteControlCancelFeishuAuthRoute.output.parse({ cancelled: true })
+    }
+
+    case remoteControlStartFeishuInstallRoute.name: {
+      const input = remoteControlStartFeishuInstallRoute.input.parse(rawInput)
+      const session = await runtime.remoteControlPresenter.startFeishuInstall(input)
+      return remoteControlStartFeishuInstallRoute.output.parse({ session })
+    }
+
+    case remoteControlWaitForFeishuInstallRoute.name: {
+      const input = remoteControlWaitForFeishuInstallRoute.input.parse(rawInput)
+      const result = await runtime.remoteControlPresenter.waitForFeishuInstall(input)
+      return remoteControlWaitForFeishuInstallRoute.output.parse({ result })
+    }
+
+    case remoteControlCancelFeishuInstallRoute.name: {
+      const input = remoteControlCancelFeishuInstallRoute.input.parse(rawInput)
+      await runtime.remoteControlPresenter.cancelFeishuInstall(input.sessionKey)
+      return remoteControlCancelFeishuInstallRoute.output.parse({ cancelled: true })
     }
 
     case remoteControlGetWeixinIlinkStatusRoute.name: {

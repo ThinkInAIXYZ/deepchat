@@ -1,5 +1,7 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
+  remoteControlCancelFeishuAuthRoute,
+  remoteControlCancelFeishuInstallRoute,
   remoteControlClearChannelPairCodeRoute,
   remoteControlCreateChannelPairCodeRoute,
   remoteControlGetChannelBindingsRoute,
@@ -14,7 +16,11 @@ import {
   remoteControlRemoveWeixinIlinkAccountRoute,
   remoteControlRestartWeixinIlinkAccountRoute,
   remoteControlSaveChannelSettingsRoute,
+  remoteControlStartFeishuAuthRoute,
+  remoteControlStartFeishuInstallRoute,
   remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForFeishuAuthRoute,
+  remoteControlWaitForFeishuInstallRoute,
   remoteControlWaitForWeixinIlinkLoginRoute
 } from '@shared/contracts/routes'
 import type {
@@ -87,6 +93,39 @@ export function createRemoteControlClient(bridge: DeepchatBridge = getDeepchatBr
     return result.status
   }
 
+  async function startFeishuAuth(input?: {
+    brand?: 'feishu' | 'lark'
+    appId?: string
+    appSecret?: string
+    redirectUri?: string
+  }) {
+    const result = await bridge.invoke(remoteControlStartFeishuAuthRoute.name, input ?? {})
+    return result.session
+  }
+
+  async function waitForFeishuAuth(input: { sessionKey: string; timeoutMs?: number }) {
+    const result = await bridge.invoke(remoteControlWaitForFeishuAuthRoute.name, input)
+    return result.result
+  }
+
+  async function cancelFeishuAuth(sessionKey: string) {
+    await bridge.invoke(remoteControlCancelFeishuAuthRoute.name, { sessionKey })
+  }
+
+  async function startFeishuInstall(input?: { brand?: 'feishu' | 'lark' }) {
+    const result = await bridge.invoke(remoteControlStartFeishuInstallRoute.name, input ?? {})
+    return result.session
+  }
+
+  async function waitForFeishuInstall(input: { sessionKey: string; timeoutMs?: number }) {
+    const result = await bridge.invoke(remoteControlWaitForFeishuInstallRoute.name, input)
+    return result.result
+  }
+
+  async function cancelFeishuInstall(sessionKey: string) {
+    await bridge.invoke(remoteControlCancelFeishuInstallRoute.name, { sessionKey })
+  }
+
   async function getWeixinIlinkStatus() {
     const result = await bridge.invoke(remoteControlGetWeixinIlinkStatusRoute.name, {})
     return result.status
@@ -122,6 +161,12 @@ export function createRemoteControlClient(bridge: DeepchatBridge = getDeepchatBr
     createChannelPairCode,
     clearChannelPairCode,
     getTelegramStatus,
+    startFeishuAuth,
+    waitForFeishuAuth,
+    cancelFeishuAuth,
+    startFeishuInstall,
+    waitForFeishuInstall,
+    cancelFeishuInstall,
     getWeixinIlinkStatus,
     startWeixinIlinkLogin,
     waitForWeixinIlinkLogin,
