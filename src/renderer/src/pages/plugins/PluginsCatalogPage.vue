@@ -149,7 +149,7 @@ type AddedItem = {
 }
 type CatalogItem = {
   id: string
-  kind: 'official' | 'remote' | 'built-in'
+  kind: 'official' | 'remote'
   plugin?: PluginListItem
   channel?: RemoteChannel
   title: string
@@ -308,26 +308,7 @@ const catalogItems = computed<CatalogItem[]>(() => {
     }
   })
 
-  const builtInItems: CatalogItem[] = [
-    {
-      id: 'built-in:mcp',
-      kind: 'built-in',
-      title: t('routes.settings-mcp'),
-      description: t('settings.pluginsHub.mcpDescription'),
-      icon: 'lucide:server',
-      actionLabel: t('settings.pluginsHub.manage')
-    },
-    {
-      id: 'built-in:skills',
-      kind: 'built-in',
-      title: t('routes.settings-skills'),
-      description: t('settings.pluginsHub.skillsDescription'),
-      icon: 'lucide:wand-sparkles',
-      actionLabel: t('settings.pluginsHub.manage')
-    }
-  ]
-
-  return [...builtInItems, ...officialItems, ...remoteItems]
+  return [...officialItems, ...remoteItems]
 })
 
 const filteredCatalogItems = computed(() => {
@@ -419,15 +400,6 @@ function handleCatalogAction(item: CatalogItem): void {
   if (item.kind === 'remote' && item.channel) {
     void router.push({ name: 'plugins-remote-detail', params: { channel: item.channel } })
     return
-  }
-
-  if (item.id === 'built-in:mcp') {
-    void router.push({ name: 'plugins-mcp' })
-    return
-  }
-
-  if (item.id === 'built-in:skills') {
-    void router.push({ name: 'plugins-skills' })
   }
 }
 

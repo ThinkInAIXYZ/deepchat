@@ -2374,7 +2374,7 @@
   },
   "pluginsHub": {
     "subtitle": "统一管理 DeepChat 的 Skills、MCP、官方插件和远程渠道。",
-    "searchPlaceholder": "搜索插件、Skills、MCP 和远程渠道",
+    "searchPlaceholder": "搜索插件和远程渠道",
     "added": "已添加",
     "manage": "管理",
     "noAdded": "还没有启用任何插件。",
@@ -2382,8 +2382,6 @@
     "pluginNotFound": "未找到插件。",
     "capabilities": "能力",
     "actionResult": "操作结果",
-    "mcpDescription": "配置 MCP 服务和市场条目。",
-    "skillsDescription": "管理会话中可用的 Agent Skills。",
     "filters": {
       "official": "DeepChat 官方",
       "workspace": "工作区",

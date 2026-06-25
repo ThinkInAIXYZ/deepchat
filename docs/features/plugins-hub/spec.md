@@ -111,12 +111,12 @@ Top-level sections:
 
 | Section | User label | Contents |
 | --- | --- | --- |
-| Plugins | Plugins | official plugin packages, added/recommended plugin cards, Remote virtual plugin cards when filtered into plugin catalog |
+| Plugins | Plugins | official plugin packages, added/recommended plugin cards, Remote virtual plugin cards |
 | Skills | Skills | installed skills, install, edit, sync import/export, draft suggestion toggle |
 | MCP | MCP Servers | user MCP servers, plugin-owned MCP status, MCP market/add flow |
 | Remote | Remote | virtual plugin cards for Telegram, Feishu/Lark Remote, QQBot, Discord, WeChat iLink |
 
-The visual top tab row can start with `Plugins` and `Skills` as in the Codex screenshot, then add `MCP` and `Remote` if all four areas ship in the same increment. If product wants the screenshot to stay visually lighter, `MCP` and `Remote` can appear as catalog filters/cards inside `Plugins`, but they still need addressable routes.
+The visual top tab row uses `Plugins`, `Skills`, `MCP` and `Remote`. `MCP` and `Skills` are sibling tabs, not plugin catalog cards.
 
 Remote naming must avoid collision with official plugins:
 
@@ -139,7 +139,7 @@ Remote naming must avoid collision with official plugins:
 │    │ New Chat         │                         Plugins                             │
 │    │ Search           │          Work with DeepChat across your favorite tools       │
 │    │ Plugins          │          ┌────────────────────────────────────────────┐      │
-│    │                  │          │ Search plugins, skills, MCP servers...     │      │
+│    │                  │          │ Search plugins and remote channels...      │      │
 │    │ Pinned           │          └────────────────────────────────────────────┘      │
 │    │ ...              │                                                              │
 │    │ Chat             │          Added                                      Manage   │

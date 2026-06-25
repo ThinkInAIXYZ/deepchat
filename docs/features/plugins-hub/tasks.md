@@ -13,6 +13,7 @@
 - [x] Add `PluginsHubPage.vue` inside `src/renderer/src/pages/plugins/`.
 - [x] Add top tab navigation for Plugins, Skills, MCP and Remote or the chosen first-increment subset.
 - [x] Add Codex-like catalog placeholder with title, subtitle, search, added strip and featured sections.
+- [x] Keep MCP and Skills as top tabs only, not plugin catalog cards.
 - [x] Keep `WindowSideBar`, `AppBar`, global overlays, theme and i18n behavior intact.
 - [x] Add i18n keys for route, page title, subtitle, tabs and search placeholder.
 - [ ] Add renderer tests proving `/plugins` renders inside the existing app shell.

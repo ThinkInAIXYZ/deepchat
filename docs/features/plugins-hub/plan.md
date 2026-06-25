@@ -79,12 +79,10 @@ Use a renderer-only union for cards:
 ```text
 CatalogItem =
   official plugin item from plugins.list
-  MCP server summary from mcp store
-  Skill metadata from skills store
   Remote virtual item from remoteControl.listChannels + status
 ```
 
-This union only drives list rendering and search filtering. Writes go back to the current owner:
+`MCP` and `Skills` are top-level sibling tabs under `/plugins`, not catalog cards. This union only drives plugin catalog rendering and search filtering. Writes go back to the current owner:
 
 | User action | Owner route/client |
 | --- | --- |
@@ -123,8 +121,9 @@ Keep this list flexible during implementation; do not split files unless the com
 
 Visual baseline:
 
-- Main content starts with top tabs (`Plugins`, `Skills`, optionally `MCP`, `Remote`).
+- Main content starts with top tabs (`Plugins`, `Skills`, `MCP`, `Remote`).
 - Catalog page uses the Codex-like layout: title, subtitle, search, added strip, segmented filters, sectioned list.
+- Catalog cards include official plugins and Remote virtual plugins only; MCP and Skills remain reachable through top tabs.
 - Avoid settings-style full-width form pages for the catalog. Detail routes may use denser settings sections.
 - Cards are individual repeated items only. Do not put page sections inside floating cards.
 
