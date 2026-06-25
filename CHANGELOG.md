@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.7-beta.2 (2026-06-25)
+- Fixed fresh SQLite schema bootstrap so new installations initialize reliably
+- Fixed New API responses endpoint configuration so it stays separate from other endpoint options
+- 修复首次 SQLite schema 初始化，提升新安装启动可靠性
+- 修复 New API responses endpoint 配置，避免与其他 endpoint 选项混用
+
 ## v1.0.7-beta.1 (2026-06-24)
 - Added the default chat workspace so new chats start with prepared workspace context
 - Added task-aware Agent Memory with improved maintenance scheduling and management controls
