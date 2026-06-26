@@ -6,6 +6,10 @@ import type {
   RemoteChannelDescriptor,
   RemoteChannelSettings,
   RemoteChannelStatus,
+  FeishuAuthResult,
+  FeishuAuthSession,
+  FeishuInstallResult,
+  FeishuInstallSession,
   RemotePairingSnapshot,
   TelegramRemoteStatus,
   WeixinIlinkLoginResult,
@@ -30,6 +34,39 @@ const RemoteChannelStatusSchema = z.custom<RemoteChannelStatus>()
 const RemoteBindingSummarySchema = z.custom<RemoteBindingSummary>()
 const RemotePairingSnapshotSchema = z.custom<RemotePairingSnapshot>()
 const TelegramRemoteStatusSchema = z.custom<TelegramRemoteStatus>()
+const FeishuAuthSessionSchema = z.object({
+  sessionKey: z.string().min(1),
+  authUrl: z.string().url().nullable(),
+  redirectUri: z.string().url(),
+  expiresAt: z.number().int().nonnegative(),
+  message: z.string().optional(),
+  messageKey: z.string().optional()
+}) satisfies z.ZodType<FeishuAuthSession>
+const FeishuAuthResultSchema = z.object({
+  authorized: z.boolean(),
+  openId: z.string().nullable(),
+  unionId: z.string().optional(),
+  name: z.string().optional(),
+  message: z.string().optional(),
+  messageKey: z.string().optional()
+}) satisfies z.ZodType<FeishuAuthResult>
+const FeishuInstallSessionSchema = z.object({
+  sessionKey: z.string().min(1),
+  installUrl: z.string().url(),
+  userCode: z.string(),
+  expiresAt: z.number().int().nonnegative(),
+  intervalMs: z.number().int().positive(),
+  message: z.string().optional(),
+  messageKey: z.string().optional()
+}) satisfies z.ZodType<FeishuInstallSession>
+const FeishuInstallResultSchema = z.object({
+  installed: z.boolean(),
+  brand: z.enum(['feishu', 'lark']).nullable(),
+  appId: z.string().nullable(),
+  openId: z.string().optional(),
+  message: z.string().optional(),
+  messageKey: z.string().optional()
+}) satisfies z.ZodType<FeishuInstallResult>
 const WeixinIlinkRemoteStatusSchema = z.custom<WeixinIlinkRemoteStatus>()
 const WeixinIlinkLoginSessionSchema = z.custom<WeixinIlinkLoginSession>()
 const WeixinIlinkLoginResultSchema = z.custom<WeixinIlinkLoginResult>()
@@ -141,6 +178,77 @@ export const remoteControlGetTelegramStatusRoute = defineRouteContract({
   input: z.object({}),
   output: z.object({
     status: TelegramRemoteStatusSchema
+  })
+})
+
+export const remoteControlStartFeishuAuthRoute = defineRouteContract({
+  name: 'remoteControl.startFeishuAuth',
+  input: z
+    .object({
+      brand: z.enum(['feishu', 'lark']).optional(),
+      appId: z.string().optional(),
+      appSecret: z.string().optional(),
+      redirectUri: z.string().url().optional()
+    })
+    .optional()
+    .default({}),
+  output: z.object({
+    session: FeishuAuthSessionSchema
+  })
+})
+
+export const remoteControlWaitForFeishuAuthRoute = defineRouteContract({
+  name: 'remoteControl.waitForFeishuAuth',
+  input: z.object({
+    sessionKey: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  }),
+  output: z.object({
+    result: FeishuAuthResultSchema
+  })
+})
+
+export const remoteControlCancelFeishuAuthRoute = defineRouteContract({
+  name: 'remoteControl.cancelFeishuAuth',
+  input: z.object({
+    sessionKey: z.string().min(1)
+  }),
+  output: z.object({
+    cancelled: z.literal(true)
+  })
+})
+
+export const remoteControlStartFeishuInstallRoute = defineRouteContract({
+  name: 'remoteControl.startFeishuInstall',
+  input: z
+    .object({
+      brand: z.enum(['feishu', 'lark']).optional()
+    })
+    .optional()
+    .default({}),
+  output: z.object({
+    session: FeishuInstallSessionSchema
+  })
+})
+
+export const remoteControlWaitForFeishuInstallRoute = defineRouteContract({
+  name: 'remoteControl.waitForFeishuInstall',
+  input: z.object({
+    sessionKey: z.string().min(1),
+    timeoutMs: z.number().int().positive().optional()
+  }),
+  output: z.object({
+    result: FeishuInstallResultSchema
+  })
+})
+
+export const remoteControlCancelFeishuInstallRoute = defineRouteContract({
+  name: 'remoteControl.cancelFeishuInstall',
+  input: z.object({
+    sessionKey: z.string().min(1)
+  }),
+  output: z.object({
+    cancelled: z.literal(true)
   })
 })
 

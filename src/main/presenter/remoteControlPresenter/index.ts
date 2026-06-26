@@ -1,10 +1,20 @@
 import { BrowserWindow } from 'electron'
+import { randomBytes } from 'node:crypto'
+import * as http from 'node:http'
 import logger from '@shared/logger'
 import type {
   ChannelSettingsMap,
   DiscordPairingSnapshot,
   DiscordRemoteSettings,
   DiscordRemoteStatus,
+  FeishuAuthResult,
+  FeishuAuthSession,
+  FeishuAuthStartInput,
+  FeishuAuthWaitInput,
+  FeishuInstallResult,
+  FeishuInstallSession,
+  FeishuInstallStartInput,
+  FeishuInstallWaitInput,
   FeishuPairingSnapshot,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
@@ -57,10 +67,88 @@ import { DiscordAdapter } from './adapters/discord/DiscordAdapter'
 import { FeishuAdapter } from './adapters/feishu/FeishuAdapter'
 import { QQBotAdapter } from './adapters/qqbot/QQBotAdapter'
 import { WeixinIlinkAdapter } from './adapters/weixinIlink/WeixinIlinkAdapter'
+import {
+  asFeishuRegistrationRecord,
+  buildFeishuAuthUrl,
+  createDefaultFeishuAuthRedirectUri,
+  exchangeFeishuOAuthCode,
+  fetchFeishuOAuthUserInfo,
+  pollFeishuPersonalAgentRegistration,
+  readFeishuRegistrationString,
+  resolveFeishuAuthDomains,
+  startFeishuPersonalAgentRegistration
+} from './feishu/feishuAuth'
 import { WeixinIlinkClient } from './weixinIlink/weixinIlinkClient'
 
 const DEFAULT_CHANNEL_ID = 'default'
 const WEIXIN_TRACE_LOG_ENABLED = process.env.DEEPCHAT_WEIXIN_TRACE === '1'
+const FEISHU_AUTH_SESSION_TTL_MS = 5 * 60 * 1000
+const FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
+const FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
+
+type FeishuAuthSessionState = {
+  sessionKey: string
+  state: string
+  brand: 'feishu' | 'lark'
+  appId: string
+  appSecret: string
+  redirectUri: string
+  authUrl: string
+  expiresAt: number
+  server: http.Server | null
+  window: BrowserWindow | null
+  cleanupTimer: NodeJS.Timeout | null
+  abortController: AbortController
+  resolve: (result: FeishuAuthResult) => void
+  resultPromise: Promise<FeishuAuthResult>
+  completed: boolean
+}
+
+type FeishuInstallSessionState = {
+  sessionKey: string
+  requestedBrand: 'feishu' | 'lark'
+  pollBrand: 'feishu' | 'lark'
+  deviceCode: string
+  installUrl: string
+  userCode: string
+  expiresAt: number
+  intervalMs: number
+  cleanupTimer: NodeJS.Timeout | null
+  abortController: AbortController
+  resolve: (result: FeishuInstallResult) => void
+  resultPromise: Promise<FeishuInstallResult>
+  completed: boolean
+  polling: boolean
+}
+
+const createFeishuAuthResult = (
+  input: Omit<FeishuAuthResult, 'authorized' | 'openId'> & {
+    authorized: boolean
+    openId?: string | null
+  }
+): FeishuAuthResult => ({
+  authorized: input.authorized,
+  openId: input.openId ?? null,
+  ...(input.unionId ? { unionId: input.unionId } : {}),
+  ...(input.name ? { name: input.name } : {}),
+  ...(input.message ? { message: input.message } : {}),
+  ...(input.messageKey ? { messageKey: input.messageKey } : {})
+})
+
+const createFeishuInstallResult = (
+  input: Omit<FeishuInstallResult, 'installed' | 'brand' | 'appId'> & {
+    installed: boolean
+    brand?: 'feishu' | 'lark' | null
+    appId?: string | null
+  }
+): FeishuInstallResult => ({
+  installed: input.installed,
+  brand: input.brand ?? null,
+  appId: input.appId ?? null,
+  ...(input.openId ? { openId: input.openId } : {}),
+  ...(input.message ? { message: input.message } : {}),
+  ...(input.messageKey ? { messageKey: input.messageKey } : {})
+})
 
 const DEFAULT_TELEGRAM_POLLER_STATUS: TelegramPollerStatusSnapshot = {
   state: 'stopped',
@@ -96,6 +184,8 @@ export class RemoteControlPresenter {
   private readonly bindingStore: RemoteBindingStore
   private readonly channelManager: ChannelManager
   private runtimeOperation: Promise<void> = Promise.resolve()
+  private readonly feishuAuthSessions = new Map<string, FeishuAuthSessionState>()
+  private readonly feishuInstallSessions = new Map<string, FeishuInstallSessionState>()
   private weixinIlinkLoginWindow: BrowserWindow | null = null
   private weixinIlinkLoginWindowUrl: string | null = null
   private readonly weixinIlinkLoginWaits = new Map<string, Promise<WeixinIlinkLoginResult>>()
@@ -122,6 +212,12 @@ export class RemoteControlPresenter {
     await this.enqueueRuntimeOperation(async () => {
       await this.channelManager.unregisterAll()
     })
+    for (const sessionKey of Array.from(this.feishuAuthSessions.keys())) {
+      await this.cancelFeishuAuth(sessionKey)
+    }
+    for (const sessionKey of Array.from(this.feishuInstallSessions.keys())) {
+      await this.cancelFeishuInstall(sessionKey)
+    }
     this.weixinIlinkLoginWaits.clear()
     this.closeWeixinIlinkLoginWindow()
   }
@@ -562,6 +658,265 @@ export class RemoteControlPresenter {
       lastError: runtimeStatus.lastError,
       botUser: runtimeStatus.botUser
     }
+  }
+
+  async startFeishuAuth(input: FeishuAuthStartInput = {}): Promise<FeishuAuthSession> {
+    this.pruneExpiredFeishuAuthSessions()
+    for (const existingSessionKey of Array.from(this.feishuAuthSessions.keys())) {
+      await this.cancelFeishuAuth(existingSessionKey)
+    }
+
+    const currentConfig = this.bindingStore.getFeishuConfig()
+    const brand = input.brand === 'lark' ? 'lark' : currentConfig.brand
+    const appId = input.appId?.trim() || currentConfig.appId.trim()
+    const appSecret = input.appSecret?.trim() || currentConfig.appSecret.trim()
+    const redirectUri = input.redirectUri?.trim() || createDefaultFeishuAuthRedirectUri()
+
+    if (!appId || !appSecret) {
+      throw new Error('Feishu App ID and App Secret are required before scan authorization.')
+    }
+
+    this.assertLoopbackFeishuAuthRedirectUri(redirectUri)
+
+    const sessionKey = randomBytes(16).toString('hex')
+    const state = randomBytes(16).toString('hex')
+    const expiresAt = Date.now() + FEISHU_AUTH_SESSION_TTL_MS
+    const authUrl = buildFeishuAuthUrl(
+      {
+        brand,
+        appId,
+        appSecret,
+        redirectUri
+      },
+      state
+    )
+    let resolveResult!: (result: FeishuAuthResult) => void
+    const resultPromise = new Promise<FeishuAuthResult>((resolve) => {
+      resolveResult = resolve
+    })
+    const session: FeishuAuthSessionState = {
+      sessionKey,
+      state,
+      brand,
+      appId,
+      appSecret,
+      redirectUri,
+      authUrl,
+      expiresAt,
+      server: null,
+      window: null,
+      cleanupTimer: null,
+      abortController: new AbortController(),
+      resolve: resolveResult,
+      resultPromise,
+      completed: false
+    }
+
+    this.feishuAuthSessions.set(sessionKey, session)
+
+    try {
+      session.server = await this.startFeishuAuthCallbackServer(session)
+      session.cleanupTimer = setTimeout(() => {
+        this.completeFeishuAuthSession(
+          session,
+          createFeishuAuthResult({
+            authorized: false,
+            messageKey: 'settings.remote.feishu.authTimeout'
+          })
+        )
+        this.feishuAuthSessions.delete(session.sessionKey)
+      }, FEISHU_AUTH_SESSION_TTL_MS)
+      this.openFeishuAuthWindow(session)
+    } catch (error) {
+      this.feishuAuthSessions.delete(sessionKey)
+      this.cleanupFeishuAuthSession(session)
+      throw error
+    }
+
+    return {
+      sessionKey,
+      authUrl,
+      redirectUri,
+      expiresAt,
+      messageKey: 'settings.remote.feishu.authStarted'
+    }
+  }
+
+  async waitForFeishuAuth(input: FeishuAuthWaitInput): Promise<FeishuAuthResult> {
+    const sessionKey = input.sessionKey.trim()
+    if (!sessionKey) {
+      return createFeishuAuthResult({
+        authorized: false,
+        messageKey: 'settings.remote.feishu.authFailed'
+      })
+    }
+
+    const session = this.feishuAuthSessions.get(sessionKey)
+    if (!session) {
+      return createFeishuAuthResult({
+        authorized: false,
+        messageKey: 'settings.remote.feishu.authSessionMissing'
+      })
+    }
+
+    const timeoutMs = Math.min(
+      input.timeoutMs ?? FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS,
+      FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS
+    )
+    const timeout = setTimeout(() => {
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authTimeout'
+        })
+      )
+    }, timeoutMs)
+
+    try {
+      return await session.resultPromise
+    } finally {
+      clearTimeout(timeout)
+      if (session.completed) {
+        this.feishuAuthSessions.delete(sessionKey)
+      }
+    }
+  }
+
+  async cancelFeishuAuth(sessionKey: string): Promise<void> {
+    const session = this.feishuAuthSessions.get(sessionKey.trim())
+    if (!session) {
+      return
+    }
+
+    this.completeFeishuAuthSession(
+      session,
+      createFeishuAuthResult({
+        authorized: false,
+        messageKey: 'settings.remote.feishu.authCancelled'
+      })
+    )
+    this.feishuAuthSessions.delete(session.sessionKey)
+  }
+
+  async startFeishuInstall(input: FeishuInstallStartInput = {}): Promise<FeishuInstallSession> {
+    this.pruneExpiredFeishuInstallSessions()
+    for (const existingSessionKey of Array.from(this.feishuInstallSessions.keys())) {
+      await this.cancelFeishuInstall(existingSessionKey)
+    }
+
+    const requestedBrand =
+      input.brand === 'lark' ? 'lark' : this.bindingStore.getFeishuConfig().brand
+    const abortController = new AbortController()
+    const registration = await startFeishuPersonalAgentRegistration(abortController.signal)
+    const sessionKey = randomBytes(16).toString('hex')
+    const expiresAt = Date.now() + registration.expireInSec * 1000
+    const intervalMs = Math.max(registration.intervalSec * 1000, 3_000)
+    let resolveResult!: (result: FeishuInstallResult) => void
+    const resultPromise = new Promise<FeishuInstallResult>((resolve) => {
+      resolveResult = resolve
+    })
+    const session: FeishuInstallSessionState = {
+      sessionKey,
+      requestedBrand,
+      pollBrand: 'feishu',
+      deviceCode: registration.deviceCode,
+      installUrl: registration.installUrl,
+      userCode: registration.userCode,
+      expiresAt,
+      intervalMs,
+      cleanupTimer: null,
+      abortController,
+      resolve: resolveResult,
+      resultPromise,
+      completed: false,
+      polling: false
+    }
+
+    this.feishuInstallSessions.set(sessionKey, session)
+    session.cleanupTimer = setTimeout(
+      () => {
+        this.completeFeishuInstallSession(
+          session,
+          createFeishuInstallResult({
+            installed: false,
+            messageKey: 'settings.remote.feishu.installTimeout'
+          })
+        )
+        this.feishuInstallSessions.delete(session.sessionKey)
+      },
+      Math.max(expiresAt - Date.now(), 1_000)
+    )
+
+    return {
+      sessionKey,
+      installUrl: registration.installUrl,
+      userCode: registration.userCode,
+      expiresAt,
+      intervalMs,
+      messageKey: 'settings.remote.feishu.installStarted'
+    }
+  }
+
+  async waitForFeishuInstall(input: FeishuInstallWaitInput): Promise<FeishuInstallResult> {
+    const sessionKey = input.sessionKey.trim()
+    if (!sessionKey) {
+      return createFeishuInstallResult({
+        installed: false,
+        messageKey: 'settings.remote.feishu.installFailed'
+      })
+    }
+
+    const session = this.feishuInstallSessions.get(sessionKey)
+    if (!session) {
+      return createFeishuInstallResult({
+        installed: false,
+        messageKey: 'settings.remote.feishu.installSessionMissing'
+      })
+    }
+
+    if (!session.polling) {
+      session.polling = true
+      void this.pollFeishuInstallUntilComplete(session)
+    }
+    const timeoutMs = Math.min(
+      input.timeoutMs ?? FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS,
+      FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS
+    )
+    const timeout = setTimeout(() => {
+      this.completeFeishuInstallSession(
+        session,
+        createFeishuInstallResult({
+          installed: false,
+          messageKey: 'settings.remote.feishu.installTimeout'
+        })
+      )
+    }, timeoutMs)
+
+    try {
+      return await session.resultPromise
+    } finally {
+      clearTimeout(timeout)
+      if (session.completed) {
+        this.feishuInstallSessions.delete(sessionKey)
+      }
+    }
+  }
+
+  async cancelFeishuInstall(sessionKey: string): Promise<void> {
+    const session = this.feishuInstallSessions.get(sessionKey.trim())
+    if (!session) {
+      return
+    }
+
+    this.completeFeishuInstallSession(
+      session,
+      createFeishuInstallResult({
+        installed: false,
+        messageKey: 'settings.remote.feishu.installCancelled'
+      })
+    )
+    this.feishuInstallSessions.delete(session.sessionKey)
   }
 
   async getQQBotSettings(): Promise<QQBotRemoteSettings> {
@@ -1665,6 +2020,477 @@ export class RemoteControlPresenter {
       enabled: account.enabled,
       defaultAgentId: defaultAgentId.trim()
     })
+  }
+
+  private async pollFeishuInstallUntilComplete(session: FeishuInstallSessionState): Promise<void> {
+    if (session.completed) {
+      return
+    }
+
+    while (!session.completed && Date.now() < session.expiresAt) {
+      try {
+        const poll = await pollFeishuPersonalAgentRegistration(
+          session.pollBrand,
+          session.deviceCode,
+          session.abortController.signal
+        )
+        if (session.completed) {
+          return
+        }
+
+        const data = poll.data
+        const error = readFeishuRegistrationString(data, 'error')
+        if (error) {
+          if (error === 'authorization_pending' || error === 'slow_down') {
+            await this.delayFeishuInstallPoll(session.intervalMs)
+            continue
+          }
+
+          this.completeFeishuInstallSession(
+            session,
+            createFeishuInstallResult({
+              installed: false,
+              messageKey: 'settings.remote.feishu.installFailed'
+            })
+          )
+          return
+        }
+
+        const userInfo = asFeishuRegistrationRecord(data.user_info)
+        const tenantBrand = readFeishuRegistrationString(userInfo, 'tenant_brand')
+        const appSecret = readFeishuRegistrationString(data, 'client_secret')
+        if (session.pollBrand === 'feishu' && tenantBrand === 'lark' && !appSecret) {
+          session.pollBrand = 'lark'
+          continue
+        }
+
+        if (!poll.ok) {
+          this.completeFeishuInstallSession(
+            session,
+            createFeishuInstallResult({
+              installed: false,
+              messageKey: 'settings.remote.feishu.installFailed'
+            })
+          )
+          return
+        }
+
+        const appId = readFeishuRegistrationString(data, 'client_id')
+        if (appId && appSecret) {
+          if (session.completed) {
+            return
+          }
+
+          const brand = session.pollBrand === 'lark' || tenantBrand === 'lark' ? 'lark' : 'feishu'
+          const openId = readFeishuRegistrationString(userInfo, 'open_id')
+          await this.enqueueRuntimeOperation(async () => {
+            if (session.completed) {
+              return
+            }
+
+            this.bindingStore.updateFeishuConfig((config) => ({
+              ...config,
+              brand,
+              appId,
+              appSecret,
+              verificationToken: '',
+              encryptKey: '',
+              pairedUserOpenIds: openId
+                ? Array.from(new Set([...config.pairedUserOpenIds, openId])).sort((left, right) =>
+                    left.localeCompare(right)
+                  )
+                : config.pairedUserOpenIds,
+              lastFatalError: null
+            }))
+            await this.rebuildFeishuRuntime()
+          })
+          if (session.completed) {
+            return
+          }
+
+          this.completeFeishuInstallSession(
+            session,
+            createFeishuInstallResult({
+              installed: true,
+              brand,
+              appId,
+              openId,
+              messageKey: 'settings.remote.feishu.installSuccess'
+            })
+          )
+          return
+        }
+      } catch {
+        this.completeFeishuInstallSession(
+          session,
+          createFeishuInstallResult({
+            installed: false,
+            messageKey: 'settings.remote.feishu.installFailed'
+          })
+        )
+        return
+      }
+
+      await this.delayFeishuInstallPoll(session.intervalMs)
+    }
+
+    if (!session.completed) {
+      this.completeFeishuInstallSession(
+        session,
+        createFeishuInstallResult({
+          installed: false,
+          messageKey: 'settings.remote.feishu.installTimeout'
+        })
+      )
+    }
+  }
+
+  private delayFeishuInstallPoll(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  private completeFeishuInstallSession(
+    session: FeishuInstallSessionState,
+    result: FeishuInstallResult
+  ): void {
+    if (session.completed) {
+      return
+    }
+
+    session.completed = true
+    this.cleanupFeishuInstallSession(session)
+    session.resolve(result)
+  }
+
+  private cleanupFeishuInstallSession(session: FeishuInstallSessionState): void {
+    if (session.cleanupTimer) {
+      clearTimeout(session.cleanupTimer)
+      session.cleanupTimer = null
+    }
+
+    if (!session.abortController.signal.aborted) {
+      session.abortController.abort()
+    }
+  }
+
+  private pruneExpiredFeishuInstallSessions(): void {
+    const now = Date.now()
+    for (const session of this.feishuInstallSessions.values()) {
+      if (session.expiresAt > now) {
+        continue
+      }
+
+      this.completeFeishuInstallSession(
+        session,
+        createFeishuInstallResult({
+          installed: false,
+          messageKey: 'settings.remote.feishu.installTimeout'
+        })
+      )
+      this.feishuInstallSessions.delete(session.sessionKey)
+    }
+  }
+
+  private assertLoopbackFeishuAuthRedirectUri(redirectUri: string): void {
+    let parsed: URL
+    try {
+      parsed = new URL(redirectUri)
+    } catch {
+      throw new Error('Feishu OAuth redirect URI must be a valid URL.')
+    }
+
+    const isLoopback = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost'
+    if (parsed.protocol !== 'http:' || !isLoopback) {
+      throw new Error('Feishu OAuth redirect URI must use http://127.0.0.1 or http://localhost.')
+    }
+  }
+
+  private async startFeishuAuthCallbackServer(
+    session: FeishuAuthSessionState
+  ): Promise<http.Server> {
+    const redirect = new URL(session.redirectUri)
+    const port = Number.parseInt(redirect.port, 10)
+    if (!Number.isInteger(port) || port <= 0) {
+      throw new Error('Feishu OAuth redirect URI must include a loopback port.')
+    }
+
+    const server = http.createServer((request, response) => {
+      void this.handleFeishuAuthCallback(session, request, response)
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(port, redirect.hostname, () => {
+        server.off('error', reject)
+        resolve()
+      })
+    })
+
+    return server
+  }
+
+  private async handleFeishuAuthCallback(
+    session: FeishuAuthSessionState,
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): Promise<void> {
+    const requestUrl = request.url ?? '/'
+    const redirect = new URL(session.redirectUri)
+    const callbackUrl = new URL(requestUrl, session.redirectUri)
+
+    if (request.method !== 'GET') {
+      response.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' })
+      response.end('Method Not Allowed')
+      return
+    }
+
+    const expectedHost = `${redirect.hostname}:${redirect.port}`
+    const actualHost = request.headers.host?.trim().toLowerCase()
+    if (actualHost !== expectedHost.toLowerCase()) {
+      response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' })
+      response.end('Bad Request')
+      return
+    }
+
+    if (callbackUrl.pathname !== redirect.pathname) {
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      response.end('Not Found')
+      return
+    }
+
+    const error = callbackUrl.searchParams.get('error')
+    const code = callbackUrl.searchParams.get('code')
+    const returnedState = callbackUrl.searchParams.get('state')
+
+    if (session.completed) {
+      this.writeFeishuAuthCallbackPage(response, false)
+      return
+    }
+
+    if (returnedState !== session.state) {
+      this.writeFeishuAuthCallbackPage(response, false)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authStateMismatch'
+        })
+      )
+      return
+    }
+
+    if (error) {
+      this.writeFeishuAuthCallbackPage(response, false)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authDenied'
+        })
+      )
+      return
+    }
+
+    if (!code) {
+      this.writeFeishuAuthCallbackPage(response, false)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authMissingCode'
+        })
+      )
+      return
+    }
+
+    try {
+      const accessToken = await exchangeFeishuOAuthCode(
+        {
+          brand: session.brand,
+          appId: session.appId,
+          appSecret: session.appSecret,
+          redirectUri: session.redirectUri
+        },
+        code,
+        session.abortController.signal
+      )
+      if (session.completed) {
+        this.writeFeishuAuthCallbackPage(response, false)
+        return
+      }
+
+      const userInfo = await fetchFeishuOAuthUserInfo(
+        session.brand,
+        accessToken,
+        session.abortController.signal
+      )
+      if (session.completed) {
+        this.writeFeishuAuthCallbackPage(response, false)
+        return
+      }
+
+      this.bindingStore.addFeishuPairedUser(userInfo.openId)
+      this.writeFeishuAuthCallbackPage(response, true)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: true,
+          openId: userInfo.openId,
+          unionId: userInfo.unionId,
+          name: userInfo.name,
+          messageKey: 'settings.remote.feishu.authSuccess'
+        })
+      )
+    } catch {
+      this.writeFeishuAuthCallbackPage(response, false)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authFailed'
+        })
+      )
+    }
+  }
+
+  private writeFeishuAuthCallbackPage(response: http.ServerResponse, success: boolean): void {
+    response.writeHead(success ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' })
+    response.end(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>DeepChat Feishu Authorization</title>
+  </head>
+  <body style="font-family: system-ui, sans-serif; padding: 32px;">
+    <h2>${success ? 'Authorization complete' : 'Authorization failed'}</h2>
+    <p>${success ? 'You can close this window and return to DeepChat.' : 'Return to DeepChat and try again.'}</p>
+  </body>
+</html>`)
+  }
+
+  private completeFeishuAuthSession(
+    session: FeishuAuthSessionState,
+    result: FeishuAuthResult
+  ): void {
+    if (session.completed) {
+      return
+    }
+
+    session.completed = true
+    this.cleanupFeishuAuthSession(session)
+    session.resolve(result)
+  }
+
+  private cleanupFeishuAuthSession(session: FeishuAuthSessionState): void {
+    if (session.cleanupTimer) {
+      clearTimeout(session.cleanupTimer)
+      session.cleanupTimer = null
+    }
+
+    if (!session.abortController.signal.aborted) {
+      session.abortController.abort()
+    }
+
+    if (session.server) {
+      session.server.close()
+      session.server = null
+    }
+
+    if (session.window && !session.window.isDestroyed()) {
+      session.window.close()
+    }
+    session.window = null
+  }
+
+  private pruneExpiredFeishuAuthSessions(): void {
+    const now = Date.now()
+    for (const session of this.feishuAuthSessions.values()) {
+      if (session.expiresAt > now) {
+        continue
+      }
+
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authTimeout'
+        })
+      )
+      this.feishuAuthSessions.delete(session.sessionKey)
+    }
+  }
+
+  private isAllowedFeishuAuthNavigation(
+    url: string,
+    brand: 'feishu' | 'lark',
+    redirectUri: string
+  ): boolean {
+    try {
+      const parsed = new URL(url)
+      const redirect = new URL(redirectUri)
+      const domains = resolveFeishuAuthDomains(brand)
+      const accountsHost = new URL(domains.accountsBaseUrl).host
+      const openHost = new URL(domains.openBaseUrl).host
+      const isAuthHost =
+        parsed.protocol === 'https:' && (parsed.host === accountsHost || parsed.host === openHost)
+      const isRedirectHost =
+        parsed.protocol === redirect.protocol &&
+        parsed.host === redirect.host &&
+        parsed.pathname === redirect.pathname
+      return isAuthHost || isRedirectHost
+    } catch {
+      return false
+    }
+  }
+
+  private openFeishuAuthWindow(session: FeishuAuthSessionState): void {
+    const parentWindow =
+      this.deps.windowPresenter.getFocusedWindow() ?? this.deps.windowPresenter.getAllWindows()[0]
+    const loginWindow = new BrowserWindow({
+      width: 480,
+      height: 760,
+      minWidth: 420,
+      minHeight: 680,
+      autoHideMenuBar: true,
+      title: 'Feishu / Lark Authorization',
+      ...(parentWindow ? { parent: parentWindow } : {}),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true
+      }
+    })
+
+    loginWindow.webContents.on('will-navigate', (event, url) => {
+      if (!this.isAllowedFeishuAuthNavigation(url, session.brand, session.redirectUri)) {
+        event.preventDefault()
+      }
+    })
+    loginWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (this.isAllowedFeishuAuthNavigation(url, session.brand, session.redirectUri)) {
+        void loginWindow.loadURL(url)
+      }
+      return { action: 'deny' }
+    })
+    loginWindow.on('closed', () => {
+      if (session.window === loginWindow && !session.completed) {
+        this.completeFeishuAuthSession(
+          session,
+          createFeishuAuthResult({
+            authorized: false,
+            messageKey: 'settings.remote.feishu.authCancelled'
+          })
+        )
+      }
+      if (session.window === loginWindow) {
+        session.window = null
+      }
+    })
+
+    void loginWindow.loadURL(session.authUrl)
+    loginWindow.show()
+    loginWindow.focus()
+    session.window = loginWindow
   }
 
   private openWeixinIlinkLoginWindow(loginUrl: string | null | undefined): void {
