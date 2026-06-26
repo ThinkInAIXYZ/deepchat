@@ -6,7 +6,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { presenter } from '@/presenter'
 import { Prompt } from '@shared/presenter'
 import { isSafeRegexPattern } from '@shared/regexValidator'
@@ -47,8 +47,8 @@ const FillTemplateArgsSchema = z.object({
 })
 
 // Zod Schema 转换为 JSON Schema
-const GetTemplateParametersArgsJsonSchema = zodToJsonSchema(GetTemplateParametersArgsSchema)
-const FillTemplateArgsJsonSchema = zodToJsonSchema(FillTemplateArgsSchema)
+const GetTemplateParametersArgsJsonSchema = toDeepChatJsonSchema(GetTemplateParametersArgsSchema)
+const FillTemplateArgsJsonSchema = toDeepChatJsonSchema(FillTemplateArgsSchema)
 
 // --- MCP Server 实现 ---
 export class AutoPromptingServer {
@@ -111,7 +111,7 @@ export class AutoPromptingServer {
         {
           name: 'list_all_prompt_template_names',
           description: '获取所有可用提示词模板的名称列表。',
-          inputSchema: zodToJsonSchema(z.object({})), // 无需参数
+          inputSchema: toDeepChatJsonSchema(z.object({})), // 无需参数
           annotations: {
             title: 'List Prompt Template Names',
             readOnlyHint: true
@@ -160,7 +160,7 @@ export class AutoPromptingServer {
       const parsed = GetTemplateParametersArgsSchema.safeParse(args)
       if (!parsed.success) {
         throw new Error(
-          `Invalid parameters for get_prompt_template_parameters: ${parsed.error.errors.map((e) => e.message).join(', ')}`
+          `Invalid parameters for get_prompt_template_parameters: ${parsed.error.issues.map((e) => e.message).join(', ')}`
         )
       }
 
@@ -180,7 +180,7 @@ export class AutoPromptingServer {
       const parsed = FillTemplateArgsSchema.safeParse(args)
       if (!parsed.success) {
         throw new Error(
-          `Invalid parameters for fill_prompt_template: ${parsed.error.errors.map((e) => e.message).join(', ')}`
+          `Invalid parameters for fill_prompt_template: ${parsed.error.issues.map((e) => e.message).join(', ')}`
         )
       }
 

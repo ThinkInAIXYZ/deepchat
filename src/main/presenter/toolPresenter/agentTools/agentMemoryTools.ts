@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
 import { AGENT_MEMORY_CATEGORIES } from '@shared/types/agent-memory'
@@ -15,43 +15,37 @@ export const MEMORY_TOOL_NAMES = {
 
 type MemoryToolName = (typeof MEMORY_TOOL_NAMES)[keyof typeof MEMORY_TOOL_NAMES]
 
-const rememberSchema = z
-  .object({
-    content: z
-      .string()
-      .trim()
-      .min(1)
-      .describe('The durable fact or event to remember long-term, written in third person.'),
-    kind: z
-      .enum(['semantic', 'episodic'])
-      .optional()
-      .default('semantic')
-      .describe('semantic = stable fact/preference; episodic = a specific event.'),
-    category: z
-      .enum(AGENT_MEMORY_CATEGORIES)
-      .optional()
-      .describe('Optional agentic memory category; when provided it takes precedence over kind.'),
-    importance: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .default(0.7)
-      .describe('Importance 0..1 (affects retention and recall priority).')
-  })
-  .strict()
+const rememberSchema = z.strictObject({
+  content: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('The durable fact or event to remember long-term, written in third person.'),
+  kind: z
+    .enum(['semantic', 'episodic'])
+    .optional()
+    .default('semantic')
+    .describe('semantic = stable fact/preference; episodic = a specific event.'),
+  category: z
+    .enum(AGENT_MEMORY_CATEGORIES)
+    .optional()
+    .describe('Optional agentic memory category; when provided it takes precedence over kind.'),
+  importance: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .default(0.7)
+    .describe('Importance 0..1 (affects retention and recall priority).')
+})
 
-const recallSchema = z
-  .object({
-    query: z.string().trim().min(1).describe('What to recall; matched against stored memories.')
-  })
-  .strict()
+const recallSchema = z.strictObject({
+  query: z.string().trim().min(1).describe('What to recall; matched against stored memories.')
+})
 
-const forgetSchema = z
-  .object({
-    memoryId: z.string().trim().min(1).describe('The id of the memory to forget.')
-  })
-  .strict()
+const forgetSchema = z.strictObject({
+  memoryId: z.string().trim().min(1).describe('The id of the memory to forget.')
+})
 
 const memoryToolSchemas = {
   [MEMORY_TOOL_NAMES.remember]: rememberSchema,
@@ -69,7 +63,7 @@ function buildToolDefinition(
     function: {
       name,
       description,
-      parameters: zodToJsonSchema(schema) as {
+      parameters: toDeepChatJsonSchema(schema) as {
         type: string
         properties: Record<string, unknown>
         required?: string[]

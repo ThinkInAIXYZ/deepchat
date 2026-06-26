@@ -52,7 +52,7 @@ export const MemoryStatusSchema = z.object({
   reindexing: z.boolean().optional()
 })
 
-const JsonRecordSchema = z.record(z.unknown())
+const JsonRecordSchema = z.record(z.string(), z.unknown())
 
 export const MemoryAuditEventSchema = z.object({
   id: z.string(),
