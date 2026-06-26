@@ -48,6 +48,9 @@ const defaultTelegramSettings = (remoteEnabled: boolean) => ({
   allowedUserIds: []
 })
 
+const findIcon = (wrapper: ReturnType<typeof shallowMount>, icon: string) =>
+  wrapper.find(`[data-icon="${icon}"], [icon="${icon}"]`)
+
 async function mountDetail(
   options: { enabled?: boolean; pluginId?: string; remoteEnabled?: boolean } = {}
 ) {
@@ -116,7 +119,10 @@ async function mountDetail(
   vi.doMock('@iconify/vue', () => ({
     Icon: defineComponent({
       name: 'Icon',
-      template: '<span />'
+      props: {
+        icon: { type: String, required: true }
+      },
+      template: '<span :data-icon="icon" />'
     })
   }))
   vi.doMock('../../../src/renderer/settings/components/RemoteSettings.vue', () => ({
@@ -143,6 +149,27 @@ async function mountDetail(
 }
 
 describe('OfficialPluginDetailPage', () => {
+  it('uses the Feishu remote icon on the official plugin detail header', async () => {
+    const { wrapper } = await mountDetail()
+
+    const icon = findIcon(wrapper, 'lucide:message-circle')
+
+    expect(icon.exists()).toBe(true)
+    expect(icon.classes()).toContain('text-blue-500')
+    expect(findIcon(wrapper, 'lucide:puzzle').exists()).toBe(false)
+    expect(wrapper.text()).toContain('settings.remote.feishu.title')
+    expect(wrapper.text()).not.toContain('Feishu/Lark Integration')
+  })
+
+  it('uses the remote channel icon color on remote virtual plugin details', async () => {
+    const { wrapper } = await mountDetail({ pluginId: 'remote:telegram' })
+
+    const icon = findIcon(wrapper, 'lucide:send')
+
+    expect(icon.exists()).toBe(true)
+    expect(icon.classes()).toContain('text-sky-500')
+  })
+
   it('uses the plugin enable button to start Feishu remote too', async () => {
     const { wrapper, pluginClient, remoteControlClient } = await mountDetail()
 

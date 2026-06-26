@@ -29,7 +29,7 @@
               <div
                 class="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40"
               >
-                <Icon :icon="remoteIcon" class="size-6" />
+                <Icon :icon="remoteIcon" class="size-6" :class="remoteIconClass" />
               </div>
               <div class="min-w-0">
                 <h1 class="truncate text-2xl font-semibold tracking-normal">
@@ -128,10 +128,10 @@
               <div
                 class="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40"
               >
-                <Icon icon="lucide:puzzle" class="size-6" />
+                <Icon :icon="pluginIcon" class="size-6" :class="pluginIconClass" />
               </div>
               <div class="min-w-0">
-                <h1 class="truncate text-2xl font-semibold tracking-normal">{{ plugin.name }}</h1>
+                <h1 class="truncate text-2xl font-semibold tracking-normal">{{ pluginTitle }}</h1>
                 <p class="truncate text-sm text-muted-foreground">
                   {{ plugin.publisher }} · {{ plugin.id }}
                 </p>
@@ -307,6 +307,13 @@ const remoteIconByChannel: Record<RemoteChannel, string> = {
   discord: 'lucide:radio-tower',
   'weixin-ilink': 'lucide:messages-square'
 }
+const remoteIconClassByChannel: Record<RemoteChannel, string> = {
+  telegram: 'text-sky-500',
+  feishu: 'text-blue-500',
+  qqbot: 'text-emerald-500',
+  discord: 'text-indigo-500',
+  'weixin-ilink': 'text-green-500'
+}
 
 const pluginId = computed(() => String(route.params.pluginId ?? ''))
 const remoteChannel = computed<RemoteChannel | null>(() => {
@@ -334,6 +341,19 @@ const remoteIcon = computed(() => {
   const channel = remoteChannel.value
   return channel ? remoteIconByChannel[channel] : 'lucide:puzzle'
 })
+const remoteIconClass = computed(() => {
+  const channel = remoteChannel.value
+  return channel ? remoteIconClassByChannel[channel] : undefined
+})
+const pluginIcon = computed(() =>
+  isFeishuPlugin.value ? remoteIconByChannel.feishu : 'lucide:puzzle'
+)
+const pluginIconClass = computed(() =>
+  isFeishuPlugin.value ? remoteIconClassByChannel.feishu : undefined
+)
+const pluginTitle = computed(() =>
+  isFeishuPlugin.value ? t('settings.remote.feishu.title') : (plugin.value?.name ?? '')
+)
 
 function formatRuntimeState(state?: PluginRuntimeState): string {
   if (!state) {

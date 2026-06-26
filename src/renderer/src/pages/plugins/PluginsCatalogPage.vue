@@ -247,6 +247,8 @@ const searchQuery = ref('')
 const activeFilter = ref<CatalogFilter>('official')
 
 const isPending = (itemId: string) => pendingItemId.value === itemId
+const pluginTitle = (plugin: PluginListItem): string =>
+  isFeishuOfficialPlugin(plugin) ? t('settings.remote.feishu.title') : plugin.name
 
 const implementedRemoteChannels = computed(() =>
   remoteChannels.value.filter((channel) => channel.implemented)
@@ -263,7 +265,7 @@ const addedItems = computed<AddedItem[]>(() => {
       id: `official:${plugin.id}`,
       kind: 'official' as const,
       pluginId: plugin.id,
-      title: plugin.name,
+      title: pluginTitle(plugin),
       icon: isFeishuOfficialPlugin(plugin) ? remoteIconByChannel.feishu : 'lucide:puzzle',
       iconClass: isFeishuOfficialPlugin(plugin)
         ? remoteIconClassByChannel.feishu
@@ -290,7 +292,7 @@ const catalogItems = computed<CatalogItem[]>(() => {
     id: `official:${plugin.id}`,
     kind: 'official' as const,
     plugin,
-    title: plugin.name,
+    title: pluginTitle(plugin),
     description: plugin.publisher,
     badge: plugin.enabled
       ? t('settings.plugins.status.enabled')
