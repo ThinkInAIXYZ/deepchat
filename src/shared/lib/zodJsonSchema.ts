@@ -8,6 +8,9 @@ export interface DeepChatJsonSchemaObject {
   description?: string
 }
 
+const INTERSECTION_SCHEMA_ERROR =
+  'DeepChat tool schemas cannot safely represent intersection object schemas.'
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -106,14 +109,6 @@ const collectCommonRequired = (variants: Record<string, unknown>[]): string[] | 
   return required.length > 0 ? required : undefined
 }
 
-const collectUnionRequired = (variants: Record<string, unknown>[]): string[] | undefined => {
-  const required = Array.from(
-    new Set(variants.flatMap((variant) => collectRequired(variant) ?? []))
-  )
-
-  return required.length > 0 ? required : undefined
-}
-
 const collectAdditionalProperties = (
   jsonSchema: Record<string, unknown>
 ): boolean | Record<string, unknown> | undefined => {
@@ -155,8 +150,8 @@ const buildObjectSchema = (
 
 const getObjectVariants = (
   jsonSchema: Record<string, unknown>
-): { branchKey: 'oneOf' | 'anyOf' | 'allOf'; variants: Record<string, unknown>[] } | null => {
-  for (const branchKey of ['oneOf', 'anyOf', 'allOf'] as const) {
+): { branchKey: 'oneOf' | 'anyOf'; variants: Record<string, unknown>[] } | null => {
+  for (const branchKey of ['oneOf', 'anyOf'] as const) {
     const variants = objectVariants(jsonSchema[branchKey])
     if (variants) {
       return { branchKey, variants }
@@ -172,6 +167,10 @@ export function toDeepChatJsonSchema(schema: z.ZodType): DeepChatJsonSchemaObjec
     unrepresentable: 'throw'
   }) as Record<string, unknown>
 
+  if (Array.isArray(jsonSchema.allOf)) {
+    throw new Error(INTERSECTION_SCHEMA_ERROR)
+  }
+
   if (jsonSchema.type === 'object' && isRecord(jsonSchema.properties)) {
     const required = collectRequired(jsonSchema)
 
@@ -186,9 +185,8 @@ export function toDeepChatJsonSchema(schema: z.ZodType): DeepChatJsonSchemaObjec
   const objectVariantResult = getObjectVariants(jsonSchema)
 
   if (objectVariantResult) {
-    const { branchKey, variants } = objectVariantResult
-    const required =
-      branchKey === 'allOf' ? collectUnionRequired(variants) : collectCommonRequired(variants)
+    const { variants } = objectVariantResult
+    const required = collectCommonRequired(variants)
 
     return buildObjectSchema(
       mergeObjectVariantProperties(variants),

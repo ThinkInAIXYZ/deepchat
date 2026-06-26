@@ -38,6 +38,12 @@
   `$ref`, `oneOf`, `anyOf`, or `allOf`; safe root metadata such as
   `description` may be preserved, and nested property schemas may still use JSON
   Schema composition when needed to represent a real field-level union.
+- Root `allOf` schemas produced by Zod intersections are rejected fail-fast
+  because flattening them into a provider-facing object schema can weaken
+  intersection semantics.
+- AI SDK mapper normalization preserves root-level shared `properties` and
+  `required` keys when externally supplied tool schemas combine a root object
+  with root `oneOf`, `anyOf`, or `allOf` branches.
 - Loose schemas intentionally preserve unknown keys, plain object schemas intentionally strip unknown keys, strict schemas intentionally reject unknown keys.
 
 ## Test Strategy
@@ -51,7 +57,9 @@
   - recursive JSON value record parsing.
   - clean provider-facing root schemas for object unions and nullable objects.
   - rejection of unsupported top-level records, mixed object/non-object unions,
-    and unrepresentable schema members.
+    root intersections, and unrepresentable schema members.
+  - AI SDK mapper preservation of shared root properties and required keys when
+    normalizing composed external object schemas.
 - Targeted commands:
   - `pnpm run test:main -- test/main/routes/contracts.test.ts`
   - `pnpm run test:main -- test/main/presenter/toolPresenter`

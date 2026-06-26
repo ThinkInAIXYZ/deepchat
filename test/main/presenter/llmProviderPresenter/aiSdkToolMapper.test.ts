@@ -51,11 +51,11 @@ describe('AI SDK tool schema normalization', () => {
     const normalized = normalizeToolInputSchema({
       type: 'object',
       properties: {
-        staleRootProperty: {
-          type: 'boolean'
+        sharedRequired: {
+          type: 'string'
         }
       },
-      required: ['staleRootProperty'],
+      required: ['sharedRequired'],
       oneOf: [
         {
           type: 'object',
@@ -82,13 +82,18 @@ describe('AI SDK tool schema normalization', () => {
     expect(normalized).toEqual({
       type: 'object',
       properties: {
+        sharedRequired: { type: 'string' },
         action: { type: 'string', enum: ['create', 'delete'] },
         content: { type: 'string' },
         draftId: { type: 'string' }
       },
-      required: ['action'],
+      required: ['sharedRequired', 'action'],
       additionalProperties: false
     })
+    expect(normalized).not.toHaveProperty('oneOf')
+    expect(normalized).not.toHaveProperty('anyOf')
+    expect(normalized).not.toHaveProperty('allOf')
+    expect(normalized).not.toHaveProperty('$schema')
   })
 
   it('converts invalid root schemas into empty object schemas', () => {

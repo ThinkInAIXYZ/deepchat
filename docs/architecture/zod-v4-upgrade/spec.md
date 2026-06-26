@@ -27,6 +27,11 @@ behavior stable.
 - MCP/tool JSON Schema conversion uses the native Zod 4 `z.toJSONSchema(...)`
   API through a project helper that returns the object schema shape required by
   existing tool consumers.
+- Provider-facing tool schemas keep root JSON Schema composition out of the
+  published root object shape; Zod intersection/root `allOf` schemas are
+  rejected fail-fast until their semantics can be represented safely.
+- AI SDK tool schema normalization preserves shared root object fields when it
+  flattens externally supplied root composition schemas.
 - Route and event contract public wire shapes remain unchanged.
 - Migration-focused tests cover strict, loose, and strip behavior, the JSON
   Schema helper, default and optional tool parameters, and recursive JSON record

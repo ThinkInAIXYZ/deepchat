@@ -85,6 +85,21 @@ describe('Zod 4 migration contracts', () => {
     })
   })
 
+  it('rejects intersection object schemas for tool schemas', () => {
+    expect(() =>
+      toDeepChatJsonSchema(
+        z.intersection(
+          z.object({
+            value: z.string()
+          }),
+          z.object({
+            value: z.number()
+          })
+        )
+      )
+    ).toThrow('DeepChat tool schemas cannot safely represent intersection object schemas.')
+  })
+
   it('preserves meaningful root additionalProperties values', () => {
     const strictSchema = toDeepChatJsonSchema(
       z.strictObject({
