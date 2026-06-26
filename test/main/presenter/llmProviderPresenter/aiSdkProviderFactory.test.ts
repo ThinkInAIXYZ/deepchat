@@ -490,7 +490,7 @@ describe('AI SDK provider factory', () => {
       messages: [{ role: 'user', content: '你好' }],
       maxOutputTokens: 16
     })
-    for await (const _part of result.fullStream) {
+    for await (const _part of result.stream) {
       continue
     }
 
