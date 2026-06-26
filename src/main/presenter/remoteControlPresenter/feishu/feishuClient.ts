@@ -360,7 +360,7 @@ export class FeishuClient {
     }
   }
 
-  async sendCardEntity(target: FeishuTransportTarget, cardId: string): Promise<string | null> {
+  async sendCardEntity(target: FeishuTransportTarget, cardId: string): Promise<string> {
     const content = createStreamingCardEntityMessagePayload(cardId)
 
     if (target.replyToMessageId) {
@@ -374,7 +374,11 @@ export class FeishuClient {
           reply_in_thread: Boolean(target.threadId)
         }
       })) as FeishuMessageResponse
-      return response.data?.message_id?.trim() || null
+      const messageId = response.data?.message_id?.trim()
+      if (!messageId) {
+        throw new Error('Feishu CardKit send card entity did not return message_id.')
+      }
+      return messageId
     }
 
     const response = (await this.sdk.im.message.create({
@@ -387,7 +391,11 @@ export class FeishuClient {
         content
       }
     })) as FeishuMessageResponse
-    return response.data?.message_id?.trim() || null
+    const messageId = response.data?.message_id?.trim()
+    if (!messageId) {
+      throw new Error('Feishu CardKit send card entity did not return message_id.')
+    }
+    return messageId
   }
 
   async updateStreamingCardContent(params: {

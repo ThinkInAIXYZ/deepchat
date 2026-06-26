@@ -538,12 +538,23 @@ export class FeishuRuntime {
     startedAt: number
   ): Promise<boolean> {
     let cardState: FeishuStreamingCardDeliveryState | null = null
+    const closeAndFinish = async (): Promise<boolean> => {
+      try {
+        cardState = await this.closeStreamingCardIfNeeded(cardState)
+      } catch (error) {
+        console.warn('[FeishuRuntime] Failed to close streaming card before exit:', {
+          cardId: cardState?.cardId,
+          error: safeErrorMessage(error)
+        })
+      }
+      return true
+    }
 
     try {
       while (this.isCurrentRun(runId)) {
         const snapshot = await execution.getSnapshot()
         if (!this.isCurrentRun(runId)) {
-          return true
+          return await closeAndFinish()
         }
 
         const sourceMessageId = snapshot.messageId ?? execution.eventId ?? null
@@ -589,7 +600,7 @@ export class FeishuRuntime {
 
         if (Date.now() - startedAt >= FEISHU_CONVERSATION_POLL_TIMEOUT_MS) {
           if (!this.isCurrentRun(runId)) {
-            return true
+            return await closeAndFinish()
           }
           const timeoutText =
             'The current conversation timed out before finishing. Please try again.'
@@ -616,7 +627,7 @@ export class FeishuRuntime {
         await sleep(TELEGRAM_STREAM_POLL_INTERVAL_MS)
       }
 
-      return true
+      return await closeAndFinish()
     } catch (error) {
       console.warn('[FeishuRuntime] Streaming card delivery failed, falling back to markdown:', {
         chatId: target.chatId,
@@ -705,15 +716,22 @@ export class FeishuRuntime {
     target: FeishuTransportTarget
   ): Promise<FeishuStreamingCardDeliveryState> {
     const card = await this.deps.client.createStreamingCard('')
-    await this.deps.client.sendCardEntity(target, card.cardId)
-
-    return {
+    const state: FeishuStreamingCardDeliveryState = {
       cardId: card.cardId,
       elementId: card.elementId,
       sequence: 0,
       lastText: '',
       closed: false
     }
+
+    try {
+      await this.deps.client.sendCardEntity(target, card.cardId)
+    } catch (error) {
+      await this.closeStreamingCardAfterFailure(state, state.sequence + 1)
+      throw error
+    }
+
+    return state
   }
 
   private async closeStreamingCardIfNeeded(

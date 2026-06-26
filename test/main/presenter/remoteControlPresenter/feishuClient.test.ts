@@ -356,6 +356,43 @@ describe('FeishuClient', () => {
     })
   })
 
+  it('fails fast when CardKit card entity omits message_id', async () => {
+    const client = new FeishuClient({
+      brand: 'feishu',
+      appId: 'cli_feishu',
+      appSecret: 'secret',
+      verificationToken: 'verify',
+      encryptKey: 'encrypt'
+    })
+    ;(client as any).sdk.im.message.reply.mockResolvedValue({
+      data: {
+        message_id: '  '
+      }
+    })
+    ;(client as any).sdk.im.message.create.mockResolvedValue({
+      data: {}
+    })
+
+    await expect(
+      client.sendCardEntity(
+        {
+          chatId: 'oc_1',
+          replyToMessageId: 'om_source'
+        },
+        'card_1'
+      )
+    ).rejects.toThrow('Feishu CardKit send card entity did not return message_id.')
+
+    await expect(
+      client.sendCardEntity(
+        {
+          chatId: 'oc_1'
+        },
+        'card_1'
+      )
+    ).rejects.toThrow('Feishu CardKit send card entity did not return message_id.')
+  })
+
   it('surfaces CardKit API errors clearly', async () => {
     const client = new FeishuClient({
       brand: 'feishu',

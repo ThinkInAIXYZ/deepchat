@@ -424,6 +424,111 @@ describe('FeishuRuntime', () => {
     }
   })
 
+  it('falls back to markdown delivery and closes the card when posting the card entity fails', async () => {
+    const harness = await createHarness({ enableStreamingCards: true })
+    harness.client.sendCardEntity.mockRejectedValueOnce(new Error('missing message id'))
+    harness.router.handleMessage.mockResolvedValue({
+      replies: [],
+      conversation: {
+        sessionId: 'session-1',
+        eventId: 'msg-1',
+        getSnapshot: vi.fn().mockResolvedValue({
+          messageId: 'msg-1',
+          text: 'Fallback answer',
+          traceText: '',
+          deliverySegments: [
+            {
+              key: 'msg-1:0:answer',
+              kind: 'answer',
+              text: 'Fallback answer',
+              sourceMessageId: 'msg-1'
+            }
+          ],
+          statusText: 'Running: writing...',
+          finalText: 'Fallback answer',
+          completed: true,
+          pendingInteraction: null
+        })
+      }
+    })
+
+    await harness.onMessage({
+      parsed: createParsedMessage({
+        messageId: 'om_card_entity_fallback'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.closeStreamingCard).toHaveBeenCalledWith('card_1', 1)
+      expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
+        {
+          chatId: 'oc_1',
+          threadId: null,
+          replyToMessageId: 'om_card_entity_fallback'
+        },
+        'Fallback answer'
+      )
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('closes an active streaming card when the run stops before completion', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness({ enableStreamingCards: true })
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi.fn().mockResolvedValue({
+            messageId: 'msg-1',
+            text: 'Draft answer',
+            traceText: '',
+            deliverySegments: [
+              {
+                key: 'msg-1:0:answer',
+                kind: 'answer',
+                text: 'Draft answer',
+                sourceMessageId: 'msg-1'
+              }
+            ],
+            statusText: 'Running: writing...',
+            finalText: '',
+            completed: false,
+            pendingInteraction: null
+          })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_card_stop'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.updateStreamingCardContent).toHaveBeenCalledWith({
+          cardId: 'card_1',
+          elementId: 'md_stream',
+          content: '**Status**\nRunning: writing...\n\n**Answer**\nDraft answer',
+          sequence: 1
+        })
+      })
+
+      await harness.runtime.stop()
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+
+      await vi.waitFor(() => {
+        expect(harness.client.closeStreamingCard).toHaveBeenCalledWith('card_1', 2)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('streams answer text beside a persistent trace log', async () => {
     vi.useFakeTimers()
 

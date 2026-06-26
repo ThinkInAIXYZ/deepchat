@@ -2107,9 +2107,9 @@
       "userAuthTitle": "Authorize remote-control users",
       "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control DeepChat. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
       "pairAuthTitle": "/pair command",
-      "pairAuthDescription": "Click Pair below, then send /pair code in a direct chat with the bot. This is the recommended authorization path and still works with installed PersonalAgent apps.",
-      "streamingCards": "CardKit Streaming Cards",
-      "streamingCardsDescription": "Stream AI replies through Feishu / Lark CardKit in real time. Requires im:message and cardkit:card:write permissions; DeepChat falls back to normal messages if CardKit fails."
+      "pairAuthDescription": "아래의 페어링을 클릭한 다음 봇과의 다이렉트 채팅에서 /pair 코드를 보내세요. 권장되는 인증 방법이며 설치된 PersonalAgent 앱에서도 계속 작동합니다.",
+      "streamingCards": "CardKit 스트리밍 카드",
+      "streamingCardsDescription": "Feishu / Lark CardKit을 통해 AI 답변을 실시간으로 스트리밍합니다. im:message 및 cardkit:card:write 권한이 필요합니다. CardKit이 실패하면 DeepChat은 일반 메시지로 폴백합니다."
     },
     "discord": {
       "title": "Discord",
