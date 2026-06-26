@@ -17,6 +17,7 @@
         class="agent-progress-trigger group flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-all duration-200 hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
         data-testid="agent-progress-float-trigger"
         :aria-expanded="!collapsed"
+        :aria-controls="panelId"
         :aria-label="t('chat.workspace.plan.section')"
         @click="emit('toggle-collapse')"
       >
@@ -34,7 +35,12 @@
             <span
               class="shrink-0 rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-background/60"
             >
-              {{ completedCount }}/{{ entries.length }}
+              {{
+                t('chat.workspace.plan.completedCount', {
+                  completed: completedCount,
+                  total: entries.length
+                })
+              }}
             </span>
           </span>
 
@@ -50,15 +56,6 @@
       <div class="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          class="agent-progress-action inline-flex h-7 w-7 items-center justify-center text-muted-foreground"
-          :aria-label="collapsed ? t('common.expand') : t('common.collapse')"
-          @click="emit('toggle-collapse')"
-        >
-          <Icon :icon="collapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'" class="h-3 w-3" />
-        </button>
-
-        <button
-          type="button"
           class="agent-progress-action inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground"
           :aria-label="t('common.close')"
           @click="emit('dismiss')"
@@ -70,25 +67,29 @@
 
     <Transition name="agent-progress-panel">
       <div
+        :id="panelId"
         v-show="!collapsed"
         class="agent-progress-panel relative border-t border-border/60 px-3 pb-3 pt-2.5"
         data-testid="agent-progress-float-body"
+        role="status"
+        aria-live="polite"
       >
         <div class="space-y-2">
           <div
             v-for="(entry, index) in entries"
             :key="`${entry.status}-${index}-${entry.step}`"
             class="agent-progress-item flex items-center gap-2.5 rounded-2xl px-2.5 py-1 text-[13px] leading-5"
+            :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).textClass"
             :aria-label="getEntryAriaLabel(entry)"
           >
             <span
               class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border"
-              :class="getStatusBadgeClass(entry.status)"
+              :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).badgeClass"
             >
               <Icon
-                :icon="getStatusIcon(entry.status)"
+                :icon="resolveStepPresentation(entry.status, { terminal: isTerminal }).icon"
                 class="h-3 w-3 shrink-0"
-                :class="getStatusIconClass(entry.status)"
+                :class="resolveStepPresentation(entry.status, { terminal: isTerminal }).iconClass"
                 aria-hidden="true"
               />
             </span>
@@ -104,8 +105,9 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import type { AgentPlanItem, AgentPlanStepStatus } from '@shared/types/agent-plan'
+import type { AgentPlanItem } from '@shared/types/agent-plan'
 import type { AgentPlanViewSnapshot } from '@/stores/ui/agentPlan'
+import { entryAriaLabel, resolveStepPresentation } from '@/composables/useAgentPlanStatus'
 
 const props = defineProps<{
   snapshot: AgentPlanViewSnapshot | null
@@ -128,29 +130,11 @@ const completedCount = computed(
   () => entries.value.filter((entry) => entry.status === 'completed').length
 )
 
-const getStatusIcon = (status: AgentPlanStepStatus): string => {
-  if (status === 'completed') return 'lucide:circle-check'
-  if (status === 'in_progress') return 'lucide:loader-circle'
-  return 'lucide:circle'
-}
-
-const getStatusIconClass = (status: AgentPlanStepStatus): string => {
-  if (status === 'completed') return 'text-emerald-600 dark:text-emerald-400'
-  if (status === 'in_progress') return 'animate-spin text-primary'
-  return 'text-muted-foreground'
-}
-
-const getStatusBadgeClass = (status: AgentPlanStepStatus): string => {
-  if (status === 'completed') return 'border-emerald-500/20 bg-emerald-500/10'
-  if (status === 'in_progress') return 'border-primary/25 bg-primary/10'
-  return 'border-border/70'
-}
+const isTerminal = computed(() => Boolean(props.snapshot?.terminalReason))
+const panelId = computed(() => `agent-progress-panel-${props.snapshot?.messageId ?? 'current'}`)
 
 const getEntryAriaLabel = (entry: AgentPlanItem): string =>
-  t('chat.workspace.plan.itemAriaLabel', {
-    status: t(`chat.workspace.plan.status.${entry.status}`),
-    step: entry.step
-  })
+  entryAriaLabel(t, entry, { terminal: isTerminal.value })
 </script>
 
 <style scoped>

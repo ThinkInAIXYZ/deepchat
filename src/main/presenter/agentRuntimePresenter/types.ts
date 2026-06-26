@@ -11,6 +11,7 @@ import type { ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { ToolOutputGuard } from './toolOutputGuard'
+import type { AgentPlanTerminalReason } from '@shared/types/agent-plan'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -48,6 +49,7 @@ export interface StreamState {
   completedToolCalls: ToolCallResult[]
   pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
+  planTerminalReason?: AgentPlanTerminalReason
   dirty: boolean
 }
 

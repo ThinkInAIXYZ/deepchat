@@ -939,6 +939,95 @@ describe('processStream', () => {
     expect((coreStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(129)
   })
 
+  it('stamps open plan blocks when the max tool calls limit stops the loop', async () => {
+    const finalWrites: any[] = []
+    messageStore.finalizeAssistantMessage.mockImplementation((_messageId, blocks) => {
+      finalWrites.push(structuredClone(blocks))
+    })
+    let callCount = 0
+    const toolPresenter = createMockToolPresenter({ action: 'done' })
+
+    const coreStream = vi.fn(function () {
+      callCount++
+      return (async function* () {
+        if (callCount === 1) {
+          yield {
+            type: 'plan',
+            plan: [{ step: 'Keep looping', status: 'in_progress' }],
+            revision: 1,
+            updatedAt: '2026-05-18T00:00:00.000Z'
+          } as LLMCoreStreamEvent
+        }
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: `tc${callCount}`,
+          tool_call_name: 'action'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: `tc${callCount}`,
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('action')]
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    await promise
+
+    const planBlock = finalWrites.at(-1)?.find((block: { type: string }) => block.type === 'plan')
+    expect(planBlock?.extra?.plan_terminal_reason).toBe('max_steps')
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'max_steps'
+    })
+  })
+
+  it('persists an aborted terminal marker when AbortError is thrown after a plan event', async () => {
+    const persistedWrites: any[] = []
+    messageStore.updateAssistantContent.mockImplementation((_messageId, blocks) => {
+      persistedWrites.push(structuredClone(blocks))
+    })
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Current work', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      throw abortError
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    const planBlock = persistedWrites
+      .at(-1)
+      ?.find((block: { type: string }) => block.type === 'plan')
+    expect(planBlock?.extra?.plan_terminal_reason).toBe('aborted')
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'aborted'
+    })
+  })
+
   it('abort during stream', async () => {
     const abortController = new AbortController()
 

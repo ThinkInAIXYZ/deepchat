@@ -228,6 +228,8 @@ import {
   oauthOpenAICodexStartBrowserLoginRoute
 } from './routes/oauth.routes'
 import {
+  remoteControlCancelFeishuAuthRoute,
+  remoteControlCancelFeishuInstallRoute,
   remoteControlClearChannelPairCodeRoute,
   remoteControlCreateChannelPairCodeRoute,
   remoteControlGetChannelBindingsRoute,
@@ -242,7 +244,11 @@ import {
   remoteControlRemoveWeixinIlinkAccountRoute,
   remoteControlRestartWeixinIlinkAccountRoute,
   remoteControlSaveChannelSettingsRoute,
+  remoteControlStartFeishuAuthRoute,
+  remoteControlStartFeishuInstallRoute,
   remoteControlStartWeixinIlinkLoginRoute,
+  remoteControlWaitForFeishuAuthRoute,
+  remoteControlWaitForFeishuInstallRoute,
   remoteControlWaitForWeixinIlinkLoginRoute
 } from './routes/remote-control.routes'
 import {
@@ -551,6 +557,12 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [remoteControlCreateChannelPairCodeRoute.name]: remoteControlCreateChannelPairCodeRoute,
   [remoteControlClearChannelPairCodeRoute.name]: remoteControlClearChannelPairCodeRoute,
   [remoteControlGetTelegramStatusRoute.name]: remoteControlGetTelegramStatusRoute,
+  [remoteControlStartFeishuAuthRoute.name]: remoteControlStartFeishuAuthRoute,
+  [remoteControlWaitForFeishuAuthRoute.name]: remoteControlWaitForFeishuAuthRoute,
+  [remoteControlCancelFeishuAuthRoute.name]: remoteControlCancelFeishuAuthRoute,
+  [remoteControlStartFeishuInstallRoute.name]: remoteControlStartFeishuInstallRoute,
+  [remoteControlWaitForFeishuInstallRoute.name]: remoteControlWaitForFeishuInstallRoute,
+  [remoteControlCancelFeishuInstallRoute.name]: remoteControlCancelFeishuInstallRoute,
   [remoteControlGetWeixinIlinkStatusRoute.name]: remoteControlGetWeixinIlinkStatusRoute,
   [remoteControlStartWeixinIlinkLoginRoute.name]: remoteControlStartWeixinIlinkLoginRoute,
   [remoteControlWaitForWeixinIlinkLoginRoute.name]: remoteControlWaitForWeixinIlinkLoginRoute,

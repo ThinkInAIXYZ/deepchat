@@ -264,9 +264,9 @@
         "pending": "Pending",
         "in_progress": "In Progress",
         "completed": "Completed",
-        "failed": "Failed",
-        "skipped": "Skipped"
-      }
+        "interrupted": "Interrupted"
+      },
+      "completedCount": "{completed}/{total} completed"
     },
     "files": {
       "section": "Files",

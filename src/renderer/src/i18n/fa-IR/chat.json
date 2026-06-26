@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "تکمیل شد",
-        "failed": "شکست بخورد",
         "in_progress": "در حال انجام است",
         "pending": "در انتظار",
-        "skipped": "پرش کرد"
-      }
+        "interrupted": "قطع شد"
+      },
+      "completedCount": "{completed}/{total} تکمیل شد"
     },
     "terminal": {
       "empty": "هنوز خروجی وجود ندارد",

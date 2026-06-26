@@ -67,6 +67,64 @@ export interface FeishuPairingSnapshot {
   pairedUserOpenIds: string[]
 }
 
+export interface FeishuAuthSession {
+  sessionKey: string
+  authUrl: string | null
+  redirectUri: string
+  expiresAt: number
+  message?: string
+  messageKey?: string
+}
+
+export interface FeishuAuthResult {
+  authorized: boolean
+  openId: string | null
+  unionId?: string
+  name?: string
+  message?: string
+  messageKey?: string
+}
+
+export interface FeishuAuthStartInput {
+  brand?: FeishuBrand
+  appId?: string
+  appSecret?: string
+  redirectUri?: string
+}
+
+export interface FeishuAuthWaitInput {
+  sessionKey: string
+  timeoutMs?: number
+}
+
+export interface FeishuInstallSession {
+  sessionKey: string
+  installUrl: string
+  userCode: string
+  expiresAt: number
+  intervalMs: number
+  message?: string
+  messageKey?: string
+}
+
+export interface FeishuInstallResult {
+  installed: boolean
+  brand: FeishuBrand | null
+  appId: string | null
+  openId?: string
+  message?: string
+  messageKey?: string
+}
+
+export interface FeishuInstallStartInput {
+  brand?: FeishuBrand
+}
+
+export interface FeishuInstallWaitInput {
+  sessionKey: string
+  timeoutMs?: number
+}
+
 export interface QQBotPairingSnapshot {
   pairCode: string | null
   pairCodeExpiresAt: number | null
@@ -107,6 +165,7 @@ export interface FeishuRemoteSettings {
   verificationToken: string
   encryptKey: string
   remoteEnabled: boolean
+  enableStreamingCards: boolean
   defaultAgentId: string
   defaultWorkdir: string
   pairedUserOpenIds: string[]
@@ -286,6 +345,13 @@ export interface IRemoteControlPresenter {
   createTelegramPairCode(): Promise<{ code: string; expiresAt: number }>
   clearTelegramPairCode(): Promise<void>
   clearTelegramBindings(): Promise<number>
+
+  startFeishuAuth(input?: FeishuAuthStartInput): Promise<FeishuAuthSession>
+  waitForFeishuAuth(input: FeishuAuthWaitInput): Promise<FeishuAuthResult>
+  cancelFeishuAuth(sessionKey: string): Promise<void>
+  startFeishuInstall(input?: FeishuInstallStartInput): Promise<FeishuInstallSession>
+  waitForFeishuInstall(input: FeishuInstallWaitInput): Promise<FeishuInstallResult>
+  cancelFeishuInstall(sessionKey: string): Promise<void>
 
   getDiscordSettings(): Promise<DiscordRemoteSettings>
   saveDiscordSettings(input: DiscordRemoteSettings): Promise<DiscordRemoteSettings>

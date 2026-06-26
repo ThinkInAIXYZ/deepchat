@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 
@@ -129,7 +129,7 @@ export class RagflowKnowledgeServer {
           return {
             name: `ragflow_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(RagflowKnowledgeSearchArgsSchema),
+            inputSchema: toDeepChatJsonSchema(RagflowKnowledgeSearchArgsSchema),
             annotations: {
               title: 'RAGFlow Knowledge Search',
               readOnlyHint: true,

@@ -5,13 +5,15 @@ import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: Record<string, string>) => {
+    t: (key: string, params?: Record<string, string | number>) => {
       const messages: Record<string, string> = {
         'chat.workspace.plan.section': 'Plan',
+        'chat.workspace.plan.completedCount': '{completed}/{total} completed',
         'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
         'chat.workspace.plan.status.completed': 'Completed',
         'chat.workspace.plan.status.in_progress': 'In Progress',
-        'chat.workspace.plan.status.pending': 'Pending'
+        'chat.workspace.plan.status.pending': 'Pending',
+        'chat.workspace.plan.status.interrupted': 'Interrupted'
       }
       return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => params?.[name] ?? '')
     }
@@ -72,5 +74,20 @@ describe('AgentProgressFloat', () => {
     expect(wrapper.text()).toContain('1/2')
     expect(wrapper.find('button').attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('[data-testid="agent-progress-float-body"]').isVisible()).toBe(false)
+  })
+
+  it('renders terminal in-progress steps without a spinner', () => {
+    const wrapper = mount(AgentProgressFloat, {
+      props: {
+        snapshot: {
+          ...snapshot,
+          terminalReason: 'aborted'
+        },
+        collapsed: false
+      }
+    })
+
+    expect(wrapper.find('.animate-spin').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Interrupted: Wire progress panel"]').exists()).toBe(true)
   })
 })

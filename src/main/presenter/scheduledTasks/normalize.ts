@@ -53,12 +53,10 @@ const ScheduledTaskSchema = z.object({
   lastFiredAt: z.number().int().nonnegative().nullable()
 })
 
-const LooseSchedulerSettingsSchema = z
-  .object({
-    version: z.unknown().optional(),
-    tasks: z.array(z.unknown()).optional()
-  })
-  .strip()
+const LooseSchedulerSettingsSchema = z.object({
+  version: z.unknown().optional(),
+  tasks: z.array(z.unknown()).optional()
+})
 
 const sanitizeTrigger = (input: unknown): ScheduledTaskTrigger | null => {
   const parsed = TriggerSchema.safeParse(input)

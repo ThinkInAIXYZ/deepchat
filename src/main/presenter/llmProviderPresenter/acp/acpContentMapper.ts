@@ -1,13 +1,14 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpConfigState } from '@shared/presenter'
 import type { AssistantMessageBlock } from '@shared/chat'
+import { createAgentPlanBlock, normalizeAgentPlanStatus } from '@shared/chat/agentPlanBlock'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
 export interface PlanEntry {
-  content: string
+  step: string
   priority?: string | null
-  status?: string | null
+  status: 'pending' | 'in_progress' | 'completed'
 }
 
 export interface MappedContent {
@@ -235,17 +236,19 @@ export class AcpContentMapper {
 
     // Store structured plan entries
     payload.planEntries = entries.map((entry) => ({
-      content: entry.content,
+      step: entry.content,
       priority: entry.priority ?? null,
-      status: entry.status ?? null
+      status: normalizeAgentPlanStatus(entry.status)
     }))
 
-    // Create dedicated plan block
-    payload.events.push(createStreamEvent.reasoning('')) // Empty event for plan
+    const updatedAt = new Date().toISOString()
+    payload.events.push(createStreamEvent.plan(payload.planEntries, { revision: 1, updatedAt }))
     payload.blocks.push(
-      this.createBlock('plan', '', {
-        extra: { plan_entries: payload.planEntries }
-      })
+      createAgentPlanBlock({
+        plan: payload.planEntries,
+        revision: 1,
+        updatedAt
+      }) as AssistantMessageBlock
     )
   }
 

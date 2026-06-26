@@ -1,9 +1,20 @@
-export type AgentPlanStepStatus = 'pending' | 'in_progress' | 'completed'
+import { z } from 'zod'
 
-export interface AgentPlanItem {
-  step: string
-  status: AgentPlanStepStatus
-}
+export const UPDATE_PLAN_TOOL_NAME = 'update_plan'
+
+export const agentPlanStepStatusSchema = z.enum(['pending', 'in_progress', 'completed'])
+export const agentPlanTerminalReasonSchema = z.enum(['aborted', 'max_steps', 'error'])
+export const agentPlanItemSchema = z.strictObject({
+  step: z
+    .string()
+    .transform((value) => value.trim())
+    .refine((value) => value.length > 0, 'step must be a non-empty string'),
+  status: agentPlanStepStatusSchema
+})
+
+export type AgentPlanStepStatus = z.infer<typeof agentPlanStepStatusSchema>
+export type AgentPlanTerminalReason = z.infer<typeof agentPlanTerminalReasonSchema>
+export type AgentPlanItem = z.infer<typeof agentPlanItemSchema>
 
 export interface AgentPlanDisplayItem {
   step?: string
@@ -19,13 +30,13 @@ export interface UpdatePlanArgs {
 
 export interface AgentPlanSnapshot extends UpdatePlanArgs {
   sessionId: string
+  messageId?: string
   toolCallId?: string
   revision: number
   updatedAt: string
+  terminalReason?: AgentPlanTerminalReason
 }
 
 export interface AgentPlanState {
-  current: UpdatePlanArgs | null
   revision: number
-  updatedAt: string | null
 }

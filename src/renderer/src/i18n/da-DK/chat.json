@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Afsluttet",
-        "failed": "Mislykket",
         "in_progress": "i gang",
         "pending": "Indtil",
-        "skipped": "sprunget over"
-      }
+        "interrupted": "Afbrudt"
+      },
+      "completedCount": "{completed}/{total} fuldført"
     },
     "terminal": {
       "empty": "Ingen output endnu",

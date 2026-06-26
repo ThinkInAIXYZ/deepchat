@@ -245,9 +245,9 @@
         "pending": "Đang chờ xử lý",
         "in_progress": "Đang tiến hành",
         "completed": "Đã hoàn thành",
-        "failed": "thất bại",
-        "skipped": "Đã bỏ qua"
-      }
+        "interrupted": "Đã gián đoạn"
+      },
+      "completedCount": "{completed}/{total} đã hoàn thành"
     },
     "files": {
       "section": "Tập tin",

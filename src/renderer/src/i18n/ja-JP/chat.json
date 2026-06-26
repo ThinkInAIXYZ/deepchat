@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "完了しました",
-        "failed": "失敗",
         "in_progress": "進行中",
         "pending": "保留中",
-        "skipped": "スキップしました"
-      }
+        "interrupted": "中断しました"
+      },
+      "completedCount": "{completed}/{total} 完了"
     },
     "terminal": {
       "empty": "まだ出力はありません",

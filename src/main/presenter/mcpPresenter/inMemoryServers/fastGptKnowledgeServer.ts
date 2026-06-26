@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 
@@ -118,7 +118,7 @@ export class FastGptKnowledgeServer {
           return {
             name: `fastgpt_knowledge_search${suffix}`,
             description: config.description,
-            inputSchema: zodToJsonSchema(FastGptKnowledgeSearchArgsSchema),
+            inputSchema: toDeepChatJsonSchema(FastGptKnowledgeSearchArgsSchema),
             annotations: {
               title: 'FastGPT Knowledge Search',
               readOnlyHint: true,

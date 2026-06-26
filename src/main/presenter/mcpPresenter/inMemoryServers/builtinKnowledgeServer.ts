@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { BuiltinKnowledgeConfig, MCPTextContent, QueryResult } from '@shared/presenter'
 import { presenter } from '@/presenter'
@@ -42,7 +42,7 @@ export class BuiltinKnowledgeServer {
         return {
           name: `builtin_knowledge_search${suffix}`,
           description: config.description,
-          inputSchema: zodToJsonSchema(BuiltinKnowledgeSearchArgsSchema),
+          inputSchema: toDeepChatJsonSchema(BuiltinKnowledgeSearchArgsSchema),
           annotations: {
             title: 'Builtin Knowledge Search',
             readOnlyHint: true

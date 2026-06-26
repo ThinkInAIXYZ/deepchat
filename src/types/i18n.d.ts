@@ -544,9 +544,9 @@ declare module 'vue-i18n' {
           pending: string
           in_progress: string
           completed: string
-          failed: string
-          skipped: string
+          interrupted: string
         }
+        completedCount: string
       }
       files: {
         section: string
@@ -647,7 +647,13 @@ declare module 'vue-i18n' {
       }
       groupByDate: string
       groupByProject: string
+      projectGroupActions: string
+      moveProjectGroupTop: string
+      moveProjectGroupUp: string
+      moveProjectGroupDown: string
+      moveProjectGroupBottom: string
       pinned: string
+      chats: string
       emptyTitle: string
       emptyDescription: string
       searchPlaceholder: string
@@ -1431,6 +1437,7 @@ declare module 'vue-i18n' {
     'settings-remote': string
     'settings-plugins': string
     'settings-overview': string
+    'settings-memory': string
     common: {
       title: string
       resetData: string
@@ -1587,25 +1594,93 @@ declare module 'vue-i18n' {
         degradedHint: string
         tabMemories: string
         tabPersona: string
+        tabActivity: string
         memoriesCount: string
         clearAll: string
         clearConfirmTitle: string
         clearConfirmBody: string
         emptyMemories: string
         emptyPersona: string
+        emptyActivity: string
+        auditEventsTitle: string
+        viewManifestsTitle: string
+        manifestIncluded: string
+        manifestExcluded: string
+        manifestSelected: string
+        manifestDropped: string
         personaActive: string
         rollback: string
         actionFailed: string
+        conflict: string
+        conflictPairsTitle: string
+        keepTarget: string
+        keepChallenger: string
+        keepBoth: string
+        restore: string
+        clearNoop: string
+        sourceLine: string
+        sourceDialogTitle: string
+        sourceDialogEmpty: string
         status: {
           pending_embedding: string
           embedded: string
           error: string
           fts_only: string
+          archived: string
+          conflicted: string
+        }
+        pendingTitle: string
+        largeChange: string
+        personaCurrent: string
+        personaProposed: string
+        personaNone: string
+        approve: string
+        reject: string
+        anchored: string
+        anchor: string
+        unanchor: string
+        rollbackConfirmTitle: string
+        rollbackConfirmBody: string
+        personaEvolutionOnHint: string
+        personaEvolutionOffHint: string
+        searchPlaceholder: string
+        noSearchResults: string
+        addMemory: string
+        addContentPlaceholder: string
+        kindSemantic: string
+        kindEpisodic: string
+        importanceLow: string
+        importanceMedium: string
+        importanceHigh: string
+        addSuccess: string
+        addConflict: string
+        addDuplicate: string
+        addDisabledHint: string
+        addSkipped: string
+        searchFailed: string
+        deletePermanent: string
+        deleteConfirmTitle: string
+        deleteConfirmBody: string
+        categoryFilterLabel: string
+        categoryFilterAll: string
+        categoryUncategorized: string
+        noCategoryResults: string
+        category: {
+          user_preference: string
+          project_fact: string
+          task_outcome: string
+          heuristic: string
+          anti_pattern: string
         }
       }
       compactionThreshold: string
       compactionRetainPairs: string
       deleteConfirm: string
+      personaEvolutionTitle: string
+      personaEvolutionDescription: string
+      personaEvolutionWarning: string
+      memoryManageLink: string
+      memoryManageLinkHint: string
     }
     notificationsHooks: {
       title: string
@@ -2705,6 +2780,10 @@ declare module 'vue-i18n' {
         title: string
         description: string
       }
+      tabs: {
+        active: string
+        archived: string
+      }
       actions: {
         refresh: string
         showMissing: string
@@ -2713,6 +2792,15 @@ declare module 'vue-i18n' {
         clearDefault: string
         showTemp: string
         hideTemp: string
+        more: string
+        dragTarget: string
+        moveTop: string
+        moveUp: string
+        moveDown: string
+        moveBottom: string
+        archive: string
+        restore: string
+        remove: string
       }
       badges: {
         default: string
@@ -2723,14 +2811,26 @@ declare module 'vue-i18n' {
       meta: {
         sessions: string
         lastUsed: string
+        archivedAt: string
         never: string
       }
       empty: {
         regular: string
         temp: string
+        archived: string
+      }
+      confirm: {
+        archiveTitle: string
+        archiveDescription: string
+        removeTitle: string
+        removeDescription: string
       }
       errors: {
         openTitle: string
+        archiveTitle: string
+        restoreTitle: string
+        removeTitle: string
+        reorderTitle: string
       }
     }
     remote: {
@@ -2764,6 +2864,59 @@ declare module 'vue-i18n' {
         accessRulesDescription: string
         accessRule1: string
         accessRule2: string
+        setupGuideTitle: string
+        setupGuideDescription: string
+        setupStepCreateApp: string
+        setupStepPermissions: string
+        setupStepEvents: string
+        setupStepPublish: string
+        oauthRedirectUri: string
+        openSetupGuide: string
+        openDeveloperConsole: string
+        openBotChat: string
+        openBotChatMissingAppIdTitle: string
+        openBotChatMissingAppIdDescription: string
+        scanAuthTitle: string
+        scanAuthDescription: string
+        startScanAuth: string
+        scanAuthWaiting: string
+        authStarted: string
+        authSuccess: string
+        authSuccessTitle: string
+        authSuccessDescription: string
+        authFailed: string
+        authDenied: string
+        authMissingCode: string
+        authStateMismatch: string
+        authTimeout: string
+        authCancelled: string
+        authSessionMissing: string
+        installTitle: string
+        installDescription: string
+        startInstall: string
+        installWaiting: string
+        installStarted: string
+        installSuccess: string
+        installSuccessTitle: string
+        installSuccessDescription: string
+        installFailed: string
+        installTimeout: string
+        installCancelled: string
+        installSessionMissing: string
+        installUserCode: string
+        manualSetupTitle: string
+        manualSetupDescription: string
+        openInstallWeb: string
+        showInstallQr: string
+        installQrTitle: string
+        installQrDescription: string
+        installQrAlt: string
+        userAuthTitle: string
+        userAuthDescription: string
+        pairAuthTitle: string
+        pairAuthDescription: string
+        streamingCards: string
+        streamingCardsDescription: string
       }
       discord: {
         title: string
@@ -2992,6 +3145,36 @@ declare module 'vue-i18n' {
         backupCreated: string
         backupImported: string
         databaseRepaired: string
+      }
+    }
+    memory: {
+      description: string
+      empty: string
+      agentPicker: string
+      tabConfig: string
+      tabManage: string
+      config: {
+        rootHint: string
+        extractionModel: string
+        extractionModelHint: string
+        injectionBudget: string
+        injectionBudgetHint: string
+        retrievalTitle: string
+        retrievalHint: string
+        retrievalOverride: string
+        topK: string
+        rrfK: string
+        similarityThreshold: string
+        weightSimilarity: string
+        weightRecency: string
+        weightImportance: string
+        advancedTitle: string
+        advancedHint: string
+        inheritedHint: string
+        topKHint: string
+        rrfKHint: string
+        similarityThresholdHint: string
+        weightHint: string
       }
     }
     success: string

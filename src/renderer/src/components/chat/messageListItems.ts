@@ -1,5 +1,5 @@
 import type { MessageFile } from '@shared/types/agent-interface'
-import type { AgentPlanDisplayItem } from '@shared/types/agent-plan'
+import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
@@ -83,6 +83,7 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   plan_explanation?: string
   plan_revision?: number
   plan_updated_at?: string
+  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
 }

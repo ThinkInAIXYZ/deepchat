@@ -12,8 +12,8 @@ import {
 
 const ToolIdSchema = z.string().min(1)
 const SkillNameSchema = z.string().min(1)
-const ConflictStrategiesSchema = z.record(SkillSyncConflictStrategySchema)
-const ExportOptionsSchema = z.record(z.unknown()).optional()
+const ConflictStrategiesSchema = z.record(z.string(), SkillSyncConflictStrategySchema)
+const ExportOptionsSchema = z.record(z.string(), z.unknown()).optional()
 
 export const skillSyncScanExternalToolsRoute = defineRouteContract({
   name: 'skillSync.scanExternalTools',

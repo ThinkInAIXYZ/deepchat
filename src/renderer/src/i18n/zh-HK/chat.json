@@ -242,11 +242,11 @@
       "itemAriaLabel": "{status}：{step}",
       "status": {
         "completed": "已完成",
-        "failed": "失敗",
         "in_progress": "進行中",
         "pending": "待處理",
-        "skipped": "已跳過"
-      }
+        "interrupted": "已中斷"
+      },
+      "completedCount": "{completed}/{total} 已完成"
     },
     "terminal": {
       "empty": "暫無輸出",

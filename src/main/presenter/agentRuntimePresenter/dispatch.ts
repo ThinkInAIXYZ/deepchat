@@ -10,7 +10,11 @@ import type { SearchResult } from '@shared/types/core/search'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
-import type { AgentPlanSnapshot } from '@shared/types/agent-plan'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import {
+  stampLatestAgentPlanBlockTerminal,
+  upsertAgentPlanBlock
+} from '@shared/chat/agentPlanBlock'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
 import { UPDATE_PLAN_TOOL_NAME } from '../toolPresenter/agentTools/agentPlanTool'
 import type {
@@ -123,6 +127,7 @@ type PermissionRequestLike = {
 type RendererFlushHandle = Pick<EchoHandle, 'flush' | 'schedule' | 'rescheduleRenderer'>
 
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
+const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 
 function extractTextFromBlocks(blocks: AssistantMessageBlock[]): string {
   return blocks
@@ -390,8 +395,31 @@ function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
     plan: snapshot.plan,
     ...(snapshot.explanation ? { explanation: snapshot.explanation } : {}),
     revision: snapshot.revision,
-    updatedAt: snapshot.updatedAt
+    updatedAt: snapshot.updatedAt,
+    ...(snapshot.terminalReason ? { terminalReason: snapshot.terminalReason } : {})
   })
+}
+
+function stampPlanTerminalIfOpen(
+  state: StreamState,
+  io: IoParams,
+  reason: AgentPlanTerminalReason | undefined
+): boolean {
+  if (!reason) {
+    return false
+  }
+
+  const stamped = stampLatestAgentPlanBlockTerminal(state.blocks, reason)
+  if (!stamped) {
+    return false
+  }
+
+  publishPlanUpdated(io, {
+    ...stamped,
+    sessionId: io.sessionId,
+    messageId: io.messageId
+  })
+  return true
 }
 
 function extractSubagentToolState(rawData: MCPToolResponse): {
@@ -920,6 +948,7 @@ async function runToolCall(params: {
         allowProgressUpdates
       ) {
         markInternalPlanToolCallBlock(state.blocks, completedToolCall.id)
+        upsertAgentPlanBlock(state.blocks, update.snapshot, { toolCallId: completedToolCall.id })
         publishPlanUpdated(io, update.snapshot)
         state.dirty = true
         scheduleRendererFlush(state, rendererFlushHandle)
@@ -1460,6 +1489,7 @@ export function finalize(state: StreamState, io: IoParams): void {
   for (const block of state.blocks) {
     if (block.status === 'pending') block.status = 'success'
   }
+  stampPlanTerminalIfOpen(state, io, state.planTerminalReason)
 
   const endTime = Date.now()
   state.metadata.generationTime = endTime - state.startTime
@@ -1489,6 +1519,11 @@ export function finalize(state: StreamState, io: IoParams): void {
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
   const errorMessage = error instanceof Error ? error.message : String(error)
   state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
+  stampPlanTerminalIfOpen(
+    state,
+    io,
+    errorMessage === USER_CANCELED_GENERATION_ERROR ? 'aborted' : 'error'
+  )
 
   const endTime = Date.now()
   state.metadata.generationTime = endTime - state.startTime
@@ -1510,4 +1545,13 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     failedAt: Date.now(),
     error: errorMessage
   })
+}
+
+export function persistAbortExceptionPlanState(state: StreamState, io: IoParams): void {
+  if (!stampPlanTerminalIfOpen(state, io, 'aborted')) {
+    return
+  }
+
+  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
+  flushBlocksToRenderer(io, state.blocks)
 }

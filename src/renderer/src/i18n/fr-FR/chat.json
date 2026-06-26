@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "Complété",
-        "failed": "échouer",
         "in_progress": "en cours",
         "pending": "En attente",
-        "skipped": "ignoré"
-      }
+        "interrupted": "Interrompu"
+      },
+      "completedCount": "{completed}/{total} terminés"
     },
     "terminal": {
       "empty": "Pas encore de sortie",

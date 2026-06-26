@@ -27,7 +27,7 @@ const SettingsRouteNameSchema = z.enum([
 
 export const SettingsNavigationPayloadSchema = z.object({
   routeName: SettingsRouteNameSchema,
-  params: z.record(z.string()).optional(),
+  params: z.record(z.string(), z.string()).optional(),
   section: z.string().optional()
 })
 

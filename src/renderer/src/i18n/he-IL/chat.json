@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "הושלם",
-        "failed": "לְהִכָּשֵׁל",
         "in_progress": "בתהליך",
         "pending": "תָלוּי וְעוֹמֵד",
-        "skipped": "דילג"
-      }
+        "interrupted": "הופסק"
+      },
+      "completedCount": "{completed}/{total} הושלמו"
     },
     "terminal": {
       "empty": "עדיין אין פלט",

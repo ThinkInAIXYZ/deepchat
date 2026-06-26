@@ -160,6 +160,36 @@ describe('ToolPresenter', () => {
     expect(sharedDefs[0].server?.name).toBe('mcp')
   })
 
+  it('clears only agent plan state without clearing tool mappings', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+    await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\\\workspace'
+    })
+    const agentToolManager = (toolPresenter as any).agentToolManager
+    agentToolManager.clearPlanState = vi.fn()
+
+    toolPresenter.clearAgentPlanState(' conv-1 ')
+
+    expect(agentToolManager.clearPlanState).toHaveBeenCalledWith('conv-1')
+  })
+
   it('falls back to jsonrepair when tool arguments are malformed', async () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -423,6 +453,7 @@ describe('ToolPresenter', () => {
     expect(withProgress).toContain('## Progress Checklist Tool')
     expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
     expect(withProgress).toContain('At most one step may be in_progress at a time.')
+    expect(withProgress).toContain('Before ending the turn, reconcile the checklist')
   })
 
   it('describes only enabled tape tools in the tape prompt', () => {

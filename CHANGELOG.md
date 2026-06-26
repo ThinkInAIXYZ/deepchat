@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.7 (2026-06-25)
+- Added the default chat workspace, task-aware Agent Memory, and persistent agent plan blocks in chat history
+- Improved Computer Use helper runtime isolation, packaging, shutdown cleanup, and refreshed bundled dependencies and resources
+- Fixed fresh SQLite schema bootstrap, stale Tape FTS search hits, New API responses endpoint configuration, sidebar history pagination, and locked skill reinstall handling
+- 新增默认聊天工作区、任务感知 Agent Memory，并支持在聊天历史中持久化 Agent plan blocks
+- 优化 Computer Use helper runtime 的隔离、打包和退出清理，并刷新内置依赖与资源
+- 修复首次 SQLite schema 初始化、陈旧 Tape FTS 搜索命中、New API responses endpoint 配置、侧边栏历史分页和技能重装锁定目录处理
+
 ## v1.0.7-beta.2 (2026-06-25)
 - Fixed fresh SQLite schema bootstrap so new installations initialize reliably
 - Fixed New API responses endpoint configuration so it stays separate from other endpoint options

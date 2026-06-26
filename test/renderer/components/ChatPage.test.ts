@@ -128,10 +128,20 @@ const setup = async (options: SetupOptions = {}) => {
     ...options.pendingInputStorePatch
   })
 
+  const agentPlanSnapshots = reactive<Record<string, any>>({})
   const agentPlanStore = reactive({
-    snapshots: {},
-    applySnapshot: vi.fn(),
-    clear: vi.fn(),
+    snapshots: agentPlanSnapshots,
+    applySnapshot: vi.fn((snapshot: any) => {
+      agentPlanSnapshots[snapshot.sessionId] = snapshot
+    }),
+    clearSnapshot: vi.fn((sessionId: string) => {
+      delete agentPlanSnapshots[sessionId]
+    }),
+    beginTurn: vi.fn(),
+    freezeActive: vi.fn(),
+    dismiss: vi.fn(),
+    purge: vi.fn(),
+    isVisible: vi.fn((sessionId: string) => Boolean(agentPlanSnapshots[sessionId]?.plan?.length)),
     isCollapsed: vi.fn().mockReturnValue(false),
     toggleCollapsed: vi.fn()
   })
@@ -552,6 +562,126 @@ describe('ChatPage', () => {
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
   })
 
+  it('rehydrates the latest persisted plan for each switched session', async () => {
+    const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true,
+      messages: []
+    })
+    const messagesBySession = {
+      s1: [
+        buildAssistantMessage([
+          {
+            type: 'plan',
+            content: '',
+            status: 'success',
+            extra: {
+              plan_entries: [{ step: 'Old plan', status: 'completed' }],
+              plan_revision: 1,
+              plan_updated_at: '2026-05-18T00:00:00.000Z'
+            }
+          }
+        ]),
+        {
+          ...buildAssistantMessage([
+            {
+              type: 'plan',
+              content: '',
+              status: 'success',
+              extra: {
+                plan_entries: [{ step: 'Latest A plan', status: 'in_progress' }],
+                plan_revision: 2,
+                plan_updated_at: '2026-05-18T00:01:00.000Z'
+              }
+            }
+          ]),
+          id: 'm2'
+        }
+      ],
+      s2: [
+        {
+          ...buildAssistantMessage([
+            {
+              type: 'plan',
+              content: '',
+              status: 'success',
+              extra: {
+                plan_entries: [{ step: 'B plan', status: 'in_progress' }],
+                plan_revision: 1,
+                plan_updated_at: '2026-05-18T00:02:00.000Z'
+              }
+            }
+          ]),
+          id: 'm3',
+          sessionId: 's2'
+        }
+      ]
+    }
+    messageStore.loadMessages.mockImplementation(async (sessionId: 's1' | 's2') => {
+      messageStore.messages = messagesBySession[sessionId]
+    })
+
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('Latest A plan')
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.snapshots.s2.plan[0]?.step).toBe('B plan')
+
+    await wrapper.setProps({ sessionId: 's1' })
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('Latest A plan')
+  })
+
+  it('clears the active session snapshot when restored history has no plan block', async () => {
+    const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
+      deferStartupTasks: true,
+      messages: []
+    })
+    messageStore.loadMessages.mockImplementation(async (sessionId: string) => {
+      messageStore.messages =
+        sessionId === 's1'
+          ? [
+              buildAssistantMessage([
+                {
+                  type: 'plan',
+                  content: '',
+                  status: 'success',
+                  extra: {
+                    plan_entries: [{ step: 'A plan', status: 'in_progress' }],
+                    plan_revision: 1,
+                    plan_updated_at: '2026-05-18T00:00:00.000Z'
+                  }
+                }
+              ])
+            ]
+          : [
+              {
+                ...buildAssistantMessage([
+                  {
+                    type: 'content',
+                    content: 'No plan here',
+                    status: 'success'
+                  }
+                ]),
+                id: 'm2',
+                sessionId
+              }
+            ]
+    })
+
+    await flushStartupDeferredTasks()
+    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('A plan')
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushStartupDeferredTasks()
+
+    expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s2')
+    expect(agentPlanStore.snapshots.s2).toBeUndefined()
+  })
+
   it('runs manual compaction instead of sending exact /compact in DeepChat sessions', async () => {
     const { wrapper, chatClient, sessionClient, messageStore } = await setup({
       activeSessionPatch: {
@@ -807,7 +937,7 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(chatRespondToolInteraction).toHaveBeenCalledTimes(1)
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
   })
 
@@ -873,7 +1003,7 @@ describe('ChatPage', () => {
         granted: true
       }
     })
-    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
   })
 
   it('renders pending lane above the input box when no tool interaction is active', async () => {
@@ -904,7 +1034,7 @@ describe('ChatPage', () => {
     )
   })
 
-  it('clears the active plan after queued steer succeeds', async () => {
+  it('rebaselines the active plan after queued steer succeeds', async () => {
     const { wrapper, pendingInputStore, agentPlanStore } = await setup({
       isStreaming: true,
       pendingInputStorePatch: {
@@ -925,12 +1055,12 @@ describe('ChatPage', () => {
       }
     })
 
-    agentPlanStore.clear.mockClear()
+    agentPlanStore.beginTurn.mockClear()
     await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
     await flushPromises()
 
     expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
-    expect(agentPlanStore.clear).toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.beginTurn).toHaveBeenCalledWith('s1')
   })
 
   it('keeps the active plan when queued steer fails', async () => {
@@ -955,12 +1085,12 @@ describe('ChatPage', () => {
       }
     })
 
-    agentPlanStore.clear.mockClear()
+    agentPlanStore.beginTurn.mockClear()
     await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
     await flushPromises()
 
     expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
-    expect(agentPlanStore.clear).not.toHaveBeenCalled()
+    expect(agentPlanStore.beginTurn).not.toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith({
       title: 'chat.pendingInput.steerFailed',
       variant: 'destructive'

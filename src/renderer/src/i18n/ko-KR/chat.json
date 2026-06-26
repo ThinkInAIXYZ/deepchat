@@ -234,11 +234,11 @@
       "itemAriaLabel": "{status}: {step}",
       "status": {
         "completed": "완전한",
-        "failed": "실패하다",
         "in_progress": "진행 중",
         "pending": "보류 중",
-        "skipped": "건너뛰었습니다"
-      }
+        "interrupted": "중단됨"
+      },
+      "completedCount": "{completed}/{total} 완료"
     },
     "terminal": {
       "empty": "아직 출력이 없습니다",

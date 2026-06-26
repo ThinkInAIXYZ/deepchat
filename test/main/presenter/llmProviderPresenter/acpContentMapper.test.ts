@@ -103,12 +103,12 @@ describe('AcpContentMapper plan handling', () => {
 
     expect(result.planEntries).toHaveLength(3)
     expect(result.planEntries![0]).toMatchObject({
-      content: 'Analyze requirements',
+      step: 'Analyze requirements',
       status: 'completed',
       priority: 'high'
     })
     expect(result.planEntries![1]).toMatchObject({
-      content: 'Implement feature',
+      step: 'Implement feature',
       status: 'in_progress'
     })
   })
@@ -126,15 +126,21 @@ describe('AcpContentMapper plan handling', () => {
       })
     )
 
-    const reasoningEvent = result.events.find((e) => e.type === 'reasoning')
-    expect(reasoningEvent).toBeTruthy()
-    expect(reasoningEvent?.reasoning_content).toBe('')
+    const planEvent = result.events.find((e) => e.type === 'plan')
+    expect(planEvent).toMatchObject({
+      type: 'plan',
+      plan: [
+        { step: 'Step 1', status: 'completed' },
+        { step: 'Step 2', status: 'in_progress' }
+      ],
+      revision: 1
+    })
 
     const planBlock = result.blocks.find((block) => block.type === 'plan')
     expect(planBlock?.extra).toMatchObject({
       plan_entries: [
-        { content: 'Step 1', status: 'completed', priority: null },
-        { content: 'Step 2', status: 'in_progress', priority: null }
+        { step: 'Step 1', status: 'completed' },
+        { step: 'Step 2', status: 'in_progress' }
       ]
     })
   })
@@ -154,9 +160,9 @@ describe('AcpContentMapper plan handling', () => {
     )
 
     expect(result.planEntries).toEqual([
-      { content: 'Done task', status: 'completed', priority: null },
-      { content: 'Current task', status: 'in_progress', priority: null },
-      { content: 'Future task', status: 'pending', priority: null }
+      { step: 'Done task', status: 'completed', priority: null },
+      { step: 'Current task', status: 'in_progress', priority: null },
+      { step: 'Future task', status: 'pending', priority: null }
     ])
   })
 

@@ -8,7 +8,7 @@ import { wrapLanguageModel } from 'ai'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createAzure } from '@ai-sdk/azure'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createGoogle } from '@ai-sdk/google'
 import { createVertex } from '@ai-sdk/google-vertex'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
@@ -627,7 +627,7 @@ export function createAiSdkProviderContext(
 
     case 'gemini': {
       const geminiBaseUrl = normalizeGeminiBaseUrl(baseUrl || undefined)
-      const provider = createGoogleGenerativeAI({
+      const provider = createGoogle({
         baseURL: geminiBaseUrl,
         apiKey: params.provider.apiKey || process.env.GEMINI_API_KEY,
         headers: params.defaultHeaders,
@@ -707,8 +707,8 @@ export function createAiSdkProviderContext(
         providerOptionsKey: 'bedrock',
         apiType: 'bedrock',
         model: maybeWrapModel(provider.languageModel(params.modelId) as any),
-        embeddingModel: (provider as any).embeddingModel?.(params.modelId),
-        imageModel: (provider as any).imageModel?.(params.modelId),
+        embeddingModel: provider.embeddingModel(params.modelId),
+        imageModel: provider.imageModel(params.modelId),
         endpoint: bedrockProvider.baseUrl || 'https://bedrock-runtime.amazonaws.com'
       }
     }
