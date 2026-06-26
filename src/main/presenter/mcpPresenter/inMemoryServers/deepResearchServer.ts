@@ -6,7 +6,7 @@ import logger from '@shared/logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import axios from 'axios'
 import { presenter } from '@/presenter'
@@ -284,7 +284,7 @@ export class DeepResearchServer {
           {
             name: 'start_deep_research',
             description: '启动一个新的深度研究会话。返回 session_id 用于后续操作。',
-            inputSchema: zodToJsonSchema(StartDeepResearchArgsSchema),
+            inputSchema: toDeepChatJsonSchema(StartDeepResearchArgsSchema),
             annotations: {
               title: 'Start Deep Research',
               destructiveHint: false
@@ -293,7 +293,7 @@ export class DeepResearchServer {
           {
             name: 'execute_single_web_search',
             description: '在研究会话内执行一次网页搜索。',
-            inputSchema: zodToJsonSchema(SingleWebSearchArgsSchema),
+            inputSchema: toDeepChatJsonSchema(SingleWebSearchArgsSchema),
             annotations: {
               title: 'Execute Web Search',
               readOnlyHint: false,
@@ -303,7 +303,7 @@ export class DeepResearchServer {
           {
             name: 'request_research_data',
             description: '请求当前会话中新增的搜索结果和研究背景，供 LLM 反思。',
-            inputSchema: zodToJsonSchema(RequestResearchDataArgsSchema),
+            inputSchema: toDeepChatJsonSchema(RequestResearchDataArgsSchema),
             annotations: {
               title: 'Request Research Data',
               readOnlyHint: true
@@ -312,7 +312,7 @@ export class DeepResearchServer {
           {
             name: 'submit_reflection_results',
             description: 'LLM 提交其对研究数据的反思结果（如是否需更多研究、建议查询等）。',
-            inputSchema: zodToJsonSchema(SubmitReflectionResultsArgsSchema),
+            inputSchema: toDeepChatJsonSchema(SubmitReflectionResultsArgsSchema),
             annotations: {
               title: 'Submit Reflection Results',
               destructiveHint: false
@@ -321,7 +321,7 @@ export class DeepResearchServer {
           {
             name: 'generate_final_answer',
             description: '根据累积研究生成最终答案，并清理会话数据。',
-            inputSchema: zodToJsonSchema(GenerateFinalAnswerArgsSchema),
+            inputSchema: toDeepChatJsonSchema(GenerateFinalAnswerArgsSchema),
             annotations: {
               title: 'Generate Final Answer',
               destructiveHint: true

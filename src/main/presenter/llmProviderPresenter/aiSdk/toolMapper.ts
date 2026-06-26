@@ -3,6 +3,14 @@ import { jsonSchema, tool, type ToolSet } from 'ai'
 
 type JsonSchema = Record<string, unknown>
 const UNSAFE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
+const ROOT_SCHEMA_KEYS_TO_DROP = new Set([
+  'anyOf',
+  'oneOf',
+  'allOf',
+  '$schema',
+  '$defs',
+  'definitions'
+])
 
 function isObjectSchema(value: unknown): value is JsonSchema {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -37,6 +45,20 @@ function unionRequiredKeys(variants: JsonSchema[]): string[] | undefined {
   )
 
   return union.length > 0 ? union : undefined
+}
+
+function collectRequiredKeys(schema: JsonSchema): string[] | undefined {
+  if (!Array.isArray(schema.required)) {
+    return undefined
+  }
+
+  const required = schema.required.filter((key): key is string => typeof key === 'string')
+  return required.length > 0 ? required : undefined
+}
+
+function mergeRequiredKeys(...requiredLists: Array<string[] | undefined>): string[] | undefined {
+  const required = Array.from(new Set(requiredLists.flatMap((requiredList) => requiredList ?? [])))
+  return required.length > 0 ? required : undefined
 }
 
 function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
@@ -88,6 +110,33 @@ function mergeVariantProperties(variants: JsonSchema[]): Record<string, unknown>
   return merged
 }
 
+function mergeRootAndVariantProperties(
+  rootProperties: unknown,
+  variants: JsonSchema[]
+): Record<string, unknown> | undefined {
+  const merged: Record<string, unknown> = Object.create(null)
+
+  if (isObjectSchema(rootProperties)) {
+    for (const [key, value] of Object.entries(rootProperties)) {
+      if (UNSAFE_TOOL_NAMES.has(key)) {
+        continue
+      }
+
+      merged[key] = value
+    }
+  }
+
+  const variantProperties = mergeVariantProperties(variants)
+
+  if (variantProperties) {
+    for (const [key, value] of Object.entries(variantProperties)) {
+      merged[key] = key in merged ? mergePropertySchemas(merged[key], value) : value
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : undefined
+}
+
 function normalizeSchemaNode(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map((item) => normalizeSchemaNode(item))
@@ -117,10 +166,6 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     }
   }
 
-  if (normalized.type === 'object') {
-    return normalized
-  }
-
   const branchKey = ['anyOf', 'oneOf', 'allOf'].find((key) => Array.isArray(normalized[key]))
   const variants = branchKey
     ? (normalized[branchKey] as unknown[])
@@ -128,7 +173,27 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
         .filter((item) => item.type === 'object')
     : []
 
-  if (!variants.length) {
+  if (variants.length) {
+    const { type: _type, properties: _properties, required: _required, ...rest } = normalized
+    const sanitizedRest = Object.fromEntries(
+      Object.entries(rest).filter(([key]) => !ROOT_SCHEMA_KEYS_TO_DROP.has(key))
+    )
+    const branchRequired =
+      branchKey === 'allOf' ? unionRequiredKeys(variants) : intersectRequiredKeys(variants)
+    const required = mergeRequiredKeys(collectRequiredKeys(normalized), branchRequired)
+
+    return {
+      ...sanitizedRest,
+      type: 'object',
+      properties: mergeRootAndVariantProperties(normalized.properties, variants) ?? {},
+      ...(required ? { required } : {}),
+      ...(variants.every((variant) => variant.additionalProperties === false)
+        ? { additionalProperties: false }
+        : {})
+    }
+  }
+
+  if (branchKey || normalized.type !== 'object') {
     const required = Array.isArray(normalized.required)
       ? normalized.required.filter((key): key is string => typeof key === 'string')
       : undefined
@@ -146,22 +211,7 @@ export function normalizeToolInputSchema(schema: Record<string, unknown>): Recor
     }
   }
 
-  const { type: _type, properties: _properties, required: _required, ...rest } = normalized
-  const sanitizedRest = Object.fromEntries(
-    Object.entries(rest).filter(([key]) => !['anyOf', 'oneOf', 'allOf'].includes(key))
-  )
-  const required =
-    branchKey === 'allOf' ? unionRequiredKeys(variants) : intersectRequiredKeys(variants)
-
-  return {
-    ...sanitizedRest,
-    type: 'object',
-    properties: mergeVariantProperties(variants) ?? {},
-    ...(required ? { required } : {}),
-    ...(variants.every((variant) => variant.additionalProperties === false)
-      ? { additionalProperties: false }
-      : {})
-  }
+  return normalized
 }
 
 export function mcpToolsToAISDKTools(tools: MCPToolDefinition[]): ToolSet {
