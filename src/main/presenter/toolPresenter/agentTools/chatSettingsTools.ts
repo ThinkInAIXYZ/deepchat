@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type {
   ApplyChatSettingResult,
   ChatSettingValue,
@@ -49,40 +49,32 @@ const SUPPORTED_THEMES = ['dark', 'light', 'system'] as const
 
 const FONT_SIZE_LEVELS = [0, 1, 2, 3, 4] as const
 
-const toggleSchema = z
-  .object({
-    setting: z.enum(['copyWithCotEnabled']).describe('Toggle setting id.'),
-    enabled: z.boolean().describe('Enable or disable the setting.')
-  })
-  .strict()
+const toggleSchema = z.strictObject({
+  setting: z.enum(['copyWithCotEnabled']).describe('Toggle setting id.'),
+  enabled: z.boolean().describe('Enable or disable the setting.')
+})
 
-const languageSchema = z
-  .object({
-    language: z.enum(SUPPORTED_LANGUAGES).describe('DeepChat language/locale.')
-  })
-  .strict()
+const languageSchema = z.strictObject({
+  language: z.enum(SUPPORTED_LANGUAGES).describe('DeepChat language/locale.')
+})
 
-const themeSchema = z
-  .object({
-    theme: z.enum(SUPPORTED_THEMES).describe('Theme mode for DeepChat.')
-  })
-  .strict()
+const themeSchema = z.strictObject({
+  theme: z.enum(SUPPORTED_THEMES).describe('Theme mode for DeepChat.')
+})
 
-const fontSizeSchema = z
-  .object({
-    level: z
-      .union(
-        FONT_SIZE_LEVELS.map((value) => z.literal(value)) as [
-          z.ZodLiteral<0>,
-          z.ZodLiteral<1>,
-          z.ZodLiteral<2>,
-          z.ZodLiteral<3>,
-          z.ZodLiteral<4>
-        ]
-      )
-      .describe('Font size level (0-4).')
-  })
-  .strict()
+const fontSizeSchema = z.strictObject({
+  level: z
+    .union(
+      FONT_SIZE_LEVELS.map((value) => z.literal(value)) as [
+        z.ZodLiteral<0>,
+        z.ZodLiteral<1>,
+        z.ZodLiteral<2>,
+        z.ZodLiteral<3>,
+        z.ZodLiteral<4>
+      ]
+    )
+    .describe('Font size level (0-4).')
+})
 
 const SECTION_ALIASES: Record<string, OpenChatSettingsSection> = {
   appearance: 'display',
@@ -129,11 +121,9 @@ const OPEN_SECTION_ALIASES = [
 
 const OPEN_SECTION_VALUES = [...OPEN_SECTIONS, ...OPEN_SECTION_ALIASES] as const
 
-const openSchema = z
-  .object({
-    section: z.enum([...OPEN_SECTION_VALUES] as [string, ...string[]]).optional()
-  })
-  .strict()
+const openSchema = z.strictObject({
+  section: z.enum([...OPEN_SECTION_VALUES] as [string, ...string[]]).optional()
+})
 
 const SETTINGS_ROUTE_NAMES = {
   common: 'settings-common',
@@ -223,7 +213,7 @@ export class ChatSettingsToolHandler {
 
     const parsed = toggleSchema.safeParse(raw)
     if (!parsed.success) {
-      return buildError('invalid_request', 'Invalid toggle request.', parsed.error.flatten())
+      return buildError('invalid_request', 'Invalid toggle request.', z.flattenError(parsed.error))
     }
 
     const { setting, enabled } = parsed.data
@@ -263,7 +253,11 @@ export class ChatSettingsToolHandler {
 
     const parsed = languageSchema.safeParse(raw)
     if (!parsed.success) {
-      return buildError('invalid_request', 'Invalid language request.', parsed.error.flatten())
+      return buildError(
+        'invalid_request',
+        'Invalid language request.',
+        z.flattenError(parsed.error)
+      )
     }
 
     const { language } = parsed.data
@@ -295,7 +289,7 @@ export class ChatSettingsToolHandler {
 
     const parsed = themeSchema.safeParse(raw)
     if (!parsed.success) {
-      return buildError('invalid_request', 'Invalid theme request.', parsed.error.flatten())
+      return buildError('invalid_request', 'Invalid theme request.', z.flattenError(parsed.error))
     }
 
     const { theme } = parsed.data
@@ -327,7 +321,11 @@ export class ChatSettingsToolHandler {
 
     const parsed = fontSizeSchema.safeParse(raw)
     if (!parsed.success) {
-      return buildError('invalid_request', 'Invalid font size request.', parsed.error.flatten())
+      return buildError(
+        'invalid_request',
+        'Invalid font size request.',
+        z.flattenError(parsed.error)
+      )
     }
 
     const { level } = parsed.data
@@ -368,7 +366,7 @@ export class ChatSettingsToolHandler {
         ok: false,
         errorCode: 'invalid_request',
         message: 'Invalid settings navigation request.',
-        details: parsed.error.flatten()
+        details: z.flattenError(parsed.error)
       }
     }
 
@@ -415,7 +413,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.toggle,
         description: 'Toggle a DeepChat setting.',
-        parameters: zodToJsonSchema(toggleSchema) as {
+        parameters: toDeepChatJsonSchema(toggleSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]
@@ -435,7 +433,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setLanguage,
         description: 'Set DeepChat language/locale.',
-        parameters: zodToJsonSchema(languageSchema) as {
+        parameters: toDeepChatJsonSchema(languageSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]
@@ -455,7 +453,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setTheme,
         description: 'Set DeepChat theme mode.',
-        parameters: zodToJsonSchema(themeSchema) as {
+        parameters: toDeepChatJsonSchema(themeSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]
@@ -475,7 +473,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setFontSize,
         description: 'Set DeepChat font size level.',
-        parameters: zodToJsonSchema(fontSizeSchema) as {
+        parameters: toDeepChatJsonSchema(fontSizeSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]
@@ -496,7 +494,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         name: CHAT_SETTINGS_TOOL_NAMES.open,
         description:
           'Open DeepChat settings only when the request cannot be fulfilled via other settings tools; do not call after the change is already applied.',
-        parameters: zodToJsonSchema(openSchema) as {
+        parameters: toDeepChatJsonSchema(openSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]

@@ -351,17 +351,16 @@ export const sessionsGetTapeContextRoute = defineRouteContract({
   })
 })
 
-export const sessionsListMessageTracesRoute: RouteContract<'sessions.listMessageTraces'> =
-  defineRouteContract({
-    name: 'sessions.listMessageTraces',
-    input: z.object({
-      messageId: EntityIdSchema
-    }),
-    output: z.object({
-      traces: z.array(MessageTraceRecordSchema),
-      manifests: z.array(DeepChatTapeViewManifestRecordSchema)
-    })
+export const sessionsListMessageTracesRoute = defineRouteContract({
+  name: 'sessions.listMessageTraces',
+  input: z.object({
+    messageId: EntityIdSchema
+  }),
+  output: z.object({
+    traces: z.array(MessageTraceRecordSchema),
+    manifests: z.array(DeepChatTapeViewManifestRecordSchema)
   })
+}) satisfies RouteContract<'sessions.listMessageTraces'>
 
 export const sessionsExportMessageTapeReplaySliceRoute = defineRouteContract({
   name: 'sessions.exportMessageTapeReplaySlice',

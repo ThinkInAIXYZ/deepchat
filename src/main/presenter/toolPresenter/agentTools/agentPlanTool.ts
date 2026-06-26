@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import {
@@ -16,11 +16,10 @@ export const AGENT_CORE_TOOL_SERVER_NAME = 'agent-core'
 const MAX_PLAN_ITEMS = 12
 
 export const updatePlanToolArgsSchema = z
-  .object({
+  .strictObject({
     explanation: z.string().optional(),
     plan: z.array(agentPlanItemSchema).max(MAX_PLAN_ITEMS)
   })
-  .strict()
   .superRefine((value, context) => {
     const inProgressCount = value.plan.filter((item) => item.status === 'in_progress').length
     if (inProgressCount > 1) {
@@ -57,7 +56,7 @@ export class AgentPlanTool {
         name: UPDATE_PLAN_TOOL_NAME,
         description:
           'Update the visible progress checklist for the current multi-step task. Provide the complete current plan snapshot every time. Use short, concrete, verifiable steps. At most one step may be in_progress.',
-        parameters: zodToJsonSchema(updatePlanToolArgsSchema) as {
+        parameters: toDeepChatJsonSchema(updatePlanToolArgsSchema) as {
           type: string
           properties: Record<string, unknown>
           required?: string[]

@@ -131,7 +131,7 @@
     "undici": "^7.25.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@antv/infographic": "^0.2.19",
@@ -164,7 +164,6 @@
     "@typescript/native-preview": "7.0.0-dev.20260518.1",
     "@unovis/ts": "1.6.4",
     "@unovis/vue": "1.6.4",
-    "@vee-validate/zod": "^4.15.1",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/ui": "^3.2.4",
     "@vue/test-utils": "^2.4.10",
@@ -215,8 +214,7 @@
     "vue-tsgo": "0.2.2",
     "vue-virtual-scroller": "^3.0.3",
     "vuedraggable": "^4.1.0",
-    "yaml": "^2.9.0",
-    "zod-to-json-schema": "^3.25.2"
+    "yaml": "^2.9.0"
   },
   "optionalDependencies": {
     "@opendal/lib-darwin-arm64": "0.49.4",

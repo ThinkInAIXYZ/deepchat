@@ -46,11 +46,13 @@ export const modelsAddCustomRoute = defineRouteContract({
   name: 'models.addCustom',
   input: z.object({
     providerId: EntityIdSchema,
-    model: ProviderModelSummarySchema.omit({
-      providerId: true,
-      group: true,
-      isCustom: true
-    }).passthrough()
+    model: z.looseObject(
+      ProviderModelSummarySchema.omit({
+        providerId: true,
+        group: true,
+        isCustom: true
+      }).shape
+    )
   }),
   output: z.object({
     model: ProviderModelSummarySchema

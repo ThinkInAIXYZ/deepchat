@@ -58,5 +58,5 @@ export const chatRespondToolInteractionRoute = defineRouteContract({
     .object({
       accepted: z.literal(true)
     })
-    .merge(ToolInteractionResultSchema)
+    .extend(ToolInteractionResultSchema.shape)
 })

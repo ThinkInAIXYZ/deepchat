@@ -4,15 +4,13 @@ export const UPDATE_PLAN_TOOL_NAME = 'update_plan'
 
 export const agentPlanStepStatusSchema = z.enum(['pending', 'in_progress', 'completed'])
 export const agentPlanTerminalReasonSchema = z.enum(['aborted', 'max_steps', 'error'])
-export const agentPlanItemSchema = z
-  .object({
-    step: z
-      .string()
-      .transform((value) => value.trim())
-      .refine((value) => value.length > 0, 'step must be a non-empty string'),
-    status: agentPlanStepStatusSchema
-  })
-  .strict()
+export const agentPlanItemSchema = z.strictObject({
+  step: z
+    .string()
+    .transform((value) => value.trim())
+    .refine((value) => value.length > 0, 'step must be a non-empty string'),
+  status: agentPlanStepStatusSchema
+})
 
 export type AgentPlanStepStatus = z.infer<typeof agentPlanStepStatusSchema>
 export type AgentPlanTerminalReason = z.infer<typeof agentPlanTerminalReasonSchema>

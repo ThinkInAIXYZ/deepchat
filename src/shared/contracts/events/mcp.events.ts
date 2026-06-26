@@ -29,7 +29,7 @@ export const mcpServerStoppedEvent = defineEventContract({
 export const mcpConfigChangedEvent = defineEventContract({
   name: 'mcp.config.changed',
   payload: z.object({
-    mcpServers: z.record(MCPServerConfigSchema),
+    mcpServers: z.record(z.string(), MCPServerConfigSchema),
     mcpEnabled: z.boolean(),
     version: z.number().int()
   })

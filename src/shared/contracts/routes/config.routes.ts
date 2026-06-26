@@ -14,17 +14,15 @@ import {
   ThemeModeSchema
 } from '../domainSchemas'
 
-const AgentInstallStateSchema = z
-  .object({
-    status: z.enum(['not_installed', 'installing', 'installed', 'error']),
-    distributionType: z.enum(['binary', 'npx', 'uvx', 'manual']).nullable().optional(),
-    version: z.string().nullable().optional(),
-    installedAt: TimestampMsSchema.nullable().optional(),
-    lastCheckedAt: TimestampMsSchema.nullable().optional(),
-    installDir: z.string().nullable().optional(),
-    error: z.string().nullable().optional()
-  })
-  .passthrough()
+const AgentInstallStateSchema = z.looseObject({
+  status: z.enum(['not_installed', 'installing', 'installed', 'error']),
+  distributionType: z.enum(['binary', 'npx', 'uvx', 'manual']).nullable().optional(),
+  version: z.string().nullable().optional(),
+  installedAt: TimestampMsSchema.nullable().optional(),
+  lastCheckedAt: TimestampMsSchema.nullable().optional(),
+  installDir: z.string().nullable().optional(),
+  error: z.string().nullable().optional()
+})
 
 const AgentSchema = AgentBootstrapItemSchema.extend({
   config: DeepChatAgentConfigSchema.nullable().optional(),
@@ -33,91 +31,77 @@ const AgentSchema = AgentBootstrapItemSchema.extend({
 
 const AgentAvatarSchema = z
   .discriminatedUnion('kind', [
-    z
-      .object({
-        kind: z.literal('lucide'),
-        icon: z.string().min(1),
-        lightColor: z.string().nullable().optional(),
-        darkColor: z.string().nullable().optional()
-      })
-      .passthrough(),
-    z
-      .object({
-        kind: z.literal('monogram'),
-        text: z.string(),
-        backgroundColor: z.string().nullable().optional()
-      })
-      .passthrough()
+    z.looseObject({
+      kind: z.literal('lucide'),
+      icon: z.string().min(1),
+      lightColor: z.string().nullable().optional(),
+      darkColor: z.string().nullable().optional()
+    }),
+    z.looseObject({
+      kind: z.literal('monogram'),
+      text: z.string(),
+      backgroundColor: z.string().nullable().optional()
+    })
   ])
   .nullable()
 
-const DeepChatAgentCreateInputSchema = z
-  .object({
-    name: z.string().min(1),
-    enabled: z.boolean().optional(),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    avatar: AgentAvatarSchema.optional(),
-    config: DeepChatAgentConfigSchema.nullable().optional()
-  })
-  .passthrough()
+const DeepChatAgentCreateInputSchema = z.looseObject({
+  name: z.string().min(1),
+  enabled: z.boolean().optional(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  avatar: AgentAvatarSchema.optional(),
+  config: DeepChatAgentConfigSchema.nullable().optional()
+})
 
-const DeepChatAgentUpdateInputSchema = z
-  .object({
-    name: z.string().min(1).optional(),
-    enabled: z.boolean().optional(),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    avatar: AgentAvatarSchema.optional(),
-    config: DeepChatAgentConfigSchema.nullable().optional()
-  })
-  .passthrough()
+const DeepChatAgentUpdateInputSchema = z.looseObject({
+  name: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  avatar: AgentAvatarSchema.optional(),
+  config: DeepChatAgentConfigSchema.nullable().optional()
+})
 
-const AcpRegistryAgentSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string(),
-    version: z.string(),
-    description: z.string().optional(),
-    repository: z.string().optional(),
-    website: z.string().optional(),
-    authors: z.array(z.string()).optional(),
-    license: z.string().optional(),
-    icon: z.string().optional(),
-    distribution: z.object({}).passthrough(),
-    source: z.literal('registry'),
-    enabled: z.boolean(),
-    envOverride: z.record(z.string(), z.string()).optional(),
-    installState: AgentInstallStateSchema.nullable().optional()
-  })
-  .passthrough()
+const AcpRegistryAgentSchema = z.looseObject({
+  id: z.string().min(1),
+  name: z.string(),
+  version: z.string(),
+  description: z.string().optional(),
+  repository: z.string().optional(),
+  website: z.string().optional(),
+  authors: z.array(z.string()).optional(),
+  license: z.string().optional(),
+  icon: z.string().optional(),
+  distribution: z.looseObject({}),
+  source: z.literal('registry'),
+  enabled: z.boolean(),
+  envOverride: z.record(z.string(), z.string()).optional(),
+  installState: AgentInstallStateSchema.nullable().optional()
+})
 
-const AcpManualAgentSchema = z
-  .object({
-    id: z.string().min(1),
-    name: z.string(),
-    command: z.string(),
-    args: z.array(z.string()).optional(),
-    env: z.record(z.string(), z.string()).optional(),
-    enabled: z.boolean(),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    source: z.literal('manual')
-  })
-  .passthrough()
+const AcpManualAgentSchema = z.looseObject({
+  id: z.string().min(1),
+  name: z.string(),
+  command: z.string(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  source: z.literal('manual')
+})
 
-const AcpManualAgentInputSchema = z
-  .object({
-    id: z.string().min(1).optional(),
-    name: z.string().min(1),
-    command: z.string().min(1),
-    args: z.array(z.string()).optional(),
-    env: z.record(z.string(), z.string()).optional(),
-    enabled: z.boolean(),
-    description: z.string().optional(),
-    icon: z.string().optional()
-  })
-  .passthrough()
+const AcpManualAgentInputSchema = z.looseObject({
+  id: z.string().min(1).optional(),
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean(),
+  description: z.string().optional(),
+  icon: z.string().optional()
+})
 
 const AcpManualAgentUpdateSchema = AcpManualAgentInputSchema.partial()
 

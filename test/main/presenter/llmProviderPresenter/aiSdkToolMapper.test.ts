@@ -44,6 +44,51 @@ describe('AI SDK tool schema normalization', () => {
     expect(normalized).not.toHaveProperty('anyOf')
     expect(normalized).not.toHaveProperty('oneOf')
     expect(normalized).not.toHaveProperty('allOf')
+    expect(normalized).not.toHaveProperty('$schema')
+  })
+
+  it('normalizes object schemas that also carry top-level composition branches', () => {
+    const normalized = normalizeToolInputSchema({
+      type: 'object',
+      properties: {
+        staleRootProperty: {
+          type: 'boolean'
+        }
+      },
+      required: ['staleRootProperty'],
+      oneOf: [
+        {
+          type: 'object',
+          properties: {
+            action: { type: 'string', const: 'create' },
+            content: { type: 'string' }
+          },
+          required: ['action', 'content'],
+          additionalProperties: false
+        },
+        {
+          type: 'object',
+          properties: {
+            action: { type: 'string', const: 'delete' },
+            draftId: { type: 'string' }
+          },
+          required: ['action', 'draftId'],
+          additionalProperties: false
+        }
+      ],
+      $schema: 'https://json-schema.org/draft/2020-12/schema'
+    })
+
+    expect(normalized).toEqual({
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['create', 'delete'] },
+        content: { type: 'string' },
+        draftId: { type: 'string' }
+      },
+      required: ['action'],
+      additionalProperties: false
+    })
   })
 
   it('converts invalid root schemas into empty object schemas', () => {

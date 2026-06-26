@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
 import type { AgentToolRuntimePort } from '../runtimePorts'
@@ -109,22 +109,20 @@ const tapeContextSchema = z.object({
     .describe('Maximum evidence bytes across all returned entries. Defaults to 16384.')
 })
 
-const tapeHandoffSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(1)
-      .optional()
-      .describe('Handoff name. Values without a prefix are normalized to handoff/<name>.'),
-    summary: z
-      .string()
-      .trim()
-      .optional()
-      .default('')
-      .describe('Compact durable summary for the handoff anchor.')
-  })
-  .strict()
+const tapeHandoffSchema = z.strictObject({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Handoff name. Values without a prefix are normalized to handoff/<name>.'),
+  summary: z
+    .string()
+    .trim()
+    .optional()
+    .default('')
+    .describe('Compact durable summary for the handoff anchor.')
+})
 
 const tapeToolSchemas = {
   [TAPE_TOOL_NAMES.info]: tapeInfoSchema,
@@ -152,7 +150,7 @@ function buildToolDefinition(
     function: {
       name,
       description,
-      parameters: zodToJsonSchema(schema) as {
+      parameters: toDeepChatJsonSchema(schema) as {
         type: string
         properties: Record<string, unknown>
         required?: string[]
