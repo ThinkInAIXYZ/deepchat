@@ -583,6 +583,31 @@
                   <div class="mt-1">{{ t('settings.remote.feishu.accessRule2') }}</div>
                 </div>
 
+                <label
+                  class="flex items-start justify-between gap-4 rounded-lg border bg-muted/20 p-3 text-sm"
+                >
+                  <div class="space-y-1">
+                    <div class="font-medium">{{ t('settings.remote.feishu.streamingCards') }}</div>
+                    <p class="text-xs text-muted-foreground">
+                      {{ t('settings.remote.feishu.streamingCardsDescription') }}
+                    </p>
+                  </div>
+                  <Switch
+                    data-testid="feishu-streaming-cards-toggle"
+                    :model-value="feishuSettings.enableStreamingCards"
+                    :disabled="saving.feishu"
+                    @update:model-value="
+                      (value) => {
+                        if (!feishuSettings) {
+                          return
+                        }
+                        feishuSettings.enableStreamingCards = value === true
+                        queueFeishuSettingsPersist()
+                      }
+                    "
+                  />
+                </label>
+
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div class="space-y-2">
                     <Label class="text-xs text-muted-foreground">
@@ -1953,6 +1978,7 @@ const defaultFeishuSettings = (): FeishuRemoteSettings => ({
   verificationToken: '',
   encryptKey: '',
   remoteEnabled: false,
+  enableStreamingCards: false,
   defaultAgentId: 'deepchat',
   defaultWorkdir: '',
   pairedUserOpenIds: []
@@ -2597,6 +2623,7 @@ const buildFeishuDraftSettings = (): FeishuRemoteSettings | null => {
     verificationToken: settings.verificationToken,
     encryptKey: settings.encryptKey,
     remoteEnabled: settings.remoteEnabled,
+    enableStreamingCards: settings.enableStreamingCards,
     defaultAgentId: settings.defaultAgentId,
     defaultWorkdir: settings.defaultWorkdir,
     pairedUserOpenIds: [...(settings.pairedUserOpenIds ?? [])]

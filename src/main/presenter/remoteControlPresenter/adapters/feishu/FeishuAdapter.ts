@@ -35,6 +35,7 @@ export class FeishuAdapter extends ChannelAdapter {
     verificationToken: string
     encryptKey: string
   }
+  private readonly enableStreamingCards: boolean
   private client: FeishuClient | null = null
   private runtime: FeishuRuntime | null = null
   private feishuStatus: FeishuRuntimeStatusSnapshot = { ...DEFAULT_STATUS }
@@ -53,6 +54,7 @@ export class FeishuAdapter extends ChannelAdapter {
       verificationToken: String(config.channelConfig.verificationToken ?? '').trim(),
       encryptKey: String(config.channelConfig.encryptKey ?? '').trim()
     }
+    this.enableStreamingCards = config.channelConfig.enableStreamingCards === true
   }
 
   protected async performConnect(_signal: AbortSignal): Promise<void> {
@@ -71,6 +73,7 @@ export class FeishuAdapter extends ChannelAdapter {
         getRuntimeStatus: () => ({ ...this.feishuStatus })
       }),
       bindingStore: this.bindingStore,
+      enableStreamingCards: this.enableStreamingCards,
       logger,
       onStatusChange: (snapshot) => {
         this.handleStatusChange(snapshot)

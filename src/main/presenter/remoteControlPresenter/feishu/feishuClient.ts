@@ -24,6 +24,14 @@ type FeishuMessageResponse = {
   }
 }
 
+type FeishuApiResponse = {
+  code?: number
+  msg?: string
+  data?: Record<string, unknown>
+}
+
+export const FEISHU_STREAMING_CARD_ELEMENT_ID = 'md_stream'
+
 const createTextPayload = (text: string): string =>
   JSON.stringify({
     text
@@ -37,6 +45,49 @@ const createMarkdownPayload = (text: string): string =>
   })
 
 const createCardPayload = (card: FeishuInteractiveCardPayload): string => JSON.stringify(card)
+
+const createStreamingCardEntityMessagePayload = (cardId: string): string =>
+  JSON.stringify({
+    type: 'card',
+    data: {
+      card_id: cardId
+    }
+  })
+
+const createStreamingCardJson = (initialContent: string): Record<string, unknown> => ({
+  schema: '2.0',
+  config: {
+    streaming_mode: true,
+    update_multi: true,
+    summary: {
+      content: ''
+    },
+    streaming_config: {
+      print_frequency_ms: {
+        default: 70,
+        android: 70,
+        ios: 70,
+        pc: 70
+      },
+      print_step: {
+        default: 1,
+        android: 1,
+        ios: 1,
+        pc: 1
+      },
+      print_strategy: 'fast'
+    }
+  },
+  body: {
+    elements: [
+      {
+        tag: 'markdown',
+        content: initialContent,
+        element_id: FEISHU_STREAMING_CARD_ELEMENT_ID
+      }
+    ]
+  }
+})
 
 const readHeaderValue = (headers: unknown, name: string): string | undefined => {
   if (!headers) {
@@ -88,6 +139,12 @@ const resolveLarkDomain = (brand: FeishuBrand): string | undefined => {
   }
 
   return ((Lark as any).Domain?.Feishu as string | undefined) ?? 'https://open.feishu.cn'
+}
+
+const assertFeishuApiSuccess = (response: FeishuApiResponse | null | undefined, action: string) => {
+  if (!response || response.code !== 0) {
+    throw new Error(response?.msg?.trim() || `Feishu CardKit ${action} failed.`)
+  }
 }
 
 export const chunkFeishuText = (
@@ -274,6 +331,98 @@ export class FeishuClient {
     }
 
     return messageId
+  }
+
+  async createStreamingCard(initialContent: string = ''): Promise<{
+    cardId: string
+    elementId: string
+  }> {
+    const response = (await (this.sdk as any).request({
+      method: 'POST',
+      url: '/open-apis/cardkit/v1/cards',
+      data: {
+        type: 'card_json',
+        data: JSON.stringify(createStreamingCardJson(initialContent))
+      }
+    })) as FeishuApiResponse & {
+      card_id?: string
+    }
+
+    assertFeishuApiSuccess(response, 'create streaming card')
+    const cardId = String(response?.data?.card_id ?? response?.card_id ?? '').trim()
+    if (!cardId) {
+      throw new Error('Feishu CardKit create streaming card did not return card_id.')
+    }
+
+    return {
+      cardId,
+      elementId: FEISHU_STREAMING_CARD_ELEMENT_ID
+    }
+  }
+
+  async sendCardEntity(target: FeishuTransportTarget, cardId: string): Promise<string | null> {
+    const content = createStreamingCardEntityMessagePayload(cardId)
+
+    if (target.replyToMessageId) {
+      const response = (await this.sdk.im.message.reply({
+        path: {
+          message_id: target.replyToMessageId
+        },
+        data: {
+          content,
+          msg_type: 'interactive',
+          reply_in_thread: Boolean(target.threadId)
+        }
+      })) as FeishuMessageResponse
+      return response.data?.message_id?.trim() || null
+    }
+
+    const response = (await this.sdk.im.message.create({
+      params: {
+        receive_id_type: 'chat_id'
+      },
+      data: {
+        receive_id: target.chatId,
+        msg_type: 'interactive',
+        content
+      }
+    })) as FeishuMessageResponse
+    return response.data?.message_id?.trim() || null
+  }
+
+  async updateStreamingCardContent(params: {
+    cardId: string
+    elementId: string
+    content: string
+    sequence: number
+  }): Promise<void> {
+    const response = (await (this.sdk as any).request({
+      method: 'PUT',
+      url: `/open-apis/cardkit/v1/cards/${encodeURIComponent(params.cardId)}/elements/${encodeURIComponent(params.elementId)}/content`,
+      data: {
+        content: params.content,
+        sequence: params.sequence
+      }
+    })) as FeishuApiResponse
+
+    assertFeishuApiSuccess(response, 'update streaming card content')
+  }
+
+  async closeStreamingCard(cardId: string, sequence: number): Promise<void> {
+    const response = (await (this.sdk as any).request({
+      method: 'PATCH',
+      url: `/open-apis/cardkit/v1/cards/${encodeURIComponent(cardId)}/settings`,
+      data: {
+        settings: JSON.stringify({
+          config: {
+            streaming_mode: false
+          }
+        }),
+        sequence
+      }
+    })) as FeishuApiResponse
+
+    assertFeishuApiSuccess(response, 'close streaming card')
   }
 
   async downloadMessageResource(params: {

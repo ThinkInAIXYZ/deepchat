@@ -165,6 +165,7 @@ export interface FeishuRemoteSettings {
   verificationToken: string
   encryptKey: string
   remoteEnabled: boolean
+  enableStreamingCards: boolean
   defaultAgentId: string
   defaultWorkdir: string
   pairedUserOpenIds: string[]

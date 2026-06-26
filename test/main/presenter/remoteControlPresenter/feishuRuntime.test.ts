@@ -39,7 +39,10 @@ const createDeferred = <T>() => {
   }
 }
 
-const createHarness = async (options?: { logger?: { error: (...params: unknown[]) => void } }) => {
+const createHarness = async (options?: {
+  logger?: { error: (...params: unknown[]) => void }
+  enableStreamingCards?: boolean
+}) => {
   let onMessage: ((event: unknown) => Promise<void>) | null = null
   const streamHandlers: Array<(event: unknown) => Promise<void>> = []
   let nextMessageId = 1
@@ -60,11 +63,20 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     sendMarkdown: vi.fn().mockImplementation(async () => `om_bot_${nextMessageId++}`),
     updateMarkdown: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
+    createStreamingCard: vi.fn().mockResolvedValue({
+      cardId: 'card_1',
+      elementId: 'md_stream'
+    }),
+    sendCardEntity: vi.fn().mockImplementation(async () => `om_card_${nextMessageId++}`),
+    updateStreamingCardContent: vi.fn().mockResolvedValue(undefined),
+    closeStreamingCard: vi.fn().mockResolvedValue(undefined),
     downloadMessageResource: vi.fn().mockResolvedValue({
       data: Buffer.from('file').toString('base64'),
       mediaType: 'text/plain'
     }),
-    sendCard: vi.fn().mockResolvedValue(undefined)
+    sendCard: vi.fn().mockResolvedValue(undefined),
+    addReaction: vi.fn().mockResolvedValue('reaction_1'),
+    removeReaction: vi.fn().mockResolvedValue(undefined)
   }
   const parser = {
     parseEvent: vi.fn((event: { parsed?: FeishuInboundMessage | null }) => event.parsed ?? null)
@@ -96,6 +108,7 @@ const createHarness = async (options?: { logger?: { error: (...params: unknown[]
     parser: parser as any,
     router: router as any,
     bindingStore: bindingStore as any,
+    enableStreamingCards: options?.enableStreamingCards,
     logger: options?.logger
   })
   await runtime.start()
@@ -149,6 +162,266 @@ describe('FeishuRuntime', () => {
     })
 
     await harness.runtime.stop()
+  })
+
+  it('streams answer text through a CardKit streaming card when enabled', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness({ enableStreamingCards: true })
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi
+            .fn()
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: '',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: thinking...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValueOnce({
+              messageId: 'msg-1',
+              text: 'Draft answer',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:answer',
+                  kind: 'answer',
+                  text: 'Draft answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: '',
+              completed: false,
+              pendingInteraction: null
+            })
+            .mockResolvedValue({
+              messageId: 'msg-1',
+              text: 'Draft answer',
+              traceText: '💻 shell_command: "git status"',
+              deliverySegments: [
+                {
+                  key: 'msg-1:0:process',
+                  kind: 'process',
+                  text: '💻 shell_command: "git status"',
+                  sourceMessageId: 'msg-1'
+                },
+                {
+                  key: 'msg-1:1:answer',
+                  kind: 'answer',
+                  text: 'Final answer',
+                  sourceMessageId: 'msg-1'
+                }
+              ],
+              statusText: 'Running: writing...',
+              finalText: 'Final answer',
+              completed: true,
+              pendingInteraction: null
+            })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_stream_card'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.createStreamingCard).toHaveBeenCalledWith('')
+        expect(harness.client.sendCardEntity).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_stream_card'
+          },
+          'card_1'
+        )
+        expect(harness.client.updateStreamingCardContent).toHaveBeenCalledWith({
+          cardId: 'card_1',
+          elementId: 'md_stream',
+          content:
+            '**Status**\nRunning: thinking...\n\n**Process**\n💻 shell_command: "git status"',
+          sequence: 1
+        })
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+      await vi.waitFor(() => {
+        expect(harness.client.updateStreamingCardContent).toHaveBeenCalledWith({
+          cardId: 'card_1',
+          elementId: 'md_stream',
+          content:
+            '**Status**\nRunning: writing...\n\n**Process**\n💻 shell_command: "git status"\n\n**Answer**\nDraft answer',
+          sequence: 2
+        })
+      })
+
+      await vi.advanceTimersByTimeAsync(TELEGRAM_STREAM_POLL_INTERVAL_MS)
+      await vi.waitFor(() => {
+        expect(harness.client.updateStreamingCardContent).toHaveBeenCalledWith({
+          cardId: 'card_1',
+          elementId: 'md_stream',
+          content: '**Process**\n💻 shell_command: "git status"\n\n**Answer**\nFinal answer',
+          sequence: 3
+        })
+        expect(harness.client.closeStreamingCard).toHaveBeenCalledWith('card_1', 4)
+        expect(harness.client.sendMarkdown).not.toHaveBeenCalled()
+        expect(harness.bindingStore.clearRemoteDeliveryState).toHaveBeenCalledWith(
+          'feishu:oc_1:root'
+        )
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves fenced code blocks and tables in CardKit markdown updates', async () => {
+    const harness = await createHarness({ enableStreamingCards: true })
+    const markdownAnswer = [
+      'Here is the result:',
+      '',
+      '```ts',
+      "const value = 'ok'",
+      '```',
+      '',
+      '| Name | Status |',
+      '| --- | --- |',
+      '| CardKit | streaming |'
+    ].join('\n')
+
+    harness.router.handleMessage.mockResolvedValue({
+      replies: [],
+      conversation: {
+        sessionId: 'session-1',
+        eventId: 'msg-1',
+        getSnapshot: vi.fn().mockResolvedValue({
+          messageId: 'msg-1',
+          text: markdownAnswer,
+          traceText: '',
+          deliverySegments: [
+            {
+              key: 'msg-1:0:answer',
+              kind: 'answer',
+              text: markdownAnswer,
+              sourceMessageId: 'msg-1'
+            }
+          ],
+          statusText: 'Running: writing...',
+          finalText: markdownAnswer,
+          completed: true,
+          pendingInteraction: null
+        })
+      }
+    })
+
+    await harness.onMessage({
+      parsed: createParsedMessage({
+        messageId: 'om_markdown_card'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.updateStreamingCardContent).toHaveBeenCalled()
+    })
+
+    const content = harness.client.updateStreamingCardContent.mock.calls[0]?.[0]?.content
+    expect(content).toContain('```ts')
+    expect(content).toContain("const value = 'ok'")
+    expect(content).toContain('| Name | Status |')
+    expect(content).toContain('| CardKit | streaming |')
+    expect(harness.client.closeStreamingCard).toHaveBeenCalledWith('card_1', 2)
+    expect(harness.client.sendMarkdown).not.toHaveBeenCalled()
+
+    await harness.runtime.stop()
+  })
+
+  it('falls back to markdown delivery and closes the card when a streaming update fails', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const harness = await createHarness({ enableStreamingCards: true })
+      harness.client.updateStreamingCardContent.mockRejectedValueOnce(
+        new Error('missing cardkit scope')
+      )
+      harness.router.handleMessage.mockResolvedValue({
+        replies: [],
+        conversation: {
+          sessionId: 'session-1',
+          eventId: 'msg-1',
+          getSnapshot: vi.fn().mockResolvedValue({
+            messageId: 'msg-1',
+            text: 'Fallback answer',
+            traceText: '',
+            deliverySegments: [
+              {
+                key: 'msg-1:0:answer',
+                kind: 'answer',
+                text: 'Fallback answer',
+                sourceMessageId: 'msg-1'
+              }
+            ],
+            statusText: 'Running: writing...',
+            finalText: 'Fallback answer',
+            completed: true,
+            pendingInteraction: null
+          })
+        }
+      })
+
+      await harness.onMessage({
+        parsed: createParsedMessage({
+          messageId: 'om_card_fallback'
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(harness.client.sendMarkdown).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_card_fallback'
+          },
+          'Fallback answer'
+        )
+        expect(harness.client.sendText).toHaveBeenCalledWith(
+          {
+            chatId: 'oc_1',
+            threadId: null,
+            replyToMessageId: 'om_card_fallback'
+          },
+          'Feishu CardKit streaming failed. Falling back to normal message updates. Check that the app has im:message and cardkit:card:write permissions.'
+        )
+        expect(harness.client.closeStreamingCard).toHaveBeenCalledWith('card_1', 2)
+      })
+
+      await harness.runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('streams answer text beside a persistent trace log', async () => {

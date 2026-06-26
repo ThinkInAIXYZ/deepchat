@@ -309,6 +309,7 @@ export interface FeishuRemoteRuntimeConfig {
   verificationToken: string
   encryptKey: string
   enabled: boolean
+  enableStreamingCards: boolean
   defaultAgentId: string
   defaultWorkdir: string
   pairedUserOpenIds: string[]
@@ -933,6 +934,7 @@ export const createDefaultRemoteControlConfig = (): RemoteControlConfig => ({
     verificationToken: '',
     encryptKey: '',
     enabled: false,
+    enableStreamingCards: false,
     defaultAgentId: FEISHU_REMOTE_DEFAULT_AGENT_ID,
     defaultWorkdir: '',
     pairedUserOpenIds: [],
@@ -1030,6 +1032,7 @@ const FeishuRemoteRuntimeConfigSchema = z
     verificationToken: z.string().optional(),
     encryptKey: z.string().optional(),
     enabled: z.boolean().optional(),
+    enableStreamingCards: z.boolean().optional(),
     defaultAgentId: z.string().optional(),
     defaultWorkdir: z.string().optional(),
     pairedUserOpenIds: z.array(z.string()).optional(),
@@ -1149,6 +1152,7 @@ const extractLegacyFeishuConfig = (input: unknown): LegacyFeishuRemoteConfig | n
       'appSecret',
       'verificationToken',
       'encryptKey',
+      'enableStreamingCards',
       'pairedUserOpenIds',
       'lastFatalError'
     ]) &&
@@ -1412,6 +1416,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       verificationToken: feishu.verificationToken?.trim() || '',
       encryptKey: feishu.encryptKey?.trim() || '',
       enabled: Boolean(feishu.enabled),
+      enableStreamingCards: Boolean(feishu.enableStreamingCards),
       defaultAgentId: feishu.defaultAgentId?.trim() || defaults.feishu.defaultAgentId,
       defaultWorkdir: feishu.defaultWorkdir?.trim() || '',
       pairedUserOpenIds: normalizeFeishuOpenIds(feishu.pairedUserOpenIds),
@@ -1721,6 +1726,7 @@ export const normalizeFeishuSettingsInput = (
   verificationToken: input.verificationToken?.trim() ?? '',
   encryptKey: input.encryptKey?.trim() ?? '',
   remoteEnabled: Boolean(input.remoteEnabled),
+  enableStreamingCards: Boolean(input.enableStreamingCards),
   defaultAgentId: input.defaultAgentId?.trim() || FEISHU_REMOTE_DEFAULT_AGENT_ID,
   defaultWorkdir: input.defaultWorkdir?.trim() ?? '',
   pairedUserOpenIds: normalizeFeishuOpenIds(input.pairedUserOpenIds)

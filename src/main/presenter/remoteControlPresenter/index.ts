@@ -242,6 +242,7 @@ export class RemoteControlPresenter {
       verificationToken: remoteConfig.verificationToken,
       encryptKey: remoteConfig.encryptKey,
       remoteEnabled: remoteConfig.enabled,
+      enableStreamingCards: remoteConfig.enableStreamingCards,
       defaultAgentId: remoteConfig.defaultAgentId,
       defaultWorkdir: remoteConfig.defaultWorkdir,
       pairedUserOpenIds: [...remoteConfig.pairedUserOpenIds]
@@ -617,6 +618,7 @@ export class RemoteControlPresenter {
       currentRemoteConfig.appSecret !== normalized.appSecret ||
       currentRemoteConfig.verificationToken !== normalized.verificationToken ||
       currentRemoteConfig.encryptKey !== normalized.encryptKey ||
+      currentRemoteConfig.enableStreamingCards !== normalized.enableStreamingCards ||
       currentRemoteConfig.defaultWorkdir !== normalized.defaultWorkdir
 
     this.bindingStore.updateFeishuConfig((config) => ({
@@ -627,6 +629,7 @@ export class RemoteControlPresenter {
       verificationToken: normalized.verificationToken,
       encryptKey: normalized.encryptKey,
       enabled: normalized.remoteEnabled,
+      enableStreamingCards: normalized.enableStreamingCards,
       defaultAgentId,
       defaultWorkdir: normalized.defaultWorkdir,
       pairedUserOpenIds: config.pairedUserOpenIds,
@@ -1369,7 +1372,8 @@ export class RemoteControlPresenter {
           appId: settings.appId.trim(),
           appSecret: settings.appSecret.trim(),
           verificationToken: settings.verificationToken.trim(),
-          encryptKey: settings.encryptKey.trim()
+          encryptKey: settings.encryptKey.trim(),
+          enableStreamingCards: settings.enableStreamingCards
         },
         configSignature
       )
@@ -1978,6 +1982,7 @@ export class RemoteControlPresenter {
       verificationToken: settings.verificationToken.trim(),
       encryptKey: settings.encryptKey.trim(),
       remoteEnabled: settings.remoteEnabled,
+      enableStreamingCards: settings.enableStreamingCards,
       defaultAgentId: settings.defaultAgentId.trim(),
       defaultWorkdir: settings.defaultWorkdir.trim()
     })
