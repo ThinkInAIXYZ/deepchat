@@ -2266,7 +2266,9 @@
       "userAuthTitle": "远控用户授权",
       "userAuthDescription": "机器人应用安装完成后，已授权的飞书 / Lark 用户才能控制 DeepChat。可以在机器人会话里使用 /pair，也可以在已有手动配置应用时使用 OAuth 扫码授权；两者都会更新同一份授权主体列表。",
       "pairAuthTitle": "/pair 命令",
-      "pairAuthDescription": "点击下方“配对”生成配对码，然后在机器人私聊里发送 /pair 配对码。这是推荐授权方式，也适用于 PersonalAgent 安装后的应用。"
+      "pairAuthDescription": "点击下方“配对”生成配对码，然后在机器人私聊里发送 /pair 配对码。这是推荐授权方式，也适用于 PersonalAgent 安装后的应用。",
+      "streamingCards": "CardKit 流式卡片",
+      "streamingCardsDescription": "开启后，AI 回复会使用飞书 / Lark CardKit 流式卡片实时更新；需要应用具备 im:message 和 cardkit:card:write 权限，失败时会自动回退为普通消息。"
     },
     "discord": {
       "title": "Discord",

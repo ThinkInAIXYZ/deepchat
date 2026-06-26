@@ -2915,6 +2915,8 @@ declare module 'vue-i18n' {
         userAuthDescription: string
         pairAuthTitle: string
         pairAuthDescription: string
+        streamingCards: string
+        streamingCardsDescription: string
       }
       discord: {
         title: string

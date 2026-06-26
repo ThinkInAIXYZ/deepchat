@@ -1123,7 +1123,8 @@ describe('RemoteControlPresenter', () => {
       appSecret: 'secret',
       verificationToken: 'verify',
       encryptKey: '',
-      remoteEnabled: true,
+      remoteEnabled: false,
+      enableStreamingCards: true,
       defaultAgentId: 'deepchat',
       defaultWorkdir: '',
       pairedUserOpenIds: []
@@ -1135,6 +1136,7 @@ describe('RemoteControlPresenter', () => {
       expect.objectContaining({
         feishu: expect.objectContaining({
           appId: 'cli_new',
+          enableStreamingCards: true,
           pairedUserOpenIds: ['ou_paired']
         })
       })
@@ -1159,6 +1161,7 @@ describe('RemoteControlPresenter', () => {
       verificationToken: 'verify',
       encryptKey: '',
       remoteEnabled: false,
+      enableStreamingCards: false,
       defaultAgentId: 'deepchat',
       defaultWorkdir: '',
       pairedUserOpenIds: []

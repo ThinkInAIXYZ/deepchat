@@ -98,6 +98,7 @@ const setup = async (options: SetupOptions = {}) => {
       verificationToken: '',
       encryptKey: '',
       remoteEnabled: false,
+      enableStreamingCards: false,
       defaultAgentId: 'deepchat',
       defaultWorkdir: '',
       pairedUserOpenIds: [] as string[]
@@ -1144,6 +1145,42 @@ describe('RemoteSettings', () => {
     expect(wrapper.find('[data-testid="feishu-pair-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="feishu-scan-auth-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="feishu-bindings-button"]').exists()).toBe(true)
+  })
+
+  it('persists the feishu streaming card setting', async () => {
+    const { wrapper, remoteControlPresenter, tabsComponents } = await setup({
+      feishuChannelSettingsOverride: {
+        remoteEnabled: true,
+        enableStreamingCards: false
+      }
+    })
+
+    const feishuTrigger = wrapper
+      .findAllComponents(tabsComponents.TabsTrigger)
+      .find((component) => component.attributes('data-testid') === 'remote-tab-feishu')
+
+    expect(feishuTrigger).toBeDefined()
+    await feishuTrigger!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('settings.remote.feishu.streamingCards')
+    expect(wrapper.text()).toContain('settings.remote.feishu.streamingCardsDescription')
+
+    const toggle = wrapper.find('[data-testid="feishu-streaming-cards-toggle"]')
+    expect(toggle.exists()).toBe(true)
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+
+    await toggle.setValue(true)
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+        'feishu',
+        expect.objectContaining({
+          enableStreamingCards: true
+        })
+      )
+    })
   })
 
   it('starts the official feishu web install flow and refreshes credentials', async () => {
