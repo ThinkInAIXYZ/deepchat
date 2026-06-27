@@ -141,7 +141,7 @@ function makeVssLoadableStore(
   return store
 }
 
-async function setupPackagedGzipFixture(compressed: Buffer) {
+async function setupPackagedBase64Fixture(asset: Buffer) {
   const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
   const mockedPromises = fs.promises as typeof fs.promises & {
     rename: typeof actualFs.promises.rename
@@ -155,15 +155,21 @@ async function setupPackagedGzipFixture(compressed: Buffer) {
   vi.spyOn(app, 'getPath').mockReturnValue(userDataDir)
   vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
     const filePath = String(target)
-    if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension')) return false
-    if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension.gz')) return true
+    if (/(^|[/\\])runtime[/\\]duckdb[/\\]extensions[/\\]vss\.duckdb_extension$/.test(filePath)) {
+      return false
+    }
+    if (
+      /(^|[/\\])runtime[/\\]duckdb[/\\]extensions[/\\]vss\.duckdb_extension\.b64$/.test(filePath)
+    ) {
+      return true
+    }
     return originalExistsSync(target)
   })
   const readFile = vi.spyOn(fs.promises, 'readFile').mockImplementation((async (
     target,
     options
   ) => {
-    if (String(target).endsWith('vss.duckdb_extension.gz')) return compressed
+    if (String(target).endsWith('vss.duckdb_extension.b64')) return asset
     return originalReadFile(target, options)
   }) as typeof fs.promises.readFile)
   const mkdir = vi
@@ -282,10 +288,13 @@ describe('MemoryVectorStore VSS loading', () => {
     expect(error).toHaveBeenCalled()
   })
 
-  it('materializes packaged gzip VSS assets into userData before loading', async () => {
+  it('materializes packaged base64 VSS assets into userData before loading', async () => {
     app.isPackaged = true
-    const compressed = gzipSync(Buffer.from('duckdb extension body'))
-    const { actualFs, userDataDir } = await setupPackagedGzipFixture(compressed)
+    const asset = Buffer.from(
+      gzipSync(Buffer.from('duckdb extension body')).toString('base64'),
+      'utf8'
+    )
+    const { actualFs, userDataDir } = await setupPackagedBase64Fixture(asset)
     vi.spyOn(logger, 'info').mockImplementation(() => undefined)
     const store = makeVssLoadableStore(undefined, path.join(userDataDir, 'agent.duckdb'))
 
@@ -307,11 +316,14 @@ describe('MemoryVectorStore VSS loading', () => {
     }
   })
 
-  it('coalesces packaged gzip materialization across stores in the same process', async () => {
+  it('coalesces packaged base64 materialization across stores in the same process', async () => {
     app.isPackaged = true
-    const compressed = gzipSync(Buffer.from('coalesced duckdb extension body'))
+    const asset = Buffer.from(
+      gzipSync(Buffer.from('coalesced duckdb extension body')).toString('base64'),
+      'utf8'
+    )
     const { actualFs, userDataDir, readFile, writeFile, rename } =
-      await setupPackagedGzipFixture(compressed)
+      await setupPackagedBase64Fixture(asset)
     vi.spyOn(logger, 'info').mockImplementation(() => undefined)
     const first = makeVssLoadableStore(undefined, path.join(userDataDir, 'a.duckdb'))
     const second = makeVssLoadableStore(undefined, path.join(userDataDir, 'b.duckdb'))
@@ -339,9 +351,12 @@ describe('MemoryVectorStore VSS loading', () => {
 
   it('re-materializes when a cached packaged VSS file was deleted', async () => {
     app.isPackaged = true
-    const compressed = gzipSync(Buffer.from('restored duckdb extension body'))
+    const asset = Buffer.from(
+      gzipSync(Buffer.from('restored duckdb extension body')).toString('base64'),
+      'utf8'
+    )
     const { actualFs, userDataDir, readFile, writeFile, rename } =
-      await setupPackagedGzipFixture(compressed)
+      await setupPackagedBase64Fixture(asset)
     vi.spyOn(logger, 'info').mockImplementation(() => undefined)
 
     try {
@@ -369,7 +384,7 @@ describe('MemoryVectorStore VSS loading', () => {
     }
   })
 
-  it('drops failed packaged gzip materialization promises so the next open can retry', async () => {
+  it('drops failed packaged base64 materialization promises so the next open can retry', async () => {
     app.isPackaged = true
     const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const mockedPromises = fs.promises as typeof fs.promises & {
@@ -379,19 +394,28 @@ describe('MemoryVectorStore VSS loading', () => {
     mockedPromises.rename ??= vi.fn()
     mockedPromises.rm ??= vi.fn()
     const userDataDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-vss-user-data-'))
-    const compressed = gzipSync(Buffer.from('retry duckdb extension body'))
+    const asset = Buffer.from(
+      gzipSync(Buffer.from('retry duckdb extension body')).toString('base64'),
+      'utf8'
+    )
     const originalExistsSync = actualFs.existsSync
     vi.spyOn(app, 'getPath').mockReturnValue(userDataDir)
     vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
       const filePath = String(target)
-      if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension')) return false
-      if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension.gz')) return true
+      if (/(^|[/\\])runtime[/\\]duckdb[/\\]extensions[/\\]vss\.duckdb_extension$/.test(filePath)) {
+        return false
+      }
+      if (
+        /(^|[/\\])runtime[/\\]duckdb[/\\]extensions[/\\]vss\.duckdb_extension\.b64$/.test(filePath)
+      ) {
+        return true
+      }
       return originalExistsSync(target)
     })
     const readFile = vi
       .spyOn(fs.promises, 'readFile')
       .mockRejectedValueOnce(new Error('transient read failure'))
-      .mockResolvedValueOnce(compressed)
+      .mockResolvedValueOnce(asset)
     vi.spyOn(fs.promises, 'mkdir').mockImplementation(
       actualFs.promises.mkdir as typeof fs.promises.mkdir
     )
@@ -417,6 +441,21 @@ describe('MemoryVectorStore VSS loading', () => {
       expect(loadedPath).toBeTruthy()
       expect(actualFs.readFileSync(loadedPath!)).toEqual(Buffer.from('retry duckdb extension body'))
       expect(readFile).toHaveBeenCalledTimes(2)
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails closed in packaged builds when base64 materialization contains corrupt gzip data', async () => {
+    app.isPackaged = true
+    const asset = Buffer.from(Buffer.from('not a gzip payload').toString('base64'), 'utf8')
+    const { actualFs, userDataDir } = await setupPackagedBase64Fixture(asset)
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const store = makeVssLoadableStore(undefined, path.join(userDataDir, 'agent.duckdb'))
+
+    try {
+      await expect(store.loadVss()).rejects.toThrow()
+      expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
     } finally {
       actualFs.rmSync(userDataDir, { recursive: true, force: true })
     }

@@ -68,27 +68,52 @@ function escapeSqlPath(filePath) {
   return filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
 }
 
+export function materializeBase64Extension(base64Path) {
+  console.log(`[DuckDB Smoke] extension base64 path: ${base64Path}`)
+  if (!fs.existsSync(base64Path)) {
+    throw new Error(`Bundled VSS base64 extension not found at ${base64Path}`)
+  }
+  const materializedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-duckdb-vss-smoke-'))
+  const extensionPath = path.join(materializedDir, extensionName)
+  const compressed = Buffer.from(fs.readFileSync(base64Path, 'utf8'), 'base64')
+  fs.writeFileSync(extensionPath, zlib.gunzipSync(compressed))
+  return { extensionPath, materializedDir }
+}
+
+export function materializeGzipExtension(gzipPath) {
+  console.log(`[DuckDB Smoke] extension gzip path: ${gzipPath}`)
+  if (!fs.existsSync(gzipPath)) {
+    throw new Error(`Bundled VSS gzip extension not found at ${gzipPath}`)
+  }
+  const materializedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-duckdb-vss-smoke-'))
+  const extensionPath = path.join(materializedDir, extensionName)
+  fs.writeFileSync(extensionPath, zlib.gunzipSync(fs.readFileSync(gzipPath)))
+  return { extensionPath, materializedDir }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const platform = args.platform ? normalizePlatform(args.platform) : process.platform
   const arch = args.arch ? normalizeArch(args.arch) : process.arch
+  const extensionBase64Path = args.extensionBase64Path ?? args['extension-base64-path']
   const extensionGzipPath = args.extensionGzipPath ?? args['extension-gzip-path']
   let materializedDir = null
+  let instance = null
+  let connection = null
   let extensionPath = path.resolve(
     args.extensionPath ??
       args['extension-path'] ??
       path.join(__dirname, '../runtime/duckdb/extensions', extensionName)
   )
 
-  if (extensionGzipPath) {
-    const gzipPath = path.resolve(extensionGzipPath)
-    console.log(`[DuckDB Smoke] extension gzip path: ${gzipPath}`)
-    if (!fs.existsSync(gzipPath)) {
-      throw new Error(`Bundled VSS gzip extension not found at ${gzipPath}`)
-    }
-    materializedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-duckdb-vss-smoke-'))
-    extensionPath = path.join(materializedDir, extensionName)
-    fs.writeFileSync(extensionPath, zlib.gunzipSync(fs.readFileSync(gzipPath)))
+  if (extensionBase64Path) {
+    const materialized = materializeBase64Extension(path.resolve(extensionBase64Path))
+    extensionPath = materialized.extensionPath
+    materializedDir = materialized.materializedDir
+  } else if (extensionGzipPath) {
+    const materialized = materializeGzipExtension(path.resolve(extensionGzipPath))
+    extensionPath = materialized.extensionPath
+    materializedDir = materialized.materializedDir
   }
 
   console.log(`[DuckDB Smoke] package version: ${duckdbPackage.version}`)
@@ -109,24 +134,29 @@ async function main() {
     }
 
     const duckdb = await import('@duckdb/node-api')
-    const instance = await duckdb.DuckDBInstance.create(':memory:')
-    const connection = await instance.connect()
+    instance = await duckdb.DuckDBInstance.create(':memory:')
+    connection = await instance.connect()
 
     console.log('[DuckDB Smoke] created in-memory instance')
-    try {
-      await connection.run(`LOAD '${escapeSqlPath(extensionPath)}';`)
-      console.log('[DuckDB Smoke] loaded bundled vss by path')
-      await connection.run('SET hnsw_enable_experimental_persistence = true;')
-      await connection.run('CREATE TABLE vss_smoke (id INTEGER, embedding FLOAT[2]);')
-      await connection.run(
-        "CREATE INDEX idx_vss_smoke ON vss_smoke USING HNSW (embedding) WITH (metric='cosine');"
-      )
-      console.log('[DuckDB Smoke] created HNSW index')
-    } finally {
-      connection.closeSync()
-      instance.closeSync()
-    }
+    await connection.run(`LOAD '${escapeSqlPath(extensionPath)}';`)
+    console.log('[DuckDB Smoke] loaded bundled vss by path')
+    await connection.run('SET hnsw_enable_experimental_persistence = true;')
+    await connection.run('CREATE TABLE vss_smoke (id INTEGER, embedding FLOAT[2]);')
+    await connection.run(
+      "CREATE INDEX idx_vss_smoke ON vss_smoke USING HNSW (embedding) WITH (metric='cosine');"
+    )
+    console.log('[DuckDB Smoke] created HNSW index')
   } finally {
+    try {
+      connection?.closeSync()
+    } catch {
+      // best effort cleanup only
+    }
+    try {
+      instance?.closeSync()
+    } catch {
+      // best effort cleanup only
+    }
     if (materializedDir) {
       fs.rmSync(materializedDir, { recursive: true, force: true })
     }

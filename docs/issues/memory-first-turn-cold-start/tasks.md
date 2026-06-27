@@ -57,11 +57,12 @@
 
 ## macOS packaging follow-up — DuckDB VSS codesign compatibility
 - [x] Document that macOS DuckDB VSS requires a footer that fails Apple strict codesign when shipped as a raw Mach-O.
-- [x] Gzip the macOS packaged VSS extension during `afterPack` and delete the raw extension before codesign.
-- [x] Materialize packaged macOS VSS gzip assets into `userData` before runtime `LOAD`.
-- [x] Extend smoke checks and macOS workflows to validate the packaged gzip path.
-- [x] Add afterPack, smoke, runtime, and workflow tests for the gzip materialization path.
-- [x] Make macOS gzip materialization async and process-coalesced to avoid repeated read/hash/inflate work.
+- [x] Document that notarytool recursively scans raw gzip assets and rejects the contained unsigned DuckDB Mach-O.
+- [x] Encode the macOS packaged VSS extension as base64(gzip) during `afterPack` and delete the raw extension before codesign/notarization.
+- [x] Materialize packaged macOS VSS base64 assets into `userData` before runtime `LOAD`.
+- [x] Extend smoke checks and macOS workflows to validate the packaged base64 path.
+- [x] Add afterPack, smoke, runtime, and workflow tests for the base64 materialization path.
+- [x] Make macOS base64 materialization async and process-coalesced to avoid repeated read/hash/inflate work.
 - [x] Re-materialize packaged macOS VSS if a cached `userData` extension path is deleted mid-process.
 
 ## Validation

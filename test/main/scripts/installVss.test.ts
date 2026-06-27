@@ -1,4 +1,17 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return {
+    ...actual,
+    default: actual
+  }
+})
+
 import {
   VssDownloadError,
   downloadExtension,
@@ -8,7 +21,10 @@ import {
   targetTriple,
   validateExtensionMetadata
 } from '../../../scripts/installVss.js'
-import { parseArgs as parseSmokeArgs } from '../../../scripts/smoke-duckdb-vss.js'
+import {
+  materializeBase64Extension,
+  parseArgs as parseSmokeArgs
+} from '../../../scripts/smoke-duckdb-vss.js'
 
 function response(status: number, body = 'ok'): Response {
   return new Response(body, { status })
@@ -121,9 +137,40 @@ describe('installVss helpers', () => {
       platform: 'darwin',
       arch: 'arm64'
     })
-    expect(parseSmokeArgs(['--extension-gzip-path', '/tmp/vss.duckdb_extension.gz'])).toEqual({
-      'extension-gzip-path': '/tmp/vss.duckdb_extension.gz'
+    expect(parseSmokeArgs(['--extension-base64-path', '/tmp/vss.duckdb_extension.b64'])).toEqual({
+      'extension-base64-path': '/tmp/vss.duckdb_extension.b64'
     })
+  })
+
+  it('materializes smoke base64 assets into a loadable extension file', () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'deepchat-smoke-base64-test-'))
+    try {
+      const assetPath = path.join(tmpDir, 'vss.duckdb_extension.b64')
+      writeFileSync(
+        assetPath,
+        gzipSync(Buffer.from('duckdb extension body')).toString('base64'),
+        'utf8'
+      )
+
+      const materialized = materializeBase64Extension(assetPath)
+
+      expect(readFileSync(materialized.extensionPath)).toEqual(Buffer.from('duckdb extension body'))
+      rmSync(materialized.materializedDir, { recursive: true, force: true })
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects corrupt smoke base64 assets before loading DuckDB', () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'deepchat-smoke-base64-test-'))
+    try {
+      const assetPath = path.join(tmpDir, 'vss.duckdb_extension.b64')
+      writeFileSync(assetPath, Buffer.from('not gzip').toString('base64'), 'utf8')
+
+      expect(() => materializeBase64Extension(assetPath)).toThrow()
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
   })
 
   it('accepts extension metadata with matching signature, version, and target triple', () => {

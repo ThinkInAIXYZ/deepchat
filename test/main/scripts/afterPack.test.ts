@@ -61,7 +61,7 @@ describe('afterPack', () => {
     await expect(readFile(launcherPath, 'utf8')).resolves.toContain('--no-sandbox')
   })
 
-  it('compresses macOS DuckDB VSS into a non-Mach-O packaged asset', async () => {
+  it('encodes macOS DuckDB VSS into a non-executable packaged asset', async () => {
     const afterPack = await loadAfterPack()
     const extensionPath = path.join(
       tmpDir,
@@ -90,7 +90,11 @@ describe('afterPack', () => {
     })
 
     await expect(stat(extensionPath)).rejects.toThrow()
-    const compressed = await readFile(`${extensionPath}.gz`)
+    const asset = await readFile(`${extensionPath}.b64`)
+    expect(asset.subarray(0, 2)).not.toEqual(Buffer.from([0x1f, 0x8b]))
+    expect(asset.subarray(0, 4)).not.toEqual(Buffer.from([0xcf, 0xfa, 0xed, 0xfe]))
+    expect(asset.subarray(0, 4)).not.toEqual(Buffer.from([0xca, 0xfe, 0xba, 0xbe]))
+    const compressed = Buffer.from(asset.toString('utf8'), 'base64')
     expect(gunzipSync(compressed)).toEqual(extensionBody)
   })
 

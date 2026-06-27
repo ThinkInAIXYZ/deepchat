@@ -189,7 +189,7 @@ async function afterPackLinux({ appOutDir }) {
   await fs.chmod(scriptPath, 0o755)
 }
 
-async function compressMacVssExtension(context) {
+async function encodeMacVssExtension(context) {
   if (context.electronPlatformName !== 'darwin') {
     return
   }
@@ -207,11 +207,12 @@ async function compressMacVssExtension(context) {
     return
   }
 
-  const gzipPath = `${extensionPath}.gz`
+  const base64Path = `${extensionPath}.b64`
   const extension = await fs.readFile(extensionPath)
-  await fs.writeFile(gzipPath, await gzipAsync(extension))
+  const compressed = await gzipAsync(extension)
+  await fs.writeFile(base64Path, compressed.toString('base64'), 'utf8')
   await fs.rm(extensionPath, { force: true })
-  console.info(`[afterPack] compressed macOS DuckDB VSS extension: ${gzipPath}`)
+  console.info(`[afterPack] encoded macOS DuckDB VSS extension: ${base64Path}`)
 }
 
 async function afterPack(context) {
@@ -219,7 +220,7 @@ async function afterPack(context) {
 
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
-  await compressMacVssExtension(context)
+  await encodeMacVssExtension(context)
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })

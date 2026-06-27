@@ -20,16 +20,17 @@ const runtimeBasePath = path
   .replace('app.asar', 'app.asar.unpacked')
 const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
 const extensionSuffix = '.duckdb_extension'
-const extensionName = `vss${extensionSuffix}`
-const gunzipAsync = promisify(gunzip)
-const packagedVssMaterializationPromises = new Map<string, Promise<string>>()
+const VSS_EXTENSION_NAME = `vss${extensionSuffix}`
+const PACKAGED_VSS_ASSET_SUFFIX = '.b64'
+const GUNZIP_ASYNC = promisify(gunzip)
+const PACKAGED_VSS_MATERIALIZATION_PROMISES = new Map<string, Promise<string>>()
 
 function escapeSqlPath(filePath: string): string {
   return filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
 }
 
-function materializationCacheKey(compressedPath: string, materializationRoot: string): string {
-  return `${path.resolve(compressedPath)}\0${path.resolve(materializationRoot)}`
+function materializationCacheKey(assetPath: string, materializationRoot: string): string {
+  return `${path.resolve(assetPath)}\0${path.resolve(materializationRoot)}`
 }
 
 interface EmbeddingIdentity {
@@ -90,22 +91,26 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   }
 
   private async inflatePackagedVssExtension(
-    compressedPath: string,
+    assetPath: string,
     materializationRoot: string
   ): Promise<string> {
-    const compressed = await fs.promises.readFile(compressedPath)
-    const digest = createHash('sha256').update(compressed).digest('hex').slice(0, 16)
+    const asset = await fs.promises.readFile(assetPath)
+    const digest = createHash('sha256').update(asset).digest('hex').slice(0, 16)
     const targetDir = path.join(materializationRoot, 'duckdb', 'extensions', digest)
-    const targetPath = path.join(targetDir, extensionName)
+    const targetPath = path.join(targetDir, VSS_EXTENSION_NAME)
 
     if (fs.existsSync(targetPath)) {
       return targetPath
     }
 
     await fs.promises.mkdir(targetDir, { recursive: true })
-    const tempPath = path.join(targetDir, `.${extensionName}.${process.pid}.${randomUUID()}.tmp`)
+    const tempPath = path.join(
+      targetDir,
+      `.${VSS_EXTENSION_NAME}.${process.pid}.${randomUUID()}.tmp`
+    )
     try {
-      await fs.promises.writeFile(tempPath, await gunzipAsync(compressed))
+      const compressed = Buffer.from(asset.toString('utf8'), 'base64')
+      await fs.promises.writeFile(tempPath, await GUNZIP_ASYNC(compressed))
       if (fs.existsSync(targetPath)) {
         await fs.promises.rm(tempPath, { force: true })
         return targetPath
@@ -130,40 +135,40 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return targetPath
   }
 
-  private async materializePackagedVssExtension(compressedPath: string): Promise<string> {
-    const resolvedCompressedPath = path.resolve(compressedPath)
+  private async materializePackagedVssExtension(assetPath: string): Promise<string> {
+    const resolvedAssetPath = path.resolve(assetPath)
     const materializationRoot = path.resolve(app.getPath('userData') || path.dirname(this.dbPath))
-    const cacheKey = materializationCacheKey(resolvedCompressedPath, materializationRoot)
-    const existing = packagedVssMaterializationPromises.get(cacheKey)
+    const cacheKey = materializationCacheKey(resolvedAssetPath, materializationRoot)
+    const existing = PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey)
     if (existing) {
       const existingPath = await existing
       if (fs.existsSync(existingPath)) {
         return existingPath
       }
-      if (packagedVssMaterializationPromises.get(cacheKey) === existing) {
-        packagedVssMaterializationPromises.delete(cacheKey)
+      if (PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey) === existing) {
+        PACKAGED_VSS_MATERIALIZATION_PROMISES.delete(cacheKey)
       } else {
-        return this.materializePackagedVssExtension(resolvedCompressedPath)
+        return this.materializePackagedVssExtension(resolvedAssetPath)
       }
     }
 
     let materializationPromise: Promise<string>
     materializationPromise = this.inflatePackagedVssExtension(
-      resolvedCompressedPath,
+      resolvedAssetPath,
       materializationRoot
     ).catch((error) => {
-      if (packagedVssMaterializationPromises.get(cacheKey) === materializationPromise) {
-        packagedVssMaterializationPromises.delete(cacheKey)
+      if (PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey) === materializationPromise) {
+        PACKAGED_VSS_MATERIALIZATION_PROMISES.delete(cacheKey)
       }
       throw error
     })
-    packagedVssMaterializationPromises.set(cacheKey, materializationPromise)
+    PACKAGED_VSS_MATERIALIZATION_PROMISES.set(cacheKey, materializationPromise)
     return materializationPromise
   }
 
   private async loadVss(): Promise<void> {
-    const extensionPath = path.join(extensionDir, extensionName)
-    const compressedExtensionPath = `${extensionPath}.gz`
+    const extensionPath = path.join(extensionDir, VSS_EXTENSION_NAME)
+    const packagedAssetPath = `${extensionPath}${PACKAGED_VSS_ASSET_SUFFIX}`
     if (fs.existsSync(extensionPath)) {
       try {
         await this.loadVssFromPath(extensionPath, 'bundled')
@@ -176,19 +181,19 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         }
         logger.warn(`${message}; falling back to network INSTALL vss in development.`)
       }
-    } else if (app.isPackaged && fs.existsSync(compressedExtensionPath)) {
+    } else if (app.isPackaged && fs.existsSync(packagedAssetPath)) {
       try {
-        const materializedPath = await this.materializePackagedVssExtension(compressedExtensionPath)
+        const materializedPath = await this.materializePackagedVssExtension(packagedAssetPath)
         await this.loadVssFromPath(materializedPath, 'materialized packaged')
         return
       } catch (error) {
         logger.error(
-          `[MemoryVectorStore] packaged VSS extension failed to materialize/load from ${compressedExtensionPath}: ${String(error)}. Vector recall disabled until a valid bundled extension ships.`
+          `[MemoryVectorStore] packaged VSS extension failed to materialize/load from ${packagedAssetPath}: ${String(error)}. Vector recall disabled until a valid bundled extension ships.`
         )
         throw error
       }
     } else {
-      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${compressedExtensionPath}. Run installRuntime:duckdb:vss before packaging.`
+      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${packagedAssetPath}. Run installRuntime:duckdb:vss before packaging.`
       if (app.isPackaged) {
         logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
         throw new Error(message)
