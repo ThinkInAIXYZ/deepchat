@@ -606,7 +606,7 @@ describe('NewApiProvider capability routing', () => {
     expect(models[0].selectableEndpointTypes).toBeUndefined()
   })
 
-  it('does not expose responses for openai-only models without an explicit chat type', async () => {
+  it('exposes responses for openai-only GPT models without an explicit chat type', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -632,9 +632,9 @@ describe('NewApiProvider capability routing', () => {
     expect(models[0]).toMatchObject({
       id: 'gpt-5.5',
       supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response'],
       endpointType: 'openai'
     })
-    expect(models[0].selectableEndpointTypes).toBeUndefined()
   })
 
   it('does not expose responses for openai-only audio models', async () => {
@@ -652,6 +652,43 @@ describe('NewApiProvider capability routing', () => {
               owned_by: 'openai',
               supported_endpoint_types: ['openai'],
               type: 'chat'
+            },
+            {
+              id: 'whisper-1',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai']
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models).toHaveLength(2)
+    for (const model of models) {
+      expect(model.supportedEndpointTypes).toEqual(['openai'])
+      expect(model.endpointType).toBe('openai')
+      expect(model.selectableEndpointTypes).toBeUndefined()
+    }
+  })
+
+  it('does not expose responses for openai-only image models without an explicit type', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-image-2',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai']
             }
           ]
         })
@@ -662,7 +699,7 @@ describe('NewApiProvider capability routing', () => {
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
-      id: 'tts-1',
+      id: 'gpt-image-2',
       supportedEndpointTypes: ['openai'],
       endpointType: 'openai'
     })

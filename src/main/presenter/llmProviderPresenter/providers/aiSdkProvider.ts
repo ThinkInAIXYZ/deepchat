@@ -6,6 +6,7 @@ import {
   isDeepSeekSeriesModelId,
   isGeminiFamilyModelId,
   isNewApiEndpointType,
+  resolveNewApiSelectableEndpointTypes,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
@@ -218,51 +219,6 @@ const getNewApiPreferredCapabilityProviderIds = (
   const providerIds: string[] = []
   addNewApiCapabilityProviderHints(providerIds, modelId, ownedBy, endpointType)
   return providerIds
-}
-
-const isOpenAiFamilyNewApiModel = (modelId: string, ownedBy?: string): boolean => {
-  const normalizedOwner = ownedBy?.trim().toLowerCase() ?? ''
-  if (normalizedOwner.includes('openai')) {
-    return true
-  }
-
-  const normalizedModelId = modelId.trim().toLowerCase()
-  return /^(?:gpt-|chatgpt-|o[1-9](?:[.-]|$))/.test(normalizedModelId)
-}
-
-const isNewApiResponsesIncompatibleModelId = (modelId: string): boolean => {
-  const normalizedModelId = modelId.trim().toLowerCase()
-  return (
-    normalizedModelId.startsWith('tts-') ||
-    normalizedModelId.startsWith('whisper-') ||
-    normalizedModelId.startsWith('audio-') ||
-    normalizedModelId.includes('speech') ||
-    normalizedModelId.includes('transcribe')
-  )
-}
-
-const resolveNewApiSelectableEndpointTypes = (
-  supportedEndpointTypes: NewApiEndpointType[],
-  modelId: string,
-  normalizedRawType: string,
-  ownedBy?: string
-): NewApiEndpointType[] | undefined => {
-  if (
-    !supportedEndpointTypes.includes('openai') ||
-    supportedEndpointTypes.includes('openai-response') ||
-    normalizedRawType !== ModelType.Chat ||
-    !isOpenAiFamilyNewApiModel(modelId, ownedBy) ||
-    isNewApiResponsesIncompatibleModelId(modelId)
-  ) {
-    return undefined
-  }
-
-  const openaiIndex = supportedEndpointTypes.indexOf('openai')
-  return [
-    ...supportedEndpointTypes.slice(0, openaiIndex + 1),
-    'openai-response',
-    ...supportedEndpointTypes.slice(openaiIndex + 1)
-  ]
 }
 
 export function normalizeExtractedImageText(content: string): string {
@@ -1976,8 +1932,11 @@ export class AiSdkProvider extends BaseLLMProvider {
         const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
           rawSupportedEndpointTypes,
           rawModel.id,
-          normalizedRawType,
-          ownedBy
+          {
+            type,
+            rawType: normalizedRawType,
+            ownedBy
+          }
         )
 
         const contextLengthCandidate = [

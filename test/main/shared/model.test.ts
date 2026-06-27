@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ModelType,
   resolveNewApiEndpointTypeFromRoute,
+  resolveNewApiSelectableEndpointTypes,
   resolveProviderCapabilityProviderId,
   shouldUseAnthropicClaudeRouteFromSupportedEndpoints
 } from '@shared/model'
@@ -201,5 +202,26 @@ describe('new-api route helpers', () => {
     expect(
       resolveProviderCapabilityProviderId('openrouter', null, 'anthropic/claude-opus-4-7')
     ).toBe('openrouter')
+  })
+
+  it('adds responses for exact OpenAI owners and OpenAI-family model ids', () => {
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai'], 'proxy-chat', {
+        ownedBy: 'openai'
+      })
+    ).toEqual(['openai', 'openai-response'])
+
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-5.5')).toEqual([
+      'openai',
+      'openai-response'
+    ])
+  })
+
+  it('does not treat composite OpenAI-compatible owner labels as OpenAI ownership', () => {
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai'], 'proxy-chat', {
+        ownedBy: 'openai-compatible'
+      })
+    ).toBeUndefined()
   })
 })

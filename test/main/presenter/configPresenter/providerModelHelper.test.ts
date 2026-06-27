@@ -219,6 +219,75 @@ describe('ProviderModelHelper cache', () => {
     expect(storeState.get).toHaveBeenCalledTimes(1)
   })
 
+  it('enriches cached NewAPI openai-only GPT models with responses selectable endpoint', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai',
+        ownedBy: 'openai'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response'],
+      endpointType: 'openai'
+    })
+  })
+
+  it('does not enrich cached NewAPI models with composite OpenAI-compatible owners', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'proxy-chat',
+        name: 'Proxy Chat',
+        group: 'default',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai',
+        ownedBy: 'openai-compatible'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'proxy-chat',
+      supportedEndpointTypes: ['openai'],
+      endpointType: 'openai',
+      type: ModelType.Chat
+    })
+    expect(models[0].selectableEndpointTypes).toBeUndefined()
+  })
+
   it('clears persisted provider models and custom models for a removed provider', async () => {
     const { ProviderModelHelper } =
       await import('../../../../src/main/presenter/configPresenter/providerModelHelper')

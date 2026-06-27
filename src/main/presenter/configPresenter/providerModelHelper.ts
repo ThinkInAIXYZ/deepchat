@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { ModelConfig, MODEL_META } from '@shared/presenter'
-import { ModelType } from '@shared/model'
+import { ModelType, resolveNewApiSelectableEndpointTypes } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
@@ -172,6 +172,22 @@ export class ProviderModelHelper {
     return normalizedModel
   }
 
+  private applyNewApiEndpointCompatibility(model: MODEL_META, providerId: string): MODEL_META {
+    if (providerId !== 'new-api' || model.selectableEndpointTypes?.length) {
+      return model
+    }
+
+    const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
+      model.supportedEndpointTypes,
+      model.id,
+      {
+        type: model.type,
+        ownedBy: model.ownedBy
+      }
+    )
+    return selectableEndpointTypes ? { ...model, selectableEndpointTypes } : model
+  }
+
   getProviderModels(providerId: string): MODEL_META[] {
     const cached = this.providerModelsCache.get(providerId)
     if (cached && cached.expiresAt > Date.now()) {
@@ -201,7 +217,10 @@ export class ProviderModelHelper {
     }
 
     const result = normalizedStoredModels.map((model) =>
-      this.applyResolvedModelConfig(model, providerId)
+      this.applyResolvedModelConfig(
+        this.applyNewApiEndpointCompatibility(model, providerId),
+        providerId
+      )
     )
 
     this.providerModelsCache.set(providerId, {

@@ -56,6 +56,91 @@ function normalizeRouteHintValue(value: string | undefined): string {
   return normalizeProviderValue(value).replace(/[./_-]+/g, ' ')
 }
 
+export function isOpenAiFamilyNewApiModel(modelId: string | undefined, ownedBy?: string): boolean {
+  const normalizedOwner = normalizeProviderValue(ownedBy)
+  if (normalizedOwner === 'openai') {
+    return true
+  }
+
+  const normalizedModelId = normalizeModelId(modelId)
+  return /^(?:gpt-|chatgpt-|o[1-9](?:[.-]|$))/.test(normalizedModelId)
+}
+
+export function isNewApiResponsesIncompatibleModelId(modelId: string | undefined): boolean {
+  const normalizedModelId = normalizeModelId(modelId)
+  return (
+    normalizedModelId.startsWith('tts-') ||
+    normalizedModelId.startsWith('whisper-') ||
+    normalizedModelId.startsWith('audio-') ||
+    normalizedModelId.startsWith('dall-e-') ||
+    normalizedModelId.startsWith('gpt-image-') ||
+    normalizedModelId.startsWith('sora-') ||
+    normalizedModelId.includes('embedding') ||
+    normalizedModelId.includes('embed') ||
+    normalizedModelId.includes('rerank') ||
+    normalizedModelId.includes('speech') ||
+    normalizedModelId.includes('transcribe') ||
+    normalizedModelId.includes('moderation')
+  )
+}
+
+function isExplicitNonChatNewApiModelType(type: ModelType | undefined): boolean {
+  return (
+    type === ModelType.Embedding ||
+    type === ModelType.Rerank ||
+    type === ModelType.ImageGeneration ||
+    type === ModelType.VideoGeneration ||
+    type === ModelType.TTS
+  )
+}
+
+function isNonChatNewApiRawType(rawType: string | undefined): boolean {
+  const normalizedRawType = normalizeProviderValue(rawType)
+  return (
+    normalizedRawType === 'embedding' ||
+    normalizedRawType === 'embeddings' ||
+    normalizedRawType === 'rerank' ||
+    normalizedRawType === 'imagegeneration' ||
+    normalizedRawType === 'image-generation' ||
+    normalizedRawType === 'image' ||
+    normalizedRawType === 'videogeneration' ||
+    normalizedRawType === 'video-generation' ||
+    normalizedRawType === 'video' ||
+    normalizedRawType === 'tts' ||
+    normalizedRawType === 'audio-speech' ||
+    normalizedRawType === 'audiospeech'
+  )
+}
+
+export function resolveNewApiSelectableEndpointTypes(
+  supportedEndpointTypes: readonly NewApiEndpointType[] | null | undefined,
+  modelId: string | undefined,
+  options: {
+    type?: ModelType
+    rawType?: string
+    ownedBy?: string
+  } = {}
+): NewApiEndpointType[] | undefined {
+  const normalizedEndpointTypes = supportedEndpointTypes?.filter(isNewApiEndpointType) ?? []
+  if (
+    !normalizedEndpointTypes.includes('openai') ||
+    normalizedEndpointTypes.includes('openai-response') ||
+    isExplicitNonChatNewApiModelType(options.type) ||
+    isNonChatNewApiRawType(options.rawType) ||
+    !isOpenAiFamilyNewApiModel(modelId, options.ownedBy) ||
+    isNewApiResponsesIncompatibleModelId(modelId)
+  ) {
+    return undefined
+  }
+
+  const openaiIndex = normalizedEndpointTypes.indexOf('openai')
+  return [
+    ...normalizedEndpointTypes.slice(0, openaiIndex + 1),
+    'openai-response',
+    ...normalizedEndpointTypes.slice(openaiIndex + 1)
+  ]
+}
+
 function hasNewApiRouteHints(route: NewApiRouteMeta | null | undefined): boolean {
   return (
     Boolean(route?.endpointType && isNewApiEndpointType(route.endpointType)) ||
