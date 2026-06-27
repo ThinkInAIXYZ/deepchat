@@ -79,8 +79,14 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
 - Load bundled VSS by explicit path in `memoryVectorStore.loadVss()`. In packaged builds, a missing
   or invalid bundled extension fails closed so the caller falls back to FTS; network `INSTALL vss`
   remains a dev/test-only fallback with explicit logging.
-- Extend `scripts/smoke-duckdb-vss.js` to assert the extension loads from the bundled path
-  (`LOAD '<path>'`) without a network `INSTALL`, and run it in CI / build preflight.
+- On macOS, gzip the packaged `vss.duckdb_extension` during `afterPack` and delete the raw Mach-O
+  before codesign runs. Runtime materializes the gzip into `app.getPath('userData')` and loads that
+  copy, preserving DuckDB's required footer without putting an unsigned Mach-O inside the notarized
+  `.app`. Materialization is async and process-coalesced by packaged gzip path plus userData root so
+  multiple agents share one read/hash/inflate pass per process.
+- Extend `scripts/smoke-duckdb-vss.js` to assert the extension loads from either the bundled raw
+  path (`LOAD '<path>'`) or a packaged gzip (`--extension-gzip-path`, materialized to a temp file)
+  without a network `INSTALL`, and run it in CI / build preflight.
 
 ## P1 — Background prewarm (best-effort, `memoryPresenter` + lifecycle hook)
 
@@ -141,8 +147,9 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
 
 ## Risks
 
-- **Silent FTS-only forever** if a bundled extension fails to `LOAD` by path: mitigate by logging on
-  fallback and covering load-by-path in the smoke check.
+- **Silent FTS-only forever** if a bundled extension fails to `LOAD` by path or macOS gzip
+  materialization fails: mitigate by logging and covering both raw and gzip load paths in smoke
+  checks.
 - **Warm coalescing**: ensure `warmVectorStore` reuses the in-flight open and never opens a second
   DuckDBInstance for the same file (it routes through `getVectorStore` → per-agent lock, which
   already serializes — verify).
@@ -170,8 +177,8 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
   un-warmed (`vectorStoreReady` unset); after the reindex completes, a later `retrieve` restores the
   vector path — i.e. no permanent FTS-only.
 - `test/main` — memory-disabled / no-embedding: unchanged (no warm scheduled, FTS path as today).
-- Build/smoke — `smoke:duckdb:vss` loads the bundled extension by path on macOS/win/linux without
-  network install.
+- Build/smoke — `smoke:duckdb:vss` loads the bundled extension by path on Windows/Linux and loads
+  the packaged gzip on macOS without network install.
 - Scripts — unit-test `installVss` helper parsing, retry classification, no-retry 404 failures, and
   extension footer validation for valid, wrong-version, wrong-triple, and missing-signature cases.
 - Memory — unit-test cold `searchMemories`, cold exact-provenance duplicate writes, cold semantic

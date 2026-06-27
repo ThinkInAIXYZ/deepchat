@@ -1,7 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { gzip } from 'node:zlib'
+import { promisify } from 'node:util'
 
 const LINUX_APP_NAME = 'deepchat'
+const VSS_EXTENSION_NAME = 'vss.duckdb_extension'
+const gzipAsync = promisify(gzip)
 const ARCH_NAMES = new Map([
   [0, 'ia32'],
   [1, 'x64'],
@@ -185,11 +189,37 @@ async function afterPackLinux({ appOutDir }) {
   await fs.chmod(scriptPath, 0o755)
 }
 
+async function compressMacVssExtension(context) {
+  if (context.electronPlatformName !== 'darwin') {
+    return
+  }
+
+  const extensionPath = path.join(
+    getResourcesDir(context),
+    'app.asar.unpacked',
+    'runtime',
+    'duckdb',
+    'extensions',
+    VSS_EXTENSION_NAME
+  )
+
+  if (!(await pathExists(extensionPath))) {
+    return
+  }
+
+  const gzipPath = `${extensionPath}.gz`
+  const extension = await fs.readFile(extensionPath)
+  await fs.writeFile(gzipPath, await gzipAsync(extension))
+  await fs.rm(extensionPath, { force: true })
+  console.info(`[afterPack] compressed macOS DuckDB VSS extension: ${gzipPath}`)
+}
+
 async function afterPack(context) {
   const { targets, appOutDir } = context
 
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
+  await compressMacVssExtension(context)
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })

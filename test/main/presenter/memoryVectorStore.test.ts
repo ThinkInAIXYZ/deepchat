@@ -15,6 +15,9 @@ import { MemoryVectorStore } from '@/presenter/memoryPresenter/memoryVectorStore
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
 import { app } from 'electron'
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { gzipSync } from 'node:zlib'
 
 interface TestStore {
   connection: { run: ReturnType<typeof vi.fn> }
@@ -82,6 +85,7 @@ interface OpenableStore {
 }
 
 interface VssLoadableStore {
+  dbPath: string
   connection: { run: ReturnType<typeof vi.fn> }
   loadVss(): Promise<void>
 }
@@ -122,8 +126,12 @@ function makeOpenableStore(opts: { meta?: EmbeddingMeta | null }) {
 
 const EMB = { providerId: 'p', modelId: 'm' }
 
-function makeVssLoadableStore(onRun: (sql: string) => void = () => {}) {
+function makeVssLoadableStore(
+  onRun: (sql: string) => void = () => {},
+  dbPath = '/tmp/agent.duckdb'
+) {
   const store = Object.create(MemoryVectorStore.prototype) as unknown as VssLoadableStore
+  store.dbPath = dbPath
   store.connection = {
     run: vi.fn(async (sql: string) => {
       onRun(sql)
@@ -131,6 +139,45 @@ function makeVssLoadableStore(onRun: (sql: string) => void = () => {}) {
     })
   }
   return store
+}
+
+async function setupPackagedGzipFixture(compressed: Buffer) {
+  const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+  const mockedPromises = fs.promises as typeof fs.promises & {
+    rename: typeof actualFs.promises.rename
+    rm: typeof actualFs.promises.rm
+  }
+  mockedPromises.rename ??= vi.fn()
+  mockedPromises.rm ??= vi.fn()
+  const userDataDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-vss-user-data-'))
+  const originalExistsSync = actualFs.existsSync
+  const originalReadFile = actualFs.promises.readFile
+  vi.spyOn(app, 'getPath').mockReturnValue(userDataDir)
+  vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
+    const filePath = String(target)
+    if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension')) return false
+    if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension.gz')) return true
+    return originalExistsSync(target)
+  })
+  const readFile = vi.spyOn(fs.promises, 'readFile').mockImplementation((async (
+    target,
+    options
+  ) => {
+    if (String(target).endsWith('vss.duckdb_extension.gz')) return compressed
+    return originalReadFile(target, options)
+  }) as typeof fs.promises.readFile)
+  const mkdir = vi
+    .spyOn(fs.promises, 'mkdir')
+    .mockImplementation(actualFs.promises.mkdir as typeof fs.promises.mkdir)
+  const writeFile = vi
+    .spyOn(fs.promises, 'writeFile')
+    .mockImplementation(actualFs.promises.writeFile as typeof fs.promises.writeFile)
+  const rename = vi
+    .spyOn(mockedPromises, 'rename')
+    .mockImplementation(actualFs.promises.rename as typeof fs.promises.rename)
+  vi.spyOn(mockedPromises, 'rm').mockImplementation(actualFs.promises.rm as typeof fs.promises.rm)
+
+  return { actualFs, userDataDir, readFile, mkdir, writeFile, rename }
 }
 
 afterEach(() => {
@@ -233,6 +280,146 @@ describe('MemoryVectorStore VSS loading', () => {
 
     expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
     expect(error).toHaveBeenCalled()
+  })
+
+  it('materializes packaged gzip VSS assets into userData before loading', async () => {
+    app.isPackaged = true
+    const compressed = gzipSync(Buffer.from('duckdb extension body'))
+    const { actualFs, userDataDir } = await setupPackagedGzipFixture(compressed)
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+    const store = makeVssLoadableStore(undefined, path.join(userDataDir, 'agent.duckdb'))
+
+    try {
+      await store.loadVss()
+      const loadSql = store.connection.run.mock.calls[0][0] as string
+      const [, loadedPath] = loadSql.match(/LOAD '([^']+)'/) ?? []
+
+      expect(loadedPath).toBeTruthy()
+      const materializedPath = loadedPath!
+      expect(materializedPath).toContain(path.join(userDataDir, 'duckdb', 'extensions'))
+      expect(actualFs.readFileSync(materializedPath)).toEqual(Buffer.from('duckdb extension body'))
+      expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+      expect(store.connection.run).toHaveBeenCalledWith(
+        'SET hnsw_enable_experimental_persistence = true;'
+      )
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('coalesces packaged gzip materialization across stores in the same process', async () => {
+    app.isPackaged = true
+    const compressed = gzipSync(Buffer.from('coalesced duckdb extension body'))
+    const { actualFs, userDataDir, readFile, writeFile, rename } =
+      await setupPackagedGzipFixture(compressed)
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+    const first = makeVssLoadableStore(undefined, path.join(userDataDir, 'a.duckdb'))
+    const second = makeVssLoadableStore(undefined, path.join(userDataDir, 'b.duckdb'))
+
+    try {
+      await Promise.all([first.loadVss(), second.loadVss()])
+
+      const firstLoadSql = first.connection.run.mock.calls[0][0] as string
+      const secondLoadSql = second.connection.run.mock.calls[0][0] as string
+      const [, firstLoadedPath] = firstLoadSql.match(/LOAD '([^']+)'/) ?? []
+      const [, secondLoadedPath] = secondLoadSql.match(/LOAD '([^']+)'/) ?? []
+
+      expect(firstLoadedPath).toBeTruthy()
+      expect(secondLoadedPath).toBe(firstLoadedPath)
+      expect(readFile).toHaveBeenCalledTimes(1)
+      expect(writeFile).toHaveBeenCalledTimes(1)
+      expect(rename).toHaveBeenCalledTimes(1)
+      expect(actualFs.readFileSync(firstLoadedPath!)).toEqual(
+        Buffer.from('coalesced duckdb extension body')
+      )
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('re-materializes when a cached packaged VSS file was deleted', async () => {
+    app.isPackaged = true
+    const compressed = gzipSync(Buffer.from('restored duckdb extension body'))
+    const { actualFs, userDataDir, readFile, writeFile, rename } =
+      await setupPackagedGzipFixture(compressed)
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+
+    try {
+      const first = makeVssLoadableStore(undefined, path.join(userDataDir, 'a.duckdb'))
+      await first.loadVss()
+      const firstLoadSql = first.connection.run.mock.calls[0][0] as string
+      const [, firstLoadedPath] = firstLoadSql.match(/LOAD '([^']+)'/) ?? []
+      expect(firstLoadedPath).toBeTruthy()
+      actualFs.rmSync(firstLoadedPath!, { force: true })
+
+      const second = makeVssLoadableStore(undefined, path.join(userDataDir, 'b.duckdb'))
+      await second.loadVss()
+      const secondLoadSql = second.connection.run.mock.calls[0][0] as string
+      const [, secondLoadedPath] = secondLoadSql.match(/LOAD '([^']+)'/) ?? []
+
+      expect(secondLoadedPath).toBe(firstLoadedPath)
+      expect(actualFs.readFileSync(secondLoadedPath!)).toEqual(
+        Buffer.from('restored duckdb extension body')
+      )
+      expect(readFile).toHaveBeenCalledTimes(2)
+      expect(writeFile).toHaveBeenCalledTimes(2)
+      expect(rename).toHaveBeenCalledTimes(2)
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('drops failed packaged gzip materialization promises so the next open can retry', async () => {
+    app.isPackaged = true
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const mockedPromises = fs.promises as typeof fs.promises & {
+      rename: typeof actualFs.promises.rename
+      rm: typeof actualFs.promises.rm
+    }
+    mockedPromises.rename ??= vi.fn()
+    mockedPromises.rm ??= vi.fn()
+    const userDataDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-vss-user-data-'))
+    const compressed = gzipSync(Buffer.from('retry duckdb extension body'))
+    const originalExistsSync = actualFs.existsSync
+    vi.spyOn(app, 'getPath').mockReturnValue(userDataDir)
+    vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
+      const filePath = String(target)
+      if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension')) return false
+      if (filePath.endsWith('/runtime/duckdb/extensions/vss.duckdb_extension.gz')) return true
+      return originalExistsSync(target)
+    })
+    const readFile = vi
+      .spyOn(fs.promises, 'readFile')
+      .mockRejectedValueOnce(new Error('transient read failure'))
+      .mockResolvedValueOnce(compressed)
+    vi.spyOn(fs.promises, 'mkdir').mockImplementation(
+      actualFs.promises.mkdir as typeof fs.promises.mkdir
+    )
+    vi.spyOn(fs.promises, 'writeFile').mockImplementation(
+      actualFs.promises.writeFile as typeof fs.promises.writeFile
+    )
+    vi.spyOn(mockedPromises, 'rename').mockImplementation(
+      actualFs.promises.rename as typeof fs.promises.rename
+    )
+    vi.spyOn(mockedPromises, 'rm').mockImplementation(actualFs.promises.rm as typeof fs.promises.rm)
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+
+    try {
+      const first = makeVssLoadableStore(undefined, path.join(userDataDir, 'a.duckdb'))
+      await expect(first.loadVss()).rejects.toThrow('transient read failure')
+
+      const second = makeVssLoadableStore(undefined, path.join(userDataDir, 'b.duckdb'))
+      await second.loadVss()
+      const loadSql = second.connection.run.mock.calls[0][0] as string
+      const [, loadedPath] = loadSql.match(/LOAD '([^']+)'/) ?? []
+
+      expect(loadedPath).toBeTruthy()
+      expect(actualFs.readFileSync(loadedPath!)).toEqual(Buffer.from('retry duckdb extension body'))
+      expect(readFile).toHaveBeenCalledTimes(2)
+    } finally {
+      actualFs.rmSync(userDataDir, { recursive: true, force: true })
+    }
   })
 
   it('fails closed in packaged builds when the bundled extension cannot load', async () => {

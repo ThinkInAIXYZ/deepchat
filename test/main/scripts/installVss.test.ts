@@ -121,6 +121,9 @@ describe('installVss helpers', () => {
       platform: 'darwin',
       arch: 'arm64'
     })
+    expect(parseSmokeArgs(['--extension-gzip-path', '/tmp/vss.duckdb_extension.gz'])).toEqual({
+      'extension-gzip-path': '/tmp/vss.duckdb_extension.gz'
+    })
   })
 
   it('accepts extension metadata with matching signature, version, and target triple', () => {

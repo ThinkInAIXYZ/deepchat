@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { gunzipSync } from 'zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loadAfterPack = async () => {
@@ -58,6 +59,39 @@ describe('afterPack', () => {
 
     await expect(stat(path.join(tmpDir, 'deepchat.bin'))).resolves.toBeTruthy()
     await expect(readFile(launcherPath, 'utf8')).resolves.toContain('--no-sandbox')
+  })
+
+  it('compresses macOS DuckDB VSS into a non-Mach-O packaged asset', async () => {
+    const afterPack = await loadAfterPack()
+    const extensionPath = path.join(
+      tmpDir,
+      'DeepChat.app',
+      'Contents',
+      'Resources',
+      'app.asar.unpacked',
+      'runtime',
+      'duckdb',
+      'extensions',
+      'vss.duckdb_extension'
+    )
+    const extensionBody = Buffer.from('duckdb extension with footer')
+    await mkdir(path.dirname(extensionPath), { recursive: true })
+    await writeFile(extensionPath, extensionBody)
+
+    await afterPack({
+      targets: [],
+      appOutDir: tmpDir,
+      electronPlatformName: 'darwin',
+      packager: {
+        appInfo: {
+          productFilename: 'DeepChat'
+        }
+      }
+    })
+
+    await expect(stat(extensionPath)).rejects.toThrow()
+    const compressed = await readFile(`${extensionPath}.gz`)
+    expect(gunzipSync(compressed)).toEqual(extensionBody)
   })
 
   it.each([

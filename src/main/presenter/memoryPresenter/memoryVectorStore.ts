@@ -1,6 +1,9 @@
 import logger from '@shared/logger'
+import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'node:util'
+import { gunzip } from 'node:zlib'
 
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
 import { app } from 'electron'
@@ -17,6 +20,17 @@ const runtimeBasePath = path
   .replace('app.asar', 'app.asar.unpacked')
 const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
 const extensionSuffix = '.duckdb_extension'
+const extensionName = `vss${extensionSuffix}`
+const gunzipAsync = promisify(gunzip)
+const packagedVssMaterializationPromises = new Map<string, Promise<string>>()
+
+function escapeSqlPath(filePath: string): string {
+  return filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
+}
+
+function materializationCacheKey(compressedPath: string, materializationRoot: string): string {
+  return `${path.resolve(compressedPath)}\0${path.resolve(materializationRoot)}`
+}
 
 interface EmbeddingIdentity {
   providerId: string
@@ -69,14 +83,90 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     this.connection = await this.dbInstance.connect()
   }
 
-  private async loadVss(): Promise<void> {
-    const extensionPath = path.join(extensionDir, `vss${extensionSuffix}`)
-    if (fs.existsSync(extensionPath)) {
-      const escapedPath = extensionPath.replace(/\\/g, '\\\\').replace(/'/g, "''")
+  private async loadVssFromPath(extensionPath: string, source: string): Promise<void> {
+    await this.connection.run(`LOAD '${escapeSqlPath(extensionPath)}';`)
+    logger.info(`[MemoryVectorStore] loaded ${source} VSS extension: ${extensionPath}`)
+    await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
+  }
+
+  private async inflatePackagedVssExtension(
+    compressedPath: string,
+    materializationRoot: string
+  ): Promise<string> {
+    const compressed = await fs.promises.readFile(compressedPath)
+    const digest = createHash('sha256').update(compressed).digest('hex').slice(0, 16)
+    const targetDir = path.join(materializationRoot, 'duckdb', 'extensions', digest)
+    const targetPath = path.join(targetDir, extensionName)
+
+    if (fs.existsSync(targetPath)) {
+      return targetPath
+    }
+
+    await fs.promises.mkdir(targetDir, { recursive: true })
+    const tempPath = path.join(targetDir, `.${extensionName}.${process.pid}.${randomUUID()}.tmp`)
+    try {
+      await fs.promises.writeFile(tempPath, await gunzipAsync(compressed))
+      if (fs.existsSync(targetPath)) {
+        await fs.promises.rm(tempPath, { force: true })
+        return targetPath
+      }
+      await fs.promises.rename(tempPath, targetPath)
+    } catch (error) {
+      if (fs.existsSync(targetPath)) {
+        try {
+          await fs.promises.rm(tempPath, { force: true })
+        } catch {
+          // best effort cleanup only
+        }
+        return targetPath
+      }
       try {
-        await this.connection.run(`LOAD '${escapedPath}';`)
-        logger.info(`[MemoryVectorStore] loaded bundled VSS extension: ${extensionPath}`)
-        await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
+        await fs.promises.rm(tempPath, { force: true })
+      } catch {
+        // best effort cleanup only
+      }
+      throw error
+    }
+    return targetPath
+  }
+
+  private async materializePackagedVssExtension(compressedPath: string): Promise<string> {
+    const resolvedCompressedPath = path.resolve(compressedPath)
+    const materializationRoot = path.resolve(app.getPath('userData') || path.dirname(this.dbPath))
+    const cacheKey = materializationCacheKey(resolvedCompressedPath, materializationRoot)
+    const existing = packagedVssMaterializationPromises.get(cacheKey)
+    if (existing) {
+      const existingPath = await existing
+      if (fs.existsSync(existingPath)) {
+        return existingPath
+      }
+      if (packagedVssMaterializationPromises.get(cacheKey) === existing) {
+        packagedVssMaterializationPromises.delete(cacheKey)
+      } else {
+        return this.materializePackagedVssExtension(resolvedCompressedPath)
+      }
+    }
+
+    let materializationPromise: Promise<string>
+    materializationPromise = this.inflatePackagedVssExtension(
+      resolvedCompressedPath,
+      materializationRoot
+    ).catch((error) => {
+      if (packagedVssMaterializationPromises.get(cacheKey) === materializationPromise) {
+        packagedVssMaterializationPromises.delete(cacheKey)
+      }
+      throw error
+    })
+    packagedVssMaterializationPromises.set(cacheKey, materializationPromise)
+    return materializationPromise
+  }
+
+  private async loadVss(): Promise<void> {
+    const extensionPath = path.join(extensionDir, extensionName)
+    const compressedExtensionPath = `${extensionPath}.gz`
+    if (fs.existsSync(extensionPath)) {
+      try {
+        await this.loadVssFromPath(extensionPath, 'bundled')
         return
       } catch (error) {
         const message = `[MemoryVectorStore] bundled VSS extension failed to load from ${extensionPath}: ${String(error)}`
@@ -86,8 +176,19 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         }
         logger.warn(`${message}; falling back to network INSTALL vss in development.`)
       }
+    } else if (app.isPackaged && fs.existsSync(compressedExtensionPath)) {
+      try {
+        const materializedPath = await this.materializePackagedVssExtension(compressedExtensionPath)
+        await this.loadVssFromPath(materializedPath, 'materialized packaged')
+        return
+      } catch (error) {
+        logger.error(
+          `[MemoryVectorStore] packaged VSS extension failed to materialize/load from ${compressedExtensionPath}: ${String(error)}. Vector recall disabled until a valid bundled extension ships.`
+        )
+        throw error
+      }
     } else {
-      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath}. Run installRuntime:duckdb:vss before packaging.`
+      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${compressedExtensionPath}. Run installRuntime:duckdb:vss before packaging.`
       if (app.isPackaged) {
         logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
         throw new Error(message)

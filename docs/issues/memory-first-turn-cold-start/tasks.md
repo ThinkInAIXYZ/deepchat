@@ -55,6 +55,15 @@
 - [x] Cover same-`created_at` current-dimension tie-breaks in SQL and fake repository tests.
 - [x] Align P0-B plan wording and Linux packaged VSS smoke shell configuration.
 
+## macOS packaging follow-up — DuckDB VSS codesign compatibility
+- [x] Document that macOS DuckDB VSS requires a footer that fails Apple strict codesign when shipped as a raw Mach-O.
+- [x] Gzip the macOS packaged VSS extension during `afterPack` and delete the raw extension before codesign.
+- [x] Materialize packaged macOS VSS gzip assets into `userData` before runtime `LOAD`.
+- [x] Extend smoke checks and macOS workflows to validate the packaged gzip path.
+- [x] Add afterPack, smoke, runtime, and workflow tests for the gzip materialization path.
+- [x] Make macOS gzip materialization async and process-coalesced to avoid repeated read/hash/inflate work.
+- [x] Re-materialize packaged macOS VSS if a cached `userData` extension path is deleted mid-process.
+
 ## Validation
 - [ ] Manual: with 100–200 memories, cold-start the app and confirm the first normal text turn streams promptly; repeat with an attachment. Compare `logSlowPreStreamStep('memory-injection')` on the first and later turns and confirm memory injection is no longer the dominant pre-stream step; attachment overhead, if any, should show under `context-build`.
 - [x] `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`.

@@ -274,9 +274,9 @@ jobs:
           if [ "$TARGET_ARCH" = "arm64" ]; then
             APP_DIR="dist/mac-arm64/DeepChat.app"
           fi
-          EXTENSION_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
-          test -f "$EXTENSION_PATH"
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-path "$EXTENSION_PATH"
+          EXTENSION_GZIP_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.gz"
+          test -f "$EXTENSION_GZIP_PATH"
+          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-gzip-path "$EXTENSION_GZIP_PATH"
 
       - name: Verify bundled plugins
         shell: bash

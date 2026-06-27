@@ -1370,7 +1370,10 @@ describe('PluginPresenter', () => {
       'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(buildWorkflow).toContain(
-      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.gz'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-gzip-path "$EXTENSION_GZIP_PATH"'
     )
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
@@ -1422,7 +1425,10 @@ describe('PluginPresenter', () => {
       'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(releaseWorkflow).toContain(
-      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.gz'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-gzip-path "$EXTENSION_GZIP_PATH"'
     )
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')

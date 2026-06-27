@@ -60,9 +60,10 @@ recall useful on that turn and restoring full hybrid (FTS + vector) recall on la
   unusable / identity-mismatched store and fires `reindexEmbeddings(force)` exactly as the online
   path does today (`index.ts:1659/1708`), without marking the store warm; once reindex completes,
   later turns restore vector recall. No path can leave an agent permanently FTS-only.
-- **VSS shipped on all platforms incl. macOS.** Packaged builds contain the matching-version
-  VSS extension under `runtime/duckdb/extensions/`; the first vector recall loads it from the
-  bundled path with no network `INSTALL vss`. A smoke check verifies load-by-path (not install).
+- **VSS shipped on all platforms incl. macOS.** Packaged builds contain the matching-version VSS
+  extension under `runtime/duckdb/extensions/`; macOS packages store it as a gzip data asset and
+  materialize it into `userData` before `LOAD`, while Windows/Linux packages load the raw bundled
+  extension directly. No packaged path performs network `INSTALL vss`.
 - **Background prewarm reduces cold turns.** After startup (and/or on session/window open),
   enabled agents' vector stores and embedding connections are warmed off the hot path, decoupled
   from the 60s maintenance delay — but correctness never depends on warm completing first.
@@ -105,12 +106,13 @@ recall useful on that turn and restoring full hybrid (FTS + vector) recall on la
 
 ## Decisions
 
-- **macOS skip is removed, not investigated further.** `git blame` shows the macOS early-return
-  has existed since the initial commit of `scripts/installVss.js` with no recorded rationale, so
-  there is nothing to recover. Decision: make the install script support macOS and prove the bundled
-  extension loads via a **load-by-path smoke check** (no network `INSTALL`). If a packaged app cannot
-  load that bundled extension, vector store open fails closed and recall stays on FTS; network
-  `INSTALL vss` remains a dev/test fallback only.
+- **macOS uses a compressed packaged VSS asset.** DuckDB's macOS extension requires a footer
+  (`duckdb_signature` metadata) that makes the Mach-O fail Apple `codesign --strict`
+  validation. The footer cannot be removed because DuckDB then refuses to load the extension.
+  Decision: install and smoke-test macOS VSS before packaging, then gzip the extension during
+  `afterPack` and remove the raw Mach-O from the `.app`; at runtime a packaged app materializes the
+  gzip into `userData` and loads that file. If materialization or load fails, vector store open fails
+  closed and recall stays on FTS. Network `INSTALL vss` remains a dev/test fallback only.
 - **The VSS install script becomes platform/arch-aware** (`--platform`/`--arch`) and is invoked by
   each build target with its matching target triple; cross-builds must never bundle the host
   machine's architecture. See plan P0-B.
