@@ -192,13 +192,25 @@ describeIfSqlite('AgentMemoryTable', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
 
-      table.insert({ id: 'current', agentId: 'deepchat', kind: 'semantic', content: 'current' })
+      table.insert({
+        id: 'current',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'current',
+        createdAt: 2000
+      })
       table.updateStatus('current', 'embedded', {
         embeddingId: 'current',
         embeddingDim: 4,
         embeddingModel: 'p:m'
       })
-      table.insert({ id: 'wrong-dim', agentId: 'deepchat', kind: 'semantic', content: 'wrong dim' })
+      table.insert({
+        id: 'wrong-dim',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'wrong dim',
+        createdAt: 1000
+      })
       table.updateStatus('wrong-dim', 'embedded', {
         embeddingId: 'wrong-dim',
         embeddingDim: 8,
@@ -279,6 +291,43 @@ describeIfSqlite('AgentMemoryTable', () => {
       expect(table.getCurrentEmbeddingDimension('deepchat', 'missing:model')).toBeNull()
       expect(table.getCurrentEmbeddingDimension('excluded-agent', 'legacy:model')).toBeNull()
       expect(table.hasStaleEmbeddings('excluded-agent', 4, 'p:m')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('uses rowid as the current embedding dimension tie-break for equal timestamps', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'same-time-old',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'older same timestamp',
+        createdAt: 3000
+      })
+      table.updateStatus('same-time-old', 'embedded', {
+        embeddingId: 'same-time-old',
+        embeddingDim: 8,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'same-time-current',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'newer same timestamp',
+        createdAt: 3000
+      })
+      table.updateStatus('same-time-current', 'embedded', {
+        embeddingId: 'same-time-current',
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+
+      expect(table.getCurrentEmbeddingDimension('deepchat', 'p:m')).toBe(4)
     } finally {
       db.close()
     }

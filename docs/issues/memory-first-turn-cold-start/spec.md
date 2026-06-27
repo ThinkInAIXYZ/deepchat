@@ -90,6 +90,9 @@ recall useful on that turn and restoring full hybrid (FTS + vector) recall on la
   short cooldown while continuing to answer from FTS.
 - **Warm metadata checks are targeted.** Warm/reindex decisions use repository-level dimension and
   stale-existence queries instead of materializing every embedded row.
+- **Packaged VSS failures never download at runtime.** In packaged builds, a missing or unloadable
+  bundled VSS extension fails the vector store open and recall degrades to FTS; network `INSTALL vss`
+  is allowed only in dev/test paths.
 
 ## Non-Goals
 
@@ -104,10 +107,10 @@ recall useful on that turn and restoring full hybrid (FTS + vector) recall on la
 
 - **macOS skip is removed, not investigated further.** `git blame` shows the macOS early-return
   has existed since the initial commit of `scripts/installVss.js` with no recorded rationale, so
-  there is nothing to recover. Decision: make the install script support macOS, prove the bundled
-  extension loads via a **load-by-path smoke check** (no network `INSTALL`), and — only if
-  load-by-path requires it — set `allow_unsigned_extensions` in `memoryVectorStore.loadVss()` on
-  the bundled-path branch only (never the global default).
+  there is nothing to recover. Decision: make the install script support macOS and prove the bundled
+  extension loads via a **load-by-path smoke check** (no network `INSTALL`). If a packaged app cannot
+  load that bundled extension, vector store open fails closed and recall stays on FTS; network
+  `INSTALL vss` remains a dev/test fallback only.
 - **The VSS install script becomes platform/arch-aware** (`--platform`/`--arch`) and is invoked by
   each build target with its matching target triple; cross-builds must never bundle the host
   machine's architecture. See plan P0-B.

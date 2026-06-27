@@ -47,10 +47,15 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       fs.mkdirSync(parentDir, { recursive: true })
     }
     const store = new MemoryVectorStore(dbPath, metric)
-    if (fs.existsSync(dbPath)) {
-      await store.open(dimensions, embedding)
-    } else {
-      await store.initialize(dimensions, embedding)
+    try {
+      if (fs.existsSync(dbPath)) {
+        await store.open(dimensions, embedding)
+      } else {
+        await store.initialize(dimensions, embedding)
+      }
+    } catch (error) {
+      await store.close().catch(() => undefined)
+      throw error
     }
     return store
   }
@@ -71,20 +76,26 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       try {
         await this.connection.run(`LOAD '${escapedPath}';`)
         logger.info(`[MemoryVectorStore] loaded bundled VSS extension: ${extensionPath}`)
+        await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
+        return
       } catch (error) {
-        logger.warn(
-          `[MemoryVectorStore] bundled VSS extension failed to load from ${extensionPath}; falling back to network INSTALL vss: ${String(error)}`
-        )
-        await this.connection.run('INSTALL vss;')
-        await this.connection.run('LOAD vss;')
+        const message = `[MemoryVectorStore] bundled VSS extension failed to load from ${extensionPath}: ${String(error)}`
+        if (app.isPackaged) {
+          logger.error(`${message}. Vector recall disabled until a valid bundled extension ships.`)
+          throw error
+        }
+        logger.warn(`${message}; falling back to network INSTALL vss in development.`)
       }
     } else {
-      logger.warn(
-        `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath}; falling back to network INSTALL vss. Run installRuntime:duckdb:vss before packaging.`
-      )
-      await this.connection.run('INSTALL vss;')
-      await this.connection.run('LOAD vss;')
+      const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath}. Run installRuntime:duckdb:vss before packaging.`
+      if (app.isPackaged) {
+        logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
+        throw new Error(message)
+      }
+      logger.warn(`${message} Falling back to network INSTALL vss in development.`)
     }
+    await this.connection.run('INSTALL vss;')
+    await this.connection.run('LOAD vss;')
     await this.connection.run('SET hnsw_enable_experimental_persistence = true;')
   }
 

@@ -251,7 +251,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly consolidationRuns = new Set<Promise<unknown>>()
   private maintenanceStartTimer: NodeJS.Timeout | null = null
   private prewarmStartTimer: NodeJS.Timeout | null = null
-  private readonly prewarmTimers = new Set<NodeJS.Timeout>()
+  private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
   // Per-agent watermark for a reflection attempt that ran the model but wrote nothing new (empty or
   // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
@@ -295,7 +295,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       clearTimeout(this.prewarmStartTimer)
       this.prewarmStartTimer = null
     }
-    for (const timer of this.prewarmTimers) clearTimeout(timer)
+    for (const timer of this.prewarmTimers.values()) clearTimeout(timer)
     this.prewarmTimers.clear()
     if (this.maintenanceStartTimer) {
       clearTimeout(this.maintenanceStartTimer)
@@ -343,8 +343,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
       .filter((agentId) => this.shouldArmMaintenance(agentId))
       .sort()
       .forEach((agentId, index) => {
+        this.clearPrewarmTimer(agentId)
         const timer = setTimeout(() => {
-          this.prewarmTimers.delete(timer)
+          if (this.prewarmTimers.get(agentId) === timer) this.prewarmTimers.delete(agentId)
           if (this.disposed || !this.canReadAgentMemory(agentId)) return
           const embedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
           if (!embedding?.providerId || !embedding?.modelId) return
@@ -357,9 +358,16 @@ export class MemoryPresenter implements MemoryRuntimePort {
             modelId: embedding.modelId
           })
         }, index * STARTUP_PREWARM_STAGGER_MS)
-        this.prewarmTimers.add(timer)
+        this.prewarmTimers.set(agentId, timer)
         if (typeof timer.unref === 'function') timer.unref()
       })
+  }
+
+  private clearPrewarmTimer(agentId: string): void {
+    const timer = this.prewarmTimers.get(agentId)
+    if (!timer) return
+    clearTimeout(timer)
+    this.prewarmTimers.delete(agentId)
   }
 
   isEnabled(agentId: string): boolean {
@@ -2324,6 +2332,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async cleanupDeletedAgentResources(agentId: string): Promise<void> {
     if (this.disposed) return
     this.assertSafeAgentId(agentId)
+    this.clearPrewarmTimer(agentId)
     let resetError: unknown
     try {
       await this.runExclusiveForAgent(agentId, async () => {

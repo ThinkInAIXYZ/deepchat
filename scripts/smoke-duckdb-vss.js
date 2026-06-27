@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const duckdbPackage = require('@duckdb/node-api/package.json')
@@ -10,15 +10,22 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const extensionName = 'vss.duckdb_extension'
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {}
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--') continue
     if (!arg.startsWith('--')) continue
     const [rawKey, inlineValue] = arg.slice(2).split('=', 2)
-    const value = inlineValue ?? argv[index + 1]
-    if (inlineValue === undefined) index += 1
+    let value = inlineValue
+    if (value === undefined) {
+      const next = argv[index + 1]
+      if (next === undefined || next === '--' || next.startsWith('--')) {
+        throw new Error(`Missing value for --${rawKey}`)
+      }
+      value = next
+      index += 1
+    }
     options[rawKey] = value
   }
   return options
@@ -105,7 +112,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('[DuckDB Smoke] failed:', error)
-  process.exit(1)
-})
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  main().catch((error) => {
+    console.error('[DuckDB Smoke] failed:', error)
+    process.exit(1)
+  })
+}

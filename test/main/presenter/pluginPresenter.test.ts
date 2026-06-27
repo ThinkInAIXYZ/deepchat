@@ -1358,8 +1358,20 @@ describe('PluginPresenter', () => {
       'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
     )
     expect(buildWorkflow).toContain('runs-on: ${{ matrix.runner }}')
-    expect(buildWorkflow).toContain('runner: macos-15-intel')
-    expect(buildWorkflow).toContain('runner: macos-15')
+    expect(buildWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15-intel(\n|$)/)
+    expect(buildWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15(\n|$)/)
+    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for Windows')
+    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for Linux')
+    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for macOS')
+    expect(buildWorkflow).toContain(
+      'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
+    expect(buildWorkflow).toContain(
+      'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
+    expect(buildWorkflow).toContain(
+      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
     )
@@ -1398,8 +1410,20 @@ describe('PluginPresenter', () => {
       'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
     )
     expect(releaseWorkflow).toContain('runs-on: ${{ matrix.runner }}')
-    expect(releaseWorkflow).toContain('runner: macos-15-intel')
-    expect(releaseWorkflow).toContain('runner: macos-15')
+    expect(releaseWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15-intel(\n|$)/)
+    expect(releaseWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15(\n|$)/)
+    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for Windows')
+    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for Linux')
+    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for macOS')
+    expect(releaseWorkflow).toContain(
+      'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
+    expect(releaseWorkflow).toContain(
+      'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
+    expect(releaseWorkflow).toContain(
+      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    )
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")

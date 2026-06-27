@@ -304,16 +304,22 @@ export class FakeRepository implements MemoryRepositoryPort {
   }
 
   getCurrentEmbeddingDimension(agentId: string, fingerprint: string) {
-    const row = this.listByAgent(agentId, { statuses: ['embedded'] }).find(
-      (candidate) =>
-        candidate.kind !== 'persona' &&
-        candidate.kind !== 'working' &&
-        candidate.embedding_model === fingerprint &&
-        typeof candidate.embedding_dim === 'number' &&
-        Number.isFinite(candidate.embedding_dim) &&
-        candidate.embedding_dim > 0
-    )
-    return row?.embedding_dim ?? null
+    const rowOrder = new Map([...this.rows.keys()].map((id, index) => [id, index]))
+    const rows = this.listByAgent(agentId, { statuses: ['embedded'] })
+      .filter(
+        (candidate) =>
+          candidate.kind !== 'persona' &&
+          candidate.kind !== 'working' &&
+          candidate.embedding_model === fingerprint &&
+          typeof candidate.embedding_dim === 'number' &&
+          Number.isFinite(candidate.embedding_dim) &&
+          candidate.embedding_dim > 0
+      )
+      .sort(
+        (a, b) =>
+          b.created_at - a.created_at || (rowOrder.get(b.id) ?? -1) - (rowOrder.get(a.id) ?? -1)
+      )
+    return rows[0]?.embedding_dim ?? null
   }
 
   hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string) {

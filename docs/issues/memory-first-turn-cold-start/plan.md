@@ -76,9 +76,9 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
   (`electron-builder.yml:41-43`): `build:mac:arm64` → `--platform darwin --arch arm64`,
   `build:mac:x64` → `--arch x64`, and the corresponding win/linux targets. Do not blanket-insert the
   default `installRuntime:duckdb:vss` (host-arch) into all builds.
-- If load-by-path needs it, set `allow_unsigned_extensions` in `memoryVectorStore.loadVss()` for
-  the bundled-path branch (`memoryVectorStore.ts:67-71`); keep the `INSTALL vss` fallback only as a
-  logged last resort so a missing bundle is visible, not silent.
+- Load bundled VSS by explicit path in `memoryVectorStore.loadVss()`. In packaged builds, a missing
+  or invalid bundled extension fails closed so the caller falls back to FTS; network `INSTALL vss`
+  remains a dev/test-only fallback with explicit logging.
 - Extend `scripts/smoke-duckdb-vss.js` to assert the extension loads from the bundled path
   (`LOAD '<path>'`) without a network `INSTALL`, and run it in CI / build preflight.
 
@@ -116,6 +116,9 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
 
 - Bring `.github/workflows/release.yml` to parity with `build.yml`: run target-arch VSS install and
   `smoke:duckdb:vss` before each `electron-builder` call, and use an Intel runner for macOS x64.
+- Fail packaged VSS load closed: a packaged app never performs network `INSTALL vss`; dev/test keeps
+  the fallback. Build and release jobs also smoke the packaged `app.asar.unpacked/runtime` copy after
+  `electron-builder` so CI proves the shipped asset exists and loads.
 - In cold `retrieve`, keep returning FTS-only immediately but also start `warmEmbeddingConnection`
   alongside `warmVectorStore`; both remain fire-and-forget and coalesced.
 - Add a 30s cooldown for failed warm dimension resolution when no current embedded row provides a

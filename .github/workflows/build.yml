@@ -94,6 +94,13 @@ jobs:
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
+      - name: Verify packaged DuckDB VSS for Windows
+        shell: bash
+        run: |
+          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "$EXTENSION_PATH"
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
+
       - name: Verify bundled plugins
         shell: bash
         run: |
@@ -163,6 +170,13 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify packaged DuckDB VSS for Linux
+        shell: bash
+        run: |
+          EXTENSION_PATH="dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "$EXTENSION_PATH"
+          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
       - name: Verify bundled plugins
         shell: bash
@@ -250,6 +264,19 @@ jobs:
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           NODE_OPTIONS: '--max-old-space-size=4096'
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify packaged DuckDB VSS for macOS
+        shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          APP_DIR="dist/mac/DeepChat.app"
+          if [ "$TARGET_ARCH" = "arm64" ]; then
+            APP_DIR="dist/mac-arm64/DeepChat.app"
+          fi
+          EXTENSION_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "$EXTENSION_PATH"
+          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-path "$EXTENSION_PATH"
 
       - name: Verify bundled plugins
         shell: bash

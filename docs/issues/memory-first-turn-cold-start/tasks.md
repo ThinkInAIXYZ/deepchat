@@ -13,7 +13,7 @@
 ## P0-B — Ship VSS on all platforms + smoke
 - [x] Make `scripts/installVss.js` platform/arch-aware: remove the macOS early `return`; accept `--platform`/`--arch` selecting the **target** triple (not host arch), version-locked to `@duckdb/node-api`.
 - [x] Invoke the arch-matching install from each build target (`build:mac:arm64` → `--platform darwin --arch arm64`, `build:mac:x64` → `--arch x64`, win/linux equivalents) so `runtime/duckdb/extensions/` is bundled by `electron-builder` (`electron-builder.yml:41-43`). Do not blanket-add host-arch `installRuntime:duckdb:vss` to all builds.
-- [x] `memoryVectorStore.loadVss()`: log clearly when falling back to network `INSTALL vss` (so a missing bundle is visible, not silent); set `allow_unsigned_extensions` on the bundled-path branch only if load-by-path requires it.
+- [x] `memoryVectorStore.loadVss()`: load the bundled extension by explicit path; packaged builds fail closed to FTS when the bundled extension is missing or invalid, while dev/test keeps the logged network `INSTALL vss` fallback.
 - [x] Extend `scripts/smoke-duckdb-vss.js` to assert the extension loads via `LOAD '<path>'` from the bundled path with no network `INSTALL`; run in CI / build preflight.
 
 ## P1 — Background prewarm
@@ -43,10 +43,23 @@
 - [x] Replace fixed-cycle background memory test flushing with a poll-until-condition helper where waiting for warm/reindex state matters.
 - [x] Add/adjust tests for cold embedding prewarm, dimension cooldown, targeted repository queries, and consolidation warm-before-merge.
 
+## CodeRabbit follow-up — Packaged VSS and guardrails
+- [x] Document packaged VSS fail-closed behavior; network `INSTALL vss` is dev/test only.
+- [x] Packaged `MemoryVectorStore` load fails closed instead of falling back to network install.
+- [x] Track prewarm timers per agent and clear pending deleted-agent prewarm callbacks.
+- [x] Make current embedding dimension lookup deterministic in SQL and fake repository.
+- [x] Add per-attempt VSS download timeout and fail-fast smoke CLI parsing.
+- [x] Add post-package VSS smoke checks to build and release workflows.
+- [x] Tighten workflow runner assertions and targeted dimension fixtures/tests.
+- [x] Close partially opened DuckDB handles when `MemoryVectorStore.create()` fails during open/init.
+- [x] Cover same-`created_at` current-dimension tie-breaks in SQL and fake repository tests.
+- [x] Align P0-B plan wording and Linux packaged VSS smoke shell configuration.
+
 ## Validation
-- [ ] Manual: with 100–200 memories, first turn after app start streams promptly (no DuckDB/VSS stall) with and without an attachment; confirm via `logSlowPreStreamStep('memory-injection')` no longer dominating.
+- [ ] Manual: with 100–200 memories, cold-start the app and confirm the first normal text turn streams promptly; repeat with an attachment. Compare `logSlowPreStreamStep('memory-injection')` on the first and later turns and confirm memory injection is no longer the dominant pre-stream step; attachment overhead, if any, should show under `context-build`.
 - [x] `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`.
 - [x] Targeted `test/main` memory suites + `pnpm run smoke:duckdb:vss`.
 - [x] Follow-up targeted tests: `test/main/scripts/installVss.test.ts`, `test/main/presenter/memoryPresenter.test.ts`, and `test/main/presenter/pluginPresenter.test.ts`.
 - [x] Remaining follow-up targeted tests: `test/main/presenter/memoryPresenter.test.ts`, `test/main/presenter/pluginPresenter.test.ts`, and `test/main/scripts/installVss.test.ts`.
+- [x] CodeRabbit follow-up targeted tests: `test/main/presenter/memoryPresenter.test.ts`, `test/main/presenter/memoryVectorStore.test.ts`, `test/main/presenter/pluginPresenter.test.ts`, `test/main/scripts/installVss.test.ts`, and `test/main/presenter/agentMemoryTable.test.ts`.
 - [ ] Full `pnpm test -- --run` is not green because of existing renderer failures unrelated to this issue: `ChatTabView.test.ts`, `MemoryConfigPanel.test.ts`, and `NewThreadPage.test.ts`.

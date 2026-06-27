@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const duckDbMocks = vi.hoisted(() => ({
+  create: vi.fn()
+}))
 
 vi.mock('@duckdb/node-api', () => ({
-  DuckDBInstance: class {},
+  DuckDBInstance: { create: duckDbMocks.create },
   DuckDBConnection: class {},
   arrayValue: (values: number[]) => values
 }))
@@ -9,6 +13,8 @@ vi.mock('@duckdb/node-api', () => ({
 import logger from '@shared/logger'
 import { MemoryVectorStore } from '@/presenter/memoryPresenter/memoryVectorStore'
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
+import { app } from 'electron'
+import fs from 'node:fs'
 
 interface TestStore {
   connection: { run: ReturnType<typeof vi.fn> }
@@ -75,6 +81,27 @@ interface OpenableStore {
   isUsable(): boolean
 }
 
+interface VssLoadableStore {
+  connection: { run: ReturnType<typeof vi.fn> }
+  loadVss(): Promise<void>
+}
+
+function mockDuckDbHandles(onRun: (sql: string) => void = () => {}) {
+  const connection = {
+    run: vi.fn(async (sql: string) => {
+      onRun(sql)
+      return undefined
+    }),
+    closeSync: vi.fn()
+  }
+  const dbInstance = {
+    connect: vi.fn(async () => connection),
+    closeSync: vi.fn()
+  }
+  duckDbMocks.create.mockResolvedValue(dbInstance)
+  return { connection, dbInstance }
+}
+
 // meta: undefined => meta table missing (legacy file); null => present but empty; object => stored identity.
 function makeOpenableStore(opts: { meta?: EmbeddingMeta | null }) {
   const store = Object.create(MemoryVectorStore.prototype) as unknown as OpenableStore
@@ -94,6 +121,23 @@ function makeOpenableStore(opts: { meta?: EmbeddingMeta | null }) {
 }
 
 const EMB = { providerId: 'p', modelId: 'm' }
+
+function makeVssLoadableStore(onRun: (sql: string) => void = () => {}) {
+  const store = Object.create(MemoryVectorStore.prototype) as unknown as VssLoadableStore
+  store.connection = {
+    run: vi.fn(async (sql: string) => {
+      onRun(sql)
+      return undefined
+    })
+  }
+  return store
+}
+
+afterEach(() => {
+  app.isPackaged = false
+  duckDbMocks.create.mockReset()
+  vi.restoreAllMocks()
+})
 
 describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
   it('stays usable when stored identity matches', async () => {
@@ -139,5 +183,84 @@ describe('MemoryVectorStore.open identity guard (C5, AC-5.2/5.3)', () => {
     expect(store.isUsable()).toBe(false)
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
+  })
+})
+
+describe('MemoryVectorStore VSS loading', () => {
+  it('closes opened DuckDB handles when packaged create fails on a missing bundled extension', async () => {
+    app.isPackaged = true
+    vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
+      if (String(target).endsWith('vss.duckdb_extension')) return false
+      return true
+    })
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const { connection, dbInstance } = mockDuckDbHandles()
+
+    await expect(MemoryVectorStore.create('/tmp/agent.duckdb', 2, EMB)).rejects.toThrow(
+      /bundled VSS extension missing/
+    )
+
+    expect(connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+    expect(connection.closeSync).toHaveBeenCalledTimes(1)
+    expect(dbInstance.closeSync).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes opened DuckDB handles when packaged create fails during bundled VSS LOAD', async () => {
+    app.isPackaged = true
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const { connection, dbInstance } = mockDuckDbHandles((sql) => {
+      if (sql.includes('LOAD')) throw new Error('bad extension')
+    })
+
+    await expect(MemoryVectorStore.create('/tmp/agent.duckdb', 2, EMB)).rejects.toThrow(
+      'bad extension'
+    )
+
+    expect(connection.run).toHaveBeenCalledTimes(1)
+    expect(connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+    expect(connection.closeSync).toHaveBeenCalledTimes(1)
+    expect(dbInstance.closeSync).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed in packaged builds when the bundled extension is missing', async () => {
+    app.isPackaged = true
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const store = makeVssLoadableStore()
+
+    await expect(store.loadVss()).rejects.toThrow(/bundled VSS extension missing/)
+
+    expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+    expect(error).toHaveBeenCalled()
+  })
+
+  it('fails closed in packaged builds when the bundled extension cannot load', async () => {
+    app.isPackaged = true
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const store = makeVssLoadableStore((sql) => {
+      if (sql.includes('LOAD')) throw new Error('bad extension')
+    })
+
+    await expect(store.loadVss()).rejects.toThrow('bad extension')
+
+    expect(store.connection.run).toHaveBeenCalledTimes(1)
+    expect(store.connection.run).not.toHaveBeenCalledWith('INSTALL vss;')
+  })
+
+  it('keeps the network fallback for development builds', async () => {
+    app.isPackaged = false
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const store = makeVssLoadableStore()
+
+    await store.loadVss()
+
+    expect(store.connection.run).toHaveBeenCalledWith('INSTALL vss;')
+    expect(store.connection.run).toHaveBeenCalledWith('LOAD vss;')
+    expect(store.connection.run).toHaveBeenCalledWith(
+      'SET hnsw_enable_experimental_persistence = true;'
+    )
   })
 })

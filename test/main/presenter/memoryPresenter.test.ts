@@ -79,7 +79,8 @@ describe('memory repository fakes', () => {
       id: 'current',
       agentId: 'a',
       kind: 'semantic',
-      content: 'current vector'
+      content: 'current vector',
+      createdAt: 2000
     })
     repo.updateStatus('current', 'embedded', {
       embeddingId: 'current',
@@ -90,7 +91,8 @@ describe('memory repository fakes', () => {
       id: 'wrong-dim',
       agentId: 'a',
       kind: 'semantic',
-      content: 'wrong dimension'
+      content: 'wrong dimension',
+      createdAt: 1000
     })
     repo.updateStatus('wrong-dim', 'embedded', {
       embeddingId: 'wrong-dim',
@@ -138,6 +140,36 @@ describe('memory repository fakes', () => {
     expect(repo.getCurrentEmbeddingDimension('a', 'missing:m')).toBeNull()
     expect(repo.getCurrentEmbeddingDimension('excluded', 'legacy:m')).toBeNull()
     expect(repo.hasStaleEmbeddings('excluded', 4, 'p:m')).toBe(false)
+  })
+
+  it('matches AgentMemoryTable current dimension tie-break for equal timestamps', () => {
+    const repo = new FakeRepository()
+    repo.insert({
+      id: 'same-time-old',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'older same timestamp',
+      createdAt: 3000
+    })
+    repo.updateStatus('same-time-old', 'embedded', {
+      embeddingId: 'same-time-old',
+      embeddingDim: 8,
+      embeddingModel: 'p:m'
+    })
+    repo.insert({
+      id: 'same-time-current',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'newer same timestamp',
+      createdAt: 3000
+    })
+    repo.updateStatus('same-time-current', 'embedded', {
+      embeddingId: 'same-time-current',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+
+    expect(repo.getCurrentEmbeddingDimension('a', 'p:m')).toBe(4)
   })
 
   it('matches AgentMemoryAuditTable list limit defaults and caps', () => {
@@ -3966,6 +3998,55 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
         'agent-b'
       ])
       expect(getEmbeddings).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels pending prewarm timers when an agent is deleted', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      for (const [agentId, content] of [
+        ['agent-a', 'redis fact'],
+        ['agent-b', 'vue fact']
+      ] as const) {
+        repo.insert({
+          id: `${agentId}-memory`,
+          agentId,
+          kind: 'semantic',
+          content,
+          status: 'embedded'
+        })
+        repo.updateStatus(`${agentId}-memory`, 'embedded', {
+          embeddingId: `${agentId}-memory`,
+          embeddingDim: 4,
+          embeddingModel: 'p:m'
+        })
+      }
+      const createVectorStore = vi.fn(async () => new FakeVectorStore())
+      const resetVectorStore = vi.fn(async () => undefined)
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+        getDimensions: embeddingDimensions,
+        generateText: async () => '',
+        createVectorStore,
+        resetVectorStore
+      })
+
+      presenter.warmActiveAgents()
+      await vi.advanceTimersByTimeAsync(0)
+      await flushMicrotasks()
+      expect(createVectorStore.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
+
+      await presenter.cleanupDeletedAgentResources('agent-b')
+      await vi.advanceTimersByTimeAsync(1500)
+      await flushMicrotasks()
+
+      expect(resetVectorStore).toHaveBeenCalledWith('agent-b')
+      expect(createVectorStore.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
     } finally {
       vi.useRealTimers()
     }

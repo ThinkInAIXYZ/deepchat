@@ -817,6 +817,7 @@ export class AgentMemoryTable extends BaseTable {
            AND embedding_model = ?
            AND embedding_dim IS NOT NULL
            AND embedding_dim > 0
+         ORDER BY created_at DESC, rowid DESC
          LIMIT 1`
       )
       .get(agentId, fingerprint) as { dim: number | null } | undefined

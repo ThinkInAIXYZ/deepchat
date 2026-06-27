@@ -13,6 +13,7 @@ export const extensionName = 'vss.duckdb_extension'
 export const defaultRepository = 'https://extensions.duckdb.org'
 export const defaultDownloadRetries = 3
 export const defaultRetryBaseDelayMs = 250
+export const defaultRequestTimeoutMs = 15_000
 const extensionMetadataFooterBytes = 64 * 1024
 
 export class VssDownloadError extends Error {
@@ -96,6 +97,23 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function fetchWithTimeout(fetchImpl, url, timeoutMs) {
+  const controller = new AbortController()
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error(`Timed out after ${timeoutMs}ms while downloading ${url}`))
+    }, timeoutMs)
+    if (typeof timer.unref === 'function') timer.unref()
+  })
+  try {
+    return await Promise.race([fetchImpl(url, { signal: controller.signal }), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function isRetryableStatus(status) {
   return status === 408 || status === 429 || status >= 500
 }
@@ -130,12 +148,13 @@ export async function downloadExtension(url, options = {}) {
   const sleepImpl = options.sleep ?? sleep
   const retries = options.retries ?? defaultDownloadRetries
   const baseDelayMs = options.baseDelayMs ?? defaultRetryBaseDelayMs
+  const timeoutMs = options.timeoutMs ?? defaultRequestTimeoutMs
   const onRetry = options.onRetry ?? (() => undefined)
   let lastError = null
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const response = await fetchImpl(url)
+      const response = await fetchWithTimeout(fetchImpl, url, timeoutMs)
       if (!response.ok) {
         const retryable = isRetryableStatus(response.status)
         throw new VssDownloadError(
@@ -191,6 +210,7 @@ export async function installVssExtension(argv = process.argv.slice(2), options 
       sleep: options.sleep,
       retries: options.retries,
       baseDelayMs: options.baseDelayMs,
+      timeoutMs: options.timeoutMs,
       context: { duckdbVersion, triple, url },
       onRetry:
         options.onRetry ??
