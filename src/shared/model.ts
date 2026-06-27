@@ -58,7 +58,7 @@ function normalizeRouteHintValue(value: string | undefined): string {
 
 export function isOpenAiFamilyNewApiModel(modelId: string | undefined, ownedBy?: string): boolean {
   const normalizedOwner = normalizeProviderValue(ownedBy)
-  if (normalizedOwner.includes('openai')) {
+  if (normalizedOwner === 'openai') {
     return true
   }
 

@@ -253,6 +253,41 @@ describe('ProviderModelHelper cache', () => {
     })
   })
 
+  it('does not enrich cached NewAPI models with composite OpenAI-compatible owners', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () => undefined as unknown as ModelConfig,
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'proxy-chat',
+        name: 'Proxy Chat',
+        group: 'default',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai',
+        ownedBy: 'openai-compatible'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'proxy-chat',
+      supportedEndpointTypes: ['openai'],
+      endpointType: 'openai',
+      type: ModelType.Chat
+    })
+    expect(models[0].selectableEndpointTypes).toBeUndefined()
+  })
+
   it('clears persisted provider models and custom models for a removed provider', async () => {
     const { ProviderModelHelper } =
       await import('../../../../src/main/presenter/configPresenter/providerModelHelper')

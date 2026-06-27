@@ -217,8 +217,8 @@ export class ProviderModelHelper {
     }
 
     const result = normalizedStoredModels.map((model) =>
-      this.applyNewApiEndpointCompatibility(
-        this.applyResolvedModelConfig(model, providerId),
+      this.applyResolvedModelConfig(
+        this.applyNewApiEndpointCompatibility(model, providerId),
         providerId
       )
     )
