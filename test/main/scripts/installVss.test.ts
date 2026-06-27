@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -23,11 +23,20 @@ import {
 } from '../../../scripts/installVss.js'
 import {
   materializeBase64Extension,
+  materializeGzipExtension,
   parseArgs as parseSmokeArgs
 } from '../../../scripts/smoke-duckdb-vss.js'
 
 function response(status: number, body = 'ok'): Response {
   return new Response(body, { status })
+}
+
+function smokeTempDirs(): Set<string> {
+  return new Set(
+    readdirSync(os.tmpdir())
+      .filter((entry) => entry.startsWith('deepchat-duckdb-vss-smoke-'))
+      .map((entry) => path.join(os.tmpdir(), entry))
+  )
 }
 
 function extensionFixture({
@@ -166,8 +175,24 @@ describe('installVss helpers', () => {
     try {
       const assetPath = path.join(tmpDir, 'vss.duckdb_extension.b64')
       writeFileSync(assetPath, Buffer.from('not gzip').toString('base64'), 'utf8')
+      const before = smokeTempDirs()
 
       expect(() => materializeBase64Extension(assetPath)).toThrow()
+      expect([...smokeTempDirs()].filter((dir) => !before.has(dir))).toEqual([])
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('cleans up temp dirs when smoke gzip materialization fails', () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'deepchat-smoke-gzip-test-'))
+    try {
+      const assetPath = path.join(tmpDir, 'vss.duckdb_extension.gz')
+      writeFileSync(assetPath, 'not gzip', 'utf8')
+      const before = smokeTempDirs()
+
+      expect(() => materializeGzipExtension(assetPath)).toThrow()
+      expect([...smokeTempDirs()].filter((dir) => !before.has(dir))).toEqual([])
     } finally {
       rmSync(tmpDir, { recursive: true, force: true })
     }

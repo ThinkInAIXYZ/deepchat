@@ -64,6 +64,8 @@
 - [x] Add afterPack, smoke, runtime, and workflow tests for the base64 materialization path.
 - [x] Make macOS base64 materialization async and process-coalesced to avoid repeated read/hash/inflate work.
 - [x] Re-materialize packaged macOS VSS if a cached `userData` extension path is deleted mid-process.
+- [x] Clean up smoke-test temp directories when base64/gzip materialization fails.
+- [x] Keep smoke-test temp cleanup best-effort so cleanup errors do not mask original failures.
 
 ## Validation
 - [ ] Manual: with 100–200 memories, cold-start the app and confirm the first normal text turn streams promptly; repeat with an attachment. Compare `logSlowPreStreamStep('memory-injection')` on the first and later turns and confirm memory injection is no longer the dominant pre-stream step; attachment overhead, if any, should show under `context-build`.

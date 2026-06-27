@@ -68,6 +68,14 @@ function escapeSqlPath(filePath) {
   return filePath.replace(/\\/g, '\\\\').replace(/'/g, "''")
 }
 
+function removeMaterializedDirBestEffort(materializedDir) {
+  try {
+    fs.rmSync(materializedDir, { recursive: true, force: true })
+  } catch {
+    // best effort cleanup only
+  }
+}
+
 export function materializeBase64Extension(base64Path) {
   console.log(`[DuckDB Smoke] extension base64 path: ${base64Path}`)
   if (!fs.existsSync(base64Path)) {
@@ -75,9 +83,14 @@ export function materializeBase64Extension(base64Path) {
   }
   const materializedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-duckdb-vss-smoke-'))
   const extensionPath = path.join(materializedDir, extensionName)
-  const compressed = Buffer.from(fs.readFileSync(base64Path, 'utf8'), 'base64')
-  fs.writeFileSync(extensionPath, zlib.gunzipSync(compressed))
-  return { extensionPath, materializedDir }
+  try {
+    const compressed = Buffer.from(fs.readFileSync(base64Path, 'utf8'), 'base64')
+    fs.writeFileSync(extensionPath, zlib.gunzipSync(compressed))
+    return { extensionPath, materializedDir }
+  } catch (error) {
+    removeMaterializedDirBestEffort(materializedDir)
+    throw error
+  }
 }
 
 export function materializeGzipExtension(gzipPath) {
@@ -87,8 +100,13 @@ export function materializeGzipExtension(gzipPath) {
   }
   const materializedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-duckdb-vss-smoke-'))
   const extensionPath = path.join(materializedDir, extensionName)
-  fs.writeFileSync(extensionPath, zlib.gunzipSync(fs.readFileSync(gzipPath)))
-  return { extensionPath, materializedDir }
+  try {
+    fs.writeFileSync(extensionPath, zlib.gunzipSync(fs.readFileSync(gzipPath)))
+    return { extensionPath, materializedDir }
+  } catch (error) {
+    removeMaterializedDirBestEffort(materializedDir)
+    throw error
+  }
 }
 
 async function main() {
@@ -158,7 +176,7 @@ async function main() {
       // best effort cleanup only
     }
     if (materializedDir) {
-      fs.rmSync(materializedDir, { recursive: true, force: true })
+      removeMaterializedDirBestEffort(materializedDir)
     }
   }
 }
