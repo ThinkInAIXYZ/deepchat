@@ -27,6 +27,9 @@ function makeAgent(generateText: ReturnType<typeof vi.fn>) {
     resolveAgentConfig: () => PERSONA_ON,
     getEmbeddings: async (_p: string, _m: string, texts: string[]) =>
       texts.map((text) => textToVector(text)),
+    getDimensions: async () => ({
+      data: { dimensions: textToVector('').length, normalized: false }
+    }),
     generateText,
     createVectorStore: async () => new FakeVectorStore(),
     resetVectorStore: async () => {}

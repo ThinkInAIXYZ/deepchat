@@ -32,6 +32,9 @@ function makeLLM(decision: string, config = extractionConfig) {
     getEmbeddings: vi.fn(async (_p: string, _m: string, texts: string[]) =>
       texts.map((text) => textToVector(text))
     ),
+    getDimensions: vi.fn(async () => ({
+      data: { dimensions: textToVector('').length, normalized: false }
+    })),
     generateText,
     createVectorStore: async () => store,
     resetVectorStore: async () => {

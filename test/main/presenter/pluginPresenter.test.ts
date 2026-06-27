@@ -1328,9 +1328,38 @@ describe('PluginPresenter', () => {
     expect(packageJson.scripts['build:linux:x64']).toContain(
       'plugin:bundle -- --name cua --platform linux --arch x64'
     )
+    expect(packageJson.scripts['build:mac:arm64']).toContain('installRuntime:duckdb:vss:mac:arm64')
+    expect(packageJson.scripts['build:mac:x64']).toContain('installRuntime:duckdb:vss:mac:x64')
+    expect(packageJson.scripts['build:win:x64']).toContain('installRuntime:duckdb:vss:win:x64')
+    expect(packageJson.scripts['build:win:arm64']).toContain('installRuntime:duckdb:vss:win:arm64')
+    expect(packageJson.scripts['build:linux:x64']).toContain('installRuntime:duckdb:vss:linux:x64')
+    expect(packageJson.scripts['build:linux:arm64']).toContain(
+      'installRuntime:duckdb:vss:linux:arm64'
+    )
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
     )
+    expect(buildWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    )
+    expect(buildWorkflow).toContain('runs-on: ${{ matrix.runner }}')
+    expect(buildWorkflow).toContain('runner: macos-15-intel')
+    expect(buildWorkflow).toContain('runner: macos-15')
     expect(buildWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
     )
@@ -1350,6 +1379,27 @@ describe('PluginPresenter', () => {
     expect(releaseWorkflow).toContain(
       'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
     )
+    expect(releaseWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    )
+    expect(releaseWorkflow).toContain('runs-on: ${{ matrix.runner }}')
+    expect(releaseWorkflow).toContain('runner: macos-15-intel')
+    expect(releaseWorkflow).toContain('runner: macos-15')
     expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
     expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
     expect(packageScript).toContain("parts[0] === 'runtime'")

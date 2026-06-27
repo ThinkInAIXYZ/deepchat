@@ -63,6 +63,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Install and verify DuckDB VSS
+        run: |
+          pnpm run installRuntime:duckdb:vss:linux:x64
+          pnpm run smoke:duckdb:vss -- --platform linux --arch x64
+
       - name: lint
         run: pnpm run lint
 

@@ -76,6 +76,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
+      - name: Install and verify DuckDB VSS for Windows
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
+
       - name: Build Windows
         shell: bash
         run: |
@@ -142,6 +147,11 @@ jobs:
       # - name: Install Node Runtime
         # run: pnpm run installRuntime:linux:${{ matrix.arch }}
 
+      - name: Install and verify DuckDB VSS for Linux
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
+
       - name: Build Linux
         run: |
           pnpm run build
@@ -170,15 +180,17 @@ jobs:
 
   build-mac:
     if: github.event.inputs.platform == 'all' || contains(github.event.inputs.platform, 'mac')
-    runs-on: macos-15
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         arch: [x64, arm64]
         include:
           - arch: x64
             platform: mac-x64
+            runner: macos-15-intel
           - arch: arm64
             platform: mac-arm64
+            runner: macos-15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -214,6 +226,11 @@ jobs:
         run: pnpm run installRuntime:mac:${{ matrix.arch }}
         env:
           GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
+
+      - name: Install and verify DuckDB VSS for macOS
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
 
       - name: Build Mac
         run: |

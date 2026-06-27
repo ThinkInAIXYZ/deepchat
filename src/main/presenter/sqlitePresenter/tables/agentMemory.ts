@@ -805,6 +805,45 @@ export class AgentMemoryTable extends BaseTable {
     return row?.at ?? null
   }
 
+  getCurrentEmbeddingDimension(agentId: string, fingerprint: string): number | null {
+    const row = this.db
+      .prepare(
+        `SELECT embedding_dim AS dim
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status = 'embedded'
+           AND kind NOT IN ('persona', 'working')
+           AND embedding_model = ?
+           AND embedding_dim IS NOT NULL
+           AND embedding_dim > 0
+         LIMIT 1`
+      )
+      .get(agentId, fingerprint) as { dim: number | null } | undefined
+    return row?.dim ?? null
+  }
+
+  hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS stale
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status = 'embedded'
+           AND kind NOT IN ('persona', 'working')
+           AND (
+             embedding_dim IS NULL OR
+             embedding_dim != ? OR
+             embedding_model IS NULL OR
+             embedding_model != ?
+           )
+         LIMIT 1`
+      )
+      .get(agentId, currentDim, fingerprint) as { stale: number } | undefined
+    return row !== undefined
+  }
+
   // Soft delete: archived rows stay on disk (and in the vector store) but drop out of recall.
   archive(id: string, _at: number = Date.now()): void {
     this.db.prepare("UPDATE agent_memory SET status = 'archived' WHERE id = ?").run(id)

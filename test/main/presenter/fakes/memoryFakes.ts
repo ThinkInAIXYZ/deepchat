@@ -303,6 +303,28 @@ export class FakeRepository implements MemoryRepositoryPort {
     return max
   }
 
+  getCurrentEmbeddingDimension(agentId: string, fingerprint: string) {
+    const row = this.listByAgent(agentId, { statuses: ['embedded'] }).find(
+      (candidate) =>
+        candidate.kind !== 'persona' &&
+        candidate.kind !== 'working' &&
+        candidate.embedding_model === fingerprint &&
+        typeof candidate.embedding_dim === 'number' &&
+        Number.isFinite(candidate.embedding_dim) &&
+        candidate.embedding_dim > 0
+    )
+    return row?.embedding_dim ?? null
+  }
+
+  hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string) {
+    return this.listByAgent(agentId, { statuses: ['embedded'] }).some(
+      (row) =>
+        row.kind !== 'persona' &&
+        row.kind !== 'working' &&
+        (row.embedding_dim !== currentDim || row.embedding_model !== fingerprint)
+    )
+  }
+
   archive(id: string, _at = 0) {
     const row = this.rows.get(id)
     if (row) {
@@ -476,6 +498,9 @@ export function makePresenter(config: DeepChatAgentConfig | null, repo = new Fak
   const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
     texts.map((text) => textToVector(text))
   )
+  const getDimensions = vi.fn(async () => ({
+    data: { dimensions: textToVector('').length, normalized: false }
+  }))
   // Models the on-disk reset: clearing memories deletes the agent's vector file.
   const resetVectorStore = vi.fn(async () => {
     store.vectors.clear()
@@ -485,9 +510,10 @@ export function makePresenter(config: DeepChatAgentConfig | null, repo = new Fak
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,
     getEmbeddings,
+    getDimensions,
     generateText: vi.fn(async () => ''),
     createVectorStore: async () => store,
     resetVectorStore
   })
-  return { presenter, repo, auditRepo, store, getEmbeddings, resetVectorStore }
+  return { presenter, repo, auditRepo, store, getEmbeddings, getDimensions, resetVectorStore }
 }
