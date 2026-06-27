@@ -190,7 +190,7 @@ describe('MemoryVectorStore VSS loading', () => {
   it('closes opened DuckDB handles when packaged create fails on a missing bundled extension', async () => {
     app.isPackaged = true
     vi.spyOn(fs, 'existsSync').mockImplementation((target) => {
-      if (String(target).endsWith('vss.duckdb_extension')) return false
+      if (/(^|[/\\])vss\.duckdb_extension(?:\..+)?$/.test(String(target))) return false
       return true
     })
     vi.spyOn(logger, 'error').mockImplementation(() => undefined)
