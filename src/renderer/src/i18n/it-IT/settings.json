@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Compressione automatica",
       "enabled": "Attiva compressione automatica",
-      "description": "Quando una conversazione si avvicina al limite della finestra di contesto del modello, DeepChat riassume automaticamente la cronologia più vecchia per permettere alla sessione di continuare. Se disattivata, la cronologia fuori budget viene scartata direttamente senza generare un riepilogo.",
+      "description": "Quando una conversazione si avvicina al limite della finestra di contesto del modello, DeepChat può riassumere automaticamente la cronologia più vecchia per mantenere attiva la sessione. Se disattivata, DeepChat non genererà riepiloghi, ma continuerà a ridurre la vista della richiesta quando necessario per evitare errori context-window grezzi del fornitore.",
       "thresholdLabel": "Soglia di attivazione",
       "thresholdMin": "Prima ({value}%)",
       "thresholdMax": "Dopo ({value}%)",

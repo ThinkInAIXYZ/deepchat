@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Automatische Komprimierung",
       "enabled": "Automatische Komprimierung aktivieren",
-      "description": "Wenn sich ein Chat dem Kontextfensterlimit des Modells nähert, fasst DeepChat ältere Verläufe automatisch zusammen, damit die Sitzung fortgesetzt werden kann. Bei Deaktivierung werden Verläufe außerhalb des Budgets direkt verworfen und nicht zusammengefasst.",
+      "description": "Wenn sich eine Unterhaltung dem Kontextfensterlimit des Modells nähert, kann DeepChat ältere Verläufe automatisch zusammenfassen, damit die Sitzung fortgesetzt werden kann. Wenn diese Option deaktiviert ist, erstellt DeepChat keine Zusammenfassungen, kürzt bei Bedarf aber weiterhin die Anfrageansicht, um rohe context-window-Fehler des Anbieters möglichst zu vermeiden.",
       "thresholdLabel": "Auslöseschwelle",
       "thresholdMin": "Früher ({value}%)",
       "thresholdMax": "Später ({value}%)",

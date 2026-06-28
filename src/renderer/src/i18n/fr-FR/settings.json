@@ -75,7 +75,7 @@
     "autoCompaction": {
       "title": "Compression automatique",
       "enabled": "Activer la compression automatique",
-      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut compresser automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, l’historique excédentaire est supprimé directement au lieu d’être résumé.",
+      "description": "Lorsqu’une conversation approche de la limite de fenêtre de contexte du modèle, DeepChat peut résumer automatiquement l’historique plus ancien afin que la session continue. Si cette option est désactivée, DeepChat ne générera pas de résumés, mais rognera tout de même la vue de requête si nécessaire afin d’éviter les erreurs context-window brutes du fournisseur.",
       "thresholdLabel": "Seuil de déclenchement",
       "thresholdMin": "Tôt ({value}%)",
       "thresholdMax": "Tard ({value}%)",

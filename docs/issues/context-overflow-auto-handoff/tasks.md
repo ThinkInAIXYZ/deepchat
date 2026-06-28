@@ -1,0 +1,32 @@
+# Context Overflow Auto-Handoff Tasks
+
+- [x] Create SDD issue artifacts.
+- [x] Add shared context-window error classifier.
+- [x] Replace `process.ts` private classifier with the shared classifier.
+- [x] Add provider first-event/first-throw recovery wrapper in `runStreamForMessage`.
+- [x] Keep auto-compaction-disabled recovery summary-free and trim-only.
+- [x] Add focused compaction and agent runtime tests.
+- [x] Update Auto Compaction copy in all locales.
+- [x] Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and targeted tests.
+- [x] Narrow context-window classifier and add false-positive tests.
+- [x] Convert post-recovery provider overflow into local budget diagnostics.
+- [x] Cap strict trim retry extra reserve.
+- [x] Add second-overflow retry failure tests.
+- [x] Preserve video model-id context-budget bypass in provider retry wrapper.
+- [x] Split retry-failure diagnostics for local over-budget vs provider tokenizer disagreement.
+- [x] Scan classifier fields by priority without long-field starvation.
+- [x] Add real processStream persistence coverage for provider-overflow retry failure.
+- [x] Document run-level recovery guard repair follow-up.
+- [x] Share one assistant-run recovery budget between preflight recovery and provider overflow.
+- [x] Scan SDK `Error` custom fields in the context-window classifier.
+- [x] Persist strict retry view manifests with the actual attempt token budget.
+- [x] Add regression tests for preflight-recovery overflow, second-attempt throw, and manifest budget.
+- [x] Run repair validation commands.
+- [x] Document bounded array-shaped provider error polish.
+- [x] Add bounded array scanning to `isContextWindowErrorLike()`.
+- [x] Add array-shaped context overflow classifier tests.
+- [x] Replace strict retry manifest magic-number assertions with formula-based expectations.
+- [x] Run P3 polish validation commands.
+- [x] Guard `input exceeds` behind token/context-pressure hints.
+- [x] Clarify Bub `auto_handoff/context_overflow` reference in the spec.
+- [x] Polish es-ES Auto Compaction description wording.

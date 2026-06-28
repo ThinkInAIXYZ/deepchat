@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Tự động nén",
       "enabled": "Bật tự động nén",
-      "description": "Khi một cuộc trò chuyện đạt đến giới hạn cửa sổ ngữ cảnh mô hình, DeepChat có thể tự động tóm tắt lịch sử cũ hơn để phiên tiếp tục diễn ra. Nếu bị tắt, lịch sử tràn sẽ bị loại bỏ trực tiếp thay vì được tóm tắt.",
+      "description": "Khi một cuộc trò chuyện tiến gần giới hạn cửa sổ ngữ cảnh của mô hình, DeepChat có thể tự động tóm tắt lịch sử cũ hơn để phiên tiếp tục diễn ra. Nếu tắt, DeepChat sẽ không tạo bản tóm tắt, nhưng vẫn cắt bớt chế độ xem yêu cầu khi cần để tránh lỗi context-window thô từ nhà cung cấp.",
       "thresholdLabel": "Ngưỡng kích hoạt",
       "thresholdMin": "Sớm ({value}%)",
       "thresholdMax": "Muộn ({value}%)",

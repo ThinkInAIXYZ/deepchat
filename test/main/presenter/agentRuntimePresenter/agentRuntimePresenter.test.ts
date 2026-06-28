@@ -4389,6 +4389,51 @@ describe('AgentRuntimePresenter', () => {
       return records
     }
 
+    async function collectProviderEvents(
+      callArgs: any,
+      requestMessages: any[],
+      tools = callArgs.tools
+    ) {
+      const events: any[] = []
+      for await (const event of callArgs.coreStream(
+        requestMessages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        tools
+      )) {
+        events.push(event)
+      }
+      return events
+    }
+
+    async function collectProviderErrorMessage(
+      callArgs: any,
+      requestMessages: any[],
+      tools = callArgs.tools
+    ) {
+      try {
+        await collectProviderEvents(callArgs, requestMessages, tools)
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+      throw new Error('Expected provider stream to throw')
+    }
+
+    function getViewManifests() {
+      return sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+        .map((row: any) => JSON.parse(row.payload_json).data.manifest)
+    }
+
+    function getContextOverflowAnchorCalls() {
+      return sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.filter(
+        ([input]: any[]) => input.name === 'auto_handoff/context_overflow'
+      )
+    }
+
     it('bypasses DeepChat context preflight for oversized ACP provider calls', async () => {
       await agent.initSession('s1', {
         providerId: 'acp',
@@ -4426,6 +4471,32 @@ describe('AgentRuntimePresenter', () => {
       expect(
         JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
       ).not.toContain('Request was not sent')
+    })
+
+    it('does not auto-handoff context overflow for ACP bypass streams', async () => {
+      await agent.initSession('s1', {
+        providerId: 'acp',
+        modelId: 'claude-code-acp',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 8000
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementationOnce(async function* () {
+        yield { type: 'error', error_message: 'input exceeds the context window' }
+      })
+      llmProvider.generateText.mockClear()
+
+      const events = await collectProviderEvents(callArgs, [{ role: 'user', content: 'Hello' }])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(events).toEqual([{ type: 'error', error_message: 'input exceeds the context window' }])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
     })
 
     it('does not start DeepChat context-pressure compaction for ACP turns', async () => {
@@ -4562,6 +4633,467 @@ describe('AgentRuntimePresenter', () => {
       expect(
         JSON.stringify(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls)
       ).not.toContain('Request was not sent')
+
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementationOnce(async function* () {
+        yield { type: 'error', error_message: 'input exceeds the context window' }
+      })
+
+      const events = await collectProviderEvents(callArgs, [{ role: 'user', content: 'draw' }])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(events).toEqual([{ type: 'error', error_message: 'input exceeds the context window' }])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+    })
+
+    it('bypasses chat context preflight for video generation model-id hints', async () => {
+      const chatLikeVideoModelConfig = {
+        temperature: 0.7,
+        maxTokens: 4096,
+        contextLength: 8192,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat
+      }
+      configPresenter.getModelConfig.mockImplementation((modelId: string) =>
+        modelId === 'sora-2'
+          ? chatLikeVideoModelConfig
+          : {
+              temperature: 0.7,
+              maxTokens: 4096,
+              contextLength: 128000,
+              thinkingBudget: 512,
+              reasoningEffort: 'medium',
+              verbosity: 'medium',
+              vision: false
+            }
+      )
+      const prepareSpy = vi.spyOn(
+        (agent as unknown as { compactionService: { prepareForNextUserTurn: () => unknown } })
+          .compactionService,
+        'prepareForNextUserTurn'
+      )
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'sora-2',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'make a video')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockClear()
+      llmProvider.generateText.mockClear()
+      const oversizedPrompt = makeTextWithEstimatedTokens(9000)
+      const requestMessages = [{ role: 'user' as const, content: oversizedPrompt }]
+
+      for await (const _event of callArgs.coreStream(
+        requestMessages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        4096,
+        callArgs.tools
+      )) {
+      }
+
+      expect(prepareSpy).not.toHaveBeenCalled()
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(providerCoreStream.mock.calls[0][0]).toEqual(requestMessages)
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementationOnce(async function* () {
+        yield { type: 'error', error_message: 'input exceeds the context window' }
+      })
+
+      const events = await collectProviderEvents(callArgs, [{ role: 'user', content: 'video' }])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(events).toEqual([{ type: 'error', error_message: 'input exceeds the context window' }])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+    })
+
+    it('recovers when the first provider event is context overflow with memory disabled', async () => {
+      const buildInjection = vi.fn()
+      const extractAndStore = vi.fn()
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => false),
+        buildInjection,
+        extractAndStore
+      }
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'error',
+            error_message: 'Your input exceeds the context window of this model.'
+          }
+        })
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'Recovered' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+      llmProvider.generateText.mockClear()
+
+      const events = await collectProviderEvents(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: 'Hello' }
+      ])
+      const anchorNames = sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.map(
+        ([input]: any[]) => input.name
+      )
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(events).toEqual([
+        { type: 'text', content: 'Recovered' },
+        { type: 'stop', stop_reason: 'complete' }
+      ])
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(anchorNames).toContain('auto_handoff/context_overflow')
+      expect(buildInjection).not.toHaveBeenCalled()
+      expect(extractAndStore).not.toHaveBeenCalled()
+    })
+
+    it('recovers when the provider throws context overflow before the first event', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          throw new Error('maximum context length exceeded')
+        })
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'Recovered after throw' }
+        })
+      llmProvider.generateText.mockClear()
+
+      const events = await collectProviderEvents(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: 'Hello' }
+      ])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(events).toEqual([{ type: 'text', content: 'Recovered after throw' }])
+      expect(llmProvider.generateText).toHaveBeenCalled()
+    })
+
+    it('does not retry context overflow after provider output has started', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementationOnce(async function* () {
+        yield { type: 'text', content: 'partial' }
+        yield { type: 'error', error_message: 'context window exceeded' }
+      })
+      llmProvider.generateText.mockClear()
+
+      const events = await collectProviderEvents(callArgs, [{ role: 'user', content: 'Hello' }])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(events).toEqual([
+        { type: 'text', content: 'partial' },
+        { type: 'error', error_message: 'context window exceeded' }
+      ])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+    })
+
+    it('uses trim-only retry when auto compaction is disabled', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 512
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'prompt too long for context length' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'Trimmed retry' }
+        })
+      llmProvider.generateText.mockClear()
+      sqlitePresenter.deepchatMessagesTable.delete.mockClear()
+
+      const oldHistoryText = makeTextWithEstimatedTokens(4000)
+      const latestText = makeTextWithEstimatedTokens(3200)
+      const requestMessages = [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: oldHistoryText },
+        { role: 'assistant', content: 'old answer' },
+        { role: 'user', content: latestText }
+      ]
+
+      const events = await collectProviderEvents(callArgs, requestMessages)
+      const firstProviderMaxTokens = providerCoreStream.mock.calls[0][4]
+      const secondProviderMessages = providerCoreStream.mock.calls[1][0]
+      const secondProviderMaxTokens = providerCoreStream.mock.calls[1][4]
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(events).toEqual([{ type: 'text', content: 'Trimmed retry' }])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+      expect(secondProviderMessages).not.toContainEqual({ role: 'user', content: oldHistoryText })
+      expect(secondProviderMaxTokens).toBeLessThan(firstProviderMaxTokens)
+      expect(sqlitePresenter.deepchatMessagesTable.delete).not.toHaveBeenCalled()
+    })
+
+    it('returns local budget guidance when trim-only retry still overflows', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 512
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'prompt too long for context length' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'error',
+            error_message: 'provider raw red marker: input exceeds the context window'
+          }
+        })
+      llmProvider.generateText.mockClear()
+
+      const errorMessage = await collectProviderErrorMessage(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: makeTextWithEstimatedTokens(4000) },
+        { role: 'assistant', content: 'old answer' },
+        { role: 'user', content: makeTextWithEstimatedTokens(3200) }
+      ])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(errorMessage).toContain('provider still reported a context overflow after DeepChat')
+      expect(errorMessage).not.toContain('Request was not sent because it cannot fit')
+      expect(errorMessage).not.toContain('provider raw red marker')
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+    })
+
+    it('returns local budget guidance when handoff retry still overflows', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'maximum context length exceeded' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'error',
+            error_message: 'provider raw red marker: input exceeds the context window'
+          }
+        })
+      llmProvider.generateText.mockClear()
+
+      const errorMessage = await collectProviderErrorMessage(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: 'Hello' }
+      ])
+      const anchorNames = sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.map(
+        ([input]: any[]) => input.name
+      )
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(errorMessage).toContain('provider still reported a context overflow after DeepChat')
+      expect(errorMessage).not.toContain('Request was not sent because it cannot fit')
+      expect(errorMessage).not.toContain('provider raw red marker')
+      expect(llmProvider.generateText).toHaveBeenCalled()
+      expect(anchorNames).toContain('auto_handoff/context_overflow')
+      expect(getContextOverflowAnchorCalls()).toHaveLength(1)
+    })
+
+    it('returns local budget guidance when handoff retry throws context overflow', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'maximum context length exceeded' }
+        })
+        .mockImplementationOnce(async function* () {
+          throw new Error('provider raw red marker: input exceeds the context window')
+        })
+      llmProvider.generateText.mockClear()
+
+      const errorMessage = await collectProviderErrorMessage(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: 'Hello' }
+      ])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(errorMessage).toContain('provider still reported a context overflow after DeepChat')
+      expect(errorMessage).not.toContain('provider raw red marker')
+      expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(getContextOverflowAnchorCalls()).toHaveLength(1)
+    })
+
+    it('persists local retry-failure diagnostics without provider raw context overflow text', async () => {
+      const actualProcessModule = await vi.importActual<
+        typeof import('@/presenter/agentRuntimePresenter/process')
+      >('@/presenter/agentRuntimePresenter/process')
+      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        actualProcessModule.processStream
+      )
+      const providerCoreStream = llmProvider.getProviderInstance('openai').coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'maximum context length exceeded' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'error',
+            error_message: 'provider raw red marker: input exceeds the context window'
+          }
+        })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      installSessionRows(createSentTurnRecords(3))
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      consoleError.mockRestore()
+
+      const errorUpdate = sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls
+        .filter((call) => call[2] === 'error')
+        .find((call) => String(call[1]).includes('provider still reported a context overflow'))
+      const serializedBlocks = String(errorUpdate?.[1] ?? '')
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(errorUpdate).toBeTruthy()
+      expect(serializedBlocks).not.toContain('provider raw red marker')
+      expect(serializedBlocks).toContain(
+        'provider still reported a context overflow after DeepChat'
+      )
+    })
+
+    it('does not recover quota or rate-limit token errors as context overflow', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 1024
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream.mockImplementationOnce(async function* () {
+        yield {
+          type: 'error',
+          error_message: 'rate limit exceeded: too many tokens per minute (TPM)'
+        }
+      })
+      llmProvider.generateText.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
+
+      const events = await collectProviderEvents(callArgs, [{ role: 'user', content: 'Hello' }])
+      const anchorNames = sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mock.calls.map(
+        ([input]: any[]) => input.name
+      )
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(1)
+      expect(events).toEqual([
+        {
+          type: 'error',
+          error_message: 'rate limit exceeded: too many tokens per minute (TPM)'
+        }
+      ])
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+      expect(anchorNames).not.toContain('auto_handoff/context_overflow')
     })
 
     it('preflights provider calls with a safety margin and compacts before low-output pressure calls', async () => {
@@ -4616,6 +5148,98 @@ describe('AgentRuntimePresenter', () => {
       expect(providerMessages[0].content).toContain('## Conversation Summary')
       expect(providerMaxTokens).toBeLessThan(4096)
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
+    })
+
+    it('uses strict trim retry after local preflight compaction and provider overflow', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      llmProvider.generateText.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'input exceeds the context window' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'Recovered by strict trim' }
+        })
+
+      const events = await collectProviderEvents(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: makeTextWithEstimatedTokens(4100) }
+      ])
+      const manifests = getViewManifests()
+      const strictManifest = manifests[1]
+      const contextLength = 8192
+      const requestedMaxTokens = 4096
+      const strictRetryMaxTokens = Math.floor(requestedMaxTokens / 2)
+      const strictRetryExtraReserve = Math.max(256, Math.min(Math.floor(contextLength * 0.1), 8192))
+
+      expect(events).toEqual([{ type: 'text', content: 'Recovered by strict trim' }])
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(getContextOverflowAnchorCalls()).toHaveLength(1)
+      expect(manifests).toHaveLength(2)
+      expect(strictManifest).toMatchObject({
+        requestSeq: 2,
+        policy: 'context_pressure_recovery_shadow',
+        tokenBudget: {
+          requestedMaxTokens: strictRetryMaxTokens,
+          reserveTokens: strictRetryMaxTokens + strictRetryExtraReserve
+        }
+      })
+      expect(strictManifest.tokenBudget.effectiveMaxTokens).toBeLessThanOrEqual(
+        strictRetryMaxTokens
+      )
+    })
+
+    it('does not run a second handoff when strict retry after preflight compaction still overflows', async () => {
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'Hello')
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
+      llmProvider.generateText.mockClear()
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      providerCoreStream.mockReset()
+      providerCoreStream
+        .mockImplementationOnce(async function* () {
+          yield { type: 'error', error_message: 'maximum context length exceeded' }
+        })
+        .mockImplementationOnce(async function* () {
+          yield {
+            type: 'error',
+            error_message: 'provider raw red marker: input exceeds the context window'
+          }
+        })
+
+      const errorMessage = await collectProviderErrorMessage(callArgs, [
+        { role: 'system', content: 'Base system prompt' },
+        { role: 'user', content: makeTextWithEstimatedTokens(4100) }
+      ])
+
+      expect(providerCoreStream).toHaveBeenCalledTimes(2)
+      expect(llmProvider.generateText).toHaveBeenCalledTimes(1)
+      expect(getContextOverflowAnchorCalls()).toHaveLength(1)
+      expect(errorMessage).toContain('provider still reported a context overflow after DeepChat')
+      expect(errorMessage).not.toContain('provider raw red marker')
     })
 
     it('trims provider request history without deleting stored messages when compaction is disabled', async () => {

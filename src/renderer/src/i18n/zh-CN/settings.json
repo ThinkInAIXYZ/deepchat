@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "自动压缩",
       "enabled": "启用自动压缩",
-      "description": "当对话接近模型上下文窗口限制时，DeepChat 会自动总结较早历史，帮助会话继续进行。关闭后，超出预算的历史将直接丢弃，不再生成摘要。",
+      "description": "当对话接近模型上下文窗口限制时，DeepChat 会自动总结较早历史，帮助会话继续进行。关闭后，DeepChat 不会生成摘要，但仍会在必要时裁剪请求视图，尽量避免服务商原始 context-window 报错。",
       "thresholdLabel": "触发阈值",
       "thresholdMin": "提前（{value}%）",
       "thresholdMax": "延后（{value}%）",

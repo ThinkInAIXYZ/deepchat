@@ -75,7 +75,7 @@
     "autoCompaction": {
       "title": "自動壓縮",
       "enabled": "啟用自動壓縮",
-      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動整理較早歷史，幫助會話繼續進行。關閉後，超出預算的歷史將直接丟棄，不再產生摘要。",
+      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動摘要較早的歷史紀錄，幫助工作階段繼續進行。關閉後，DeepChat 不會產生摘要，但仍會在必要時裁剪請求檢視，盡量避免供應商原始 context-window 錯誤。",
       "thresholdLabel": "觸發閾值",
       "thresholdMin": "提前（{value}%）",
       "thresholdMax": "延後（{value}%）",
