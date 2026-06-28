@@ -10,7 +10,9 @@ describe('isContextWindowErrorLike', () => {
       'token limit exceeded for this request',
       'prompt too long',
       'too many tokens in request',
-      'please reduce the length of the messages'
+      'please reduce the length of the messages',
+      'input exceeds maximum context',
+      'input exceeds maximum tokens for this request'
     ]) {
       expect(isContextWindowErrorLike(message)).toBe(true)
     }
@@ -142,6 +144,12 @@ describe('isContextWindowErrorLike', () => {
       '429 too many requests',
       'token limit exceeded for your daily quota'
     ]) {
+      expect(isContextWindowErrorLike(message)).toBe(false)
+    }
+  })
+
+  it('does not match generic input-exceeds failures without context pressure hints', () => {
+    for (const message of ['input exceeds maximum file size', 'input exceeds upload limit']) {
       expect(isContextWindowErrorLike(message)).toBe(false)
     }
   })

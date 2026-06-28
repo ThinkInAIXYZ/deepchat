@@ -32,6 +32,8 @@ output is yielded to `processStream`, recover the request once, and retry with a
 - Keep context-window matching strict enough to avoid quota, billing, and rate-limit false positives;
   only generic token-limit wording may match when accompanied by request/context/input/prompt
   wording.
+- Keep `input exceeds` behind stronger token/context-pressure hints so unrelated input-size or upload
+  errors do not trigger context overflow recovery.
 - Scan wrapped provider error fields by priority and stop on the first match so a long unrelated
   field cannot hide a later context-window field.
 - Continue scanning SDK `Error` instances after `message`, `name`, and `cause` so custom fields such
@@ -73,6 +75,8 @@ output is yielded to `processStream`, recover the request once, and retry with a
   summary handoff occurs and only one strict trim retry is allowed.
 - Add classifier coverage for SDK `Error` objects with nested `response`/`body` fields.
 - Add classifier coverage for bounded `errors[]` / `issues[]` provider payloads.
+- Add classifier coverage proving generic `input exceeds` file-size or upload-limit failures do not
+  match.
 - Add manifest coverage for strict retry token budget fields.
 - Preserve process-stream behavior for context overflow errors that are not intercepted by the
   provider wrapper.

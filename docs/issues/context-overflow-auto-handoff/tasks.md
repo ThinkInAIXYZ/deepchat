@@ -27,3 +27,6 @@
 - [x] Add array-shaped context overflow classifier tests.
 - [x] Replace strict retry manifest magic-number assertions with formula-based expectations.
 - [x] Run P3 polish validation commands.
+- [x] Guard `input exceeds` behind token/context-pressure hints.
+- [x] Clarify Bub `auto_handoff/context_overflow` reference in the spec.
+- [x] Polish es-ES Auto Compaction description wording.

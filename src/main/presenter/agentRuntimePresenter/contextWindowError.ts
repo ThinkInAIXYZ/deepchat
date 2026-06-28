@@ -7,12 +7,12 @@ const STRONG_CONTEXT_WINDOW_ERROR_PATTERNS = [
   'context window',
   'context length',
   'maximum context',
-  'prompt too long',
-  'input exceeds'
+  'prompt too long'
 ]
 
 const TOKEN_CONTEXT_ERROR_PATTERNS = ['token limit', 'too many tokens', 'reduce the length']
 const TOKEN_CONTEXT_HINTS = ['context', 'prompt', 'input', 'request', 'message', 'schema']
+const INPUT_EXCEEDS_CONTEXT_HINTS = ['context', 'prompt', 'request', 'message', 'schema', 'token']
 const CONTEXT_ERROR_TEXT_FIELD_PRIORITY = [
   'message',
   'error_message',
@@ -58,8 +58,10 @@ function isContextWindowErrorText(text: string): boolean {
     return true
   }
   return (
-    TOKEN_CONTEXT_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern)) &&
-    TOKEN_CONTEXT_HINTS.some((hint) => normalized.includes(hint))
+    (TOKEN_CONTEXT_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern)) &&
+      TOKEN_CONTEXT_HINTS.some((hint) => normalized.includes(hint))) ||
+    (normalized.includes('input exceeds') &&
+      INPUT_EXCEEDS_CONTEXT_HINTS.some((hint) => normalized.includes(hint)))
   )
 }
 

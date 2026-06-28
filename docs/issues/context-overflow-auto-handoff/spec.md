@@ -13,7 +13,8 @@ schemas/system prompts are counted differently by the upstream API.
 
 Recover from provider-side context overflow before any output is shown, using DeepChat's existing
 tape, rolling summary, summary cursor, and view manifest flow. The behavior should mirror the Bub
-`auto_handoff/context_overflow` pattern without adding a Bub or tape.systems dependency.
+`auto_handoff/context_overflow` pattern, where an overflow is treated as an automatic handoff point,
+without adding a Bub or tape.systems dependency.
 
 ## Acceptance Criteria
 
@@ -40,6 +41,8 @@ tape, rolling summary, summary cursor, and view manifest flow. The behavior shou
   losing the recursion and text-size guards.
 - Context-window detection scans bounded array-shaped provider error fields such as `errors[]` and
   `issues[]` without changing quota, billing, rate-limit, or `429` exclusion semantics.
+- Context-window detection does not treat generic `input exceeds` failures such as file-size or
+  upload-limit errors as context overflow unless token/context-pressure wording is also present.
 - Provider retry failure diagnostics distinguish local over-budget requests from provider tokenizer
   disagreement after DeepChat already compacted or trimmed the request.
 - View manifests record the actual per-attempt token budget, including strict retry max-token shrink
