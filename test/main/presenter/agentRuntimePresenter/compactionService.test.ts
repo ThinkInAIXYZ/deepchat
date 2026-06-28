@@ -597,6 +597,32 @@ describe('CompactionService', () => {
     expect(records.map((record) => record.id)).toContain('assistant-2')
   })
 
+  it('marks forced context-pressure recovery as auto handoff context overflow', async () => {
+    const { service, messageStore } = createService()
+    messageStore.getMessages.mockReturnValue([
+      makeUserRecord(1, 'first turn '.repeat(20)),
+      makeAssistantRecord(2, 'first reply '.repeat(20)),
+      makeUserRecord(3, 'second turn '.repeat(20)),
+      makeAssistantRecord(4, 'second reply '.repeat(20)),
+      makeUserRecord(5, 'third turn '.repeat(20)),
+      makeAssistantRecord(6, 'third reply '.repeat(20))
+    ])
+
+    const intent = await service.prepareForContextPressureRecovery({
+      sessionId: 's1',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      systemPrompt: '',
+      contextLength: 700,
+      reserveTokens: 100,
+      supportsVision: false,
+      preserveInterleavedReasoning: false,
+      projectedMessages: []
+    })
+
+    expect(intent?.anchorName).toBe('auto_handoff/context_overflow')
+  })
+
   it('retains the configured recent pairs plus the resume target turn', async () => {
     const { service, messageStore } = createService({
       sessionConfig: {

@@ -75,7 +75,7 @@
     "autoCompaction": {
       "title": "자동 압축",
       "enabled": "자동 압축 사용",
-      "description": "대화가 모델 컨텍스트 창 한도에 가까워지면 DeepChat이 오래된 기록을 자동으로 압축해 세션을 계속 이어갈 수 있습니다. 이 옵션을 끄면 예산을 초과한 기록은 요약하지 않고 바로 버립니다.",
+      "description": "대화가 모델 컨텍스트 창 한도에 가까워지면 DeepChat이 오래된 기록을 자동으로 요약해 세션을 계속 이어갈 수 있게 합니다. 비활성화하면 DeepChat은 요약을 생성하지 않지만, 필요할 때 요청 뷰를 잘라 원시 제공자 context-window 오류를 최대한 피합니다.",
       "thresholdLabel": "트리거 임계값",
       "thresholdMin": "빠르게 ({value}%)",
       "thresholdMax": "늦게 ({value}%)",

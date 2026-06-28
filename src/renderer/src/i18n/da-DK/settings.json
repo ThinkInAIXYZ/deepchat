@@ -75,7 +75,7 @@
     "autoCompaction": {
       "title": "Automatisk komprimering",
       "enabled": "Aktiver automatisk komprimering",
-      "description": "Når en samtale nærmer sig modellens kontekstvindues grænse, kan DeepChat automatisk komprimere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, bliver historik, der overskrider budgettet, droppet direkte i stedet for komprimeret.",
+      "description": "Når en samtale nærmer sig modellens grænse for kontekstvinduet, kan DeepChat automatisk opsummere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, genererer DeepChat ikke opsummeringer, men trimmer stadig forespørgselsvisningen efter behov for at undgå rå context-window-fejl fra udbyderen.",
       "thresholdLabel": "Udløsningstærskel",
       "thresholdMin": "Tidligt ({value}%)",
       "thresholdMax": "Sent ({value}%)",

@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "pemampatan automatik",
       "enabled": "Dayakan pemampatan automatik",
-      "description": "Apabila perbualan menghampiri had tetingkap konteks model, DeepChat secara automatik meringkaskan sejarah lama untuk membantu perbualan diteruskan. Selepas ditutup, sejarah melebihi belanjawan akan dibuang terus dan tiada ringkasan akan dijana.",
+      "description": "Apabila perbualan menghampiri had tetingkap konteks model, DeepChat boleh meringkaskan sejarah lama secara automatik supaya sesi terus berjalan. Jika dinyahaktifkan, DeepChat tidak akan menjana ringkasan, tetapi masih akan memangkas paparan permintaan apabila perlu untuk mengelakkan ralat context-window mentah daripada penyedia.",
       "thresholdLabel": "ambang pencetus",
       "thresholdMin": "Pendahuluan ({value}%)",
       "thresholdMax": "Ditunda ({value}%)",

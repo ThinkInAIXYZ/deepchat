@@ -43,6 +43,7 @@ import type {
   RateLimitQueueSnapshot
 } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
@@ -95,6 +96,8 @@ import {
 import {
   capAgentDefaultMaxTokens,
   capAgentRequestMaxTokens,
+  AGENT_CONTEXT_SAFETY_MARGIN_TOKENS,
+  buildRequestContextBudgetDiagnostics,
   buildRequestContextOverflowErrorMessage,
   estimateToolReserveTokens,
   fitRequestMessagesToContextWindow,
@@ -152,6 +155,7 @@ import {
   insertBlocksAfterToolCall,
   prepareToolImagePreviewPresentation
 } from './imageGenerationBlocks'
+import { isContextWindowErrorLike } from './contextWindowError'
 
 type PendingInteractionEntry = {
   interaction: PendingToolInteraction
@@ -195,6 +199,41 @@ type ResumeBudgetToolCall = {
 type PackageJsonManifest = {
   name?: unknown
   scripts?: Record<string, unknown>
+}
+
+const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
+
+function getProviderOverflowRetryExtraReserve(contextLength: number): number {
+  if (!Number.isFinite(contextLength) || contextLength <= 0) {
+    return 0
+  }
+  return Math.max(
+    AGENT_CONTEXT_SAFETY_MARGIN_TOKENS,
+    Math.min(Math.floor(contextLength * 0.1), PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP)
+  )
+}
+
+function getProviderOverflowRetryMaxTokens(maxTokens: number): number {
+  const normalized = Number.isFinite(maxTokens) ? Math.floor(maxTokens) : 1
+  return Math.max(1, Math.min(normalized, Math.floor(normalized / 2) || 1))
+}
+
+function isFirstProviderContextOverflowEvent(event: LLMCoreStreamEvent): boolean {
+  return event.type === 'error' && isContextWindowErrorLike(event.error_message)
+}
+
+function buildProviderContextOverflowAfterRecoveryErrorMessage(
+  preflight: ReturnType<typeof preflightRequestContext>
+): string {
+  const diagnostics = buildRequestContextBudgetDiagnostics(preflight)
+  const formatTokenCount = (value: number): string =>
+    Number.isFinite(value) ? String(Math.floor(value)) : 'unknown'
+
+  return [
+    'The provider still reported a context overflow after DeepChat compacted or trimmed the request.',
+    `DeepChat local estimate: usable context ${formatTokenCount(diagnostics.usableContextLength)} tokens, estimated input ${formatTokenCount(diagnostics.inputTokens)} tokens, tool schemas ${formatTokenCount(diagnostics.toolReserveTokens)} tokens, requested output ${formatTokenCount(diagnostics.requestedMaxTokens)} tokens, effective output ${formatTokenCount(diagnostics.effectiveMaxTokens)} tokens, remaining output room ${formatTokenCount(diagnostics.remainingOutputTokens)} tokens.`,
+    'The provider may count tokens, system prompts, or tool schemas differently. Try shortening the latest input or attachments, reducing active tools, skills, or system prompt content, lowering max output tokens, or increasing context length.'
+  ].join(' ')
 }
 
 function normalizeTopP(value: unknown): number | undefined {
@@ -887,7 +926,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       this.logSlowPreStreamStep(sessionId, 'generation-settings', stepStartedAt)
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const useContextBudget = this.shouldUseDeepChatContextBudget(state.providerId, modelConfig)
+      const useContextBudget = this.shouldUseDeepChatContextBudget(
+        state.providerId,
+        modelConfig,
+        state.modelId
+      )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,
@@ -897,7 +940,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const contextBudgetLength = this.resolveDeepChatContextBudgetLength(
         state.providerId,
         generationSettings.contextLength,
-        modelConfig
+        modelConfig,
+        state.modelId
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       stepStartedAt = Date.now()
@@ -2975,6 +3019,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         projectDir
       })
 
+      let contextOverflowHandoffAttemptedForRun = false
+      let strictProviderOverflowRetryUsedForRun = false
       const result = await processStream({
         messages,
         tools,
@@ -2990,137 +3036,303 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         ) {
           const requestBypassesContextBudget = shouldBypassContextBudget(
             state.providerId,
-            requestModelConfig
+            requestModelConfig,
+            requestModelId
           )
           let queuedForRateLimit = false
 
           try {
-            let providerMessages = requestMessages
-            let providerMaxTokens = requestMaxTokens
-            let recoveredFromContextPressure = false
+            let preflightContextRecoveryAttempted = false
+            let providerOverflowRecoveryAttempted = false
+            let providerContextOverflowRecoveryApplied = false
+            let strictProviderOverflowRetryPending = false
             let manifestSummaryCursorOrderSeq = viewContext?.summaryCursorOrderSeq ?? 1
             const isTtsRequest =
               isTtsModelConfig(requestModelConfig) || isTtsModelId(requestModelId)
             const effectiveRequestTools: MCPToolDefinition[] = isTtsRequest ? [] : requestTools
+            const effectiveRequestToolReserveTokens =
+              estimateToolReserveTokens(effectiveRequestTools)
 
-            if (!requestBypassesContextBudget) {
-              let requestPreflight = preflightRequestContext({
-                messages: requestMessages,
-                tools: effectiveRequestTools,
-                contextLength: requestModelConfig.contextLength,
-                requestedMaxTokens: requestMaxTokens
-              })
-              if (
-                requestPreflight.requiresContextPressureRecovery ||
-                !requestPreflight.fitsWithinContext
-              ) {
-                const recovered = await recoverContextPressure({
-                  sessionId,
-                  providerId: state.providerId,
-                  modelId: requestModelId,
-                  requestMessages: requestPreflight.messages,
-                  baseSystemPrompt,
-                  contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens: requestPreflight.requestedMaxTokens,
-                  tools: effectiveRequestTools,
-                  supportsVision,
-                  supportsAudioInput,
-                  interleavedReasoning,
-                  minimumProtectedTailCount: 0,
-                  signal: abortController.signal
-                })
-                recoveredFromContextPressure = true
-                if (recovered.summaryCursorOrderSeq !== undefined) {
-                  manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+            const prepareProviderAttempt = async (options?: {
+              strictProviderOverflowRetry?: boolean
+            }): Promise<{
+              providerMessages: ChatMessage[]
+              providerMaxTokens: number
+            }> => {
+              let providerMessages = requestMessages
+              let providerMaxTokens = requestMaxTokens
+              let manifestRequestedMaxTokens = requestMaxTokens
+              let manifestReserveTokens = requestMaxTokens
+              let strictExtraReserveTokens = 0
+              let recoveredFromContextPressure =
+                providerContextOverflowRecoveryApplied ||
+                options?.strictProviderOverflowRetry === true
+
+              if (!requestBypassesContextBudget) {
+                let requestedMaxTokens = requestMaxTokens
+                if (options?.strictProviderOverflowRetry) {
+                  strictProviderOverflowRetryUsedForRun = true
+                  requestedMaxTokens = getProviderOverflowRetryMaxTokens(requestMaxTokens)
+                  strictExtraReserveTokens = getProviderOverflowRetryExtraReserve(
+                    requestModelConfig.contextLength
+                  )
+                  requestMessages.splice(
+                    0,
+                    requestMessages.length,
+                    ...fitRequestMessagesToContextWindow({
+                      messages: requestMessages,
+                      contextLength: requestModelConfig.contextLength,
+                      reserveTokens:
+                        requestedMaxTokens +
+                        effectiveRequestToolReserveTokens +
+                        strictExtraReserveTokens,
+                      minimumProtectedTailCount: 0
+                    })
+                  )
                 }
-                requestMessages.splice(0, requestMessages.length, ...recovered.messages)
-                if (recovered.systemPrompt) {
-                  replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
-                }
-                requestPreflight = preflightRequestContext({
+
+                let requestPreflight = preflightRequestContext({
                   messages: requestMessages,
                   tools: effectiveRequestTools,
                   contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens: requestMaxTokens
+                  requestedMaxTokens
                 })
-                requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
+                if (
+                  !options?.strictProviderOverflowRetry &&
+                  (requestPreflight.requiresContextPressureRecovery ||
+                    !requestPreflight.fitsWithinContext)
+                ) {
+                  preflightContextRecoveryAttempted = true
+                  recoveredFromContextPressure = true
+                  if (!contextOverflowHandoffAttemptedForRun) {
+                    contextOverflowHandoffAttemptedForRun = true
+                    const recovered = await recoverContextPressure({
+                      sessionId,
+                      providerId: state.providerId,
+                      modelId: requestModelId,
+                      requestMessages: requestPreflight.messages,
+                      baseSystemPrompt,
+                      contextLength: requestModelConfig.contextLength,
+                      requestedMaxTokens: requestPreflight.requestedMaxTokens,
+                      tools: effectiveRequestTools,
+                      supportsVision,
+                      supportsAudioInput,
+                      interleavedReasoning,
+                      minimumProtectedTailCount: 0,
+                      signal: abortController.signal
+                    })
+                    if (recovered.summaryCursorOrderSeq !== undefined) {
+                      manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+                    }
+                    requestMessages.splice(0, requestMessages.length, ...recovered.messages)
+                    if (recovered.systemPrompt) {
+                      replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
+                    }
+                    requestPreflight = preflightRequestContext({
+                      messages: requestMessages,
+                      tools: effectiveRequestTools,
+                      contextLength: requestModelConfig.contextLength,
+                      requestedMaxTokens
+                    })
+                    requestMessages.splice(0, requestMessages.length, ...requestPreflight.messages)
+                  }
+                }
+                if (!requestPreflight.fitsWithinContext) {
+                  throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
+                }
+                providerMessages = requestPreflight.messages
+                providerMaxTokens = requestPreflight.effectiveMaxTokens
+                manifestRequestedMaxTokens = requestPreflight.requestedMaxTokens
+                manifestReserveTokens =
+                  requestPreflight.requestedMaxTokens + strictExtraReserveTokens
               }
-              if (!requestPreflight.fitsWithinContext) {
-                throw new Error(buildRequestContextOverflowErrorMessage(requestPreflight))
+              if (providerMessages.length === 0) {
+                throw new Error('Request was not sent because the prompt became empty.')
               }
-              providerMessages = requestPreflight.messages
-              providerMaxTokens = requestPreflight.effectiveMaxTokens
-            }
-            if (providerMessages.length === 0) {
-              throw new Error('Request was not sent because the prompt became empty.')
-            }
 
-            requestSeq += 1
-            const isInitialViewRequest = requestSeq === 1 && Boolean(viewContext)
-            const manifestPolicy = resolveTapeViewManifestPolicy({
-              recoveredFromContextPressure,
-              isInitialViewRequest,
-              viewPolicy: viewContext?.policy,
-              viewPolicyVersion: viewContext?.policyVersion
-            })
-            appendTapeViewManifest({
-              sessionId,
-              messageId,
-              requestSeq,
-              taskType: isInitialViewRequest ? viewContext!.taskType : 'tool_loop',
-              policy: manifestPolicy.policy,
-              policyVersion: manifestPolicy.policyVersion,
-              messages: providerMessages,
-              tools: effectiveRequestTools,
-              tokenBudget: {
+              const manifestTokenBudget = {
                 contextLength: requestModelConfig.contextLength ?? contextBudgetLength,
-                requestedMaxTokens: requestMaxTokens,
+                requestedMaxTokens: manifestRequestedMaxTokens,
                 effectiveMaxTokens: providerMaxTokens,
-                reserveTokens: requestMaxTokens,
-                toolReserveTokens: estimateToolReserveTokens(effectiveRequestTools)
-              },
-              providerId: state.providerId,
-              modelId: requestModelId,
-              selection:
-                isInitialViewRequest && !recoveredFromContextPressure
-                  ? viewContext!.selection
-                  : undefined,
-              summaryCursorOrderSeq: manifestSummaryCursorOrderSeq,
-              supportsVision: viewContext?.supportsVision ?? supportsVision,
-              supportsAudioInput: viewContext?.supportsAudioInput ?? supportsAudioInput,
-              traceDebugEnabled: viewContext?.traceDebugEnabled ?? traceEnabled
-            })
-
-            await llmProviderPresenter.executeWithRateLimit(state.providerId, {
-              signal: abortController.signal,
-              onQueued: (snapshot) => {
-                queuedForRateLimit = true
-                emitRateLimitWaitingMessage(
-                  sessionId,
-                  rateLimitMessageId,
-                  activeGeneration.runId,
-                  snapshot
-                )
+                reserveTokens: manifestReserveTokens,
+                toolReserveTokens: effectiveRequestToolReserveTokens
               }
-            })
-            if (queuedForRateLimit) {
-              clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
-              queuedForRateLimit = false
-            }
-            if (abortController.signal.aborted) {
-              throw createAbortError()
+
+              requestSeq += 1
+              const isInitialViewRequest = requestSeq === 1 && Boolean(viewContext)
+              const manifestPolicy = resolveTapeViewManifestPolicy({
+                recoveredFromContextPressure,
+                isInitialViewRequest,
+                viewPolicy: viewContext?.policy,
+                viewPolicyVersion: viewContext?.policyVersion
+              })
+              appendTapeViewManifest({
+                sessionId,
+                messageId,
+                requestSeq,
+                taskType: isInitialViewRequest ? viewContext!.taskType : 'tool_loop',
+                policy: manifestPolicy.policy,
+                policyVersion: manifestPolicy.policyVersion,
+                messages: providerMessages,
+                tools: effectiveRequestTools,
+                tokenBudget: manifestTokenBudget,
+                providerId: state.providerId,
+                modelId: requestModelId,
+                selection:
+                  isInitialViewRequest && !recoveredFromContextPressure
+                    ? viewContext!.selection
+                    : undefined,
+                summaryCursorOrderSeq: manifestSummaryCursorOrderSeq,
+                supportsVision: viewContext?.supportsVision ?? supportsVision,
+                supportsAudioInput: viewContext?.supportsAudioInput ?? supportsAudioInput,
+                traceDebugEnabled: viewContext?.traceDebugEnabled ?? traceEnabled
+              })
+
+              return { providerMessages, providerMaxTokens }
             }
 
-            logPreStreamBoundary()
-            for await (const event of provider.coreStream(
-              providerMessages,
-              requestModelId,
-              requestModelConfig,
-              requestTemperature,
-              providerMaxTokens,
-              effectiveRequestTools
-            )) {
-              yield event
+            const recoverProviderContextOverflow = async (
+              providerMessages: ChatMessage[],
+              providerMaxTokens: number
+            ): Promise<void> => {
+              contextOverflowHandoffAttemptedForRun = true
+              providerOverflowRecoveryAttempted = true
+              const recovered = await recoverContextPressure({
+                sessionId,
+                providerId: state.providerId,
+                modelId: requestModelId,
+                requestMessages: providerMessages,
+                baseSystemPrompt,
+                contextLength: requestModelConfig.contextLength,
+                requestedMaxTokens: providerMaxTokens,
+                tools: effectiveRequestTools,
+                supportsVision,
+                supportsAudioInput,
+                interleavedReasoning,
+                minimumProtectedTailCount: 0,
+                signal: abortController.signal
+              })
+              if (recovered.summaryCursorOrderSeq !== undefined) {
+                manifestSummaryCursorOrderSeq = recovered.summaryCursorOrderSeq
+              }
+              providerContextOverflowRecoveryApplied = true
+              strictProviderOverflowRetryPending = recovered.summaryCursorOrderSeq === undefined
+              requestMessages.splice(0, requestMessages.length, ...recovered.messages)
+              if (recovered.systemPrompt) {
+                replaceLeadingSystemPromptInPlace(requestMessages, recovered.systemPrompt)
+              }
+            }
+
+            const buildProviderOverflowRetryFailure = (
+              providerMessages: ChatMessage[],
+              providerMaxTokens: number
+            ): Error => {
+              const retryPreflight = preflightRequestContext({
+                messages: providerMessages,
+                tools: effectiveRequestTools,
+                contextLength: requestModelConfig.contextLength,
+                requestedMaxTokens: providerMaxTokens
+              })
+              return new Error(
+                retryPreflight.fitsWithinContext
+                  ? buildProviderContextOverflowAfterRecoveryErrorMessage(retryPreflight)
+                  : buildRequestContextOverflowErrorMessage(retryPreflight)
+              )
+            }
+
+            const scheduleStrictProviderOverflowRetry = (): boolean => {
+              if (strictProviderOverflowRetryUsedForRun || strictProviderOverflowRetryPending) {
+                return false
+              }
+              strictProviderOverflowRetryPending = true
+              return true
+            }
+
+            providerAttemptLoop: for (;;) {
+              const strictProviderOverflowRetry = strictProviderOverflowRetryPending
+              strictProviderOverflowRetryPending = false
+              const { providerMessages, providerMaxTokens } = await prepareProviderAttempt({
+                strictProviderOverflowRetry
+              })
+
+              await llmProviderPresenter.executeWithRateLimit(state.providerId, {
+                signal: abortController.signal,
+                onQueued: (snapshot) => {
+                  queuedForRateLimit = true
+                  emitRateLimitWaitingMessage(
+                    sessionId,
+                    rateLimitMessageId,
+                    activeGeneration.runId,
+                    snapshot
+                  )
+                }
+              })
+              if (queuedForRateLimit) {
+                clearRateLimitWaitingMessage(sessionId, rateLimitMessageId, activeGeneration.runId)
+                queuedForRateLimit = false
+              }
+              if (abortController.signal.aborted) {
+                throw createAbortError()
+              }
+
+              logPreStreamBoundary()
+              let yieldedProviderEvent = false
+              try {
+                for await (const event of provider.coreStream(
+                  providerMessages,
+                  requestModelId,
+                  requestModelConfig,
+                  requestTemperature,
+                  providerMaxTokens,
+                  effectiveRequestTools
+                )) {
+                  if (
+                    !yieldedProviderEvent &&
+                    !requestBypassesContextBudget &&
+                    isFirstProviderContextOverflowEvent(event)
+                  ) {
+                    if (
+                      strictProviderOverflowRetryUsedForRun ||
+                      providerOverflowRecoveryAttempted
+                    ) {
+                      throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
+                    }
+                    if (
+                      preflightContextRecoveryAttempted ||
+                      contextOverflowHandoffAttemptedForRun
+                    ) {
+                      if (!scheduleStrictProviderOverflowRetry()) {
+                        throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
+                      }
+                      continue providerAttemptLoop
+                    }
+                    await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
+                    continue providerAttemptLoop
+                  }
+                  yieldedProviderEvent = true
+                  yield event
+                }
+                break
+              } catch (error) {
+                if (
+                  !yieldedProviderEvent &&
+                  !requestBypassesContextBudget &&
+                  isContextWindowErrorLike(error)
+                ) {
+                  if (strictProviderOverflowRetryUsedForRun || providerOverflowRecoveryAttempted) {
+                    throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
+                  }
+                  if (preflightContextRecoveryAttempted || contextOverflowHandoffAttemptedForRun) {
+                    if (!scheduleStrictProviderOverflowRetry()) {
+                      throw buildProviderOverflowRetryFailure(providerMessages, providerMaxTokens)
+                    }
+                    continue providerAttemptLoop
+                  }
+                  await recoverProviderContextOverflow(providerMessages, providerMaxTokens)
+                  continue providerAttemptLoop
+                }
+                throw error
+              }
             }
           } catch (error) {
             if (queuedForRateLimit) {
@@ -3712,7 +3924,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.throwIfAbortRequested(preStreamAbortSignal)
       const generationSettings = await this.getEffectiveSessionGenerationSettings(sessionId)
       const modelConfig = this.configPresenter.getModelConfig(state.modelId, state.providerId)
-      const useContextBudget = this.shouldUseDeepChatContextBudget(state.providerId, modelConfig)
+      const useContextBudget = this.shouldUseDeepChatContextBudget(
+        state.providerId,
+        modelConfig,
+        state.modelId
+      )
       this.throwIfAbortRequested(preStreamAbortSignal)
       const interleavedReasoning = this.resolveInterleavedReasoningConfig(
         state.providerId,

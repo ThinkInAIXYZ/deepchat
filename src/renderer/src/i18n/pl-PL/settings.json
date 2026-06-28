@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Automatyczne zagęszczanie",
       "enabled": "Włącz automatyczne zagęszczanie",
-      "description": "Kiedy konwersacja zbliża się do limitu okna kontekstu modelu, DeepChat może automatycznie podsumować starszą historię, aby sesja trwała dalej. Jeśli ta opcja jest wyłączona, przepełniona historia jest usuwana bezpośrednio, zamiast być podsumowywana.",
+      "description": "Kiedy rozmowa zbliża się do limitu okna kontekstu modelu, DeepChat może automatycznie podsumować starszą historię, aby sesja mogła trwać dalej. Po wyłączeniu DeepChat nie będzie generować podsumowań, ale w razie potrzeby nadal przytnie widok żądania, aby uniknąć surowych błędów context-window od dostawcy.",
       "thresholdLabel": "Próg wyzwalania",
       "thresholdMin": "Wczesny ({value}%)",
       "thresholdMax": "Późno ({value}%)",

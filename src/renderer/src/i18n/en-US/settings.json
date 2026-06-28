@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Auto Compaction",
       "enabled": "Enable auto compaction",
-      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, overflowing history is dropped directly instead of summarized.",
+      "description": "When a conversation approaches the model context window limit, DeepChat can summarize older history automatically so the session keeps going. If disabled, DeepChat will not generate summaries, but it will still trim the request view when needed to avoid raw provider context-window errors.",
       "thresholdLabel": "Trigger threshold",
       "thresholdMin": "Early ({value}%)",
       "thresholdMax": "Late ({value}%)",

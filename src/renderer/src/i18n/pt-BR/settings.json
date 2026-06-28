@@ -75,7 +75,7 @@
     "autoCompaction": {
       "title": "Compactação automática",
       "enabled": "Ativar compactação automática",
-      "description": "Quando uma conversa se aproxima do limite da janela de contexto do modelo, o DeepChat pode compactar automaticamente o histórico mais antigo para que a sessão continue. Se estiver desativado, o histórico excedente será descartado diretamente em vez de resumido.",
+      "description": "Quando uma conversa se aproxima do limite da janela de contexto do modelo, o DeepChat pode resumir automaticamente o histórico mais antigo para manter a sessão em andamento. Se desativado, o DeepChat não gerará resumos, mas ainda aparará a visão da solicitação quando necessário para evitar erros context-window brutos do provedor.",
       "thresholdLabel": "Limiar de disparo",
       "thresholdMin": "Mais cedo ({value}%)",
       "thresholdMax": "Mais tarde ({value}%)",

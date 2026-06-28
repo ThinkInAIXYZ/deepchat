@@ -18,17 +18,10 @@ import {
   finalizePaused,
   persistAbortExceptionPlanState
 } from './dispatch'
+import { isContextWindowErrorLike } from './contextWindowError'
 
 const MAX_TOOL_CALLS = 128
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
-const CONTEXT_WINDOW_ERROR_PATTERNS = [
-  'context length',
-  'context window',
-  'too many tokens',
-  'prompt too long',
-  'maximum context length',
-  'reduce the length'
-]
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
@@ -36,11 +29,6 @@ type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['comman
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
-}
-
-function isContextWindowErrorMessage(message: string): boolean {
-  const normalized = message.toLowerCase()
-  return CONTEXT_WINDOW_ERROR_PATTERNS.some((pattern) => normalized.includes(pattern))
 }
 
 function getLatestErrorMessage(state: StreamState): string | null {
@@ -506,7 +494,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     }
     if (state.stopReason === 'error') {
       const streamErrorMessage = getLatestErrorMessage(state)
-      if (streamErrorMessage && isContextWindowErrorMessage(streamErrorMessage)) {
+      if (streamErrorMessage && isContextWindowErrorLike(streamErrorMessage)) {
         stripTrailingErrorBlock(state, streamErrorMessage)
         finalizeError(state, io, streamErrorMessage)
         return {

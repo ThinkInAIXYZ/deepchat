@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "kompresi otomatis",
       "enabled": "Aktifkan kompresi otomatis",
-      "description": "Saat percakapan mendekati batas jendela konteks model, DeepChat secara otomatis merangkum riwayat lama untuk membantu melanjutkan percakapan. Setelah penutupan, riwayat kelebihan anggaran akan langsung dibuang dan tidak ada ringkasan yang akan dibuat.",
+      "description": "Saat percakapan mendekati batas jendela konteks model, DeepChat dapat merangkum riwayat lama secara otomatis agar sesi tetap berlanjut. Jika dinonaktifkan, DeepChat tidak akan membuat ringkasan, tetapi tetap memangkas tampilan permintaan saat diperlukan untuk menghindari error context-window mentah dari penyedia.",
       "thresholdLabel": "ambang batas pemicu",
       "thresholdMin": "Muka ({value}%)",
       "thresholdMax": "Ditunda ({value}%)",

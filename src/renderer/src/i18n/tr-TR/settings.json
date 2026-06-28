@@ -21,7 +21,7 @@
     "autoCompaction": {
       "title": "Otomatik Sıkıştırma",
       "enabled": "Otomatik sıkıştırmayı etkinleştir",
-      "description": "Bir konuşma model bağlam penceresi sınırına yaklaştığında, DeepChat eski geçmişi otomatik olarak özetleyebilir, böylece oturum devam eder. Devre dışı bırakılırsa, taşan geçmiş özetlenmek yerine doğrudan bırakılır.",
+      "description": "Bir konuşma model bağlam penceresi sınırına yaklaştığında, DeepChat eski geçmişi otomatik olarak özetleyerek oturumun devam etmesini sağlayabilir. Devre dışı bırakılırsa DeepChat özet oluşturmaz, ancak ham sağlayıcı context-window hatalarından kaçınmak için gerektiğinde istek görünümünü yine de kırpar.",
       "thresholdLabel": "Tetik eşiği",
       "thresholdMin": "Erken ({value}%)",
       "thresholdMax": "Geç ({value}%)",
