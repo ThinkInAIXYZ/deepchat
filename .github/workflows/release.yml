@@ -170,6 +170,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
+      - name: Install and verify DuckDB VSS for Windows
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
+
       - name: Build Windows
         run: |
           pnpm run build
@@ -182,6 +187,13 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify packaged DuckDB VSS for Windows
+        shell: bash
+        run: |
+          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "$EXTENSION_PATH"
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
       - name: Verify bundled plugins
         shell: bash
@@ -235,6 +247,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Install and verify DuckDB VSS for Linux
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
+
       - name: Build Linux
         run: |
           pnpm run build
@@ -247,6 +264,13 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify packaged DuckDB VSS for Linux
+        shell: bash
+        run: |
+          EXTENSION_PATH="dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "$EXTENSION_PATH"
+          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
       - name: Verify bundled plugins
         shell: bash
@@ -264,15 +288,17 @@ jobs:
 
   build-mac:
     needs: [resolve-tag, validate-main-ancestor]
-    runs-on: macos-15
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         arch: [x64, arm64]
         include:
           - arch: x64
             platform: mac-x64
+            runner: macos-15-intel
           - arch: arm64
             platform: mac-arm64
+            runner: macos-15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -311,6 +337,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
 
+      - name: Install and verify DuckDB VSS for macOS
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
+          pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
+
       - name: Build Mac
         run: |
           pnpm run build
@@ -330,6 +361,19 @@ jobs:
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           NODE_OPTIONS: '--max-old-space-size=4096'
           VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
+
+      - name: Verify packaged DuckDB VSS for macOS
+        shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          APP_DIR="dist/mac/DeepChat.app"
+          if [ "$TARGET_ARCH" = "arm64" ]; then
+            APP_DIR="dist/mac-arm64/DeepChat.app"
+          fi
+          EXTENSION_BASE64_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"
+          test -f "$EXTENSION_BASE64_PATH"
+          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"
 
       - name: Verify bundled plugins
         shell: bash

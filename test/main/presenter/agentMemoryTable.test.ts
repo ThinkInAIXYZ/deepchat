@@ -186,6 +186,153 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('returns current embedding dimensions and detects stale embedded rows with targeted queries', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'current',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'current',
+        createdAt: 2000
+      })
+      table.updateStatus('current', 'embedded', {
+        embeddingId: 'current',
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'wrong-dim',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'wrong dim',
+        createdAt: 1000
+      })
+      table.updateStatus('wrong-dim', 'embedded', {
+        embeddingId: 'wrong-dim',
+        embeddingDim: 8,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'persona',
+        agentId: 'deepchat',
+        kind: 'persona',
+        content: 'persona is injected separately'
+      })
+      table.updateStatus('persona', 'embedded', {
+        embeddingId: 'persona',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      table.insert({
+        id: 'working',
+        agentId: 'deepchat',
+        kind: 'working',
+        content: 'working cache'
+      })
+      table.updateStatus('working', 'embedded', {
+        embeddingId: 'working',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      const superseded = table.insert({
+        id: 'superseded',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'old'
+      })
+      table.updateStatus('superseded', 'embedded', {
+        embeddingId: 'superseded',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      table.markSuperseded(superseded.id, 'current')
+      table.insert({
+        id: 'persona-only',
+        agentId: 'excluded-agent',
+        kind: 'persona',
+        content: 'persona'
+      })
+      table.updateStatus('persona-only', 'embedded', {
+        embeddingId: 'persona-only',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      table.insert({
+        id: 'working-only',
+        agentId: 'excluded-agent',
+        kind: 'working',
+        content: 'working'
+      })
+      table.updateStatus('working-only', 'embedded', {
+        embeddingId: 'working-only',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      const excludedSuperseded = table.insert({
+        id: 'excluded-superseded',
+        agentId: 'excluded-agent',
+        kind: 'semantic',
+        content: 'old excluded'
+      })
+      table.updateStatus('excluded-superseded', 'embedded', {
+        embeddingId: 'excluded-superseded',
+        embeddingDim: 8,
+        embeddingModel: 'legacy:model'
+      })
+      table.markSuperseded(excludedSuperseded.id, 'persona-only')
+
+      expect(table.getCurrentEmbeddingDimension('deepchat', 'p:m')).toBe(4)
+      expect(table.hasStaleEmbeddings('deepchat', 4, 'p:m')).toBe(true)
+      expect(table.hasStaleEmbeddings('deepchat', 8, 'legacy:model')).toBe(true)
+      expect(table.getCurrentEmbeddingDimension('deepchat', 'missing:model')).toBeNull()
+      expect(table.getCurrentEmbeddingDimension('excluded-agent', 'legacy:model')).toBeNull()
+      expect(table.hasStaleEmbeddings('excluded-agent', 4, 'p:m')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('uses rowid as the current embedding dimension tie-break for equal timestamps', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'same-time-old',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'older same timestamp',
+        createdAt: 3000
+      })
+      table.updateStatus('same-time-old', 'embedded', {
+        embeddingId: 'same-time-old',
+        embeddingDim: 8,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'same-time-current',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'newer same timestamp',
+        createdAt: 3000
+      })
+      table.updateStatus('same-time-current', 'embedded', {
+        embeddingId: 'same-time-current',
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+
+      expect(table.getCurrentEmbeddingDimension('deepchat', 'p:m')).toBe(4)
+    } finally {
+      db.close()
+    }
+  })
+
   it('search excludes superseded memories', () => {
     const db = new DatabaseCtor(':memory:')
     try {

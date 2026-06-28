@@ -18,6 +18,7 @@ import type {
   DeepChatAgentMemoryRetrieval
 } from '@shared/types/agent-interface'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 
 export type {
   AgentMemoryKind,
@@ -82,6 +83,8 @@ export interface MemoryRepositoryPort {
   setConflictWith(id: string, targetId: string | null): void
   setLastConsolidatedAt(id: string, at?: number): void
   getLastConsolidatedAt(agentId: string): number | null
+  getCurrentEmbeddingDimension(agentId: string, fingerprint: string): number | null
+  hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean
   archive(id: string, at?: number): void
   listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
   delete(id: string): void
@@ -257,6 +260,10 @@ export interface MemoryPresenterDeps {
   // reads/writes against arbitrary or nonexistent agents; skipped when absent (e.g. tests).
   isManagedAgent?: (agentId: string) => boolean
   getEmbeddings: (providerId: string, modelId: string, texts: string[]) => Promise<number[][]>
+  getDimensions: (
+    providerId: string,
+    modelId: string
+  ) => Promise<{ data: LLM_EMBEDDING_ATTRS; errorMsg?: string }>
   generateText: (providerId: string, modelId: string, prompt: string) => Promise<string>
   // Creates/opens the agent's vector store: embedding identity validates it, dimensions seed
   // the first initialization.

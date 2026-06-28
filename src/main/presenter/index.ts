@@ -574,6 +574,8 @@ export class Presenter implements IPresenter {
       isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
       getEmbeddings: (providerId, modelId, texts) =>
         this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts),
+      getDimensions: (providerId, modelId) =>
+        this.llmproviderPresenter.getDimensions(providerId, modelId),
       generateText: async (providerId, modelId, prompt) =>
         (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
         '',

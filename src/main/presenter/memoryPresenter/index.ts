@@ -107,7 +107,11 @@ const CONSOLIDATION_MAX_LLM_CALLS = 8
 const CONSOLIDATION_MAX_INPUT_TOKENS = 24000
 const CONSOLIDATION_MERGE_SIMILARITY = 0.85
 const MAINTENANCE_START_DELAY_MS = 60 * 1000
+const STARTUP_PREWARM_DELAY_MS = 3 * 1000
 const STARTUP_ARM_STAGGER_MS = 5 * 1000
+const STARTUP_PREWARM_STAGGER_MS = 1500
+const EMBEDDING_PREWARM_TEXT = 'memory warmup'
+const WARM_DIMENSION_FAILURE_COOLDOWN_MS = 30 * 1000
 const ARCHIVE_DECAY_THRESHOLD = 0.05
 const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -226,7 +230,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // by two DuckDBInstances at once.
   private readonly vectorStores = new Map<string, Promise<IMemoryVectorStore>>()
   private readonly vectorStoreIdentities = new Map<string, string>()
+  private readonly vectorStoreReady = new Map<string, string>()
+  private readonly vectorStoreWarmups = new Map<string, Promise<void>>()
+  private readonly vectorStoreDimensionFailures = new Map<string, number>()
   private readonly vectorStoreLocks = new Map<string, Promise<unknown>>()
+  private readonly embeddingWarmups = new Map<string, Promise<void>>()
   // Serializes an agent's embedding drains. Distinct from vectorStoreLocks on purpose: this one
   // spans the network embedding call, the file lock must not.
   private readonly embeddingDrains = new Map<string, Promise<unknown>>()
@@ -242,6 +250,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // In-flight timer-fired consolidation passes; dispose() awaits them so none writes after teardown.
   private readonly consolidationRuns = new Set<Promise<unknown>>()
   private maintenanceStartTimer: NodeJS.Timeout | null = null
+  private prewarmStartTimer: NodeJS.Timeout | null = null
+  private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
   // Per-agent watermark for a reflection attempt that ran the model but wrote nothing new (empty or
   // all-duplicate output). Lets a quiet agent stop re-spending the model on the same units until
@@ -266,6 +276,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
   startBackgroundMaintenance(): void {
     if (this.disposed || this.maintenanceStarted) return
     this.maintenanceStarted = true
+    this.prewarmStartTimer = setTimeout(() => {
+      this.prewarmStartTimer = null
+      if (this.disposed) return
+      this.warmActiveAgents()
+    }, STARTUP_PREWARM_DELAY_MS)
+    if (typeof this.prewarmStartTimer.unref === 'function') this.prewarmStartTimer.unref()
     this.maintenanceStartTimer = setTimeout(() => {
       this.maintenanceStartTimer = null
       if (this.disposed) return
@@ -275,6 +291,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   stopBackgroundMaintenance(): void {
+    if (this.prewarmStartTimer) {
+      clearTimeout(this.prewarmStartTimer)
+      this.prewarmStartTimer = null
+    }
+    for (const timer of this.prewarmTimers.values()) clearTimeout(timer)
+    this.prewarmTimers.clear()
     if (this.maintenanceStartTimer) {
       clearTimeout(this.maintenanceStartTimer)
       this.maintenanceStartTimer = null
@@ -293,6 +315,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
   }
 
+  warmActiveAgents(): void {
+    if (this.disposed) return
+    try {
+      this.warmActiveAgentsStaggered(this.deps.repository.listAgentIdsWithMemories())
+    } catch (error) {
+      logger.warn(`[Memory] startup prewarm skipped: ${String(error)}`)
+    }
+  }
+
   private armActiveAgentsStaggered(agentIds: string[]): void {
     if (this.disposed) return
     agentIds
@@ -304,6 +335,39 @@ export class MemoryPresenter implements MemoryRuntimePort {
           CONSOLIDATION_IDLE_MS + index * STARTUP_ARM_STAGGER_MS
         )
       })
+  }
+
+  private warmActiveAgentsStaggered(agentIds: string[]): void {
+    if (this.disposed) return
+    agentIds
+      .filter((agentId) => this.shouldArmMaintenance(agentId))
+      .sort()
+      .forEach((agentId, index) => {
+        this.clearPrewarmTimer(agentId)
+        const timer = setTimeout(() => {
+          if (this.prewarmTimers.get(agentId) === timer) this.prewarmTimers.delete(agentId)
+          if (this.disposed || !this.canReadAgentMemory(agentId)) return
+          const embedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+          if (!embedding?.providerId || !embedding?.modelId) return
+          void this.warmVectorStore(agentId, {
+            providerId: embedding.providerId,
+            modelId: embedding.modelId
+          })
+          this.warmEmbeddingConnection(agentId, {
+            providerId: embedding.providerId,
+            modelId: embedding.modelId
+          })
+        }, index * STARTUP_PREWARM_STAGGER_MS)
+        this.prewarmTimers.set(agentId, timer)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+  }
+
+  private clearPrewarmTimer(agentId: string): void {
+    const timer = this.prewarmTimers.get(agentId)
+    if (!timer) return
+    clearTimeout(timer)
+    this.prewarmTimers.delete(agentId)
   }
 
   isEnabled(agentId: string): boolean {
@@ -562,6 +626,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
           this.deps.repository.updatePendingEmbeddingStatus(agentId, record.memoryId, 'error')
         }
       }
+      if (!outcome.usable) {
+        this.clearVectorStoreReady(agentId)
+      } else if (outcome.written.size > 0 && !this.hasStaleEmbeddings(agentId, dim, fingerprint)) {
+        this.markVectorStoreReady(
+          agentId,
+          { providerId: embedding.providerId, modelId: embedding.modelId },
+          dim
+        )
+      }
     } catch (error) {
       // Embeddings succeeded but the vector store write failed: terminal for this batch.
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
@@ -578,6 +651,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // callers onto one run; never throws (the chat path must not be blocked).
   reindexEmbeddings(agentId: string, force = false): Promise<void> {
     if (this.disposed) return Promise.resolve()
+    this.clearVectorStoreReady(agentId)
     const inflight = this.reindexing.get(agentId)
     if (inflight) return inflight
     const tracked = this.runReindex(agentId, force).finally(() => {
@@ -754,6 +828,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
     let neighbors: MemoryRecallItem[] = []
     try {
+      // Cold vector stores deliberately degrade this neighbor lookup to FTS-only. Exact provenance
+      // dedupe already ran above, and semantic merging can recover once the store warms; blocking a
+      // write here would reintroduce the same first-turn DuckDB cold-start stall.
       const hits = await this.retrieve(agentId, content, now, false)
       neighbors = hits.slice(0, DECISION_NEIGHBOR_TOP_S)
     } catch (error) {
@@ -1143,6 +1220,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
     now: number,
     model: { providerId: string; modelId: string }
   ): Promise<boolean> {
+    const embedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    if (embedding?.providerId && embedding?.modelId) {
+      await this.warmVectorStore(agentId, {
+        providerId: embedding.providerId,
+        modelId: embedding.modelId
+      })
+      if (!this.canWriteAgentMemory(agentId)) return false
+    }
+
     const active = this.deps.repository
       .listByAgent(agentId)
       .filter((row) => row.kind !== 'persona')
@@ -1547,6 +1633,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     options: { limit?: number } = {}
   ): Promise<MemorySearchHit[]> {
     if (!this.canReadAgentMemory(agentId)) return []
+    // Management search follows recall's cold-store contract: return FTS-only hits immediately and
+    // let the background warm restore vector results on the next query.
     const hits = await this.retrieve(agentId, query, Date.now(), false)
     const limited =
       options.limit != null ? hits.slice(0, Math.max(0, Math.floor(options.limit))) : hits
@@ -1641,78 +1729,84 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const vecMatches: { row: AgentMemoryRow; similarity: number }[] = []
     const embedding = config?.memoryEmbedding
     if (embedding?.providerId && embedding?.modelId) {
-      try {
-        const vectors = await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
-          normalizedQuery
-        ])
-        // Teardown may have started during the embedding await: bail before opening the store so a
-        // late recall cannot reopen a sidecar the dispose close-loop has already passed.
-        if (!this.canReadAgentMemory(agentId)) return []
-        const vector = vectors[0]
-        if (vector?.length) {
-          const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-          if (this.hasStaleEmbeddings(agentId, vector.length, fingerprint)) {
-            // The embedding model or dimension changed: rebuild vectors in the background and
-            // answer from FTS this turn instead of querying a store with stale dimensions. Skipped
-            // during teardown so no background write outlives the database connection.
-            if (this.canReadAgentMemory(agentId)) {
-              void this.reindexEmbeddings(agentId).catch((error) => {
-                logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
-              })
-            }
-          } else {
-            const store = await this.getVectorStore(
-              agentId,
-              { providerId: embedding.providerId, modelId: embedding.modelId },
-              vector.length
-            )
-            // Teardown may have begun while the store opened: bail before querying or reading rows.
-            // dispose awaits the per-agent open lock, so the store this call cached is closed there.
-            if (!this.canReadAgentMemory(agentId)) return []
-            if (store.isUsable()) {
-              const matches = await store.query(vector, { topK: candidateLimit })
-              // ...and again after the query await, before any repository.getById on a closing DB.
-              if (!this.canReadAgentMemory(agentId)) return []
-              for (const match of matches) {
-                const similarity = distanceToSimilarity(match.distance)
-                if (similarity < similarityThreshold) continue
-                const row = this.deps.repository.getById(match.memoryId)
-                // Skip persona even if an old/anomalous vector for it sits in the store: the
-                // self-model is injected separately, never recalled as a normal memory. working
-                // rows are never embedded, but skip them defensively too. Archived rows keep their
-                // vector but must stay out of recall until restored.
-                if (
-                  !row ||
-                  row.superseded_by ||
-                  row.kind === 'persona' ||
-                  row.kind === 'working' ||
-                  row.status === 'archived' ||
-                  row.status === 'conflicted'
-                )
-                  continue
-                vecMatches.push({ row, similarity })
-              }
-              // The service embedded the query and the store is healthy: opportunistically embed
-              // rows deferred as fts_only (config added later) and re-drain any an earlier run left
-              // pending. Background, coalesced, and skipped while a reindex owns the requeue.
-              if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
-                void this.backfillEmbeddings(agentId).catch((error) => {
-                  logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+      const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
+      if (!this.isVectorStoreWarm(agentId, currentEmbedding)) {
+        void this.warmVectorStore(agentId, currentEmbedding)
+        this.warmEmbeddingConnection(agentId, currentEmbedding)
+      } else {
+        try {
+          const vectors = await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
+            normalizedQuery
+          ])
+          // Teardown may have started during the embedding await: bail before opening the store so a
+          // late recall cannot reopen a sidecar the dispose close-loop has already passed.
+          if (!this.canReadAgentMemory(agentId)) return []
+          const vector = vectors[0]
+          if (vector?.length) {
+            const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+            if (this.hasStaleEmbeddings(agentId, vector.length, fingerprint)) {
+              this.clearVectorStoreReady(agentId)
+              // The embedding model or dimension changed: rebuild vectors in the background and
+              // answer from FTS this turn instead of querying a store with stale dimensions. Skipped
+              // during teardown so no background write outlives the database connection.
+              if (this.canReadAgentMemory(agentId)) {
+                void this.reindexEmbeddings(agentId).catch((error) => {
+                  logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
                 })
               }
-            } else if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
-              // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
-              // were no embedded rows to flag it as stale). Rebuild it under the current identity so
-              // the corpus stops failing closed; force the reset even if there is nothing to
-              // re-queue, since the unusable file itself is what blocks recovery.
-              void this.reindexEmbeddings(agentId, true).catch((error) => {
-                logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
-              })
+            } else {
+              const store = await this.getVectorStore(agentId, currentEmbedding, vector.length)
+              // Teardown may have begun while the store opened: bail before querying or reading rows.
+              // dispose awaits the per-agent open lock, so the store this call cached is closed there.
+              if (!this.canReadAgentMemory(agentId)) return []
+              if (store.isUsable()) {
+                this.markVectorStoreReady(agentId, currentEmbedding, vector.length)
+                const matches = await store.query(vector, { topK: candidateLimit })
+                // ...and again after the query await, before any repository.getById on a closing DB.
+                if (!this.canReadAgentMemory(agentId)) return []
+                for (const match of matches) {
+                  const similarity = distanceToSimilarity(match.distance)
+                  if (similarity < similarityThreshold) continue
+                  const row = this.deps.repository.getById(match.memoryId)
+                  // Skip persona even if an old/anomalous vector for it sits in the store: the
+                  // self-model is injected separately, never recalled as a normal memory. working
+                  // rows are never embedded, but skip them defensively too. Archived rows keep their
+                  // vector but must stay out of recall until restored.
+                  if (
+                    !row ||
+                    row.superseded_by ||
+                    row.kind === 'persona' ||
+                    row.kind === 'working' ||
+                    row.status === 'archived' ||
+                    row.status === 'conflicted'
+                  )
+                    continue
+                  vecMatches.push({ row, similarity })
+                }
+                // The service embedded the query and the store is healthy: opportunistically embed
+                // rows deferred as fts_only (config added later) and re-drain any an earlier run left
+                // pending. Background, coalesced, and skipped while a reindex owns the requeue.
+                if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
+                  void this.backfillEmbeddings(agentId).catch((error) => {
+                    logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+                  })
+                }
+              } else if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
+                this.clearVectorStoreReady(agentId)
+                // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
+                // were no embedded rows to flag it as stale). Rebuild it under the current identity so
+                // the corpus stops failing closed; force the reset even if there is nothing to
+                // re-queue, since the unusable file itself is what blocks recovery.
+                void this.reindexEmbeddings(agentId, true).catch((error) => {
+                  logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                })
+              }
             }
           }
+        } catch (error) {
+          this.clearVectorStoreReady(agentId)
+          logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
         }
-      } catch (error) {
-        logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
       }
     }
 
@@ -2238,6 +2332,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   async cleanupDeletedAgentResources(agentId: string): Promise<void> {
     if (this.disposed) return
     this.assertSafeAgentId(agentId)
+    this.clearPrewarmTimer(agentId)
     let resetError: unknown
     try {
       await this.runExclusiveForAgent(agentId, async () => {
@@ -2281,10 +2376,22 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const embeddingDrain = this.embeddingDrains.get(agentId)
     const vectorStoreLock = this.vectorStoreLocks.get(agentId)
     const personaLock = this.personaLocks.get(agentId)
+    const vectorWarmups = [...this.vectorStoreWarmups.entries()].filter(([key]) =>
+      key.startsWith(`${agentId}::`)
+    )
+    const embeddingWarmups = [...this.embeddingWarmups.entries()].filter(([key]) =>
+      key.startsWith(`${agentId}::`)
+    )
     await Promise.allSettled(
-      [reindexing, backfilling, embeddingDrain, vectorStoreLock, personaLock].filter(
-        (promise): promise is Promise<unknown> => Boolean(promise)
-      )
+      [
+        reindexing,
+        backfilling,
+        embeddingDrain,
+        vectorStoreLock,
+        personaLock,
+        ...vectorWarmups.map(([, promise]) => promise),
+        ...embeddingWarmups.map(([, promise]) => promise)
+      ].filter((promise): promise is Promise<unknown> => Boolean(promise))
     )
     if (this.reindexing.get(agentId) === reindexing) this.reindexing.delete(agentId)
     if (this.backfilling.get(agentId) === backfilling) this.backfilling.delete(agentId)
@@ -2292,6 +2399,16 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (this.vectorStoreLocks.get(agentId) === vectorStoreLock)
       this.vectorStoreLocks.delete(agentId)
     if (this.personaLocks.get(agentId) === personaLock) this.personaLocks.delete(agentId)
+    for (const [key, promise] of vectorWarmups) {
+      if (this.vectorStoreWarmups.get(key) === promise) this.vectorStoreWarmups.delete(key)
+    }
+    for (const [key, promise] of embeddingWarmups) {
+      if (this.embeddingWarmups.get(key) === promise) this.embeddingWarmups.delete(key)
+    }
+    for (const key of this.vectorStoreDimensionFailures.keys()) {
+      if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)
+    }
+    this.vectorStoreReady.delete(agentId)
   }
 
   getStatus(agentId: string): MemoryStatus {
@@ -2317,15 +2434,17 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.consolidationTimerDueAt.clear()
     this.lastConsolidationAt.clear()
     // Drain every background writer started before teardown so none touches the database after it
-    // closes: consolidation passes, plus the reindex/backfill/embedding drains a pass's retrieve()
-    // may have fired. `disposed` blocks new ones, so the in-flight set shrinks to empty. Bounded in
-    // case a drain keeps spawning follow-up work.
+    // closes: consolidation passes, plus the reindex/backfill/embedding drains and prewarm calls a
+    // pass's retrieve() may have fired. `disposed` blocks new ones, so the in-flight set shrinks to
+    // empty. Bounded in case a drain keeps spawning follow-up work.
     for (let i = 0; i < REINDEX_MAX_BATCHES; i += 1) {
       const inflight = [
         ...this.consolidationRuns,
         ...this.reindexing.values(),
         ...this.backfilling.values(),
-        ...this.embeddingDrains.values()
+        ...this.embeddingDrains.values(),
+        ...this.vectorStoreWarmups.values(),
+        ...this.embeddingWarmups.values()
       ]
       if (!inflight.length) break
       await Promise.allSettled(inflight)
@@ -2342,6 +2461,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
     this.vectorStores.clear()
     this.vectorStoreIdentities.clear()
+    this.vectorStoreReady.clear()
+    this.vectorStoreWarmups.clear()
+    this.vectorStoreDimensionFailures.clear()
+    this.embeddingWarmups.clear()
     this.vectorStoreLocks.clear()
   }
 
@@ -2365,13 +2488,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // ignored: they are never meant to be vectors, so an anomalous embedded persona (buggy/manual
   // data) must not be read as "stale" and drive a reindex on every recall.
   private hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean {
-    return this.deps.repository
-      .listByAgent(agentId, { statuses: ['embedded'] })
-      .some(
-        (row) =>
-          row.kind !== 'persona' &&
-          (row.embedding_dim !== currentDim || row.embedding_model !== fingerprint)
-      )
+    return this.deps.repository.hasStaleEmbeddings(agentId, currentDim, fingerprint)
+  }
+
+  private canUseCurrentMemoryEmbedding(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): boolean {
+    const current = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    return (
+      current?.providerId === embedding.providerId &&
+      current?.modelId === embedding.modelId &&
+      this.canReadAgentMemory(agentId)
+    )
   }
 
   private vectorStoreCacheKey(
@@ -2380,6 +2509,165 @@ export class MemoryPresenter implements MemoryRuntimePort {
     dimensions: number
   ): string {
     return `${agentId}::${embedding.providerId}::${embedding.modelId}::${dimensions}`
+  }
+
+  private vectorStoreWarmupKey(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): string {
+    return `${agentId}::${embedding.providerId}::${embedding.modelId}`
+  }
+
+  private isVectorStoreWarm(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): boolean {
+    const readyIdentity = this.vectorStoreReady.get(agentId)
+    if (!readyIdentity) return false
+    if (this.vectorStoreIdentities.get(agentId) !== readyIdentity) return false
+    if (!this.vectorStores.has(agentId)) return false
+    // The warmup key is the 3-part identity prefix; the ready/cache key appends the dimension.
+    return readyIdentity.startsWith(`${this.vectorStoreWarmupKey(agentId, embedding)}::`)
+  }
+
+  private markVectorStoreReady(
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    dimensions: number
+  ): void {
+    this.vectorStoreReady.set(agentId, this.vectorStoreCacheKey(agentId, embedding, dimensions))
+  }
+
+  private clearVectorStoreReady(agentId: string): void {
+    this.vectorStoreReady.delete(agentId)
+  }
+
+  private resolveStoredCurrentEmbeddingDimension(
+    agentId: string,
+    fingerprint: string
+  ): number | null {
+    return this.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+  }
+
+  private async resolveWarmVectorDimensions(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): Promise<number> {
+    const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+    const storedDim = this.resolveStoredCurrentEmbeddingDimension(agentId, fingerprint)
+    const key = this.vectorStoreWarmupKey(agentId, embedding)
+    if (storedDim !== null) {
+      this.vectorStoreDimensionFailures.delete(key)
+      return storedDim
+    }
+    const lastFailureAt = this.vectorStoreDimensionFailures.get(key)
+    if (
+      lastFailureAt !== undefined &&
+      Date.now() - lastFailureAt < WARM_DIMENSION_FAILURE_COOLDOWN_MS
+    ) {
+      throw new Error(
+        `[Memory] embedding dimension warm is cooling down for ${embedding.providerId}/${embedding.modelId}`
+      )
+    }
+
+    try {
+      const attrs = await this.deps.getDimensions(embedding.providerId, embedding.modelId)
+      const dimensions = attrs.data.dimensions
+      if (!Number.isFinite(dimensions) || dimensions <= 0) {
+        throw new Error(
+          attrs.errorMsg ??
+            `[Memory] invalid embedding dimension for ${embedding.providerId}/${embedding.modelId}`
+        )
+      }
+      this.vectorStoreDimensionFailures.delete(key)
+      return dimensions
+    } catch (error) {
+      this.vectorStoreDimensionFailures.set(key, Date.now())
+      throw error
+    }
+  }
+
+  private warmVectorStore(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): Promise<void> {
+    if (this.disposed || !this.canUseCurrentMemoryEmbedding(agentId, embedding))
+      return Promise.resolve()
+    const key = this.vectorStoreWarmupKey(agentId, embedding)
+    const inflight = this.vectorStoreWarmups.get(key)
+    if (inflight) return inflight
+
+    const tracked = Promise.resolve()
+      .then(() => this.runWarmVectorStore(agentId, embedding))
+      .catch((error) => {
+        this.clearVectorStoreReady(agentId)
+        logger.warn(`[Memory] vector store warm failed for ${agentId}: ${String(error)}`)
+      })
+      .finally(() => {
+        if (this.vectorStoreWarmups.get(key) === tracked) this.vectorStoreWarmups.delete(key)
+      })
+    this.vectorStoreWarmups.set(key, tracked)
+    return tracked
+  }
+
+  private async runWarmVectorStore(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): Promise<void> {
+    if (!this.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+    const dimensions = await this.resolveWarmVectorDimensions(agentId, embedding)
+    if (!this.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+
+    const store = await this.getVectorStore(agentId, embedding, dimensions)
+    if (!this.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+
+    if (!store.isUsable()) {
+      this.clearVectorStoreReady(agentId)
+      if (!this.reindexing.has(agentId)) {
+        void this.reindexEmbeddings(agentId, true).catch((error) => {
+          logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+        })
+      }
+      return
+    }
+
+    const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+    if (this.hasStaleEmbeddings(agentId, dimensions, fingerprint)) {
+      this.clearVectorStoreReady(agentId)
+      void this.reindexEmbeddings(agentId).catch((error) => {
+        logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
+      })
+      return
+    }
+
+    this.markVectorStoreReady(agentId, embedding, dimensions)
+    if (!this.reindexing.has(agentId)) {
+      void this.backfillEmbeddings(agentId).catch((error) => {
+        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+      })
+    }
+  }
+
+  private warmEmbeddingConnection(
+    agentId: string,
+    embedding: { providerId: string; modelId: string }
+  ): void {
+    if (this.disposed || !this.canUseCurrentMemoryEmbedding(agentId, embedding)) return
+    const key = this.vectorStoreWarmupKey(agentId, embedding)
+    if (this.embeddingWarmups.has(key)) return
+    const tracked = Promise.resolve()
+      .then(async () => {
+        await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
+          EMBEDDING_PREWARM_TEXT
+        ])
+      })
+      .catch((error) => {
+        logger.warn(`[Memory] embedding warm failed for ${agentId}: ${String(error)}`)
+      })
+      .finally(() => {
+        if (this.embeddingWarmups.get(key) === tracked) this.embeddingWarmups.delete(key)
+      })
+    this.embeddingWarmups.set(key, tracked)
   }
 
   /** Serialize open/close/reset of an agent's single sidecar file so it is never opened twice. */
@@ -2403,8 +2691,12 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   /** Close and evict the agent's cached store (caller must hold the per-agent lock). */
   private async closeVectorStore(agentId: string): Promise<void> {
+    this.clearVectorStoreReady(agentId)
     const pending = this.vectorStores.get(agentId)
-    if (!pending) return
+    if (!pending) {
+      this.vectorStoreIdentities.delete(agentId)
+      return
+    }
     this.vectorStores.delete(agentId)
     this.vectorStoreIdentities.delete(agentId)
     const store = await pending.catch(() => null)
@@ -2436,6 +2728,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const pending = this.deps.createVectorStore(agentId, embedding, dimensions).catch((error) => {
       this.vectorStores.delete(agentId)
       this.vectorStoreIdentities.delete(agentId)
+      this.clearVectorStoreReady(agentId)
       throw error
     })
     this.vectorStores.set(agentId, pending)

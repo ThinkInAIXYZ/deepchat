@@ -219,6 +219,9 @@ describe('memory retrieval eval harness (hybrid RRF)', () => {
       getEmbeddings: vi.fn(async (_providerId: string, _modelId: string, texts: string[]) =>
         texts.map(embed)
       ),
+      getDimensions: vi.fn(async () => ({
+        data: { dimensions: embed('').length, normalized: false }
+      })),
       generateText: vi.fn(async () => ''),
       createVectorStore: async () => store,
       resetVectorStore: async () => {
