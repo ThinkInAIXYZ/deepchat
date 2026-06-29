@@ -2749,18 +2749,13 @@
   },
   "pluginsHub": {
     "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
-    "searchPlaceholder": "Search plugins and remote channels",
-    "added": "Added",
+    "available": "사용 가능한 플러그인",
+    "add": "추가",
     "manage": "Manage",
-    "noAdded": "No enabled plugins yet.",
-    "emptySearch": "No matching plugins.",
+    "emptySearch": "사용 가능한 플러그인이 없습니다.",
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "filters": {
-      "official": "By DeepChat",
-      "workspace": "By your workspace",
-      "personal": "Personal"
-    }
+    "cuaDescription": "DeepChat이 trycua/cua 프로젝트를 기반으로 구현한 ComputerUse 플러그인입니다."
   }
 }

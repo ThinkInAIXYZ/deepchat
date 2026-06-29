@@ -133,7 +133,7 @@
               <div class="min-w-0">
                 <h1 class="truncate text-2xl font-semibold tracking-normal">{{ pluginTitle }}</h1>
                 <p class="truncate text-sm text-muted-foreground">
-                  {{ plugin.publisher }} · {{ plugin.id }}
+                  {{ pluginDescription }}
                 </p>
               </div>
             </div>
@@ -314,6 +314,8 @@ const remoteIconClassByChannel: Record<RemoteChannel, string> = {
   discord: 'text-indigo-500',
   'weixin-ilink': 'text-green-500'
 }
+const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
+const CUA_PLUGIN_ICON = 'lucide:laptop-minimal-check'
 
 const pluginId = computed(() => String(route.params.pluginId ?? ''))
 const remoteChannel = computed<RemoteChannel | null>(() => {
@@ -328,6 +330,7 @@ const remoteChannel = computed<RemoteChannel | null>(() => {
     : null
 })
 const isFeishuPlugin = computed(() => pluginId.value === FEISHU_PLUGIN_ID)
+const isCuaPlugin = computed(() => pluginId.value === CUA_PLUGIN_ID)
 const remoteEnabled = computed(() => Boolean(remoteSettings.value?.remoteEnabled))
 const remoteTitle = computed(() => {
   const channel = remoteChannel.value
@@ -345,15 +348,27 @@ const remoteIconClass = computed(() => {
   const channel = remoteChannel.value
   return channel ? remoteIconClassByChannel[channel] : undefined
 })
-const pluginIcon = computed(() =>
-  isFeishuPlugin.value ? remoteIconByChannel.feishu : 'lucide:puzzle'
-)
+const pluginIcon = computed(() => {
+  if (isFeishuPlugin.value) {
+    return remoteIconByChannel.feishu
+  }
+  return isCuaPlugin.value ? CUA_PLUGIN_ICON : 'lucide:puzzle'
+})
 const pluginIconClass = computed(() =>
   isFeishuPlugin.value ? remoteIconClassByChannel.feishu : undefined
 )
 const pluginTitle = computed(() =>
   isFeishuPlugin.value ? t('settings.remote.feishu.title') : (plugin.value?.name ?? '')
 )
+const pluginDescription = computed(() => {
+  if (isCuaPlugin.value) {
+    return t('settings.pluginsHub.cuaDescription')
+  }
+  if (isFeishuPlugin.value) {
+    return t('settings.remote.feishu.description')
+  }
+  return plugin.value ? `${plugin.value.publisher} · ${plugin.value.id}` : ''
+})
 
 function formatRuntimeState(state?: PluginRuntimeState): string {
   if (!state) {

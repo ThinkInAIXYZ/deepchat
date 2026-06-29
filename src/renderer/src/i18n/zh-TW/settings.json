@@ -2749,18 +2749,13 @@
   },
   "pluginsHub": {
     "subtitle": "統一管理 DeepChat 的 Skills、MCP、官方插件和遠端渠道。",
-    "searchPlaceholder": "搜尋插件和遠端渠道",
-    "added": "已新增",
+    "available": "可用插件",
+    "add": "新增",
     "manage": "管理",
-    "noAdded": "還沒有啟用任何插件。",
-    "emptySearch": "沒有符合的插件。",
+    "emptySearch": "沒有可用插件。",
     "pluginNotFound": "找不到插件。",
     "capabilities": "能力",
     "actionResult": "操作結果",
-    "filters": {
-      "official": "DeepChat 官方",
-      "workspace": "工作區",
-      "personal": "個人"
-    }
+    "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件"
   }
 }

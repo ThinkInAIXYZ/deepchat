@@ -17,15 +17,6 @@ const buttonStub = defineComponent({
   template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
-const inputStub = defineComponent({
-  name: 'Input',
-  props: {
-    modelValue: { type: String, default: '' }
-  },
-  emits: ['update:modelValue'],
-  template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', \'\')" />'
-})
-
 async function mountCatalog() {
   vi.resetModules()
   vi.clearAllMocks()
@@ -38,6 +29,15 @@ async function mountCatalog() {
         publisher: 'DeepChat',
         version: '1.0.4',
         enabled: false,
+        capabilities: [],
+        mcpServers: []
+      },
+      {
+        id: 'com.deepchat.plugins.cua',
+        name: 'CUA Computer Use Runtime',
+        publisher: 'DeepChat',
+        version: '1.0.4',
+        enabled: true,
         capabilities: [],
         mcpServers: []
       }
@@ -76,12 +76,16 @@ async function mountCatalog() {
     createRemoteControlClient: () => remoteControlClient
   }))
   vi.doMock('vue-router', () => ({
-    RouterLink: passthrough('RouterLink'),
     useRouter: () => router
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) =>
+        key === 'settings.pluginsHub.cuaDescription'
+          ? 'CUA localized description'
+          : key === 'settings.remote.feishu.description'
+            ? 'Feishu localized description'
+            : key
     })
   }))
   vi.doMock('@iconify/vue', () => ({
@@ -99,7 +103,6 @@ async function mountCatalog() {
     global: {
       stubs: {
         Button: buttonStub,
-        Input: inputStub,
         ScrollArea: passthrough('ScrollArea')
       }
     }
@@ -115,5 +118,58 @@ describe('PluginsCatalogPage', () => {
 
     expect(wrapper.text()).toContain('settings.remote.feishu.title')
     expect(wrapper.text()).not.toContain('Feishu/Lark Integration')
+  })
+
+  it('uses the localized Feishu description in catalog', async () => {
+    const { wrapper } = await mountCatalog()
+
+    expect(wrapper.text()).toContain('Feishu localized description')
+    expect(wrapper.text()).not.toContain('DeepChat · com.deepchat.plugins.feishu')
+  })
+
+  it('uses the CUA laptop icon in the catalog', async () => {
+    const { wrapper } = await mountCatalog()
+
+    expect(
+      wrapper.findAll(
+        '[data-icon="lucide:laptop-minimal-check"], [icon="lucide:laptop-minimal-check"]'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('uses the localized CUA description in catalog', async () => {
+    const { wrapper } = await mountCatalog()
+
+    expect(wrapper.text()).toContain('CUA localized description')
+  })
+
+  it('shows available plugins heading instead of unsupported category filters', async () => {
+    const { wrapper } = await mountCatalog()
+
+    expect(wrapper.text()).toContain('settings.pluginsHub.available')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.official')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.workspace')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.personal')
+  })
+
+  it('removes search and standalone added section', async () => {
+    const { wrapper } = await mountCatalog()
+
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.searchPlaceholder')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.added')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.noAdded')
+  })
+
+  it('sorts enabled plugins first and uses add/manage labels', async () => {
+    const { wrapper } = await mountCatalog()
+    const cards = wrapper.findAll('article')
+
+    expect(cards).toHaveLength(2)
+    expect(cards[0].text()).toContain('CUA Computer Use Runtime')
+    expect(cards[0].text()).toContain('settings.pluginsHub.manage')
+    expect(cards[0].find('span.rounded-full').classes()).toContain('bg-emerald-500/10')
+    expect(cards[1].text()).toContain('settings.remote.feishu.title')
+    expect(cards[1].text()).toContain('settings.pluginsHub.add')
   })
 })

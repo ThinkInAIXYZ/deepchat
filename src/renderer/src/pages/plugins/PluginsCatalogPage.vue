@@ -1,7 +1,7 @@
 <template>
   <ScrollArea class="h-full w-full">
     <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-8">
-      <header class="space-y-4">
+      <header class="flex items-start justify-between gap-4">
         <div class="space-y-1">
           <h1 class="text-2xl font-semibold tracking-normal">{{ t('routes.plugins') }}</h1>
           <p class="text-sm text-muted-foreground">
@@ -9,22 +9,9 @@
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
-          <div class="relative min-w-0 flex-1">
-            <Icon
-              icon="lucide:search"
-              class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              v-model="searchQuery"
-              class="h-10 rounded-xl pl-9"
-              :placeholder="t('settings.pluginsHub.searchPlaceholder')"
-            />
-          </div>
-          <Button variant="outline" size="icon" :disabled="loading" @click="loadCatalog">
-            <Icon icon="lucide:refresh-cw" class="size-4" :class="loading ? 'animate-spin' : ''" />
-          </Button>
-        </div>
+        <Button variant="outline" size="icon" :disabled="loading" @click="loadCatalog">
+          <Icon icon="lucide:refresh-cw" class="size-4" :class="loading ? 'animate-spin' : ''" />
+        </Button>
       </header>
 
       <div
@@ -34,51 +21,14 @@
         {{ errorMessage }}
       </div>
 
-      <section class="space-y-3">
-        <div class="flex items-center justify-between gap-3 border-b border-border/70 pb-2">
-          <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.added') }}</h2>
-          <RouterLink
-            :to="{ name: 'plugins-mcp' }"
-            class="text-sm text-muted-foreground hover:text-foreground"
-          >
-            {{ t('settings.pluginsHub.manage') }}
-          </RouterLink>
-        </div>
-
-        <div v-if="addedItems.length" class="flex flex-wrap gap-3">
-          <button
-            v-for="item in addedItems"
-            :key="item.id"
-            type="button"
-            class="flex size-12 items-center justify-center rounded-xl border border-border bg-background transition-colors hover:bg-muted"
-            :title="item.title"
-            @click="openAddedItem(item)"
-          >
-            <Icon :icon="item.icon" class="size-6" :class="item.iconClass" />
-          </button>
-        </div>
-        <div v-else class="text-sm text-muted-foreground">
-          {{ t('settings.pluginsHub.noAdded') }}
-        </div>
-      </section>
-
       <section class="space-y-4">
-        <div class="flex flex-wrap gap-2">
-          <Button
-            v-for="filter in filters"
-            :key="filter.key"
-            size="sm"
-            :variant="activeFilter === filter.key ? 'default' : 'ghost'"
-            class="rounded-lg"
-            @click="activeFilter = filter.key"
-          >
-            {{ t(filter.titleKey) }}
-          </Button>
+        <div class="border-b border-border/70 pb-2">
+          <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.available') }}</h2>
         </div>
 
-        <div v-if="filteredCatalogItems.length" class="grid gap-3 lg:grid-cols-2">
+        <div v-if="catalogItems.length" class="grid gap-3 lg:grid-cols-2">
           <article
-            v-for="item in filteredCatalogItems"
+            v-for="item in catalogItems"
             :key="item.id"
             class="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-3"
           >
@@ -93,7 +43,12 @@
                 <h3 class="truncate text-sm font-semibold">{{ item.title }}</h3>
                 <span
                   v-if="item.badge"
-                  class="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                  class="shrink-0 rounded-full border px-2 py-0.5 text-[11px]"
+                  :class="
+                    item.enabled
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-border text-muted-foreground'
+                  "
                 >
                   {{ item.badge }}
                 </span>
@@ -126,31 +81,22 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
 import type { RemoteChannel, RemoteChannelDescriptor, RemoteChannelStatus } from '@shared/presenter'
 
-type CatalogFilter = 'official' | 'workspace' | 'personal'
-type AddedItem = {
-  id: string
-  kind: 'official' | 'remote'
-  pluginId?: string
-  title: string
-  icon: string
-  iconClass?: string
-}
 type CatalogItem = {
   id: string
   kind: 'official' | 'remote'
   plugin?: PluginListItem
   channel?: RemoteChannel
+  enabled: boolean
   title: string
   description: string
   badge?: string
@@ -223,14 +169,16 @@ const remoteIconClassByChannel: Record<RemoteChannel, string> = {
   'weixin-ilink': 'text-green-500'
 }
 const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
+const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
+const CUA_PLUGIN_ICON = 'lucide:laptop-minimal-check'
 const remotePluginId = (channel: RemoteChannel): string => `remote:${channel}`
 const isFeishuOfficialPlugin = (plugin: PluginListItem): boolean => plugin.id === FEISHU_PLUGIN_ID
-
-const filters: Array<{ key: CatalogFilter; titleKey: string }> = [
-  { key: 'official', titleKey: 'settings.pluginsHub.filters.official' },
-  { key: 'workspace', titleKey: 'settings.pluginsHub.filters.workspace' },
-  { key: 'personal', titleKey: 'settings.pluginsHub.filters.personal' }
-]
+const pluginIcon = (plugin: PluginListItem): string =>
+  isFeishuOfficialPlugin(plugin)
+    ? remoteIconByChannel.feishu
+    : plugin.id === CUA_PLUGIN_ID
+      ? CUA_PLUGIN_ICON
+      : 'lucide:puzzle'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -243,107 +191,69 @@ const remoteStatuses = ref<Partial<Record<RemoteChannel, RemoteChannelStatus | n
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingItemId = ref<string | null>(null)
-const searchQuery = ref('')
-const activeFilter = ref<CatalogFilter>('official')
 
 const isPending = (itemId: string) => pendingItemId.value === itemId
 const pluginTitle = (plugin: PluginListItem): string =>
   isFeishuOfficialPlugin(plugin) ? t('settings.remote.feishu.title') : plugin.name
+const pluginDescription = (plugin: PluginListItem): string => {
+  if (isFeishuOfficialPlugin(plugin)) {
+    return t('settings.remote.feishu.description')
+  }
+  return plugin.id === CUA_PLUGIN_ID ? t('settings.pluginsHub.cuaDescription') : plugin.publisher
+}
+const officialPluginEnabled = (plugin: PluginListItem): boolean =>
+  plugin.enabled ||
+  (isFeishuOfficialPlugin(plugin) && Boolean(remoteStatuses.value.feishu?.enabled))
 
 const implementedRemoteChannels = computed(() =>
   remoteChannels.value.filter((channel) => channel.implemented)
 )
 const hasFeishuOfficialPlugin = computed(() => plugins.value.some(isFeishuOfficialPlugin))
 
-const addedItems = computed<AddedItem[]>(() => {
-  const officialItems = plugins.value
-    .filter(
-      (plugin) =>
-        plugin.enabled || (isFeishuOfficialPlugin(plugin) && remoteStatuses.value.feishu?.enabled)
-    )
-    .map((plugin) => ({
+const catalogItems = computed<CatalogItem[]>(() => {
+  const officialItems = plugins.value.map((plugin) => {
+    const enabled = officialPluginEnabled(plugin)
+    return {
       id: `official:${plugin.id}`,
       kind: 'official' as const,
-      pluginId: plugin.id,
+      plugin,
+      enabled,
       title: pluginTitle(plugin),
-      icon: isFeishuOfficialPlugin(plugin) ? remoteIconByChannel.feishu : 'lucide:puzzle',
-      iconClass: isFeishuOfficialPlugin(plugin)
-        ? remoteIconClassByChannel.feishu
-        : 'text-foreground'
-    }))
-
-  const remoteItems = implementedRemoteChannels.value
-    .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
-    .filter((channel) => remoteStatuses.value[channel.id]?.enabled)
-    .map((channel) => ({
-      id: `remote:${channel.id}`,
-      kind: 'remote' as const,
-      pluginId: remotePluginId(channel.id),
-      title: t(channel.titleKey),
-      icon: remoteIconByChannel[channel.id],
-      iconClass: remoteIconClassByChannel[channel.id]
-    }))
-
-  return [...officialItems, ...remoteItems]
-})
-
-const catalogItems = computed<CatalogItem[]>(() => {
-  const officialItems = plugins.value.map((plugin) => ({
-    id: `official:${plugin.id}`,
-    kind: 'official' as const,
-    plugin,
-    title: pluginTitle(plugin),
-    description: plugin.publisher,
-    badge: plugin.enabled
-      ? t('settings.plugins.status.enabled')
-      : t('settings.plugins.status.disabled'),
-    icon: isFeishuOfficialPlugin(plugin) ? remoteIconByChannel.feishu : 'lucide:puzzle',
-    iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
-    actionLabel:
-      plugin.enabled || isFeishuOfficialPlugin(plugin)
-        ? t('settings.pluginsHub.manage')
-        : t('settings.plugins.enable')
-  }))
+      description: pluginDescription(plugin),
+      badge: enabled ? t('settings.plugins.status.enabled') : t('settings.plugins.status.disabled'),
+      icon: pluginIcon(plugin),
+      iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
+      actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
+    }
+  })
 
   const remoteItems = implementedRemoteChannels.value
     .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
     .map((channel) => {
       const status = remoteStatuses.value[channel.id]
+      const enabled = Boolean(status?.enabled)
       return {
         id: `remote:${channel.id}`,
         kind: 'remote' as const,
         channel: channel.id,
+        enabled,
         title: t(channel.titleKey),
         description: t(channel.descriptionKey),
-        badge:
-          status?.enabled && status.state
-            ? t(`chat.sidebar.remoteControlStatus.${status.state}`)
-            : t('chat.sidebar.remoteControlDisabled'),
+        badge: enabled
+          ? t('settings.plugins.status.enabled')
+          : t('settings.plugins.status.disabled'),
         icon: remoteIconByChannel[channel.id],
         iconClass: remoteIconClassByChannel[channel.id],
-        actionLabel: t('settings.pluginsHub.manage')
+        actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
       }
     })
 
-  return [...officialItems, ...remoteItems]
-})
-
-const filteredCatalogItems = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-  const sourceItems =
-    activeFilter.value === 'official'
-      ? catalogItems.value
-      : activeFilter.value === 'workspace'
-        ? []
-        : []
-
-  if (!query) {
-    return sourceItems
-  }
-
-  return sourceItems.filter((item) =>
-    [item.title, item.description, item.badge].some((value) => value?.toLowerCase().includes(query))
-  )
+  return [...officialItems, ...remoteItems].sort((left, right) => {
+    if (left.enabled === right.enabled) {
+      return 0
+    }
+    return left.enabled ? -1 : 1
+  })
 })
 
 async function loadCatalog(): Promise<void> {
@@ -393,16 +303,10 @@ async function runPluginAction(
   }
 }
 
-function openAddedItem(item: AddedItem): void {
-  if (item.pluginId) {
-    void router.push({ name: 'plugins-detail', params: { pluginId: item.pluginId } })
-  }
-}
-
 function handleCatalogAction(item: CatalogItem): void {
   if (item.kind === 'official' && item.plugin) {
     const plugin = item.plugin
-    if (item.plugin.enabled || isFeishuOfficialPlugin(plugin)) {
+    if (item.enabled || isFeishuOfficialPlugin(plugin)) {
       void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
     } else {
       void runPluginAction(item.id, () => pluginClient.enablePlugin(plugin.id))

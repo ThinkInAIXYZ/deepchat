@@ -60,10 +60,12 @@ async function mountDetail(
   const pluginId = options.pluginId ?? 'com.deepchat.plugins.feishu'
   const remoteChannel = pluginId.startsWith('remote:') ? pluginId.slice('remote:'.length) : 'feishu'
   const remoteEnabled = options.remoteEnabled ?? false
+  const pluginName =
+    pluginId === 'com.deepchat.plugins.cua' ? 'CUA Computer Use Runtime' : 'Feishu/Lark Integration'
   const pluginClient = {
     getPlugin: vi.fn().mockResolvedValue({
-      id: 'com.deepchat.plugins.feishu',
-      name: 'Feishu/Lark Integration',
+      id: pluginId,
+      name: pluginName,
       publisher: 'DeepChat',
       version: '1.0.4',
       enabled: options.enabled ?? false,
@@ -113,7 +115,12 @@ async function mountDetail(
   })
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) =>
+        key === 'settings.pluginsHub.cuaDescription'
+          ? 'CUA localized description'
+          : key === 'settings.remote.feishu.description'
+            ? 'Feishu localized description'
+            : key
     })
   }))
   vi.doMock('@iconify/vue', () => ({
@@ -161,6 +168,13 @@ describe('OfficialPluginDetailPage', () => {
     expect(wrapper.text()).not.toContain('Feishu/Lark Integration')
   })
 
+  it('uses the localized Feishu description on the official plugin detail header', async () => {
+    const { wrapper } = await mountDetail()
+
+    expect(wrapper.text()).toContain('Feishu localized description')
+    expect(wrapper.text()).not.toContain('DeepChat · com.deepchat.plugins.feishu')
+  })
+
   it('uses the remote channel icon color on remote virtual plugin details', async () => {
     const { wrapper } = await mountDetail({ pluginId: 'remote:telegram' })
 
@@ -168,6 +182,20 @@ describe('OfficialPluginDetailPage', () => {
 
     expect(icon.exists()).toBe(true)
     expect(icon.classes()).toContain('text-sky-500')
+  })
+
+  it('uses the CUA laptop icon on the official plugin detail header', async () => {
+    const { wrapper } = await mountDetail({ pluginId: 'com.deepchat.plugins.cua' })
+
+    expect(findIcon(wrapper, 'lucide:laptop-minimal-check').exists()).toBe(true)
+    expect(findIcon(wrapper, 'lucide:puzzle').exists()).toBe(false)
+  })
+
+  it('uses the localized CUA description on the official plugin detail header', async () => {
+    const { wrapper } = await mountDetail({ pluginId: 'com.deepchat.plugins.cua' })
+
+    expect(wrapper.text()).toContain('CUA localized description')
+    expect(wrapper.text()).not.toContain('DeepChat · com.deepchat.plugins.cua')
   })
 
   it('uses the plugin enable button to start Feishu remote too', async () => {

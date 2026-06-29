@@ -2749,18 +2749,13 @@
   },
   "pluginsHub": {
     "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
-    "searchPlaceholder": "Search plugins and remote channels",
-    "added": "Added",
+    "available": "Доступные плагины",
+    "add": "Добавить",
     "manage": "Manage",
-    "noAdded": "No enabled plugins yet.",
-    "emptySearch": "No matching plugins.",
+    "emptySearch": "Нет доступных плагинов.",
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "filters": {
-      "official": "By DeepChat",
-      "workspace": "By your workspace",
-      "personal": "Personal"
-    }
+    "cuaDescription": "Плагин ComputerUse от DeepChat, реализованный на базе проекта trycua/cua."
   }
 }

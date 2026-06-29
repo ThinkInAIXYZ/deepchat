@@ -2740,18 +2740,13 @@
   },
   "pluginsHub": {
     "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
-    "searchPlaceholder": "Search plugins and remote channels",
-    "added": "Added",
+    "available": "Dostępne wtyczki",
+    "add": "Dodaj",
     "manage": "Manage",
-    "noAdded": "No enabled plugins yet.",
-    "emptySearch": "No matching plugins.",
+    "emptySearch": "Brak dostępnych wtyczek.",
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "filters": {
-      "official": "By DeepChat",
-      "workspace": "By your workspace",
-      "personal": "Personal"
-    }
+    "cuaDescription": "Wtyczka ComputerUse DeepChat zaimplementowana na podstawie projektu trycua/cua."
   }
 }

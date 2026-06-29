@@ -2740,18 +2740,13 @@
   },
   "pluginsHub": {
     "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
-    "searchPlaceholder": "Search plugins and remote channels",
-    "added": "Added",
+    "available": "Plugin yang tersedia",
+    "add": "Tambah",
     "manage": "Manage",
-    "noAdded": "No enabled plugins yet.",
-    "emptySearch": "No matching plugins.",
+    "emptySearch": "Tidak ada plugin yang tersedia.",
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "filters": {
-      "official": "By DeepChat",
-      "workspace": "By your workspace",
-      "personal": "Personal"
-    }
+    "cuaDescription": "Plugin ComputerUse DeepChat yang diimplementasikan berdasarkan proyek trycua/cua."
   }
 }

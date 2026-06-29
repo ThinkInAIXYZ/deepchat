@@ -2399,14 +2399,14 @@
     "description": "统一配置 Telegram、飞书 / Lark、QQBot、Discord 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
-      "description": "接入 Telegram Bot，支持私聊、群聊和话题线程远程控制。",
+      "description": "接入 Telegram Bot，支持私聊、群聊和会话远程控制。",
       "botToken": "机器人 Token",
       "botTokenPlaceholder": "Telegram 机器人 Token",
       "botTokenDescription": "填写用于 Telegram 远程控制的机器人 Token。"
     },
     "feishu": {
       "title": "飞书 / Lark",
-      "description": "接入飞书 Bot，支持私聊、群聊和话题线程远程控制。",
+      "description": "接入飞书 / Lark Bot，支持私聊、群聊和会话远程控制。",
       "brand": "品牌",
       "brandFeishu": "飞书",
       "brandLark": "Lark",
@@ -2424,7 +2424,7 @@
       "pairedUserOpenIdsPlaceholder": "例如 ou_xxx, ou_yyy",
       "accessRulesDescription": "先在私聊完成配对。群聊里只有已配对且以 {'@'} 提及机器人的用户，才可以操作会话。",
       "accessRule1": "在机器人私聊中使用 /pair [配对码] 授权自己；如果是手动配置应用，也可以使用 OAuth 扫码授权。",
-      "accessRule2": "群聊和话题线程里，只有已授权用户以 {'@'} 提及机器人时，消息才会进入会话。",
+      "accessRule2": "群聊和会话里，只有已授权用户以 {'@'} 提及机器人时，消息才会进入会话。",
       "setupGuideTitle": "按 Echo Bot 教程完成手动应用配置",
       "setupGuideDescription": "DeepChat 可以打开控制台和机器人聊天，但应用创建、权限授予、事件订阅和版本发布仍需在飞书 / Lark 控制台确认。",
       "setupStepCreateApp": "创建企业自建应用并添加机器人能力。",
@@ -2636,19 +2636,14 @@
   },
   "pluginsHub": {
     "subtitle": "统一管理 DeepChat 的 Skills、MCP、官方插件和远程渠道。",
-    "searchPlaceholder": "搜索插件和远程渠道",
-    "added": "已添加",
+    "available": "可用插件",
+    "add": "添加",
     "manage": "管理",
-    "noAdded": "还没有启用任何插件。",
-    "emptySearch": "没有匹配的插件。",
+    "emptySearch": "没有可用插件。",
     "pluginNotFound": "未找到插件。",
     "capabilities": "能力",
     "actionResult": "操作结果",
-    "filters": {
-      "official": "DeepChat 官方",
-      "workspace": "工作区",
-      "personal": "个人"
-    }
+    "cuaDescription": "DeepChat 基于 trycua/cua 项目实现的 ComputerUse 插件"
   },
   "controlCenter": {
     "groups": {

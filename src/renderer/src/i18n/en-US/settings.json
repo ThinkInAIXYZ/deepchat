@@ -2636,19 +2636,14 @@
   },
   "pluginsHub": {
     "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
-    "searchPlaceholder": "Search plugins and remote channels",
-    "added": "Added",
+    "available": "Available plugins",
+    "add": "Add",
     "manage": "Manage",
-    "noAdded": "No enabled plugins yet.",
-    "emptySearch": "No matching plugins.",
+    "emptySearch": "No available plugins.",
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "filters": {
-      "official": "By DeepChat",
-      "workspace": "By your workspace",
-      "personal": "Personal"
-    }
+    "cuaDescription": "DeepChat's ComputerUse plugin built on the trycua/cua project."
   },
   "controlCenter": {
     "groups": {
