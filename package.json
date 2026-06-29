@@ -178,7 +178,7 @@
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.20",
-    "electron": "^40.10.0",
+    "electron": "40.10.5",
     "electron-builder": "26.9.0",
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",
