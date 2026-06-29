@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "סוכני DeepChat",
   "settings-plugins": "Plugins",
   "settings-overview": "סקירת ההגדרות",
-  "settings-memory": "זיכרון"
+  "settings-memory": "זיכרון",
+  "plugins": "Plugins"
 }

@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "Mover al principio",
     "moveProjectGroupUp": "Mover arriba",
     "moveProjectGroupDown": "Mover abajo",
-    "moveProjectGroupBottom": "Mover al final"
+    "moveProjectGroupBottom": "Mover al final",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Buscar chats, Agents, ajustes y acciones…",

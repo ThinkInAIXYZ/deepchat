@@ -1110,7 +1110,7 @@ const extractLegacyTelegramConfig = (input: unknown): LegacyTelegramRemoteConfig
 
   const record = input as Record<string, unknown>
   if (
-    !hasAnyOwn(record, ['allowlist', 'streamMode', 'pollOffset', 'lastFatalError']) &&
+    !hasAnyOwn(record, ['botToken', 'allowlist', 'streamMode', 'pollOffset', 'lastFatalError']) &&
     !hasBindingPrefix(record, 'telegram:')
   ) {
     return null
@@ -1351,6 +1351,9 @@ const normalizeBindings = (
   return bindings
 }
 
+const resolveRemoteEnabled = (enabled: boolean | undefined, configured: boolean): boolean =>
+  typeof enabled === 'boolean' ? enabled : configured
+
 export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfig => {
   const defaults = createDefaultRemoteControlConfig()
   const parsed = RemoteControlConfigSchema.safeParse(input)
@@ -1363,11 +1366,12 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
   const qqbot = parsed.data.qqbot ?? extractLegacyQQBotConfig(input) ?? {}
   const discord = parsed.data.discord ?? extractLegacyDiscordConfig(input) ?? {}
   const weixinIlink = parsed.data.weixinIlink ?? extractLegacyWeixinIlinkConfig(input) ?? {}
+  const weixinIlinkAccounts = normalizeWeixinIlinkRuntimeAccounts(weixinIlink.accounts)
 
   return {
     telegram: {
       botToken: telegram.botToken?.trim() || '',
-      enabled: Boolean(telegram.enabled),
+      enabled: resolveRemoteEnabled(telegram.enabled, Boolean(telegram.botToken?.trim())),
       allowlist: normalizeTelegramUserIds(telegram.allowlist),
       streamMode: telegram.streamMode === 'final' ? 'final' : defaults.telegram.streamMode,
       defaultAgentId: telegram.defaultAgentId?.trim() || defaults.telegram.defaultAgentId,
@@ -1395,7 +1399,10 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       appSecret: feishu.appSecret?.trim() || '',
       verificationToken: feishu.verificationToken?.trim() || '',
       encryptKey: feishu.encryptKey?.trim() || '',
-      enabled: Boolean(feishu.enabled),
+      enabled: resolveRemoteEnabled(
+        feishu.enabled,
+        Boolean(feishu.appId?.trim() && feishu.appSecret?.trim())
+      ),
       enableStreamingCards: Boolean(feishu.enableStreamingCards),
       defaultAgentId: feishu.defaultAgentId?.trim() || defaults.feishu.defaultAgentId,
       defaultWorkdir: feishu.defaultWorkdir?.trim() || '',
@@ -1414,7 +1421,10 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     qqbot: {
       appId: qqbot.appId?.trim() || '',
       clientSecret: qqbot.clientSecret?.trim() || '',
-      enabled: Boolean(qqbot.enabled),
+      enabled: resolveRemoteEnabled(
+        qqbot.enabled,
+        Boolean(qqbot.appId?.trim() && qqbot.clientSecret?.trim())
+      ),
       defaultAgentId: qqbot.defaultAgentId?.trim() || defaults.qqbot.defaultAgentId,
       defaultWorkdir: qqbot.defaultWorkdir?.trim() || '',
       pairedUserIds: normalizeQQBotUserIds(qqbot.pairedUserIds),
@@ -1432,7 +1442,7 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
     },
     discord: {
       botToken: discord.botToken?.trim() || '',
-      enabled: Boolean(discord.enabled),
+      enabled: resolveRemoteEnabled(discord.enabled, Boolean(discord.botToken?.trim())),
       defaultAgentId: discord.defaultAgentId?.trim() || defaults.discord.defaultAgentId,
       defaultWorkdir: discord.defaultWorkdir?.trim() || '',
       pairedChannelIds: normalizeDiscordChannelIds(discord.pairedChannelIds),
@@ -1449,10 +1459,10 @@ export const normalizeRemoteControlConfig = (input: unknown): RemoteControlConfi
       bindings: normalizeBindings(discord.bindings, 'discord')
     },
     weixinIlink: {
-      enabled: Boolean(weixinIlink.enabled),
+      enabled: resolveRemoteEnabled(weixinIlink.enabled, weixinIlinkAccounts.length > 0),
       defaultAgentId: weixinIlink.defaultAgentId?.trim() || defaults.weixinIlink.defaultAgentId,
       defaultWorkdir: weixinIlink.defaultWorkdir?.trim() || '',
-      accounts: normalizeWeixinIlinkRuntimeAccounts(weixinIlink.accounts)
+      accounts: weixinIlinkAccounts
     }
   }
 }

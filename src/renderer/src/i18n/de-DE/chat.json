@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "Ganz nach oben verschieben",
     "moveProjectGroupUp": "Nach oben verschieben",
     "moveProjectGroupDown": "Nach unten verschieben",
-    "moveProjectGroupBottom": "Ganz nach unten verschieben"
+    "moveProjectGroupBottom": "Ganz nach unten verschieben",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Chats, Agent, Einstellungen und Aktionen suchen…",

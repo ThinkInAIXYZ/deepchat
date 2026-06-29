@@ -6,7 +6,7 @@
     data-testid="settings-skills-page"
   >
     <template #actions>
-      <div class="relative">
+      <div v-if="activeTab === 'library'" class="relative">
         <Icon
           icon="lucide:search"
           class="absolute left-2.5 top-1/2 w-4 h-4 -translate-y-1/2 text-muted-foreground"
@@ -18,112 +18,132 @@
           @update:model-value="searchQuery = String($event)"
         />
       </div>
-      <Button variant="outline" size="sm" @click="openSyncDialog('export')">
-        <Icon icon="lucide:upload" class="w-4 h-4 mr-1" />
-        {{ t('settings.skills.sync.export') }}
-      </Button>
-      <Button size="sm" @click="installDialogOpen = true">
-        <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
-        {{ t('settings.skills.addSkill') }}
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button size="sm">
+            <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
+            {{ t('settings.skills.addSkill') }}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuItem @click="installDialogOpen = true">
+            <Icon icon="lucide:folder-plus" class="mr-2 h-4 w-4" />
+            {{ t('settings.skills.install.basicTitle') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="gitDialogOpen = true">
+            <Icon icon="lucide:git-branch" class="mr-2 h-4 w-4" />
+            {{ t('settings.skills.git.menuItem') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </template>
 
     <div ref="guideRootRef">
       <Separator class="my-4" />
 
-      <div class="mb-4 rounded-lg border px-4 py-3 flex items-start justify-between gap-4">
-        <div class="space-y-1">
-          <div class="text-sm font-medium">
-            {{ t('settings.skills.draftSuggestions.title') }}
+      <Tabs v-model="activeTab" class="w-full">
+        <TabsList class="grid w-full max-w-xl grid-cols-3">
+          <TabsTrigger value="library">{{ t('settings.skills.tabs.library') }}</TabsTrigger>
+          <TabsTrigger value="agents">{{ t('settings.skills.tabs.agents') }}</TabsTrigger>
+          <TabsTrigger value="syncDirectory">
+            {{ t('settings.skills.tabs.syncDirectory') }}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="library" class="mt-4">
+          <div
+            ref="skillsSyncRef"
+            class="mb-4 rounded-lg border px-4 py-3 flex items-start justify-between gap-4"
+          >
+            <div class="space-y-1">
+              <div class="text-sm font-medium">
+                {{ t('settings.skills.draftSuggestions.title') }}
+              </div>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.skills.draftSuggestions.description') }}
+              </p>
+            </div>
+            <Switch
+              :model-value="draftSuggestionsEnabled"
+              @update:model-value="handleDraftSuggestionsToggle"
+            />
           </div>
-          <p class="text-xs text-muted-foreground">
-            {{ t('settings.skills.draftSuggestions.description') }}
-          </p>
-        </div>
-        <Switch
-          :model-value="draftSuggestionsEnabled"
-          @update:model-value="handleDraftSuggestionsToggle"
-        />
-      </div>
 
-      <div ref="skillsSyncRef" class="mb-4" @click="handleSkillsGuideTargetInteract">
-        <SyncStatusSection @import="handleQuickImport" @import-new="handleImportNew" />
-      </div>
+          <Separator class="mb-4" />
 
-      <Separator class="mb-4" />
-
-      <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
-        <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
-          <div class="space-y-3">
-            <div class="h-4 w-40 rounded bg-muted/60"></div>
-            <div class="h-3 w-full rounded bg-muted/40"></div>
-            <div class="h-3 w-3/4 rounded bg-muted/30"></div>
+          <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
+            <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
+              <div class="space-y-3">
+                <div class="h-4 w-40 rounded bg-muted/60"></div>
+                <div class="h-3 w-full rounded bg-muted/40"></div>
+                <div class="h-3 w-3/4 rounded bg-muted/30"></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div
-        v-else-if="filteredSkills.length === 0"
-        class="flex flex-col items-center justify-center py-8"
-      >
-        <Icon icon="lucide:wand-sparkles" class="w-12 h-12 text-muted-foreground/50 mb-4" />
-        <p class="text-muted-foreground text-sm">
-          {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
-        </p>
-        <p v-if="!searchQuery" class="text-muted-foreground/70 text-xs mt-1">
-          {{ t('settings.skills.emptyHint') }}
-        </p>
-      </div>
+          <div
+            v-else-if="filteredSkills.length === 0"
+            class="flex flex-col items-center justify-center py-8"
+          >
+            <Icon icon="lucide:wand-sparkles" class="w-12 h-12 text-muted-foreground/50 mb-4" />
+            <p class="text-muted-foreground text-sm">
+              {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
+            </p>
+            <p v-if="!searchQuery" class="text-muted-foreground/70 text-xs mt-1">
+              {{ t('settings.skills.emptyHint') }}
+            </p>
+          </div>
 
-      <div v-else class="flex flex-col gap-2 pb-4">
-        <SkillCard
-          v-for="skill in filteredSkills"
-          :key="skill.name"
-          :skill="skill"
-          :extension="skillExtensions[skill.name]"
-          :scripts="skillScripts[skill.name] || []"
-          @edit="openEditor(skill)"
-          @delete="confirmDelete(skill)"
-        />
-      </div>
+          <div v-else class="flex flex-col gap-2 pb-4">
+            <SkillCard
+              v-for="skill in filteredSkills"
+              :key="skill.name"
+              :skill="skill"
+              :extension="skillExtensions[skill.name]"
+              :scripts="skillScripts[skill.name] || []"
+              @toggle-disabled="toggleSkillDisabled(skill, $event)"
+              @view="openSkillDetail(skill)"
+              @install-to-agent="openInstallToAgent(skill)"
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="agents" class="mt-4">
+          <SkillAgentsTab />
+        </TabsContent>
+
+        <TabsContent value="syncDirectory" class="mt-4">
+          <SkillImportExportTab :skills="skills" @completed="handleSyncCompleted" />
+        </TabsContent>
+      </Tabs>
     </div>
 
     <!-- Install dialog -->
     <SkillInstallDialog v-model:open="installDialogOpen" @installed="handleInstalled" />
 
-    <!-- Sync dialog -->
-    <SkillSyncDialog
-      v-model:open="syncDialogOpen"
-      :mode="syncMode"
+    <InstallFromGitDialog v-model:open="gitDialogOpen" @installed="handleInstalled" />
+
+    <InstallSkillToAgentDialog
+      v-model:open="installToAgentOpen"
+      :skill="installingToAgentSkill"
       @completed="handleSyncCompleted"
     />
 
-    <!-- Editor sheet -->
-    <SkillEditorSheet v-model:open="editorOpen" :skill="editingSkill" @saved="handleSaved" />
-
-    <!-- Delete confirmation -->
-    <AlertDialog v-model:open="deleteDialogOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{{ t('settings.skills.delete.title') }}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.skills.delete.description', { name: deletingSkill?.name }) }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-          <AlertDialogAction
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            @click="handleDelete"
-          >
-            {{ t('common.delete') }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
-    <!-- First-launch sync prompt -->
-    <SyncPromptDialog @import="handlePromptImport" @close="handlePromptClose" />
+    <SkillDetailDialog
+      v-model:open="detailDialogOpen"
+      :name="skillDetail?.name ?? ''"
+      :description="skillDetail?.description"
+      :source-path="skillDetail?.sourcePath"
+      :markdown="skillDetail?.markdown"
+      :mutable="selectedDetailSkill?.mutable ?? false"
+      :deepchat-disabled="selectedDetailSkill?.deepchatDisabled ?? false"
+      :can-install-to-agent="Boolean(selectedDetailSkill)"
+      :saving="detailSaving"
+      @save="handleDetailSave"
+      @toggle-disabled="handleDetailToggleDisabled"
+      @install-to-agent="handleDetailInstallToAgent"
+      @delete="handleDetailDelete"
+    />
   </SettingsPageShell>
 
   <GuidedOnboardingOverlay
@@ -158,29 +178,29 @@ import { Separator } from '@shadcn/components/ui/separator'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createWindowClient } from '@api/WindowClient'
-import type { SkillMetadata } from '@shared/types/skill'
+import type { SkillExtensionConfig } from '@shared/types/skill'
+import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { SkillDetail } from '@shared/types/skillSync'
 
 import SkillCard from './SkillCard.vue'
+import SkillAgentsTab from './SkillAgentsTab.vue'
+import InstallFromGitDialog from './InstallFromGitDialog.vue'
+import InstallSkillToAgentDialog from './InstallSkillToAgentDialog.vue'
+import SkillImportExportTab from './SkillImportExportTab.vue'
 import SkillInstallDialog from './SkillInstallDialog.vue'
-import SkillEditorSheet from './SkillEditorSheet.vue'
-import SyncStatusSection from './SyncStatusSection.vue'
-import SyncPromptDialog from './SyncPromptDialog.vue'
-import { SkillSyncDialog } from './SkillSyncDialog'
+import SkillDetailDialog from './SkillDetailDialog.vue'
 import SettingsPageShell from '../control-center/SettingsPageShell.vue'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
@@ -200,6 +220,7 @@ const showSkillsGuide = computed(() => skillsGuide.showGuide.value && Boolean(sk
 const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
 
 // Search
+const activeTab = ref('library')
 const searchQuery = ref('')
 const draftSuggestionsEnabled = ref(false)
 const filteredSkills = computed(() => {
@@ -213,23 +234,13 @@ const filteredSkills = computed(() => {
 
 // Install dialog
 const installDialogOpen = ref(false)
-
-// Sync dialog
-const syncDialogOpen = ref(false)
-const syncMode = ref<'import' | 'export'>('import')
-
-const openSyncDialog = (mode: 'import' | 'export') => {
-  syncMode.value = mode
-  syncDialogOpen.value = true
-}
-
-// Editor
-const editorOpen = ref(false)
-const editingSkill = ref<SkillMetadata | null>(null)
-
-// Delete dialog
-const deleteDialogOpen = ref(false)
-const deletingSkill = ref<SkillMetadata | null>(null)
+const gitDialogOpen = ref(false)
+const installToAgentOpen = ref(false)
+const installingToAgentSkill = ref<UnifiedSkillItem | null>(null)
+const detailDialogOpen = ref(false)
+const skillDetail = ref<SkillDetail | null>(null)
+const selectedDetailSkill = ref<UnifiedSkillItem | null>(null)
+const detailSaving = ref(false)
 
 const router = useRouter()
 
@@ -249,10 +260,6 @@ const handleSkillsGuidePrimary = async () => {
     router,
     windowClient
   })
-}
-
-const handleSkillsGuideTargetInteract = async () => {
-  await handleSkillsGuidePrimary()
 }
 
 const handleSkillsGuideBack = async () => {
@@ -306,20 +313,114 @@ const setupEventListeners = () => {
   eventCleanup.value = skillClient.onCatalogChanged(handleSkillEvent)
 }
 
-const openEditor = (skill: SkillMetadata) => {
-  editingSkill.value = skill
-  editorOpen.value = true
+const openSkillDetail = async (skill: UnifiedSkillItem) => {
+  try {
+    selectedDetailSkill.value = skill
+    skillDetail.value = {
+      name: skill.name,
+      description: skill.description,
+      sourcePath: skill.path,
+      markdown: await skillClient.readSkillFile(skill.name),
+      mutable: skill.mutable
+    }
+    detailDialogOpen.value = true
+  } catch (cause) {
+    toast({
+      title: t('settings.skills.detail.failed'),
+      description: cause instanceof Error ? cause.message : String(cause),
+      variant: 'destructive'
+    })
+  }
 }
 
-const confirmDelete = (skill: SkillMetadata) => {
-  deletingSkill.value = skill
-  deleteDialogOpen.value = true
+const openInstallToAgent = (skill: UnifiedSkillItem) => {
+  installingToAgentSkill.value = skill
+  installToAgentOpen.value = true
 }
 
-const handleDelete = async () => {
-  if (!deletingSkill.value) return
+const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) => {
+  try {
+    await skillsStore.setSkillDisabled(skill.name, disabled)
+    toast({
+      title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
+      description: disabled
+        ? t('settings.skills.disable.successMessage', { name: skill.name })
+        : t('settings.skills.enable.successMessage', { name: skill.name })
+    })
+    return true
+  } catch (e) {
+    toast({
+      title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
+      description: e instanceof Error ? e.message : String(e),
+      variant: 'destructive'
+    })
+    return false
+  }
+}
 
-  const name = deletingSkill.value.name
+const createDefaultExtension = (): SkillExtensionConfig => ({
+  version: 1,
+  env: {},
+  runtimePolicy: {
+    python: 'auto',
+    node: 'auto'
+  },
+  scriptOverrides: {}
+})
+
+const handleDetailSave = async (content: string) => {
+  const skill = selectedDetailSkill.value
+  if (!skill) return
+
+  detailSaving.value = true
+  try {
+    const result = await skillsStore.saveSkillWithExtension(
+      skill.name,
+      content,
+      skillExtensions.value[skill.name] ?? createDefaultExtension()
+    )
+
+    if (!result.success) {
+      toast({
+        title: t('settings.skills.edit.failed'),
+        description: result.error,
+        variant: 'destructive'
+      })
+      return
+    }
+
+    toast({
+      title: t('settings.skills.edit.success')
+    })
+    detailDialogOpen.value = false
+    skillDetail.value = null
+    selectedDetailSkill.value = null
+  } finally {
+    detailSaving.value = false
+  }
+}
+
+const handleDetailToggleDisabled = async (disabled: boolean) => {
+  if (!selectedDetailSkill.value) return
+  const success = await toggleSkillDisabled(selectedDetailSkill.value, disabled)
+  if (success && selectedDetailSkill.value) {
+    selectedDetailSkill.value = {
+      ...selectedDetailSkill.value,
+      deepchatDisabled: disabled
+    }
+  }
+}
+
+const handleDetailInstallToAgent = () => {
+  if (!selectedDetailSkill.value) return
+  openInstallToAgent(selectedDetailSkill.value)
+  detailDialogOpen.value = false
+}
+
+const handleDetailDelete = async () => {
+  if (!selectedDetailSkill.value) return
+
+  const name = selectedDetailSkill.value.name
   const result = await skillsStore.uninstallSkill(name)
 
   if (result.success) {
@@ -335,8 +436,9 @@ const handleDelete = async () => {
     })
   }
 
-  deleteDialogOpen.value = false
-  deletingSkill.value = null
+  detailDialogOpen.value = false
+  skillDetail.value = null
+  selectedDetailSkill.value = null
 }
 
 const handleInstalled = () => {
@@ -349,35 +451,7 @@ const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
   await configClient.setSkillDraftSuggestionsEnabled(normalized)
 }
 
-const handleSaved = () => {
-  skillsStore.loadSkills()
-}
-
 const handleSyncCompleted = () => {
   skillsStore.loadSkills()
-}
-
-const handleQuickImport = (_toolId: string, _skills: string[]) => {
-  // Open sync dialog in import mode with the specified tool preselected
-  syncMode.value = 'import'
-  syncDialogOpen.value = true
-  // Note: The SkillSyncDialog will need to handle the preselected tool
-  // For now, we just open it in import mode
-}
-
-const handleImportNew = () => {
-  // Open sync dialog in import mode for new discoveries
-  syncMode.value = 'import'
-  syncDialogOpen.value = true
-}
-
-const handlePromptImport = (_toolIds: string[]) => {
-  // Open sync dialog in import mode
-  syncMode.value = 'import'
-  syncDialogOpen.value = true
-}
-
-const handlePromptClose = () => {
-  // Dialog closed without action
 }
 </script>

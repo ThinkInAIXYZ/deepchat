@@ -197,22 +197,41 @@ describe('main kernel contracts', () => {
         'sessions.updateGenerationSettings',
         'sessions.updateQueuedInput',
         'skills.getActive',
+        'skills.getSyncConfig',
+        'skills.executeSyncDirectoryExport',
+        'skills.executeSyncDirectoryImport',
+        'skills.installFromGit',
         'skills.installFromFolder',
         'skills.installFromUrl',
+        'skills.listCatalog',
         'skills.listMetadata',
         'skills.openFolder',
+        'skills.previewSyncDirectoryExport',
+        'skills.previewSyncDirectoryImport',
         'skills.readFile',
+        'skills.scanGitRepo',
         'skills.setActive',
+        'skills.setDisabled',
+        'skills.setSyncDirectory',
         'shortcut.destroy',
         'shortcut.register',
         'shortcut.unregister',
         'skillSync.acknowledgeDiscoveries',
+        'skillSync.executeAdoptAgentSkill',
         'skillSync.executeExport',
         'skillSync.executeImport',
+        'skillSync.executeLinkDeepChatSkills',
+        'skillSync.getAgentDetail',
+        'skillSync.getAgentSkillDetail',
         'skillSync.getNewDiscoveries',
         'skillSync.getRegisteredTools',
+        'skillSync.previewAdoptAgentSkill',
         'skillSync.previewExport',
         'skillSync.previewImport',
+        'skillSync.previewLinkDeepChatSkills',
+        'skillSync.removeAgentSkillLink',
+        'skillSync.repairAgentSkillLink',
+        'skillSync.scanAgents',
         'skillSync.scanExternalTools',
         'sync.getBackupStatus',
         'sync.import',
@@ -490,6 +509,40 @@ describe('main kernel contracts', () => {
         name: ''
       })
     ).toThrow()
+  })
+
+  it('validates skill Git and sync directory route payloads', () => {
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.scanGitRepo'].input.parse({ repoUrl: '' })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+        skillNames: ['guizang-ppt-skill'],
+        strategy: 'rename'
+      })
+    ).toEqual({
+      repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+      skillNames: ['guizang-ppt-skill'],
+      strategy: 'rename'
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+        skillNames: ['guizang-ppt-skill'],
+        strategy: 'replace'
+      })
+    ).toThrow()
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.setSyncDirectory'].input.parse({
+        skillsDirectory: '/tmp/deepchat-skills'
+      })
+    ).toEqual({
+      skillsDirectory: '/tmp/deepchat-skills'
+    })
   })
 
   it('validates MCP Router marketplace route payloads', () => {
@@ -1522,6 +1575,16 @@ describe('main kernel contracts', () => {
           skills: [source]
         }
       ]
+    })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skillSync.getAgentSkillDetail'].input.parse({
+        agentId: 'codex',
+        skillName: 'write-tests'
+      })
+    ).toEqual({
+      agentId: 'codex',
+      skillName: 'write-tests'
     })
   })
 

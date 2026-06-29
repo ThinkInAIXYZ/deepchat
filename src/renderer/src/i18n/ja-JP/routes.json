@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "DeepChatエージェント",
   "settings-plugins": "プラグイン",
   "settings-overview": "設定の概要",
-  "settings-memory": "メモリ"
+  "settings-memory": "メモリ",
+  "plugins": "Plugins"
 }

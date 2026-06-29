@@ -22,5 +22,6 @@
   "settings-plugins": "Wtyczki",
   "settings-overview": "Przegląd ustawień",
   "settings-scheduled-tasks": "Zaplanowane zadania",
-  "settings-memory": "Pamięć"
+  "settings-memory": "Pamięć",
+  "plugins": "Plugins"
 }

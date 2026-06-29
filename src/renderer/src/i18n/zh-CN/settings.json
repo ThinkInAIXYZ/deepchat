@@ -1970,7 +1970,9 @@
       "success": "安装成功",
       "successMessage": "skill {name} 已成功安装",
       "failed": "安装失败",
-      "dragInvalid": "不支持的拖拽内容，请拖入 skill 文件夹或单个 .zip 文件。"
+      "dragInvalid": "不支持的拖拽内容，请拖入 skill 文件夹或单个 .zip 文件。",
+      "basicTitle": "文件夹、ZIP 或 URL",
+      "basicDescription": "使用现有安装器导入本地文件夹、ZIP 包和 ZIP 下载链接。"
     },
     "delete": {
       "title": "删除 skill",
@@ -1983,7 +1985,24 @@
       "scripts": "{count} 个脚本",
       "env": "{count} 个环境变量",
       "pythonShort": "Py",
-      "nodeShort": "Node"
+      "nodeShort": "Node",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "enable": "在 DeepChat 中启用",
+      "disable": "在 DeepChat 中禁用",
+      "viewDetails": "查看详情",
+      "edit": "编辑",
+      "installToAgent": "安装到 Agent"
+    },
+    "enable": {
+      "success": "已启用 skill",
+      "successMessage": "skill {name} 已在 DeepChat 中启用",
+      "failed": "启用失败"
+    },
+    "disable": {
+      "success": "已禁用 skill",
+      "successMessage": "skill {name} 已在 DeepChat 中禁用",
+      "failed": "禁用失败"
     },
     "edit": {
       "title": "编辑 skill",
@@ -2005,7 +2024,7 @@
       "pythonRuntime": "Python 运行时",
       "nodeRuntime": "Node 运行时",
       "envTitle": "环境变量",
-      "envWarning": "仅在 UI 中做遮罩显示，实际会以明文写入 skill sidecar 文件。",
+      "envWarning": "仅在 UI 中做遮罩显示，实际会以明文写入应用数据库。",
       "scriptsTitle": "内置脚本",
       "scriptsHint": "只有 scripts/ 下的脚本会通过 skill_run 暴露给 agent。",
       "noScripts": "未发现可运行脚本",
@@ -2114,6 +2133,196 @@
       "dontShowAgain": "不再显示此提示",
       "skip": "跳过",
       "importSelected": "导入所选"
+    },
+    "tabs": {
+      "library": "技能库",
+      "agents": "Agents",
+      "syncDirectory": "同步目录"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} 个支持的 Agent",
+      "refresh": "刷新",
+      "syncToAgent": "同步到 Agent",
+      "empty": "未检测到支持的 Agent。",
+      "emptySkills": "该 Agent 暂无 skill。",
+      "loadFailed": "加载 Agent skills 失败",
+      "conflictCount": "{count} 冲突",
+      "table": {
+        "skill": "Skill",
+        "owner": "归属",
+        "status": "状态",
+        "action": "操作",
+        "preview": "预览"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "外部链接",
+        "broken-link": "断开的链接",
+        "unknown": "未知"
+      },
+      "status": {
+        "linked": "已链接",
+        "agent-owned": "Agent 所有",
+        "linked-out": "链接到外部",
+        "broken-link": "链接断开",
+        "conflict": "冲突",
+        "empty": "空"
+      },
+      "actions": {
+        "adopt": "接管",
+        "resolve-conflict": "解决",
+        "repair-link": "修复",
+        "remove-link": "移除",
+        "open": "打开",
+        "pending": "写入操作将在后续阶段启用。",
+        "view": "查看"
+      },
+      "agentStatus": {
+        "ready": "可用",
+        "detected-no-skills-dir": "无 skills 目录",
+        "permission-denied": "无权限"
+      },
+      "counts": {
+        "skills": "{count} 个 skill",
+        "linked": "{count} 已链接",
+        "agentOwned": "{count} Agent 所有",
+        "conflicts": "{count} 冲突",
+        "broken": "{count} 断开"
+      },
+      "adoptDialog": {
+        "adoptTitle": "接管 Skill",
+        "conflictTitle": "解决冲突",
+        "adoptDescription": "将该 skill 复制到 DeepChat，备份原始内容，并把 Agent 入口替换为链接。",
+        "conflictDescription": "{skill} 已存在于 DeepChat。默认操作会保留当前 DeepChat skill，并将该 Agent skill 以重命名副本接管。",
+        "loading": "正在准备接管预览...",
+        "previewFailed": "准备接管预览失败",
+        "executeFailed": "接管 skill 失败",
+        "currentLocation": "当前位置",
+        "afterAdoption": "接管后",
+        "backup": "备份",
+        "chooseAction": "选择操作",
+        "adoptAs": "接管为 {name}",
+        "replaceDeepChat": "替换现有 DeepChat skill",
+        "keepCurrent": "保持当前状态",
+        "unsupportedStrategies": "当前版本暂不支持替换和保持策略。",
+        "warnings": "警告",
+        "apply": "应用",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill 已接管",
+        "successDescription": "{name} 现在由 DeepChat 管理。"
+      },
+      "syncDialog": {
+        "title": "同步到 {agent}",
+        "description": "为所选 skill 创建 DeepChat 拥有的链接。已有 Agent 内容会被跳过。",
+        "target": "目标",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "没有可链接的 DeepChat skill。",
+        "preview": "预览",
+        "loading": "正在准备链接预览...",
+        "noSelection": "至少选择一个 skill。",
+        "apply": "应用",
+        "failed": "同步 skills 失败",
+        "successTitle": "Skills 已同步",
+        "successDescription": "已链接 {count} 个 skill。",
+        "status": {
+          "ready": "可用",
+          "already-linked": "已链接",
+          "conflict": "冲突",
+          "missing": "缺失"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "链接已修复",
+        "removeSuccess": "链接已移除",
+        "successDescription": "{name} 已更新。",
+        "failed": "更新链接失败"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "扫描 Git 仓库，并将选中的 skills 安装到 DeepChat。",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "扫描",
+      "detectedFormat": "检测到格式：",
+      "format": {
+        "single-skill": "单个 skill",
+        "multi-skill": "多 skill"
+      },
+      "selectedCount": "已选 {count} 个",
+      "empty": "没有找到有效 skill。",
+      "conflict": "冲突",
+      "invalid": "无效",
+      "strategy": "冲突策略",
+      "rename": "重命名新 skill",
+      "overwrite": "替换现有项",
+      "skip": "跳过现有项",
+      "install": "安装到 DeepChat",
+      "failed": "Git 安装失败",
+      "success": "Git 安装完成",
+      "successMessage": "已安装 {count} 个，失败 {failed} 个",
+      "menuItem": "Git 仓库..."
+    },
+    "importExport": {
+      "directory": "本地多 skill 同步目录",
+      "browse": "浏览",
+      "save": "保存",
+      "saved": "同步目录已保存",
+      "export": "导出到目录",
+      "import": "从目录导入",
+      "includeDisabled": "包含已禁用 skills",
+      "previewExport": "预览导出",
+      "exportNow": "立即导出",
+      "previewImport": "预览导入",
+      "importSelected": "导入选中项",
+      "noExportPreview": "先预览导出以查看目标状态。",
+      "noImportPreview": "先预览导入以查看可用 skills。",
+      "strategy": "冲突策略",
+      "rename": "重命名导入项",
+      "overwrite": "替换本地项",
+      "skip": "跳过现有项",
+      "exported": "导出完成",
+      "imported": "导入完成",
+      "result": "完成 {count} 个，失败 {failed} 个",
+      "state": {
+        "new": "新增",
+        "same": "相同",
+        "modified": "已修改",
+        "conflict": "冲突",
+        "invalid": "无效"
+      }
+    },
+    "detail": {
+      "failed": "读取 skill 详情失败",
+      "noDescription": "暂无描述",
+      "empty": "暂无可预览内容",
+      "installToAgent": "安装到 Agent",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "enable": "在 DeepChat 中启用",
+      "disable": "在 DeepChat 中禁用",
+      "preview": "预览",
+      "edit": "编辑",
+      "delete": "删除",
+      "confirmDeleteTitle": "删除 skill",
+      "confirmDeleteDescription": "确定要删除 skill「{name}」吗？此操作无法撤销。"
+    },
+    "installToAgent": {
+      "title": "安装 {name} 到 Agent",
+      "description": "为这个 skill 在本机 Agent skills 目录下创建 DeepChat 拥有的链接。",
+      "failed": "安装到 Agent 失败",
+      "emptyAgents": "未检测到可用的本机 Agent。",
+      "target": "目标 Agent",
+      "preview": "预览",
+      "loadingPreview": "正在准备链接预览...",
+      "noPreview": "选择一个 Agent 后查看预览。",
+      "install": "安装",
+      "success": "已安装到 Agent",
+      "successMessage": "{name} 已链接到目标 Agent。",
+      "disconnect": "断开",
+      "disconnectSuccess": "已从 Agent 断开",
+      "disconnectSuccessMessage": "{name} 已从目标 Agent 断开。",
+      "disconnectFailed": "从 Agent 断开失败"
     }
   },
   "environments": {
@@ -2190,14 +2399,14 @@
     "description": "统一配置 Telegram、飞书 / Lark、QQBot、Discord 和微信 iLink 远程控制。",
     "telegram": {
       "title": "Telegram",
-      "description": "接入 Telegram Bot，支持私聊、群聊和话题线程远程控制。",
+      "description": "接入 Telegram Bot，支持私聊、群聊和会话远程控制。",
       "botToken": "机器人 Token",
       "botTokenPlaceholder": "Telegram 机器人 Token",
       "botTokenDescription": "填写用于 Telegram 远程控制的机器人 Token。"
     },
     "feishu": {
       "title": "飞书 / Lark",
-      "description": "接入飞书 Bot，支持私聊、群聊和话题线程远程控制。",
+      "description": "接入飞书 / Lark Bot，支持私聊、群聊和会话远程控制。",
       "brand": "品牌",
       "brandFeishu": "飞书",
       "brandLark": "Lark",
@@ -2215,7 +2424,7 @@
       "pairedUserOpenIdsPlaceholder": "例如 ou_xxx, ou_yyy",
       "accessRulesDescription": "先在私聊完成配对。群聊里只有已配对且以 {'@'} 提及机器人的用户，才可以操作会话。",
       "accessRule1": "在机器人私聊中使用 /pair [配对码] 授权自己；如果是手动配置应用，也可以使用 OAuth 扫码授权。",
-      "accessRule2": "群聊和话题线程里，只有已授权用户以 {'@'} 提及机器人时，消息才会进入会话。",
+      "accessRule2": "群聊和会话里，只有已授权用户以 {'@'} 提及机器人时，消息才会进入会话。",
       "setupGuideTitle": "按 Echo Bot 教程完成手动应用配置",
       "setupGuideDescription": "DeepChat 可以打开控制台和机器人聊天，但应用创建、权限授予、事件订阅和版本发布仍需在飞书 / Lark 控制台确认。",
       "setupStepCreateApp": "创建企业自建应用并添加机器人能力。",
@@ -2424,6 +2633,17 @@
       "running": "运行中",
       "error": "错误"
     }
+  },
+  "pluginsHub": {
+    "subtitle": "统一管理 DeepChat 的 Skills、MCP、官方插件和远程渠道。",
+    "available": "可用插件",
+    "add": "添加",
+    "manage": "管理",
+    "emptySearch": "没有可用插件。",
+    "pluginNotFound": "未找到插件。",
+    "capabilities": "能力",
+    "actionResult": "操作结果",
+    "cuaDescription": "DeepChat 基于 trycua/cua 项目实现的 ComputerUse 插件"
   },
   "controlCenter": {
     "groups": {

@@ -360,7 +360,10 @@
     "moveProjectGroupTop": "En üste taşı",
     "moveProjectGroupUp": "Yukarı taşı",
     "moveProjectGroupDown": "Aşağı taşı",
-    "moveProjectGroupBottom": "En alta taşı"
+    "moveProjectGroupBottom": "En alta taşı",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "spotlight": {
     "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",

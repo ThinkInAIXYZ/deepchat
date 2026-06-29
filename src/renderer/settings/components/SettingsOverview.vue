@@ -42,18 +42,6 @@
         @select="openRoute('settings-provider')"
       />
       <StatusMetricCard
-        :label="t('settings.controlCenter.overview.mcp')"
-        :value="t('settings.controlCenter.overview.runningCount', { count: runningMcpCount })"
-        icon="lucide:server"
-        :description="
-          mcpEnabled
-            ? t('settings.controlCenter.overview.mcpOn')
-            : t('settings.controlCenter.overview.mcpOff')
-        "
-        interactive
-        @select="openRoute('settings-mcp')"
-      />
-      <StatusMetricCard
         :label="t('settings.controlCenter.overview.deepchatAgents')"
         :value="
           t('settings.controlCenter.overview.enabledAgentCount', {
@@ -176,7 +164,6 @@ import {
 import type { SettingsNavigationItem } from '@shared/settingsNavigation'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
-import { useMcpStore } from '@/stores/mcp'
 import { useSyncStore } from '@/stores/sync'
 import { useAgentStore } from '@/stores/ui/agent'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
@@ -191,7 +178,6 @@ const route = useRoute()
 const settingsClient = createSettingsClient()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
-const mcpStore = useMcpStore()
 const syncStore = useSyncStore()
 const agentStore = useAgentStore()
 
@@ -212,10 +198,6 @@ const enabledModelsCount = computed(() =>
   modelStore.enabledModels.reduce((count, group) => count + group.models.length, 0)
 )
 
-const mcpEnabled = computed(() => mcpStore.mcpEnabled)
-const runningMcpCount = computed(
-  () => mcpStore.serverList.filter((server) => server.isRunning).length
-)
 const enabledDeepChatAgentsCount = computed(
   () =>
     agentStore.enabledAgents.filter((agent) => (agent.agentType ?? agent.type) === 'deepchat')
@@ -247,14 +229,6 @@ const quickTasks = computed<
     routeName: 'settings-provider',
     icon: 'lucide:box',
     done: enabledModelsCount.value > 0
-  },
-  {
-    key: 'start-mcp',
-    labelKey: 'settings.controlCenter.quickStart.startMcp',
-    descriptionKey: 'settings.controlCenter.quickStart.startMcpDesc',
-    routeName: 'settings-mcp',
-    icon: 'lucide:server',
-    done: runningMcpCount.value > 0
   },
   {
     key: 'backup',
@@ -335,7 +309,6 @@ onMounted(async () => {
   await Promise.allSettled([
     providerStore.ensureInitialized?.(),
     modelStore.initialize?.(),
-    mcpStore.loadConfig?.(),
     syncStore.initialize?.(),
     agentStore.fetchAgents()
   ])

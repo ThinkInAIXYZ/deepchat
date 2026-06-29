@@ -164,6 +164,140 @@ export interface ScanResult {
   error?: string
 }
 
+export type AgentSkillOwner = 'deepchat' | 'agent' | 'external-link' | 'broken-link' | 'unknown'
+
+export type AgentSkillStatus =
+  | 'linked'
+  | 'agent-owned'
+  | 'linked-out'
+  | 'broken-link'
+  | 'conflict'
+  | 'empty'
+
+export type AgentSkillAction = 'adopt' | 'resolve-conflict' | 'repair-link' | 'remove-link' | 'open'
+
+export interface AgentSkillLinkInfo {
+  isSymlink: boolean
+  targetPath?: string
+  targetExists?: boolean
+  targetInsideDeepChat?: boolean
+  createdByDeepChat?: boolean
+}
+
+export interface AgentSkillDeepChatInfo {
+  exists: boolean
+  path?: string
+  disabled?: boolean
+  sameContent?: boolean
+}
+
+export interface AgentSkillItem {
+  name: string
+  description?: string
+  path: string
+  owner: AgentSkillOwner
+  status: AgentSkillStatus
+  action?: AgentSkillAction
+  link?: AgentSkillLinkInfo
+  deepchat?: AgentSkillDeepChatInfo
+}
+
+export interface SkillDetail {
+  name: string
+  description: string
+  sourcePath: string
+  markdown: string
+  mutable: boolean
+}
+
+export interface InstalledSkillAgent {
+  id: string
+  name: string
+  skillsDir: string
+  isCustom: boolean
+  supportsLinkManagement: boolean
+  skillsCount: number
+  linkedCount: number
+  agentOwnedCount: number
+  conflictCount: number
+  brokenLinkCount: number
+  status: 'ready' | 'detected-no-skills-dir' | 'permission-denied'
+}
+
+export interface InstalledSkillAgentDetail extends InstalledSkillAgent {
+  skills: AgentSkillItem[]
+}
+
+export interface AdoptAgentSkillInput {
+  agentId: string
+  skillName: string
+  targetName?: string
+}
+
+export interface AdoptAgentSkillPreview {
+  agentId: string
+  agentName: string
+  skillName: string
+  targetName: string
+  sourcePath: string
+  agentPath: string
+  targetPath: string
+  backupRoot: string
+  conflict: boolean
+  warnings: string[]
+}
+
+export interface AdoptAgentSkillResult {
+  success: boolean
+  skillName?: string
+  targetPath?: string
+  agentPath?: string
+  backupPath?: string
+  error?: string
+}
+
+export interface LinkDeepChatSkillsInput {
+  agentId: string
+  skillNames: string[]
+}
+
+export type LinkDeepChatSkillPreviewStatus = 'ready' | 'already-linked' | 'conflict' | 'missing'
+
+export interface LinkDeepChatSkillPreviewItem {
+  skillName: string
+  sourcePath?: string
+  targetPath: string
+  status: LinkDeepChatSkillPreviewStatus
+  message?: string
+}
+
+export interface LinkDeepChatSkillsPreview {
+  agentId: string
+  agentName: string
+  skillsDir: string
+  items: LinkDeepChatSkillPreviewItem[]
+}
+
+export interface LinkDeepChatSkillResult {
+  success: boolean
+  skillName?: string
+  agentPath?: string
+  targetPath?: string
+  error?: string
+}
+
+export interface LinkDeepChatSkillsResult {
+  success: boolean
+  linked: number
+  skipped: number
+  failed: Array<{ skillName: string; reason: string }>
+}
+
+export interface AgentSkillLinkInput {
+  agentId: string
+  skillName: string
+}
+
 /**
  * Conflict handling strategy
  */
@@ -443,6 +577,24 @@ export interface ISkillSyncPresenter {
    * Get all registered external tools
    */
   getRegisteredTools(): ExternalToolConfig[]
+
+  scanSkillAgents(): Promise<InstalledSkillAgent[]>
+
+  scanSkillAgent(input: { agentId: string }): Promise<InstalledSkillAgentDetail>
+
+  getAgentSkillDetail(input: { agentId: string; skillName: string }): Promise<SkillDetail>
+
+  previewAdoptAgentSkill(input: AdoptAgentSkillInput): Promise<AdoptAgentSkillPreview>
+
+  executeAdoptAgentSkill(input: AdoptAgentSkillInput): Promise<AdoptAgentSkillResult>
+
+  previewLinkDeepChatSkills(input: LinkDeepChatSkillsInput): Promise<LinkDeepChatSkillsPreview>
+
+  executeLinkDeepChatSkills(input: LinkDeepChatSkillsInput): Promise<LinkDeepChatSkillsResult>
+
+  repairAgentSkillLink(input: AgentSkillLinkInput): Promise<LinkDeepChatSkillResult>
+
+  removeAgentSkillLink(input: AgentSkillLinkInput): Promise<LinkDeepChatSkillResult>
 
   /**
    * Check if a tool's directory exists

@@ -356,6 +356,9 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",

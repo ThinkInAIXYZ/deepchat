@@ -22,5 +22,6 @@
   "settings-deepchat-agents": "DeepChat 에이전트",
   "settings-plugins": "Plugins",
   "settings-overview": "설정 개요",
-  "settings-memory": "메모리"
+  "settings-memory": "메모리",
+  "plugins": "Plugins"
 }

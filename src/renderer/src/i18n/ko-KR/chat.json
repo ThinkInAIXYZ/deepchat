@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "맨 위로 이동",
     "moveProjectGroupUp": "위로 이동",
     "moveProjectGroupDown": "아래로 이동",
-    "moveProjectGroupBottom": "맨 아래로 이동"
+    "moveProjectGroupBottom": "맨 아래로 이동",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "작업 개요",

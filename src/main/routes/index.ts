@@ -270,25 +270,44 @@ import {
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
   skillsGetFolderTreeRoute,
+  skillsGetSyncConfigRoute,
+  skillsExecuteSyncDirectoryExportRoute,
+  skillsExecuteSyncDirectoryImportRoute,
+  skillsInstallFromGitRoute,
   skillsInstallFromFolderRoute,
   skillsInstallFromUrlRoute,
   skillsInstallFromZipRoute,
+  skillsListCatalogRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
+  skillsPreviewSyncDirectoryExportRoute,
+  skillsPreviewSyncDirectoryImportRoute,
   skillsReadFileRoute,
+  skillsScanGitRepoRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
+  skillsSetDisabledRoute,
+  skillsSetSyncDirectoryRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute,
   skillSyncAcknowledgeDiscoveriesRoute,
+  skillSyncExecuteAdoptAgentSkillRoute,
   skillSyncExecuteExportRoute,
   skillSyncExecuteImportRoute,
+  skillSyncExecuteLinkDeepChatSkillsRoute,
+  skillSyncGetAgentDetailRoute,
+  skillSyncGetAgentSkillDetailRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
+  skillSyncPreviewAdoptAgentSkillRoute,
   skillSyncPreviewExportRoute,
   skillSyncPreviewImportRoute,
+  skillSyncPreviewLinkDeepChatSkillsRoute,
+  skillSyncRemoveAgentSkillLinkRoute,
+  skillSyncRepairAgentSkillLinkRoute,
+  skillSyncScanAgentsRoute,
   skillSyncScanExternalToolsRoute,
   syncGetBackupStatusRoute,
   syncImportRoute,
@@ -2986,6 +3005,21 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case skillsListCatalogRoute.name: {
+      return await runTrackedRouteTask(runtime, routeName, context, async () => {
+        skillsListCatalogRoute.input.parse(rawInput)
+        const skills = await runtime.skillPresenter.getUnifiedSkillCatalog()
+        return skillsListCatalogRoute.output.parse({ skills })
+      })
+    }
+
+    case skillsSetDisabledRoute.name: {
+      const input = skillsSetDisabledRoute.input.parse(rawInput)
+      await runtime.skillPresenter.setSkillDeepChatDisabled(input.name, input.disabled)
+      recordSkillUpdatedActivity(runtime, input.name, 'skill-disabled-state')
+      return skillsSetDisabledRoute.output.parse({ saved: true })
+    }
+
     case skillsGetDirectoryRoute.name: {
       skillsGetDirectoryRoute.input.parse(rawInput)
       const path = await runtime.skillPresenter.getSkillsDir()
@@ -3017,6 +3051,57 @@ export async function dispatchDeepchatRoute(
         recordSkillSettingsActivity(runtime, 'created', 'skill URL source')
       }
       return skillsInstallFromUrlRoute.output.parse({ result })
+    }
+
+    case skillsScanGitRepoRoute.name: {
+      const input = skillsScanGitRepoRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.scanGitSkillRepo(input.repoUrl)
+      return skillsScanGitRepoRoute.output.parse({ result })
+    }
+
+    case skillsInstallFromGitRoute.name: {
+      const input = skillsInstallFromGitRoute.input.parse(rawInput)
+      const results = await runtime.skillPresenter.installSkillsFromGit(input)
+      if (results.some(didSkillOperationSucceed)) {
+        recordSkillSettingsActivity(runtime, 'created', 'skill Git source')
+      }
+      return skillsInstallFromGitRoute.output.parse({ results })
+    }
+
+    case skillsGetSyncConfigRoute.name: {
+      skillsGetSyncConfigRoute.input.parse(rawInput)
+      const config = await runtime.skillPresenter.getSkillsSyncConfig()
+      return skillsGetSyncConfigRoute.output.parse({ config })
+    }
+
+    case skillsSetSyncDirectoryRoute.name: {
+      const input = skillsSetSyncDirectoryRoute.input.parse(rawInput)
+      const config = await runtime.skillPresenter.setSkillsSyncDirectory(input)
+      return skillsSetSyncDirectoryRoute.output.parse({ config })
+    }
+
+    case skillsPreviewSyncDirectoryExportRoute.name: {
+      const input = skillsPreviewSyncDirectoryExportRoute.input.parse(rawInput)
+      const preview = await runtime.skillPresenter.previewSyncDirectoryExport(input)
+      return skillsPreviewSyncDirectoryExportRoute.output.parse({ preview })
+    }
+
+    case skillsExecuteSyncDirectoryExportRoute.name: {
+      const input = skillsExecuteSyncDirectoryExportRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.executeSyncDirectoryExport(input)
+      return skillsExecuteSyncDirectoryExportRoute.output.parse({ result })
+    }
+
+    case skillsPreviewSyncDirectoryImportRoute.name: {
+      skillsPreviewSyncDirectoryImportRoute.input.parse(rawInput)
+      const preview = await runtime.skillPresenter.previewSyncDirectoryImport()
+      return skillsPreviewSyncDirectoryImportRoute.output.parse({ preview })
+    }
+
+    case skillsExecuteSyncDirectoryImportRoute.name: {
+      const input = skillsExecuteSyncDirectoryImportRoute.input.parse(rawInput)
+      const result = await runtime.skillPresenter.executeSyncDirectoryImport(input)
+      return skillsExecuteSyncDirectoryImportRoute.output.parse({ result })
     }
 
     case skillsUninstallRoute.name: {
@@ -3140,6 +3225,69 @@ export async function dispatchDeepchatRoute(
       skillSyncGetRegisteredToolsRoute.input.parse(rawInput)
       return skillSyncGetRegisteredToolsRoute.output.parse({
         tools: runtime.skillSyncPresenter.getRegisteredTools()
+      })
+    }
+
+    case skillSyncScanAgentsRoute.name: {
+      skillSyncScanAgentsRoute.input.parse(rawInput)
+      return skillSyncScanAgentsRoute.output.parse({
+        agents: await runtime.skillSyncPresenter.scanSkillAgents()
+      })
+    }
+
+    case skillSyncGetAgentDetailRoute.name: {
+      const input = skillSyncGetAgentDetailRoute.input.parse(rawInput)
+      return skillSyncGetAgentDetailRoute.output.parse({
+        agent: await runtime.skillSyncPresenter.scanSkillAgent({ agentId: input.agentId })
+      })
+    }
+
+    case skillSyncGetAgentSkillDetailRoute.name: {
+      const input = skillSyncGetAgentSkillDetailRoute.input.parse(rawInput)
+      return skillSyncGetAgentSkillDetailRoute.output.parse({
+        detail: await runtime.skillSyncPresenter.getAgentSkillDetail(input)
+      })
+    }
+
+    case skillSyncPreviewAdoptAgentSkillRoute.name: {
+      const input = skillSyncPreviewAdoptAgentSkillRoute.input.parse(rawInput)
+      return skillSyncPreviewAdoptAgentSkillRoute.output.parse({
+        preview: await runtime.skillSyncPresenter.previewAdoptAgentSkill(input)
+      })
+    }
+
+    case skillSyncExecuteAdoptAgentSkillRoute.name: {
+      const input = skillSyncExecuteAdoptAgentSkillRoute.input.parse(rawInput)
+      return skillSyncExecuteAdoptAgentSkillRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeAdoptAgentSkill(input)
+      })
+    }
+
+    case skillSyncPreviewLinkDeepChatSkillsRoute.name: {
+      const input = skillSyncPreviewLinkDeepChatSkillsRoute.input.parse(rawInput)
+      return skillSyncPreviewLinkDeepChatSkillsRoute.output.parse({
+        preview: await runtime.skillSyncPresenter.previewLinkDeepChatSkills(input)
+      })
+    }
+
+    case skillSyncExecuteLinkDeepChatSkillsRoute.name: {
+      const input = skillSyncExecuteLinkDeepChatSkillsRoute.input.parse(rawInput)
+      return skillSyncExecuteLinkDeepChatSkillsRoute.output.parse({
+        result: await runtime.skillSyncPresenter.executeLinkDeepChatSkills(input)
+      })
+    }
+
+    case skillSyncRepairAgentSkillLinkRoute.name: {
+      const input = skillSyncRepairAgentSkillLinkRoute.input.parse(rawInput)
+      return skillSyncRepairAgentSkillLinkRoute.output.parse({
+        result: await runtime.skillSyncPresenter.repairAgentSkillLink(input)
+      })
+    }
+
+    case skillSyncRemoveAgentSkillLinkRoute.name: {
+      const input = skillSyncRemoveAgentSkillLinkRoute.input.parse(rawInput)
+      return skillSyncRemoveAgentSkillLinkRoute.output.parse({
+        result: await runtime.skillSyncPresenter.removeAgentSkillLink(input)
       })
     }
 

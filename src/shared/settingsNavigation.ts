@@ -166,7 +166,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:server',
     position: 5,
     groupKey: 'tools',
-    keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务']
+    keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-remote',
@@ -175,7 +176,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:smartphone',
     position: 5.25,
     groupKey: 'system',
-    keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制']
+    keywords: ['remote', 'telegram', 'feishu', 'control', '远程', '控制'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-notifications-hooks',
@@ -213,7 +215,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 5.75,
     groupKey: 'tools',
     keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
-    supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64']
+    supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-skills',
@@ -222,7 +225,8 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     icon: 'lucide:wand-sparkles',
     position: 6,
     groupKey: 'knowledge',
-    keywords: ['skill', 'skills', '技能']
+    keywords: ['skill', 'skills', '技能'],
+    hiddenInSidebar: true
   },
   {
     routeName: 'settings-prompt',

@@ -14,7 +14,11 @@ import { SkillSyncPresenter } from '../../../../src/main/presenter/skillSyncPres
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { ConflictStrategy } from '../../../../src/shared/types/skillSync'
 import type { ISkillPresenter } from '../../../../src/shared/presenter'
-import type { ImportPreview, ExportPreview } from '../../../../src/shared/types/skillSync'
+import type {
+  ExternalToolConfig,
+  ImportPreview,
+  ExportPreview
+} from '../../../../src/shared/types/skillSync'
 
 const scanWorkerMock = vi.hoisted(() => ({
   scanExternalToolsInWorker: vi.fn(),
@@ -33,13 +37,18 @@ vi.mock('fs', () => ({
   promises: {
     stat: vi.fn(),
     readdir: vi.fn(),
+    readlink: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    copyFile: vi.fn(),
     mkdir: vi.fn(),
     rm: vi.fn(),
+    rename: vi.fn(),
+    symlink: vi.fn(),
     access: vi.fn()
   },
   constants: {
+    F_OK: 0,
     R_OK: 4,
     W_OK: 2
   },
@@ -53,7 +62,19 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 // Mock security module
 vi.mock('../../../../src/main/presenter/skillSyncPresenter/security', () => ({
   isValidToolId: vi.fn((id) =>
-    ['claude-code', 'cursor', 'windsurf', 'copilot', 'kiro', 'antigravity'].includes(id)
+    [
+      'claude-code',
+      'codex',
+      'cursor',
+      'windsurf',
+      'copilot',
+      'kiro',
+      'antigravity',
+      'opencode',
+      'goose',
+      'kilocode',
+      'copilot-user'
+    ].includes(id)
   ),
   isValidConflictStrategy: vi.fn((s) =>
     [ConflictStrategy.SKIP, ConflictStrategy.OVERWRITE, ConflictStrategy.RENAME].includes(s)
@@ -62,6 +83,7 @@ vi.mock('../../../../src/main/presenter/skillSyncPresenter/security', () => ({
   sanitizeSkillName: vi.fn((name) => name?.replace(/[<>:"/\\|?*]/g, '-')),
   checkReadPermission: vi.fn().mockResolvedValue(true),
   checkWritePermission: vi.fn().mockResolvedValue(true),
+  isFilenameSafe: vi.fn((name) => name && !name.includes('/') && name !== '..' && name !== '.'),
   isPathWithinBase: vi.fn().mockReturnValue(true),
   validateFolderSize: vi.fn().mockResolvedValue({ valid: true, totalSize: 1024 })
 }))
@@ -104,6 +126,39 @@ function getPublishedEventPayloads(eventName: string) {
     .map(([, payload]) => payload)
 }
 
+function createDirent(
+  name: string,
+  options: { directory?: boolean; symlink?: boolean; file?: boolean }
+) {
+  return {
+    name,
+    isDirectory: () => Boolean(options.directory),
+    isSymbolicLink: () => Boolean(options.symlink),
+    isFile: () => Boolean(options.file)
+  } as fs.Dirent
+}
+
+function createFolderTool(overrides: Partial<ExternalToolConfig> = {}): ExternalToolConfig {
+  return {
+    id: 'codex',
+    name: 'OpenAI Codex',
+    skillsDir: '~/.codex/skills/',
+    filePattern: '*/SKILL.md',
+    format: 'codex',
+    capabilities: {
+      hasFrontmatter: true,
+      supportsName: true,
+      supportsDescription: true,
+      supportsTools: true,
+      supportsModel: true,
+      supportsSubfolders: true,
+      supportsReferences: true,
+      supportsScripts: true
+    },
+    ...overrides
+  }
+}
+
 describe('SkillSyncPresenter', () => {
   let presenter: SkillSyncPresenter
   let mockSkillPresenter: ISkillPresenter
@@ -112,8 +167,12 @@ describe('SkillSyncPresenter', () => {
     setSetting: ReturnType<typeof vi.fn>
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    const { checkReadPermission, checkWritePermission } =
+      await import('../../../../src/main/presenter/skillSyncPresenter/security')
+    vi.mocked(checkReadPermission).mockResolvedValue(true)
+    vi.mocked(checkWritePermission).mockResolvedValue(true)
     scanWorkerMock.scanExternalToolsInWorker.mockRejectedValue(new Error('worker unavailable'))
     scanWorkerMock.scanAndDetectDiscoveriesInWorker.mockRejectedValue(
       new Error('worker unavailable')
@@ -133,7 +192,13 @@ describe('SkillSyncPresenter', () => {
       }),
       saveSkillWithExtension: vi.fn().mockResolvedValue({ success: true, skillName: 'test' }),
       saveSkillExtension: vi.fn().mockResolvedValue(undefined),
-      listSkillScripts: vi.fn().mockResolvedValue([])
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      getSkillsDir: vi.fn().mockResolvedValue('/home/user/.deepchat/skills'),
+      getUnifiedSkillCatalog: vi.fn().mockResolvedValue([]),
+      getSkillManagementState: vi.fn().mockResolvedValue({ version: 1, skills: {} }),
+      registerAdoptedSkill: vi.fn().mockResolvedValue(undefined),
+      registerAgentSkillLink: vi.fn().mockResolvedValue(undefined),
+      removeAgentSkillLink: vi.fn().mockResolvedValue(undefined)
     } as unknown as ISkillPresenter
 
     // Create mock config presenter
@@ -715,6 +780,450 @@ describe('SkillSyncPresenter', () => {
 
       expect(result).toHaveLength(2)
       expect(toolScanner.getAllTools).toHaveBeenCalled()
+    })
+  })
+
+  describe('scanSkillAgents', () => {
+    it('lists only user-level folder-format agents', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getAllTools).mockReturnValue([
+        codexTool,
+        createFolderTool({
+          id: 'cursor-project',
+          name: 'Cursor (Project)',
+          skillsDir: '.cursor/skills/',
+          format: 'cursor',
+          isProjectLevel: true
+        }),
+        createFolderTool({
+          id: 'windsurf',
+          name: 'Windsurf',
+          skillsDir: '.windsurf/rules/',
+          filePattern: '*.md',
+          format: 'windsurf',
+          capabilities: {
+            ...codexTool.capabilities,
+            supportsSubfolders: false,
+            supportsReferences: false,
+            supportsScripts: false
+          },
+          isProjectLevel: true
+        })
+      ])
+      vi.mocked(toolScanner.scanExternalTools).mockResolvedValue([
+        {
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: '/home/user/.codex/skills',
+          skills: [
+            {
+              name: 'agent-skill',
+              path: '/home/user/.codex/skills/agent-skill',
+              format: 'codex',
+              lastModified: new Date()
+            }
+          ]
+        }
+      ])
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('agent-skill', { directory: true })
+      ] as any)
+
+      const agents = await presenter.scanSkillAgents()
+
+      expect(agents).toEqual([
+        expect.objectContaining({
+          id: 'codex',
+          skillsCount: 1,
+          agentOwnedCount: 1,
+          supportsLinkManagement: true,
+          status: 'ready'
+        })
+      ])
+    })
+
+    it('classifies linked, agent-owned, external-link, broken-link, and conflict skills', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'agent-only',
+            path: '/home/user/.codex/skills/agent-only',
+            format: 'codex',
+            lastModified: new Date()
+          },
+          {
+            name: 'conflict-skill',
+            path: '/home/user/.codex/skills/conflict-skill',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(mockSkillPresenter.getUnifiedSkillCatalog).mockResolvedValue([
+        {
+          name: 'conflict-skill',
+          description: 'DeepChat conflict',
+          path: '/home/user/.deepchat/skills/conflict-skill/SKILL.md',
+          skillRoot: '/home/user/.deepchat/skills/conflict-skill',
+          canonicalPath: '/home/user/.deepchat/skills/conflict-skill',
+          sourceType: 'created',
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        },
+        {
+          name: 'linked-skill',
+          description: 'Linked DeepChat skill',
+          path: '/home/user/.deepchat/skills/linked-skill/SKILL.md',
+          skillRoot: '/home/user/.deepchat/skills/linked-skill',
+          canonicalPath: '/home/user/.deepchat/skills/linked-skill',
+          sourceType: 'created',
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        }
+      ] as any)
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('agent-only', { directory: true }),
+        createDirent('conflict-skill', { directory: true }),
+        createDirent('linked-skill', { symlink: true }),
+        createDirent('external-skill', { symlink: true }),
+        createDirent('broken-skill', { symlink: true })
+      ] as any)
+      vi.mocked(fs.promises.readlink).mockImplementation(async (linkPath) => {
+        if (String(linkPath).endsWith('/linked-skill')) {
+          return '/home/user/.deepchat/skills/linked-skill'
+        }
+        if (String(linkPath).endsWith('/external-skill')) {
+          return '/tmp/external-skill'
+        }
+        return '/home/user/.deepchat/skills/missing-skill'
+      })
+      vi.mocked(fs.promises.access).mockImplementation(async (targetPath) => {
+        if (String(targetPath).includes('missing-skill')) {
+          throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+        }
+      })
+      vi.mocked(fs.promises.readFile).mockImplementation(async (filePath) => {
+        if (String(filePath).startsWith('/home/user/.codex/skills/conflict-skill')) {
+          return 'agent content'
+        }
+        return 'deepchat content'
+      })
+
+      const detail = await presenter.scanSkillAgent({ agentId: 'codex' })
+      const statusByName = new Map(detail.skills.map((skill) => [skill.name, skill.status]))
+
+      expect(detail).toEqual(
+        expect.objectContaining({
+          id: 'codex',
+          skillsCount: 5,
+          linkedCount: 1,
+          agentOwnedCount: 1,
+          conflictCount: 1,
+          brokenLinkCount: 1,
+          status: 'ready'
+        })
+      )
+      expect(statusByName).toEqual(
+        new Map([
+          ['agent-only', 'agent-owned'],
+          ['broken-skill', 'broken-link'],
+          ['conflict-skill', 'conflict'],
+          ['external-skill', 'linked-out'],
+          ['linked-skill', 'linked']
+        ])
+      )
+    })
+
+    it('reads detail markdown for a scanned agent skill', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'agent-only',
+            description: 'Agent only',
+            path: '/home/user/.codex/skills/agent-only',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('agent-only', { directory: true })
+      ] as any)
+      vi.mocked(mockSkillPresenter.getUnifiedSkillCatalog).mockResolvedValue([])
+      vi.mocked(fs.promises.readFile).mockResolvedValue('# Agent only')
+
+      const detail = await presenter.getAgentSkillDetail({
+        agentId: 'codex',
+        skillName: 'agent-only'
+      })
+
+      expect(detail).toEqual({
+        name: 'agent-only',
+        description: 'Agent only',
+        sourcePath: '/home/user/.codex/skills/agent-only/SKILL.md',
+        markdown: '# Agent only',
+        mutable: true
+      })
+    })
+
+    it('previews adoption conflicts with the default renamed target', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'agent-only',
+            path: '/home/user/.codex/skills/agent-only',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(mockSkillPresenter.getUnifiedSkillCatalog).mockResolvedValue([
+        {
+          name: 'agent-only',
+          description: 'Existing DeepChat skill',
+          path: '/home/user/.deepchat/skills/agent-only/SKILL.md',
+          skillRoot: '/home/user/.deepchat/skills/agent-only',
+          canonicalPath: '/home/user/.deepchat/skills/agent-only',
+          sourceType: 'created',
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        }
+      ] as any)
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('agent-only', { directory: true })
+      ] as any)
+      vi.mocked(fs.promises.readFile).mockResolvedValue(
+        '---\nname: agent-only\ndescription: Agent skill\n---\n# Agent'
+      )
+      vi.mocked(fs.promises.access).mockRejectedValue(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      )
+
+      const preview = await presenter.previewAdoptAgentSkill({
+        agentId: 'codex',
+        skillName: 'agent-only'
+      })
+
+      expect(preview).toEqual(
+        expect.objectContaining({
+          agentId: 'codex',
+          skillName: 'agent-only',
+          targetName: 'agent-only-codex',
+          conflict: true,
+          agentPath: '/home/user/.codex/skills/agent-only',
+          targetPath: '/home/user/.deepchat/skills/agent-only-codex'
+        })
+      )
+    })
+
+    it('adopts an agent-owned skill through private temp and backup paths', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'agent-only',
+            path: '/home/user/.codex/skills/agent-only',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(fs.promises.readdir).mockImplementation(async (targetPath) => {
+        if (String(targetPath) === '/home/user/.codex/skills') {
+          return [createDirent('agent-only', { directory: true })] as any
+        }
+        if (String(targetPath) === '/home/user/.codex/skills/agent-only') {
+          return [createDirent('SKILL.md', { file: true })] as any
+        }
+        return [] as any
+      })
+      vi.mocked(fs.promises.readFile).mockResolvedValue(
+        '---\nname: agent-only\ndescription: Agent skill\n---\n# Agent'
+      )
+      vi.mocked(fs.promises.access).mockRejectedValue(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      )
+      vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined)
+      vi.mocked(fs.promises.rm).mockResolvedValue(undefined)
+      vi.mocked(fs.promises.copyFile).mockResolvedValue(undefined)
+      vi.mocked(fs.promises.rename).mockResolvedValue(undefined)
+      vi.mocked(fs.promises.symlink).mockResolvedValue(undefined)
+
+      const result = await presenter.executeAdoptAgentSkill({
+        agentId: 'codex',
+        skillName: 'agent-only'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          skillName: 'agent-only',
+          targetPath: '/home/user/.deepchat/skills/agent-only',
+          agentPath: '/home/user/.codex/skills/agent-only'
+        })
+      )
+      expect(fs.promises.copyFile).toHaveBeenCalledWith(
+        '/home/user/.codex/skills/agent-only/SKILL.md',
+        expect.stringContaining('/home/user/.deepchat/tmp/skill-adoptions/')
+      )
+      expect(fs.promises.rename).toHaveBeenCalledWith(
+        expect.stringContaining('/home/user/.deepchat/tmp/skill-adoptions/'),
+        '/home/user/.deepchat/skills/agent-only'
+      )
+      expect(fs.promises.rename).toHaveBeenCalledWith(
+        '/home/user/.codex/skills/agent-only',
+        expect.stringContaining('/home/user/.deepchat/backups/skill-adoptions/codex/agent-only/')
+      )
+      expect(fs.promises.symlink).toHaveBeenCalledWith(
+        '/home/user/.deepchat/skills/agent-only',
+        '/home/user/.codex/skills/agent-only',
+        'dir'
+      )
+      expect(mockSkillPresenter.registerAdoptedSkill).toHaveBeenCalledWith({
+        name: 'agent-only',
+        canonicalPath: '/home/user/.deepchat/skills/agent-only',
+        agentId: 'codex',
+        agentPath: '/home/user/.codex/skills/agent-only',
+        originalPath: '/home/user/.codex/skills/agent-only'
+      })
+    })
+
+    it('links DeepChat skills to an agent and records link ownership', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: []
+      })
+      vi.mocked(mockSkillPresenter.getUnifiedSkillCatalog).mockResolvedValue([
+        {
+          name: 'deepchat-skill',
+          description: 'DeepChat skill',
+          path: '/home/user/.deepchat/skills/deepchat-skill/SKILL.md',
+          skillRoot: '/home/user/.deepchat/skills/deepchat-skill',
+          canonicalPath: '/home/user/.deepchat/skills/deepchat-skill',
+          sourceType: 'created',
+          deepchatDisabled: false,
+          agentLinks: {},
+          mutable: true
+        }
+      ] as any)
+      vi.mocked(fs.promises.readdir).mockResolvedValue([] as any)
+      vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined)
+      vi.mocked(fs.promises.symlink).mockResolvedValue(undefined)
+
+      const result = await presenter.executeLinkDeepChatSkills({
+        agentId: 'codex',
+        skillNames: ['deepchat-skill']
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: true,
+          linked: 1,
+          skipped: 0
+        })
+      )
+      expect(fs.promises.symlink).toHaveBeenCalledWith(
+        '/home/user/.deepchat/skills/deepchat-skill',
+        '/home/user/.codex/skills/deepchat-skill',
+        'dir'
+      )
+      expect(mockSkillPresenter.registerAgentSkillLink).toHaveBeenCalledWith({
+        skillName: 'deepchat-skill',
+        agentId: 'codex',
+        agentPath: '/home/user/.codex/skills/deepchat-skill'
+      })
+    })
+
+    it('refuses to repair or remove links not created by DeepChat', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool())
+      vi.mocked(mockSkillPresenter.getSkillManagementState).mockResolvedValue({
+        version: 1,
+        skills: {
+          external: {
+            name: 'external',
+            canonicalPath: '/home/user/.deepchat/skills/external',
+            deepchat: { disabled: false },
+            extension: {
+              version: 1,
+              env: {},
+              runtimePolicy: { python: 'auto', node: 'auto' },
+              scriptOverrides: {}
+            },
+            source: { type: 'created' },
+            agentLinks: {
+              codex: {
+                path: '/home/user/.codex/skills/external',
+                state: 'linked',
+                createdByDeepChat: false
+              }
+            }
+          }
+        }
+      } as any)
+
+      await expect(
+        presenter.repairAgentSkillLink({ agentId: 'codex', skillName: 'external' })
+      ).resolves.toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining('not created by DeepChat')
+        })
+      )
+      await expect(
+        presenter.removeAgentSkillLink({ agentId: 'codex', skillName: 'external' })
+      ).resolves.toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.stringContaining('not created by DeepChat')
+        })
+      )
+      expect(fs.promises.rm).not.toHaveBeenCalled()
     })
   })
 

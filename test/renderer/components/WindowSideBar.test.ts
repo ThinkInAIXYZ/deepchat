@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 type SetupOptions = {
@@ -19,7 +19,14 @@ type SetupOptions = {
     id: string
     label: string
     labelKey?: string
-    sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
+    sessions: Array<{
+      id: string
+      title: string
+      status: string
+      isPinned?: boolean
+      projectDir?: string
+      updatedAt?: number
+    }>
   }>
   remoteStatus?: {
     enabled: boolean
@@ -30,6 +37,7 @@ type SetupOptions = {
   projectEnvironments?: Array<{ path: string }>
   archivedProjectEnvironments?: Array<{ path: string }>
   defaultChatWorkspacePath?: string | null
+  currentRouteName?: string
 }
 
 const TEST_TIMEOUT_MS = 20000
@@ -225,6 +233,28 @@ const setup = async (options: SetupOptions = {}) => {
       spotlightStore.open = !spotlightStore.open
     })
   })
+  const router = {
+    currentRoute: ref({
+      name: options.currentRouteName ?? 'chat',
+      query: {},
+      params: {}
+    }),
+    hasRoute: vi.fn((name: string) => ['chat', 'plugins', 'plugins-detail'].includes(String(name))),
+    push: vi.fn(async (location: { name?: string }) => {
+      router.currentRoute.value = {
+        name: location.name ?? router.currentRoute.value.name,
+        query: {},
+        params: {}
+      }
+    }),
+    replace: vi.fn(async (location: { name?: string }) => {
+      router.currentRoute.value = {
+        name: location.name ?? router.currentRoute.value.name,
+        query: {},
+        params: {}
+      }
+    })
+  }
   const settingsClient = {
     openSettings: vi.fn().mockResolvedValue({ windowId: 99 })
   }
@@ -342,6 +372,9 @@ const setup = async (options: SetupOptions = {}) => {
     useI18n: () => ({
       t: (key: string) => key
     })
+  }))
+  vi.doMock('vue-router', () => ({
+    useRouter: () => router
   }))
 
   const passthrough = defineComponent({
@@ -461,6 +494,7 @@ const setup = async (options: SetupOptions = {}) => {
     deviceClient,
     remoteControlClient,
     spotlightStore,
+    router,
     pageRouterStore,
     sidebarStore,
     projectStore
@@ -512,11 +546,14 @@ describe('WindowSideBar agent switch', () => {
     TEST_TIMEOUT_MS
   )
 
-  it('delegates sidebar new chat clicks to the unified session action', async () => {
-    const { wrapper, sessionStore } = await setup()
+  it('routes to chat before delegating sidebar new chat clicks to the unified session action', async () => {
+    const { wrapper, sessionStore, router } = await setup({
+      currentRouteName: 'plugins'
+    })
 
     await (wrapper.vm as any).handleNewChat()
 
+    expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
@@ -564,7 +601,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'normal-1',
                 title: 'Normal Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -613,6 +651,53 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
+    'collapses and expands chat sessions from the chat header',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: '__no_project__',
+            label: 'No Project',
+            labelKey: 'common.project.none',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.get('[data-testid="window-sidebar-chat-icon"]').attributes('data-icon')).toBe(
+        'lucide:message-square'
+      )
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
+      expect(
+        (wrapper.get('[data-group-id="__chat__"]').element.nextElementSibling as HTMLElement).style
+          .display
+      ).toBe('none')
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
     'toggles pinned state from a session item action',
     async () => {
       const session = {
@@ -642,37 +727,14 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
-    'filters pinned and grouped sessions by the sidebar search input',
+    'toggles spotlight from the expanded sidebar search command',
     async () => {
-      const { wrapper } = await setup({
-        pinnedSessions: [
-          {
-            id: 'pinned-1',
-            title: 'Alpha Session',
-            status: 'none'
-          }
-        ],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [
-              {
-                id: 'group-1',
-                title: 'Beta Session',
-                status: 'none'
-              }
-            ]
-          }
-        ]
-      })
+      const { wrapper, spotlightStore } = await setup()
 
-      await wrapper.find('input').setValue('alpha')
+      await wrapper.get('[data-testid="app-search-command-button"]').trigger('click')
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Alpha Session')
-      expect(wrapper.text()).not.toContain('Beta Session')
+      expect(spotlightStore.toggleSpotlight).toHaveBeenCalledTimes(1)
     },
     TEST_TIMEOUT_MS
   )
@@ -763,7 +825,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -798,7 +861,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -922,9 +986,8 @@ describe('WindowSideBar agent switch', () => {
         cancelable: true
       })
 
-      Object.defineProperty(event, 'target', {
-        value: wrapper.find('input').element
-      })
+      const input = document.createElement('input')
+      Object.defineProperty(event, 'target', { value: input })
 
       ;(wrapper.vm as any).handleWindowShortcutKeydown(event)
       await flushPromises()
@@ -1081,16 +1144,15 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
-    'keeps the sidebar search region interactive outside the drag area',
+    'keeps the expanded sidebar command region interactive outside the drag area',
     async () => {
       const { wrapper } = await setup()
 
       expect(wrapper.get('[data-testid="window-sidebar-session-column"]').classes()).toContain(
         'window-no-drag-region'
       )
-      expect(wrapper.get('[data-testid="window-sidebar-search"]').classes()).toContain(
-        'window-no-drag-region'
-      )
+      expect(wrapper.get('[data-testid="app-search-command-button"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="app-plugins-button"]').exists()).toBe(true)
     },
     TEST_TIMEOUT_MS
   )
@@ -1143,7 +1205,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'time-1',
                 title: 'Today Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -1387,24 +1450,17 @@ describe('WindowSideBar agent switch', () => {
 
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('chat.sidebar.chats')
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.text()).toContain('chat.sidebar.workspace')
+      expect(wrapper.text()).toContain('Default Chat Session')
       expect(
         wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
-      ).toEqual(['__pinned__', '/Users/test/Documents/DeepChat', '/work/alpha', '/work/beta'])
-      expect(
-        wrapper.get('[data-group-id="/Users/test/Documents/DeepChat"]').attributes('aria-expanded')
-      ).toBe('false')
-      expect(
-        wrapper
-          .get('[data-group-id="/Users/test/Documents/DeepChat"]')
-          .find('[data-testid="window-sidebar-group-icon"]')
-          .attributes('data-icon')
-      ).toBe('lucide:message-square')
+      ).toEqual(['__pinned__', '__chat__', '/work/alpha', '/work/beta'])
       expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
 
       wrapper
         .getComponent({ name: 'draggable' })
-        .vm.$emit('update:modelValue', [chatGroup, betaGroup, alphaGroup])
+        .vm.$emit('update:modelValue', [betaGroup, alphaGroup])
       await flushPromises()
 
       expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
@@ -1461,25 +1517,71 @@ describe('WindowSideBar agent switch', () => {
 
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('chat.sidebar.chats')
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.text()).toContain('chat.sidebar.workspace')
       expect(wrapper.text()).not.toContain('common.project.none')
-      expect(wrapper.get('[data-group-id="__no_project__"]').attributes('aria-expanded')).toBe(
-        'false'
-      )
-      expect(
-        wrapper
-          .get('[data-group-id="__no_project__"]')
-          .find('[data-testid="window-sidebar-group-icon"]')
-          .attributes('data-icon')
-      ).toBe('lucide:message-square')
+      expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+      expect(wrapper.find('[data-group-id="__chat__"]').exists()).toBe(true)
       expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
 
       wrapper
         .getComponent({ name: 'draggable' })
-        .vm.$emit('update:modelValue', [noProjectGroup, betaGroup, alphaGroup])
+        .vm.$emit('update:modelValue', [betaGroup, alphaGroup])
       await flushPromises()
 
       expect(projectStore.reorderEnvironments).toHaveBeenCalledWith(['/work/beta', '/work/alpha'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps date grouping scoped to workspace sessions',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'common.time.lastWeek',
+            label: 'common.time.lastWeek',
+            labelKey: 'common.time.lastWeek',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none',
+                projectDir: '',
+                updatedAt: 200
+              },
+              {
+                id: 'workspace-1',
+                title: 'Workspace Session',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 100
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__chat__', 'common.time.lastWeek'])
+      expect(
+        wrapper
+          .findAll('[data-testid="sidebar-session-item"]')
+          .map((item) => item.attributes('data-session-id'))
+      ).toEqual(['chat-1', 'workspace-1'])
+
+      const html = wrapper.html()
+      expect(html.indexOf('data-group-id="__chat__"')).toBeLessThan(
+        html.indexOf('data-session-id="chat-1"')
+      )
+      expect(html.indexOf('chat.sidebar.workspace')).toBeLessThan(
+        html.indexOf('data-group-id="common.time.lastWeek"')
+      )
     },
     TEST_TIMEOUT_MS
   )
@@ -1500,7 +1602,7 @@ describe('WindowSideBar agent switch', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('chat.sidebar.chats')
+    expect(wrapper.text()).not.toContain('chat.sidebar.chatSection')
   })
 
   it(
@@ -1534,7 +1636,7 @@ describe('WindowSideBar agent switch', () => {
         groups: [alphaGroup, betaGroup]
       })
 
-      await wrapper.find('input').setValue('shared')
+      ;(wrapper.vm as any).sessionSearchQuery = 'shared'
       await flushPromises()
 
       const draggable = wrapper.getComponent({ name: 'draggable' })
@@ -1660,8 +1762,8 @@ describe('WindowSideBar agent switch', () => {
     disabledSetup.wrapper.unmount()
   })
 
-  it('opens settings and navigates to remote settings when remote button is clicked', async () => {
-    const { wrapper, settingsClient } = await setup({
+  it('routes to the first enabled remote plugin when remote button is clicked', async () => {
+    const { wrapper, settingsClient, router } = await setup({
       remoteStatus: {
         enabled: true,
         state: 'running'
@@ -1670,10 +1772,11 @@ describe('WindowSideBar agent switch', () => {
 
     await wrapper.find('[data-testid=\"remote-control-button\"]').trigger('click')
     await flushPromises()
-    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
-    expect(settingsClient.openSettings).toHaveBeenCalledWith({
-      routeName: 'settings-remote'
+    expect(router.push).toHaveBeenCalledWith({
+      name: 'plugins-detail',
+      params: { pluginId: 'remote:telegram' }
     })
+    expect(settingsClient.openSettings).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
@@ -1738,8 +1841,8 @@ describe('WindowSideBar viewport auto-fill', () => {
             label: 'common.time.today',
             labelKey: 'common.time.today',
             sessions: [
-              { id: 'session-1', title: 'Alpha', status: 'none' },
-              { id: 'session-2', title: 'Bravo', status: 'none' }
+              { id: 'session-1', title: 'Alpha', status: 'none', projectDir: '/work/today' },
+              { id: 'session-2', title: 'Bravo', status: 'none', projectDir: '/work/today' }
             ]
           }
         ],
@@ -1759,40 +1862,6 @@ describe('WindowSideBar viewport auto-fill', () => {
         'session-2',
         'session-3'
       ])
-
-      wrapper.unmount()
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
-    'rechecks pagination when local search filters visible sessions below the viewport',
-    async () => {
-      const { wrapper, sessionStore } = await setup({
-        hasMore: true,
-        sessions: [{ id: 'session-1' }, { id: 'session-2' }],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [
-              { id: 'session-1', title: 'Alpha', status: 'none' },
-              { id: 'session-2', title: 'Bravo', status: 'none' }
-            ]
-          }
-        ],
-        nextPages: [{ items: [{ id: 'session-3' }], hasMore: false }]
-      })
-      setSidebarListSize(wrapper, { scrollHeight: 240, clientHeight: 120 })
-      await flushSidebarFillFrame()
-      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
-
-      await wrapper.get('[data-testid="window-sidebar-search"] input').setValue('missing older')
-      setSidebarListSize(wrapper, { scrollHeight: 60, clientHeight: 120 })
-      await flushSidebarFillFrame()
-
-      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
 
       wrapper.unmount()
     },

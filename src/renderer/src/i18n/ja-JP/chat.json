@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "最上部へ移動",
     "moveProjectGroupUp": "上へ移動",
     "moveProjectGroupDown": "下へ移動",
-    "moveProjectGroupBottom": "最下部へ移動"
+    "moveProjectGroupBottom": "最下部へ移動",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "タスク概要",

@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "Déplacer tout en haut",
     "moveProjectGroupUp": "Déplacer vers le haut",
     "moveProjectGroupDown": "Déplacer vers le bas",
-    "moveProjectGroupBottom": "Déplacer tout en bas"
+    "moveProjectGroupBottom": "Déplacer tout en bas",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",

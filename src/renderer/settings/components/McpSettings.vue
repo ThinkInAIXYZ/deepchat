@@ -497,15 +497,23 @@ const closeMarketView = async () => {
   const nextQuery = { ...route.query }
   delete nextQuery.view
 
+  const routeName =
+    typeof router.hasRoute === 'function' && router.hasRoute('plugins-mcp')
+      ? 'plugins-mcp'
+      : 'settings-mcp'
   await router.replace({
-    name: 'settings-mcp',
+    name: routeName,
     query: nextQuery
   })
 }
 
 const openMarketView = async () => {
+  const routeName =
+    typeof router.hasRoute === 'function' && router.hasRoute('plugins-mcp')
+      ? 'plugins-mcp'
+      : 'settings-mcp'
   await router.push({
-    name: 'settings-mcp',
+    name: routeName,
     query: {
       ...route.query,
       view: 'market'

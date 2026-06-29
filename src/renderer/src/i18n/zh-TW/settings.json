@@ -1821,7 +1821,7 @@
       "pythonRuntime": "Python 執行環境",
       "nodeRuntime": "Node 執行環境",
       "envTitle": "環境變數",
-      "envWarning": "僅在 UI 中遮罩顯示，實際會以明文寫入 skill sidecar 檔案。",
+      "envWarning": "僅在 UI 中遮罩顯示，實際會以明文寫入應用程式資料庫。",
       "scriptsTitle": "內建腳本",
       "scriptsHint": "只有 scripts/ 目錄下的腳本會透過 skill_run 暴露給 agent。",
       "noScripts": "未發現可執行腳本",
@@ -1854,7 +1854,9 @@
       "title": "安裝 skill",
       "urlHint": "輸入 skill 包的下載連結",
       "urlPlaceholder": "輸入 skill ZIP 下載地址",
-      "zipHint": "點擊或拖放 ZIP 檔案到此處"
+      "zipHint": "點擊或拖放 ZIP 檔案到此處",
+      "basicTitle": "資料夾、ZIP 或 URL",
+      "basicDescription": "使用現有安裝器匯入本機資料夾、ZIP 套件和 ZIP 下載連結。"
     },
     "noResults": "未找到匹配的 skill",
     "openFolder": "開啟資料夾",
@@ -1954,7 +1956,214 @@
       "scripts": "{count} 個腳本",
       "env": "{count} 個環境變數",
       "pythonShort": "Py",
-      "nodeShort": "Node"
+      "nodeShort": "Node",
+      "enabled": "已啟用",
+      "disabled": "已停用",
+      "enable": "在 DeepChat 中啟用",
+      "disable": "在 DeepChat 中停用",
+      "viewDetails": "檢視詳細資訊",
+      "edit": "編輯",
+      "installToAgent": "安裝到 Agent"
+    },
+    "enable": {
+      "success": "已啟用 skill",
+      "successMessage": "skill {name} 已在 DeepChat 中啟用",
+      "failed": "啟用失敗"
+    },
+    "disable": {
+      "success": "已停用 skill",
+      "successMessage": "skill {name} 已在 DeepChat 中停用",
+      "failed": "停用失敗"
+    },
+    "tabs": {
+      "library": "技能库",
+      "agents": "Agents",
+      "syncDirectory": "同步目錄"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} 个支持的 Agent",
+      "refresh": "刷新",
+      "empty": "未检测到支持的 Agent。",
+      "emptySkills": "该 Agent 暂无 skill。",
+      "loadFailed": "加载 Agent skills 失败",
+      "conflictCount": "{count} 冲突",
+      "table": {
+        "skill": "Skill",
+        "owner": "归属",
+        "status": "状态",
+        "action": "操作",
+        "preview": "預覽"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "外部链接",
+        "broken-link": "断开的链接",
+        "unknown": "未知"
+      },
+      "status": {
+        "linked": "已链接",
+        "agent-owned": "Agent 所有",
+        "linked-out": "链接到外部",
+        "broken-link": "链接断开",
+        "conflict": "冲突",
+        "empty": "空"
+      },
+      "actions": {
+        "adopt": "接管",
+        "resolve-conflict": "解决",
+        "repair-link": "修复",
+        "remove-link": "移除",
+        "open": "打开",
+        "pending": "写入操作将在后续阶段启用。",
+        "view": "檢視"
+      },
+      "agentStatus": {
+        "ready": "可用",
+        "detected-no-skills-dir": "无 skills 目录",
+        "permission-denied": "无权限"
+      },
+      "counts": {
+        "skills": "{count} 个 skill",
+        "linked": "{count} 已链接",
+        "agentOwned": "{count} Agent 所有",
+        "conflicts": "{count} 冲突",
+        "broken": "{count} 断开"
+      },
+      "adoptDialog": {
+        "adoptTitle": "接管 Skill",
+        "conflictTitle": "解决冲突",
+        "adoptDescription": "将该 skill 复制到 DeepChat，备份原始内容，并把 Agent 入口替换为链接。",
+        "conflictDescription": "{skill} 已存在于 DeepChat。默认操作会保留当前 DeepChat skill，并将该 Agent skill 以重命名副本接管。",
+        "loading": "正在准备接管预览...",
+        "previewFailed": "准备接管预览失败",
+        "executeFailed": "接管 skill 失败",
+        "currentLocation": "当前位置",
+        "afterAdoption": "接管后",
+        "backup": "备份",
+        "chooseAction": "选择操作",
+        "adoptAs": "接管为 {name}",
+        "replaceDeepChat": "替换现有 DeepChat skill",
+        "keepCurrent": "保持当前状态",
+        "unsupportedStrategies": "当前版本暂不支持替换和保持策略。",
+        "warnings": "警告",
+        "apply": "应用",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill 已接管",
+        "successDescription": "{name} 现在由 DeepChat 管理。"
+      },
+      "syncToAgent": "同步到 Agent",
+      "syncDialog": {
+        "title": "同步到 {agent}",
+        "description": "为所选 skill 创建 DeepChat 拥有的链接。已有 Agent 内容会被跳过。",
+        "target": "目标",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "没有可链接的 DeepChat skill。",
+        "preview": "预览",
+        "loading": "正在准备链接预览...",
+        "noSelection": "至少选择一个 skill。",
+        "apply": "应用",
+        "failed": "同步 skills 失败",
+        "successTitle": "Skills 已同步",
+        "successDescription": "已链接 {count} 个 skill。",
+        "status": {
+          "ready": "可用",
+          "already-linked": "已链接",
+          "conflict": "冲突",
+          "missing": "缺失"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "链接已修复",
+        "removeSuccess": "链接已移除",
+        "successDescription": "{name} 已更新。",
+        "failed": "更新链接失败"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "掃描 Git 儲存庫，並將選取的 skills 安裝到 DeepChat。",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "掃描",
+      "detectedFormat": "偵測到格式：",
+      "format": {
+        "single-skill": "單一 skill",
+        "multi-skill": "多 skill"
+      },
+      "selectedCount": "已選 {count} 個",
+      "empty": "找不到有效 skill。",
+      "conflict": "衝突",
+      "invalid": "無效",
+      "strategy": "衝突策略",
+      "rename": "重新命名新 skill",
+      "overwrite": "取代現有項目",
+      "skip": "略過現有項目",
+      "install": "安裝到 DeepChat",
+      "failed": "Git 安裝失敗",
+      "success": "Git 安裝完成",
+      "successMessage": "已安裝 {count} 個，失敗 {failed} 個",
+      "menuItem": "Git 儲存庫..."
+    },
+    "importExport": {
+      "directory": "本機多 skill 同步目錄",
+      "browse": "瀏覽",
+      "save": "儲存",
+      "saved": "同步目錄已儲存",
+      "export": "匯出到目錄",
+      "import": "從目錄匯入",
+      "includeDisabled": "包含已停用 skills",
+      "previewExport": "預覽匯出",
+      "exportNow": "立即匯出",
+      "previewImport": "預覽匯入",
+      "importSelected": "匯入選取項目",
+      "noExportPreview": "先預覽匯出以查看目標狀態。",
+      "noImportPreview": "先預覽匯入以查看可用 skills。",
+      "strategy": "衝突策略",
+      "rename": "重新命名匯入項目",
+      "overwrite": "取代本機項目",
+      "skip": "略過現有項目",
+      "exported": "匯出完成",
+      "imported": "匯入完成",
+      "result": "完成 {count} 個，失敗 {failed} 個",
+      "state": {
+        "new": "新增",
+        "same": "相同",
+        "modified": "已修改",
+        "conflict": "衝突",
+        "invalid": "無效"
+      }
+    },
+    "detail": {
+      "failed": "讀取 skill 詳細資訊失敗",
+      "noDescription": "暫無描述",
+      "empty": "暫無可預覽內容",
+      "installToAgent": "安裝到 Agent",
+      "enabled": "已啟用",
+      "disabled": "已停用",
+      "enable": "在 DeepChat 中啟用",
+      "disable": "在 DeepChat 中停用",
+      "preview": "預覽",
+      "edit": "編輯",
+      "delete": "刪除",
+      "confirmDeleteTitle": "刪除 skill",
+      "confirmDeleteDescription": "確定要刪除 skill「{name}」嗎？此操作無法復原。"
+    },
+    "installToAgent": {
+      "title": "安裝 {name} 到 Agent",
+      "description": "為這個 skill 在本機 Agent skills 目錄建立 DeepChat 擁有的連結。",
+      "failed": "安裝到 Agent 失敗",
+      "emptyAgents": "未偵測到可用的本機 Agent。",
+      "target": "目標 Agent",
+      "preview": "預覽",
+      "loadingPreview": "正在準備連結預覽...",
+      "noPreview": "選擇一個 Agent 後檢視預覽。",
+      "install": "安裝",
+      "success": "已安裝到 Agent",
+      "successMessage": "{name} 已連結到目標 Agent。",
+      "disconnect": "斷開",
+      "disconnectSuccess": "已從 Agent 斷開",
+      "disconnectSuccessMessage": "{name} 已從目標 Agent 斷開。",
+      "disconnectFailed": "從 Agent 斷開失敗"
     }
   },
   "environments": {
@@ -2537,5 +2746,16 @@
       "similarityThresholdHint": "範圍 0-1。預設：{default}。",
       "weightHint": "非負排序權重。預設：{default}。"
     }
+  },
+  "pluginsHub": {
+    "subtitle": "統一管理 DeepChat 的 Skills、MCP、官方插件和遠端渠道。",
+    "available": "可用插件",
+    "add": "新增",
+    "manage": "管理",
+    "emptySearch": "沒有可用插件。",
+    "pluginNotFound": "找不到插件。",
+    "capabilities": "能力",
+    "actionResult": "操作結果",
+    "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件"
   }
 }

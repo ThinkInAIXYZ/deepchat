@@ -20,7 +20,7 @@ const resolveGuidedOnboardingResumeStepId = (
 
 export async function continueGuidedOnboardingFromSettings(options: {
   state: GuidedOnboardingState | null | undefined
-  router: Pick<Router, 'push'>
+  router: Pick<Router, 'hasRoute' | 'push'>
   currentRoute?: {
     name?: unknown
     params?: Record<string, unknown>
@@ -49,6 +49,17 @@ export async function continueGuidedOnboardingFromSettings(options: {
   const target = resolveGuidedOnboardingStepTarget(stepId)
 
   if (target?.surface === 'settings' && target.routeName) {
+    const mainRouteName =
+      target.routeName === 'settings-mcp'
+        ? 'plugins-mcp'
+        : target.routeName === 'settings-skills'
+          ? 'plugins-skills'
+          : null
+    if (mainRouteName && router.hasRoute(mainRouteName)) {
+      await router.push({ name: mainRouteName })
+      return
+    }
+
     const providerId = currentRoute?.params?.providerId
 
     await router.push({

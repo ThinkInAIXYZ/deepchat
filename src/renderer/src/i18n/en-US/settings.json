@@ -1970,7 +1970,9 @@
       "success": "Installation Successful",
       "successMessage": "Skill {name} has been installed successfully",
       "failed": "Installation Failed",
-      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file."
+      "dragInvalid": "Unsupported drop. Drag a skill folder or a single .zip file.",
+      "basicTitle": "Folder, ZIP, or URL",
+      "basicDescription": "Use the existing installer for local folders, ZIP packages, and ZIP download URLs."
     },
     "delete": {
       "title": "Delete Skill",
@@ -1983,7 +1985,24 @@
       "scripts": "{count} scripts",
       "env": "{count} env",
       "pythonShort": "Py",
-      "nodeShort": "Node"
+      "nodeShort": "Node",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable in DeepChat",
+      "disable": "Disable in DeepChat",
+      "viewDetails": "View details",
+      "edit": "Edit",
+      "installToAgent": "Install to Agent"
+    },
+    "enable": {
+      "success": "Skill Enabled",
+      "successMessage": "Skill {name} is enabled in DeepChat",
+      "failed": "Enable Failed"
+    },
+    "disable": {
+      "success": "Skill Disabled",
+      "successMessage": "Skill {name} is disabled in DeepChat",
+      "failed": "Disable Failed"
     },
     "edit": {
       "title": "Edit Skill",
@@ -2005,7 +2024,7 @@
       "pythonRuntime": "Python Runtime",
       "nodeRuntime": "Node Runtime",
       "envTitle": "Environment Variables",
-      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the application database.",
       "scriptsTitle": "Bundled Scripts",
       "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
       "noScripts": "No runnable scripts detected",
@@ -2114,6 +2133,196 @@
       "dontShowAgain": "Don't show this again",
       "skip": "Skip",
       "importSelected": "Import Selected"
+    },
+    "tabs": {
+      "library": "Library",
+      "agents": "Agents",
+      "syncDirectory": "Sync Directory"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} supported agent(s)",
+      "refresh": "Refresh",
+      "syncToAgent": "Sync to Agent",
+      "empty": "No supported agents found.",
+      "emptySkills": "No skills found for this agent.",
+      "loadFailed": "Failed to load agent skills",
+      "conflictCount": "{count} conflict",
+      "table": {
+        "skill": "Skill",
+        "owner": "Owner",
+        "status": "Status",
+        "action": "Action",
+        "preview": "Preview"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "External",
+        "broken-link": "Broken link",
+        "unknown": "Unknown"
+      },
+      "status": {
+        "linked": "Linked",
+        "agent-owned": "Agent owned",
+        "linked-out": "Linked out",
+        "broken-link": "Broken link",
+        "conflict": "Conflict",
+        "empty": "Empty"
+      },
+      "actions": {
+        "adopt": "Adopt",
+        "resolve-conflict": "Resolve",
+        "repair-link": "Repair",
+        "remove-link": "Remove",
+        "open": "Open",
+        "pending": "Write actions are enabled in a later phase.",
+        "view": "View"
+      },
+      "agentStatus": {
+        "ready": "Ready",
+        "detected-no-skills-dir": "No skills directory",
+        "permission-denied": "Permission denied"
+      },
+      "counts": {
+        "skills": "{count} skill(s)",
+        "linked": "{count} linked",
+        "agentOwned": "{count} agent owned",
+        "conflicts": "{count} conflict(s)",
+        "broken": "{count} broken"
+      },
+      "adoptDialog": {
+        "adoptTitle": "Adopt Skill",
+        "conflictTitle": "Resolve Conflict",
+        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
+        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
+        "loading": "Preparing adoption preview...",
+        "previewFailed": "Failed to prepare adoption preview",
+        "executeFailed": "Failed to adopt skill",
+        "currentLocation": "Current location",
+        "afterAdoption": "After adoption",
+        "backup": "Backup",
+        "chooseAction": "Choose action",
+        "adoptAs": "Adopt as {name}",
+        "replaceDeepChat": "Replace existing DeepChat skill",
+        "keepCurrent": "Keep current state",
+        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
+        "warnings": "Warnings",
+        "apply": "Apply",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill adopted",
+        "successDescription": "{name} is now managed by DeepChat."
+      },
+      "syncDialog": {
+        "title": "Sync to {agent}",
+        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
+        "target": "Target",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "No linkable DeepChat skills.",
+        "preview": "Preview",
+        "loading": "Preparing link preview...",
+        "noSelection": "Select at least one skill.",
+        "apply": "Apply",
+        "failed": "Failed to sync skills",
+        "successTitle": "Skills synced",
+        "successDescription": "{count} skill(s) linked.",
+        "status": {
+          "ready": "Ready",
+          "already-linked": "Already linked",
+          "conflict": "Conflict",
+          "missing": "Missing"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "Link repaired",
+        "removeSuccess": "Link removed",
+        "successDescription": "{name} updated.",
+        "failed": "Failed to update link"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "Scan a Git repository and install selected skills into DeepChat.",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "Scan",
+      "detectedFormat": "Detected format:",
+      "format": {
+        "single-skill": "Single skill",
+        "multi-skill": "Multi-skill"
+      },
+      "selectedCount": "{count} selected",
+      "empty": "No valid skills found.",
+      "conflict": "Conflict",
+      "invalid": "Invalid",
+      "strategy": "Conflict strategy",
+      "rename": "Rename new skill",
+      "overwrite": "Replace existing",
+      "skip": "Skip existing",
+      "install": "Install to DeepChat",
+      "failed": "Git install failed",
+      "success": "Git install complete",
+      "successMessage": "{count} installed, {failed} failed",
+      "menuItem": "Git repository..."
+    },
+    "importExport": {
+      "directory": "Local multi-skill sync directory",
+      "browse": "Browse",
+      "save": "Save",
+      "saved": "Sync directory saved",
+      "export": "Export to directory",
+      "import": "Import from directory",
+      "includeDisabled": "Include disabled skills",
+      "previewExport": "Preview Export",
+      "exportNow": "Export Now",
+      "previewImport": "Preview Import",
+      "importSelected": "Import Selected",
+      "noExportPreview": "Preview export to see target states.",
+      "noImportPreview": "Preview import to see available skills.",
+      "strategy": "Conflict strategy",
+      "rename": "Rename imported",
+      "overwrite": "Replace local",
+      "skip": "Skip existing",
+      "exported": "Export complete",
+      "imported": "Import complete",
+      "result": "{count} completed, {failed} failed",
+      "state": {
+        "new": "New",
+        "same": "Same",
+        "modified": "Modified",
+        "conflict": "Conflict",
+        "invalid": "Invalid"
+      }
+    },
+    "detail": {
+      "failed": "Failed to load skill details",
+      "noDescription": "No description",
+      "empty": "No preview content",
+      "installToAgent": "Install to Agent",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable in DeepChat",
+      "disable": "Disable in DeepChat",
+      "preview": "Preview",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirmDeleteTitle": "Delete skill",
+      "confirmDeleteDescription": "Delete skill \"{name}\"? This action cannot be undone."
+    },
+    "installToAgent": {
+      "title": "Install {name} to Agent",
+      "description": "Create a DeepChat-owned link for this skill in a local agent skills directory.",
+      "failed": "Failed to install to Agent",
+      "emptyAgents": "No available local agents detected.",
+      "target": "Target Agent",
+      "preview": "Preview",
+      "loadingPreview": "Preparing link preview...",
+      "noPreview": "Select an agent to view the preview.",
+      "install": "Install",
+      "success": "Installed to Agent",
+      "successMessage": "{name} was linked to the target agent.",
+      "disconnect": "Disconnect",
+      "disconnectSuccess": "Disconnected from Agent",
+      "disconnectSuccessMessage": "{name} is no longer linked to the target agent.",
+      "disconnectFailed": "Failed to disconnect from Agent"
     }
   },
   "environments": {
@@ -2424,6 +2633,17 @@
       "running": "Running",
       "error": "Error"
     }
+  },
+  "pluginsHub": {
+    "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
+    "available": "Available plugins",
+    "add": "Add",
+    "manage": "Manage",
+    "emptySearch": "No available plugins.",
+    "pluginNotFound": "Plugin not found.",
+    "capabilities": "Capabilities",
+    "actionResult": "Action result",
+    "cuaDescription": "DeepChat's ComputerUse plugin built on the trycua/cua project."
   },
   "controlCenter": {
     "groups": {

@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import {
   Tooltip,
@@ -51,7 +52,6 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Button } from '@shadcn/components/ui/button'
-import { createSettingsClient } from '@api/SettingsClient'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 
@@ -60,7 +60,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const settingsClient = createSettingsClient()
+const router = useRouter()
 
 // Panel open state
 const panelOpen = ref(false)
@@ -76,7 +76,7 @@ const handleToggle = async (skillName: string) => {
 
 // Open settings page at Skills section
 const openSettings = () => {
-  void settingsClient.openSettings({ routeName: 'settings-skills' })
+  void router.push({ name: 'plugins-skills' })
   panelOpen.value = false
 }
 

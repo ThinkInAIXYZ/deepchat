@@ -1910,7 +1910,9 @@
       "success": "Cài đặt thành công",
       "successMessage": "Kỹ năng {name} đã được cài đặt thành công",
       "failed": "Cài đặt không thành công",
-      "dragInvalid": "Nội dung không được hỗ trợ. Hãy kéo một thư mục kỹ năng hoặc một tệp .zip."
+      "dragInvalid": "Nội dung không được hỗ trợ. Hãy kéo một thư mục kỹ năng hoặc một tệp .zip.",
+      "basicTitle": "Thư mục, ZIP hoặc URL",
+      "basicDescription": "Dùng trình cài đặt hiện có cho thư mục cục bộ, gói ZIP và URL tải ZIP."
     },
     "delete": {
       "title": "Xóa kỹ năng",
@@ -1923,7 +1925,24 @@
       "scripts": "Tập lệnh {count}",
       "env": "{count} môi trường",
       "pythonShort": "Py",
-      "nodeShort": "nút"
+      "nodeShort": "nút",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable in DeepChat",
+      "disable": "Disable in DeepChat",
+      "viewDetails": "Xem chi tiet",
+      "edit": "Chinh sua",
+      "installToAgent": "Cai vao Agent"
+    },
+    "enable": {
+      "success": "Skill Enabled",
+      "successMessage": "Skill {name} is enabled in DeepChat",
+      "failed": "Enable Failed"
+    },
+    "disable": {
+      "success": "Skill Disabled",
+      "successMessage": "Skill {name} is disabled in DeepChat",
+      "failed": "Disable Failed"
     },
     "edit": {
       "title": "Chỉnh sửa kỹ năng",
@@ -1945,7 +1964,7 @@
       "pythonRuntime": "Thời gian chạy Python",
       "nodeRuntime": "Thời gian chạy nút",
       "envTitle": "Biến môi trường",
-      "envWarning": "Chỉ ẩn trong giao diện người dùng. Các giá trị được lưu trữ dưới dạng văn bản thuần túy trong tệp sidecar kỹ năng.",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the application database.",
       "scriptsTitle": "Tập lệnh đi kèm",
       "scriptsHint": "Chỉ các tập lệnh trong scripts/ mới có thể chạy qua Skill_run.",
       "noScripts": "Không phát hiện thấy tập lệnh có thể chạy nào",
@@ -2054,6 +2073,196 @@
       "dontShowAgain": "Đừng hiển thị lại điều này",
       "skip": "Bỏ qua",
       "importSelected": "Nhập đã chọn"
+    },
+    "tabs": {
+      "library": "Library",
+      "agents": "Agents",
+      "syncDirectory": "Thu muc dong bo"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} supported agent(s)",
+      "refresh": "Refresh",
+      "empty": "No supported agents found.",
+      "emptySkills": "No skills found for this agent.",
+      "loadFailed": "Failed to load agent skills",
+      "conflictCount": "{count} conflict",
+      "table": {
+        "skill": "Skill",
+        "owner": "Owner",
+        "status": "Status",
+        "action": "Action",
+        "preview": "Xem truoc"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "External",
+        "broken-link": "Broken link",
+        "unknown": "Unknown"
+      },
+      "status": {
+        "linked": "Linked",
+        "agent-owned": "Agent owned",
+        "linked-out": "Linked out",
+        "broken-link": "Broken link",
+        "conflict": "Conflict",
+        "empty": "Empty"
+      },
+      "actions": {
+        "adopt": "Adopt",
+        "resolve-conflict": "Resolve",
+        "repair-link": "Repair",
+        "remove-link": "Remove",
+        "open": "Open",
+        "pending": "Write actions are enabled in a later phase.",
+        "view": "Xem"
+      },
+      "agentStatus": {
+        "ready": "Ready",
+        "detected-no-skills-dir": "No skills directory",
+        "permission-denied": "Permission denied"
+      },
+      "counts": {
+        "skills": "{count} skill(s)",
+        "linked": "{count} linked",
+        "agentOwned": "{count} agent owned",
+        "conflicts": "{count} conflict(s)",
+        "broken": "{count} broken"
+      },
+      "adoptDialog": {
+        "adoptTitle": "Adopt Skill",
+        "conflictTitle": "Resolve Conflict",
+        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
+        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
+        "loading": "Preparing adoption preview...",
+        "previewFailed": "Failed to prepare adoption preview",
+        "executeFailed": "Failed to adopt skill",
+        "currentLocation": "Current location",
+        "afterAdoption": "After adoption",
+        "backup": "Backup",
+        "chooseAction": "Choose action",
+        "adoptAs": "Adopt as {name}",
+        "replaceDeepChat": "Replace existing DeepChat skill",
+        "keepCurrent": "Keep current state",
+        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
+        "warnings": "Warnings",
+        "apply": "Apply",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill adopted",
+        "successDescription": "{name} is now managed by DeepChat."
+      },
+      "syncToAgent": "Sync to Agent",
+      "syncDialog": {
+        "title": "Sync to {agent}",
+        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
+        "target": "Target",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "No linkable DeepChat skills.",
+        "preview": "Preview",
+        "loading": "Preparing link preview...",
+        "noSelection": "Select at least one skill.",
+        "apply": "Apply",
+        "failed": "Failed to sync skills",
+        "successTitle": "Skills synced",
+        "successDescription": "{count} skill(s) linked.",
+        "status": {
+          "ready": "Ready",
+          "already-linked": "Already linked",
+          "conflict": "Conflict",
+          "missing": "Missing"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "Link repaired",
+        "removeSuccess": "Link removed",
+        "successDescription": "{name} updated.",
+        "failed": "Failed to update link"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "Quét kho Git và cài các skill đã chọn vào DeepChat.",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "Quét",
+      "detectedFormat": "Định dạng phát hiện:",
+      "format": {
+        "single-skill": "Một skill",
+        "multi-skill": "Nhiều skill"
+      },
+      "selectedCount": "Đã chọn {count}",
+      "empty": "Không tìm thấy skill hợp lệ.",
+      "conflict": "Xung đột",
+      "invalid": "Không hợp lệ",
+      "strategy": "Chiến lược xung đột",
+      "rename": "Đổi tên skill mới",
+      "overwrite": "Thay thế mục hiện có",
+      "skip": "Bỏ qua mục hiện có",
+      "install": "Cài vào DeepChat",
+      "failed": "Cài đặt Git thất bại",
+      "success": "Cài đặt Git hoàn tất",
+      "successMessage": "Đã cài {count}, thất bại {failed}",
+      "menuItem": "Kho Git..."
+    },
+    "importExport": {
+      "directory": "Thu muc dong bo multi-skill cuc bo",
+      "browse": "Duyệt",
+      "save": "Lưu",
+      "saved": "Đã lưu thư mục đồng bộ",
+      "export": "Xuat vao thu muc",
+      "import": "Nhap tu thu muc",
+      "includeDisabled": "Bao gồm skill đã tắt",
+      "previewExport": "Xem trước xuất",
+      "exportNow": "Xuất ngay",
+      "previewImport": "Xem trước nhập",
+      "importSelected": "Nhập mục đã chọn",
+      "noExportPreview": "Xem trước xuất để xem trạng thái đích.",
+      "noImportPreview": "Xem trước nhập để xem các skill có sẵn.",
+      "strategy": "Chiến lược xung đột",
+      "rename": "Đổi tên mục nhập",
+      "overwrite": "Thay thế cục bộ",
+      "skip": "Bỏ qua mục hiện có",
+      "exported": "Xuất hoàn tất",
+      "imported": "Nhập hoàn tất",
+      "result": "Hoàn tất {count}, thất bại {failed}",
+      "state": {
+        "new": "Mới",
+        "same": "Giống nhau",
+        "modified": "Đã sửa",
+        "conflict": "Xung đột",
+        "invalid": "Không hợp lệ"
+      }
+    },
+    "detail": {
+      "failed": "Khong tai duoc chi tiet skill",
+      "noDescription": "Khong co mo ta",
+      "empty": "Khong co noi dung xem truoc",
+      "installToAgent": "Cài vào Agent",
+      "enabled": "Đã bật",
+      "disabled": "Đã tắt",
+      "enable": "Bật trong DeepChat",
+      "disable": "Tắt trong DeepChat",
+      "preview": "Xem trước",
+      "edit": "Chỉnh sửa",
+      "delete": "Xóa",
+      "confirmDeleteTitle": "Xóa skill",
+      "confirmDeleteDescription": "Xóa skill \"{name}\"? Không thể hoàn tác thao tác này."
+    },
+    "installToAgent": {
+      "title": "Cai {name} vao Agent",
+      "description": "Tao lien ket do DeepChat quan ly cho skill nay trong thu muc skills cua agent cuc bo.",
+      "failed": "Cai vao Agent that bai",
+      "emptyAgents": "Khong phat hien agent cuc bo kha dung.",
+      "target": "Agent dich",
+      "preview": "Xem truoc",
+      "loadingPreview": "Dang chuan bi xem truoc lien ket...",
+      "noPreview": "Chon agent de xem truoc.",
+      "install": "Cai dat",
+      "success": "Da cai vao Agent",
+      "successMessage": "{name} da duoc lien ket voi agent dich.",
+      "disconnect": "Ngắt kết nối",
+      "disconnectSuccess": "Đã ngắt khỏi Agent",
+      "disconnectSuccessMessage": "{name} không còn được liên kết với Agent đích.",
+      "disconnectFailed": "Không thể ngắt khỏi Agent"
     }
   },
   "environments": {
@@ -2528,5 +2737,16 @@
       "similarityThresholdHint": "Phạm vi 0-1. Mặc định: {default}.",
       "weightHint": "Trọng số xếp hạng không âm. Mặc định: {default}."
     }
+  },
+  "pluginsHub": {
+    "subtitle": "Work with DeepChat across skills, MCP servers, official plugins, and remote channels.",
+    "available": "Plugin khả dụng",
+    "add": "Thêm",
+    "manage": "Manage",
+    "emptySearch": "Không có plugin khả dụng.",
+    "pluginNotFound": "Plugin not found.",
+    "capabilities": "Capabilities",
+    "actionResult": "Action result",
+    "cuaDescription": "Plugin ComputerUse của DeepChat được triển khai dựa trên dự án trycua/cua."
   }
 }

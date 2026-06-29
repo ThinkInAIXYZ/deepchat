@@ -158,75 +158,42 @@
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
       >
-        <!-- Header -->
-        <div class="flex items-center justify-between px-3 h-10 shrink-0">
-          <span class="text-sm font-medium text-foreground truncate">
+        <!-- Header and command list -->
+        <div class="shrink-0 px-3 pb-3 pt-3">
+          <div class="truncate px-2 text-sm font-semibold text-foreground">
             {{ selectedAgentName }}
-          </span>
-          <div class="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  class="flex items-center justify-center w-7 h-7 rounded-md transition-all duration-150"
-                  :class="
-                    sessionStore.groupMode === 'project'
-                      ? 'text-foreground bg-accent/80'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  "
-                  @click="sessionStore.toggleGroupMode()"
-                >
-                  <Icon icon="lucide:folder-kanban" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{
-                sessionStore.groupMode === 'project'
-                  ? t('chat.sidebar.groupByDate')
-                  : t('chat.sidebar.groupByProject')
-              }}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <button
-                  data-testid="app-new-chat-button"
-                  class="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-150"
-                  @click="handleNewChat"
-                >
-                  <Icon icon="lucide:plus" class="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
-            </Tooltip>
           </div>
-        </div>
 
-        <div
-          v-if="!collapsed"
-          data-testid="window-sidebar-search"
-          class="window-no-drag-region px-3 pb-2"
-        >
-          <div class="relative">
-            <Icon
-              icon="lucide:search"
-              class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70"
-            />
-            <Input
-              v-model="sessionSearchQuery"
-              class="h-8 rounded-xl border-0 bg-muted/60 pl-8 pr-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
-              :placeholder="t('chat.sidebar.searchPlaceholder')"
-              :aria-label="t('chat.sidebar.searchAriaLabel')"
-              autocapitalize="off"
-              autocomplete="off"
-              spellcheck="false"
-            />
+          <div class="mt-3 space-y-1">
             <button
-              v-if="sessionSearchQuery"
+              data-testid="app-new-chat-button"
               type="button"
-              class="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-              :title="t('common.close')"
-              :aria-label="t('common.close')"
-              @click="sessionSearchQuery = ''"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="handleNewChat"
             >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+              <Icon icon="lucide:square-pen" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('common.newChat') }}</span>
+            </button>
+
+            <button
+              data-testid="app-search-command-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
+              @click="spotlightStore.toggleSpotlight()"
+            >
+              <Icon icon="lucide:search" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('chat.sidebar.searchCommand') }}</span>
+            </button>
+
+            <button
+              data-testid="app-plugins-button"
+              type="button"
+              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm transition-colors hover:bg-accent/60"
+              :class="pluginsRouteActive ? 'bg-accent/70 text-foreground' : 'text-foreground'"
+              @click="openPlugins"
+            >
+              <Icon icon="lucide:blocks" class="size-4 shrink-0 text-muted-foreground" />
+              <span class="min-w-0 flex-1 truncate">{{ t('routes.plugins') }}</span>
             </button>
           </div>
         </div>
@@ -248,7 +215,8 @@
           v-if="
             sessionStore.hasLoadedInitialPage &&
             pinnedSessions.length === 0 &&
-            filteredGroups.length === 0
+            !chatSectionGroup &&
+            workspaceGroups.length === 0
           "
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
@@ -313,8 +281,76 @@
             </div>
           </div>
 
+          <div v-if="chatSectionGroup" class="pt-4">
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+              :data-group-id="getGroupIdentifier(chatSectionGroup)"
+              :aria-expanded="!isGroupCollapsed(chatSectionGroup)"
+              @click="toggleGroup(chatSectionGroup)"
+            >
+              <span class="shrink-0 size-6 flex items-center justify-center">
+                <Icon
+                  :icon="CHAT_SECTION_ICON"
+                  :data-icon="CHAT_SECTION_ICON"
+                  data-testid="window-sidebar-chat-icon"
+                  class="size-4"
+                />
+              </span>
+              <span class="truncate">
+                {{ t('chat.sidebar.chatSection') }}
+              </span>
+            </button>
+
+            <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in chatSectionGroup.sessions"
+                :key="session.id"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="grouped"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
+            <div class="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+              {{ t('chat.sidebar.workspace') }}
+            </div>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <button
+                  class="flex size-7 items-center justify-center rounded-md transition-all duration-150"
+                  :class="
+                    sessionStore.groupMode === 'project'
+                      ? 'bg-accent/80 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  "
+                  @click="sessionStore.toggleGroupMode()"
+                >
+                  <Icon icon="lucide:folder-kanban" class="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{{
+                sessionStore.groupMode === 'project'
+                  ? t('chat.sidebar.groupByDate')
+                  : t('chat.sidebar.groupByProject')
+              }}</TooltipContent>
+            </Tooltip>
+          </div>
+
           <draggable
-            :model-value="filteredGroups"
+            :model-value="workspaceGroups"
             item-key="id"
             tag="div"
             handle=".sidebar-project-folder-target"
@@ -454,6 +490,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import {
@@ -463,7 +500,6 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
-import { Input } from '@shadcn/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -508,6 +544,8 @@ const PIN_TARGET_SETTLE_MAX_FRAMES = 10
 const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
 const SIDEBAR_SHORTCUT_MAX_ROWS = 10
+const CHAT_SECTION_GROUP_ID = '__chat__'
+const CHAT_SECTION_ICON = 'lucide:message-square'
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
@@ -526,6 +564,7 @@ const settingsClient = createSettingsClient()
 const remoteControlClient = createRemoteControlClient()
 const deviceClient = createDeviceClient()
 const { t } = useI18n()
+const router = useRouter()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
@@ -609,6 +648,9 @@ const fallbackRemoteChannels: RemoteChannelDescriptor[] = [
 
 const collapsed = computed(() => sidebarStore.collapsed)
 const sessionSearchQuery = ref('')
+const pluginsRouteActive = computed(() =>
+  String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
+)
 const remoteChannelDescriptors = ref<RemoteChannelDescriptor[]>(fallbackRemoteChannels)
 const createRemoteStatusMap = (): Record<RemoteChannel, RemoteChannelStatus | null> => ({
   telegram: null,
@@ -668,6 +710,12 @@ const showRemoteControlButton = computed(() =>
   implementedRemoteChannels.value.some((channel) =>
     Boolean(getRemoteChannelStatus(channel)?.enabled)
   )
+)
+const firstEnabledRemoteChannel = computed<RemoteChannel | null>(
+  () =>
+    implementedRemoteChannels.value.find((channel) =>
+      Boolean(getRemoteChannelStatus(channel)?.enabled)
+    ) ?? null
 )
 const aggregatedRemoteControlState = computed<RemoteRuntimeState>(() => {
   const states = implementedRemoteChannels.value
@@ -730,7 +778,6 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const defaultCollapsedChatGroupIds = ref<Set<string>>(new Set())
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -771,23 +818,26 @@ const normalizeProjectPath = (projectPath: string | null | undefined) =>
 const defaultChatWorkspacePath = computed(() =>
   normalizeProjectPath(projectStore.defaultChatWorkspacePath)
 )
-const isChatsGroup = (group: SessionGroup) =>
-  sessionStore.groupMode === 'project' &&
-  (group.id === NO_PROJECT_GROUP_ID ||
-    (defaultChatWorkspacePath.value.length > 0 &&
-      normalizeProjectPath(group.id) === defaultChatWorkspacePath.value))
+const isChatSession = (session: UISession) => {
+  const projectPath = normalizeProjectPath(session.projectDir)
+  return (
+    projectPath.length === 0 ||
+    (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
+  )
+}
+const isWorkspaceSession = (session: UISession) => !isChatSession(session)
+const isChatProjectGroup = (group: SessionGroup) =>
+  group.id === NO_PROJECT_GROUP_ID ||
+  (defaultChatWorkspacePath.value.length > 0 &&
+    normalizeProjectPath(group.id) === defaultChatWorkspacePath.value)
 const isProjectDirectoryGroup = (group: SessionGroup) =>
   sessionStore.groupMode === 'project' &&
   group.id !== NO_PROJECT_GROUP_ID &&
   !group.labelKey &&
-  !isChatsGroup(group)
+  !isChatProjectGroup(group)
 const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
   isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
 const getProjectGroupRank = (group: SessionGroup) => {
-  if (isChatsGroup(group)) {
-    return -1
-  }
-
   if (!isProjectDirectoryGroup(group)) {
     return 2
   }
@@ -827,8 +877,58 @@ const filteredGroups = computed(() => {
     )
     .map(({ group }) => group)
 })
+const compareSidebarSessions = (left: UISession, right: UISession) => {
+  const leftUpdatedAt = Number.isFinite(left.updatedAt) ? left.updatedAt : 0
+  const rightUpdatedAt = Number.isFinite(right.updatedAt) ? right.updatedAt : 0
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt
+  }
+
+  return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
+}
+const sortSidebarSessions = (sessions: UISession[]) => [...sessions].sort(compareSidebarSessions)
+const chatSessions = computed(() =>
+  sortSidebarSessions(
+    baseFilteredGroups.value.flatMap((group) => {
+      if (sessionStore.groupMode === 'project') {
+        return isChatProjectGroup(group) ? group.sessions : []
+      }
+
+      return group.sessions.filter(isChatSession)
+    })
+  )
+)
+const chatSectionGroup = computed<SessionGroup | null>(() => {
+  const sessions = chatSessions.value
+  if (sessions.length === 0) {
+    return null
+  }
+
+  return {
+    id: CHAT_SECTION_GROUP_ID,
+    label: 'chat.sidebar.chats',
+    labelKey: 'chat.sidebar.chats',
+    sessions
+  }
+})
+const workspaceGroups = computed(() => {
+  if (sessionStore.groupMode === 'project') {
+    return filteredGroups.value.filter(isProjectDirectoryGroup)
+  }
+
+  return baseFilteredGroups.value
+    .map((group) => ({
+      ...group,
+      sessions: sortSidebarSessions(group.sessions.filter(isWorkspaceSession))
+    }))
+    .filter((group) => group.sessions.length > 0)
+})
+const visibleGroups = computed(() => [
+  ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
+  ...workspaceGroups.value
+])
 const projectReorderableGroups = computed(() =>
-  filteredGroups.value.filter(isActiveProjectDirectoryGroup)
+  workspaceGroups.value.filter(isActiveProjectDirectoryGroup)
 )
 const canReorderProjectGroups = computed(
   () =>
@@ -855,15 +955,9 @@ const deleteDialogOpen = computed({
 
 const getGroupIdentifier = (group: SessionGroup) => group.id
 
-const getGroupLabel = (group: SessionGroup) =>
-  isChatsGroup(group) ? t('chat.sidebar.chats') : group.labelKey ? t(group.labelKey) : group.label
-const getGroupIcon = (group: SessionGroup) => {
-  if (isChatsGroup(group)) {
-    return 'lucide:message-square'
-  }
-
-  return isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
-}
+const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+const getGroupIcon = (group: SessionGroup) =>
+  isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
@@ -879,7 +973,7 @@ const visibleShortcutSessions = computed<UISession[]>(() => {
     sessions.push(...pinnedSessions.value)
   }
 
-  for (const group of filteredGroups.value) {
+  for (const group of visibleGroups.value) {
     if (!isGroupCollapsed(group)) {
       sessions.push(...group.sessions)
     }
@@ -1065,7 +1159,7 @@ watch(
 )
 
 watch(
-  [filteredGroups, () => sessionStore.activeSessionId],
+  [visibleGroups, () => sessionStore.activeSessionId],
   ([groups, activeSessionId]) => {
     if (isProjectGroupDragging.value) {
       return
@@ -1081,22 +1175,10 @@ watch(
         group.sessions.some((session) => session.id === activeSessionId)
       )
 
-      if (activeGroup && !isChatsGroup(activeGroup)) {
+      if (activeGroup) {
         nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
       }
     }
-
-    const nextDefaultCollapsedChatGroupIds = new Set(
-      [...defaultCollapsedChatGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
-    )
-    for (const group of groups) {
-      const groupId = getGroupIdentifier(group)
-      if (isChatsGroup(group) && !nextDefaultCollapsedChatGroupIds.has(groupId)) {
-        nextCollapsedGroupIds.add(groupId)
-        nextDefaultCollapsedChatGroupIds.add(groupId)
-      }
-    }
-    defaultCollapsedChatGroupIds.value = nextDefaultCollapsedChatGroupIds
 
     const stateChanged =
       nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||
@@ -1113,7 +1195,19 @@ const openSettings = () => {
   void settingsClient.openSettings()
 }
 
+const openPlugins = () => {
+  void router?.push({ name: 'plugins' })
+}
+
 const openRemoteSettings = async () => {
+  if (router?.hasRoute?.('plugins-detail') && firstEnabledRemoteChannel.value) {
+    await router.push({
+      name: 'plugins-detail',
+      params: { pluginId: `remote:${firstEnabledRemoteChannel.value}` }
+    })
+    return
+  }
+
   await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
@@ -1162,8 +1256,24 @@ const refreshProjectEnvironmentMetadata = async () => {
   }
 }
 
-const handleNewChat = () => {
-  void sessionStore.startNewConversation({ refresh: true })
+const navigateToChat = async () => {
+  if (!router) {
+    return
+  }
+
+  if (router.currentRoute.value.name !== 'chat') {
+    await router.push({ name: 'chat' })
+  }
+}
+
+const handleNewChat = async () => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.startNewConversation({ refresh: true })
+  }
 }
 
 const handleAgentSelect = async (id: string | null) => {
@@ -1206,8 +1316,14 @@ const handleAgentSelect = async (id: string | null) => {
   await agentSwitchQueue
 }
 
-const handleSessionClick = (session: { id: string }) => {
-  void sessionStore.selectSession(session.id)
+const handleSessionClick = async (session: { id: string }) => {
+  try {
+    await navigateToChat()
+  } catch (error) {
+    console.warn('[WindowSideBar] Failed to switch to chat route:', error)
+  } finally {
+    await sessionStore.selectSession(session.id)
+  }
 }
 
 const loadShortcutPlatform = async () => {
@@ -1497,7 +1613,7 @@ const visibleSessionFingerprint = computed(() =>
   [
     isPinnedSectionCollapsed.value ? 'pinned:collapsed' : 'pinned:expanded',
     ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
-    ...filteredGroups.value.flatMap((group) => [
+    ...visibleGroups.value.flatMap((group) => [
       `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
       ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
     ])

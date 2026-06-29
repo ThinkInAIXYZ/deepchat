@@ -1,5 +1,5 @@
 <template>
-  <ScrollArea data-testid="settings-remote-page" class="h-full w-full">
+  <component :is="rootComponent" data-testid="settings-remote-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="space-y-4 animate-pulse">
         <div class="h-6 w-48 rounded bg-muted/50"></div>
@@ -25,20 +25,27 @@
         {{ t('common.error.requestFailed') }}
       </div>
       <template v-else>
-        <div class="space-y-1">
+        <div v-if="!props.hideHeader" class="space-y-1">
           <div class="flex items-center gap-2">
-            <div class="text-base font-medium">{{ t('settings.remote.title') }}</div>
+            <div class="text-base font-medium">
+              {{ singleChannelMode ? channelTitle(activeChannel) : t('settings.remote.title') }}
+            </div>
             <span v-if="isAnySaving" class="text-xs text-muted-foreground">
               {{ t('common.saving') }}
             </span>
           </div>
           <div class="text-sm text-muted-foreground">
-            {{ t('settings.remote.description') }}
+            {{
+              singleChannelMode
+                ? channelDescription(activeChannel)
+                : t('settings.remote.description')
+            }}
           </div>
         </div>
 
         <Tabs v-model="activeChannel" class="space-y-4">
           <TabsList
+            v-if="!singleChannelMode"
             class="grid w-full"
             :style="{ gridTemplateColumns: `repeat(${implementedChannelCount}, minmax(0, 1fr))` }"
           >
@@ -84,7 +91,10 @@
                     {{ telegramStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     telegramSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -300,7 +310,10 @@
                     {{ feishuStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     feishuSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -751,7 +764,10 @@
                     {{ qqbotStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     qqbotSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -961,7 +977,10 @@
                     {{ discordStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     discordSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -1181,7 +1200,10 @@
                     {{ weixinIlinkStatus.lastError }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-muted-foreground">
+                <label
+                  v-if="!props.hideChannelToggle"
+                  class="flex items-center gap-2 text-sm text-muted-foreground"
+                >
                   <span>{{
                     weixinIlinkSettings.remoteEnabled ? t('common.enabled') : t('common.disabled')
                   }}</span>
@@ -1458,7 +1480,7 @@
         </Tabs>
       </template>
     </div>
-  </ScrollArea>
+  </component>
 
   <Dialog v-model:open="pairDialogVisible">
     <DialogContent class="sm:max-w-md">
@@ -1748,7 +1770,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as QRCode from 'qrcode'
 import { Icon } from '@iconify/vue'
@@ -1871,6 +1893,13 @@ const projectClient = createProjectClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
 const { toast } = useToast()
+const props = defineProps<{
+  channel?: RemoteChannel
+  embedded?: boolean
+  hideHeader?: boolean
+  hideChannelToggle?: boolean
+  singleChannel?: boolean
+}>()
 
 const channelI18nKeyMap: Record<RemoteChannel, string> = {
   telegram: 'telegram',
@@ -1885,6 +1914,13 @@ function channelTitle(channel: RemoteChannel | null | undefined): string {
     return ''
   }
   return t(`settings.remote.${channelI18nKeyMap[channel]}.title`)
+}
+
+function channelDescription(channel: RemoteChannel | null | undefined): string {
+  if (!channel) {
+    return ''
+  }
+  return t(`settings.remote.${channelI18nKeyMap[channel]}.description`)
 }
 
 const telegramSettings = ref<TelegramRemoteSettings | null>(null)
@@ -2226,6 +2262,16 @@ const implementedChannels = computed(() =>
     .map((descriptor) => descriptor.id)
 )
 const implementedChannelCount = computed(() => Math.max(1, implementedChannels.value.length))
+const rootComponent = computed(() => (props.embedded ? 'div' : ScrollArea))
+const singleChannelMode = computed(() => Boolean(props.singleChannel || props.channel))
+const isRemoteChannel = (value: unknown): value is RemoteChannel =>
+  typeof value === 'string' &&
+  fallbackChannelDescriptors.some((descriptor) => descriptor.id === value)
+const syncActiveChannelFromProps = () => {
+  if (props.channel && isRemoteChannel(props.channel)) {
+    activeChannel.value = props.channel
+  }
+}
 const isAnySaving = computed(
   () => saving.telegram || saving.feishu || saving.qqbot || saving.discord || saving['weixin-ilink']
 )
@@ -2581,6 +2627,7 @@ const loadState = async () => {
     discordStatus.value = loadedDiscordStatus
     weixinIlinkStatus.value = loadedWeixinIlinkStatus
 
+    syncActiveChannelFromProps()
     if (!implementedChannels.value.includes(activeChannel.value)) {
       activeChannel.value = implementedChannels.value[0] ?? 'telegram'
     }
@@ -3665,8 +3712,11 @@ const formatOverviewLine = (channel: RemoteChannel) => {
   })
 }
 
+watch(() => props.channel, syncActiveChannelFromProps)
+
 onMounted(() => {
   remoteSettingsUnmounted = false
+  syncActiveChannelFromProps()
   void loadState()
   statusRefreshTimer = setInterval(() => {
     void refreshStatus()

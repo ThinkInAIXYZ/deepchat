@@ -22,5 +22,6 @@
   "settings-plugins": "Eklentiler",
   "settings-overview": "Ayarlara Genel Bakış",
   "settings-scheduled-tasks": "Zamanlanmış Görevler",
-  "settings-memory": "Bellek"
+  "settings-memory": "Bellek",
+  "plugins": "Plugins"
 }

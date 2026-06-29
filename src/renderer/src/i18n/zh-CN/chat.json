@@ -356,6 +356,9 @@
     "themeLight": "浅色",
     "themeDark": "深色",
     "themeSystem": "跟随系统",
+    "searchCommand": "搜索",
+    "chatSection": "Chat",
+    "workspace": "工作区",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",

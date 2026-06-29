@@ -22,5 +22,6 @@
   "settings-plugins": "Complementos",
   "settings-overview": "Descripción general de la configuración",
   "settings-scheduled-tasks": "Tareas programadas",
-  "settings-memory": "Memoria"
+  "settings-memory": "Memoria",
+  "plugins": "Plugins"
 }

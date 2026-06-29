@@ -344,7 +344,10 @@
     "moveProjectGroupTop": "העבר לראש הרשימה",
     "moveProjectGroupUp": "העבר למעלה",
     "moveProjectGroupDown": "העבר למטה",
-    "moveProjectGroupBottom": "העבר לתחתית הרשימה"
+    "moveProjectGroupBottom": "העבר לתחתית הרשימה",
+    "searchCommand": "Search",
+    "chatSection": "Chat",
+    "workspace": "Workspace"
   },
   "floatingWidget": {
     "title": "סקירת משימות",
