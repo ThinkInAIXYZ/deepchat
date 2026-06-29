@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.8-beta.1 (2026-06-29)
+- Added the main-window Plugins Hub plus Feishu/Lark install authentication and streaming card delivery for remote control
+- Upgraded the provider/runtime stack with AI SDK v7, Zod v4 schemas, Electron 40.10.5, DuckDB 1.5.4, and refreshed toolchains
+- Fixed New API responses handling and endpoint debug selection, memory first-turn stalls, context-overflow auto-handoff, message-scoped skill activation, and request preview editor layout
+- 新增主窗口插件中心，并支持飞书/Lark 安装认证与远程控制流式卡片推送
+- 升级 provider/runtime 栈到 AI SDK v7、Zod v4 schema、Electron 40.10.5、DuckDB 1.5.4，并刷新工具链
+- 修复 New API responses 处理与 endpoint debug 选择、memory 首轮卡顿、context overflow 自动 handoff、按消息激活 skill，以及请求预览编辑器布局
+
 ## v1.0.7 (2026-06-25)
 - Added the default chat workspace, task-aware Agent Memory, and persistent agent plan blocks in chat history
 - Improved Computer Use helper runtime isolation, packaging, shutdown cleanup, and refreshed bundled dependencies and resources
