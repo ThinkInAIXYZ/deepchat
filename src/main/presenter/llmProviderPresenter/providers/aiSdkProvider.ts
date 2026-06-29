@@ -6,6 +6,7 @@ import {
   isDeepSeekSeriesModelId,
   isGeminiFamilyModelId,
   isNewApiEndpointType,
+  resolveNewApiModelTypeFromMetadata,
   resolveNewApiSelectableEndpointTypes,
   resolveNewApiEndpointTypeFromRoute,
   resolveProviderCapabilityProviderId,
@@ -1905,37 +1906,18 @@ export class AiSdkProvider extends BaseLLMProvider {
 
         const normalizedRawType =
           typeof rawModel.type === 'string' ? rawModel.type.trim().toLowerCase() : ''
-        const normalizedModelId = rawModel.id.toLowerCase()
-        const type =
-          normalizedRawType === 'imagegeneration' ||
-          normalizedRawType === 'image-generation' ||
-          normalizedRawType === 'image' ||
-          rawSupportedEndpointTypes.includes('image-generation')
-            ? ModelType.ImageGeneration
-            : normalizedRawType === 'videogeneration' ||
-                normalizedRawType === 'video-generation' ||
-                normalizedRawType === 'video' ||
-                rawSupportedEndpointTypes.includes('video-generation')
-              ? ModelType.VideoGeneration
-              : normalizedRawType === 'tts' ||
-                  normalizedRawType === 'audio-speech' ||
-                  normalizedRawType === 'audiospeech'
-                ? ModelType.TTS
-                : normalizedRawType === 'embedding' ||
-                    normalizedRawType === 'embeddings' ||
-                    normalizedModelId.includes('embedding')
-                  ? ModelType.Embedding
-                  : normalizedRawType === 'rerank' || normalizedModelId.includes('rerank')
-                    ? ModelType.Rerank
-                    : undefined
+        const type = resolveNewApiModelTypeFromMetadata(
+          rawSupportedEndpointTypes,
+          rawModel.id,
+          normalizedRawType
+        )
         const supportedEndpointTypes = rawSupportedEndpointTypes
         const selectableEndpointTypes = resolveNewApiSelectableEndpointTypes(
           rawSupportedEndpointTypes,
           rawModel.id,
           {
             type,
-            rawType: normalizedRawType,
-            ownedBy
+            rawType: normalizedRawType
           }
         )
 

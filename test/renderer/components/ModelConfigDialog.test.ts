@@ -709,7 +709,7 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
           name: 'GPT-5.5',
           type: ModelType.Chat,
           supportedEndpointTypes: ['openai'],
-          selectableEndpointTypes: ['openai', 'openai-response'],
+          selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
           endpointType: 'openai'
         }
       ],
@@ -719,11 +719,16 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
     })
 
     expect((wrapper.vm as any).providerModelMeta.supportedEndpointTypes).toEqual(['openai'])
-    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['openai', 'openai-response'])
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
     expect((wrapper.vm as any).config.endpointType).toBe('openai')
   })
 
-  it('restores chat routing and provider model type when switching away from image-generation', async () => {
+  it('restores chat routing when switching type away from image-generation', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'new-api',
       modelId: 'gpt-4.1',
@@ -741,17 +746,25 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
       modelConfig: {
         type: ModelType.ImageGeneration,
         apiEndpoint: ApiEndpointType.Image,
-        endpointType: 'image-generation'
+        endpointType: 'image-generation',
+        isUserDefined: true
       }
     })
 
     expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
     expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
 
-    ;(wrapper.vm as any).config.endpointType = 'openai'
+    ;(wrapper.vm as any).config.type = ModelType.Chat
     await nextTick()
     await flushPromises()
 
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
     expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
     expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
 
@@ -768,7 +781,7 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
     )
   })
 
-  it('forces image endpoint for image-generation and falls back to chat type for custom models', async () => {
+  it('filters endpoint choices from model type for custom models', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'new-api',
       modelId: '',
@@ -781,17 +794,41 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
       }
     })
 
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+
     ;(wrapper.vm as any).config.endpointType = 'image-generation'
     await nextTick()
     await flushPromises()
 
-    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
-    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
 
-    ;(wrapper.vm as any).config.endpointType = 'openai'
+    ;(wrapper.vm as any).config.type = ModelType.ImageGeneration
     await nextTick()
     await flushPromises()
 
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['image-generation'])
+    expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+
+    ;(wrapper.vm as any).config.type = ModelType.Chat
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
     expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
     expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
 
@@ -808,5 +845,169 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
         type: ModelType.Chat
       })
     )
+  })
+
+  it('does not expose media endpoints for explicit chat models', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+          type: ModelType.Chat,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+          endpointType: 'openai'
+        }
+      ],
+      modelConfig: {
+        type: ModelType.Chat,
+        endpointType: 'image-generation'
+      }
+    })
+
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+  })
+
+  it('uses provider model type over default chat config for non-user media models', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'media-debug-model',
+      modelName: 'Media Debug Model',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'media-debug-model',
+          name: 'Media Debug Model',
+          type: ModelType.ImageGeneration,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          selectableEndpointTypes: ['image-generation'],
+          endpointType: 'image-generation'
+        }
+      ],
+      modelConfig: {
+        type: undefined,
+        endpointType: undefined,
+        isUserDefined: false
+      }
+    })
+
+    expect((wrapper.vm as any).effectiveNewApiModelType).toBe(ModelType.ImageGeneration)
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['image-generation'])
+    expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+  })
+
+  it('uses provider model type when legacy user config has no explicit type', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'media-debug-model',
+      modelName: 'Media Debug Model',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'media-debug-model',
+          name: 'Media Debug Model',
+          type: ModelType.ImageGeneration,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          selectableEndpointTypes: ['image-generation'],
+          endpointType: 'image-generation'
+        }
+      ],
+      modelConfig: {
+        type: undefined,
+        endpointType: undefined,
+        isUserDefined: true
+      }
+    })
+
+    expect((wrapper.vm as any).effectiveNewApiModelType).toBe(ModelType.ImageGeneration)
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['image-generation'])
+    expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+  })
+
+  it('keeps explicit user chat type ahead of provider media metadata', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'media-debug-model',
+      modelName: 'Media Debug Model',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'media-debug-model',
+          name: 'Media Debug Model',
+          type: ModelType.ImageGeneration,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          selectableEndpointTypes: ['image-generation'],
+          endpointType: 'image-generation'
+        }
+      ],
+      modelConfig: {
+        type: ModelType.Chat,
+        endpointType: 'openai',
+        isUserDefined: true
+      }
+    })
+
+    expect((wrapper.vm as any).effectiveNewApiModelType).toBe(ModelType.Chat)
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+  })
+
+  it('uses the current type after manual type selection for provider-managed chat models', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+          type: ModelType.Chat,
+          supportedEndpointTypes: ['openai'],
+          selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+          endpointType: 'openai'
+        }
+      ],
+      modelConfig: {
+        type: ModelType.Chat,
+        endpointType: 'openai',
+        isUserDefined: false
+      }
+    })
+
+    expect((wrapper.vm as any).isLoadingModelConfig).toBe(false)
+
+    ;(wrapper.vm as any).config.type = ModelType.ImageGeneration
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).effectiveNewApiModelType).toBe(ModelType.ImageGeneration)
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['image-generation'])
+    expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
   })
 })

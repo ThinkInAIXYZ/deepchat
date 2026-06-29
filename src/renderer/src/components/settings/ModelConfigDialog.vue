@@ -538,7 +538,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -547,6 +547,7 @@ import {
   ModelType,
   NEW_API_ENDPOINT_TYPES,
   isNewApiEndpointType,
+  resolveNewApiSelectableEndpointTypes,
   resolveProviderCapabilityProviderId,
   type NewApiEndpointType
 } from '@shared/model'
@@ -700,6 +701,11 @@ const showApiEndpointSelector = computed(
 )
 const showEndpointTypeSelector = computed(() => isNewApiProvider.value)
 
+const MODEL_TYPE_VALUES = new Set<string>(Object.values(ModelType))
+
+const isModelType = (value: unknown): value is ModelType =>
+  typeof value === 'string' && MODEL_TYPE_VALUES.has(value)
+
 const createDefaultConfig = (): ModelConfig => ({
   maxTokens: DEFAULT_MODEL_MAX_TOKENS,
   contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
@@ -723,6 +729,10 @@ const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'med
 
 // 配置数据
 const config = ref<ModelConfig>(createDefaultConfig())
+const isLoadingModelConfig = ref(false)
+const modelConfigIsUserDefined = ref(false)
+const modelConfigHasExplicitType = ref(false)
+const hasManualModelTypeSelection = ref(false)
 const topPDraft = ref('')
 const modelNameField = ref(props.modelName ?? '')
 const modelIdField = ref(props.modelId ?? '')
@@ -1051,6 +1061,18 @@ const providerModelMeta = computed(() => {
   )
 })
 
+const effectiveNewApiModelType = computed(() => {
+  if (hasManualModelTypeSelection.value) {
+    return config.value.type
+  }
+
+  if (modelConfigIsUserDefined.value && modelConfigHasExplicitType.value) {
+    return config.value.type
+  }
+
+  return providerModelMeta.value?.type ?? config.value.type
+})
+
 const syncCapabilityProviderId = () => {
   capabilityProviderId.value = resolveProviderCapabilityProviderId(
     props.providerId,
@@ -1059,14 +1081,14 @@ const syncCapabilityProviderId = () => {
         ? config.value.endpointType
         : providerModelMeta.value?.endpointType,
       supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-      type: config.value.type ?? providerModelMeta.value?.type,
+      type: effectiveNewApiModelType.value,
       providerApiType: currentProvider.value?.apiType
     },
     currentModelLookupId.value
   )
 }
 
-const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+const providerSelectableEndpointTypes = computed<NewApiEndpointType[] | undefined>(() => {
   const selectableEndpointTypes = providerModelMeta.value?.selectableEndpointTypes
   if (Array.isArray(selectableEndpointTypes) && selectableEndpointTypes.length > 0) {
     const normalizedEndpointTypes = selectableEndpointTypes.filter(isNewApiEndpointType)
@@ -1083,8 +1105,37 @@ const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
     }
   }
 
-  return [...NEW_API_ENDPOINT_TYPES]
+  return undefined
 })
+
+const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+  return (
+    resolveNewApiSelectableEndpointTypes(
+      providerSelectableEndpointTypes.value,
+      currentModelLookupId.value,
+      {
+        type: effectiveNewApiModelType.value
+      }
+    ) ?? [...NEW_API_ENDPOINT_TYPES]
+  )
+})
+
+const resolveNewApiEndpointTypeFallback = (): NewApiEndpointType | undefined => {
+  const availableTypes = availableEndpointTypes.value
+  const providerDefaultEndpointType = providerModelMeta.value?.endpointType
+  if (
+    providerDefaultEndpointType &&
+    isNewApiEndpointType(providerDefaultEndpointType) &&
+    availableTypes.includes(providerDefaultEndpointType)
+  ) {
+    return providerDefaultEndpointType
+  }
+
+  const supportedEndpointType = providerModelMeta.value?.supportedEndpointTypes?.find(
+    (endpointType) => isNewApiEndpointType(endpointType) && availableTypes.includes(endpointType)
+  )
+  return supportedEndpointType ?? availableTypes[0]
+}
 
 const currentCustomModel = computed(() => {
   if (!props.providerId || !props.modelId) return null
@@ -1121,7 +1172,7 @@ const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) =>
     vision: config.value.vision ?? DEFAULT_MODEL_VISION,
     functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
     reasoning: fixedTemperatureKimi?.reasoningEnabled ?? config.value.reasoning ?? false,
-    type: config.value.type ?? ModelType.Chat,
+    type: effectiveNewApiModelType.value ?? ModelType.Chat,
     endpointType: config.value.endpointType
   }
 }
@@ -1131,11 +1182,11 @@ const syncNewApiDerivedFields = () => {
     return
   }
 
-  if (!isNewApiEndpointType(config.value.endpointType)) {
-    config.value.endpointType =
-      providerModelMeta.value?.endpointType ??
-      providerModelMeta.value?.supportedEndpointTypes?.[0] ??
-      availableEndpointTypes.value[0]
+  if (
+    !isNewApiEndpointType(config.value.endpointType) ||
+    !availableEndpointTypes.value.includes(config.value.endpointType)
+  ) {
+    config.value.endpointType = resolveNewApiEndpointTypeFallback()
   }
 
   if (config.value.endpointType === 'image-generation') {
@@ -1183,104 +1234,114 @@ const initializeIdentityFields = () => {
 const loadConfig = async () => {
   if (!props.providerId) return
 
+  isLoadingModelConfig.value = true
+  hasManualModelTypeSelection.value = false
+  modelConfigIsUserDefined.value = false
+  modelConfigHasExplicitType.value = false
   initializeIdentityFields()
 
-  if (isCreateMode.value) {
-    config.value = createDefaultConfig()
-    syncTopPDraftFromConfig()
-    syncNewApiDerivedFields()
-    await fetchCapabilities()
-    return
-  }
-
-  if (!props.modelId) return
-
   try {
-    const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
-    config.value = { ...createDefaultConfig(), ...modelConfig }
-    syncTopPDraftFromConfig()
-
-    if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
-      config.value.endpointType =
-        providerModelMeta.value?.endpointType ??
-        providerModelMeta.value?.supportedEndpointTypes?.[0] ??
-        availableEndpointTypes.value[0]
+    if (isCreateMode.value) {
+      config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
+      syncNewApiDerivedFields()
+      await fetchCapabilities()
+      return
     }
 
-    if (config.value.type === ModelType.VideoGeneration && !config.value.apiEndpoint) {
-      config.value.apiEndpoint = ApiEndpointType.Video
+    if (!props.modelId) {
+      return
     }
 
-    if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
-      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+    try {
+      const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
+      modelConfigIsUserDefined.value = modelConfig?.isUserDefined === true
+      modelConfigHasExplicitType.value = isModelType(modelConfig?.type)
+      config.value = { ...createDefaultConfig(), ...modelConfig }
+      syncTopPDraftFromConfig()
+
+      if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+        config.value.endpointType = resolveNewApiEndpointTypeFallback()
+      }
+
+      if (config.value.type === ModelType.VideoGeneration && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.Video
+      }
+
+      if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+      }
+
+      if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.Chat
+      }
+    } catch (error) {
+      console.error('Failed to load model config:', error)
+      config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
     }
 
-    if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
-      config.value.apiEndpoint = ApiEndpointType.Chat
-    }
-  } catch (error) {
-    console.error('Failed to load model config:', error)
-    config.value = createDefaultConfig()
-    syncTopPDraftFromConfig()
-  }
+    await fetchCapabilities()
 
-  await fetchCapabilities()
-
-  if (
-    config.value.forceInterleavedThinkingCompat === undefined &&
-    capabilityReasoningPortrait.value?.interleaved === true
-  ) {
-    config.value.forceInterleavedThinkingCompat = true
-  }
-
-  if (config.value.isUserDefined !== true) {
-    const normalizedEffort = normalizeReasoningEffortValue(
-      capabilityReasoningPortrait.value,
-      config.value.reasoningEffort ?? capabilityEffortDefault.value
-    )
-    if (supportsReasoningEffort.value) {
-      config.value.reasoningEffort = normalizedEffort
+    if (
+      config.value.forceInterleavedThinkingCompat === undefined &&
+      capabilityReasoningPortrait.value?.interleaved === true
+    ) {
+      config.value.forceInterleavedThinkingCompat = true
     }
 
-    const normalizedVerbosity = normalizeVerbosityValue(
-      capabilityReasoningPortrait.value,
-      config.value.verbosity ?? capabilityVerbosityDefault.value
-    )
-    if (supportsVerbosity.value) {
-      config.value.verbosity = normalizedVerbosity
+    if (config.value.isUserDefined !== true) {
+      const normalizedEffort = normalizeReasoningEffortValue(
+        capabilityReasoningPortrait.value,
+        config.value.reasoningEffort ?? capabilityEffortDefault.value
+      )
+      if (supportsReasoningEffort.value) {
+        config.value.reasoningEffort = normalizedEffort
+      }
+
+      const normalizedVerbosity = normalizeVerbosityValue(
+        capabilityReasoningPortrait.value,
+        config.value.verbosity ?? capabilityVerbosityDefault.value
+      )
+      if (supportsVerbosity.value) {
+        config.value.verbosity = normalizedVerbosity
+      }
+
+      if (supportsReasoningVisibility.value) {
+        config.value.reasoningVisibility =
+          normalizeAnthropicReasoningVisibilityValue(config.value.reasoningVisibility) ??
+          capabilityReasoningVisibilityDefault.value
+      }
     }
 
     if (supportsReasoningVisibility.value) {
-      config.value.reasoningVisibility =
-        normalizeAnthropicReasoningVisibilityValue(config.value.reasoningVisibility) ??
-        capabilityReasoningVisibilityDefault.value
+      const normalizedVisibility = normalizeAnthropicReasoningVisibilityValue(
+        config.value.reasoningVisibility
+      )
+      if (normalizedVisibility) {
+        config.value.reasoningVisibility = normalizedVisibility
+      }
     }
-  }
 
-  if (supportsReasoningVisibility.value) {
-    const normalizedVisibility = normalizeAnthropicReasoningVisibilityValue(
-      config.value.reasoningVisibility
-    )
-    if (normalizedVisibility) {
-      config.value.reasoningVisibility = normalizedVisibility
+    if (config.value.thinkingBudget === undefined) {
+      const range = capabilityBudgetRange.value
+      if (range && typeof range.default === 'number') {
+        config.value.thinkingBudget = range.default
+      }
+    } else {
+      config.value.thinkingBudget = normalizeThinkingBudgetValue(
+        capabilityReasoningPortrait.value,
+        config.value.thinkingBudget,
+        capabilityReasoningPortrait.value?.budget?.min,
+        capabilityReasoningPortrait.value?.budget?.max
+      )
     }
-  }
 
-  if (config.value.thinkingBudget === undefined) {
-    const range = capabilityBudgetRange.value
-    if (range && typeof range.default === 'number') {
-      config.value.thinkingBudget = range.default
-    }
-  } else {
-    config.value.thinkingBudget = normalizeThinkingBudgetValue(
-      capabilityReasoningPortrait.value,
-      config.value.thinkingBudget,
-      capabilityReasoningPortrait.value?.budget?.min,
-      capabilityReasoningPortrait.value?.budget?.max
-    )
+    syncNewApiDerivedFields()
+  } finally {
+    await nextTick()
+    isLoadingModelConfig.value = false
   }
-
-  syncNewApiDerivedFields()
 }
 
 // 验证表单
@@ -1498,7 +1559,11 @@ watch(
 
 watch(
   () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
-  () => {
+  ([, nextType], [, previousType]) => {
+    if (!isLoadingModelConfig.value && nextType !== previousType) {
+      hasManualModelTypeSelection.value = true
+    }
+
     syncNewApiDerivedFields()
     syncCapabilityProviderId()
   }
