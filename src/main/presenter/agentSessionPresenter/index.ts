@@ -3503,7 +3503,9 @@ export class AgentSessionPresenter {
 
     try {
       const db = this.sqlitePresenter.getDatabase()
-      const sessionRows = db.prepare('SELECT id FROM new_sessions ORDER BY updated_at ASC').all() as
+      const sessionRows = db
+        .prepare('SELECT id FROM new_sessions ORDER BY updated_at ASC')
+        .all() as
         | Array<{
             id: string
           }>
