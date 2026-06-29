@@ -98,7 +98,7 @@
     "@ai-sdk/provider": "^4.0.0",
     "@aws-sdk/client-bedrock": "^3.1057.0",
     "@aws-sdk/credential-providers": "^3.1057.0",
-    "@duckdb/node-api": "1.5.3-r.1",
+    "@duckdb/node-api": "1.5.4-r.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@ff-labs/fff-node": "^0.9.3",
     "@jxa/run": "^1.4.0",

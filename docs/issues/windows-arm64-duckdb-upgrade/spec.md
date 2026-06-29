@@ -24,8 +24,8 @@ That package version only ships native bindings for:
 It does not ship a `win32-arm64` binding, so the app crashed while loading the built-in knowledge
 base presenter on Windows ARM64.
 
-DeepChat now depends on `@duckdb/node-api@1.5.3-r.1`. The matching lockfile includes
-`@duckdb/node-bindings-win32-arm64@1.5.3-r.1`, and the Windows ARM64 workflow runs
+DeepChat now depends on `@duckdb/node-api@1.5.4-r.1`. The matching lockfile includes
+`@duckdb/node-bindings-win32-arm64@1.5.4-r.1`, and the Windows ARM64 workflow runs
 `pnpm run smoke:duckdb:vss` before app launch smoke coverage.
 
 ## User Stories
