@@ -19,7 +19,14 @@ type SetupOptions = {
     id: string
     label: string
     labelKey?: string
-    sessions: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
+    sessions: Array<{
+      id: string
+      title: string
+      status: string
+      isPinned?: boolean
+      projectDir?: string
+      updatedAt?: number
+    }>
   }>
   remoteStatus?: {
     enabled: boolean
@@ -594,7 +601,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'normal-1',
                 title: 'Normal Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -638,6 +646,53 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[data-group-id="__pinned__"]').attributes('aria-expanded')).toBe('true')
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'collapses and expands chat sessions from the chat header',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        groups: [
+          {
+            id: '__no_project__',
+            label: 'No Project',
+            labelKey: 'common.project.none',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain('chat.sidebar.chatSection')
+      expect(wrapper.get('[data-testid="window-sidebar-chat-icon"]').attributes('data-icon')).toBe(
+        'lucide:message-square'
+      )
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
+      expect(
+        (wrapper.get('[data-group-id="__chat__"]').element.nextElementSibling as HTMLElement).style
+          .display
+      ).toBe('none')
+
+      await wrapper.find('[data-group-id="__chat__"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
+      expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
     },
     TEST_TIMEOUT_MS
   )
@@ -770,7 +825,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -805,7 +861,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'group-1',
                 title: 'Group Session 1',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -1148,7 +1205,8 @@ describe('WindowSideBar agent switch', () => {
               {
                 id: 'time-1',
                 title: 'Today Session',
-                status: 'none'
+                status: 'none',
+                projectDir: '/work/today'
               }
             ]
           }
@@ -1394,9 +1452,10 @@ describe('WindowSideBar agent switch', () => {
 
       expect(wrapper.text()).toContain('chat.sidebar.chatSection')
       expect(wrapper.text()).toContain('chat.sidebar.workspace')
+      expect(wrapper.text()).toContain('Default Chat Session')
       expect(
         wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
-      ).toEqual(['__pinned__', '/work/alpha', '/work/beta'])
+      ).toEqual(['__pinned__', '__chat__', '/work/alpha', '/work/beta'])
       expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
 
       wrapper
@@ -1462,6 +1521,7 @@ describe('WindowSideBar agent switch', () => {
       expect(wrapper.text()).toContain('chat.sidebar.workspace')
       expect(wrapper.text()).not.toContain('common.project.none')
       expect(wrapper.find('[data-group-id="__no_project__"]').exists()).toBe(false)
+      expect(wrapper.find('[data-group-id="__chat__"]').exists()).toBe(true)
       expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
 
       wrapper
@@ -1470,6 +1530,58 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(projectStore.reorderEnvironments).toHaveBeenCalledWith(['/work/beta', '/work/alpha'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps date grouping scoped to workspace sessions',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'common.time.lastWeek',
+            label: 'common.time.lastWeek',
+            labelKey: 'common.time.lastWeek',
+            sessions: [
+              {
+                id: 'chat-1',
+                title: 'Chat Session',
+                status: 'none',
+                projectDir: '',
+                updatedAt: 200
+              },
+              {
+                id: 'workspace-1',
+                title: 'Workspace Session',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 100
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['__chat__', 'common.time.lastWeek'])
+      expect(
+        wrapper
+          .findAll('[data-testid="sidebar-session-item"]')
+          .map((item) => item.attributes('data-session-id'))
+      ).toEqual(['chat-1', 'workspace-1'])
+
+      const html = wrapper.html()
+      expect(html.indexOf('data-group-id="__chat__"')).toBeLessThan(
+        html.indexOf('data-session-id="chat-1"')
+      )
+      expect(html.indexOf('chat.sidebar.workspace')).toBeLessThan(
+        html.indexOf('data-group-id="common.time.lastWeek"')
+      )
     },
     TEST_TIMEOUT_MS
   )
@@ -1729,8 +1841,8 @@ describe('WindowSideBar viewport auto-fill', () => {
             label: 'common.time.today',
             labelKey: 'common.time.today',
             sessions: [
-              { id: 'session-1', title: 'Alpha', status: 'none' },
-              { id: 'session-2', title: 'Bravo', status: 'none' }
+              { id: 'session-1', title: 'Alpha', status: 'none', projectDir: '/work/today' },
+              { id: 'session-2', title: 'Bravo', status: 'none', projectDir: '/work/today' }
             ]
           }
         ],

@@ -215,7 +215,8 @@
           v-if="
             sessionStore.hasLoadedInitialPage &&
             pinnedSessions.length === 0 &&
-            filteredGroups.length === 0
+            !chatSectionGroup &&
+            workspaceGroups.length === 0
           "
           class="flex flex-col items-center justify-center h-full px-4 text-center"
         >
@@ -280,57 +281,46 @@
             </div>
           </div>
 
-          <div v-if="chatGroups.length > 0" class="pt-4">
-            <div class="px-2 py-1 text-xs font-semibold text-muted-foreground">
-              {{ t('chat.sidebar.chatSection') }}
-            </div>
-
-            <template v-for="group in chatGroups" :key="`chat-group-${getGroupIdentifier(group)}`">
-              <div
-                v-if="!isChatsGroup(group)"
-                class="mt-1 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
-              >
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
-                  :data-group-id="getGroupIdentifier(group)"
-                  :aria-expanded="!isGroupCollapsed(group)"
-                  @click="toggleGroup(group)"
-                >
-                  <span class="shrink-0 size-6 flex items-center justify-center">
-                    <Icon
-                      :icon="getGroupIcon(group)"
-                      :data-icon="getGroupIcon(group)"
-                      data-testid="window-sidebar-group-icon"
-                      class="size-4"
-                    />
-                  </span>
-                  <span class="truncate">
-                    {{ getGroupLabel(group) }}
-                  </span>
-                </button>
-              </div>
-
-              <div v-show="isChatsGroup(group) || !isGroupCollapsed(group)" class="space-y-0.5">
-                <WindowSideBarSessionItem
-                  v-for="session in group.sessions"
-                  :key="session.id"
-                  :session="session"
-                  :active="sessionStore.activeSessionId === session.id"
-                  region="grouped"
-                  :hero-hidden="pinFlightSessionId === session.id"
-                  :hero-placeholder="pinFlightSessionId === session.id"
-                  :force-pin-docked="pinDockedSessionId === session.id"
-                  :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                  :search-query="sessionSearchQuery"
-                  :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
-                  :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
-                  @select="handleSessionClick"
-                  @toggle-pin="handleTogglePin"
-                  @delete="openDeleteDialog"
+          <div v-if="chatSectionGroup" class="pt-4">
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+              :data-group-id="getGroupIdentifier(chatSectionGroup)"
+              :aria-expanded="!isGroupCollapsed(chatSectionGroup)"
+              @click="toggleGroup(chatSectionGroup)"
+            >
+              <span class="shrink-0 size-6 flex items-center justify-center">
+                <Icon
+                  :icon="CHAT_SECTION_ICON"
+                  :data-icon="CHAT_SECTION_ICON"
+                  data-testid="window-sidebar-chat-icon"
+                  class="size-4"
                 />
-              </div>
-            </template>
+              </span>
+              <span class="truncate">
+                {{ t('chat.sidebar.chatSection') }}
+              </span>
+            </button>
+
+            <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
+              <WindowSideBarSessionItem
+                v-for="session in chatSectionGroup.sessions"
+                :key="session.id"
+                :session="session"
+                :active="sessionStore.activeSessionId === session.id"
+                region="grouped"
+                :hero-hidden="pinFlightSessionId === session.id"
+                :hero-placeholder="pinFlightSessionId === session.id"
+                :force-pin-docked="pinDockedSessionId === session.id"
+                :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
+                :search-query="sessionSearchQuery"
+                :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
+                :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
+                @select="handleSessionClick"
+                @toggle-pin="handleTogglePin"
+                @delete="openDeleteDialog"
+              />
+            </div>
           </div>
 
           <div class="flex items-center justify-between gap-2 px-2 pb-1 pt-4">
@@ -554,6 +544,8 @@ const PIN_TARGET_SETTLE_MAX_FRAMES = 10
 const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
 const SIDEBAR_SHORTCUT_MAX_ROWS = 10
+const CHAT_SECTION_GROUP_ID = '__chat__'
+const CHAT_SECTION_ICON = 'lucide:message-square'
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
@@ -786,7 +778,6 @@ const remoteControlIconClass = computed(() => {
 
 const isPinnedSectionCollapsed = ref(false)
 const collapsedGroupIds = ref<Set<string>>(new Set())
-const defaultCollapsedChatGroupIds = ref<Set<string>>(new Set())
 const normalizedSessionSearchQuery = computed(() => sessionSearchQuery.value.trim().toLowerCase())
 const matchesSessionSearch = (session: UISession) => {
   if (!normalizedSessionSearchQuery.value) {
@@ -827,23 +818,26 @@ const normalizeProjectPath = (projectPath: string | null | undefined) =>
 const defaultChatWorkspacePath = computed(() =>
   normalizeProjectPath(projectStore.defaultChatWorkspacePath)
 )
-const isChatsGroup = (group: SessionGroup) =>
-  sessionStore.groupMode === 'project' &&
-  (group.id === NO_PROJECT_GROUP_ID ||
-    (defaultChatWorkspacePath.value.length > 0 &&
-      normalizeProjectPath(group.id) === defaultChatWorkspacePath.value))
+const isChatSession = (session: UISession) => {
+  const projectPath = normalizeProjectPath(session.projectDir)
+  return (
+    projectPath.length === 0 ||
+    (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
+  )
+}
+const isWorkspaceSession = (session: UISession) => !isChatSession(session)
+const isChatProjectGroup = (group: SessionGroup) =>
+  group.id === NO_PROJECT_GROUP_ID ||
+  (defaultChatWorkspacePath.value.length > 0 &&
+    normalizeProjectPath(group.id) === defaultChatWorkspacePath.value)
 const isProjectDirectoryGroup = (group: SessionGroup) =>
   sessionStore.groupMode === 'project' &&
   group.id !== NO_PROJECT_GROUP_ID &&
   !group.labelKey &&
-  !isChatsGroup(group)
+  !isChatProjectGroup(group)
 const isActiveProjectDirectoryGroup = (group: SessionGroup) =>
   isProjectDirectoryGroup(group) && !archivedProjectPathSet.value.has(group.id)
 const getProjectGroupRank = (group: SessionGroup) => {
-  if (isChatsGroup(group)) {
-    return -1
-  }
-
   if (!isProjectDirectoryGroup(group)) {
     return 2
   }
@@ -883,10 +877,56 @@ const filteredGroups = computed(() => {
     )
     .map(({ group }) => group)
 })
-const chatGroups = computed(() =>
-  filteredGroups.value.filter((group) => !isProjectDirectoryGroup(group))
+const compareSidebarSessions = (left: UISession, right: UISession) => {
+  const leftUpdatedAt = Number.isFinite(left.updatedAt) ? left.updatedAt : 0
+  const rightUpdatedAt = Number.isFinite(right.updatedAt) ? right.updatedAt : 0
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt
+  }
+
+  return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
+}
+const sortSidebarSessions = (sessions: UISession[]) => [...sessions].sort(compareSidebarSessions)
+const chatSessions = computed(() =>
+  sortSidebarSessions(
+    baseFilteredGroups.value.flatMap((group) => {
+      if (sessionStore.groupMode === 'project') {
+        return isChatProjectGroup(group) ? group.sessions : []
+      }
+
+      return group.sessions.filter(isChatSession)
+    })
+  )
 )
-const workspaceGroups = computed(() => filteredGroups.value.filter(isProjectDirectoryGroup))
+const chatSectionGroup = computed<SessionGroup | null>(() => {
+  const sessions = chatSessions.value
+  if (sessions.length === 0) {
+    return null
+  }
+
+  return {
+    id: CHAT_SECTION_GROUP_ID,
+    label: 'chat.sidebar.chats',
+    labelKey: 'chat.sidebar.chats',
+    sessions
+  }
+})
+const workspaceGroups = computed(() => {
+  if (sessionStore.groupMode === 'project') {
+    return filteredGroups.value.filter(isProjectDirectoryGroup)
+  }
+
+  return baseFilteredGroups.value
+    .map((group) => ({
+      ...group,
+      sessions: sortSidebarSessions(group.sessions.filter(isWorkspaceSession))
+    }))
+    .filter((group) => group.sessions.length > 0)
+})
+const visibleGroups = computed(() => [
+  ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
+  ...workspaceGroups.value
+])
 const projectReorderableGroups = computed(() =>
   workspaceGroups.value.filter(isActiveProjectDirectoryGroup)
 )
@@ -915,15 +955,9 @@ const deleteDialogOpen = computed({
 
 const getGroupIdentifier = (group: SessionGroup) => group.id
 
-const getGroupLabel = (group: SessionGroup) =>
-  isChatsGroup(group) ? t('chat.sidebar.chats') : group.labelKey ? t(group.labelKey) : group.label
-const getGroupIcon = (group: SessionGroup) => {
-  if (isChatsGroup(group)) {
-    return 'lucide:message-square'
-  }
-
-  return isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
-}
+const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+const getGroupIcon = (group: SessionGroup) =>
+  isGroupCollapsed(group) ? 'lucide:folder-closed' : 'lucide:folder-open'
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
@@ -939,7 +973,7 @@ const visibleShortcutSessions = computed<UISession[]>(() => {
     sessions.push(...pinnedSessions.value)
   }
 
-  for (const group of filteredGroups.value) {
+  for (const group of visibleGroups.value) {
     if (!isGroupCollapsed(group)) {
       sessions.push(...group.sessions)
     }
@@ -1125,7 +1159,7 @@ watch(
 )
 
 watch(
-  [filteredGroups, () => sessionStore.activeSessionId],
+  [visibleGroups, () => sessionStore.activeSessionId],
   ([groups, activeSessionId]) => {
     if (isProjectGroupDragging.value) {
       return
@@ -1141,22 +1175,10 @@ watch(
         group.sessions.some((session) => session.id === activeSessionId)
       )
 
-      if (activeGroup && !isChatsGroup(activeGroup)) {
+      if (activeGroup) {
         nextCollapsedGroupIds.delete(getGroupIdentifier(activeGroup))
       }
     }
-
-    const nextDefaultCollapsedChatGroupIds = new Set(
-      [...defaultCollapsedChatGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
-    )
-    for (const group of groups) {
-      const groupId = getGroupIdentifier(group)
-      if (isChatsGroup(group) && !nextDefaultCollapsedChatGroupIds.has(groupId)) {
-        nextCollapsedGroupIds.add(groupId)
-        nextDefaultCollapsedChatGroupIds.add(groupId)
-      }
-    }
-    defaultCollapsedChatGroupIds.value = nextDefaultCollapsedChatGroupIds
 
     const stateChanged =
       nextCollapsedGroupIds.size !== collapsedGroupIds.value.size ||
@@ -1591,7 +1613,7 @@ const visibleSessionFingerprint = computed(() =>
   [
     isPinnedSectionCollapsed.value ? 'pinned:collapsed' : 'pinned:expanded',
     ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
-    ...filteredGroups.value.flatMap((group) => [
+    ...visibleGroups.value.flatMap((group) => [
       `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
       ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
     ])
