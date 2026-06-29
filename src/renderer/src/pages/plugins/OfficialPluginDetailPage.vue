@@ -240,6 +240,7 @@
 
         <RemoteSettings
           v-if="isFeishuPlugin"
+          :key="`feishu:${remoteSettingsVersion}`"
           channel="feishu"
           embedded
           hide-channel-toggle
@@ -494,6 +495,7 @@ function enablePlugin(): void {
     const result = await pluginClient.enablePlugin(currentPlugin.id)
     if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
       await setFeishuRemoteEnabled(true)
+      remoteSettingsVersion.value += 1
     }
     return result
   })
@@ -508,6 +510,7 @@ function disablePlugin(): void {
     const result = await pluginClient.disablePlugin(currentPlugin.id)
     if (result.ok && currentPlugin.id === FEISHU_PLUGIN_ID) {
       await setFeishuRemoteEnabled(false)
+      remoteSettingsVersion.value += 1
     }
     return result
   })

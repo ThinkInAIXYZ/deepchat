@@ -28,6 +28,25 @@ const remoteSettingsStub = defineComponent({
     '<div data-testid="remote-settings" :data-channel="channel" :data-hide-toggle="String(hideChannelToggle)" :data-hide-header="String(hideHeader)"></div>'
 })
 
+const translations: Record<string, string> = {
+  'chat.sidebar.remoteControlStatus.disabled': 'Remote disabled',
+  'chat.sidebar.remoteControlStatus.running': 'Remote running',
+  'common.back': 'Back',
+  'settings.plugins.disable': 'Disable',
+  'settings.plugins.enable': 'Enable',
+  'settings.plugins.status.disabled': 'Disabled',
+  'settings.plugins.status.enabled': 'Enabled',
+  'settings.pluginsHub.actionResult': 'Action result',
+  'settings.pluginsHub.capabilities': 'Capabilities',
+  'settings.pluginsHub.cuaDescription': 'CUA localized description',
+  'settings.plugins.runtime': 'Runtime',
+  'settings.plugins.version': 'Version',
+  'settings.remote.feishu.description': 'Feishu localized description',
+  'settings.remote.feishu.title': 'Feishu localized title',
+  'settings.remote.telegram.description': 'Telegram localized description',
+  'settings.remote.telegram.title': 'Telegram localized title'
+}
+
 const defaultFeishuSettings = (remoteEnabled: boolean) => ({
   brand: 'feishu',
   appId: 'cli_a',
@@ -50,6 +69,9 @@ const defaultTelegramSettings = (remoteEnabled: boolean) => ({
 
 const findIcon = (wrapper: ReturnType<typeof shallowMount>, icon: string) =>
   wrapper.find(`[data-icon="${icon}"], [icon="${icon}"]`)
+
+const findRemoteSettingsKey = (wrapper: ReturnType<typeof shallowMount>) =>
+  wrapper.findComponent(remoteSettingsStub).vm.$.vnode.key
 
 async function mountDetail(
   options: { enabled?: boolean; pluginId?: string; remoteEnabled?: boolean } = {}
@@ -115,12 +137,7 @@ async function mountDetail(
   })
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) =>
-        key === 'settings.pluginsHub.cuaDescription'
-          ? 'CUA localized description'
-          : key === 'settings.remote.feishu.description'
-            ? 'Feishu localized description'
-            : key
+      t: (key: string) => translations[key] ?? key
     })
   }))
   vi.doMock('@iconify/vue', () => ({
@@ -164,7 +181,8 @@ describe('OfficialPluginDetailPage', () => {
     expect(icon.exists()).toBe(true)
     expect(icon.classes()).toContain('text-blue-500')
     expect(findIcon(wrapper, 'lucide:puzzle').exists()).toBe(false)
-    expect(wrapper.text()).toContain('settings.remote.feishu.title')
+    expect(wrapper.text()).toContain('Feishu localized title')
+    expect(wrapper.text()).not.toContain('settings.remote.feishu.title')
     expect(wrapper.text()).not.toContain('Feishu/Lark Integration')
   })
 
@@ -204,10 +222,11 @@ describe('OfficialPluginDetailPage', () => {
     expect(wrapper.find('[data-testid="remote-settings"]').attributes('data-hide-toggle')).toBe(
       'true'
     )
+    expect(findRemoteSettingsKey(wrapper)).toBe('feishu:0')
 
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'settings.plugins.enable')!
+      .find((button) => button.text() === 'Enable')!
       .trigger('click')
     await flushPromises()
 
@@ -216,6 +235,7 @@ describe('OfficialPluginDetailPage', () => {
       'feishu',
       expect.objectContaining({ remoteEnabled: true })
     )
+    expect(findRemoteSettingsKey(wrapper)).toBe('feishu:1')
   })
 
   it('uses the plugin disable button to stop Feishu remote too', async () => {
@@ -226,7 +246,7 @@ describe('OfficialPluginDetailPage', () => {
 
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'settings.plugins.disable')!
+      .find((button) => button.text() === 'Disable')!
       .trigger('click')
     await flushPromises()
 
@@ -251,7 +271,7 @@ describe('OfficialPluginDetailPage', () => {
 
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'settings.plugins.enable')!
+      .find((button) => button.text() === 'Enable')!
       .trigger('click')
     await flushPromises()
 
@@ -269,7 +289,7 @@ describe('OfficialPluginDetailPage', () => {
 
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'settings.plugins.disable')!
+      .find((button) => button.text() === 'Disable')!
       .trigger('click')
     await flushPromises()
 

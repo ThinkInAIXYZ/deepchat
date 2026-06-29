@@ -17,6 +17,19 @@ const buttonStub = defineComponent({
   template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
+const translations: Record<string, string> = {
+  'routes.plugins': 'Plugins',
+  'settings.pluginsHub.add': 'Add',
+  'settings.pluginsHub.available': 'Available plugins',
+  'settings.pluginsHub.cuaDescription': 'CUA localized description',
+  'settings.pluginsHub.manage': 'Manage',
+  'settings.pluginsHub.subtitle': 'Manage DeepChat plugins.',
+  'settings.plugins.status.disabled': 'Disabled',
+  'settings.plugins.status.enabled': 'Enabled',
+  'settings.remote.feishu.description': 'Feishu localized description',
+  'settings.remote.feishu.title': 'Feishu localized title'
+}
+
 async function mountCatalog() {
   vi.resetModules()
   vi.clearAllMocks()
@@ -80,12 +93,7 @@ async function mountCatalog() {
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) =>
-        key === 'settings.pluginsHub.cuaDescription'
-          ? 'CUA localized description'
-          : key === 'settings.remote.feishu.description'
-            ? 'Feishu localized description'
-            : key
+      t: (key: string) => translations[key] ?? key
     })
   }))
   vi.doMock('@iconify/vue', () => ({
@@ -116,7 +124,8 @@ describe('PluginsCatalogPage', () => {
   it('keeps the Feishu official plugin title localized after catalog load', async () => {
     const { wrapper } = await mountCatalog()
 
-    expect(wrapper.text()).toContain('settings.remote.feishu.title')
+    expect(wrapper.text()).toContain('Feishu localized title')
+    expect(wrapper.text()).not.toContain('settings.remote.feishu.title')
     expect(wrapper.text()).not.toContain('Feishu/Lark Integration')
   })
 
@@ -146,7 +155,8 @@ describe('PluginsCatalogPage', () => {
   it('shows available plugins heading instead of unsupported category filters', async () => {
     const { wrapper } = await mountCatalog()
 
-    expect(wrapper.text()).toContain('settings.pluginsHub.available')
+    expect(wrapper.text()).toContain('Available plugins')
+    expect(wrapper.text()).not.toContain('settings.pluginsHub.available')
     expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.official')
     expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.workspace')
     expect(wrapper.text()).not.toContain('settings.pluginsHub.filters.personal')
@@ -167,9 +177,11 @@ describe('PluginsCatalogPage', () => {
 
     expect(cards).toHaveLength(2)
     expect(cards[0].text()).toContain('CUA Computer Use Runtime')
-    expect(cards[0].text()).toContain('settings.pluginsHub.manage')
+    expect(cards[0].text()).toContain('Manage')
+    expect(cards[0].text()).toContain('Enabled')
     expect(cards[0].find('span.rounded-full').classes()).toContain('bg-emerald-500/10')
-    expect(cards[1].text()).toContain('settings.remote.feishu.title')
-    expect(cards[1].text()).toContain('settings.pluginsHub.add')
+    expect(cards[1].text()).toContain('Feishu localized title')
+    expect(cards[1].text()).toContain('Add')
+    expect(cards[1].text()).toContain('Disabled')
   })
 })
