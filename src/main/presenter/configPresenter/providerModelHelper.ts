@@ -1,6 +1,11 @@
 import logger from '@shared/logger'
 import { ModelConfig, MODEL_META } from '@shared/presenter'
-import { ModelType, resolveNewApiSelectableEndpointTypes } from '@shared/model'
+import {
+  isNewApiEndpointType,
+  ModelType,
+  resolveNewApiModelTypeFromMetadata,
+  resolveNewApiSelectableEndpointTypes
+} from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
@@ -29,6 +34,16 @@ interface ProviderModelHelperOptions {
 }
 
 type ProviderModelStore = StoreLike<IModelStore & Record<string, unknown>>
+
+const MODEL_TYPE_VALUES = new Set<string>(Object.values(ModelType))
+
+function isModelType(value: unknown): value is ModelType {
+  return typeof value === 'string' && MODEL_TYPE_VALUES.has(value)
+}
+
+function isNonChatModelType(type: ModelType | undefined): type is ModelType {
+  return type !== undefined && type !== ModelType.Chat
+}
 
 export class ProviderModelHelper {
   private readonly userDataPath: string
@@ -127,6 +142,38 @@ export class ProviderModelHelper {
     return normalizedModel
   }
 
+  private resolveNewApiEffectiveModelType(model: MODEL_META, config?: ModelConfig): ModelType {
+    const userConfigType =
+      config?.isUserDefined === true && isModelType(config.type) ? config.type : undefined
+    if (userConfigType) {
+      return userConfigType
+    }
+
+    if (isModelType(model.type)) {
+      return model.type
+    }
+
+    const supportedEndpointTypes = (model.supportedEndpointTypes ?? []).filter(isNewApiEndpointType)
+    const routeEndpointTypes =
+      supportedEndpointTypes.length > 0
+        ? supportedEndpointTypes
+        : isNewApiEndpointType(model.endpointType)
+          ? [model.endpointType]
+          : []
+    const metadataType = resolveNewApiModelTypeFromMetadata(routeEndpointTypes, model.id, undefined)
+    if (metadataType) {
+      return metadataType
+    }
+
+    const providerConfigType =
+      config?.isUserDefined !== true && isModelType(config?.type) ? config.type : undefined
+    if (isNonChatModelType(providerConfigType)) {
+      return providerConfigType
+    }
+
+    return ModelType.Chat
+  }
+
   private applyResolvedModelConfig(model: MODEL_META, providerId: string): MODEL_META {
     const normalizedModel = this.cloneModel(model)
     const config = this.getModelConfig(normalizedModel.id, providerId)
@@ -146,6 +193,11 @@ export class ProviderModelHelper {
           : config.reasoning || false
       normalizedModel.endpointType = config.endpointType ?? normalizedModel.endpointType
       normalizedModel.ownedBy = normalizedModel.ownedBy ?? config.ownedBy
+      if (providerId === 'new-api') {
+        normalizedModel.type = this.resolveNewApiEffectiveModelType(normalizedModel, config)
+        return normalizedModel
+      }
+
       normalizedModel.type =
         resolveVideoGenerationCompatType({
           modelId: normalizedModel.id,
@@ -161,6 +213,11 @@ export class ProviderModelHelper {
     normalizedModel.vision = normalizedModel.vision || false
     normalizedModel.functionCall = normalizedModel.functionCall || false
     normalizedModel.reasoning = normalizedModel.reasoning || false
+    if (providerId === 'new-api') {
+      normalizedModel.type = this.resolveNewApiEffectiveModelType(normalizedModel)
+      return normalizedModel
+    }
+
     normalizedModel.type =
       resolveVideoGenerationCompatType({
         modelId: normalizedModel.id,
@@ -173,7 +230,7 @@ export class ProviderModelHelper {
   }
 
   private applyNewApiEndpointCompatibility(model: MODEL_META, providerId: string): MODEL_META {
-    if (providerId !== 'new-api' || model.selectableEndpointTypes?.length) {
+    if (providerId !== 'new-api') {
       return model
     }
 
@@ -181,8 +238,7 @@ export class ProviderModelHelper {
       model.supportedEndpointTypes,
       model.id,
       {
-        type: model.type,
-        ownedBy: model.ownedBy
+        type: model.type
       }
     )
     return selectableEndpointTypes ? { ...model, selectableEndpointTypes } : model
@@ -217,8 +273,8 @@ export class ProviderModelHelper {
     }
 
     const result = normalizedStoredModels.map((model) =>
-      this.applyResolvedModelConfig(
-        this.applyNewApiEndpointCompatibility(model, providerId),
+      this.applyNewApiEndpointCompatibility(
+        this.applyResolvedModelConfig(model, providerId),
         providerId
       )
     )

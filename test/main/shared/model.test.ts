@@ -204,24 +204,73 @@ describe('new-api route helpers', () => {
     ).toBe('openrouter')
   })
 
-  it('adds responses for exact OpenAI owners and OpenAI-family model ids', () => {
+  it('adds every chat endpoint for chat selectable endpoint debugging', () => {
     expect(
       resolveNewApiSelectableEndpointTypes(['openai'], 'proxy-chat', {
-        ownedBy: 'openai'
+        type: ModelType.Chat
       })
-    ).toEqual(['openai', 'openai-response'])
+    ).toEqual(['openai', 'openai-response', 'anthropic', 'gemini'])
 
-    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-5.5')).toEqual([
-      'openai',
-      'openai-response'
-    ])
+    expect(
+      resolveNewApiSelectableEndpointTypes(['gemini', 'openai'], 'gpt-5.5', {
+        type: ModelType.Chat
+      })
+    ).toEqual(['gemini', 'openai', 'openai-response', 'anthropic'])
   })
 
-  it('does not treat composite OpenAI-compatible owner labels as OpenAI ownership', () => {
+  it('filters selectable endpoints by explicit non-chat model type', () => {
     expect(
-      resolveNewApiSelectableEndpointTypes(['openai'], 'proxy-chat', {
-        ownedBy: 'openai-compatible'
+      resolveNewApiSelectableEndpointTypes(['openai', 'anthropic'], 'gpt-image-2', {
+        type: ModelType.ImageGeneration
       })
-    ).toBeUndefined()
+    ).toEqual(['image-generation'])
+
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai', 'gemini'], 'sora-3', {
+        type: ModelType.VideoGeneration
+      })
+    ).toEqual(['video-generation'])
+
+    expect(
+      resolveNewApiSelectableEndpointTypes(
+        ['openai', 'anthropic', 'image-generation'],
+        'embed-v1',
+        {
+          type: ModelType.Embedding
+        }
+      )
+    ).toEqual(['openai'])
+  })
+
+  it('treats explicit raw chat type ahead of media endpoint hints for selectable endpoints', () => {
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai', 'image-generation'], 'gpt-4.1', {
+        rawType: 'chat'
+      })
+    ).toEqual(['openai', 'openai-response', 'anthropic', 'gemini'])
+
+    expect(
+      resolveNewApiSelectableEndpointTypes(['image-generation'], 'gpt-image-2', {
+        rawType: undefined
+      })
+    ).toEqual(['image-generation'])
+  })
+
+  it('infers known media model ids from sparse endpoint metadata', () => {
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-image-2')).toEqual([
+      'image-generation'
+    ])
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'dall-e-3')).toEqual([
+      'image-generation'
+    ])
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'sora-3')).toEqual(['video-generation'])
+  })
+
+  it('keeps explicit raw chat type ahead of known media model id inference', () => {
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-image-2', {
+        rawType: 'chat'
+      })
+    ).toEqual(['openai'])
   })
 })

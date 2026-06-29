@@ -480,7 +480,7 @@ describe('NewApiProvider capability routing', () => {
     )
   })
 
-  it('exposes responses as a selectable option for openai-only chat models while keeping completions as default', async () => {
+  it('exposes all chat endpoints for openai-only chat models while keeping completions as default', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -508,7 +508,7 @@ describe('NewApiProvider capability routing', () => {
     expect(models[0]).toMatchObject({
       id: 'gpt-5.5',
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['openai', 'openai-response'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
       endpointType: 'openai'
     })
     expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
@@ -557,7 +557,7 @@ describe('NewApiProvider capability routing', () => {
               providerId: 'new-api',
               isCustom: false,
               supportedEndpointTypes: ['openai'],
-              selectableEndpointTypes: ['openai', 'openai-response'],
+              selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
               endpointType: 'openai',
               ownedBy: 'openai',
               type: ModelType.Chat
@@ -573,7 +573,98 @@ describe('NewApiProvider capability routing', () => {
     expect(runtimeProvider.apiType).toBe('openai-responses')
   })
 
-  it('does not add responses as an option for openai-only non-chat models', async () => {
+  it('keeps explicit chat models on chat selectable endpoints when media endpoints are also advertised', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-4.1',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'image-generation'],
+              type: 'chat'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-4.1',
+      type: ModelType.Chat,
+      supportedEndpointTypes: ['openai', 'image-generation'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+
+    const runtimeProvider = new AiSdkProvider(
+      createProvider(),
+      createConfigPresenter(
+        {},
+        {
+          'new-api': models
+        }
+      )
+    )
+    const routeDecision = (runtimeProvider as any).resolveRouteDecision('gpt-4.1')
+
+    expect(routeDecision.endpointType).toBe('openai')
+  })
+
+  it('limits explicit media models to their matching selectable endpoint', async () => {
+    vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
+    vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gpt-image-2',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'image-generation'],
+              type: 'image'
+            },
+            {
+              id: 'sora-3',
+              object: 'model',
+              owned_by: 'openai',
+              supported_endpoint_types: ['openai', 'video-generation'],
+              type: 'video'
+            }
+          ]
+        })
+      })
+    )
+
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const models = await (provider as any).fetchProviderModels()
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      selectableEndpointTypes: ['image-generation'],
+      endpointType: 'image-generation'
+    })
+    expect(models[1]).toMatchObject({
+      id: 'sora-3',
+      type: ModelType.VideoGeneration,
+      selectableEndpointTypes: ['video-generation'],
+      endpointType: 'video-generation'
+    })
+  })
+
+  it('keeps openai-compatible selectable endpoint for openai-only non-chat models', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -601,12 +692,12 @@ describe('NewApiProvider capability routing', () => {
       id: 'text-embedding-3-large',
       type: ModelType.Embedding,
       supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai'],
       endpointType: 'openai'
     })
-    expect(models[0].selectableEndpointTypes).toBeUndefined()
   })
 
-  it('exposes responses for openai-only GPT models without an explicit chat type', async () => {
+  it('exposes all chat endpoints for openai-only GPT models without an explicit chat type', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -632,7 +723,7 @@ describe('NewApiProvider capability routing', () => {
     expect(models[0]).toMatchObject({
       id: 'gpt-5.5',
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['openai', 'openai-response'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
       endpointType: 'openai'
     })
   })
@@ -671,11 +762,11 @@ describe('NewApiProvider capability routing', () => {
     for (const model of models) {
       expect(model.supportedEndpointTypes).toEqual(['openai'])
       expect(model.endpointType).toBe('openai')
-      expect(model.selectableEndpointTypes).toBeUndefined()
+      expect(model.selectableEndpointTypes).toEqual(['openai'])
     }
   })
 
-  it('does not expose responses for openai-only image models without an explicit type', async () => {
+  it('exposes media selectable endpoint for sparse known image model ids', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -700,13 +791,14 @@ describe('NewApiProvider capability routing', () => {
 
     expect(models[0]).toMatchObject({
       id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
       supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['image-generation'],
       endpointType: 'openai'
     })
-    expect(models[0].selectableEndpointTypes).toBeUndefined()
   })
 
-  it('does not expose responses for non-OpenAI relay chat models', async () => {
+  it('exposes all chat endpoints for non-OpenAI relay chat models', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -741,7 +833,12 @@ describe('NewApiProvider capability routing', () => {
     for (const model of models) {
       expect(model.supportedEndpointTypes).toEqual(['openai'])
       expect(model.endpointType).toBe('openai')
-      expect(model.selectableEndpointTypes).toBeUndefined()
+      expect(model.selectableEndpointTypes).toEqual([
+        'openai',
+        'openai-response',
+        'anthropic',
+        'gemini'
+      ])
     }
   })
 
