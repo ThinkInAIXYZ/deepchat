@@ -1,12 +1,60 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const { listMessageTraceDiagnosticsMock, listMessageTracesMock, listMessageViewManifestsMock } =
-  vi.hoisted(() => ({
+const {
+  listMessageTraceDiagnosticsMock,
+  listMessageTracesMock,
+  listMessageViewManifestsMock,
+  createEditorMock,
+  updateCodeMock,
+  cleanupEditorMock,
+  updateOptionsMock,
+  layoutMock,
+  setThemeMock,
+  getEditorViewMock,
+  getEditorMock,
+  useMonacoMock,
+  themeStoreMock
+} = vi.hoisted(() => {
+  const createEditorMock = vi.fn()
+  const updateCodeMock = vi.fn()
+  const cleanupEditorMock = vi.fn()
+  const updateOptionsMock = vi.fn()
+  const layoutMock = vi.fn()
+  const setThemeMock = vi.fn()
+  const getEditorViewMock = vi.fn().mockReturnValue({
+    updateOptions: updateOptionsMock,
+    layout: layoutMock
+  })
+  const getEditorMock = vi.fn().mockReturnValue({
+    setTheme: setThemeMock
+  })
+  const useMonacoMock = vi.fn(() => ({
+    createEditor: createEditorMock,
+    updateCode: updateCodeMock,
+    cleanupEditor: cleanupEditorMock,
+    getEditorView: getEditorViewMock,
+    getEditor: getEditorMock
+  }))
+
+  return {
     listMessageTraceDiagnosticsMock: vi.fn(),
     listMessageTracesMock: vi.fn(),
-    listMessageViewManifestsMock: vi.fn()
-  }))
+    listMessageViewManifestsMock: vi.fn(),
+    createEditorMock,
+    updateCodeMock,
+    cleanupEditorMock,
+    updateOptionsMock,
+    layoutMock,
+    setThemeMock,
+    getEditorViewMock,
+    getEditorMock,
+    useMonacoMock,
+    themeStoreMock: {
+      isDark: false
+    }
+  }
+})
 
 vi.mock('@api/SessionClient', () => ({
   createSessionClient: vi.fn(() => ({
@@ -28,15 +76,12 @@ vi.mock('@/stores/uiSettingsStore', () => ({
   })
 }))
 
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => themeStoreMock
+}))
+
 vi.mock('stream-monaco', () => ({
-  useMonaco: () => ({
-    createEditor: vi.fn(),
-    updateCode: vi.fn(),
-    cleanupEditor: vi.fn(),
-    getEditorView: vi.fn().mockReturnValue({
-      updateOptions: vi.fn()
-    })
-  })
+  useMonaco: useMonacoMock
 }))
 
 vi.mock(
@@ -219,7 +264,106 @@ describe('TraceDialog', () => {
     listMessageTraceDiagnosticsMock.mockReset()
     listMessageTracesMock.mockReset()
     listMessageViewManifestsMock.mockReset()
+    createEditorMock.mockReset()
+    updateCodeMock.mockReset()
+    cleanupEditorMock.mockReset()
+    updateOptionsMock.mockReset()
+    layoutMock.mockReset()
+    setThemeMock.mockReset()
+    getEditorViewMock.mockReset()
+    getEditorViewMock.mockReturnValue({
+      updateOptions: updateOptionsMock,
+      layout: layoutMock
+    })
+    getEditorMock.mockReset()
+    getEditorMock.mockReturnValue({
+      setTheme: setThemeMock
+    })
+    useMonacoMock.mockReset()
+    useMonacoMock.mockImplementation(() => ({
+      createEditor: createEditorMock,
+      updateCode: updateCodeMock,
+      cleanupEditor: cleanupEditorMock,
+      getEditorView: getEditorViewMock,
+      getEditor: getEditorMock
+    }))
+    themeStoreMock.isDark = false
     listMessageTraceDiagnosticsMock.mockResolvedValue({ traces: [], manifests: [] })
+  })
+
+  it('keeps the request preview constrained inside the dialog layout', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't1',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 1,
+          endpoint: 'https://api.example.com/first',
+          headersJson: '{"x":"1"}',
+          bodyJson: '{"b":1}',
+          truncated: false,
+          createdAt: 2000
+        }
+      ],
+      manifests: []
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    const dialogContent = wrapper.getComponent({ name: 'DialogContent' })
+    expect(dialogContent.classes()).toEqual(
+      expect.arrayContaining(['h-[80vh]', 'max-h-[80vh]', 'flex', 'flex-col', 'overflow-hidden'])
+    )
+
+    const tabs = wrapper.getComponent({ name: 'Tabs' })
+    expect(tabs.classes()).toEqual(
+      expect.arrayContaining(['h-0', 'flex-1', 'min-h-0', 'flex', 'flex-col', 'overflow-hidden'])
+    )
+
+    const requestContent = wrapper.getComponent({ name: 'TabsContent' })
+    expect(requestContent.classes()).toEqual(
+      expect.arrayContaining(['h-0', 'flex-1', 'min-h-0', 'overflow-hidden'])
+    )
+    expect(requestContent.classes()).not.toContain('min-h-[300px]')
+  })
+
+  it('initializes Monaco with the resolved light theme', async () => {
+    listMessageTraceDiagnosticsMock.mockResolvedValue({
+      traces: [
+        {
+          id: 't1',
+          messageId: 'm1',
+          sessionId: 's1',
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          requestSeq: 1,
+          endpoint: 'https://api.example.com/first',
+          headersJson: '{"x":"1"}',
+          bodyJson: '{"b":1}',
+          truncated: false,
+          createdAt: 2000
+        }
+      ],
+      manifests: []
+    })
+
+    const wrapper = mountDialog()
+    await wrapper.setProps({ messageId: 'm1' })
+    await flushPromises()
+
+    expect(useMonacoMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        themes: ['vitesse-dark', 'vitesse-light'],
+        theme: 'vitesse-light'
+      })
+    )
+    expect(createEditorMock).toHaveBeenCalled()
+    expect(setThemeMock).toHaveBeenCalledWith('vitesse-light')
   })
 
   it('shows latest trace by default and supports switching trace history', async () => {

@@ -1,6 +1,11 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-4xl max-h-[80vh] flex flex-col">
+    <DialogContent
+      :class="[
+        'max-w-4xl max-h-[80vh] flex flex-col overflow-hidden',
+        hasDiagnostics ? 'h-[80vh]' : ''
+      ]"
+    >
       <DialogHeader>
         <DialogTitle>{{ t('traceDialog.title') }}</DialogTitle>
       </DialogHeader>
@@ -16,7 +21,10 @@
         <p class="text-sm text-muted-foreground">{{ t('traceDialog.errorDesc') }}</p>
       </div>
 
-      <div v-else-if="hasDiagnostics" class="flex flex-col flex-1 min-h-0 space-y-4">
+      <div
+        v-else-if="hasDiagnostics"
+        class="flex flex-col flex-1 min-h-0 space-y-4 overflow-hidden"
+      >
         <div v-if="requestOptions.length > 1" class="flex flex-wrap gap-2">
           <Button
             v-for="option in requestOptions"
@@ -39,13 +47,13 @@
           <div class="grid grid-cols-2 gap-4">
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.provider') }}:</span>
-              <span class="ml-2 break-words">{{
+              <span class="ml-2 `wrap-break-word">{{
                 diagnosticProviderId || t('traceDialog.notAvailable')
               }}</span>
             </div>
             <div class="min-w-0">
               <span class="font-semibold">{{ t('traceDialog.model') }}:</span>
-              <span class="ml-2 break-words">{{
+              <span class="ml-2 `wrap-break-word">{{
                 diagnosticModelId || t('traceDialog.notAvailable')
               }}</span>
             </div>
@@ -66,7 +74,7 @@
           </div>
         </div>
 
-        <Tabs v-model="activeTab" class="flex-1 min-h-0 flex flex-col">
+        <Tabs v-model="activeTab" class="h-0 flex-1 min-h-0 flex flex-col overflow-hidden">
           <TabsList class="grid grid-cols-4 w-full">
             <TabsTrigger
               v-for="tab in diagnosticTabs"
@@ -79,7 +87,7 @@
           </TabsList>
 
           <div
-            class="flex-shrink-0 flex items-center justify-between px-4 py-2 bg-muted border-x border-t"
+            class="shrink-0 flex items-center justify-between px-4 py-2 bg-muted border-x border-t"
           >
             <span class="text-sm font-semibold">{{ activeTabLabel }}</span>
             <Button variant="ghost" size="sm" :disabled="!activeJson" @click="copyJson">
@@ -91,9 +99,9 @@
           <TabsContent
             v-if="activeTab === 'request'"
             value="request"
-            class="flex-1 min-h-0 border rounded-b-lg overflow-hidden min-h-[300px] mt-0"
+            class="h-0 flex-1 min-h-0 border rounded-b-lg overflow-hidden mt-0"
           >
-            <div v-if="selectedTrace" class="h-full bg-muted/30 relative">
+            <div v-if="selectedTrace" class="relative h-full min-h-0 bg-muted/30">
               <div
                 ref="jsonEditor"
                 class="absolute inset-0"
@@ -104,7 +112,7 @@
                 class="absolute inset-0 p-4 overflow-auto"
               >
                 <pre
-                  class="text-xs whitespace-pre-wrap break-words"
+                  class="text-xs whitespace-pre-wrap wrap-break-word"
                 ><code>{{ formattedJson }}</code></pre>
               </div>
             </div>
@@ -301,6 +309,7 @@ import { useI18n } from 'vue-i18n'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createSessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
+import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import type { MessageTraceRecord } from '@shared/types/agent-interface'
 import type {
@@ -314,13 +323,17 @@ const { t } = useI18n()
 const deviceClient = createDeviceClient()
 const sessionClient = createSessionClient()
 const uiSettingsStore = useUiSettingsStore()
+const themeStore = useThemeStore()
+const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const jsonEditor = ref<HTMLElement | null>(null)
-const { createEditor, updateCode, cleanupEditor, getEditorView } = useMonaco({
+const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
   readOnly: true,
   wordWrap: 'off',
   wrappingIndent: 'same',
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
+  themes: ['vitesse-dark', 'vitesse-light'],
+  theme: resolvedTheme.value,
   minimap: { enabled: false },
   scrollBeyondLastLine: true,
   fontSize: 12,
@@ -556,6 +569,22 @@ const applyFontFamily = (fontFamily: string) => {
   }
 }
 
+const applyTheme = async () => {
+  try {
+    getEditor().setTheme(resolvedTheme.value)
+  } catch (err) {
+    console.warn('Failed to apply Monaco theme:', err)
+  }
+}
+
+const layoutEditor = () => {
+  try {
+    getEditorView()?.layout()
+  } catch (err) {
+    console.warn('Failed to layout Monaco Editor:', err)
+  }
+}
+
 watch(activeTab, (tab) => {
   if (tab !== 'request') {
     cleanupEditor()
@@ -572,14 +601,17 @@ watch(
       const hasEditor = editorEl.querySelector('.monaco-editor')
       if (!hasEditor && !editorInitialized.value) {
         try {
-          createEditor(editorEl, json, 'json')
+          await createEditor(editorEl, json, 'json')
           editorInitialized.value = true
+          await applyTheme()
           applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+          layoutEditor()
         } catch (err) {
           console.error('Failed to create Monaco Editor:', err)
         }
       } else if (hasEditor && editorInitialized.value) {
         updateCode(json, 'json')
+        layoutEditor()
       }
     }
   },
@@ -598,9 +630,11 @@ onMounted(async () => {
     await nextTick()
     if (!jsonEditor.value.querySelector('.monaco-editor') && !editorInitialized.value) {
       try {
-        createEditor(jsonEditor.value, formattedJson.value, 'json')
+        await createEditor(jsonEditor.value, formattedJson.value, 'json')
         editorInitialized.value = true
+        await applyTheme()
         applyFontFamily(uiSettingsStore.formattedCodeFontFamily)
+        layoutEditor()
       } catch (err) {
         console.error('Failed to create Monaco Editor on mount:', err)
       }
@@ -613,6 +647,16 @@ watch(
   (font) => {
     applyFontFamily(font)
   }
+)
+
+watch(
+  resolvedTheme,
+  () => {
+    if (isOpen.value && editorInitialized.value) {
+      void applyTheme()
+    }
+  },
+  { flush: 'post' }
 )
 
 onBeforeUnmount(() => {
