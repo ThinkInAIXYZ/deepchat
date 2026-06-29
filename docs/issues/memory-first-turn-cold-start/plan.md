@@ -67,7 +67,7 @@ open); turn 2+ (or any turn after warm resolves) restores full hybrid recall.
 
 - Make `scripts/installVss.js` **platform/arch-aware**: remove the macOS early `return` and accept
   explicit `--platform`/`--arch` flags that select the **target** triple (e.g. `osx_arm64` vs
-  `osx_amd64`), version-locked to `@duckdb/node-api` (1.5.3-r.1). Do **not** rely on the host
+  `osx_amd64`), version-locked to the current `@duckdb/node-api` package version. Do **not** rely on the host
   machine's architecture — a CI x64 box cross-building `build:mac:arm64` would otherwise bundle the
   wrong extension. (DuckDB `INSTALL` resolves the host platform by default; the script must fetch/
   copy the requested target's binary, mirroring how `installRuntime:*:<arch>` already takes `-a`.)
