@@ -766,7 +766,7 @@ describe('NewApiProvider capability routing', () => {
     }
   })
 
-  it('keeps openai-compatible selectable endpoint for incompatible image model ids without an explicit type', async () => {
+  it('exposes media selectable endpoint for sparse known image model ids', async () => {
     vi.spyOn(modelCapabilities, 'findCapabilityModelMatch').mockReturnValue(undefined)
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
     vi.stubGlobal(
@@ -791,8 +791,9 @@ describe('NewApiProvider capability routing', () => {
 
     expect(models[0]).toMatchObject({
       id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
       supportedEndpointTypes: ['openai'],
-      selectableEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['image-generation'],
       endpointType: 'openai'
     })
   })

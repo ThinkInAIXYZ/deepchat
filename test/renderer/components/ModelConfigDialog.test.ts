@@ -23,24 +23,38 @@ type SetupOptions = {
   isCustomModel?: boolean
   providerModels?: Array<Record<string, unknown>>
   customModels?: Array<Record<string, unknown>>
+  getModelConfig?: (...args: string[]) => Promise<Record<string, unknown>> | Record<string, unknown>
+}
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
 }
 
 const setup = async (options: SetupOptions) => {
   vi.resetModules()
 
+  const defaultModelConfig = {
+    maxTokens: 4096,
+    contextLength: 16000,
+    temperature: 0.7,
+    vision: false,
+    functionCall: true,
+    reasoning: true,
+    type: 'chat',
+    reasoningEffort: 'medium',
+    verbosity: 'medium',
+    ...options.modelConfig
+  }
   const modelConfigStore = {
-    getModelConfig: vi.fn().mockResolvedValue({
-      maxTokens: 4096,
-      contextLength: 16000,
-      temperature: 0.7,
-      vision: false,
-      functionCall: true,
-      reasoning: true,
-      type: 'chat',
-      reasoningEffort: 'medium',
-      verbosity: 'medium',
-      ...options.modelConfig
-    }),
+    getModelConfig: vi
+      .fn()
+      .mockImplementation(options.getModelConfig ?? (() => Promise.resolve(defaultModelConfig))),
     setModelConfig: vi.fn().mockResolvedValue(undefined),
     resetModelConfig: vi.fn().mockResolvedValue(undefined)
   }
@@ -148,7 +162,7 @@ const setup = async (options: SetupOptions) => {
 
   await flushPromises()
 
-  return { wrapper, modelConfigStore }
+  return { wrapper, modelConfigStore, modelStore, modelClient }
 }
 
 describe('ModelConfigDialog reasoning portraits', () => {
@@ -1009,5 +1023,106 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
     expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
     expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Image)
     expect((wrapper.vm as any).config.type).toBe(ModelType.ImageGeneration)
+  })
+
+  it('keeps loading guard active until the latest overlapping load finishes', async () => {
+    const firstLoad = createDeferred<Record<string, unknown>>()
+    const secondLoad = createDeferred<Record<string, unknown>>()
+    const getModelConfig = vi
+      .fn()
+      .mockReturnValueOnce(firstLoad.promise)
+      .mockReturnValueOnce(secondLoad.promise)
+
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-4.1',
+          name: 'GPT-4.1',
+          type: ModelType.Chat,
+          supportedEndpointTypes: ['openai'],
+          selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+          endpointType: 'openai'
+        }
+      ],
+      getModelConfig
+    })
+
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledTimes(2)
+    expect((wrapper.vm as any).isLoadingModelConfig).toBe(true)
+
+    firstLoad.resolve({
+      type: ModelType.ImageGeneration,
+      endpointType: 'image-generation',
+      isUserDefined: true
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect((wrapper.vm as any).isLoadingModelConfig).toBe(true)
+    expect((wrapper.vm as any).hasManualModelTypeSelection).toBe(false)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+
+    secondLoad.resolve({
+      type: ModelType.Chat,
+      endpointType: 'openai',
+      isUserDefined: true
+    })
+    await flushPromises()
+    await nextTick()
+
+    expect((wrapper.vm as any).isLoadingModelConfig).toBe(false)
+    expect((wrapper.vm as any).hasManualModelTypeSelection).toBe(false)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+  })
+
+  it('revalidates endpoint selection when provider metadata changes available endpoints', async () => {
+    const { wrapper, modelStore } = await setup({
+      providerId: 'new-api',
+      modelId: 'media-debug-model',
+      modelName: 'Media Debug Model',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'media-debug-model',
+          name: 'Media Debug Model',
+          type: ModelType.ImageGeneration,
+          supportedEndpointTypes: ['openai', 'image-generation'],
+          selectableEndpointTypes: ['image-generation'],
+          endpointType: 'image-generation'
+        }
+      ],
+      modelConfig: {
+        type: undefined,
+        endpointType: 'image-generation',
+        isUserDefined: false
+      }
+    })
+
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual(['image-generation'])
+    expect((wrapper.vm as any).config.endpointType).toBe('image-generation')
+
+    Object.assign(modelStore.allProviderModels[0].models[0], {
+      type: ModelType.Chat,
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
+      endpointType: 'openai'
+    })
+    await nextTick()
+    await flushPromises()
+
+    expect((wrapper.vm as any).availableEndpointTypes).toEqual([
+      'openai',
+      'openai-response',
+      'anthropic',
+      'gemini'
+    ])
+    expect((wrapper.vm as any).config.endpointType).toBe('openai')
+    expect((wrapper.vm as any).config.apiEndpoint).toBe(ApiEndpointType.Chat)
+    expect((wrapper.vm as any).config.type).toBe(ModelType.Chat)
   })
 })

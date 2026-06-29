@@ -255,4 +255,22 @@ describe('new-api route helpers', () => {
       })
     ).toEqual(['image-generation'])
   })
+
+  it('infers known media model ids from sparse endpoint metadata', () => {
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-image-2')).toEqual([
+      'image-generation'
+    ])
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'dall-e-3')).toEqual([
+      'image-generation'
+    ])
+    expect(resolveNewApiSelectableEndpointTypes(['openai'], 'sora-3')).toEqual(['video-generation'])
+  })
+
+  it('keeps explicit raw chat type ahead of known media model id inference', () => {
+    expect(
+      resolveNewApiSelectableEndpointTypes(['openai'], 'gpt-image-2', {
+        rawType: 'chat'
+      })
+    ).toEqual(['openai'])
+  })
 })

@@ -1230,10 +1230,13 @@ const initializeIdentityFields = () => {
   originalModelId.value = props.modelId ?? ''
 }
 
+let loadConfigRequestId = 0
+
 // 加载模型配置
 const loadConfig = async () => {
   if (!props.providerId) return
 
+  const requestId = ++loadConfigRequestId
   isLoadingModelConfig.value = true
   hasManualModelTypeSelection.value = false
   modelConfigIsUserDefined.value = false
@@ -1246,6 +1249,7 @@ const loadConfig = async () => {
       syncTopPDraftFromConfig()
       syncNewApiDerivedFields()
       await fetchCapabilities()
+      if (requestId !== loadConfigRequestId) return
       return
     }
 
@@ -1255,6 +1259,7 @@ const loadConfig = async () => {
 
     try {
       const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
+      if (requestId !== loadConfigRequestId) return
       modelConfigIsUserDefined.value = modelConfig?.isUserDefined === true
       modelConfigHasExplicitType.value = isModelType(modelConfig?.type)
       config.value = { ...createDefaultConfig(), ...modelConfig }
@@ -1276,12 +1281,14 @@ const loadConfig = async () => {
         config.value.apiEndpoint = ApiEndpointType.Chat
       }
     } catch (error) {
+      if (requestId !== loadConfigRequestId) return
       console.error('Failed to load model config:', error)
       config.value = createDefaultConfig()
       syncTopPDraftFromConfig()
     }
 
     await fetchCapabilities()
+    if (requestId !== loadConfigRequestId) return
 
     if (
       config.value.forceInterleavedThinkingCompat === undefined &&
@@ -1339,8 +1346,10 @@ const loadConfig = async () => {
 
     syncNewApiDerivedFields()
   } finally {
-    await nextTick()
-    isLoadingModelConfig.value = false
+    if (requestId === loadConfigRequestId) {
+      await nextTick()
+      isLoadingModelConfig.value = false
+    }
   }
 }
 
@@ -1558,7 +1567,13 @@ watch(
 )
 
 watch(
-  () => [config.value.endpointType, config.value.type, showEndpointTypeSelector.value],
+  () =>
+    [
+      config.value.endpointType,
+      config.value.type,
+      showEndpointTypeSelector.value,
+      availableEndpointTypes.value.join('|')
+    ] as const,
   ([, nextType], [, previousType]) => {
     if (!isLoadingModelConfig.value && nextType !== previousType) {
       hasManualModelTypeSelection.value = true

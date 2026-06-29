@@ -405,6 +405,43 @@ describe('ProviderModelHelper cache', () => {
     })
   })
 
+  it('derives NewAPI media type from sparse cached media model ids', async () => {
+    const { ProviderModelHelper } =
+      await import('../../../../src/main/presenter/configPresenter/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      getModelConfig: () =>
+        createModelConfig({
+          isUserDefined: false
+        }),
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn()
+    })
+
+    const store = helper.getProviderModelStore('new-api')
+    store.set('models', [
+      {
+        id: 'gpt-image-2',
+        name: 'GPT Image 2',
+        group: 'openai',
+        providerId: 'new-api',
+        isCustom: false,
+        supportedEndpointTypes: ['openai'],
+        endpointType: 'openai'
+      }
+    ])
+
+    const models = helper.getProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      id: 'gpt-image-2',
+      type: ModelType.ImageGeneration,
+      supportedEndpointTypes: ['openai'],
+      selectableEndpointTypes: ['image-generation'],
+      endpointType: 'openai'
+    })
+  })
+
   it('derives NewAPI media type when legacy user config has no explicit type', async () => {
     const { ProviderModelHelper } =
       await import('../../../../src/main/presenter/configPresenter/providerModelHelper')

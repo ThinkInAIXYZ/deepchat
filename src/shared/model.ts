@@ -173,6 +173,13 @@ export function resolveNewApiModelTypeFromMetadata(
     return ModelType.TTS
   }
 
+  if (normalizedModelId.startsWith('dall-e-') || normalizedModelId.startsWith('gpt-image-')) {
+    return ModelType.ImageGeneration
+  }
+  if (normalizedModelId.startsWith('sora-')) {
+    return ModelType.VideoGeneration
+  }
+
   if (isPureNewApiMediaEndpointRoute(supportedEndpointTypes, 'image-generation')) {
     return ModelType.ImageGeneration
   }
