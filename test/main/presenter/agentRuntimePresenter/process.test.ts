@@ -496,6 +496,14 @@ describe('processStream', () => {
           }
         })
     } as unknown as IToolPresenter
+    const activeSkillNames: string[] = []
+    const activateSkill = vi.fn(async (skillName: string) => {
+      if (!activeSkillNames.includes(skillName)) {
+        activeSkillNames.push(skillName)
+      }
+      return [...activeSkillNames]
+    })
+    const getActiveSkillNames = vi.fn(() => [...activeSkillNames])
     const refreshTools = vi
       .fn()
       .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
@@ -552,21 +560,31 @@ describe('processStream', () => {
       toolPresenter,
       tools: [makeTool('skill_view')],
       refreshTools,
-      refreshSystemPrompt
+      refreshSystemPrompt,
+      hooks: {
+        activateSkill,
+        getActiveSkillNames
+      }
     })
 
     const promise = processStream(params)
     await vi.runAllTimersAsync()
     await promise
 
+    expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
+    expect(getActiveSkillNames).toHaveBeenCalled()
     expect(refreshTools).toHaveBeenCalledTimes(1)
+    expect(refreshTools).toHaveBeenCalledWith(['deepchat-settings'])
     expect(refreshSystemPrompt).toHaveBeenCalledTimes(1)
-    expect(refreshSystemPrompt).toHaveBeenCalledWith(undefined, [
-      expect.objectContaining({ function: expect.objectContaining({ name: 'skill_view' }) }),
-      expect.objectContaining({
-        function: expect.objectContaining({ name: 'deepchat_settings_set_theme' })
-      })
-    ])
+    expect(refreshSystemPrompt).toHaveBeenCalledWith(
+      ['deepchat-settings'],
+      [
+        expect.objectContaining({ function: expect.objectContaining({ name: 'skill_view' }) }),
+        expect.objectContaining({
+          function: expect.objectContaining({ name: 'deepchat_settings_set_theme' })
+        })
+      ]
+    )
     expect(coreStream).toHaveBeenCalledTimes(3)
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
   })

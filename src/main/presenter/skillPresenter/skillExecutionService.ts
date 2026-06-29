@@ -134,7 +134,7 @@ export class SkillExecutionService {
     const activeSkills =
       activeSkillNames ?? (await this.skillPresenter.getActiveSkills(conversationId))
     if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not pinned in this conversation`)
+      throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
     }
 
     const metadata = (await this.skillPresenter.getMetadataList()).find(

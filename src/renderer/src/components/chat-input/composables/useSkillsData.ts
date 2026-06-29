@@ -40,18 +40,18 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
    * Effective composer skills. Session-pinned active skills are loaded separately and are not
    * shown as message chips in the composer.
    */
-  const effectiveActiveSkills = computed(() => pendingSkills.value)
+  const composerActiveSkills = computed(() => pendingSkills.value)
 
   /**
    * Count of currently active skills
    */
-  const activeCount = computed(() => effectiveActiveSkills.value.length)
+  const composerActiveCount = computed(() => composerActiveSkills.value.length)
 
   /**
    * Skills that are currently active (full metadata)
    */
-  const activeSkillItems = computed(() => {
-    const activeSet = new Set(effectiveActiveSkills.value)
+  const composerActiveSkillItems = computed(() => {
+    const activeSet = new Set(composerActiveSkills.value)
     return skills.value.filter((skill) => activeSet.has(skill.name))
   })
 
@@ -59,7 +59,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
    * Skills that are available but not active
    */
   const availableSkills = computed(() => {
-    const activeSet = new Set(effectiveActiveSkills.value)
+    const activeSet = new Set(composerActiveSkills.value)
     return skills.value.filter((skill) => !activeSet.has(skill.name))
   })
 
@@ -174,9 +174,9 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   return {
     // State
     skills,
-    activeSkills: effectiveActiveSkills, // Composer skills for the next message
-    activeCount,
-    activeSkillItems,
+    composerActiveSkills,
+    composerActiveCount,
+    composerActiveSkillItems,
     availableSkills,
     loading,
     pendingSkills,

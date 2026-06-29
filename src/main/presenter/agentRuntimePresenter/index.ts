@@ -950,7 +950,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.resetRuntimeActivatedSkills(sessionId)
       this.setRuntimeActivatedSkills(sessionId, normalizedInput.activeSkills ?? [])
       const sessionActiveSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
-      let effectiveActiveSkillNames = this.resolveEffectiveActiveSkillNames(
+      const effectiveActiveSkillNames = this.resolveEffectiveActiveSkillNames(
         sessionActiveSkillNames,
         sessionId
       )
@@ -1112,15 +1112,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         tools,
         baseSystemPrompt,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
-          effectiveActiveSkillNames = this.resolveEffectiveActiveSkillNames(
-            activeSkillNames ?? sessionActiveSkillNames,
-            sessionId
-          )
           const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
             sessionId,
             generationSettings.systemPrompt,
             refreshedTools,
-            effectiveActiveSkillNames
+            activeSkillNames ?? effectiveActiveSkillNames
           )
           return await this.appendMemoryInjection(
             sessionId,

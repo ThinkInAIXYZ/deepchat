@@ -246,24 +246,10 @@ export abstract class BaseLLMProvider {
    */
   public async fetchModels(options?: { suppressErrors?: boolean }): Promise<MODEL_META[]> {
     const suppressErrors = options?.suppressErrors ?? true
+    let models: MODEL_META[]
+
     try {
-      const models = await this.fetchProviderModels()
-      logger.info(
-        `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
-      )
-      // Validate that all models have correct providerId
-      const validatedModels = models.map((model) => {
-        if (model.providerId !== this.provider.id) {
-          logger.warn(
-            `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
-          )
-          model.providerId = this.provider.id
-        }
-        return model
-      })
-      this.models = validatedModels
-      this.configPresenter.setProviderModels(this.provider.id, validatedModels)
-      return validatedModels
+      models = await this.fetchProviderModels()
     } catch (e) {
       logger.error(
         `[Provider] fetchModels: Failed to fetch models for provider "${this.provider.id}":`,
@@ -277,6 +263,23 @@ export abstract class BaseLLMProvider {
       }
       return []
     }
+
+    logger.info(
+      `[Provider] fetchModels: fetched ${models?.length || 0} models for provider "${this.provider.id}"`
+    )
+    // Validate that all models have correct providerId
+    const validatedModels = models.map((model) => {
+      if (model.providerId !== this.provider.id) {
+        logger.warn(
+          `[Provider] fetchModels: Model ${model.id} has incorrect providerId: expected "${this.provider.id}", got "${model.providerId}". Fixing it.`
+        )
+        model.providerId = this.provider.id
+      }
+      return model
+    })
+    this.models = validatedModels
+    this.configPresenter.setProviderModels(this.provider.id, validatedModels)
+    return validatedModels
   }
 
   /**

@@ -619,7 +619,7 @@ export class ToolPresenter implements IToolPresenter {
     let hasContent = false
 
     if (toolNames.has('skill_list')) {
-      lines.push('- Use `skill_list` to inspect installed skills and manual pinned status.')
+      lines.push('- Use `skill_list` to inspect installed skills and manual pin status.')
       hasContent = true
     }
     if (toolNames.has('skill_view')) {

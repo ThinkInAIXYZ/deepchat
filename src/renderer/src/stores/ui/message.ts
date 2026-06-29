@@ -237,7 +237,8 @@ export const useMessageStore = defineStore('message', () => {
       files: [],
       links: [],
       search: false,
-      think: false
+      think: false,
+      activeSkills: []
     }
     return entry.userContent
   }

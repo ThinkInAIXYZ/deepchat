@@ -147,7 +147,7 @@ let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
 const skillsData = useSkillsData(conversationId)
-const activeSkillNames = computed(() => skillsData.activeSkills.value)
+const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
 
 const mentions = useChatInputMentions({
   getEditor,

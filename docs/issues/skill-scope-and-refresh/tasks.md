@@ -15,3 +15,6 @@
 - [x] Move message-scoped skill chips out of the message bubble and restyle them as subtle message metadata.
 - [x] Add renderer/runtime tests for composer message-scoped skills.
 - [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` after the visibility fix.
+
+- [x] Address review feedback for active skill fallback data, wording, refresh parameter flow, and composer naming clarity.
+- [x] Strengthen process stream coverage for hook-backed message-scope skill activation refresh.
