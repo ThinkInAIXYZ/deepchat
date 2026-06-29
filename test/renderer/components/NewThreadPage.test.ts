@@ -10,6 +10,9 @@ const passthrough = (name: string) =>
   })
 
 const chatInputTriggerAttachMock = vi.fn()
+const chatInputClearPendingSkillsMock = vi.fn(() => {
+  chatInputPendingSkillsSnapshotRef.value = []
+})
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 
 const createChatInputBoxStub = () =>
@@ -33,7 +36,8 @@ const createChatInputBoxStub = () =>
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
-        getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value]
+        getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
+        clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
         h('div', {
@@ -68,6 +72,7 @@ const setup = async (options?: {
 }) => {
   vi.resetModules()
   chatInputTriggerAttachMock.mockReset()
+  chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
@@ -801,7 +806,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('prefers ChatInputBox pending skills snapshot when creating deepchat session', async () => {
+  it('sends ChatInputBox pending skills as initial message-scoped skills', async () => {
     const { wrapper, sessionStore, agentStore, modelStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
@@ -823,6 +828,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         activeSkills: ['live-skill']
       })
     )
+    expect(chatInputClearPendingSkillsMock).toHaveBeenCalled()
   })
 
   it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {

@@ -162,11 +162,21 @@ export function normalizeUserInput(input: string | SendMessageInput): SendMessag
   if (!input || typeof input !== 'object') {
     return { text: '', files: [] }
   }
+  const activeSkills = Array.isArray(input.activeSkills)
+    ? Array.from(
+        new Set(
+          input.activeSkills
+            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+            .filter((skillName) => skillName.length > 0)
+        )
+      )
+    : []
   return {
     text: typeof input.text === 'string' ? input.text : '',
     files: Array.isArray(input.files)
       ? (input.files.filter((file): file is MessageFile => Boolean(file)) as MessageFile[])
-      : []
+      : [],
+    ...(activeSkills.length > 0 ? { activeSkills } : {})
   }
 }
 

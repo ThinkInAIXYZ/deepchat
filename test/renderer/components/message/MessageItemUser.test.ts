@@ -262,6 +262,20 @@ describe('MessageItemUser', () => {
     expect(wrapper.text()).toContain('const answer = 42;')
   })
 
+  it('shows message-scoped skills as metadata outside the message bubble', async () => {
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage({}, { activeSkills: ['algorithmic-art', 'deep-research'] })
+      },
+      ...globalMountOptions
+    })
+
+    const skills = wrapper.findAll('[data-testid="user-message-active-skill"]')
+    expect(skills).toHaveLength(2)
+    expect(skills.map((skill) => skill.text())).toEqual(['algorithmic-art', 'deep-research'])
+    expect(wrapper.get('[data-message-content="true"]').text()).not.toContain('algorithmic-art')
+  })
+
   it('keeps attachments visible when long text collapses', async () => {
     const wrapper = mount(MessageItemUser, {
       props: {

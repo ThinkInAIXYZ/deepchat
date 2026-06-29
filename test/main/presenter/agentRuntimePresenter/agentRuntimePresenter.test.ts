@@ -2491,7 +2491,8 @@ describe('AgentRuntimePresenter', () => {
       }
 
       skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValueOnce([]).mockResolvedValueOnce(['skill-a'])
+      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillPresenter.getActiveSkills.mockResolvedValueOnce([])
       skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -2501,7 +2502,7 @@ describe('AgentRuntimePresenter', () => {
       expect(envBuilder).toHaveBeenCalledTimes(2)
 
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
-      expect(secondCallArgs.messages[0].content).toContain('## Pinned Skills')
+      expect(secondCallArgs.messages[0].content).toContain('## Active Skills')
       expect(secondCallArgs.messages[0].content).toContain('### skill-a')
       expect(secondCallArgs.messages[0].content).toContain('Skill A instructions')
     })
@@ -2522,7 +2523,7 @@ describe('AgentRuntimePresenter', () => {
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const systemPrompt = String(callArgs.messages[0].content)
 
-      expect(systemPrompt).not.toContain('## Pinned Skills')
+      expect(systemPrompt).not.toContain('## Active Skills')
       expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
     })
 
@@ -2586,7 +2587,7 @@ describe('AgentRuntimePresenter', () => {
       ).toHaveLength(1)
       const runtimeIndex = systemPrompt.indexOf('RUNTIME_CAPABILITIES')
       const skillsIndex = systemPrompt.indexOf('## Skills')
-      const pinnedSkillsIndex = systemPrompt.indexOf('## Pinned Skills')
+      const activeSkillsIndex = systemPrompt.indexOf('## Active Skills')
       const envIndex = systemPrompt.indexOf('ENV_BLOCK')
       const toolingIndex = systemPrompt.indexOf('TOOLING_BLOCK')
       const permissionIndex = systemPrompt.indexOf('## Permission Rules')
@@ -2597,8 +2598,8 @@ describe('AgentRuntimePresenter', () => {
       expect(runtimeIndex).toBeGreaterThan(userPromptIndex)
       expect(envIndex).toBeGreaterThan(runtimeIndex)
       expect(skillsIndex).toBeGreaterThan(envIndex)
-      expect(pinnedSkillsIndex).toBeGreaterThan(skillsIndex)
-      expect(toolingIndex).toBeGreaterThan(pinnedSkillsIndex)
+      expect(activeSkillsIndex).toBeGreaterThan(skillsIndex)
+      expect(toolingIndex).toBeGreaterThan(activeSkillsIndex)
       expect(permissionIndex).toBeGreaterThan(toolingIndex)
       expect(verificationIndex).toBeGreaterThan(permissionIndex)
       expect(systemPrompt).toContain('- skill-a')

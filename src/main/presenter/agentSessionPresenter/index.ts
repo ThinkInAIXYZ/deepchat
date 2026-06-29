@@ -406,10 +406,6 @@ export class AgentSessionPresenter {
       webContentsId
     })
 
-    if (input.activeSkills && input.activeSkills.length > 0 && this.skillPresenter) {
-      await this.skillPresenter.setActiveSkills(sessionId, input.activeSkills)
-    }
-
     // Return enriched session first
     const state = await agent.getSessionState(sessionId)
     const sessionResult: SessionWithState = {
@@ -437,17 +433,29 @@ export class AgentSessionPresenter {
       logger.info(`[AgentSessionPresenter] firing queuePendingInput (non-blocking)`)
       if (agent.queuePendingInput) {
         agent
-          .queuePendingInput(sessionId, normalizedInput, {
-            source: 'send',
-            projectDir
-          })
+          .queuePendingInput(
+            sessionId,
+            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
+            {
+              source: 'send',
+              projectDir
+            }
+          )
           .catch((err) => {
             console.error('[AgentSessionPresenter] queuePendingInput failed:', err)
           })
       } else {
-        agent.processMessage(sessionId, normalizedInput, { projectDir }).catch((err) => {
-          console.error('[AgentSessionPresenter] processMessage failed:', err)
-        })
+        agent
+          .processMessage(
+            sessionId,
+            this.withInitialMessageActiveSkills(normalizedInput, input.activeSkills),
+            {
+              projectDir
+            }
+          )
+          .catch((err) => {
+            console.error('[AgentSessionPresenter] processMessage failed:', err)
+          })
       }
       void this.generateSessionTitle(sessionId, title, providerId, modelId)
     }
@@ -3651,7 +3659,8 @@ export class AgentSessionPresenter {
           ? parsed.links.filter((item): item is string => typeof item === 'string')
           : [],
         search: parsed.search === true,
-        think: parsed.think === true
+        think: parsed.think === true,
+        activeSkills: this.normalizeActiveSkills(parsed.activeSkills)
       }
     } catch {
       return null
@@ -3958,7 +3967,12 @@ export class AgentSessionPresenter {
     const files = Array.isArray(content.files)
       ? content.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return { text, files }
+    const activeSkills = this.normalizeActiveSkills(content.activeSkills)
+    return {
+      text,
+      files,
+      ...(activeSkills.length > 0 ? { activeSkills } : {})
+    }
   }
 
   private normalizeCreateSessionInput(input: CreateSessionInput): SendMessageInput {
@@ -3966,7 +3980,18 @@ export class AgentSessionPresenter {
     const files = Array.isArray(input.files)
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return { text, files }
+    return this.withInitialMessageActiveSkills({ text, files }, input.activeSkills)
+  }
+
+  private withInitialMessageActiveSkills(
+    input: SendMessageInput,
+    activeSkills?: string[]
+  ): SendMessageInput {
+    const normalizedActiveSkills = this.normalizeActiveSkills(activeSkills ?? input.activeSkills)
+    return {
+      ...input,
+      ...(normalizedActiveSkills.length > 0 ? { activeSkills: normalizedActiveSkills } : {})
+    }
   }
 
   private normalizeDisabledAgentTools(

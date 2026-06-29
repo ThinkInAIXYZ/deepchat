@@ -12,9 +12,20 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
     return { text: input, files: [] }
   }
 
+  const activeSkills = Array.isArray(input?.activeSkills)
+    ? Array.from(
+        new Set(
+          input.activeSkills
+            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+            .filter((skillName) => skillName.length > 0)
+        )
+      )
+    : []
+
   return {
     text: typeof input?.text === 'string' ? input.text : '',
-    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : []
+    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
+    ...(activeSkills.length > 0 ? { activeSkills } : {})
   }
 }
 
@@ -108,8 +119,15 @@ export class DeepChatPendingInputStore {
     const next = normalizeInput(input)
     const text = [existing.text.trim(), next.text.trim()].filter(Boolean).join('\n\n')
     const files = [...(existing.files ?? []), ...(next.files ?? [])].filter(Boolean)
+    const activeSkills = Array.from(
+      new Set([...(existing.activeSkills ?? []), ...(next.activeSkills ?? [])])
+    )
     this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
-      payload_json: JSON.stringify({ text, files })
+      payload_json: JSON.stringify({
+        text,
+        files,
+        ...(activeSkills.length > 0 ? { activeSkills } : {})
+      })
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }

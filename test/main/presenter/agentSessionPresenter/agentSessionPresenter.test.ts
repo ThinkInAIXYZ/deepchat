@@ -641,7 +641,7 @@ describe('AgentSessionPresenter', () => {
       ).rejects.toThrow('No provider or model configured')
     })
 
-    it('applies active skills before first message processing', async () => {
+    it('passes active skills as initial message-scoped skills without pinning the session', async () => {
       await presenter.createSession(
         {
           agentId: 'deepchat',
@@ -651,10 +651,16 @@ describe('AgentSessionPresenter', () => {
         1
       )
 
-      expect(skillPresenter.setActiveSkills).toHaveBeenCalledWith('mock-session-id', [
-        'skill-a',
-        'skill-b'
-      ])
+      expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
+      expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
+        'mock-session-id',
+        {
+          text: 'Hello',
+          files: [],
+          activeSkills: ['skill-a', 'skill-b']
+        },
+        expect.objectContaining({ source: 'send' })
+      )
     })
 
     it('generates title asynchronously without blocking createSession', async () => {

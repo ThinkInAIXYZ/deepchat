@@ -36,6 +36,7 @@ export type UserMessageContent = {
   links: string[]
   think: boolean
   search: boolean
+  activeSkills?: string[]
   text: string
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }

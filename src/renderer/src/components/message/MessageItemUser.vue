@@ -18,6 +18,21 @@
         :name="message.name ?? 'user'"
         :timestamp="message.timestamp"
       />
+      <div
+        v-if="message.content.activeSkills?.length"
+        class="flex max-w-full flex-wrap justify-end gap-1.5 pr-1"
+        data-testid="user-message-active-skills"
+      >
+        <span
+          v-for="skillName in message.content.activeSkills"
+          :key="skillName"
+          class="inline-flex h-5 items-center gap-1 rounded-full border border-border/60 bg-background/70 px-2 text-[11px] leading-none text-muted-foreground shadow-sm dark:bg-background/40"
+          data-testid="user-message-active-skill"
+        >
+          <Icon icon="lucide:sparkles" class="h-3 w-3 text-primary/70" />
+          {{ skillName }}
+        </span>
+      </div>
       <!-- 消息内容 -->
       <div
         class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5"

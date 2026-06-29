@@ -61,6 +61,7 @@ export interface IToolPresenter {
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]>
   syncAgentToolContext?(context: {
     chatMode?: 'agent' | 'acp agent'
@@ -72,6 +73,7 @@ export interface IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -163,6 +165,7 @@ export class ToolPresenter implements IToolPresenter {
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const mapper = this.resolveMapper(context.conversationId)
@@ -194,7 +197,8 @@ export class ToolPresenter implements IToolPresenter {
           chatMode,
           supportsVision,
           agentWorkspacePath,
-          conversationId: context.conversationId
+          conversationId: context.conversationId,
+          activeSkillNames: context.activeSkillNames
         }),
         'agent'
       )
@@ -260,6 +264,7 @@ export class ToolPresenter implements IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -300,7 +305,8 @@ export class ToolPresenter implements IToolPresenter {
           toolCallId: request.id,
           onProgress: options?.onProgress,
           signal: options?.signal,
-          allowExternalFileAccess: options?.permissionMode === 'full_access'
+          allowExternalFileAccess: options?.permissionMode === 'full_access',
+          activeSkillNames: options?.activeSkillNames
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)
@@ -613,12 +619,12 @@ export class ToolPresenter implements IToolPresenter {
     let hasContent = false
 
     if (toolNames.has('skill_list')) {
-      lines.push('- Use `skill_list` to inspect installed skills and pinned status.')
+      lines.push('- Use `skill_list` to inspect installed skills and manual pinned status.')
       hasContent = true
     }
     if (toolNames.has('skill_view')) {
       lines.push(
-        '- Use `skill_view` to inspect a skill or one of its linked files before relying on it.'
+        '- Use `skill_view` to inspect a skill or one of its linked files before relying on it. Root skill views activate the skill for the current message/tool loop only; they do not pin it to the conversation.'
       )
       hasContent = true
     }
@@ -629,7 +635,9 @@ export class ToolPresenter implements IToolPresenter {
       hasContent = true
     }
     if (toolNames.has('skill_run')) {
-      lines.push('- Use `skill_run` to execute bundled scripts from pinned skills.')
+      lines.push(
+        '- Use `skill_run` to execute bundled scripts from skills active in the current message/tool loop.'
+      )
       hasContent = true
     }
 

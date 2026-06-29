@@ -335,6 +335,7 @@ export interface UserMessageContent {
   links: string[]
   search: boolean
   think: boolean
+  activeSkills?: string[]
 }
 
 export interface LegacyImportStatus {
@@ -371,6 +372,7 @@ export interface MessageFile {
 export interface SendMessageInput {
   text: string
   files?: MessageFile[]
+  activeSkills?: string[]
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'

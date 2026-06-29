@@ -373,6 +373,49 @@ describe('DeepChatMessageStore', () => {
         updatedAt: 1000
       })
     })
+
+    it('preserves message-scoped active skills when materializing normalized user content', () => {
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        {
+          id: 'm1',
+          session_id: 's1',
+          order_seq: 1,
+          role: 'user',
+          content: JSON.stringify({
+            text: 'raw text',
+            files: [],
+            links: [],
+            search: false,
+            think: false,
+            activeSkills: ['algorithmic-art']
+          }),
+          status: 'sent',
+          is_context_edge: 0,
+          metadata: '{}',
+          trace_count: 0,
+          created_at: 1000,
+          updated_at: 1000
+        }
+      ])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          text: 'normalized text',
+          search_enabled: 0,
+          think_enabled: 0
+        }
+      ])
+
+      const [message] = store.getMessages('s1')
+      expect(JSON.parse(message.content)).toEqual({
+        text: 'normalized text',
+        files: [],
+        links: [],
+        search: false,
+        think: false,
+        activeSkills: ['algorithmic-art']
+      })
+    })
   })
 
   describe('getMessageIds', () => {

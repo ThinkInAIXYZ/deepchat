@@ -19,7 +19,9 @@ const consumePendingSkillsMock = vi.fn(() => {
   pendingSkillsRef.value = []
   return copied
 })
-const applyPendingSkillsToConversationMock = vi.fn().mockResolvedValue(undefined)
+const clearPendingSkillsMock = vi.fn(() => {
+  pendingSkillsRef.value = []
+})
 
 vi.mock('@tiptap/vue-3', () => {
   class MockEditor {
@@ -137,7 +139,7 @@ vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
     activateSkill: activateSkillMock,
     deactivateSkill: deactivateSkillMock,
     consumePendingSkills: consumePendingSkillsMock,
-    applyPendingSkillsToConversation: applyPendingSkillsToConversationMock
+    clearPendingSkills: clearPendingSkillsMock
   })
 }))
 
@@ -373,10 +375,16 @@ describe('ChatInputBox attachments', () => {
     expect(deleteFileMock).toHaveBeenCalledWith(0)
   })
 
-  it('exposes deduplicated pending skills snapshot', async () => {
+  it('exposes and clears deduplicated pending skills snapshot', async () => {
     pendingSkillsRef.value = ['review', 'review', 'commit']
     const wrapper = await mountComponent()
     expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
+    expect((wrapper.vm as any).consumePendingSkills()).toEqual(['review', 'commit'])
+    expect(pendingSkillsRef.value).toEqual([])
+
+    pendingSkillsRef.value = ['commit']
+    ;(wrapper.vm as any).clearPendingSkills()
+    expect(pendingSkillsRef.value).toEqual([])
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

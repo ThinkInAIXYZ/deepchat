@@ -15,9 +15,9 @@ import { useSkillsStore } from '@/stores/skillsStore'
  *
  * This composable provides:
  * - Access to all available skills from the skills store
- * - Per-conversation active skills management
- * - Pending skills for new threads (applied when conversation is created)
- * - Toggle functionality for activating/deactivating skills
+ * - Local composer skill selection for the next message
+ * - Session active skills for externally/manual pinned skills
+ * - Toggle functionality for selecting/deselecting message skills
  * - Event listeners for real-time updates
  */
 export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
@@ -27,7 +27,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
 
   // === State ===
   const activeSkills = ref<string[]>([])
-  const pendingSkills = ref<string[]>([]) // Skills selected before conversation exists
+  const pendingSkills = ref<string[]>([]) // Skills selected for the next message in the composer
   const loading = ref(false)
 
   // === Computed ===
@@ -37,11 +37,10 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   const skills = computed<SkillMetadata[]>(() => skillsStore.skills)
 
   /**
-   * Effective active skills - uses pending skills if no conversation, otherwise real active skills
+   * Effective composer skills. Session-pinned active skills are loaded separately and are not
+   * shown as message chips in the composer.
    */
-  const effectiveActiveSkills = computed(() => {
-    return conversationId.value ? activeSkills.value : pendingSkills.value
-  })
+  const effectiveActiveSkills = computed(() => pendingSkills.value)
 
   /**
    * Count of currently active skills
@@ -86,74 +85,29 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   /**
-   * Toggle a skill's activation state
-   * Works for both existing conversations and pending state
+   * Toggle a skill for the next message only.
    */
   const toggleSkill = async (skillName: string) => {
-    // If no conversation, toggle in pending skills
-    if (!conversationId.value) {
-      const isCurrentlyPending = pendingSkills.value.includes(skillName)
-      pendingSkills.value = isCurrentlyPending
-        ? pendingSkills.value.filter((s) => s !== skillName)
-        : [...pendingSkills.value, skillName]
-      return
-    }
-
-    const isCurrentlyActive = activeSkills.value.includes(skillName)
-    const updatedSkills = isCurrentlyActive
-      ? activeSkills.value.filter((s) => s !== skillName)
-      : [...activeSkills.value, skillName]
-
-    try {
-      await skillClient.setActiveSkills(conversationId.value, updatedSkills)
-      activeSkills.value = updatedSkills
-    } catch (error) {
-      console.error('[useSkillsData] Failed to toggle skill:', error)
-    }
+    const isCurrentlyPending = pendingSkills.value.includes(skillName)
+    pendingSkills.value = isCurrentlyPending
+      ? pendingSkills.value.filter((s) => s !== skillName)
+      : [...pendingSkills.value, skillName]
   }
 
   /**
-   * Activate a specific skill
+   * Select a specific skill for the next message only.
    */
   const activateSkill = async (skillName: string) => {
-    // If no conversation, add to pending skills
-    if (!conversationId.value) {
-      if (!pendingSkills.value.includes(skillName)) {
-        pendingSkills.value = [...pendingSkills.value, skillName]
-      }
-      return
-    }
-
-    if (activeSkills.value.includes(skillName)) return
-
-    const updatedSkills = [...activeSkills.value, skillName]
-    try {
-      await skillClient.setActiveSkills(conversationId.value, updatedSkills)
-      activeSkills.value = updatedSkills
-    } catch (error) {
-      console.error('[useSkillsData] Failed to activate skill:', error)
+    if (!pendingSkills.value.includes(skillName)) {
+      pendingSkills.value = [...pendingSkills.value, skillName]
     }
   }
 
   /**
-   * Deactivate a specific skill
+   * Deselect a skill from the next message.
    */
   const deactivateSkill = async (skillName: string) => {
-    // If no conversation, remove from pending skills
-    if (!conversationId.value) {
-      pendingSkills.value = pendingSkills.value.filter((s) => s !== skillName)
-      return
-    }
-
-    if (!activeSkills.value.includes(skillName)) return
-
-    const updatedSkills = activeSkills.value.filter((s) => s !== skillName)
-    try {
-      await skillClient.setActiveSkills(conversationId.value, updatedSkills)
-      activeSkills.value = updatedSkills
-    } catch (error) {
-      console.error('[useSkillsData] Failed to deactivate skill:', error)
-    }
+    pendingSkills.value = pendingSkills.value.filter((s) => s !== skillName)
   }
 
   /**
@@ -166,17 +120,10 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   }
 
   /**
-   * Apply pending skills to a newly created conversation
+   * Clear composer skills after they have been attached to a submitted message.
    */
-  const applyPendingSkillsToConversation = async (newConversationId: string) => {
-    const pending = consumePendingSkills()
-    if (pending.length > 0) {
-      try {
-        await skillClient.setActiveSkills(newConversationId, pending)
-      } catch (error) {
-        console.error('[useSkillsData] Failed to apply pending skills:', error)
-      }
-    }
+  const clearPendingSkills = () => {
+    pendingSkills.value = []
   }
 
   // === IPC Event Handlers ===
@@ -227,7 +174,7 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   return {
     // State
     skills,
-    activeSkills: effectiveActiveSkills, // Return effective skills (pending or real)
+    activeSkills: effectiveActiveSkills, // Composer skills for the next message
     activeCount,
     activeSkillItems,
     availableSkills,
@@ -240,6 +187,6 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     activateSkill,
     deactivateSkill,
     consumePendingSkills,
-    applyPendingSkillsToConversation
+    clearPendingSkills
   }
 }

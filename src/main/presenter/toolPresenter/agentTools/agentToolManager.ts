@@ -98,6 +98,7 @@ interface AgentToolExecutionOptions {
   onProgress?: (update: AgentToolProgressUpdate) => void
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
+  activeSkillNames?: string[]
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -355,6 +356,7 @@ export class AgentToolManager {
     supportsVision: boolean
     agentWorkspacePath: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
@@ -428,7 +430,10 @@ export class AgentToolManager {
       const skillDefs = this.getSkillToolDefinitions()
       defs.push(...skillDefs)
 
-      if (context.conversationId && (await this.hasRunnableSkillScripts(context.conversationId))) {
+      if (
+        context.conversationId &&
+        (await this.hasRunnableSkillScripts(context.conversationId, context.activeSkillNames))
+      ) {
         defs.push(this.getSkillRunToolDefinition())
       }
     }
@@ -436,10 +441,13 @@ export class AgentToolManager {
     // 4. DeepChat settings tools (agent mode only, skill gated)
     if (isAgentMode && this.isSkillsEnabled() && context.conversationId) {
       try {
-        const activeSkills = await this.getSkillPresenter().getActiveSkills(context.conversationId)
+        const activeSkills =
+          context.activeSkillNames ??
+          (await this.getSkillPresenter().getActiveSkills(context.conversationId))
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
           const allowedTools = await this.getSkillPresenter().getActiveSkillsAllowedTools(
-            context.conversationId
+            context.conversationId,
+            activeSkills
           )
           const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
           const nonOpenSettingsTools = requiredSettingsTools.filter(
@@ -548,11 +556,11 @@ export class AgentToolManager {
 
     // Route to Skill tools
     if (this.isSkillTool(toolName)) {
-      return await this.callSkillTool(toolName, args, conversationId)
+      return await this.callSkillTool(toolName, args, conversationId, options)
     }
 
     if (this.isSkillExecutionTool(toolName)) {
-      return await this.callSkillExecutionTool(toolName, args, conversationId)
+      return await this.callSkillExecutionTool(toolName, args, conversationId, options)
     }
 
     // Route to DeepChat settings tools
@@ -938,7 +946,8 @@ export class AgentToolManager {
     const allowedDirectories = await this.buildAllowedDirectories(workspaceRoot, conversationId, {
       includeSkillRoots: toolName !== 'exec',
       includeRuntimeRoots: toolName !== 'exec',
-      requiredPermission: this.getRequiredFilePermission(toolName)
+      requiredPermission: this.getRequiredFilePermission(toolName),
+      activeSkillNames: options?.activeSkillNames
     })
 
     if (toolName === 'exec') {
@@ -1217,6 +1226,7 @@ export class AgentToolManager {
       includeSkillRoots?: boolean
       includeRuntimeRoots?: boolean
       requiredPermission?: FilePermissionLevel
+      activeSkillNames?: string[]
     } = {}
   ): Promise<string[]> {
     const includeSkillRoots = options.includeSkillRoots !== false
@@ -1236,7 +1246,10 @@ export class AgentToolManager {
     addPath(this.agentWorkspacePath)
 
     if (conversationId && includeSkillRoots) {
-      const activeSkillRoots = await this.resolveActiveSkillRoots(conversationId)
+      const activeSkillRoots = await this.resolveActiveSkillRoots(
+        conversationId,
+        options.activeSkillNames
+      )
       for (const skillRoot of activeSkillRoots) {
         addPath(skillRoot)
       }
@@ -1261,7 +1274,10 @@ export class AgentToolManager {
     return ordered
   }
 
-  private async resolveActiveSkillRoots(conversationId: string): Promise<string[]> {
+  private async resolveActiveSkillRoots(
+    conversationId: string,
+    activeSkillNamesOverride?: string[]
+  ): Promise<string[]> {
     const skillPresenter = this.getSkillPresenter()
     if (!skillPresenter?.getActiveSkills || !skillPresenter?.getMetadataList) {
       return []
@@ -1272,7 +1288,7 @@ export class AgentToolManager {
 
     try {
       ;[activeSkillNames, metadataList] = await Promise.all([
-        skillPresenter.getActiveSkills(conversationId),
+        activeSkillNamesOverride ?? skillPresenter.getActiveSkills(conversationId),
         skillPresenter.getMetadataList()
       ])
     } catch (error) {
@@ -1880,7 +1896,7 @@ export class AgentToolManager {
       function: {
         name: 'skill_run',
         description:
-          'Run a bundled script from a pinned skill. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
+          'Run a bundled script from a skill active in the current message/tool loop. This is the preferred way to execute skill-local Python, Node, or shell helpers without guessing paths.',
         parameters: toDeepChatJsonSchema(this.skillSchemas.skill_run) as {
           type: string
           properties: Record<string, unknown>
@@ -1903,9 +1919,13 @@ export class AgentToolManager {
     return toolName === 'skill_run'
   }
 
-  private async hasRunnableSkillScripts(conversationId: string): Promise<boolean> {
+  private async hasRunnableSkillScripts(
+    conversationId: string,
+    activeSkillNames?: string[]
+  ): Promise<boolean> {
     try {
-      const activeSkills = await this.getSkillPresenter().getActiveSkills(conversationId)
+      const activeSkills =
+        activeSkillNames ?? (await this.getSkillPresenter().getActiveSkills(conversationId))
       for (const skillName of activeSkills) {
         const scripts = await this.getSkillPresenter().listSkillScripts(skillName)
         if (scripts.some((script) => script.enabled)) {
@@ -2082,10 +2102,21 @@ export class AgentToolManager {
     )
   }
 
+  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] {
+    return Array.from(
+      new Set(
+        (activeSkillNames ?? [])
+          .map((skillName) => skillName.trim())
+          .filter((skillName) => skillName.length > 0)
+      )
+    )
+  }
+
   private async callSkillTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     if (!this.isSkillsEnabled()) {
       return {
@@ -2114,20 +2145,15 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const previousActiveSkills =
-        conversationId && !isLinkedFileView
-          ? await this.getSkillPresenter().getActiveSkills(conversationId)
-          : []
+      const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
       const result = await skillTools.handleSkillView(conversationId, validationResult.data)
-      const nextActiveSkills =
-        conversationId && !isLinkedFileView
-          ? await this.getSkillPresenter().getActiveSkills(conversationId)
-          : previousActiveSkills
+      const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activationApplied =
         Boolean(conversationId) &&
+        result.success === true &&
         !isLinkedFileView &&
-        !previousActiveSkills.includes(validationResult.data.name) &&
-        nextActiveSkills.includes(validationResult.data.name)
+        Boolean(normalizedViewedSkill) &&
+        !effectiveActiveSkills.includes(normalizedViewedSkill)
       const activationSource =
         !conversationId || result.success !== true
           ? 'none'
@@ -2136,7 +2162,17 @@ export class AgentToolManager {
             : isLinkedFileView
               ? 'file'
               : 'none'
-      const content = JSON.stringify(result)
+      const content = JSON.stringify({
+        ...result,
+        isPinned: result.isPinned === true,
+        activeForCurrentMessage:
+          result.isPinned === true ||
+          (!isLinkedFileView &&
+            Boolean(normalizedViewedSkill) &&
+            (activationApplied || effectiveActiveSkills.includes(normalizedViewedSkill))),
+        activatedForMessage: activationApplied,
+        activationScope: activationApplied ? 'message' : 'none'
+      })
 
       return {
         content,
@@ -2145,7 +2181,7 @@ export class AgentToolManager {
           toolResult: {
             activationApplied,
             activationSource,
-            ...(activationApplied ? { activatedSkill: validationResult.data.name } : {})
+            ...(activationApplied ? { activatedSkill: normalizedViewedSkill } : {})
           }
         }
       }
@@ -2193,7 +2229,8 @@ export class AgentToolManager {
   private async callSkillExecutionTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     if (toolName !== 'skill_run') {
       throw new Error(`Unknown skill execution tool: ${toolName}`)
@@ -2209,7 +2246,8 @@ export class AgentToolManager {
     }
 
     const result = await this.getSkillExecutionService().execute(validationResult.data, {
-      conversationId
+      conversationId,
+      activeSkillNames: options?.activeSkillNames
     })
     const content =
       typeof result.output === 'string' ? result.output : JSON.stringify(result.output, null, 2)

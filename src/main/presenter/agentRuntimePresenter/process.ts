@@ -264,6 +264,22 @@ function appendStreamingProviderPermissionBlock(
   }
 }
 
+function replaceLeadingSystemMessage(
+  messages: ProcessParams['messages'],
+  systemPrompt: string
+): void {
+  if (!systemPrompt) {
+    return
+  }
+
+  if (messages[0]?.role === 'system') {
+    messages[0] = { ...messages[0], content: systemPrompt }
+    return
+  }
+
+  messages.unshift({ role: 'system', content: systemPrompt })
+}
+
 function markStreamingProviderPermissionResolved(
   block: AssistantMessageBlock,
   granted: boolean,
@@ -473,11 +489,28 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       }
 
-      if (executed.toolsChanged && params.refreshTools) {
-        try {
-          currentTools = await params.refreshTools()
-        } catch (error) {
-          console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
+      if (executed.toolsChanged) {
+        const activeSkillNames = hooks?.getActiveSkillNames?.()
+        if (params.refreshTools) {
+          try {
+            currentTools = await params.refreshTools(activeSkillNames)
+          } catch (error) {
+            console.warn('[ProcessStream] failed to refresh tools after skill activation:', error)
+          }
+        }
+        if (params.refreshSystemPrompt) {
+          try {
+            const refreshedSystemPrompt = await params.refreshSystemPrompt(
+              activeSkillNames,
+              currentTools
+            )
+            replaceLeadingSystemMessage(conversationMessages, refreshedSystemPrompt)
+          } catch (error) {
+            console.warn(
+              '[ProcessStream] failed to refresh system prompt after skill activation:',
+              error
+            )
+          }
         }
       }
     }

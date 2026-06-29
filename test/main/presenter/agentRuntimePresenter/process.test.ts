@@ -466,17 +466,19 @@ describe('processStream', () => {
     expect(finalizedBlocks[0].tool_call.response).toBe('Sunny, 72F')
   })
 
-  it('refreshes tools for the next loop iteration after skill_view activates a skill', async () => {
+  it('refreshes tools and system prompt for the next loop iteration after skill_view activates a skill', async () => {
     let callCount = 0
     const toolPresenter = {
       ...createMockToolPresenter(),
       callTool: vi
         .fn()
         .mockResolvedValueOnce({
-          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          content:
+            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
           rawData: {
             toolCallId: 'tc1',
-            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            content:
+              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             isError: false,
             toolResult: {
               activationApplied: true,
@@ -497,9 +499,10 @@ describe('processStream', () => {
     const refreshTools = vi
       .fn()
       .mockResolvedValue([makeTool('skill_view'), makeTool('deepchat_settings_set_theme')])
+    const refreshSystemPrompt = vi.fn().mockResolvedValue('refreshed skill prompt')
 
     const coreStream = vi.fn(
-      function (_messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
+      function (messages, _modelId, _modelConfig, _temperature, _maxTokens, tools) {
         callCount++
         if (callCount === 1) {
           expect(tools.map((tool) => tool.function.name)).toEqual(['skill_view'])
@@ -518,6 +521,7 @@ describe('processStream', () => {
           })()
         }
         if (callCount === 2) {
+          expect(messages[0]).toEqual({ role: 'system', content: 'refreshed skill prompt' })
           expect(tools.map((tool) => tool.function.name)).toEqual([
             'skill_view',
             'deepchat_settings_set_theme'
@@ -547,7 +551,8 @@ describe('processStream', () => {
       coreStream,
       toolPresenter,
       tools: [makeTool('skill_view')],
-      refreshTools
+      refreshTools,
+      refreshSystemPrompt
     })
 
     const promise = processStream(params)
@@ -555,6 +560,13 @@ describe('processStream', () => {
     await promise
 
     expect(refreshTools).toHaveBeenCalledTimes(1)
+    expect(refreshSystemPrompt).toHaveBeenCalledTimes(1)
+    expect(refreshSystemPrompt).toHaveBeenCalledWith(undefined, [
+      expect.objectContaining({ function: expect.objectContaining({ name: 'skill_view' }) }),
+      expect.objectContaining({
+        function: expect.objectContaining({ name: 'deepchat_settings_set_theme' })
+      })
+    ])
     expect(coreStream).toHaveBeenCalledTimes(3)
     expect(toolPresenter.callTool).toHaveBeenCalledTimes(2)
   })

@@ -36,6 +36,7 @@ export interface IToolPresenter {
     supportsVision?: boolean
     agentWorkspacePath?: string | null
     conversationId?: string
+    activeSkillNames?: string[]
   }): Promise<MCPToolDefinition[]>
 
   /**
@@ -56,6 +57,7 @@ export interface IToolPresenter {
       onProgress?: (update: AgentToolProgressUpdate) => void
       signal?: AbortSignal
       permissionMode?: PermissionMode
+      activeSkillNames?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 

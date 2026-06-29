@@ -1144,10 +1144,12 @@ describe('dispatch', () => {
       const toolPresenter = {
         ...createMockToolPresenter(),
         callTool: vi.fn().mockResolvedValue({
-          content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+          content:
+            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
           rawData: {
             toolCallId: 'tc1',
-            content: '{"success":true,"name":"deepchat-settings","isPinned":true}',
+            content:
+              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             isError: false,
             toolResult: {
               activationApplied: true,
