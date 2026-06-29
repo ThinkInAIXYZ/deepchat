@@ -1821,7 +1821,7 @@
       "pythonRuntime": "Python Runtime",
       "nodeRuntime": "Node Runtime",
       "envTitle": "Environment Variables",
-      "envWarning": "Masked in the UI only. Values are stored as plain text in the skill sidecar file.",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the application database.",
       "scriptsTitle": "Bundled Scripts",
       "scriptsHint": "Only scripts under scripts/ can be run via skill_run.",
       "noScripts": "No runnable scripts detected",
@@ -1854,7 +1854,9 @@
       "title": "スキルをインストール",
       "urlHint": "スキルパッケージのダウンロードリンクを入力",
       "urlPlaceholder": "skill ZIP ダウンロードアドレスを入力",
-      "zipHint": "ZIP ファイルをクリックまたはドラッグ"
+      "zipHint": "ZIP ファイルをクリックまたはドラッグ",
+      "basicTitle": "フォルダー、ZIP、URL",
+      "basicDescription": "既存のインストーラーでローカルフォルダー、ZIP パッケージ、ZIP ダウンロード URL を追加します。"
     },
     "noResults": "一致するスキルが見つかりません",
     "openFolder": "フォルダを開く",
@@ -1954,7 +1956,214 @@
       "scripts": "{count} scripts",
       "env": "{count} env",
       "pythonShort": "Py",
-      "nodeShort": "Node"
+      "nodeShort": "Node",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable in DeepChat",
+      "disable": "Disable in DeepChat",
+      "viewDetails": "詳細を表示",
+      "edit": "編集",
+      "installToAgent": "Agent にインストール"
+    },
+    "enable": {
+      "success": "Skill Enabled",
+      "successMessage": "Skill {name} is enabled in DeepChat",
+      "failed": "Enable Failed"
+    },
+    "disable": {
+      "success": "Skill Disabled",
+      "successMessage": "Skill {name} is disabled in DeepChat",
+      "failed": "Disable Failed"
+    },
+    "tabs": {
+      "library": "Library",
+      "agents": "Agents",
+      "syncDirectory": "同期ディレクトリ"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} supported agent(s)",
+      "refresh": "Refresh",
+      "empty": "No supported agents found.",
+      "emptySkills": "No skills found for this agent.",
+      "loadFailed": "Failed to load agent skills",
+      "conflictCount": "{count} conflict",
+      "table": {
+        "skill": "Skill",
+        "owner": "Owner",
+        "status": "Status",
+        "action": "Action",
+        "preview": "プレビュー"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "External",
+        "broken-link": "Broken link",
+        "unknown": "Unknown"
+      },
+      "status": {
+        "linked": "Linked",
+        "agent-owned": "Agent owned",
+        "linked-out": "Linked out",
+        "broken-link": "Broken link",
+        "conflict": "Conflict",
+        "empty": "Empty"
+      },
+      "actions": {
+        "adopt": "Adopt",
+        "resolve-conflict": "Resolve",
+        "repair-link": "Repair",
+        "remove-link": "Remove",
+        "open": "Open",
+        "pending": "Write actions are enabled in a later phase.",
+        "view": "表示"
+      },
+      "agentStatus": {
+        "ready": "Ready",
+        "detected-no-skills-dir": "No skills directory",
+        "permission-denied": "Permission denied"
+      },
+      "counts": {
+        "skills": "{count} skill(s)",
+        "linked": "{count} linked",
+        "agentOwned": "{count} agent owned",
+        "conflicts": "{count} conflict(s)",
+        "broken": "{count} broken"
+      },
+      "adoptDialog": {
+        "adoptTitle": "Adopt Skill",
+        "conflictTitle": "Resolve Conflict",
+        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
+        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
+        "loading": "Preparing adoption preview...",
+        "previewFailed": "Failed to prepare adoption preview",
+        "executeFailed": "Failed to adopt skill",
+        "currentLocation": "Current location",
+        "afterAdoption": "After adoption",
+        "backup": "Backup",
+        "chooseAction": "Choose action",
+        "adoptAs": "Adopt as {name}",
+        "replaceDeepChat": "Replace existing DeepChat skill",
+        "keepCurrent": "Keep current state",
+        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
+        "warnings": "Warnings",
+        "apply": "Apply",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill adopted",
+        "successDescription": "{name} is now managed by DeepChat."
+      },
+      "syncToAgent": "Sync to Agent",
+      "syncDialog": {
+        "title": "Sync to {agent}",
+        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
+        "target": "Target",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "No linkable DeepChat skills.",
+        "preview": "Preview",
+        "loading": "Preparing link preview...",
+        "noSelection": "Select at least one skill.",
+        "apply": "Apply",
+        "failed": "Failed to sync skills",
+        "successTitle": "Skills synced",
+        "successDescription": "{count} skill(s) linked.",
+        "status": {
+          "ready": "Ready",
+          "already-linked": "Already linked",
+          "conflict": "Conflict",
+          "missing": "Missing"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "Link repaired",
+        "removeSuccess": "Link removed",
+        "successDescription": "{name} updated.",
+        "failed": "Failed to update link"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "Git リポジトリをスキャンし、選択した skill を DeepChat にインストールします。",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "スキャン",
+      "detectedFormat": "検出形式:",
+      "format": {
+        "single-skill": "単一 skill",
+        "multi-skill": "複数 skill"
+      },
+      "selectedCount": "{count} 件選択",
+      "empty": "有効な skill が見つかりません。",
+      "conflict": "競合",
+      "invalid": "無効",
+      "strategy": "競合時の処理",
+      "rename": "新しい skill をリネーム",
+      "overwrite": "既存を置換",
+      "skip": "既存をスキップ",
+      "install": "DeepChat にインストール",
+      "failed": "Git インストールに失敗しました",
+      "success": "Git インストール完了",
+      "successMessage": "{count} 件インストール、{failed} 件失敗",
+      "menuItem": "Git リポジトリ..."
+    },
+    "importExport": {
+      "directory": "ローカル multi-skill 同期ディレクトリ",
+      "browse": "参照",
+      "save": "保存",
+      "saved": "同期ディレクトリを保存しました",
+      "export": "ディレクトリへエクスポート",
+      "import": "ディレクトリからインポート",
+      "includeDisabled": "無効な skill を含める",
+      "previewExport": "エクスポートをプレビュー",
+      "exportNow": "今すぐエクスポート",
+      "previewImport": "インポートをプレビュー",
+      "importSelected": "選択をインポート",
+      "noExportPreview": "エクスポートのプレビューで宛先状態を確認します。",
+      "noImportPreview": "インポートのプレビューで利用可能な skill を確認します。",
+      "strategy": "競合時の処理",
+      "rename": "インポート名を変更",
+      "overwrite": "ローカルを置換",
+      "skip": "既存をスキップ",
+      "exported": "エクスポート完了",
+      "imported": "インポート完了",
+      "result": "{count} 件完了、{failed} 件失敗",
+      "state": {
+        "new": "新規",
+        "same": "同一",
+        "modified": "変更あり",
+        "conflict": "競合",
+        "invalid": "無効"
+      }
+    },
+    "detail": {
+      "failed": "skill の詳細を読み込めませんでした",
+      "noDescription": "説明なし",
+      "empty": "プレビューできる内容がありません",
+      "installToAgent": "Agent にインストール",
+      "enabled": "有効",
+      "disabled": "無効",
+      "enable": "DeepChat で有効化",
+      "disable": "DeepChat で無効化",
+      "preview": "プレビュー",
+      "edit": "編集",
+      "delete": "削除",
+      "confirmDeleteTitle": "skill を削除",
+      "confirmDeleteDescription": "skill「{name}」を削除しますか？この操作は元に戻せません。"
+    },
+    "installToAgent": {
+      "title": "{name} を Agent にインストール",
+      "description": "この skill の DeepChat 所有リンクをローカル Agent の skills ディレクトリに作成します。",
+      "failed": "Agent へのインストールに失敗しました",
+      "emptyAgents": "利用可能なローカル Agent が見つかりません。",
+      "target": "対象 Agent",
+      "preview": "プレビュー",
+      "loadingPreview": "リンクプレビューを準備中...",
+      "noPreview": "Agent を選択するとプレビューを表示します。",
+      "install": "インストール",
+      "success": "Agent にインストールしました",
+      "successMessage": "{name} を対象 Agent にリンクしました。",
+      "disconnect": "解除",
+      "disconnectSuccess": "Agent から解除しました",
+      "disconnectSuccessMessage": "{name} の対象 Agent へのリンクを解除しました。",
+      "disconnectFailed": "Agent からの解除に失敗しました"
     }
   },
   "environments": {

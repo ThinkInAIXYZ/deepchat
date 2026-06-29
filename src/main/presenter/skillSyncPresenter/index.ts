@@ -11,7 +11,9 @@ import logger from '@shared/logger'
 
 import * as fs from 'fs'
 import * as path from 'path'
+import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
+import matter from 'gray-matter'
 import type {
   ISkillSyncPresenter,
   ExternalToolConfig,
@@ -22,16 +24,37 @@ import type {
   CanonicalSkill,
   ExternalSkillInfo,
   ScanCache,
-  NewDiscovery
+  NewDiscovery,
+  InstalledSkillAgent,
+  InstalledSkillAgentDetail,
+  AgentSkillItem,
+  AdoptAgentSkillInput,
+  AdoptAgentSkillPreview,
+  AdoptAgentSkillResult,
+  AgentSkillLinkInput,
+  LinkDeepChatSkillResult,
+  LinkDeepChatSkillsInput,
+  LinkDeepChatSkillsPreview,
+  LinkDeepChatSkillsResult,
+  SkillDetail
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
+import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { ISkillPresenter, IConfigPresenter } from '@shared/presenter'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { isValidToolId, isValidConflictStrategy, checkWritePermission } from './security'
+import {
+  isValidToolId,
+  isValidConflictStrategy,
+  checkWritePermission,
+  checkReadPermission,
+  isFilenameSafe
+} from './security'
 import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
+
+const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
 
 type SkillSyncEventName =
   | 'skillSync.discoveries.changed'
@@ -734,6 +757,354 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     return toolScanner.getAllTools()
   }
 
+  async scanSkillAgents(): Promise<InstalledSkillAgent[]> {
+    const results = await this.scanExternalToolsWithFallback()
+    const resultByTool = new Map(results.map((result) => [result.toolId, result]))
+    const agents: InstalledSkillAgent[] = []
+
+    for (const tool of this.getManageableAgentTools()) {
+      const result =
+        resultByTool.get(tool.id) ??
+        (await toolScanner.scanTool(tool.id, this.syncContext.projectRoot))
+      const detail = await this.buildAgentDetail(tool, result)
+      const { skills: _skills, ...summary } = detail
+      agents.push(summary)
+    }
+
+    return agents
+  }
+
+  async scanSkillAgent(input: { agentId: string }): Promise<InstalledSkillAgentDetail> {
+    const tool = toolScanner.getTool(input.agentId)
+    if (!tool || !this.canManageAgentLinks(tool)) {
+      return {
+        id: input.agentId,
+        name: input.agentId,
+        skillsDir: '',
+        isCustom: false,
+        supportsLinkManagement: false,
+        skillsCount: 0,
+        linkedCount: 0,
+        agentOwnedCount: 0,
+        conflictCount: 0,
+        brokenLinkCount: 0,
+        status: 'detected-no-skills-dir',
+        skills: []
+      }
+    }
+
+    return this.buildAgentDetail(
+      tool,
+      await toolScanner.scanTool(tool.id, this.syncContext.projectRoot)
+    )
+  }
+
+  async getAgentSkillDetail(input: { agentId: string; skillName: string }): Promise<SkillDetail> {
+    const detail = await this.scanSkillAgent({ agentId: input.agentId })
+    const skill = detail.skills.find((item) => item.name === input.skillName)
+    if (!skill) {
+      throw new Error(`Skill "${input.skillName}" not found in ${detail.name}`)
+    }
+
+    const markdownPath = path.join(skill.path, 'SKILL.md')
+    const markdown = await fs.promises.readFile(markdownPath, 'utf-8')
+    return {
+      name: skill.name,
+      description: skill.description ?? '',
+      sourcePath: markdownPath,
+      markdown,
+      mutable: skill.owner !== 'broken-link'
+    }
+  }
+
+  async previewAdoptAgentSkill(input: AdoptAgentSkillInput): Promise<AdoptAgentSkillPreview> {
+    const adoption = await this.resolveAdoptionSource(input)
+    const source = await this.readAdoptableSkill(adoption.sourcePath)
+    if (source.name !== adoption.skill.name) {
+      throw new Error(`SKILL.md name "${source.name}" does not match "${adoption.skill.name}"`)
+    }
+
+    const skillsDir = path.resolve(await this.skillPresenter.getSkillsDir())
+    const deepchatSkills = await this.skillPresenter.getUnifiedSkillCatalog()
+    const deepchatNames = new Set(deepchatSkills.map((skill) => skill.name))
+    const hasConflict =
+      deepchatNames.has(source.name) || (await this.pathExists(path.join(skillsDir, source.name)))
+    const targetName =
+      input.targetName ??
+      (hasConflict
+        ? await this.generateAdoptionTargetName(
+            `${source.name}-${input.agentId}`,
+            skillsDir,
+            deepchatNames
+          )
+        : source.name)
+
+    this.assertValidDeepChatSkillName(targetName)
+    if (
+      deepchatNames.has(targetName) ||
+      (await this.pathExists(path.join(skillsDir, targetName)))
+    ) {
+      throw new Error(`Skill "${targetName}" already exists`)
+    }
+
+    const dataRoot = path.dirname(skillsDir)
+    const targetPath = path.join(skillsDir, targetName)
+
+    return {
+      agentId: input.agentId,
+      agentName: adoption.agent.name,
+      skillName: adoption.skill.name,
+      targetName,
+      sourcePath: adoption.sourcePath,
+      agentPath: adoption.agentPath,
+      targetPath,
+      backupRoot: path.join(
+        dataRoot,
+        'backups',
+        'skill-adoptions',
+        input.agentId,
+        adoption.skill.name
+      ),
+      conflict: hasConflict,
+      warnings: targetName === source.name ? [] : [`Skill will be adopted as "${targetName}"`]
+    }
+  }
+
+  async executeAdoptAgentSkill(input: AdoptAgentSkillInput): Promise<AdoptAgentSkillResult> {
+    let tempPath = ''
+    let targetCreated = false
+    let originalMoved = false
+    let preview: AdoptAgentSkillPreview | undefined
+    let backupPath = ''
+
+    try {
+      preview = await this.previewAdoptAgentSkill(input)
+      const operationId = `${Date.now()}-${randomUUID()}`
+      const dataRoot = path.dirname(path.resolve(await this.skillPresenter.getSkillsDir()))
+      tempPath = path.join(dataRoot, 'tmp', 'skill-adoptions', operationId)
+      backupPath = path.join(preview.backupRoot, operationId)
+
+      await fs.promises.mkdir(path.dirname(tempPath), { recursive: true })
+      await fs.promises.mkdir(path.dirname(backupPath), { recursive: true })
+      await this.prepareAdoptionTemp(preview.sourcePath, tempPath, preview.targetName)
+
+      if (await this.pathExists(preview.targetPath)) {
+        throw new Error(`Skill "${preview.targetName}" already exists`)
+      }
+
+      await fs.promises.mkdir(path.dirname(preview.targetPath), { recursive: true })
+      await fs.promises.rename(tempPath, preview.targetPath)
+      targetCreated = true
+
+      try {
+        await fs.promises.rename(preview.agentPath, backupPath)
+        originalMoved = true
+        await this.createDirectoryLink(preview.targetPath, preview.agentPath)
+      } catch (error) {
+        if (originalMoved && !(await this.pathExists(preview.agentPath))) {
+          await fs.promises.rename(backupPath, preview.agentPath).catch(() => undefined)
+        }
+        if (targetCreated) {
+          await fs.promises.rm(preview.targetPath, { recursive: true, force: true })
+        }
+        throw error
+      }
+
+      await this.skillPresenter.registerAdoptedSkill({
+        name: preview.targetName,
+        canonicalPath: preview.targetPath,
+        agentId: preview.agentId,
+        agentPath: preview.agentPath,
+        originalPath: preview.sourcePath
+      })
+
+      return {
+        success: true,
+        skillName: preview.targetName,
+        targetPath: preview.targetPath,
+        agentPath: preview.agentPath,
+        backupPath
+      }
+    } catch (error) {
+      if (tempPath) {
+        await fs.promises.rm(tempPath, { recursive: true, force: true }).catch(() => undefined)
+      }
+      return {
+        success: false,
+        skillName: preview?.targetName,
+        targetPath: preview?.targetPath,
+        agentPath: preview?.agentPath,
+        backupPath: backupPath || undefined,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async previewLinkDeepChatSkills(
+    input: LinkDeepChatSkillsInput
+  ): Promise<LinkDeepChatSkillsPreview> {
+    const tool = this.resolveManageableAgentTool(input.agentId)
+    const detail = await this.scanSkillAgent({ agentId: input.agentId })
+    const skillsDir = detail.skillsDir || resolveSkillsDir(tool, this.syncContext.projectRoot)
+    const existingByName = new Map(detail.skills.map((skill) => [skill.name, skill]))
+    const deepchatByName = new Map(
+      (await this.skillPresenter.getUnifiedSkillCatalog()).map((skill) => [skill.name, skill])
+    )
+
+    return {
+      agentId: input.agentId,
+      agentName: tool.name,
+      skillsDir,
+      items: await Promise.all(
+        [...new Set(input.skillNames)].map(async (skillName) => {
+          this.assertValidDeepChatSkillName(skillName)
+          const deepchat = deepchatByName.get(skillName)
+          const targetPath = path.join(skillsDir, skillName)
+          if (!deepchat) {
+            return {
+              skillName,
+              targetPath,
+              status: 'missing',
+              message: `Skill "${skillName}" not found in DeepChat`
+            }
+          }
+
+          const existing = existingByName.get(skillName)
+          if (!existing) {
+            return {
+              skillName,
+              sourcePath: deepchat.skillRoot,
+              targetPath,
+              status: 'ready'
+            }
+          }
+
+          if (
+            existing.status === 'linked' &&
+            existing.link?.targetPath &&
+            path.resolve(existing.link.targetPath) === path.resolve(deepchat.skillRoot)
+          ) {
+            return {
+              skillName,
+              sourcePath: deepchat.skillRoot,
+              targetPath,
+              status: 'already-linked'
+            }
+          }
+
+          return {
+            skillName,
+            sourcePath: deepchat.skillRoot,
+            targetPath,
+            status: 'conflict',
+            message: `Agent path already exists: ${targetPath}`
+          }
+        })
+      )
+    }
+  }
+
+  async executeLinkDeepChatSkills(
+    input: LinkDeepChatSkillsInput
+  ): Promise<LinkDeepChatSkillsResult> {
+    const preview = await this.previewLinkDeepChatSkills(input)
+    const result: LinkDeepChatSkillsResult = {
+      success: true,
+      linked: 0,
+      skipped: 0,
+      failed: []
+    }
+
+    await fs.promises.mkdir(preview.skillsDir, { recursive: true })
+    if (!(await checkWritePermission(preview.skillsDir))) {
+      return {
+        success: false,
+        linked: 0,
+        skipped: 0,
+        failed: input.skillNames.map((skillName) => ({
+          skillName,
+          reason: `No write permission for: ${preview.skillsDir}`
+        }))
+      }
+    }
+
+    for (const item of preview.items) {
+      if (item.status === 'already-linked') {
+        result.skipped += 1
+        continue
+      }
+      if (item.status !== 'ready' || !item.sourcePath) {
+        result.skipped += 1
+        continue
+      }
+
+      try {
+        await this.createDirectoryLink(item.sourcePath, item.targetPath)
+        await this.skillPresenter.registerAgentSkillLink({
+          skillName: item.skillName,
+          agentId: input.agentId,
+          agentPath: item.targetPath
+        })
+        result.linked += 1
+      } catch (error) {
+        result.failed.push({
+          skillName: item.skillName,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    result.success = result.failed.length === 0
+    return result
+  }
+
+  async repairAgentSkillLink(input: AgentSkillLinkInput): Promise<LinkDeepChatSkillResult> {
+    try {
+      const link = await this.resolveDeepChatOwnedAgentLink(input)
+      await this.assertAgentPathIsLinkOrMissing(link.agentPath)
+      await fs.promises.rm(link.agentPath, { recursive: true, force: true })
+      await this.createDirectoryLink(link.targetPath, link.agentPath)
+      await this.skillPresenter.registerAgentSkillLink({
+        skillName: input.skillName,
+        agentId: input.agentId,
+        agentPath: link.agentPath
+      })
+      return {
+        success: true,
+        skillName: input.skillName,
+        agentPath: link.agentPath,
+        targetPath: link.targetPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        skillName: input.skillName,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async removeAgentSkillLink(input: AgentSkillLinkInput): Promise<LinkDeepChatSkillResult> {
+    try {
+      const link = await this.resolveDeepChatOwnedAgentLink(input)
+      await this.assertAgentPathIsLinkOrMissing(link.agentPath)
+      await fs.promises.rm(link.agentPath, { recursive: true, force: true })
+      await this.skillPresenter.removeAgentSkillLink(input)
+      return {
+        success: true,
+        skillName: input.skillName,
+        agentPath: link.agentPath,
+        targetPath: link.targetPath
+      }
+    } catch (error) {
+      return {
+        success: false,
+        skillName: input.skillName,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
   /**
    * Check if a tool's directory exists
    */
@@ -752,6 +1123,440 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
+
+  private async resolveAdoptionSource(input: AdoptAgentSkillInput): Promise<{
+    agent: InstalledSkillAgentDetail
+    skill: AgentSkillItem
+    sourcePath: string
+    agentPath: string
+  }> {
+    const tool = toolScanner.getTool(input.agentId)
+    if (!tool || !this.canManageAgentLinks(tool)) {
+      throw new Error(`Agent "${input.agentId}" does not support skill adoption`)
+    }
+
+    const agent = await this.scanSkillAgent({ agentId: input.agentId })
+    const skill = agent.skills.find((item) => item.name === input.skillName)
+    if (!skill) {
+      throw new Error(`Skill "${input.skillName}" not found in ${agent.name}`)
+    }
+    if (!['agent-owned', 'linked-out', 'conflict'].includes(skill.status)) {
+      throw new Error(`Skill "${input.skillName}" cannot be adopted from status "${skill.status}"`)
+    }
+    if (!this.isInsideDirectory(skill.path, agent.skillsDir)) {
+      throw new Error(`Agent path escapes skills directory: ${skill.path}`)
+    }
+
+    const sourcePath = skill.status === 'linked-out' ? skill.link?.targetPath : skill.path
+    if (!sourcePath) {
+      throw new Error(`Skill "${input.skillName}" source path is unavailable`)
+    }
+    if (!(await checkReadPermission(sourcePath))) {
+      throw new Error(`No read permission for: ${sourcePath}`)
+    }
+
+    return {
+      agent,
+      skill,
+      sourcePath,
+      agentPath: skill.path
+    }
+  }
+
+  private resolveManageableAgentTool(agentId: string): ExternalToolConfig {
+    const tool = toolScanner.getTool(agentId)
+    if (!tool || !this.canManageAgentLinks(tool)) {
+      throw new Error(`Agent "${agentId}" does not support skill links`)
+    }
+    return tool
+  }
+
+  private async resolveDeepChatOwnedAgentLink(input: AgentSkillLinkInput): Promise<{
+    agentPath: string
+    targetPath: string
+  }> {
+    this.assertValidDeepChatSkillName(input.skillName)
+    const tool = this.resolveManageableAgentTool(input.agentId)
+    const skillsDir = resolveSkillsDir(tool, this.syncContext.projectRoot)
+    const state = await this.skillPresenter.getSkillManagementState()
+    const link = state.skills[input.skillName]?.agentLinks?.[input.agentId]
+    if (!link?.createdByDeepChat) {
+      throw new Error(`Link for "${input.skillName}" was not created by DeepChat`)
+    }
+
+    const deepchat = (await this.skillPresenter.getUnifiedSkillCatalog()).find(
+      (skill) => skill.name === input.skillName
+    )
+    if (!deepchat || !(await this.pathExists(deepchat.skillRoot))) {
+      throw new Error(`DeepChat skill "${input.skillName}" not found`)
+    }
+
+    if (!this.isInsideDirectory(link.path, skillsDir)) {
+      throw new Error(`Agent link path escapes skills directory: ${link.path}`)
+    }
+
+    return {
+      agentPath: link.path,
+      targetPath: deepchat.skillRoot
+    }
+  }
+
+  private async assertAgentPathIsLinkOrMissing(agentPath: string): Promise<void> {
+    try {
+      await fs.promises.readlink(agentPath)
+      return
+    } catch {
+      if (await this.pathExists(agentPath)) {
+        throw new Error(`Agent path is not a link: ${agentPath}`)
+      }
+    }
+  }
+
+  private async readAdoptableSkill(skillRoot: string): Promise<{
+    name: string
+    description: string
+    parsed: matter.GrayMatterFile<string>
+  }> {
+    const skillPath = path.join(skillRoot, 'SKILL.md')
+    const content = await fs.promises.readFile(skillPath, 'utf-8')
+    const parsed = matter(content)
+    const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
+    const description =
+      typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
+    this.assertValidDeepChatSkillName(name)
+    if (!description) {
+      throw new Error('Skill description not found in SKILL.md frontmatter')
+    }
+    return { name, description, parsed }
+  }
+
+  private assertValidDeepChatSkillName(name: string): void {
+    if (!SKILL_NAME_PATTERN.test(name) || name.includes('/') || name.includes('\\')) {
+      throw new Error(`Invalid skill name: ${name}`)
+    }
+  }
+
+  private async generateAdoptionTargetName(
+    baseName: string,
+    skillsDir: string,
+    existingNames: Set<string>
+  ): Promise<string> {
+    this.assertValidDeepChatSkillName(baseName)
+    let candidate = baseName
+    let counter = 2
+    while (
+      existingNames.has(candidate) ||
+      (await this.pathExists(path.join(skillsDir, candidate)))
+    ) {
+      candidate = `${baseName}-${counter}`
+      counter += 1
+    }
+    return candidate
+  }
+
+  private async prepareAdoptionTemp(
+    sourcePath: string,
+    tempPath: string,
+    targetName: string
+  ): Promise<void> {
+    await fs.promises.rm(tempPath, { recursive: true, force: true })
+    await this.copyDirectoryWithoutSymlinks(sourcePath, tempPath)
+    const copied = await this.readAdoptableSkill(tempPath)
+    if (copied.name !== targetName) {
+      copied.parsed.data.name = targetName
+      await fs.promises.writeFile(
+        path.join(tempPath, 'SKILL.md'),
+        matter.stringify(copied.parsed.content, copied.parsed.data),
+        'utf-8'
+      )
+    }
+  }
+
+  private async copyDirectoryWithoutSymlinks(
+    sourcePath: string,
+    targetPath: string
+  ): Promise<void> {
+    await fs.promises.mkdir(targetPath, { recursive: true })
+    const entries = await fs.promises.readdir(sourcePath, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isSymbolicLink() || entry.name === '.deepchat-meta') {
+        continue
+      }
+      const sourceEntry = path.join(sourcePath, entry.name)
+      const targetEntry = path.join(targetPath, entry.name)
+      if (entry.isDirectory()) {
+        await this.copyDirectoryWithoutSymlinks(sourceEntry, targetEntry)
+      } else if (entry.isFile()) {
+        await fs.promises.copyFile(sourceEntry, targetEntry)
+      }
+    }
+  }
+
+  private async createDirectoryLink(targetPath: string, linkPath: string): Promise<void> {
+    await fs.promises.symlink(
+      targetPath,
+      linkPath,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
+  }
+
+  private getManageableAgentTools(): ExternalToolConfig[] {
+    return toolScanner.getAllTools().filter((tool) => this.canManageAgentLinks(tool))
+  }
+
+  private canManageAgentLinks(tool: ExternalToolConfig): boolean {
+    return (
+      !tool.isProjectLevel &&
+      tool.filePattern === '*/SKILL.md' &&
+      tool.capabilities.supportsSubfolders
+    )
+  }
+
+  private async buildAgentDetail(
+    tool: ExternalToolConfig,
+    result: ScanResult
+  ): Promise<InstalledSkillAgentDetail> {
+    if (!result.available) {
+      return this.createAgentDetail(
+        tool,
+        result.skillsDir || tool.skillsDir,
+        'detected-no-skills-dir',
+        []
+      )
+    }
+
+    const skills = await this.classifyAgentSkills(result)
+    const status = skills.some((skill) => skill.status === 'empty') ? 'permission-denied' : 'ready'
+    return this.createAgentDetail(
+      tool,
+      result.skillsDir,
+      status,
+      skills.filter((skill) => skill.status !== 'empty')
+    )
+  }
+
+  private createAgentDetail(
+    tool: ExternalToolConfig,
+    skillsDir: string,
+    status: InstalledSkillAgent['status'],
+    skills: AgentSkillItem[]
+  ): InstalledSkillAgentDetail {
+    return {
+      id: tool.id,
+      name: tool.name,
+      skillsDir,
+      isCustom: false,
+      supportsLinkManagement: this.canManageAgentLinks(tool),
+      skillsCount: skills.length,
+      linkedCount: skills.filter((skill) => skill.status === 'linked').length,
+      agentOwnedCount: skills.filter((skill) => skill.status === 'agent-owned').length,
+      conflictCount: skills.filter((skill) => skill.status === 'conflict').length,
+      brokenLinkCount: skills.filter((skill) => skill.status === 'broken-link').length,
+      status,
+      skills
+    }
+  }
+
+  private async classifyAgentSkills(result: ScanResult): Promise<AgentSkillItem[]> {
+    const deepchatSkills = await this.skillPresenter.getUnifiedSkillCatalog()
+    const deepchatByName = new Map(deepchatSkills.map((skill) => [skill.name, skill]))
+    const deepchatSkillsDir = path.resolve(await this.skillPresenter.getSkillsDir())
+    const scannedByPath = new Map(result.skills.map((skill) => [path.resolve(skill.path), skill]))
+
+    let entries: fs.Dirent[]
+    try {
+      entries = await fs.promises.readdir(result.skillsDir, { withFileTypes: true })
+    } catch (error) {
+      const code = typeof error === 'object' && error ? (error as { code?: unknown }).code : null
+      if (code === 'EACCES' || code === 'EPERM') {
+        return [
+          {
+            name: result.toolId,
+            path: result.skillsDir,
+            owner: 'unknown',
+            status: 'empty'
+          }
+        ]
+      }
+      return []
+    }
+
+    const skills: AgentSkillItem[] = []
+    for (const entry of entries) {
+      if (!isFilenameSafe(entry.name) || (!entry.isDirectory() && !entry.isSymbolicLink())) {
+        continue
+      }
+
+      const entryPath = path.join(result.skillsDir, entry.name)
+      if (entry.isSymbolicLink()) {
+        skills.push(
+          await this.classifyAgentSkillLink(
+            result.toolId,
+            entry.name,
+            entryPath,
+            deepchatSkillsDir,
+            deepchatByName
+          )
+        )
+        continue
+      }
+
+      const scanInfo = scannedByPath.get(path.resolve(entryPath))
+      if (!scanInfo) {
+        continue
+      }
+      skills.push(await this.classifyAgentSkillDirectory(scanInfo, deepchatByName))
+    }
+
+    return skills.sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  private async classifyAgentSkillDirectory(
+    skill: ExternalSkillInfo,
+    deepchatByName: Map<string, UnifiedSkillItem>
+  ): Promise<AgentSkillItem> {
+    const deepchat = deepchatByName.get(skill.name)
+    if (!deepchat) {
+      return {
+        name: skill.name,
+        description: skill.description,
+        path: skill.path,
+        owner: 'agent',
+        status: 'agent-owned',
+        action: 'adopt',
+        deepchat: { exists: false }
+      }
+    }
+
+    const sameContent = await this.hasSameSkillContent(skill.path, deepchat.skillRoot)
+    return {
+      name: skill.name,
+      description: skill.description || deepchat.description,
+      path: skill.path,
+      owner: 'agent',
+      status: sameContent ? 'agent-owned' : 'conflict',
+      action: sameContent ? 'adopt' : 'resolve-conflict',
+      deepchat: {
+        exists: true,
+        path: deepchat.skillRoot,
+        disabled: deepchat.deepchatDisabled,
+        sameContent
+      }
+    }
+  }
+
+  private async classifyAgentSkillLink(
+    agentId: string,
+    name: string,
+    linkPath: string,
+    deepchatSkillsDir: string,
+    deepchatByName: Map<string, UnifiedSkillItem>
+  ): Promise<AgentSkillItem> {
+    const targetPath = await this.readResolvedLinkTarget(linkPath)
+    const targetExists = targetPath ? await this.pathExists(targetPath) : false
+    const targetInsideDeepChat = Boolean(
+      targetPath && this.isInsideDirectory(targetPath, deepchatSkillsDir)
+    )
+    const deepchat = deepchatByName.get(name)
+    const createdByDeepChat =
+      deepchat?.agentLinks[agentId]?.createdByDeepChat === true &&
+      path.resolve(deepchat.agentLinks[agentId].path) === path.resolve(linkPath)
+
+    if (!targetExists) {
+      return {
+        name,
+        path: linkPath,
+        owner: 'broken-link',
+        status: 'broken-link',
+        action: createdByDeepChat ? 'repair-link' : undefined,
+        link: {
+          isSymlink: true,
+          targetPath,
+          targetExists: false,
+          targetInsideDeepChat,
+          createdByDeepChat
+        },
+        deepchat: deepchat
+          ? { exists: true, path: deepchat.skillRoot, disabled: deepchat.deepchatDisabled }
+          : { exists: false }
+      }
+    }
+
+    if (targetInsideDeepChat) {
+      return {
+        name,
+        description: deepchat?.description,
+        path: linkPath,
+        owner: 'deepchat',
+        status: 'linked',
+        action: createdByDeepChat ? 'remove-link' : undefined,
+        link: {
+          isSymlink: true,
+          targetPath,
+          targetExists: true,
+          targetInsideDeepChat: true,
+          createdByDeepChat
+        },
+        deepchat: deepchat
+          ? { exists: true, path: deepchat.skillRoot, disabled: deepchat.deepchatDisabled }
+          : { exists: false }
+      }
+    }
+
+    return {
+      name,
+      path: linkPath,
+      owner: 'external-link',
+      status: 'linked-out',
+      action: 'adopt',
+      link: {
+        isSymlink: true,
+        targetPath,
+        targetExists: true,
+        targetInsideDeepChat: false
+      },
+      deepchat: deepchat
+        ? { exists: true, path: deepchat.skillRoot, disabled: deepchat.deepchatDisabled }
+        : { exists: false }
+    }
+  }
+
+  private async readResolvedLinkTarget(linkPath: string): Promise<string | undefined> {
+    try {
+      const rawTarget = await fs.promises.readlink(linkPath)
+      return path.isAbsolute(rawTarget)
+        ? path.resolve(rawTarget)
+        : path.resolve(path.dirname(linkPath), rawTarget)
+    } catch {
+      return undefined
+    }
+  }
+
+  private async pathExists(targetPath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(targetPath, fs.constants.F_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private isInsideDirectory(targetPath: string, parentPath: string): boolean {
+    const relative = path.relative(parentPath, path.resolve(targetPath))
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  }
+
+  private async hasSameSkillContent(leftRoot: string, rightRoot: string): Promise<boolean> {
+    try {
+      const [left, right] = await Promise.all([
+        fs.promises.readFile(path.join(leftRoot, 'SKILL.md'), 'utf-8'),
+        fs.promises.readFile(path.join(rightRoot, 'SKILL.md'), 'utf-8')
+      ])
+      return left === right
+    } catch {
+      return false
+    }
+  }
 
   /**
    * Parse an external skill file

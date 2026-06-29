@@ -1,17 +1,29 @@
 import { z } from 'zod'
 import type {
+  GitSkillRepoScanResult,
   SkillExtensionConfig,
   SkillFolderNode,
+  SkillSyncDirectoryExportPreview,
+  SkillSyncDirectoryImportPreview,
+  SkillSyncDirectoryResult,
   SkillInstallOptions,
   SkillInstallResult,
   SkillMetadata,
   SkillScriptDescriptor
 } from '@shared/types/skill'
+import type { SkillSyncDirectoryConfig, UnifiedSkillItem } from '@shared/types/skillManagement'
 import { EntityIdSchema, defineRouteContract } from '../common'
 
 const SkillMetadataSchema = z.custom<SkillMetadata>()
+const UnifiedSkillItemSchema = z.custom<UnifiedSkillItem>()
 const SkillInstallOptionsSchema = z.custom<SkillInstallOptions>().optional()
 const SkillInstallResultSchema = z.custom<SkillInstallResult>()
+const SkillInstallConflictStrategySchema = z.enum(['rename', 'overwrite', 'skip']).optional()
+const GitSkillRepoScanResultSchema = z.custom<GitSkillRepoScanResult>()
+const SkillSyncDirectoryConfigSchema = z.custom<SkillSyncDirectoryConfig>().nullable()
+const SkillSyncDirectoryExportPreviewSchema = z.custom<SkillSyncDirectoryExportPreview>()
+const SkillSyncDirectoryImportPreviewSchema = z.custom<SkillSyncDirectoryImportPreview>()
+const SkillSyncDirectoryResultSchema = z.custom<SkillSyncDirectoryResult>()
 const SkillFolderNodeSchema = z.custom<SkillFolderNode>()
 const SkillExtensionConfigSchema = z.custom<SkillExtensionConfig>()
 const SkillScriptDescriptorSchema = z.custom<SkillScriptDescriptor>()
@@ -21,6 +33,25 @@ export const skillsListMetadataRoute = defineRouteContract({
   input: z.object({}),
   output: z.object({
     skills: z.array(SkillMetadataSchema)
+  })
+})
+
+export const skillsListCatalogRoute = defineRouteContract({
+  name: 'skills.listCatalog',
+  input: z.object({}),
+  output: z.object({
+    skills: z.array(UnifiedSkillItemSchema)
+  })
+})
+
+export const skillsSetDisabledRoute = defineRouteContract({
+  name: 'skills.setDisabled',
+  input: z.object({
+    name: z.string().min(1),
+    disabled: z.boolean()
+  }),
+  output: z.object({
+    saved: z.literal(true)
   })
 })
 
@@ -62,6 +93,87 @@ export const skillsInstallFromUrlRoute = defineRouteContract({
   }),
   output: z.object({
     result: SkillInstallResultSchema
+  })
+})
+
+export const skillsScanGitRepoRoute = defineRouteContract({
+  name: 'skills.scanGitRepo',
+  input: z.object({
+    repoUrl: z.string().min(1)
+  }),
+  output: z.object({
+    result: GitSkillRepoScanResultSchema
+  })
+})
+
+export const skillsInstallFromGitRoute = defineRouteContract({
+  name: 'skills.installFromGit',
+  input: z.object({
+    repoUrl: z.string().min(1),
+    skillNames: z.array(z.string().min(1)),
+    strategy: SkillInstallConflictStrategySchema
+  }),
+  output: z.object({
+    results: z.array(SkillInstallResultSchema)
+  })
+})
+
+export const skillsGetSyncConfigRoute = defineRouteContract({
+  name: 'skills.getSyncConfig',
+  input: z.object({}),
+  output: z.object({
+    config: SkillSyncDirectoryConfigSchema
+  })
+})
+
+export const skillsSetSyncDirectoryRoute = defineRouteContract({
+  name: 'skills.setSyncDirectory',
+  input: z.object({
+    skillsDirectory: z.string().min(1)
+  }),
+  output: z.object({
+    config: z.custom<SkillSyncDirectoryConfig>()
+  })
+})
+
+export const skillsPreviewSyncDirectoryExportRoute = defineRouteContract({
+  name: 'skills.previewSyncDirectoryExport',
+  input: z.object({
+    skillNames: z.array(z.string().min(1)),
+    includeDisabled: z.boolean().optional()
+  }),
+  output: z.object({
+    preview: SkillSyncDirectoryExportPreviewSchema
+  })
+})
+
+export const skillsExecuteSyncDirectoryExportRoute = defineRouteContract({
+  name: 'skills.executeSyncDirectoryExport',
+  input: z.object({
+    skillNames: z.array(z.string().min(1)),
+    includeDisabled: z.boolean().optional()
+  }),
+  output: z.object({
+    result: SkillSyncDirectoryResultSchema
+  })
+})
+
+export const skillsPreviewSyncDirectoryImportRoute = defineRouteContract({
+  name: 'skills.previewSyncDirectoryImport',
+  input: z.object({}),
+  output: z.object({
+    preview: SkillSyncDirectoryImportPreviewSchema
+  })
+})
+
+export const skillsExecuteSyncDirectoryImportRoute = defineRouteContract({
+  name: 'skills.executeSyncDirectoryImport',
+  input: z.object({
+    skillNames: z.array(z.string().min(1)),
+    strategy: SkillInstallConflictStrategySchema
+  }),
+  output: z.object({
+    result: SkillSyncDirectoryResultSchema
   })
 })
 

@@ -7,7 +7,16 @@ const SkillMetadataSchema = z.custom<SkillMetadata>()
 export const skillsCatalogChangedEvent = defineEventContract({
   name: 'skills.catalog.changed',
   payload: z.object({
-    reason: z.enum(['discovered', 'installed', 'uninstalled', 'metadata-updated']),
+    reason: z.enum([
+      'discovered',
+      'installed',
+      'uninstalled',
+      'metadata-updated',
+      'disabled-updated',
+      'management-state-updated',
+      'git-installed',
+      'sync-directory-updated'
+    ]),
     name: z.string().optional(),
     skill: SkillMetadataSchema.optional(),
     skills: z.array(SkillMetadataSchema).optional(),

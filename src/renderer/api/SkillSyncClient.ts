@@ -13,21 +13,41 @@ import {
 import {
   type DeepchatRouteInput,
   skillSyncAcknowledgeDiscoveriesRoute,
+  skillSyncExecuteAdoptAgentSkillRoute,
   skillSyncExecuteExportRoute,
   skillSyncExecuteImportRoute,
+  skillSyncExecuteLinkDeepChatSkillsRoute,
+  skillSyncGetAgentDetailRoute,
+  skillSyncGetAgentSkillDetailRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
+  skillSyncPreviewAdoptAgentSkillRoute,
   skillSyncPreviewExportRoute,
   skillSyncPreviewImportRoute,
+  skillSyncPreviewLinkDeepChatSkillsRoute,
+  skillSyncRemoveAgentSkillLinkRoute,
+  skillSyncRepairAgentSkillLinkRoute,
+  skillSyncScanAgentsRoute,
   skillSyncScanExternalToolsRoute
 } from '@shared/contracts/routes'
 import type {
+  AgentSkillLinkInput,
   ConflictStrategy,
+  AdoptAgentSkillInput,
+  AdoptAgentSkillPreview,
+  AdoptAgentSkillResult,
   ExportPreview,
   ExternalToolConfig,
   ImportPreview,
+  InstalledSkillAgent,
+  InstalledSkillAgentDetail,
+  LinkDeepChatSkillResult,
+  LinkDeepChatSkillsInput,
+  LinkDeepChatSkillsPreview,
+  LinkDeepChatSkillsResult,
   NewDiscovery,
   ScanResult,
+  SkillDetail,
   SyncResult
 } from '@shared/types/skillSync'
 import { getDeepchatBridge } from './core'
@@ -51,6 +71,66 @@ export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge
   async function getRegisteredTools(): Promise<ExternalToolConfig[]> {
     const result = await bridge.invoke(skillSyncGetRegisteredToolsRoute.name, {})
     return result.tools as ExternalToolConfig[]
+  }
+
+  async function scanAgents(): Promise<InstalledSkillAgent[]> {
+    const result = await bridge.invoke(skillSyncScanAgentsRoute.name, {})
+    return result.agents as InstalledSkillAgent[]
+  }
+
+  async function getAgentDetail(agentId: string): Promise<InstalledSkillAgentDetail> {
+    const result = await bridge.invoke(skillSyncGetAgentDetailRoute.name, { agentId })
+    return result.agent as InstalledSkillAgentDetail
+  }
+
+  async function getAgentSkillDetail(agentId: string, skillName: string): Promise<SkillDetail> {
+    const result = await bridge.invoke(skillSyncGetAgentSkillDetailRoute.name, {
+      agentId,
+      skillName
+    })
+    return result.detail as SkillDetail
+  }
+
+  async function previewAdoptAgentSkill(
+    input: AdoptAgentSkillInput
+  ): Promise<AdoptAgentSkillPreview> {
+    const result = await bridge.invoke(skillSyncPreviewAdoptAgentSkillRoute.name, input)
+    return result.preview as AdoptAgentSkillPreview
+  }
+
+  async function executeAdoptAgentSkill(
+    input: AdoptAgentSkillInput
+  ): Promise<AdoptAgentSkillResult> {
+    const result = await bridge.invoke(skillSyncExecuteAdoptAgentSkillRoute.name, input)
+    return result.result as AdoptAgentSkillResult
+  }
+
+  async function previewLinkDeepChatSkills(
+    input: LinkDeepChatSkillsInput
+  ): Promise<LinkDeepChatSkillsPreview> {
+    const result = await bridge.invoke(skillSyncPreviewLinkDeepChatSkillsRoute.name, input)
+    return result.preview as LinkDeepChatSkillsPreview
+  }
+
+  async function executeLinkDeepChatSkills(
+    input: LinkDeepChatSkillsInput
+  ): Promise<LinkDeepChatSkillsResult> {
+    const result = await bridge.invoke(skillSyncExecuteLinkDeepChatSkillsRoute.name, input)
+    return result.result as LinkDeepChatSkillsResult
+  }
+
+  async function repairAgentSkillLink(
+    input: AgentSkillLinkInput
+  ): Promise<LinkDeepChatSkillResult> {
+    const result = await bridge.invoke(skillSyncRepairAgentSkillLinkRoute.name, input)
+    return result.result as LinkDeepChatSkillResult
+  }
+
+  async function removeAgentSkillLink(
+    input: AgentSkillLinkInput
+  ): Promise<LinkDeepChatSkillResult> {
+    const result = await bridge.invoke(skillSyncRemoveAgentSkillLinkRoute.name, input)
+    return result.result as LinkDeepChatSkillResult
   }
 
   async function previewImport(toolId: string, skillNames: string[]): Promise<ImportPreview[]> {
@@ -163,6 +243,15 @@ export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge
     getNewDiscoveries,
     acknowledgeDiscoveries,
     getRegisteredTools,
+    scanAgents,
+    getAgentDetail,
+    getAgentSkillDetail,
+    previewAdoptAgentSkill,
+    executeAdoptAgentSkill,
+    previewLinkDeepChatSkills,
+    executeLinkDeepChatSkills,
+    repairAgentSkillLink,
+    removeAgentSkillLink,
     previewImport,
     executeImport,
     previewExport,

@@ -1,7 +1,9 @@
 import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { promisify } from 'node:util'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
 import type { IConfigPresenter } from '@shared/presenter'
@@ -20,7 +22,18 @@ import {
   SkillInstallResult,
   SkillFolderNode,
   SkillInstallOptions,
+  GitSkillInstallInput,
+  GitSkillRepoScanItem,
+  GitSkillRepoScanResult,
+  SkillAdoptionRegistration,
+  SkillAgentLinkRegistration,
   SkillExtensionConfig,
+  SkillSyncDirectoryExportInput,
+  SkillSyncDirectoryExportPreview,
+  SkillSyncDirectoryImportInput,
+  SkillSyncDirectoryImportPreview,
+  SkillSyncDirectoryPreviewItem,
+  SkillSyncDirectoryResult,
   SkillManageRequest,
   SkillManageResult,
   SkillDraftActionResult,
@@ -30,10 +43,20 @@ import {
   SkillViewResult,
   SkillLinkedFile
 } from '@shared/types/skill'
+import type {
+  SkillManagementItem,
+  SkillManagementState,
+  SkillSyncDirectoryConfig,
+  SkillSource,
+  SkillSourceType,
+  UnifiedSkillItem
+} from '@shared/types/skillManagement'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
+
+const execFileAsync = promisify(execFile)
 
 /**
  * Skill system configuration constants
@@ -112,6 +135,7 @@ const DRAFT_ALLOWED_TOP_LEVEL_DIRS = new Set(['references', 'templates', 'script
 const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ACTIVITY_MARKER = '.lastActivity'
+const SKILL_MANAGEMENT_STATE_KEY = 'skills.managementState'
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -281,9 +305,6 @@ export class SkillPresenter implements ISkillPresenter {
   private ensureSkillsDir(): void {
     if (!fs.existsSync(this.skillsDir)) {
       fs.mkdirSync(this.skillsDir, { recursive: true })
-    }
-    if (!fs.existsSync(this.sidecarDir)) {
-      fs.mkdirSync(this.sidecarDir, { recursive: true })
     }
   }
 
@@ -482,7 +503,181 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private isSkillVisible(metadata: SkillMetadata): boolean {
-    return Boolean(metadata)
+    return Boolean(metadata) && !this.isSkillDeepChatDisabled(metadata.name)
+  }
+
+  private createDefaultManagementState(): SkillManagementState {
+    return {
+      version: 1,
+      skills: {}
+    }
+  }
+
+  private getStoredManagementState(): SkillManagementState {
+    const stored = this.configPresenter.getSetting<unknown>(SKILL_MANAGEMENT_STATE_KEY)
+    if (!stored || typeof stored !== 'object') {
+      return this.createDefaultManagementState()
+    }
+
+    const candidate = stored as Partial<SkillManagementState>
+    const skills: Record<string, SkillManagementItem> = {}
+    for (const [name, item] of Object.entries(candidate.skills ?? {})) {
+      if (!this.isSafeSkillName(name) || !item || typeof item !== 'object') {
+        continue
+      }
+      const raw = item as Partial<SkillManagementItem>
+      skills[name] = {
+        name,
+        canonicalPath:
+          typeof raw.canonicalPath === 'string' && raw.canonicalPath.trim()
+            ? raw.canonicalPath
+            : path.join(this.skillsDir, name),
+        deepchat: {
+          disabled: raw.deepchat?.disabled === true
+        },
+        extension: sanitizeSkillExtensionConfig(raw.extension),
+        source: this.sanitizeSkillSource(raw.source),
+        agentLinks:
+          raw.agentLinks && typeof raw.agentLinks === 'object'
+            ? (raw.agentLinks as SkillManagementItem['agentLinks'])
+            : undefined
+      }
+    }
+
+    return {
+      version: 1,
+      skills,
+      sync: this.sanitizeSyncDirectoryConfig(candidate.sync)
+    }
+  }
+
+  private sanitizeSyncDirectoryConfig(value: unknown): SkillSyncDirectoryConfig | undefined {
+    const raw =
+      value && typeof value === 'object' ? (value as Partial<SkillSyncDirectoryConfig>) : {}
+    if (typeof raw.skillsDirectory !== 'string' || !raw.skillsDirectory.trim()) {
+      return undefined
+    }
+
+    return {
+      skillsDirectory: path.resolve(raw.skillsDirectory),
+      layout: 'multi-skill-repo',
+      lastExportAt: typeof raw.lastExportAt === 'string' ? raw.lastExportAt : null,
+      lastImportAt: typeof raw.lastImportAt === 'string' ? raw.lastImportAt : null
+    }
+  }
+
+  private saveManagementState(state: SkillManagementState): void {
+    this.configPresenter.setSetting(SKILL_MANAGEMENT_STATE_KEY, state)
+  }
+
+  private sanitizeSkillSource(value: unknown): SkillSource {
+    const raw = value && typeof value === 'object' ? (value as Partial<SkillSource>) : {}
+    const source: SkillSource = {
+      type: this.normalizeSkillSourceType(raw.type)
+    }
+    if (typeof raw.repoUrl === 'string') source.repoUrl = raw.repoUrl
+    if (raw.repoFormat === 'single-skill' || raw.repoFormat === 'multi-skill') {
+      source.repoFormat = raw.repoFormat
+    }
+    if (typeof raw.agentId === 'string') source.agentId = raw.agentId
+    if (typeof raw.originalPath === 'string') source.originalPath = raw.originalPath
+    if (typeof raw.importedFrom === 'string') source.importedFrom = raw.importedFrom
+    if (typeof raw.installedAt === 'string') source.installedAt = raw.installedAt
+    if (typeof raw.importedAt === 'string') source.importedAt = raw.importedAt
+    if (typeof raw.adoptedAt === 'string') source.adoptedAt = raw.adoptedAt
+    return source
+  }
+
+  private normalizeSkillSourceType(value: unknown): SkillSourceType {
+    const allowed: SkillSourceType[] = [
+      'builtin',
+      'created',
+      'folder-install',
+      'zip-install',
+      'url-install',
+      'git-install',
+      'adopted',
+      'imported'
+    ]
+    return typeof value === 'string' && allowed.includes(value as SkillSourceType)
+      ? (value as SkillSourceType)
+      : 'created'
+  }
+
+  private createDefaultManagementItem(name: string): SkillManagementItem {
+    return {
+      name,
+      canonicalPath: path.join(this.skillsDir, name),
+      deepchat: {
+        disabled: false
+      },
+      extension: createDefaultSkillExtensionConfig(),
+      source: {
+        type: 'created'
+      }
+    }
+  }
+
+  private updateSkillManagementItem(
+    name: string,
+    updater: (item: SkillManagementItem) => SkillManagementItem
+  ): SkillManagementItem {
+    const state = this.getStoredManagementState()
+    const nextItem = updater(state.skills[name] ?? this.createDefaultManagementItem(name))
+    state.skills[name] = nextItem
+    this.saveManagementState(state)
+    return nextItem
+  }
+
+  private isSkillDeepChatDisabled(name: string): boolean {
+    return this.getStoredManagementState().skills[name]?.deepchat.disabled === true
+  }
+
+  async getSkillManagementState(): Promise<SkillManagementState> {
+    return this.getStoredManagementState()
+  }
+
+  async setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void> {
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+    if (!this.metadataCache.has(name)) {
+      throw new Error(`Skill "${name}" not found`)
+    }
+
+    this.updateSkillManagementItem(name, (item) => ({
+      ...item,
+      canonicalPath: this.metadataCache.get(name)?.skillRoot ?? item.canonicalPath,
+      deepchat: {
+        ...item.deepchat,
+        disabled
+      }
+    }))
+    this.contentCache.delete(name)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'disabled-updated',
+      name,
+      version: Date.now()
+    })
+  }
+
+  async getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]> {
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+
+    const state = this.getStoredManagementState()
+    return this.sortSkillMetadata(Array.from(this.metadataCache.values())).map((skill) => {
+      const item = state.skills[skill.name] ?? this.createDefaultManagementItem(skill.name)
+      return {
+        ...skill,
+        canonicalPath: item.canonicalPath || skill.skillRoot,
+        sourceType: item.source.type,
+        deepchatDisabled: item.deepchat.disabled,
+        agentLinks: item.agentLinks ?? {},
+        mutable: !skill.ownerPluginId
+      }
+    })
   }
 
   private sortSkillMetadata(skills: SkillMetadata[]): SkillMetadata[] {
@@ -1080,7 +1275,7 @@ export class SkillPresenter implements ISkillPresenter {
         continue
       }
 
-      const result = await this.installFromDirectory(skillDir, { overwrite: false })
+      const result = await this.installFromDirectory(skillDir, { overwrite: false }, 'builtin')
       if (!result.success && result.error?.includes('already exists')) {
         continue
       }
@@ -1140,7 +1335,7 @@ export class SkillPresenter implements ISkillPresenter {
     folderPath: string,
     options?: SkillInstallOptions
   ): Promise<SkillInstallResult> {
-    return this.installFromDirectory(folderPath, options)
+    return this.installFromDirectory(folderPath, options, 'folder-install')
   }
 
   /**
@@ -1161,7 +1356,7 @@ export class SkillPresenter implements ISkillPresenter {
       if (!skillDir) {
         return { success: false, error: 'SKILL.md not found in zip archive' }
       }
-      return await this.installFromDirectory(skillDir, options)
+      return await this.installFromDirectory(skillDir, options, 'zip-install')
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMsg, errorCode: 'io_error' }
@@ -1177,7 +1372,17 @@ export class SkillPresenter implements ISkillPresenter {
     const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${Date.now()}.zip`)
     try {
       await this.downloadSkillZip(url, tempZipPath)
-      return await this.installFromZip(tempZipPath, options)
+      const result = await this.installFromZip(tempZipPath, options)
+      if (result.success && result.skillName) {
+        this.updateSkillManagementItem(result.skillName, (item) => ({
+          ...item,
+          source: {
+            type: 'url-install',
+            installedAt: new Date().toISOString()
+          }
+        }))
+      }
+      return result
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMsg, errorCode: 'io_error' }
@@ -1185,6 +1390,277 @@ export class SkillPresenter implements ISkillPresenter {
       if (fs.existsSync(tempZipPath)) {
         fs.rmSync(tempZipPath, { force: true })
       }
+    }
+  }
+
+  async scanGitSkillRepo(repoUrl: string): Promise<GitSkillRepoScanResult> {
+    const normalizedRepoUrl = repoUrl.trim()
+    if (!normalizedRepoUrl) {
+      throw new Error('Git repository URL is required')
+    }
+
+    const cloneDir = await this.cloneGitSkillRepo(normalizedRepoUrl)
+    try {
+      return await this.scanGitSkillRepoDirectory(normalizedRepoUrl, cloneDir)
+    } finally {
+      fs.rmSync(cloneDir, { recursive: true, force: true })
+    }
+  }
+
+  async installSkillsFromGit(input: GitSkillInstallInput): Promise<SkillInstallResult[]> {
+    const repoUrl = input.repoUrl.trim()
+    const selected = new Set(input.skillNames)
+    const strategy = input.strategy ?? 'rename'
+    if (!repoUrl || selected.size === 0) {
+      return []
+    }
+
+    const cloneDir = await this.cloneGitSkillRepo(repoUrl)
+    try {
+      const scan = await this.scanGitSkillRepoDirectory(repoUrl, cloneDir)
+      const selectedItems = scan.skills.filter((item) => selected.has(item.name))
+      const results: SkillInstallResult[] = []
+
+      for (const item of selectedItems) {
+        if (!item.valid) {
+          results.push({
+            success: false,
+            skillName: item.name,
+            error: item.error ?? 'Invalid skill',
+            errorCode: 'invalid_skill'
+          })
+          continue
+        }
+
+        if (item.conflict && strategy === 'skip') {
+          results.push({
+            success: false,
+            skillName: item.name,
+            existingSkillName: item.name,
+            error: `Skill "${item.name}" already exists`,
+            errorCode: 'conflict'
+          })
+          continue
+        }
+
+        const sourceDir =
+          scan.repoFormat === 'single-skill'
+            ? cloneDir
+            : path.join(cloneDir, item.relativePath.replace(/\/SKILL\.md$/, ''))
+        const targetName =
+          item.conflict && strategy === 'rename' ? this.createUniqueSkillName(item.name) : item.name
+        const result = await this.installFromDirectory(
+          sourceDir,
+          { overwrite: item.conflict && strategy === 'overwrite' },
+          'git-install',
+          {
+            repoUrl,
+            repoFormat: scan.repoFormat,
+            installedAt: new Date().toISOString()
+          },
+          targetName
+        )
+        results.push(result)
+      }
+
+      if (results.some((result) => result.success)) {
+        publishDeepchatEvent('skills.catalog.changed', {
+          reason: 'git-installed',
+          version: Date.now()
+        })
+      }
+
+      return results
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      return [{ success: false, error: errorMsg, errorCode: 'io_error' }]
+    } finally {
+      fs.rmSync(cloneDir, { recursive: true, force: true })
+    }
+  }
+
+  async getSkillsSyncConfig(): Promise<SkillSyncDirectoryConfig | null> {
+    return this.getStoredManagementState().sync ?? null
+  }
+
+  async setSkillsSyncDirectory(input: {
+    skillsDirectory: string
+  }): Promise<SkillSyncDirectoryConfig> {
+    const skillsDirectory = path.resolve(input.skillsDirectory.trim())
+    const config: SkillSyncDirectoryConfig = {
+      skillsDirectory,
+      layout: 'multi-skill-repo',
+      lastExportAt: null,
+      lastImportAt: null
+    }
+
+    fs.mkdirSync(path.join(skillsDirectory, 'skills'), { recursive: true })
+    const state = this.getStoredManagementState()
+    state.sync = {
+      ...state.sync,
+      ...config
+    }
+    this.saveManagementState(state)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'sync-directory-updated',
+      version: Date.now()
+    })
+    return state.sync
+  }
+
+  async previewSyncDirectoryExport(
+    input: SkillSyncDirectoryExportInput
+  ): Promise<SkillSyncDirectoryExportPreview> {
+    const config = this.requireSyncDirectoryConfig()
+    const selected = new Set(input.skillNames)
+    const skills = (await this.getUnifiedSkillCatalog()).filter((skill) => {
+      if (!selected.has(skill.name)) return false
+      return input.includeDisabled === true || !skill.deepchatDisabled
+    })
+
+    return {
+      skillsDirectory: config.skillsDirectory,
+      items: skills.map((skill) => {
+        const targetPath = path.join(config.skillsDirectory, 'skills', skill.name)
+        if (!skill.mutable || !fs.existsSync(path.join(skill.skillRoot, 'SKILL.md'))) {
+          return {
+            name: skill.name,
+            state: 'invalid',
+            sourcePath: skill.skillRoot,
+            targetPath,
+            error: 'Skill cannot be exported'
+          }
+        }
+        return {
+          name: skill.name,
+          state: this.resolveExportPreviewState(skill.skillRoot, targetPath),
+          sourcePath: skill.skillRoot,
+          targetPath
+        }
+      })
+    }
+  }
+
+  async executeSyncDirectoryExport(
+    input: SkillSyncDirectoryExportInput
+  ): Promise<SkillSyncDirectoryResult> {
+    const preview = await this.previewSyncDirectoryExport(input)
+    let exported = 0
+    let skipped = 0
+    const failed: Array<{ skillName: string; reason: string }> = []
+
+    fs.mkdirSync(path.join(preview.skillsDirectory, 'skills'), { recursive: true })
+    this.ensureSyncDirectoryReadme(preview.skillsDirectory)
+
+    for (const item of preview.items) {
+      if (item.state === 'invalid') {
+        skipped += 1
+        failed.push({ skillName: item.name, reason: item.error ?? 'Invalid skill' })
+        continue
+      }
+
+      try {
+        fs.rmSync(item.targetPath, { recursive: true, force: true })
+        this.copyDirectory(item.sourcePath, item.targetPath)
+        exported += 1
+      } catch (error) {
+        failed.push({
+          skillName: item.name,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    if (exported > 0) {
+      this.updateSyncDirectoryConfig({ lastExportAt: new Date().toISOString() })
+    }
+
+    return {
+      success: failed.length === 0,
+      exported,
+      skipped,
+      failed
+    }
+  }
+
+  async previewSyncDirectoryImport(): Promise<SkillSyncDirectoryImportPreview> {
+    const config = this.requireSyncDirectoryConfig()
+    const skillsRoot = path.join(config.skillsDirectory, 'skills')
+    const items: SkillSyncDirectoryPreviewItem[] = []
+    if (!fs.existsSync(skillsRoot)) {
+      return { skillsDirectory: config.skillsDirectory, items }
+    }
+
+    for (const entry of fs.readdirSync(skillsRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const sourcePath = path.join(skillsRoot, entry.name)
+      const targetPath = path.join(this.skillsDir, entry.name)
+      items.push(this.createImportPreviewItem(sourcePath, targetPath))
+    }
+
+    return {
+      skillsDirectory: config.skillsDirectory,
+      items: items.sort((left, right) => left.name.localeCompare(right.name))
+    }
+  }
+
+  async executeSyncDirectoryImport(
+    input: SkillSyncDirectoryImportInput
+  ): Promise<SkillSyncDirectoryResult> {
+    const preview = await this.previewSyncDirectoryImport()
+    const selected = new Set(input.skillNames)
+    const strategy = input.strategy ?? 'rename'
+    let imported = 0
+    let skipped = 0
+    const failed: Array<{ skillName: string; reason: string }> = []
+
+    for (const item of preview.items.filter((candidate) => selected.has(candidate.name))) {
+      if (item.state === 'invalid' || item.state === 'same') {
+        skipped += 1
+        if (item.state === 'invalid') {
+          failed.push({ skillName: item.name, reason: item.error ?? 'Invalid skill' })
+        }
+        continue
+      }
+
+      if ((item.state === 'conflict' || item.state === 'modified') && strategy === 'skip') {
+        skipped += 1
+        continue
+      }
+
+      const targetName =
+        (item.state === 'conflict' || item.state === 'modified') && strategy === 'rename'
+          ? this.createUniqueSkillName(item.name)
+          : item.name
+      const result = await this.installFromDirectory(
+        item.sourcePath,
+        { overwrite: strategy === 'overwrite' },
+        'imported',
+        {
+          importedFrom: item.sourcePath,
+          importedAt: new Date().toISOString()
+        },
+        targetName
+      )
+      if (result.success) {
+        imported += 1
+      } else {
+        failed.push({
+          skillName: item.name,
+          reason: result.error ?? 'Import failed'
+        })
+      }
+    }
+
+    if (imported > 0) {
+      this.updateSyncDirectoryConfig({ lastImportAt: new Date().toISOString() })
+    }
+
+    return {
+      success: failed.length === 0,
+      imported,
+      skipped,
+      failed
     }
   }
 
@@ -1212,6 +1688,90 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  async registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void> {
+    const skillRoot = path.resolve(input.canonicalPath)
+    const metadata = await this.parseSkillMetadata(path.join(skillRoot, 'SKILL.md'), input.name)
+    if (!metadata || metadata.name !== input.name) {
+      throw new Error(`Adopted skill "${input.name}" is invalid`)
+    }
+
+    this.metadataCache.set(input.name, metadata)
+    this.contentCache.delete(input.name)
+    this.updateSkillManagementItem(input.name, (item) => ({
+      ...item,
+      canonicalPath: skillRoot,
+      source: {
+        type: 'adopted',
+        agentId: input.agentId,
+        originalPath: input.originalPath,
+        adoptedAt: new Date().toISOString()
+      },
+      agentLinks: {
+        ...item.agentLinks,
+        [input.agentId]: {
+          path: input.agentPath,
+          state: 'linked',
+          createdByDeepChat: true,
+          linkedAt: new Date().toISOString()
+        }
+      }
+    }))
+
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'installed',
+      name: input.name,
+      skill: metadata,
+      version: Date.now()
+    })
+  }
+
+  async registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void> {
+    if (this.metadataCache.size === 0) {
+      await this.discoverSkills()
+    }
+    const metadata = this.metadataCache.get(input.skillName)
+    if (!metadata) {
+      throw new Error(`Skill "${input.skillName}" not found`)
+    }
+
+    this.updateSkillManagementItem(input.skillName, (item) => ({
+      ...item,
+      canonicalPath: metadata.skillRoot,
+      agentLinks: {
+        ...item.agentLinks,
+        [input.agentId]: {
+          path: input.agentPath,
+          state: 'linked',
+          createdByDeepChat: true,
+          linkedAt: new Date().toISOString()
+        }
+      }
+    }))
+
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'management-state-updated',
+      name: input.skillName,
+      version: Date.now()
+    })
+  }
+
+  async removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void> {
+    this.updateSkillManagementItem(input.skillName, (item) => {
+      const agentLinks = { ...item.agentLinks }
+      delete agentLinks[input.agentId]
+      return {
+        ...item,
+        agentLinks: Object.keys(agentLinks).length > 0 ? agentLinks : undefined
+      }
+    })
+
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'management-state-updated',
+      name: input.skillName,
+      version: Date.now()
+    })
+  }
+
   async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
     let changed = false
     for (const [key, contribution] of this.pluginSkillContributions.entries()) {
@@ -1233,7 +1793,10 @@ export class SkillPresenter implements ISkillPresenter {
 
   private async installFromDirectory(
     folderPath: string,
-    options?: SkillInstallOptions
+    options?: SkillInstallOptions,
+    sourceType: SkillSourceType = 'folder-install',
+    sourcePatch: Partial<SkillSource> = {},
+    targetName?: string
   ): Promise<SkillInstallResult> {
     try {
       this.ensureSkillsDir()
@@ -1285,15 +1848,24 @@ export class SkillPresenter implements ISkillPresenter {
         }
       }
 
-      const targetDir = path.join(this.skillsDir, skillName)
+      const finalSkillName = targetName?.trim() || skillName
+      if (!this.isSafeSkillName(finalSkillName)) {
+        return {
+          success: false,
+          error: 'Invalid target skill name',
+          errorCode: 'invalid_skill'
+        }
+      }
+
+      const targetDir = path.join(this.skillsDir, finalSkillName)
       const resolvedTarget = path.resolve(targetDir)
 
       if (resolvedSource === resolvedTarget) {
         return {
           success: false,
-          error: `Skill "${skillName}" already exists`,
+          error: `Skill "${finalSkillName}" already exists`,
           errorCode: 'conflict',
-          existingSkillName: skillName
+          existingSkillName: finalSkillName
         }
       }
 
@@ -1313,36 +1885,51 @@ export class SkillPresenter implements ISkillPresenter {
         if (!options?.overwrite) {
           return {
             success: false,
-            error: `Skill "${skillName}" already exists`,
+            error: `Skill "${finalSkillName}" already exists`,
             errorCode: 'conflict',
-            existingSkillName: skillName
+            existingSkillName: finalSkillName
           }
         }
-        const replaceResult = this.prepareExistingSkillTargetForInstall(skillName, resolvedTarget)
+        const replaceResult = this.prepareExistingSkillTargetForInstall(
+          finalSkillName,
+          resolvedTarget
+        )
         if (replaceResult) {
           return replaceResult
         }
-        this.metadataCache.delete(skillName)
-        this.contentCache.delete(skillName)
+        this.metadataCache.delete(finalSkillName)
+        this.contentCache.delete(finalSkillName)
       }
 
       this.copyDirectory(resolvedSource, resolvedTarget)
+      if (finalSkillName !== skillName) {
+        this.rewriteSkillManifestName(resolvedTarget, finalSkillName)
+      }
 
       const metadata = await this.parseSkillMetadata(
         path.join(resolvedTarget, 'SKILL.md'),
-        skillName
+        finalSkillName
       )
       if (metadata) {
-        this.metadataCache.set(skillName, metadata)
+        this.metadataCache.set(finalSkillName, metadata)
       }
+      this.updateSkillManagementItem(finalSkillName, (item) => ({
+        ...item,
+        canonicalPath: resolvedTarget,
+        source: {
+          type: sourceType,
+          installedAt: new Date().toISOString(),
+          ...sourcePatch
+        }
+      }))
 
       publishDeepchatEvent('skills.catalog.changed', {
         reason: 'installed',
-        name: skillName,
+        name: finalSkillName,
         version: Date.now()
       })
 
-      return { success: true, skillName }
+      return { success: true, skillName: finalSkillName, targetPath: resolvedTarget }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       return { success: false, error: errorMsg, errorCode: 'io_error' }
@@ -1372,14 +1959,23 @@ export class SkillPresenter implements ISkillPresenter {
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    let backupDir = path.join(this.skillsDir, `${skillName}.backup-${timestamp}`)
+    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
+    fs.mkdirSync(backupRoot, { recursive: true })
+    let backupDir = path.join(backupRoot, `${skillName}-${timestamp}`)
     let counter = 0
     while (fs.existsSync(backupDir)) {
       counter += 1
-      backupDir = path.join(this.skillsDir, `${skillName}.backup-${timestamp}-${counter}`)
+      backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${counter}`)
     }
     fs.renameSync(sourceDir, backupDir)
     return backupDir
+  }
+
+  private rewriteSkillManifestName(skillDir: string, name: string): void {
+    const skillPath = path.join(skillDir, 'SKILL.md')
+    const raw = fs.readFileSync(skillPath, 'utf-8')
+    const parsed = matter(raw)
+    fs.writeFileSync(skillPath, matter.stringify(parsed.content, { ...parsed.data, name }), 'utf-8')
   }
 
   private createTargetLockedFailure(
@@ -1545,6 +2141,235 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
+  private async cloneGitSkillRepo(repoUrl: string): Promise<string> {
+    const operationRoot = path.join(app.getPath('home'), '.deepchat', 'tmp', 'skill-installs')
+    fs.mkdirSync(operationRoot, { recursive: true })
+    const cloneDir = path.join(operationRoot, `${Date.now()}-${randomUUID()}`)
+    try {
+      await execFileAsync('git', ['clone', '--depth', '1', repoUrl, cloneDir], {
+        timeout: SKILL_CONFIG.DOWNLOAD_TIMEOUT
+      })
+      return cloneDir
+    } catch (error) {
+      fs.rmSync(cloneDir, { recursive: true, force: true })
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to clone Git repository: ${errorMsg}`)
+    }
+  }
+
+  private async scanGitSkillRepoDirectory(
+    repoUrl: string,
+    repoRoot: string
+  ): Promise<GitSkillRepoScanResult> {
+    const rootSkill = path.join(repoRoot, 'SKILL.md')
+    if (fs.existsSync(rootSkill)) {
+      return {
+        repoUrl,
+        repoFormat: 'single-skill',
+        skills: [this.createGitScanItem(repoRoot, 'SKILL.md')]
+      }
+    }
+
+    const skillsRoot = path.join(repoRoot, 'skills')
+    const skills = fs.existsSync(skillsRoot)
+      ? fs
+          .readdirSync(skillsRoot, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) =>
+            this.createGitScanItem(
+              path.join(skillsRoot, entry.name),
+              path.join('skills', entry.name, 'SKILL.md')
+            )
+          )
+      : []
+
+    return {
+      repoUrl,
+      repoFormat: 'multi-skill',
+      skills: skills.sort((left, right) => left.name.localeCompare(right.name))
+    }
+  }
+
+  private createGitScanItem(skillDir: string, relativePath: string): GitSkillRepoScanItem {
+    const summary = this.readSkillManifestSummary(skillDir)
+    if (!summary.valid) {
+      return {
+        name: path.basename(skillDir),
+        description: '',
+        relativePath,
+        conflict: false,
+        valid: false,
+        error: summary.error
+      }
+    }
+
+    return {
+      name: summary.name,
+      description: summary.description,
+      relativePath,
+      conflict: fs.existsSync(path.join(this.skillsDir, summary.name)),
+      valid: true
+    }
+  }
+
+  private readSkillManifestSummary(
+    skillDir: string
+  ): { valid: true; name: string; description: string } | { valid: false; error: string } {
+    const skillPath = path.join(skillDir, 'SKILL.md')
+    if (!fs.existsSync(skillPath)) {
+      return { valid: false, error: 'SKILL.md not found' }
+    }
+
+    try {
+      const content = fs.readFileSync(skillPath, 'utf-8')
+      const { data } = matter(content)
+      const name = typeof data.name === 'string' ? data.name.trim() : ''
+      const description = typeof data.description === 'string' ? data.description.trim() : ''
+      if (!name || !description || !this.isSafeSkillName(name)) {
+        return { valid: false, error: 'Invalid SKILL.md frontmatter' }
+      }
+      return { valid: true, name, description }
+    } catch (error) {
+      return { valid: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  private createUniqueSkillName(baseName: string): string {
+    let counter = 1
+    let candidate = `${baseName}-${counter}`
+    while (fs.existsSync(path.join(this.skillsDir, candidate))) {
+      counter += 1
+      candidate = `${baseName}-${counter}`
+    }
+    return candidate
+  }
+
+  private requireSyncDirectoryConfig(): SkillSyncDirectoryConfig {
+    const config = this.getStoredManagementState().sync
+    if (!config) {
+      throw new Error('Skills sync directory is not configured')
+    }
+    return config
+  }
+
+  private updateSyncDirectoryConfig(patch: Partial<SkillSyncDirectoryConfig>): void {
+    const state = this.getStoredManagementState()
+    if (!state.sync) {
+      throw new Error('Skills sync directory is not configured')
+    }
+    state.sync = {
+      ...state.sync,
+      ...patch
+    }
+    this.saveManagementState(state)
+    publishDeepchatEvent('skills.catalog.changed', {
+      reason: 'sync-directory-updated',
+      version: Date.now()
+    })
+  }
+
+  private ensureSyncDirectoryReadme(syncDirectory: string): void {
+    const readmePath = path.join(syncDirectory, 'README.md')
+    if (!fs.existsSync(readmePath)) {
+      fs.writeFileSync(
+        readmePath,
+        '# DeepChat Skills\n\nThis directory stores portable DeepChat skills under `skills/`.\n',
+        'utf-8'
+      )
+    }
+  }
+
+  private resolveExportPreviewState(
+    sourcePath: string,
+    targetPath: string
+  ): SkillSyncDirectoryPreviewItem['state'] {
+    if (!fs.existsSync(targetPath)) {
+      return 'new'
+    }
+    return this.areSkillDirectoriesSame(sourcePath, targetPath) ? 'same' : 'modified'
+  }
+
+  private createImportPreviewItem(
+    sourcePath: string,
+    fallbackTargetPath: string
+  ): SkillSyncDirectoryPreviewItem {
+    const summary = this.readSkillManifestSummary(sourcePath)
+    if (!summary.valid) {
+      return {
+        name: path.basename(sourcePath),
+        state: 'invalid',
+        sourcePath,
+        targetPath: fallbackTargetPath,
+        error: summary.error
+      }
+    }
+
+    const targetPath = path.join(this.skillsDir, summary.name)
+    if (!fs.existsSync(targetPath)) {
+      return {
+        name: summary.name,
+        state: 'new',
+        sourcePath,
+        targetPath
+      }
+    }
+
+    if (this.areSkillDirectoriesSame(sourcePath, targetPath)) {
+      return {
+        name: summary.name,
+        state: 'same',
+        sourcePath,
+        targetPath
+      }
+    }
+
+    const existingSource = this.getStoredManagementState().skills[summary.name]?.source
+    const state =
+      existingSource?.type === 'imported' && existingSource.importedFrom === sourcePath
+        ? 'modified'
+        : 'conflict'
+    return {
+      name: summary.name,
+      state,
+      sourcePath,
+      targetPath
+    }
+  }
+
+  private areSkillDirectoriesSame(left: string, right: string): boolean {
+    try {
+      return this.createSkillDirectorySnapshot(left) === this.createSkillDirectorySnapshot(right)
+    } catch {
+      return false
+    }
+  }
+
+  private createSkillDirectorySnapshot(root: string): string {
+    return this.collectSkillDirectoryFiles(root)
+      .sort()
+      .map((relativePath) => {
+        const content = fs.readFileSync(path.join(root, relativePath)).toString('base64')
+        return `${relativePath}\0${content}`
+      })
+      .join('\0')
+  }
+
+  private collectSkillDirectoryFiles(root: string, current: string = root): string[] {
+    const files: string[] = []
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.isSymbolicLink() || entry.name === SKILL_CONFIG.SIDECAR_DIR) {
+        continue
+      }
+      const fullPath = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        files.push(...this.collectSkillDirectoryFiles(root, fullPath))
+      } else {
+        files.push(path.relative(root, fullPath))
+      }
+    }
+    return files
+  }
+
   /**
    * Uninstall a skill
    */
@@ -1584,9 +2409,9 @@ export class SkillPresenter implements ISkillPresenter {
   private cleanupUninstalledSkillState(name: string): void {
     if (this.isSafeSkillName(name)) {
       try {
-        this.deleteSkillExtension(name)
+        this.deleteSkillManagementItem(name)
       } catch (error) {
-        logger.warn('[SkillPresenter] Failed to delete skill sidecar after uninstall', {
+        logger.warn('[SkillPresenter] Failed to delete skill management state after uninstall', {
           name,
           error
         })
@@ -1642,15 +2467,17 @@ export class SkillPresenter implements ISkillPresenter {
       return { success: false, error: `Skill "${name}" not found` }
     }
 
-    const sidecarPath = this.getSidecarPath(name)
     const previousSkillContent = fs.readFileSync(metadata.path, 'utf-8')
-    const hadSidecar = fs.existsSync(sidecarPath)
-    const previousSidecarContent = hadSidecar ? fs.readFileSync(sidecarPath, 'utf-8') : null
+    const previousState = this.getStoredManagementState()
     const sanitized = sanitizeSkillExtensionConfig(config)
 
     try {
       fs.writeFileSync(metadata.path, content, 'utf-8')
-      fs.writeFileSync(sidecarPath, JSON.stringify(sanitized, null, 2), 'utf-8')
+      this.updateSkillManagementItem(name, (item) => ({
+        ...item,
+        canonicalPath: metadata.skillRoot,
+        extension: sanitized
+      }))
 
       this.contentCache.delete(name)
       const newMetadata = await this.parseSkillMetadata(metadata.path, name)
@@ -1664,11 +2491,7 @@ export class SkillPresenter implements ISkillPresenter {
 
       try {
         fs.writeFileSync(metadata.path, previousSkillContent, 'utf-8')
-        if (hadSidecar && previousSidecarContent !== null) {
-          fs.writeFileSync(sidecarPath, previousSidecarContent, 'utf-8')
-        } else if (fs.existsSync(sidecarPath)) {
-          fs.rmSync(sidecarPath, { force: true })
-        }
+        this.saveManagementState(previousState)
       } catch (rollbackError) {
         const rollbackMessage =
           rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
@@ -1776,20 +2599,52 @@ export class SkillPresenter implements ISkillPresenter {
 
   async getSkillExtension(name: string): Promise<SkillExtensionConfig> {
     this.ensureSkillsDir()
+    const item = this.getStoredManagementState().skills[name]
+    if (item) {
+      return sanitizeSkillExtensionConfig(item.extension)
+    }
+
+    return await this.migrateLegacySkillExtension(name)
+  }
+
+  private async migrateLegacySkillExtension(name: string): Promise<SkillExtensionConfig> {
     const sidecarPath = this.getSidecarPath(name)
     if (!(await this.pathExists(sidecarPath))) {
       return createDefaultSkillExtensionConfig()
     }
-
     try {
       const content = await fs.promises.readFile(sidecarPath, 'utf-8')
-      return sanitizeSkillExtensionConfig(JSON.parse(content))
+      const config = sanitizeSkillExtensionConfig(JSON.parse(content))
+      this.updateSkillManagementItem(name, (item) => ({
+        ...item,
+        extension: config
+      }))
+      try {
+        fs.rmSync(sidecarPath, { force: true })
+        this.removeLegacySidecarDirIfEmpty()
+      } catch (cleanupError) {
+        logger.warn('[SkillPresenter] Failed to remove migrated skill sidecar', {
+          name,
+          error: cleanupError
+        })
+      }
+      return config
     } catch (error) {
       logger.warn('[SkillPresenter] Failed to read skill sidecar, using defaults', {
         name,
         error
       })
       return createDefaultSkillExtensionConfig()
+    }
+  }
+
+  private removeLegacySidecarDirIfEmpty(): void {
+    try {
+      if (fs.existsSync(this.sidecarDir) && fs.readdirSync(this.sidecarDir).length === 0) {
+        fs.rmSync(this.sidecarDir, { force: true, recursive: false })
+      }
+    } catch {
+      // Keep legacy residue for the next migration attempt.
     }
   }
 
@@ -1804,7 +2659,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     const sanitized = sanitizeSkillExtensionConfig(config)
-    fs.writeFileSync(this.getSidecarPath(name), JSON.stringify(sanitized, null, 2), 'utf-8')
+    const metadata = this.metadataCache.get(name)
+    this.updateSkillManagementItem(name, (item) => ({
+      ...item,
+      canonicalPath: metadata?.skillRoot ?? item.canonicalPath,
+      extension: sanitized
+    }))
     this.contentCache.delete(name)
   }
 
@@ -2236,10 +3096,11 @@ export class SkillPresenter implements ISkillPresenter {
     return path.join(this.sidecarDir, `${name}.json`)
   }
 
-  private deleteSkillExtension(name: string): void {
-    const sidecarPath = this.getSidecarPath(name)
-    if (fs.existsSync(sidecarPath)) {
-      fs.rmSync(sidecarPath, { force: true })
+  private deleteSkillManagementItem(name: string): void {
+    const state = this.getStoredManagementState()
+    if (state.skills[name]) {
+      delete state.skills[name]
+      this.saveManagementState(state)
     }
   }
 

@@ -1821,7 +1821,7 @@
       "pythonRuntime": "זמן ריצה של Python",
       "nodeRuntime": "זמן ריצה של Node",
       "envTitle": "משתני סביבה",
-      "envWarning": "הערכים מוסתרים רק בממשק המשתמש; הם נשמרים כטקסט רגיל בקובץ ה-sidecar של הכישור.",
+      "envWarning": "Masked in the UI only. Values are stored as plain text in the application database.",
       "scriptsTitle": "סקריפטים מצורפים",
       "scriptsHint": "רק סקריפטים תחת scripts/ ניתנים להרצה דרך skill_run.",
       "noScripts": "לא זוהו סקריפטים ניתנים להרצה",
@@ -1854,7 +1854,9 @@
       "title": "התקן skill",
       "urlHint": "הזן את קישור ההורדה של חבילת ה-skill",
       "urlPlaceholder": "הזן כתובת הורדת skill ZIP",
-      "zipHint": "לחץ או גרור לכאן קובץ ZIP"
+      "zipHint": "לחץ או גרור לכאן קובץ ZIP",
+      "basicTitle": "תיקייה, ZIP או URL",
+      "basicDescription": "השתמש במתקין הקיים עבור תיקיות מקומיות, חבילות ZIP וכתובות הורדה של ZIP."
     },
     "noResults": "לא נמצא כישור תואם",
     "openFolder": "פתח תיקייה",
@@ -1954,7 +1956,214 @@
       "scripts": "{count} סקריפטים",
       "env": "{count} משתני סביבה",
       "pythonShort": "פייתון",
-      "nodeShort": "Node"
+      "nodeShort": "Node",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable in DeepChat",
+      "disable": "Disable in DeepChat",
+      "viewDetails": "הצג פרטים",
+      "edit": "עריכה",
+      "installToAgent": "התקן ב-Agent"
+    },
+    "enable": {
+      "success": "Skill Enabled",
+      "successMessage": "Skill {name} is enabled in DeepChat",
+      "failed": "Enable Failed"
+    },
+    "disable": {
+      "success": "Skill Disabled",
+      "successMessage": "Skill {name} is disabled in DeepChat",
+      "failed": "Disable Failed"
+    },
+    "tabs": {
+      "library": "Library",
+      "agents": "Agents",
+      "syncDirectory": "תיקיית סנכרון"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "{count} supported agent(s)",
+      "refresh": "Refresh",
+      "empty": "No supported agents found.",
+      "emptySkills": "No skills found for this agent.",
+      "loadFailed": "Failed to load agent skills",
+      "conflictCount": "{count} conflict",
+      "table": {
+        "skill": "Skill",
+        "owner": "Owner",
+        "status": "Status",
+        "action": "Action",
+        "preview": "תצוגה מקדימה"
+      },
+      "owner": {
+        "deepchat": "DeepChat",
+        "external-link": "External",
+        "broken-link": "Broken link",
+        "unknown": "Unknown"
+      },
+      "status": {
+        "linked": "Linked",
+        "agent-owned": "Agent owned",
+        "linked-out": "Linked out",
+        "broken-link": "Broken link",
+        "conflict": "Conflict",
+        "empty": "Empty"
+      },
+      "actions": {
+        "adopt": "Adopt",
+        "resolve-conflict": "Resolve",
+        "repair-link": "Repair",
+        "remove-link": "Remove",
+        "open": "Open",
+        "pending": "Write actions are enabled in a later phase.",
+        "view": "הצג"
+      },
+      "agentStatus": {
+        "ready": "Ready",
+        "detected-no-skills-dir": "No skills directory",
+        "permission-denied": "Permission denied"
+      },
+      "counts": {
+        "skills": "{count} skill(s)",
+        "linked": "{count} linked",
+        "agentOwned": "{count} agent owned",
+        "conflicts": "{count} conflict(s)",
+        "broken": "{count} broken"
+      },
+      "adoptDialog": {
+        "adoptTitle": "Adopt Skill",
+        "conflictTitle": "Resolve Conflict",
+        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
+        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
+        "loading": "Preparing adoption preview...",
+        "previewFailed": "Failed to prepare adoption preview",
+        "executeFailed": "Failed to adopt skill",
+        "currentLocation": "Current location",
+        "afterAdoption": "After adoption",
+        "backup": "Backup",
+        "chooseAction": "Choose action",
+        "adoptAs": "Adopt as {name}",
+        "replaceDeepChat": "Replace existing DeepChat skill",
+        "keepCurrent": "Keep current state",
+        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
+        "warnings": "Warnings",
+        "apply": "Apply",
+        "linkArrow": "-> DeepChat skill",
+        "successTitle": "Skill adopted",
+        "successDescription": "{name} is now managed by DeepChat."
+      },
+      "syncToAgent": "Sync to Agent",
+      "syncDialog": {
+        "title": "Sync to {agent}",
+        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
+        "target": "Target",
+        "deepchatSkills": "DeepChat skills",
+        "empty": "No linkable DeepChat skills.",
+        "preview": "Preview",
+        "loading": "Preparing link preview...",
+        "noSelection": "Select at least one skill.",
+        "apply": "Apply",
+        "failed": "Failed to sync skills",
+        "successTitle": "Skills synced",
+        "successDescription": "{count} skill(s) linked.",
+        "status": {
+          "ready": "Ready",
+          "already-linked": "Already linked",
+          "conflict": "Conflict",
+          "missing": "Missing"
+        }
+      },
+      "linkAction": {
+        "repairSuccess": "Link repaired",
+        "removeSuccess": "Link removed",
+        "successDescription": "{name} updated.",
+        "failed": "Failed to update link"
+      }
+    },
+    "git": {
+      "title": "Git",
+      "description": "סרוק מאגר Git והתקן את ה-skills שנבחרו ב-DeepChat.",
+      "placeholder": "https://github.com/user/repo",
+      "scan": "סריקה",
+      "detectedFormat": "פורמט שזוהה:",
+      "format": {
+        "single-skill": "skill יחיד",
+        "multi-skill": "כמה skills"
+      },
+      "selectedCount": "{count} נבחרו",
+      "empty": "לא נמצאו skills תקפים.",
+      "conflict": "התנגשות",
+      "invalid": "לא תקין",
+      "strategy": "אסטרטגיית התנגשות",
+      "rename": "שנה שם ל-skill החדש",
+      "overwrite": "החלף קיים",
+      "skip": "דלג על קיים",
+      "install": "התקן ב-DeepChat",
+      "failed": "התקנת Git נכשלה",
+      "success": "התקנת Git הושלמה",
+      "successMessage": "{count} הותקנו, {failed} נכשלו",
+      "menuItem": "מאגר Git..."
+    },
+    "importExport": {
+      "directory": "תיקיית סנכרון multi-skill מקומית",
+      "browse": "עיון",
+      "save": "שמירה",
+      "saved": "תיקיית הסנכרון נשמרה",
+      "export": "ייצא לתיקייה",
+      "import": "ייבא מתיקייה",
+      "includeDisabled": "כלול skills מושבתים",
+      "previewExport": "תצוגה מקדימה לייצוא",
+      "exportNow": "ייצא עכשיו",
+      "previewImport": "תצוגה מקדימה לייבוא",
+      "importSelected": "ייבא נבחרים",
+      "noExportPreview": "הצג תצוגה מקדימה של הייצוא כדי לראות מצבי יעד.",
+      "noImportPreview": "הצג תצוגה מקדימה של הייבוא כדי לראות skills זמינים.",
+      "strategy": "אסטרטגיית התנגשות",
+      "rename": "שנה שם לייבוא",
+      "overwrite": "החלף מקומי",
+      "skip": "דלג על קיים",
+      "exported": "הייצוא הושלם",
+      "imported": "הייבוא הושלם",
+      "result": "{count} הושלמו, {failed} נכשלו",
+      "state": {
+        "new": "חדש",
+        "same": "זהה",
+        "modified": "שונה",
+        "conflict": "התנגשות",
+        "invalid": "לא תקין"
+      }
+    },
+    "detail": {
+      "failed": "טעינת פרטי skill נכשלה",
+      "noDescription": "אין תיאור",
+      "empty": "אין תוכן לתצוגה מקדימה",
+      "installToAgent": "התקנה ל-Agent",
+      "enabled": "מופעל",
+      "disabled": "מושבת",
+      "enable": "הפעלה ב-DeepChat",
+      "disable": "השבתה ב-DeepChat",
+      "preview": "תצוגה מקדימה",
+      "edit": "עריכה",
+      "delete": "מחיקה",
+      "confirmDeleteTitle": "מחיקת skill",
+      "confirmDeleteDescription": "למחוק את skill \"{name}\"? לא ניתן לבטל פעולה זו."
+    },
+    "installToAgent": {
+      "title": "התקן את {name} ב-Agent",
+      "description": "יוצר קישור בבעלות DeepChat עבור skill זה בתיקיית skills של agent מקומי.",
+      "failed": "התקנה ב-Agent נכשלה",
+      "emptyAgents": "לא זוהו agents מקומיים זמינים.",
+      "target": "Agent יעד",
+      "preview": "תצוגה מקדימה",
+      "loadingPreview": "מכין תצוגה מקדימה של הקישור...",
+      "noPreview": "בחר agent כדי לראות תצוגה מקדימה.",
+      "install": "התקן",
+      "success": "הותקן ב-Agent",
+      "successMessage": "{name} קושר ל-agent היעד.",
+      "disconnect": "ניתוק",
+      "disconnectSuccess": "נותק מ-Agent",
+      "disconnectSuccessMessage": "{name} כבר לא מקושר ל-Agent היעד.",
+      "disconnectFailed": "הניתוק מ-Agent נכשל"
     }
   },
   "environments": {

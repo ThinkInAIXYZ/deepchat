@@ -6,6 +6,12 @@
  * (metadata first, full content on activation) and hot-reloading.
  */
 
+import type {
+  SkillManagementState,
+  SkillSyncDirectoryConfig,
+  UnifiedSkillItem
+} from './skillManagement'
+
 /**
  * Skill metadata extracted from SKILL.md frontmatter.
  * Always kept in memory for quick access and semantic matching.
@@ -89,6 +95,83 @@ export interface SkillInstallResult {
  */
 export interface SkillInstallOptions {
   overwrite?: boolean
+}
+
+export type SkillInstallConflictStrategy = 'rename' | 'overwrite' | 'skip'
+
+export type GitSkillRepoFormat = 'single-skill' | 'multi-skill'
+
+export interface GitSkillRepoScanItem {
+  name: string
+  description: string
+  relativePath: string
+  conflict: boolean
+  valid: boolean
+  error?: string
+}
+
+export interface GitSkillRepoScanResult {
+  repoUrl: string
+  repoFormat: GitSkillRepoFormat
+  skills: GitSkillRepoScanItem[]
+}
+
+export interface GitSkillInstallInput {
+  repoUrl: string
+  skillNames: string[]
+  strategy?: SkillInstallConflictStrategy
+}
+
+export type SyncDirectorySkillState = 'new' | 'same' | 'modified' | 'conflict' | 'invalid'
+
+export interface SkillSyncDirectoryPreviewItem {
+  name: string
+  state: SyncDirectorySkillState
+  sourcePath: string
+  targetPath: string
+  error?: string
+}
+
+export interface SkillSyncDirectoryExportInput {
+  skillNames: string[]
+  includeDisabled?: boolean
+}
+
+export interface SkillSyncDirectoryImportInput {
+  skillNames: string[]
+  strategy?: SkillInstallConflictStrategy
+}
+
+export interface SkillSyncDirectoryExportPreview {
+  skillsDirectory: string
+  items: SkillSyncDirectoryPreviewItem[]
+}
+
+export interface SkillSyncDirectoryImportPreview {
+  skillsDirectory: string
+  items: SkillSyncDirectoryPreviewItem[]
+}
+
+export interface SkillSyncDirectoryResult {
+  success: boolean
+  exported?: number
+  imported?: number
+  skipped: number
+  failed: Array<{ skillName: string; reason: string }>
+}
+
+export interface SkillAdoptionRegistration {
+  name: string
+  canonicalPath: string
+  agentId: string
+  agentPath: string
+  originalPath: string
+}
+
+export interface SkillAgentLinkRegistration {
+  skillName: string
+  agentId: string
+  agentPath: string
 }
 
 /**
@@ -185,7 +268,10 @@ export interface ISkillPresenter {
   getSkillsDir(): Promise<string>
   discoverSkills(): Promise<SkillMetadata[]>
   getMetadataList(): Promise<SkillMetadata[]>
+  getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]>
   getMetadataPrompt(): Promise<string>
+  getSkillManagementState(): Promise<SkillManagementState>
+  setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
 
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>
@@ -206,6 +292,23 @@ export interface ISkillPresenter {
   installFromFolder(folderPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
   installFromUrl(url: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
+  scanGitSkillRepo(repoUrl: string): Promise<GitSkillRepoScanResult>
+  installSkillsFromGit(input: GitSkillInstallInput): Promise<SkillInstallResult[]>
+  getSkillsSyncConfig(): Promise<SkillSyncDirectoryConfig | null>
+  setSkillsSyncDirectory(input: { skillsDirectory: string }): Promise<SkillSyncDirectoryConfig>
+  previewSyncDirectoryExport(
+    input: SkillSyncDirectoryExportInput
+  ): Promise<SkillSyncDirectoryExportPreview>
+  executeSyncDirectoryExport(
+    input: SkillSyncDirectoryExportInput
+  ): Promise<SkillSyncDirectoryResult>
+  previewSyncDirectoryImport(): Promise<SkillSyncDirectoryImportPreview>
+  executeSyncDirectoryImport(
+    input: SkillSyncDirectoryImportInput
+  ): Promise<SkillSyncDirectoryResult>
+  registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void>
+  registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void>
+  removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void>
   uninstallSkill(name: string): Promise<SkillInstallResult>
   registerPluginSkill?(input: {
     ownerPluginId: string
