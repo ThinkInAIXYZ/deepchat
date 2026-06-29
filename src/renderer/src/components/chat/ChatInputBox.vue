@@ -147,7 +147,7 @@ let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
 const skillsData = useSkillsData(conversationId)
-const activeSkillNames = computed(() => skillsData.activeSkills.value)
+const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
 
 const mentions = useChatInputMentions({
   getEditor,
@@ -285,14 +285,7 @@ watch(
 
 watch(
   () => props.sessionId,
-  async (sessionId) => {
-    if (sessionId) {
-      if (skillsData.pendingSkills.value.length > 0) {
-        await skillsData.applyPendingSkillsToConversation(sessionId)
-      }
-      emit('pending-skills-change', [])
-      return
-    }
+  () => {
     emit('pending-skills-change', [...skillsData.pendingSkills.value])
   },
   { immediate: true }
@@ -438,6 +431,14 @@ function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
 
+function consumePendingSkills(): string[] {
+  return Array.from(new Set(skillsData.consumePendingSkills()))
+}
+
+function clearPendingSkills() {
+  skillsData.clearPendingSkills()
+}
+
 function focusInput() {
   editor.chain().focus().scrollIntoView().run()
   setCaretToEnd(editor)
@@ -448,6 +449,8 @@ defineExpose({
   insertRecognizedText,
   insertWorkspaceReference,
   getPendingSkillsSnapshot,
+  consumePendingSkills,
+  clearPendingSkills,
   focusInput
 })
 </script>

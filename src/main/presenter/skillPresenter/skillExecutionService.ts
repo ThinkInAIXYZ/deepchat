@@ -41,6 +41,7 @@ export interface SkillRunRequest {
 
 export interface SkillRunOptions {
   conversationId: string
+  activeSkillNames?: string[]
 }
 
 interface SkillExecutionServiceOptions {
@@ -87,7 +88,7 @@ export class SkillExecutionService {
 
   async execute(input: SkillRunRequest, options: SkillRunOptions): Promise<SkillExecutionResult> {
     const plan = await this.preparePlanForExecution(
-      await this.buildSpawnPlan(input, options.conversationId)
+      await this.buildSpawnPlan(input, options.conversationId, options.activeSkillNames)
     )
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
@@ -125,10 +126,15 @@ export class SkillExecutionService {
     }
   }
 
-  private async buildSpawnPlan(input: SkillRunRequest, conversationId: string): Promise<SpawnPlan> {
-    const activeSkills = await this.skillPresenter.getActiveSkills(conversationId)
+  private async buildSpawnPlan(
+    input: SkillRunRequest,
+    conversationId: string,
+    activeSkillNames?: string[]
+  ): Promise<SpawnPlan> {
+    const activeSkills =
+      activeSkillNames ?? (await this.skillPresenter.getActiveSkills(conversationId))
     if (!activeSkills.includes(input.skill)) {
-      throw new Error(`Skill "${input.skill}" is not pinned in this conversation`)
+      throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
     }
 
     const metadata = (await this.skillPresenter.getMetadataList()).find(

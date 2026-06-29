@@ -102,6 +102,8 @@ export interface ProcessHooks {
     },
     commitDecision: (granted: boolean) => void
   ) => void
+  getActiveSkillNames?: () => string[]
+  activateSkill?: (skillName: string) => Promise<string[]>
   normalizeToolResult?: (tool: {
     sessionId: string
     toolCallId: string
@@ -162,7 +164,11 @@ export interface ProcessResult {
 export interface ProcessParams {
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
-  refreshTools?: () => Promise<MCPToolDefinition[]>
+  refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
+  refreshSystemPrompt?: (
+    activeSkillNames: string[] | undefined,
+    toolDefinitions: MCPToolDefinition[]
+  ) => Promise<string>
   toolPresenter: IToolPresenter | null
   coreStream: (
     messages: ChatMessage[],

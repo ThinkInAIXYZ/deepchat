@@ -137,7 +137,7 @@ describe('SkillTools', () => {
   })
 
   describe('handleSkillView', () => {
-    it('passes file_path and conversationId through to the presenter', async () => {
+    it('passes file_path and conversationId through to the presenter by default', async () => {
       const result = await skillTools.handleSkillView('conv-123', {
         name: 'code-review',
         file_path: 'references/checklist.md'

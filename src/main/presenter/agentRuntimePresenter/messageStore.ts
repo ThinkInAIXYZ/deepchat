@@ -740,12 +740,15 @@ export class DeepChatMessageStore {
         maps?.linkRows.get(row.id) ??
         this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
 
+      const rawUserContent = this.parseUserContent(row.content)
+      const activeSkills = rawUserContent?.activeSkills ?? []
       return JSON.stringify({
         text: userRow.text,
         files: fileRows.map((fileRow) => this.toMessageFile(fileRow)),
         links: linkRows.map((linkRow) => linkRow.url),
         search: userRow.search_enabled === 1,
-        think: userRow.think_enabled === 1
+        think: userRow.think_enabled === 1,
+        ...(activeSkills.length > 0 ? { activeSkills } : {})
       } satisfies UserMessageContent)
     }
 
@@ -782,11 +785,27 @@ export class DeepChatMessageStore {
           ? parsed.links.filter((item): item is string => typeof item === 'string')
           : [],
         search: parsed.search === true,
-        think: parsed.think === true
+        think: parsed.think === true,
+        activeSkills: this.normalizeActiveSkills(parsed.activeSkills)
       }
     } catch {
       return null
     }
+  }
+
+  private normalizeActiveSkills(activeSkills?: string[]): string[] {
+    if (!Array.isArray(activeSkills)) {
+      return []
+    }
+
+    return Array.from(
+      new Set(
+        activeSkills
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    )
   }
 
   private buildCompactionBlocks(status: 'compacting' | 'compacted'): AssistantMessageBlock[] {

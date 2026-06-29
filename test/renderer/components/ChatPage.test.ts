@@ -189,6 +189,8 @@ const setup = async (options: SetupOptions = {}) => {
   const toast = vi.fn()
   const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
   const chatInputTriggerAttach = vi.fn()
+  const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
+  const chatInputClearPendingSkills = vi.fn()
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -325,7 +327,9 @@ const setup = async (options: SetupOptions = {}) => {
       setup(_, { expose }) {
         expose({
           triggerAttach: chatInputTriggerAttach,
-          insertWorkspaceReference: chatInputInsertWorkspaceReference
+          insertWorkspaceReference: chatInputInsertWorkspaceReference,
+          getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
+          clearPendingSkills: chatInputClearPendingSkills
         })
       },
       template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
@@ -443,6 +447,8 @@ const setup = async (options: SetupOptions = {}) => {
     spotlightStore,
     chatInputInsertWorkspaceReference,
     chatInputTriggerAttach,
+    chatInputGetPendingSkillsSnapshot,
+    chatInputClearPendingSkills,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -772,6 +778,25 @@ describe('ChatPage', () => {
       text: '/compact',
       files: []
     })
+  })
+
+  it('sends composer skills with the message and clears the composer chip', async () => {
+    const { wrapper, chatClient, chatInputGetPendingSkillsSnapshot, chatInputClearPendingSkills } =
+      await setup()
+    chatInputGetPendingSkillsSnapshot.mockReturnValue(['algorithmic-art', 'algorithmic-art'])
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'what can this skill do?')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: 'what can this skill do?',
+      files: [],
+      activeSkills: ['algorithmic-art']
+    })
+    expect(chatInputClearPendingSkills).toHaveBeenCalled()
   })
 
   it('maps reasoning metadata into message usage for think duration fallback', async () => {

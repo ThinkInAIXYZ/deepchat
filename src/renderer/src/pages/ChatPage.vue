@@ -1293,6 +1293,9 @@ const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
+  getPendingSkillsSnapshot?: () => string[]
+  consumePendingSkills?: () => string[]
+  clearPendingSkills?: () => void
 } | null>(null)
 const isVoiceInputEnabled = ref(false)
 const isHandlingInteraction = ref(false)
@@ -1613,6 +1616,23 @@ async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<Messag
   }
 }
 
+const getComposerSkillsSnapshot = (): string[] => {
+  return Array.from(new Set(chatInputRef.value?.getPendingSkillsSnapshot?.() ?? []))
+}
+
+const clearComposerSkills = () => {
+  chatInputRef.value?.clearPendingSkills?.()
+}
+
+const withMessageSkills = (text: string, files: MessageFile[]) => {
+  const activeSkills = getComposerSkillsSnapshot()
+  return {
+    text,
+    files,
+    ...(activeSkills.length > 0 ? { activeSkills } : {})
+  }
+}
+
 async function onSubmit() {
   if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
@@ -1626,14 +1646,16 @@ async function onSubmit() {
     }
     return
   }
+  const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, payload)
   } else {
     agentPlanStore.beginTurn(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, { text, files })
+    await chatClient.sendMessage(props.sessionId, payload)
   }
   message.value = ''
   attachedFiles.value = []
+  clearComposerSkills()
   schedulePostSubmitScrollToBottom()
 }
 
@@ -1649,13 +1671,15 @@ async function onCommandSubmit(command: string) {
   }
 
   const files = await prepareFilesForCurrentModel([...attachedFiles.value])
+  const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, { text, files })
+    await pendingInputStore.queueInput(props.sessionId, payload)
   } else {
     agentPlanStore.beginTurn(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, { text, files })
+    await chatClient.sendMessage(props.sessionId, payload)
   }
   attachedFiles.value = []
+  clearComposerSkills()
   schedulePostSubmitScrollToBottom()
 }
 
@@ -1700,9 +1724,10 @@ async function onQueueSubmit() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
-  await pendingInputStore.queueInput(props.sessionId, { text, files })
+  await pendingInputStore.queueInput(props.sessionId, withMessageSkills(text, files))
   message.value = ''
   attachedFiles.value = []
+  clearComposerSkills()
 }
 
 async function onSteer() {
@@ -1716,9 +1741,10 @@ async function onSteer() {
     return
   }
   agentPlanStore.beginTurn(props.sessionId)
-  await chatClient.steerActiveTurn(props.sessionId, { text, files })
+  await chatClient.steerActiveTurn(props.sessionId, withMessageSkills(text, files))
   message.value = ''
   attachedFiles.value = []
+  clearComposerSkills()
 }
 
 function onAttach() {

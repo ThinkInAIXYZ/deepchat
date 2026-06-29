@@ -236,7 +236,10 @@ export interface ISkillPresenter {
   validateSkillNames(names: string[]): Promise<string[]>
 
   // Tool integration
-  getActiveSkillsAllowedTools(conversationId: string): Promise<string[]>
+  getActiveSkillsAllowedTools(
+    conversationId: string,
+    activeSkillNames?: string[]
+  ): Promise<string[]>
 
   // Hot reload
   watchSkillFiles(): Promise<void>

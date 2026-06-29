@@ -233,6 +233,7 @@ const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
   getPendingSkillsSnapshot?: () => string[]
+  clearPendingSkills?: () => void
   focusInput?: () => void
 } | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
@@ -837,12 +838,19 @@ async function submitText(text: string, files: MessageFile[]) {
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
+    const pendingSkillsSnapshot =
+      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
+    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+    const messagePayload = {
+      text,
+      files,
+      ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {})
+    }
+
     if (isAcp && acpDraftSessionId.value) {
       await sessionStore.selectSession(acpDraftSessionId.value)
-      await sessionStore.sendMessage(acpDraftSessionId.value, {
-        text,
-        files
-      })
+      await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
+      chatInputRef.value?.clearPendingSkills?.()
       return
     }
 
@@ -865,13 +873,9 @@ async function submitText(text: string, files: MessageFile[]) {
       modelId = resolved.modelId
     }
 
-    const pendingSkillsSnapshot =
-      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-
     await sessionStore.createSession({
-      message: text,
-      files,
+      message: messagePayload.text,
+      files: messagePayload.files,
       projectDir: selectedSessionProjectDir.value,
       agentId,
       providerId,
@@ -880,8 +884,9 @@ async function submitText(text: string, files: MessageFile[]) {
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
       subagentEnabled: isAcp ? false : draftSubagentEnabled,
       generationSettings: draftGenerationSettings,
-      activeSkills: dedupedPendingSkills.length > 0 ? dedupedPendingSkills : undefined
+      activeSkills: messagePayload.activeSkills
     })
+    chatInputRef.value?.clearPendingSkills?.()
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()

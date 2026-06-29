@@ -5,6 +5,7 @@ import type {
   LLM_PROVIDER,
   LLMResponse,
   MCPToolDefinition,
+  MODEL_META,
   ModelConfig
 } from '../../../../src/shared/presenter'
 import { BaseLLMProvider } from '../../../../src/main/presenter/llmProviderPresenter/baseProvider'
@@ -25,7 +26,10 @@ vi.mock('@/events', () => ({
 }))
 
 class TestProvider extends BaseLLMProvider {
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    private readonly modelFetcher: () => Promise<MODEL_META[]> = async () => []
+  ) {
     super(
       {
         id: 'test-provider',
@@ -97,8 +101,8 @@ class TestProvider extends BaseLLMProvider {
     return
   }
 
-  protected async fetchProviderModels() {
-    return []
+  protected async fetchProviderModels(): Promise<MODEL_META[]> {
+    return this.modelFetcher()
   }
 }
 
@@ -232,5 +236,43 @@ describe('BaseLLMProvider tool XML conversion', () => {
         baseUrl: 'https://example.com'
       })
     )
+  })
+
+  it('suppresses asynchronous model fetch failures by default', async () => {
+    const provider = new TestProvider(configPresenter, async () => {
+      throw new Error('model endpoint returned 404')
+    })
+
+    await expect(provider.fetchModels()).resolves.toEqual([])
+  })
+
+  it('rethrows asynchronous model fetch failures when suppression is disabled', async () => {
+    const provider = new TestProvider(configPresenter, async () => {
+      throw new Error('model endpoint returned 404')
+    })
+
+    await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
+      'model endpoint returned 404'
+    )
+  })
+
+  it('does not suppress provider model persistence failures', async () => {
+    const persistenceError = new Error('model persistence failed')
+    const failingConfigPresenter = {
+      ...configPresenter,
+      setProviderModels: vi.fn(() => {
+        throw persistenceError
+      })
+    } as unknown as IConfigPresenter
+    const provider = new TestProvider(failingConfigPresenter, async () => [
+      {
+        id: 'model-1',
+        name: 'Model 1',
+        providerId: 'test-provider',
+        group: 'default'
+      } as MODEL_META
+    ])
+
+    await expect(provider.fetchModels()).rejects.toThrow('model persistence failed')
   })
 })

@@ -13,9 +13,20 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
     return { text: input, files: [] }
   }
 
+  const activeSkills = Array.isArray(input?.activeSkills)
+    ? Array.from(
+        new Set(
+          input.activeSkills
+            .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
+            .filter((skillName) => skillName.length > 0)
+        )
+      )
+    : []
+
   return {
     text: typeof input?.text === 'string' ? input.text : '',
-    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : []
+    files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
+    ...(activeSkills.length > 0 ? { activeSkills } : {})
   }
 }
 

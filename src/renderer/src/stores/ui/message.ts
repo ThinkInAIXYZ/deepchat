@@ -222,6 +222,7 @@ export const useMessageStore = defineStore('message', () => {
           links: parsed.links ?? [],
           search: parsed.search ?? false,
           think: parsed.think ?? false,
+          activeSkills: Array.isArray(parsed.activeSkills) ? parsed.activeSkills : [],
           continue: parsed.continue,
           resources: parsed.resources,
           prompts: parsed.prompts,
@@ -236,7 +237,8 @@ export const useMessageStore = defineStore('message', () => {
       files: [],
       links: [],
       search: false,
-      think: false
+      think: false,
+      activeSkills: []
     }
     return entry.userContent
   }

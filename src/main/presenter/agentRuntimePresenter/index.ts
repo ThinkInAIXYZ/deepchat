@@ -402,6 +402,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly sessionProjectDirs: Map<string, string | null> = new Map()
   private readonly systemPromptCache: Map<string, SystemPromptCacheEntry> = new Map()
   private readonly toolProfileCache: Map<string, ToolProfileCacheEntry> = new Map()
+  private readonly runtimeActivatedSkillsBySession: Map<string, Set<string>> = new Map()
   private readonly sessionCompactionStates: Map<string, SessionCompactionState> = new Map()
   private readonly interactionLocks: Set<string> = new Set()
   private readonly resumingMessages: Set<string> = new Set()
@@ -587,6 +588,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.sessionProjectDirs.delete(sessionId)
     this.systemPromptCache.delete(sessionId)
     this.toolProfileCache.delete(sessionId)
+    this.runtimeActivatedSkillsBySession.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
@@ -945,13 +947,19 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       stepStartedAt = Date.now()
-      const activeSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      this.resetRuntimeActivatedSkills(sessionId)
+      this.setRuntimeActivatedSkills(sessionId, normalizedInput.activeSkills ?? [])
+      const sessionActiveSkillNames = await this.resolveActiveSkillNamesForToolProfile(sessionId)
+      const effectiveActiveSkillNames = this.resolveEffectiveActiveSkillNames(
+        sessionActiveSkillNames,
+        sessionId
+      )
       this.logSlowPreStreamStep(sessionId, 'active-skills', stepStartedAt)
       stepStartedAt = Date.now()
       const tools = await this.loadToolDefinitionsForSession(
         sessionId,
         projectDir,
-        activeSkillNames
+        effectiveActiveSkillNames
       )
       this.logSlowPreStreamStep(sessionId, 'tool-definitions', stepStartedAt)
       const toolReserveTokens = estimateToolReserveTokens(tools)
@@ -961,7 +969,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         sessionId,
         generationSettings.systemPrompt,
         tools,
-        activeSkillNames
+        effectiveActiveSkillNames
       )
       this.logSlowPreStreamStep(sessionId, 'system-prompt', stepStartedAt)
       this.throwIfAbortRequested(preStreamAbortSignal)
@@ -972,7 +980,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         files: normalizedInput.files || [],
         links: [],
         search: false,
-        think: false
+        think: false,
+        ...(normalizedInput.activeSkills?.length
+          ? { activeSkills: normalizedInput.activeSkills }
+          : {})
       }
 
       let compactionIntent: CompactionIntent | null = null
@@ -1100,6 +1111,23 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         promptPreview: normalizedInput.text,
         tools,
         baseSystemPrompt,
+        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
+          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
+            sessionId,
+            generationSettings.systemPrompt,
+            refreshedTools,
+            activeSkillNames ?? effectiveActiveSkillNames
+          )
+          return await this.appendMemoryInjection(
+            sessionId,
+            appendReconstructionAnchorStateSection(
+              appendSummarySection(refreshedBasePrompt, summaryState.summaryText),
+              this.sessionStore.getReconstructionAnchorPromptState(sessionId)
+            ),
+            normalizedInput.text,
+            userMessageId
+          )
+        },
         interleavedReasoning,
         viewContext: {
           taskType: 'chat',
@@ -1244,6 +1272,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
     } finally {
       this.clearSessionAbortController(sessionId, preStreamAbortController)
+      this.resetRuntimeActivatedSkills(sessionId)
     }
   }
 
@@ -2880,6 +2909,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     promptPreview?: string
     interleavedReasoning?: InterleavedReasoningConfig
     viewContext?: PendingTapeViewContext
+    refreshSystemPrompt?: (
+      activeSkillNames: string[] | undefined,
+      toolDefinitions: MCPToolDefinition[]
+    ) => Promise<string>
     preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
   }): Promise<{ runId: string; result: ProcessResult }> {
@@ -2894,6 +2927,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       promptPreview,
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
+      refreshSystemPrompt,
       preStreamStartedAt,
       onRunRegistered
     } = args
@@ -2989,7 +3023,17 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const temperature = generationSettings.temperature
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
 
-    const tools = providedTools ?? (await this.loadToolDefinitionsForSession(sessionId, projectDir))
+    const streamSessionActiveSkillNames =
+      await this.resolveActiveSkillNamesForToolProfile(sessionId)
+    const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
+      this.resolveEffectiveActiveSkillNames(baseSkillNames, sessionId)
+    const tools =
+      providedTools ??
+      (await this.loadToolDefinitionsForSession(
+        sessionId,
+        projectDir,
+        getEffectiveRuntimeSkillNames()
+      ))
     const supportsVision = this.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.supportsAudioInput(state.providerId, state.modelId)
 
@@ -3024,7 +3068,27 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const result = await processStream({
         messages,
         tools,
-        refreshTools: async () => await this.loadToolDefinitionsForSession(sessionId, projectDir),
+        refreshTools: async (activeSkillNames) =>
+          await this.loadToolDefinitionsForSession(
+            sessionId,
+            projectDir,
+            getEffectiveRuntimeSkillNames(activeSkillNames)
+          ),
+        refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
+          if (refreshSystemPrompt) {
+            return await refreshSystemPrompt(
+              getEffectiveRuntimeSkillNames(activeSkillNames),
+              refreshedTools
+            )
+          }
+          const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
+            sessionId,
+            generationSettings.systemPrompt,
+            refreshedTools,
+            getEffectiveRuntimeSkillNames(activeSkillNames)
+          )
+          return refreshedBasePrompt
+        },
         toolPresenter: this.toolPresenter,
         coreStream: async function* (
           requestMessages,
@@ -3361,6 +3425,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         shouldYieldForPendingInput: () =>
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
+          getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
+          activateSkill: async (skillName) => {
+            await this.activateRuntimeSkill(sessionId, skillName)
+            return getEffectiveRuntimeSkillNames()
+          },
           onPreToolUse: (tool) => {
             this.dispatchHook('PreToolUse', {
               sessionId,
@@ -4414,13 +4483,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         'Before replying, always scan available skills. If any skill plausibly matches the task, call `skill_view` first.'
       )
       lines.push(
-        'Viewing a skill root `SKILL.md` pins it to the current conversation; viewing linked skill files is read-only and does not pin the skill.'
+        'Viewing a skill root `SKILL.md` activates that skill for the current message/tool loop; it does not pin the skill to the conversation. Viewing linked skill files is read-only and does not activate the skill.'
       )
       hasContent = true
     }
     if (capabilities.canRunSkillScripts) {
       lines.push(
-        'Use `skill_run` only for pinned skills when a pinned skill provides bundled helper scripts.'
+        'Use `skill_run` only for skills that are active in the current message/tool loop, including manually pinned skills and skills activated by `skill_view`.'
       )
       hasContent = true
     }
@@ -4468,11 +4537,56 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       return ''
     }
     return [
-      '## Pinned Skills',
-      'These pinned skills are preloaded for this conversation. Follow them when relevant.',
+      '## Active Skills',
+      'These skills are active for the current message context. Some may be manually pinned for the conversation; others may have been activated by `skill_view` for this message/tool loop only. Follow them when relevant.',
       '',
       skillSections.join('\n\n')
     ].join('\n')
+  }
+
+  private resetRuntimeActivatedSkills(sessionId: string): void {
+    this.runtimeActivatedSkillsBySession.delete(sessionId)
+  }
+
+  private setRuntimeActivatedSkills(sessionId: string, skillNames: string[]): void {
+    const normalizedSkillNames = this.normalizeSkillNames(skillNames)
+    if (normalizedSkillNames.length === 0) {
+      return
+    }
+    this.runtimeActivatedSkillsBySession.set(sessionId, new Set(normalizedSkillNames))
+  }
+
+  private getRuntimeActivatedSkills(sessionId: string): string[] {
+    return this.normalizeSkillNames(
+      Array.from(this.runtimeActivatedSkillsBySession.get(sessionId) ?? [])
+    )
+  }
+
+  private async activateRuntimeSkill(sessionId: string, skillName: string): Promise<string[]> {
+    const normalizedSkillName = skillName.trim()
+    if (!normalizedSkillName) {
+      return this.getRuntimeActivatedSkills(sessionId)
+    }
+
+    let activeSkills = this.runtimeActivatedSkillsBySession.get(sessionId)
+    if (!activeSkills) {
+      activeSkills = new Set<string>()
+      this.runtimeActivatedSkillsBySession.set(sessionId, activeSkills)
+    }
+    activeSkills.add(normalizedSkillName)
+    this.invalidateSystemPromptCache(sessionId)
+    this.invalidateToolProfileCache(sessionId)
+    return this.getRuntimeActivatedSkills(sessionId)
+  }
+
+  private resolveEffectiveActiveSkillNames(
+    sessionActiveSkillNames: string[],
+    sessionId: string
+  ): string[] {
+    return this.normalizeSkillNames([
+      ...sessionActiveSkillNames,
+      ...this.getRuntimeActivatedSkills(sessionId)
+    ])
   }
 
   private normalizeSkillNames(skillNames: string[]): string[] {
@@ -5276,7 +5390,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const files = Array.isArray((parsed as { files?: unknown }).files)
         ? ((parsed as { files?: unknown }).files as MessageFile[]).filter((file) => Boolean(file))
         : []
-      return { text, files }
+      const activeSkills = this.normalizeSkillNames(
+        Array.isArray((parsed as { activeSkills?: unknown }).activeSkills)
+          ? ((parsed as { activeSkills?: unknown }).activeSkills as string[])
+          : []
+      )
+      return {
+        text,
+        files,
+        ...(activeSkills.length > 0 ? { activeSkills } : {})
+      }
     } catch {
       return { text: content, files: [] }
     }
@@ -5293,7 +5416,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const files = Array.isArray(input.files)
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return { text, files }
+    const activeSkills = this.normalizeSkillNames(
+      Array.isArray(input.activeSkills) ? input.activeSkills : []
+    )
+    return {
+      text,
+      files,
+      ...(activeSkills.length > 0 ? { activeSkills } : {})
+    }
   }
 
   private queueVisibleSteerInput(
@@ -6044,7 +6174,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
-        agentWorkspacePath: projectDir
+        agentWorkspacePath: projectDir,
+        activeSkillNames: activeSkillNamesOverride
       })
 
       this.toolProfileCache.set(sessionId, {

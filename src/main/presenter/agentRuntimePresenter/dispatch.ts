@@ -461,9 +461,9 @@ function extractSkillDraftPromptPayload(
   return { draftId, skillName }
 }
 
-function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse): boolean {
+function extractActivatedSkillAfterCall(toolName: string, rawData: MCPToolResponse): string | null {
   if (toolName !== 'skill_view') {
-    return false
+    return null
   }
 
   const toolResult =
@@ -471,7 +471,13 @@ function shouldRefreshToolsAfterCall(toolName: string, rawData: MCPToolResponse)
       ? (rawData.toolResult as Record<string, unknown>)
       : null
 
-  return toolResult?.activationApplied === true
+  if (toolResult?.activationApplied !== true) {
+    return null
+  }
+
+  const activatedSkill =
+    typeof toolResult.activatedSkill === 'string' ? toolResult.activatedSkill.trim() : ''
+  return activatedSkill || null
 }
 
 function isParallelReadOnlyToolCall(
@@ -977,7 +983,8 @@ async function runToolCall(params: {
       await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
-        permissionMode
+        permissionMode,
+        activeSkillNames: hooks?.getActiveSkillNames?.()
       })
 
     let toolCallResult = await callTool()
@@ -1061,6 +1068,11 @@ async function runToolCall(params: {
       preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
     const stagedIsError = preparedResult.kind === 'tool_error' || toolRawData.isError === true
 
+    const activatedSkill = extractActivatedSkillAfterCall(completedToolCall.name, toolRawData)
+    if (activatedSkill) {
+      await hooks?.activateSkill?.(activatedSkill)
+    }
+
     return {
       kind: 'staged',
       stagedResult: {
@@ -1080,7 +1092,7 @@ async function runToolCall(params: {
         skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),
         postHookKind: stagedIsError ? 'failure' : 'success'
       },
-      toolsChanged: shouldRefreshToolsAfterCall(completedToolCall.name, toolRawData)
+      toolsChanged: Boolean(activatedSkill)
     }
   } catch (err) {
     return buildToolErrorOutcome(execution, err)

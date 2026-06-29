@@ -908,7 +908,7 @@ describe('SkillPresenter', () => {
       ])
     })
 
-    it('activates a skill after viewing the main SKILL.md in a new-agent session', async () => {
+    it('does not pin a skill after viewing the main SKILL.md in a new-agent session', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       publishDeepchatEventMock.mockClear()
 
@@ -920,18 +920,16 @@ describe('SkillPresenter', () => {
         expect.objectContaining({
           success: true,
           name: 'test-skill',
-          isPinned: true
+          isPinned: false
         })
       )
-      expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([
-        'test-skill'
-      ])
-      expect(publishDeepchatEventMock).toHaveBeenCalledWith('skills.session.changed', {
-        conversationId: 'conv-view-auto-activate',
-        skills: ['test-skill'],
-        change: 'activated',
-        version: expect.any(Number)
-      })
+      expect(await skillPresenter.getActiveSkills('conv-view-auto-activate')).toEqual([])
+      expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
+        'skills.session.changed',
+        expect.objectContaining({
+          conversationId: 'conv-view-auto-activate'
+        })
+      )
     })
 
     it('does not activate a skill when only viewing a linked file', async () => {
@@ -2265,6 +2263,15 @@ describe('SkillPresenter', () => {
       const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123')
 
       expect(tools).toEqual([])
+    })
+
+    it('returns allowed tools for message-scoped active skill overrides', async () => {
+      const tools = await skillPresenter.getActiveSkillsAllowedTools('conv-123', [
+        'skill-with-tools'
+      ])
+
+      expect(tools).toContain('read')
+      expect(tools).toContain('write')
     })
   })
 

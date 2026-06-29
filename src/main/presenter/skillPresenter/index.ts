@@ -678,16 +678,6 @@ export class SkillPresenter implements ISkillPresenter {
 
       const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
       const { content } = matter(rawContent)
-      let nextIsPinned = isPinned
-
-      if (options?.conversationId && !isPinned) {
-        const updatedSkills = await this.setActiveSkills(options.conversationId, [
-          ...pinnedSkills,
-          metadata.name
-        ])
-        nextIsPinned = updatedSkills.includes(metadata.name)
-      }
-
       return {
         success: true,
         name: metadata.name,
@@ -698,7 +688,7 @@ export class SkillPresenter implements ISkillPresenter {
         platforms: metadata.platforms,
         metadata: metadata.metadata,
         linkedFiles: await this.listSkillLinkedFiles(metadata.skillRoot),
-        isPinned: nextIsPinned
+        isPinned
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1958,12 +1948,15 @@ export class SkillPresenter implements ISkillPresenter {
   /**
    * Get allowed tools for active skills in a conversation
    */
-  async getActiveSkillsAllowedTools(conversationId: string): Promise<string[]> {
+  async getActiveSkillsAllowedTools(
+    conversationId: string,
+    activeSkillNamesOverride?: string[]
+  ): Promise<string[]> {
     if (this.metadataCache.size === 0) {
       await this.discoverSkills()
     }
 
-    const activeSkills = await this.getActiveSkills(conversationId)
+    const activeSkills = activeSkillNamesOverride ?? (await this.getActiveSkills(conversationId))
     const allowedTools: Set<string> = new Set()
 
     for (const skillName of activeSkills) {

@@ -159,7 +159,8 @@ export const MessageFileSchema = z.object({
 
 export const SendMessageInputSchema = z.object({
   text: z.string(),
-  files: z.array(MessageFileSchema).optional()
+  files: z.array(MessageFileSchema).optional(),
+  activeSkills: z.array(z.string()).optional()
 })
 
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [

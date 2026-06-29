@@ -40,6 +40,7 @@ export type DisplayUserMessageContent = {
   links: string[]
   think: boolean
   search: boolean
+  activeSkills?: string[]
   text: string
   content?: (
     | DisplayUserMessageTextBlock
