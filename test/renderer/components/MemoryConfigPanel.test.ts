@@ -73,6 +73,10 @@ const clickByText = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']
   const button = wrapper.findAll('button').find((b) => b.text().includes(text))
   await button!.trigger('click')
 }
+const openAdvancedSettings = async (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) => {
+  await clickByText(wrapper, 'settings.memory.config.advancedTitle')
+  await flushPromises()
+}
 const save = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
   clickByText(wrapper, 'common.save')
 
@@ -115,6 +119,8 @@ describe('MemoryConfigPanel override semantics (AC-2.1~2.5)', () => {
       { memoryEnabled: true, personaEvolutionEnabled: true }
     )
 
+    await openAdvancedSettings(wrapper)
+
     // memoryEnabled resolves to true via inheritance, so the rich controls must render.
     expect(wrapper.text()).toContain('settings.memory.config.extractionModel')
 
@@ -145,6 +151,7 @@ describe('MemoryConfigPanel override semantics (AC-2.1~2.5)', () => {
   it('clamps out-of-range retrieval and budget values to the kernel limits', async () => {
     const { wrapper, updateDeepChatAgent } = await setup({ memoryEnabled: true })
 
+    await openAdvancedSettings(wrapper)
     await inputByPlaceholder(wrapper, '1200')!.setValue('99999')
 
     // Enable the retrieval override, then push topK past its ceiling.

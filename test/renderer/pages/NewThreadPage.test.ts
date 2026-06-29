@@ -45,6 +45,7 @@ const setup = async (
       path: '/workspace/demo'
     } as { name: string; path: string } | null,
     defaultProjectPath: null as string | null,
+    defaultChatWorkspacePath: null as string | null,
     selectionSource: 'manual' as 'none' | 'manual' | 'default',
     projects: (options?.projects ?? [
       { name: 'demo', path: '/workspace/demo', exists: true }
@@ -265,7 +266,7 @@ describe('NewThreadPage start deeplink prefill', () => {
 
     expect(projectStore.selectProject).toHaveBeenCalledWith(null, 'manual')
     expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
-      'common.project.none'
+      'chat.sidebar.chats'
     )
   }, 20000)
 
