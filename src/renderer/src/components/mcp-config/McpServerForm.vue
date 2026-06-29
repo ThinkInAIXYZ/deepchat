@@ -18,7 +18,7 @@ import { MCPServerConfig } from '@shared/presenter'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { useToast } from '@/components/use-toast'
 import { Icon } from '@iconify/vue'
-import { X } from 'lucide-vue-next'
+import { X } from '@lucide/vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { nanoid } from 'nanoid'
 

@@ -112,7 +112,7 @@ import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Loader2 } from 'lucide-vue-next'
+import { Loader2 } from '@lucide/vue'
 
 import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useLanguageStore } from '@/stores/language'
