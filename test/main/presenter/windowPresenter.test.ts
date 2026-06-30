@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { BrowserWindow } from 'electron'
 import { SETTINGS_EVENTS } from '@/events'
 
 vi.mock('electron-window-state', () => ({
@@ -147,5 +148,21 @@ describe('WindowPresenter settings navigation queue', () => {
 
     ;(presenter as any).handleSettingsWindowNavigationStart(9, true, false)
     expect((presenter as any).settingsWindowReady).toBe(false)
+  })
+
+  it('sets a minimum size for the settings window', async () => {
+    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const presenter = new WindowPresenter({
+      getContentProtectionEnabled: vi.fn(() => false)
+    } as any)
+
+    await presenter.createSettingsWindow()
+
+    expect(BrowserWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minWidth: 900,
+        minHeight: 640
+      })
+    )
   })
 })

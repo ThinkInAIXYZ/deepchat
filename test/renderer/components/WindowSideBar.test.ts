@@ -225,7 +225,10 @@ const setup = async (options: SetupOptions = {}) => {
     archivedEnvironments: options.archivedProjectEnvironments ?? [],
     defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
     fetchEnvironments: vi.fn().mockResolvedValue(undefined),
-    reorderEnvironments: vi.fn().mockResolvedValue(undefined)
+    reorderEnvironments: vi.fn().mockResolvedValue(undefined),
+    selectProject: vi.fn((path: string | null, source?: string) => {
+      operations.push(`project:${path ?? 'none'}:${source ?? 'default'}`)
+    })
   })
   const spotlightStore = reactive({
     open: false,
@@ -653,13 +656,14 @@ describe('WindowSideBar agent switch', () => {
   it(
     'collapses and expands chat sessions from the chat header',
     async () => {
-      const { wrapper } = await setup({
+      const { wrapper, router, sessionStore, projectStore } = await setup({
+        currentRouteName: 'plugins',
+        defaultChatWorkspacePath: '/Users/test/Documents/DeepChat',
         groupMode: 'project',
         groups: [
           {
-            id: '__no_project__',
-            label: 'No Project',
-            labelKey: 'common.project.none',
+            id: '/Users/test/Documents/DeepChat',
+            label: 'DeepChat',
             sessions: [
               {
                 id: 'chat-1',
@@ -674,18 +678,29 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.text()).toContain('chat.sidebar.chatSection')
-      expect(wrapper.get('[data-testid="window-sidebar-chat-icon"]').attributes('data-icon')).toBe(
-        'lucide:message-square'
-      )
+      expect(wrapper.find('[data-testid="window-sidebar-chat-icon"]').exists()).toBe(false)
       expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+
+      await wrapper.get('[data-testid="window-sidebar-chat-new-button"]').trigger('click')
+      await flushPromises()
+
+      expect(projectStore.selectProject).toHaveBeenCalledWith(
+        '/Users/test/Documents/DeepChat',
+        'manual'
+      )
+      expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+      expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
 
       await wrapper.find('[data-group-id="__chat__"]').trigger('click')
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
       expect(
-        (wrapper.get('[data-group-id="__chat__"]').element.nextElementSibling as HTMLElement).style
-          .display
+        (
+          wrapper.get('[data-group-id="__chat__"]').element.parentElement
+            ?.nextElementSibling as HTMLElement
+        ).style.display
       ).toBe('none')
 
       await wrapper.find('[data-group-id="__chat__"]').trigger('click')
@@ -693,6 +708,64 @@ describe('WindowSideBar agent switch', () => {
 
       expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
       expect(wrapper.get('[data-session-id="chat-1"]').isVisible()).toBe(true)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'starts new conversations from project folder headers only in project grouping',
+    async () => {
+      const { wrapper, projectStore, router, sessionStore } = await setup({
+        currentRouteName: 'plugins',
+        groupMode: 'project',
+        groups: [
+          {
+            id: '/work/design',
+            label: 'design',
+            sessions: [
+              {
+                id: 'project-design',
+                title: 'Design Session',
+                status: 'none',
+                projectDir: '/work/design'
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      await wrapper.get('[data-testid="window-sidebar-project-new-button"]').trigger('click')
+      await flushPromises()
+
+      expect(projectStore.selectProject).toHaveBeenCalledWith('/work/design', 'manual')
+      expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
+      expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
+
+      const { wrapper: timeWrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'today',
+            label: 'Today',
+            sessions: [
+              {
+                id: 'time-project',
+                title: 'Time Project Session',
+                status: 'none',
+                projectDir: '/work/design'
+              }
+            ]
+          }
+        ]
+      })
+
+      await timeWrapper.vm.$nextTick()
+
+      expect(timeWrapper.find('[data-testid="window-sidebar-project-new-button"]').exists()).toBe(
+        false
+      )
     },
     TEST_TIMEOUT_MS
   )

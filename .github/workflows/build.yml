@@ -92,7 +92,6 @@ jobs:
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Verify packaged DuckDB VSS for Windows
         shell: bash
@@ -169,7 +168,6 @@ jobs:
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Verify packaged DuckDB VSS for Linux
         shell: bash
@@ -263,7 +261,6 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           NODE_OPTIONS: '--max-old-space-size=4096'
-          VITE_PROVIDER_DB_URL: ${{ secrets.CDN_PROVIDER_DB_URL }}
 
       - name: Verify packaged DuckDB VSS for macOS
         shell: bash

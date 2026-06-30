@@ -178,12 +178,6 @@ export class ProviderDbLoader {
   }
 
   private getProviderDbUrl(): string {
-    const value = import.meta.env.VITE_PROVIDER_DB_URL
-    if (typeof value === 'string') {
-      const trimmed = value.trim()
-      if (trimmed.length > 0) return trimmed
-    }
-
     return DEFAULT_PROVIDER_DB_URL
   }
 
