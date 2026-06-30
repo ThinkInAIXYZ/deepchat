@@ -71,6 +71,7 @@ import {
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
+  memoryGetHealthRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -360,6 +361,7 @@ import {
   workspaceWatchRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
+import { createEmptyMemoryHealth } from '@shared/contracts/routes/memory.routes'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
 import { ChatService } from './chat/chatService'
@@ -2238,6 +2240,17 @@ export async function dispatchDeepchatRoute(
       const input = memoryGetStatusRoute.input.parse(rawInput)
       return memoryGetStatusRoute.output.parse({
         status: runtime.memoryPresenter.getStatus(input.agentId)
+      })
+    }
+
+    case memoryGetHealthRoute.name: {
+      const input = memoryGetHealthRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetHealthRoute.output.parse({ health: createEmptyMemoryHealth() })
+      }
+      return memoryGetHealthRoute.output.parse({
+        health: runtime.memoryPresenter.getHealth(input.agentId)
       })
     }
 

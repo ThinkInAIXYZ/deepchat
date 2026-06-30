@@ -5,6 +5,7 @@ import {
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
+  memoryGetHealthRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -21,6 +22,7 @@ import {
   type MemoryAddResult,
   type MemoryConflictItem,
   type MemoryAuditEvent,
+  type MemoryHealthDto,
   type MemoryItem,
   type MemorySearchResult,
   type MemorySourceSpan,
@@ -64,6 +66,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function getStatus(agentId: string): Promise<MemoryStatusDto> {
     const result = await bridge.invoke(memoryGetStatusRoute.name, { agentId })
     return result.status
+  }
+
+  async function getHealth(agentId: string): Promise<MemoryHealthDto> {
+    const result = await bridge.invoke(memoryGetHealthRoute.name, { agentId })
+    return result.health
   }
 
   async function search(
@@ -207,6 +214,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   return {
     list,
     getStatus,
+    getHealth,
     search,
     add,
     listAuditEvents,

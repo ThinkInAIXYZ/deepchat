@@ -20,6 +20,7 @@ import type {
   ISkillSyncPresenter
 } from '@shared/presenter'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
+import { createEmptyMemoryHealth } from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
@@ -1355,6 +1356,46 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).resolves.toEqual({ events: [] })
     expect(listByAgent).not.toHaveBeenCalled()
+  })
+
+  it('dispatches memory health with deepchat guard and zero fallback', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const health = {
+      ...createEmptyMemoryHealth(),
+      totalRows: 1,
+      byKind: { episodic: 0, semantic: 1, reflection: 0, persona: 0, working: 0 },
+      byStatus: {
+        pending_embedding: 0,
+        embedded: 1,
+        error: 0,
+        fts_only: 0,
+        archived: 0,
+        conflicted: 0
+      }
+    }
+    const getHealth = vi.fn(() => health)
+    ;(runtime as any).memoryPresenter = { getHealth }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getHealth',
+        { agentId: 'other' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ health: createEmptyMemoryHealth() })
+    expect(getHealth).not.toHaveBeenCalled()
+
+    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getHealth',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ health })
+    expect(getHealth).toHaveBeenCalledWith('deepchat')
   })
 
   it('returns no memory audit events when the SQLite presenter has no memory audit table', async () => {

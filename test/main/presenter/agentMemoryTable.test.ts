@@ -14,6 +14,8 @@ const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const DatabaseCtor = Database!
 const AgentMemoryTableCtor = AgentMemoryTable!
 const AgentMemoryAuditTableCtor = AgentMemoryAuditTable!
+const sqliteSkipReason = 'skipped: better-sqlite3-multiple-ciphers is unavailable'
+const requireNativeSqlite = process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1'
 
 let sqliteAvailable = false
 if (Database) {
@@ -26,7 +28,22 @@ if (Database) {
   }
 }
 
-const describeIfSqlite = sqliteAvailable && AgentMemoryTable ? describe : describe.skip
+const sqliteHarnessAvailable = sqliteAvailable && AgentMemoryTable && AgentMemoryAuditTable
+const sqliteHarnessSkipReason = !sqliteAvailable
+  ? sqliteSkipReason
+  : AgentMemoryTable
+    ? 'skipped: AgentMemoryAuditTable is unavailable'
+    : 'skipped: AgentMemoryTable is unavailable'
+const describeIfSqlite = sqliteHarnessAvailable
+  ? describe
+  : requireNativeSqlite
+    ? (name: string, _suite: () => void) =>
+        describe(name, () => {
+          it('requires native SQLite support', () => {
+            throw new Error(sqliteHarnessSkipReason)
+          })
+        })
+    : describe.skip
 
 describeIfSqlite('AgentMemoryTable', () => {
   it('inserts and reads back a memory row with defaults', () => {
@@ -287,10 +304,245 @@ describeIfSqlite('AgentMemoryTable', () => {
 
       expect(table.getCurrentEmbeddingDimension('deepchat', 'p:m')).toBe(4)
       expect(table.hasStaleEmbeddings('deepchat', 4, 'p:m')).toBe(true)
+      expect(table.countStaleEmbeddings('deepchat', 4, 'p:m')).toBe(1)
       expect(table.hasStaleEmbeddings('deepchat', 8, 'legacy:model')).toBe(true)
       expect(table.getCurrentEmbeddingDimension('deepchat', 'missing:model')).toBeNull()
       expect(table.getCurrentEmbeddingDimension('excluded-agent', 'legacy:model')).toBeNull()
       expect(table.hasStaleEmbeddings('excluded-agent', 4, 'p:m')).toBe(false)
+      expect(table.countStaleEmbeddings('excluded-agent', 4, 'p:m')).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('computes memory health stats with full-table counters and bounded access previews', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'e1',
+        agentId: 'a',
+        kind: 'episodic',
+        category: 'user_preference',
+        content: 'event',
+        importance: 0.1,
+        status: 'embedded'
+      })
+      table.insert({
+        id: 's1',
+        agentId: 'a',
+        kind: 'semantic',
+        category: 'project_fact',
+        content: 'fact',
+        importance: 0.3,
+        status: 'pending_embedding'
+      })
+      table.insert({
+        id: 'r1',
+        agentId: 'a',
+        kind: 'reflection',
+        content: 'reflection',
+        importance: 0.5,
+        status: 'error'
+      })
+      db.prepare("UPDATE agent_memory SET category = 'legacy_unknown' WHERE id = 'r1'").run()
+      table.insert({
+        id: 'p1',
+        agentId: 'a',
+        kind: 'persona',
+        category: 'heuristic',
+        content: 'persona',
+        importance: 0.7,
+        status: 'archived'
+      })
+      table.insert({
+        id: 'w1',
+        agentId: 'a',
+        kind: 'working',
+        content: 'working',
+        importance: 0.9,
+        status: 'fts_only'
+      })
+      table.insert({
+        id: 'c1',
+        agentId: 'a',
+        kind: 'semantic',
+        category: 'anti_pattern',
+        content: 'conflict',
+        importance: 0.2,
+        status: 'conflicted'
+      })
+      table.markConflict('c1', 'challenged')
+      const superseded = table.insert({
+        id: 'old',
+        agentId: 'a',
+        kind: 'semantic',
+        category: 'task_outcome',
+        content: 'old',
+        importance: 0.8,
+        status: 'embedded'
+      })
+      table.markSuperseded(superseded.id, 's1')
+      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other' })
+
+      table.recordAccess('e1', 600)
+      table.recordAccess('e1', 700)
+      table.recordAccess('r1', 650)
+      table.setConfidence('e1', 0.8)
+      table.setConfidence('s1', 0.4)
+
+      const stats = table.getHealthStats('a')
+      expect(stats.totalRows).toBe(7)
+      expect(stats.byKind).toEqual({
+        episodic: 1,
+        semantic: 3,
+        reflection: 1,
+        persona: 1,
+        working: 1
+      })
+      expect(stats.byCategory).toMatchObject({
+        user_preference: 1,
+        project_fact: 1,
+        task_outcome: 1,
+        heuristic: 1,
+        anti_pattern: 1,
+        uncategorized: 2
+      })
+      expect(stats.byStatus).toEqual({
+        pending_embedding: 1,
+        embedded: 2,
+        error: 1,
+        fts_only: 1,
+        archived: 1,
+        conflicted: 1
+      })
+      expect(stats.neverAccessed).toBe(5)
+      expect(stats.importanceAvg).toBeCloseTo(0.5)
+      expect(stats.importanceMedian).toBe(0.5)
+      expect(stats.confidenceAvg).toBeCloseTo(0.6)
+      expect(stats.conflicted).toBe(1)
+      expect(stats.challenged).toBe(1)
+
+      table.recordAccess('p1', 800)
+      table.recordAccess('c1', 900)
+      table.recordAccess('old', 1000)
+      table.recordAccess('w1', 1100)
+      expect(table.listTopAccessed('a', 5).map((row) => row.id)).toEqual(['e1', 'r1'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('returns zero memory health stats for an empty agent', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      const stats = table.getHealthStats('empty')
+      expect(stats.totalRows).toBe(0)
+      expect(stats.byKind).toEqual({
+        episodic: 0,
+        semantic: 0,
+        reflection: 0,
+        persona: 0,
+        working: 0
+      })
+      expect(stats.byCategory).toEqual({
+        user_preference: 0,
+        project_fact: 0,
+        task_outcome: 0,
+        heuristic: 0,
+        anti_pattern: 0,
+        uncategorized: 0
+      })
+      expect(stats.byStatus).toEqual({
+        pending_embedding: 0,
+        embedded: 0,
+        error: 0,
+        fts_only: 0,
+        archived: 0,
+        conflicted: 0
+      })
+      expect(stats.neverAccessed).toBe(0)
+      expect(stats.importanceAvg).toBeNull()
+      expect(stats.importanceMedian).toBeNull()
+      expect(stats.confidenceAvg).toBeNull()
+      expect(stats.conflicted).toBe(0)
+      expect(stats.challenged).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('computes even-count importance median and null confidence average in SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      for (const [id, importance] of [
+        ['m1', 0.1],
+        ['m2', 0.3],
+        ['m3', 0.7],
+        ['m4', 0.9]
+      ] as const) {
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: id,
+          importance,
+          status: 'embedded'
+        })
+      }
+
+      const stats = table.getHealthStats('a')
+      expect(stats.totalRows).toBe(4)
+      expect(stats.importanceAvg).toBeCloseTo(0.5)
+      expect(stats.importanceMedian).toBeCloseTo(0.5)
+      expect(stats.confidenceAvg).toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('counts challenged and conflicted health stats independently', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({
+        id: 'conflicted-only',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'conflicted',
+        status: 'conflicted'
+      })
+      table.insert({
+        id: 'challenged-active',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'challenged',
+        status: 'embedded'
+      })
+      const superseded = table.insert({
+        id: 'challenged-superseded',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'old challenged',
+        status: 'embedded'
+      })
+      table.markConflict('challenged-active', 'challenged')
+      table.markConflict(superseded.id, 'challenged')
+      table.markSuperseded(superseded.id, 'challenged-active')
+
+      const stats = table.getHealthStats('a')
+      expect(stats.conflicted).toBe(1)
+      expect(stats.challenged).toBe(1)
     } finally {
       db.close()
     }
@@ -1098,6 +1350,72 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('agent memory audit computes bounded health status counts and recent failures', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'old',
+        agentId: 'a',
+        eventType: 'memory/old',
+        actorType: 'scheduler',
+        status: 'failed',
+        reason: 'old failure',
+        createdAt: 100
+      })
+      table.insert({
+        id: 'completed',
+        agentId: 'a',
+        eventType: 'memory/reflect',
+        actorType: 'scheduler',
+        status: 'completed',
+        createdAt: 200
+      })
+      table.insert({
+        id: 'skipped',
+        agentId: 'a',
+        eventType: 'memory/archive',
+        actorType: 'scheduler',
+        status: 'skipped',
+        reason: 'cooldown',
+        createdAt: 300
+      })
+      table.insert({
+        id: 'failed',
+        agentId: 'a',
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'failed',
+        reason: 'model unavailable',
+        createdAt: 400
+      })
+
+      const stats = table.getHealthAuditStats('a', 3, 1)
+      expect(stats).toEqual({
+        completed: 1,
+        skipped: 1,
+        failed: 1,
+        recentFailures: [
+          {
+            eventType: 'memory/maintenance_llm',
+            status: 'failed',
+            reason: 'model unavailable',
+            createdAt: 400
+          }
+        ]
+      })
+      expect(table.getHealthAuditStats('missing', 200, 5)).toEqual({
+        completed: 0,
+        skipped: 0,
+        failed: 0,
+        recentFailures: []
+      })
+    } finally {
+      db.close()
+    }
+  })
+
   it('listArchiveCandidates pre-filters by age, decay, and exemptions', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1105,6 +1423,13 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.createTable()
       const old = 1000
       table.insert({ id: 'stale', agentId: 'a', kind: 'semantic', content: 's', createdAt: old })
+      table.insert({
+        id: 'accessed',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'used',
+        createdAt: old
+      })
       table.insert({ id: 'fresh', agentId: 'a', kind: 'semantic', content: 'f', createdAt: 9000 })
       table.insert({
         id: 'anchored',
@@ -1115,11 +1440,14 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         isAnchor: true
       })
       table.updateDecayScore('stale', 0.01)
+      table.updateDecayScore('accessed', 0.01)
+      table.recordAccess('accessed', 7000)
       table.updateDecayScore('fresh', 0.01)
       table.updateDecayScore('anchored', 0.01)
 
       const candidates = table.listArchiveCandidates('a', 5000, 0.05)
-      expect(candidates.map((r) => r.id)).toEqual(['stale'])
+      expect(candidates.map((r) => r.id).sort()).toEqual(['accessed', 'stale'])
+      expect(table.countArchiveCandidates('a', 5000, 0.05)).toBe(1)
     } finally {
       db.close()
     }

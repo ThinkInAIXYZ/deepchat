@@ -987,6 +987,41 @@ describe('renderer api clients', () => {
             case 'memory.add':
               addedMemoryCategory = payload?.category ?? null
               return { result: { action: 'created', memoryId: 'mem-added' } }
+            case 'memory.getHealth':
+              return {
+                health: {
+                  totalRows: 1,
+                  byKind: { episodic: 0, semantic: 1, reflection: 0, persona: 0, working: 0 },
+                  byCategory: {
+                    user_preference: 0,
+                    project_fact: 1,
+                    task_outcome: 0,
+                    heuristic: 0,
+                    anti_pattern: 0,
+                    uncategorized: 0
+                  },
+                  byStatus: {
+                    pending_embedding: 0,
+                    embedded: 1,
+                    error: 0,
+                    fts_only: 0,
+                    archived: 0,
+                    conflicted: 0
+                  },
+                  embeddings: { pending: 0, error: 0, ftsOnly: 0, stale: 0 },
+                  lifecycle: { archiveCandidates: 0, archived: 0 },
+                  conflicts: { conflicted: 0, challenged: 0 },
+                  access: { topAccessed: [], neverAccessed: 1 },
+                  quality: { importanceAvg: 0.6, importanceMedian: 0.6, confidenceAvg: null },
+                  maintenance: {
+                    completed: 0,
+                    skipped: 0,
+                    failed: 0,
+                    scanLimit: 200,
+                    recentFailures: []
+                  }
+                }
+              }
             case 'memory.list':
               return {
                 memories: [
@@ -1270,6 +1305,7 @@ describe('renderer api clients', () => {
     })
     const categorizedMemories = await memoryClient.list('agent-1')
     await memoryClient.add('agent-1', { content: 'plain note' })
+    const health = await memoryClient.getHealth('agent-1')
     const off = memoryClient.onUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
@@ -1321,6 +1357,8 @@ describe('renderer api clients', () => {
       importance: undefined
     })
     expect(bridge.invoke.mock.calls[13][1]).not.toHaveProperty('category')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'memory.getHealth', { agentId: 'agent-1' })
+    expect(health.totalRows).toBe(1)
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })

@@ -5,13 +5,15 @@ import type {
   AgentMemoryConflictState,
   AgentMemoryPersonaState,
   AgentMemoryInsertInput,
-  AgentMemoryListOptions
+  AgentMemoryListOptions,
+  AgentMemoryHealthStats
 } from '../sqlitePresenter/tables/agentMemory'
 import type {
   AgentMemoryAuditActorType,
   AgentMemoryAuditInsertInput,
   AgentMemoryAuditRow,
-  AgentMemoryAuditStatus
+  AgentMemoryAuditStatus,
+  AgentMemoryHealthAuditStats
 } from '../sqlitePresenter/tables/agentMemoryAudit'
 import type {
   DeepChatAgentConfig,
@@ -27,7 +29,8 @@ export type {
   AgentMemoryConflictState,
   AgentMemoryPersonaState,
   AgentMemoryInsertInput,
-  AgentMemoryListOptions
+  AgentMemoryListOptions,
+  AgentMemoryHealthStats
 }
 
 // SQLite repository port. AgentMemoryTable satisfies it structurally; the abstraction lets
@@ -84,9 +87,13 @@ export interface MemoryRepositoryPort {
   setLastConsolidatedAt(id: string, at?: number): void
   getLastConsolidatedAt(agentId: string): number | null
   getCurrentEmbeddingDimension(agentId: string, fingerprint: string): number | null
+  getHealthStats(agentId: string): AgentMemoryHealthStats
   hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean
+  countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): number
   archive(id: string, at?: number): void
   listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
+  countArchiveCandidates(agentId: string, before: number, decayBelow: number): number
+  listTopAccessed(agentId: string, limit: number): AgentMemoryRow[]
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
@@ -98,6 +105,11 @@ export interface MemoryAuditRepositoryPort {
   insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow
   listByAgent(agentId: string, options?: number | MemoryAuditListOptions): AgentMemoryAuditRow[]
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null
+  getHealthAuditStats(
+    agentId: string,
+    scanLimit: number,
+    failuresLimit: number
+  ): AgentMemoryHealthAuditStats
 }
 
 export interface MemoryAuditListOptions {
@@ -287,6 +299,7 @@ export type MemoryUpdateReason =
   | 'delete'
   | 'clear'
   | 'persona-evolve'
+  | 'persona-anchor'
   | 'persona-draft'
   | 'persona-approve'
   | 'persona-reject'

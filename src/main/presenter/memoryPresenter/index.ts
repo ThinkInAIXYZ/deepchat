@@ -23,6 +23,11 @@ import {
   type AgentMemoryCategory
 } from '@shared/types/agent-memory'
 import {
+  MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT,
+  createEmptyMemoryHealth,
+  type MemoryHealthDto
+} from '@shared/contracts/routes/memory.routes'
+import {
   buildMemoryProvenanceKey,
   decayScore,
   distanceToSimilarity,
@@ -114,6 +119,9 @@ const EMBEDDING_PREWARM_TEXT = 'memory warmup'
 const WARM_DIMENSION_FAILURE_COOLDOWN_MS = 30 * 1000
 const ARCHIVE_DECAY_THRESHOLD = 0.05
 const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
+const MEMORY_HEALTH_TOP_ACCESSED_LIMIT = 5
+const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
+const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
 
 function embeddingFingerprint(providerId: string, modelId: string): string {
   return `${providerId}:${modelId}`
@@ -136,6 +144,22 @@ function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
       return [outcome.challengerId]
     default:
       return []
+  }
+}
+
+function toHealthTopAccessedItem(
+  row: AgentMemoryRow
+): MemoryHealthDto['access']['topAccessed'][number] | null {
+  const kind = row.kind
+  if (kind === 'working') return null
+  return {
+    id: row.id,
+    kind,
+    category: isAgentMemoryCategory(row.category) ? row.category : null,
+    content: row.content,
+    importance: row.importance,
+    accessCount: Math.max(0, row.access_count),
+    lastAccessed: row.last_accessed
   }
 }
 
@@ -2223,7 +2247,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       const row = this.deps.repository.getById(versionId)
       if (!row || row.agent_id !== agentId || row.kind !== 'persona') return false
       this.deps.repository.setAnchor(row.id, anchored)
-      this.emitChanged(agentId, 'persona-evolve')
+      this.emitChanged(agentId, 'persona-anchor')
       return true
     })
   }
@@ -2286,6 +2310,75 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return []
     return this.deps.repository.listByAgent(agentId, { includeArchived: true })
+  }
+
+  getHealth(agentId: string): MemoryHealthDto {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) {
+      return createEmptyMemoryHealth(MEMORY_HEALTH_AUDIT_SCAN_LIMIT)
+    }
+
+    const stats = this.deps.repository.getHealthStats(agentId)
+    const embedding = this.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+    let stale = 0
+    if (embedding?.providerId && embedding.modelId) {
+      const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+      const currentDim = this.resolveStoredCurrentEmbeddingDimension(agentId, fingerprint)
+      if (currentDim !== null) {
+        stale = this.deps.repository.countStaleEmbeddings(agentId, currentDim, fingerprint)
+      }
+    }
+
+    const auditStats = this.deps.auditRepository?.getHealthAuditStats(
+      agentId,
+      MEMORY_HEALTH_AUDIT_SCAN_LIMIT,
+      MEMORY_HEALTH_RECENT_FAILURES_LIMIT
+    )
+    const topAccessed = this.deps.repository
+      .listTopAccessed(agentId, MEMORY_HEALTH_TOP_ACCESSED_LIMIT)
+      .map(toHealthTopAccessedItem)
+      .filter((item): item is MemoryHealthDto['access']['topAccessed'][number] => item !== null)
+
+    return {
+      totalRows: stats.totalRows,
+      byKind: stats.byKind,
+      byCategory: stats.byCategory,
+      byStatus: stats.byStatus,
+      embeddings: {
+        pending: stats.byStatus.pending_embedding,
+        error: stats.byStatus.error,
+        ftsOnly: stats.byStatus.fts_only,
+        stale
+      },
+      lifecycle: {
+        archiveCandidates: this.deps.repository.countArchiveCandidates(
+          agentId,
+          Date.now() - ARCHIVE_AGE_MS,
+          ARCHIVE_DECAY_THRESHOLD
+        ),
+        archived: stats.byStatus.archived
+      },
+      conflicts: {
+        conflicted: stats.conflicted,
+        challenged: stats.challenged
+      },
+      access: {
+        topAccessed,
+        neverAccessed: stats.neverAccessed
+      },
+      quality: {
+        importanceAvg: stats.importanceAvg,
+        importanceMedian: stats.importanceMedian,
+        confidenceAvg: stats.confidenceAvg
+      },
+      maintenance: {
+        completed: auditStats?.completed ?? 0,
+        skipped: auditStats?.skipped ?? 0,
+        failed: auditStats?.failed ?? 0,
+        scanLimit: MEMORY_HEALTH_AUDIT_SCAN_LIMIT,
+        recentFailures: auditStats?.recentFailures ?? []
+      }
+    }
   }
 
   async deleteMemory(agentId: string, memoryId: string): Promise<boolean> {
