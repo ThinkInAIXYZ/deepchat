@@ -282,25 +282,35 @@
           </div>
 
           <div v-if="chatSectionGroup" class="pt-4">
-            <button
-              type="button"
-              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
-              :data-group-id="getGroupIdentifier(chatSectionGroup)"
-              :aria-expanded="!isGroupCollapsed(chatSectionGroup)"
-              @click="toggleGroup(chatSectionGroup)"
+            <div
+              class="group flex w-full items-center gap-1 rounded-md pr-1 text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
             >
-              <span class="shrink-0 size-6 flex items-center justify-center">
-                <Icon
-                  :icon="CHAT_SECTION_ICON"
-                  :data-icon="CHAT_SECTION_ICON"
-                  data-testid="window-sidebar-chat-icon"
-                  class="size-4"
-                />
-              </span>
-              <span class="truncate">
-                {{ t('chat.sidebar.chatSection') }}
-              </span>
-            </button>
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center px-2 py-1.5 text-left"
+                :data-group-id="getGroupIdentifier(chatSectionGroup)"
+                :aria-expanded="!isGroupCollapsed(chatSectionGroup)"
+                @click="toggleGroup(chatSectionGroup)"
+              >
+                <span class="truncate">
+                  {{ t('chat.sidebar.chatSection') }}
+                </span>
+              </button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    data-testid="window-sidebar-chat-new-button"
+                    class="flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                    :aria-label="t('common.newChat')"
+                    @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
+                  >
+                    <Icon icon="lucide:plus" class="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
+              </Tooltip>
+            </div>
 
             <div v-show="!isGroupCollapsed(chatSectionGroup)" class="space-y-0.5">
               <WindowSideBarSessionItem
@@ -365,7 +375,7 @@
             <template #item="{ element: group }">
               <div>
                 <div
-                  class="mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground"
+                  class="group mt-2 flex w-full items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
                   :class="isProjectGroupDragging ? 'pointer-events-none' : ''"
                 >
                   <button
@@ -392,6 +402,21 @@
                       {{ getGroupLabel(group) }}
                     </span>
                   </button>
+
+                  <Tooltip v-if="isProjectDirectoryGroup(group)">
+                    <TooltipTrigger as-child>
+                      <button
+                        type="button"
+                        data-testid="window-sidebar-project-new-button"
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all duration-150 hover:bg-accent/60 hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                        :aria-label="t('common.newChat')"
+                        @click.stop="handleNewChatForProject(group.id)"
+                      >
+                        <Icon icon="lucide:plus" class="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{{ t('common.newChat') }}</TooltipContent>
+                  </Tooltip>
 
                   <DropdownMenu
                     v-if="isProjectGroupReorderTarget(group) && canReorderProjectGroups"
@@ -545,7 +570,6 @@ const PIN_TARGET_SETTLE_EPSILON_PX = 0.5
 const SIDEBAR_SHORTCUT_BADGE_DELAY_MS = 500
 const SIDEBAR_SHORTCUT_MAX_ROWS = 10
 const CHAT_SECTION_GROUP_ID = '__chat__'
-const CHAT_SECTION_ICON = 'lucide:message-square'
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const getPinFeedbackMode = (nextPinned: boolean): PinFeedbackMode =>
   nextPinned ? 'pinning' : 'unpinning'
@@ -1274,6 +1298,11 @@ const handleNewChat = async () => {
   } finally {
     await sessionStore.startNewConversation({ refresh: true })
   }
+}
+
+const handleNewChatForProject = async (projectPath: string | null) => {
+  projectStore.selectProject(projectPath, 'manual')
+  await handleNewChat()
 }
 
 const handleAgentSelect = async (id: string | null) => {
