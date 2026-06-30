@@ -23,6 +23,7 @@ import {
   type MemoryVectorMatch
 } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import { createEmptyMemoryHealth } from '@shared/contracts/routes'
 import {
   enabledConfig,
   FakeAuditRepository,
@@ -140,6 +141,62 @@ describe('memory repository fakes', () => {
     expect(repo.getCurrentEmbeddingDimension('a', 'missing:m')).toBeNull()
     expect(repo.getCurrentEmbeddingDimension('excluded', 'legacy:m')).toBeNull()
     expect(repo.hasStaleEmbeddings('excluded', 4, 'p:m')).toBe(false)
+  })
+
+  it('matches AgentMemoryTable health category and top-accessed filters', () => {
+    const repo = new FakeRepository()
+    repo.insert({
+      id: 'active',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'active',
+      status: 'embedded'
+    })
+    repo.insert({
+      id: 'legacy-category',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'legacy',
+      status: 'embedded'
+    })
+    repo.rows.get('legacy-category')!.category = 'legacy_unknown'
+    repo.insert({
+      id: 'archived',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'archived',
+      status: 'archived'
+    })
+    repo.insert({
+      id: 'conflicted',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'conflicted',
+      status: 'conflicted'
+    })
+    const superseded = repo.insert({
+      id: 'superseded',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'superseded',
+      status: 'embedded'
+    })
+    repo.markSuperseded(superseded.id, 'active')
+    repo.insert({
+      id: 'working',
+      agentId: 'a',
+      kind: 'working',
+      content: 'working',
+      status: 'fts_only'
+    })
+
+    for (const id of ['active', 'archived', 'conflicted', 'superseded', 'working']) {
+      repo.recordAccess(id, 1000)
+    }
+
+    expect(repo.getHealthStats('a').byCategory.uncategorized).toBe(5)
+    expect(repo.listTopAccessed('a', 5).map((row) => row.id)).toEqual(['active'])
   })
 
   it('matches AgentMemoryTable current dimension tie-break for equal timestamps', () => {
@@ -2128,6 +2185,13 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     const v2 = presenter.evolvePersona('a', 'v2', null)
     await presenter.approvePersonaDraft('a', v2!)
     onMemoryChanged.mockClear()
+    await presenter.setPersonaAnchor('a', v2!, true)
+    expect(onMemoryChanged).toHaveBeenCalledTimes(1)
+    expect(onMemoryChanged).toHaveBeenLastCalledWith('a', 'persona-anchor')
+    await presenter.setPersonaAnchor('a', v2!, false)
+    expect(onMemoryChanged).toHaveBeenCalledTimes(2)
+    expect(onMemoryChanged).toHaveBeenLastCalledWith('a', 'persona-anchor')
+    onMemoryChanged.mockClear()
     await presenter.rollbackPersona('a', v1!)
     expect(onMemoryChanged).toHaveBeenCalledWith('a', 'persona-rollback')
   })
@@ -2346,6 +2410,7 @@ describe('MemoryPresenter agentId safety guards', () => {
     const { presenter } = makePresenter(enabledConfig)
     expect(() => presenter.listMemories('../escape')).toThrow(/invalid agentId/)
     expect(() => presenter.getStatus('bad/id')).toThrow(/invalid agentId/)
+    expect(() => presenter.getHealth('bad/id')).toThrow(/invalid agentId/)
     expect(() => presenter.listPersonaVersions('bad.id')).toThrow(/invalid agentId/)
     expect(() => presenter.listPersonaDrafts('bad.id')).toThrow(/invalid agentId/)
     await expect(presenter.rollbackPersona('bad id', 'v')).rejects.toThrow(/invalid agentId/)
@@ -2377,12 +2442,105 @@ describe('MemoryPresenter agentId safety guards', () => {
       pendingEmbedding: 0,
       hasPersona: false
     })
+    expect(presenter.getHealth('ghost')).toEqual(createEmptyMemoryHealth())
     expect(await presenter.clearMemories('ghost')).toBe(0)
     expect(await presenter.rollbackPersona('ghost', 'v')).toBe(false)
 
     // A real agent works normally.
     expect(presenter.listMemories('real')).toHaveLength(1)
     expect(repo.countByAgent('real')).toBe(1)
+  })
+})
+
+describe('MemoryPresenter health read model', () => {
+  it('assembles health from read-only repository and audit stats', () => {
+    const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'current',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'project_fact',
+      content: 'repo uses pnpm',
+      createdAt: 2000
+    })
+    repo.updateStatus('current', 'embedded', {
+      embeddingId: 'current',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    repo.insert({
+      id: 'legacy',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'legacy vector',
+      createdAt: 1000
+    })
+    repo.updateStatus('legacy', 'embedded', {
+      embeddingId: 'legacy',
+      embeddingDim: 8,
+      embeddingModel: 'p:m'
+    })
+    repo.insert({
+      id: 'archive',
+      agentId: 'a',
+      kind: 'semantic',
+      category: 'heuristic',
+      content: 'old unused',
+      createdAt: 0
+    })
+    repo.updateDecayScore('archive', 0.01)
+    repo.recordAccess('current', 3000)
+    auditRepo.insert({
+      id: 'audit-1',
+      agentId: 'a',
+      eventType: 'memory/maintenance_llm',
+      actorType: 'scheduler',
+      status: 'failed',
+      reason: 'model unavailable',
+      createdAt: 4000
+    })
+
+    const archiveSpy = vi.spyOn(repo, 'archive')
+    const deleteSpy = vi.spyOn(repo, 'delete')
+    const insertSpy = vi.spyOn(repo, 'insert')
+    const updateStatusSpy = vi.spyOn(repo, 'updateStatus')
+
+    const health = presenter.getHealth('a')
+
+    expect(health.totalRows).toBe(3)
+    expect(health.byCategory.project_fact).toBe(1)
+    expect(health.embeddings.stale).toBe(1)
+    expect(health.lifecycle.archiveCandidates).toBe(1)
+    expect(health.access.topAccessed).toEqual([
+      expect.objectContaining({
+        id: 'current',
+        category: 'project_fact',
+        accessCount: 1
+      })
+    ])
+    expect(health.maintenance.failed).toBe(1)
+    expect(health.maintenance.recentFailures[0]).toEqual({
+      eventType: 'memory/maintenance_llm',
+      status: 'failed',
+      reason: 'model unavailable',
+      createdAt: 4000
+    })
+    expect(archiveSpy).not.toHaveBeenCalled()
+    expect(deleteSpy).not.toHaveBeenCalled()
+    expect(insertSpy).not.toHaveBeenCalled()
+    expect(updateStatusSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns stale=0 without an embedding config', () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true } as DeepChatAgentConfig)
+    repo.insert({ id: 'legacy', agentId: 'a', kind: 'semantic', content: 'legacy' })
+    repo.updateStatus('legacy', 'embedded', {
+      embeddingId: 'legacy',
+      embeddingDim: 8,
+      embeddingModel: 'old:model'
+    })
+
+    expect(presenter.getHealth('a').embeddings.stale).toBe(0)
   })
 })
 

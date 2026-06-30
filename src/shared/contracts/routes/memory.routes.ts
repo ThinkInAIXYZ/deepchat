@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
-import { AGENT_MEMORY_CATEGORIES } from '../../types/agent-memory'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_HEALTH_CATEGORY_KEYS,
+  AGENT_MEMORY_HEALTH_KIND_KEYS,
+  AGENT_MEMORY_HEALTH_STATUS_KEYS,
+  AGENT_MEMORY_HEALTH_TOP_KIND_KEYS
+} from '../../types/agent-memory'
 
 /** URL-safe agent ids, matching the main-process memory storage guard. */
 const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentId')
@@ -52,6 +58,105 @@ export const MemoryStatusSchema = z.object({
   reindexing: z.boolean().optional()
 })
 
+const NonnegativeCountSchema = z.number().int().nonnegative()
+export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200
+
+function countRecordShape<const Keys extends readonly string[]>(
+  keys: Keys
+): { [Key in Keys[number]]: typeof NonnegativeCountSchema } {
+  return Object.fromEntries(keys.map((key) => [key, NonnegativeCountSchema])) as {
+    [Key in Keys[number]]: typeof NonnegativeCountSchema
+  }
+}
+
+function createZeroCountRecord<const Keys extends readonly string[]>(
+  keys: Keys
+): Record<Keys[number], number> {
+  return Object.fromEntries(keys.map((key) => [key, 0])) as Record<Keys[number], number>
+}
+
+export const MemoryHealthTopItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS),
+  category: z.enum(AGENT_MEMORY_CATEGORIES).nullable(),
+  content: z.string(),
+  importance: z.number(),
+  accessCount: NonnegativeCountSchema,
+  lastAccessed: z.number().nullable()
+})
+
+export const MemoryHealthRecentFailureSchema = z.object({
+  eventType: z.string(),
+  status: z.enum(['failed', 'skipped']),
+  reason: z.string().nullable(),
+  createdAt: z.number()
+})
+
+export const MemoryHealthSchema = z.object({
+  totalRows: NonnegativeCountSchema,
+  byKind: z.object(countRecordShape(AGENT_MEMORY_HEALTH_KIND_KEYS)),
+  byCategory: z.object(countRecordShape(AGENT_MEMORY_HEALTH_CATEGORY_KEYS)),
+  byStatus: z.object(countRecordShape(AGENT_MEMORY_HEALTH_STATUS_KEYS)),
+  embeddings: z.object({
+    pending: NonnegativeCountSchema,
+    error: NonnegativeCountSchema,
+    ftsOnly: NonnegativeCountSchema,
+    stale: NonnegativeCountSchema
+  }),
+  lifecycle: z.object({
+    archiveCandidates: NonnegativeCountSchema,
+    archived: NonnegativeCountSchema
+  }),
+  conflicts: z.object({
+    conflicted: NonnegativeCountSchema,
+    challenged: NonnegativeCountSchema
+  }),
+  access: z.object({
+    topAccessed: z.array(MemoryHealthTopItemSchema),
+    neverAccessed: NonnegativeCountSchema
+  }),
+  quality: z.object({
+    importanceAvg: z.number().nullable(),
+    importanceMedian: z.number().nullable(),
+    confidenceAvg: z.number().nullable()
+  }),
+  maintenance: z.object({
+    completed: NonnegativeCountSchema,
+    skipped: NonnegativeCountSchema,
+    failed: NonnegativeCountSchema,
+    scanLimit: z.number().int().positive(),
+    recentFailures: z.array(MemoryHealthRecentFailureSchema)
+  })
+})
+
+export type MemoryHealthDto = z.infer<typeof MemoryHealthSchema>
+
+export function createEmptyMemoryHealth(
+  scanLimit = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
+): MemoryHealthDto {
+  const normalizedScanLimit = Number.isFinite(scanLimit)
+    ? Math.max(1, Math.floor(scanLimit))
+    : MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
+  return {
+    totalRows: 0,
+    byKind: createZeroCountRecord(AGENT_MEMORY_HEALTH_KIND_KEYS),
+    byCategory: createZeroCountRecord(AGENT_MEMORY_HEALTH_CATEGORY_KEYS),
+    byStatus: createZeroCountRecord(AGENT_MEMORY_HEALTH_STATUS_KEYS),
+    embeddings: { pending: 0, error: 0, ftsOnly: 0, stale: 0 },
+    lifecycle: { archiveCandidates: 0, archived: 0 },
+    conflicts: { conflicted: 0, challenged: 0 },
+    access: { topAccessed: [], neverAccessed: 0 },
+    quality: { importanceAvg: null, importanceMedian: null, confidenceAvg: null },
+    maintenance: {
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      scanLimit: normalizedScanLimit,
+      recentFailures: []
+    }
+  }
+}
+
 const JsonRecordSchema = z.record(z.string(), z.unknown())
 
 export const MemoryAuditEventSchema = z.object({
@@ -92,6 +197,12 @@ export const memoryGetStatusRoute = defineRouteContract({
   name: 'memory.getStatus',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ status: MemoryStatusSchema })
+})
+
+export const memoryGetHealthRoute = defineRouteContract({
+  name: 'memory.getHealth',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ health: MemoryHealthSchema })
 })
 
 export const memorySearchRoute = defineRouteContract({

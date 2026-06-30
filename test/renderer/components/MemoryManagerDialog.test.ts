@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick } from 'vue'
+import { defineComponent, inject, nextTick, provide } from 'vue'
+import type { InjectionKey } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type {
   MemoryAuditEvent,
+  MemoryHealthDto,
   MemoryItem,
   MemorySourceSpan,
   MemoryStatusDto,
   MemoryViewManifest
 } from '@shared/contracts/routes'
+import { createEmptyMemoryHealth } from '@shared/contracts/routes'
+import type { MemoryUpdatedPayload } from '@api/MemoryClient'
 
 const clickStub = (name: string) =>
   defineComponent({
@@ -43,6 +47,37 @@ const SelectStub = defineComponent({
   template: `<div v-bind="$attrs"><slot /></div>`
 })
 
+interface TabsStubContext {
+  select: (value: string) => void
+}
+const tabsStubKey: InjectionKey<TabsStubContext> = Symbol('TabsStub')
+
+const TabsStub = defineComponent({
+  name: 'Tabs',
+  inheritAttrs: false,
+  props: { modelValue: { type: String, default: '' } },
+  emits: ['update:modelValue'],
+  setup(_props, { emit }) {
+    provide<TabsStubContext>(tabsStubKey, {
+      select: (value) => emit('update:modelValue', value)
+    })
+  },
+  template: `<div v-bind="$attrs"><slot /></div>`
+})
+
+const TabsTriggerStub = defineComponent({
+  name: 'TabsTrigger',
+  inheritAttrs: false,
+  props: { value: { type: String, required: true } },
+  setup(props) {
+    const tabs = inject<TabsStubContext>(tabsStubKey)
+    return {
+      selectTab: () => tabs?.select(props.value)
+    }
+  },
+  template: `<button v-bind="$attrs" type="button" :data-tab-value="value" @click="selectTab"><slot /></button>`
+})
+
 const memory: MemoryItem = {
   id: 'm1',
   agentId: 'a',
@@ -58,6 +93,59 @@ const memory: MemoryItem = {
 }
 
 const status: MemoryStatusDto = { total: 1, pendingEmbedding: 0, hasPersona: false }
+const health: MemoryHealthDto = {
+  ...createEmptyMemoryHealth(),
+  totalRows: 2,
+  byKind: { episodic: 0, semantic: 2, reflection: 0, persona: 0, working: 0 },
+  byCategory: {
+    user_preference: 0,
+    project_fact: 1,
+    task_outcome: 0,
+    heuristic: 0,
+    anti_pattern: 0,
+    uncategorized: 1
+  },
+  byStatus: {
+    pending_embedding: 0,
+    embedded: 2,
+    error: 0,
+    fts_only: 0,
+    archived: 0,
+    conflicted: 0
+  },
+  embeddings: { pending: 0, error: 0, ftsOnly: 0, stale: 1 },
+  lifecycle: { archiveCandidates: 1, archived: 0 },
+  conflicts: { conflicted: 0, challenged: 0 },
+  access: {
+    topAccessed: [
+      {
+        id: 'm1',
+        kind: 'semantic',
+        category: 'project_fact',
+        content: 'repo uses pnpm',
+        importance: 0.6,
+        accessCount: 3,
+        lastAccessed: 2000
+      }
+    ],
+    neverAccessed: 1
+  },
+  quality: { importanceAvg: 0.55, importanceMedian: null, confidenceAvg: null },
+  maintenance: {
+    completed: 1,
+    skipped: 1,
+    failed: 1,
+    scanLimit: 200,
+    recentFailures: [
+      {
+        eventType: 'memory/maintenance_llm',
+        status: 'failed',
+        reason: 'model unavailable',
+        createdAt: 3000
+      }
+    ]
+  }
+}
 
 async function setup(
   overrides: {
@@ -78,6 +166,9 @@ async function setup(
     sourceSpan?: MemorySourceSpan
     auditEvents?: MemoryAuditEvent[]
     viewManifests?: MemoryViewManifest[]
+    health?: MemoryHealthDto
+    healthPromise?: Promise<MemoryHealthDto>
+    healthReject?: boolean
     auditPromise?: Promise<MemoryAuditEvent[]>
     manifestPromise?: Promise<MemoryViewManifest[]>
     auditReject?: boolean
@@ -87,9 +178,15 @@ async function setup(
   vi.resetModules()
 
   const dispose = vi.fn()
+  let updateListener: ((payload: MemoryUpdatedPayload) => void) | null = null
   const memoryClient = {
     list: vi.fn().mockResolvedValue(overrides.items ?? [{ ...memory }]),
     getStatus: vi.fn().mockResolvedValue(status),
+    getHealth: overrides.healthPromise
+      ? vi.fn().mockReturnValue(overrides.healthPromise)
+      : overrides.healthReject
+        ? vi.fn().mockRejectedValue(new Error('health unavailable'))
+        : vi.fn().mockResolvedValue(overrides.health ?? health),
     search: vi.fn().mockResolvedValue(overrides.searchResults ?? []),
     listConflicts: vi.fn().mockResolvedValue(overrides.conflicts ?? []),
     getSourceSpan: vi.fn().mockResolvedValue(overrides.sourceSpan ?? null),
@@ -133,7 +230,10 @@ async function setup(
     rejectPersonaDraft: vi.fn().mockResolvedValue(overrides.reject ?? true),
     setPersonaAnchor: vi.fn().mockResolvedValue(overrides.anchor ?? true),
     resolveConflict: vi.fn().mockResolvedValue(true),
-    onUpdated: vi.fn().mockReturnValue(dispose)
+    onUpdated: vi.fn().mockImplementation((listener) => {
+      updateListener = listener
+      return dispose
+    })
   }
   const toast = vi.fn()
 
@@ -141,6 +241,7 @@ async function setup(
   vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
+      locale: { value: 'en-US' },
       t: (key: string, params?: Record<string, unknown>) =>
         params ? `${key} ${JSON.stringify(params)}` : key
     })
@@ -173,10 +274,10 @@ async function setup(
     DialogTitle: passStub('DialogTitle')
   }))
   vi.doMock('@shadcn/components/ui/tabs', () => ({
-    Tabs: passStub('Tabs'),
+    Tabs: TabsStub,
     TabsContent: passStub('TabsContent'),
     TabsList: passStub('TabsList'),
-    TabsTrigger: passStub('TabsTrigger')
+    TabsTrigger: TabsTriggerStub
   }))
   vi.doMock('@shadcn/components/ui/scroll-area', () => ({ ScrollArea: passStub('ScrollArea') }))
   vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
@@ -200,7 +301,14 @@ async function setup(
   })
   await wrapper.setProps({ open: true })
   await flushPromises()
-  return { wrapper, memoryClient, toast, dispose }
+  return {
+    wrapper,
+    memoryClient,
+    toast,
+    dispose,
+    emitMemoryUpdated: (reason: MemoryUpdatedPayload['reason'] = 'extract') =>
+      updateListener?.({ agentId: 'a', reason, version: 1 })
+  }
 }
 
 const deleteButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
@@ -211,6 +319,46 @@ const deleteButton = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
 const failedToast = {
   variant: 'destructive',
   title: 'settings.deepchatAgents.memoryManager.actionFailed'
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function findTabTrigger(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  tab: 'memories' | 'health' | 'persona' | 'activity'
+) {
+  const trigger = wrapper.find(`[data-tab-value="${tab}"]`)
+  if (!trigger.exists()) throw new Error(`Missing tab trigger: ${tab}`)
+  return trigger
+}
+
+async function clickTab(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  tab: 'memories' | 'health' | 'persona' | 'activity'
+): Promise<void> {
+  await findTabTrigger(wrapper, tab).trigger('click')
+  await nextTick()
+  await flushPromises()
+}
+
+async function activateHealthTab(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper']
+): Promise<void> {
+  await clickTab(wrapper, 'health')
+}
+
+async function deactivateHealthTab(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper']
+): Promise<void> {
+  await clickTab(wrapper, 'memories')
 }
 
 function findSelectByText(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], text: string) {
@@ -733,6 +881,215 @@ describe('MemoryManagerDialog activity visibility', () => {
     expect(wrapper.text()).toContain('abcdef')
     expect(wrapper.text()).toContain('1200')
     expect(wrapper.text()).not.toContain('secret raw memory')
+  })
+})
+
+describe('MemoryManagerDialog memory health', () => {
+  async function mountHealthSection(healthValue: MemoryHealthDto = health) {
+    vi.resetModules()
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        locale: { value: 'en-US' },
+        t: (key: string, params?: Record<string, unknown>) =>
+          params ? `${key} ${JSON.stringify(params)}` : key
+      })
+    }))
+    vi.doMock('@shadcn/components/ui/badge', () => ({ Badge: passStub('Badge') }))
+    const MemoryHealthSection = (
+      await import('../../../src/renderer/settings/components/MemoryHealthSection.vue')
+    ).default
+    return mount(MemoryHealthSection, {
+      props: { health: healthValue, loading: false, error: null }
+    })
+  }
+
+  it('renders health metrics, top accessed preview, recent failures, and null quality placeholders', async () => {
+    const wrapper = await mountHealthSection()
+
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.health.totalRows')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.health.byKind')
+    expect(wrapper.text()).toContain('repo uses pnpm')
+    expect(wrapper.text()).toContain('memory/maintenance_llm')
+    expect(wrapper.text()).toContain('model unavailable')
+    expect(wrapper.text()).toContain('—')
+    expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('renders zero as a valid last accessed timestamp', async () => {
+    const wrapper = await mountHealthSection({
+      ...health,
+      access: {
+        ...health.access,
+        topAccessed: [
+          {
+            ...health.access.topAccessed[0],
+            lastAccessed: 0
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.text()).toContain('repo uses pnpm')
+    expect(wrapper.text()).toContain('Jan')
+  })
+
+  it('lazy-loads health only when the Health tab becomes active', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('redis fact')
+
+    await activateHealthTab(wrapper)
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getHealth).toHaveBeenCalledWith('a')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.health.totalRows')
+
+    await deactivateHealthTab(wrapper)
+    await activateHealthTab(wrapper)
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the Health badge after an inactive memory update until health is refreshed', async () => {
+    const loadedHealth = { ...health, totalRows: 987 }
+    const refreshedHealth = { ...health, totalRows: 654 }
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup({ health: loadedHealth })
+
+    await activateHealthTab(wrapper)
+    expect(findTabTrigger(wrapper, 'health').text()).toContain('987')
+    await deactivateHealthTab(wrapper)
+
+    emitMemoryUpdated()
+    await flushPromises()
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    expect(findTabTrigger(wrapper, 'health').text()).not.toContain('987')
+
+    memoryClient.getHealth.mockResolvedValueOnce(refreshedHealth)
+    await activateHealthTab(wrapper)
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+    expect(findTabTrigger(wrapper, 'health').text()).toContain('654')
+  })
+
+  it('keeps the memory list available when lazy health loading fails', async () => {
+    const { wrapper, memoryClient } = await setup({ healthReject: true })
+
+    expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    await activateHealthTab(wrapper)
+
+    expect(memoryClient.getHealth).toHaveBeenCalledWith('a')
+    expect(wrapper.text()).toContain('health unavailable')
+    expect(wrapper.text()).toContain('redis fact')
+  })
+
+  it('marks health dirty on memory updates while inactive and reloads when opened', async () => {
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
+    expect(memoryClient.getHealth).not.toHaveBeenCalled()
+
+    emitMemoryUpdated()
+    await flushPromises()
+
+    expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    await activateHealthTab(wrapper)
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes health immediately on memory updates while the Health tab is active', async () => {
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
+    await activateHealthTab(wrapper)
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+
+    emitMemoryUpdated()
+    await flushPromises()
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let an older health response overwrite the latest response', async () => {
+    const stale = deferred<MemoryHealthDto>()
+    const fresh = deferred<MemoryHealthDto>()
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
+    memoryClient.getHealth.mockReset()
+    memoryClient.getHealth.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise)
+
+    await activateHealthTab(wrapper)
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+
+    emitMemoryUpdated()
+    await flushPromises()
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+
+    fresh.resolve({
+      ...health,
+      access: {
+        ...health.access,
+        topAccessed: [{ ...health.access.topAccessed[0], id: 'fresh', content: 'fresh health' }]
+      }
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('fresh health')
+
+    stale.resolve({
+      ...health,
+      access: {
+        ...health.access,
+        topAccessed: [{ ...health.access.topAccessed[0], id: 'stale', content: 'stale health' }]
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('fresh health')
+    expect(wrapper.text()).not.toContain('stale health')
+  })
+
+  it('waits for memory.updated before refreshing dirty health after an active mutation', async () => {
+    const inactive = await setup()
+    await inactive.wrapper.findComponent(AlertDialogActionStub).trigger('click')
+    await flushPromises()
+    expect(inactive.memoryClient.clear).toHaveBeenCalledWith('a')
+    expect(inactive.memoryClient.getHealth).not.toHaveBeenCalled()
+
+    const active = await setup()
+    await activateHealthTab(active.wrapper)
+    expect(active.memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    active.memoryClient.getHealth.mockClear()
+
+    await active.wrapper.findComponent(AlertDialogActionStub).trigger('click')
+    await flushPromises()
+
+    expect(active.memoryClient.clear).toHaveBeenCalledWith('a')
+    expect(active.memoryClient.getHealth).not.toHaveBeenCalled()
+
+    active.emitMemoryUpdated()
+    await flushPromises()
+
+    expect(active.memoryClient.getHealth).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not clear or refresh Health for persona anchor updates', async () => {
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
+    await activateHealthTab(wrapper)
+    expect(findTabTrigger(wrapper, 'health').text()).toContain('2')
+    memoryClient.getHealth.mockClear()
+
+    await clickTab(wrapper, 'persona')
+    const anchorButton = wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.attributes('aria-label') === 'settings.deepchatAgents.memoryManager.anchor'
+      )
+    expect(anchorButton).toBeTruthy()
+    await anchorButton!.trigger('click')
+    await flushPromises()
+    emitMemoryUpdated('persona-anchor')
+    await flushPromises()
+
+    expect(memoryClient.setPersonaAnchor).toHaveBeenCalledWith('a', expect.any(String), true)
+    expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    expect(findTabTrigger(wrapper, 'health').text()).toContain('2')
   })
 })
 

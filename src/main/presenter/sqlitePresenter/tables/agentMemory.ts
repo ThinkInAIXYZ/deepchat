@@ -1,19 +1,19 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_HEALTH_KIND_KEYS,
+  AGENT_MEMORY_HEALTH_STATUS_KEYS,
+  type AgentMemoryCategory,
+  type AgentMemoryHealthCategory
+} from '@shared/types/agent-memory'
 
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a
 // reserved future layer with no read/write path yet.
-export type AgentMemoryKind = 'episodic' | 'semantic' | 'reflection' | 'persona' | 'working'
+export type AgentMemoryKind = (typeof AGENT_MEMORY_HEALTH_KIND_KEYS)[number]
 
-export type AgentMemoryStatus =
-  | 'pending_embedding'
-  | 'embedded'
-  | 'error'
-  | 'fts_only'
-  | 'archived'
-  | 'conflicted'
+export type AgentMemoryStatus = (typeof AGENT_MEMORY_HEALTH_STATUS_KEYS)[number]
 
 export type AgentMemoryConflictState = 'challenged'
 
@@ -76,6 +76,19 @@ export interface AgentMemoryListOptions {
   limit?: number
 }
 
+export interface AgentMemoryHealthStats {
+  totalRows: number
+  byKind: Record<AgentMemoryKind, number>
+  byCategory: Record<AgentMemoryHealthCategory, number>
+  byStatus: Record<AgentMemoryStatus, number>
+  neverAccessed: number
+  importanceAvg: number | null
+  importanceMedian: number | null
+  confidenceAvg: number | null
+  conflicted: number
+  challenged: number
+}
+
 // Global migration version shared across all tables (see SQLitePresenter.migrate). v32 backfilled
 // embedding_model + source_entry_ids; v33 adds the consolidation/forgetting columns; v34 adds the
 // persona lifecycle column; v35 adds conflict linkage; v37 adds agentic category.
@@ -112,6 +125,48 @@ function serializeSourceEntryIds(ids: number[] | null | undefined): string | nul
   if (!ids?.length) return null
   const valid = ids.filter((id) => Number.isInteger(id) && id >= 0)
   return valid.length ? JSON.stringify(valid) : null
+}
+
+function readAggregateNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function readAggregateNullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function sqlLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function aggregateAlias(prefix: string, key: string): string {
+  return `${prefix}_${key}`
+}
+
+function buildCountCaseAggregates(
+  column: 'kind' | 'category' | 'status',
+  prefix: string,
+  keys: readonly string[]
+): string {
+  return keys
+    .map(
+      (key) =>
+        `SUM(CASE WHEN ${column} = ${sqlLiteral(key)} THEN 1 ELSE 0 END) AS ${aggregateAlias(
+          prefix,
+          key
+        )}`
+    )
+    .join(',\n           ')
+}
+
+function readAggregateRecord<const Keys extends readonly string[]>(
+  row: Record<string, unknown> | undefined,
+  prefix: string,
+  keys: Keys
+): Record<Keys[number], number> {
+  return Object.fromEntries(
+    keys.map((key) => [key, readAggregateNumber(row?.[aggregateAlias(prefix, key)])])
+  ) as Record<Keys[number], number>
 }
 
 export class AgentMemoryTable extends BaseTable {
@@ -824,6 +879,69 @@ export class AgentMemoryTable extends BaseTable {
     return row?.dim ?? null
   }
 
+  getHealthStats(agentId: string): AgentMemoryHealthStats {
+    const row = this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS totalRows,
+           ${buildCountCaseAggregates('kind', 'kind', AGENT_MEMORY_HEALTH_KIND_KEYS)},
+           ${buildCountCaseAggregates('category', 'category', AGENT_MEMORY_CATEGORIES)},
+           SUM(
+             CASE
+               WHEN category IS NULL OR category NOT IN (
+                 ${AGENT_MEMORY_CATEGORIES.map(sqlLiteral).join(',\n                 ')}
+               ) THEN 1
+               ELSE 0
+             END
+           ) AS categoryUncategorized,
+           ${buildCountCaseAggregates('status', 'status', AGENT_MEMORY_HEALTH_STATUS_KEYS)},
+           SUM(CASE WHEN access_count = 0 THEN 1 ELSE 0 END) AS neverAccessed,
+           AVG(importance) AS importanceAvg,
+           AVG(confidence) AS confidenceAvg,
+           SUM(CASE WHEN status = 'conflicted' THEN 1 ELSE 0 END) AS conflicted,
+           SUM(
+             CASE WHEN conflict_state = 'challenged' AND superseded_by IS NULL THEN 1 ELSE 0 END
+           ) AS challenged
+         FROM agent_memory
+         WHERE agent_id = ?`
+      )
+      .get(agentId) as Record<string, unknown> | undefined
+    const totalRows = readAggregateNumber(row?.totalRows)
+
+    return {
+      totalRows,
+      byKind: readAggregateRecord(row, 'kind', AGENT_MEMORY_HEALTH_KIND_KEYS),
+      byCategory: {
+        ...readAggregateRecord(row, 'category', AGENT_MEMORY_CATEGORIES),
+        uncategorized: readAggregateNumber(row?.categoryUncategorized)
+      },
+      byStatus: readAggregateRecord(row, 'status', AGENT_MEMORY_HEALTH_STATUS_KEYS),
+      neverAccessed: readAggregateNumber(row?.neverAccessed),
+      importanceAvg: readAggregateNullableNumber(row?.importanceAvg),
+      importanceMedian: this.getImportanceMedian(agentId, totalRows),
+      confidenceAvg: readAggregateNullableNumber(row?.confidenceAvg),
+      conflicted: readAggregateNumber(row?.conflicted),
+      challenged: readAggregateNumber(row?.challenged)
+    }
+  }
+
+  private getImportanceMedian(agentId: string, totalRows: number): number | null {
+    if (totalRows <= 0) return null
+    const limit = totalRows % 2 === 0 ? 2 : 1
+    const offset = Math.floor((totalRows - 1) / 2)
+    const rows = this.db
+      .prepare(
+        `SELECT importance
+         FROM agent_memory
+         WHERE agent_id = ?
+         ORDER BY importance ASC
+         LIMIT ? OFFSET ?`
+      )
+      .all(agentId, limit, offset) as Array<{ importance: number }>
+    if (!rows.length) return null
+    return rows.reduce((sum, item) => sum + item.importance, 0) / rows.length
+  }
+
   hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): boolean {
     const row = this.db
       .prepare(
@@ -843,6 +961,26 @@ export class AgentMemoryTable extends BaseTable {
       )
       .get(agentId, currentDim, fingerprint) as { stale: number } | undefined
     return row !== undefined
+  }
+
+  countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status = 'embedded'
+           AND kind NOT IN ('persona', 'working')
+           AND (
+             embedding_dim IS NULL OR
+             embedding_dim != ? OR
+             embedding_model IS NULL OR
+             embedding_model != ?
+           )`
+      )
+      .get(agentId, currentDim, fingerprint) as { count: number } | undefined
+    return row?.count ?? 0
   }
 
   // Soft delete: archived rows stay on disk (and in the vector store) but drop out of recall.
@@ -867,6 +1005,45 @@ export class AgentMemoryTable extends BaseTable {
            AND decay_score < ?`
       )
       .all(agentId, before, decayBelow) as AgentMemoryRow[]
+  }
+
+  countArchiveCandidates(agentId: string, before: number, decayBelow: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status != 'archived'
+           AND status != 'conflicted'
+           AND is_anchor = 0
+           AND kind NOT IN ('persona', 'working')
+           AND access_count = 0
+           AND created_at < ?
+           AND decay_score IS NOT NULL
+           AND decay_score < ?`
+      )
+      .get(agentId, before, decayBelow) as { count: number } | undefined
+    return row?.count ?? 0
+  }
+
+  listTopAccessed(agentId: string, limit: number): AgentMemoryRow[] {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status != 'archived'
+           AND status != 'conflicted'
+           AND kind != 'working'
+           AND access_count > 0
+         ORDER BY access_count DESC, last_accessed DESC
+         LIMIT ?`
+      )
+      .all(agentId, cappedLimit) as AgentMemoryRow[]
   }
 
   delete(id: string): void {

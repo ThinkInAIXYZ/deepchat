@@ -44,6 +44,20 @@ export interface AgentMemoryAuditListOptions {
   limit?: number
 }
 
+export interface AgentMemoryHealthRecentFailureRow {
+  eventType: string
+  status: Extract<AgentMemoryAuditStatus, 'failed' | 'skipped'>
+  reason: string | null
+  createdAt: number
+}
+
+export interface AgentMemoryHealthAuditStats {
+  completed: number
+  skipped: number
+  failed: number
+  recentFailures: AgentMemoryHealthRecentFailureRow[]
+}
+
 const AGENT_MEMORY_AUDIT_SCHEMA_VERSION = 36
 
 const AGENT_MEMORY_AUDIT_INDEX_SQL = `
@@ -208,6 +222,38 @@ export class AgentMemoryAuditTable extends BaseTable {
       )
       .get(agentId, eventType) as { at: number | null } | undefined
     return row?.at ?? null
+  }
+
+  getHealthAuditStats(
+    agentId: string,
+    scanLimit: number,
+    failuresLimit: number
+  ): AgentMemoryHealthAuditStats {
+    const events = this.listByAgent(agentId, { limit: scanLimit })
+    const stats: AgentMemoryHealthAuditStats = {
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      recentFailures: []
+    }
+    const cappedFailuresLimit = Math.max(0, Math.floor(failuresLimit))
+
+    for (const event of events) {
+      stats[event.status] += 1
+      if (
+        (event.status === 'failed' || event.status === 'skipped') &&
+        stats.recentFailures.length < cappedFailuresLimit
+      ) {
+        stats.recentFailures.push({
+          eventType: event.event_type,
+          status: event.status,
+          reason: event.reason,
+          createdAt: event.created_at
+        })
+      }
+    }
+
+    return stats
   }
 
   clearByAgent(agentId: string): number {

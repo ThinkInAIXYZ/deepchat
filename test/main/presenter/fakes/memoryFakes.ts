@@ -1,9 +1,17 @@
 import { vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_HEALTH_KIND_KEYS,
+  AGENT_MEMORY_HEALTH_STATUS_KEYS,
+  isAgentMemoryCategory
+} from '@shared/types/agent-memory'
 import type {
   AgentMemoryAuditInsertInput,
   AgentMemoryAuditRow,
+  AgentMemoryHealthAuditStats,
+  AgentMemoryHealthStats,
   AgentMemoryInsertInput,
   AgentMemoryRow,
   IMemoryVectorStore,
@@ -322,6 +330,51 @@ export class FakeRepository implements MemoryRepositoryPort {
     return rows[0]?.embedding_dim ?? null
   }
 
+  getHealthStats(agentId: string): AgentMemoryHealthStats {
+    const rows = [...this.rows.values()].filter((row) => row.agent_id === agentId)
+    const count = (predicate: (row: AgentMemoryRow) => boolean) => rows.filter(predicate).length
+    const countByValue = <Key extends string>(
+      keys: readonly Key[],
+      read: (row: AgentMemoryRow) => string | null
+    ): Record<Key, number> =>
+      Object.fromEntries(keys.map((key) => [key, count((row) => read(row) === key)])) as Record<
+        Key,
+        number
+      >
+    const importanceValues = rows.map((row) => row.importance).sort((a, b) => a - b)
+    const confidenceValues = rows
+      .map((row) => row.confidence)
+      .filter((value): value is number => typeof value === 'number')
+    const median =
+      importanceValues.length === 0
+        ? null
+        : importanceValues.length % 2 === 1
+          ? importanceValues[Math.floor(importanceValues.length / 2)]
+          : (importanceValues[importanceValues.length / 2 - 1] +
+              importanceValues[importanceValues.length / 2]) /
+            2
+
+    return {
+      totalRows: rows.length,
+      byKind: countByValue(AGENT_MEMORY_HEALTH_KIND_KEYS, (row) => row.kind),
+      byCategory: {
+        ...countByValue(AGENT_MEMORY_CATEGORIES, (row) => row.category),
+        uncategorized: count((row) => row.category == null || !isAgentMemoryCategory(row.category))
+      },
+      byStatus: countByValue(AGENT_MEMORY_HEALTH_STATUS_KEYS, (row) => row.status),
+      neverAccessed: count((row) => row.access_count === 0),
+      importanceAvg:
+        rows.length === 0 ? null : rows.reduce((sum, row) => sum + row.importance, 0) / rows.length,
+      importanceMedian: median,
+      confidenceAvg:
+        confidenceValues.length === 0
+          ? null
+          : confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length,
+      conflicted: count((row) => row.status === 'conflicted'),
+      challenged: count((row) => row.conflict_state === 'challenged' && row.superseded_by === null)
+    }
+  }
+
   hasStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string) {
     return this.listByAgent(agentId, { statuses: ['embedded'] }).some(
       (row) =>
@@ -329,6 +382,15 @@ export class FakeRepository implements MemoryRepositoryPort {
         row.kind !== 'working' &&
         (row.embedding_dim !== currentDim || row.embedding_model !== fingerprint)
     )
+  }
+
+  countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string) {
+    return this.listByAgent(agentId, { statuses: ['embedded'] }).filter(
+      (row) =>
+        row.kind !== 'persona' &&
+        row.kind !== 'working' &&
+        (row.embedding_dim !== currentDim || row.embedding_model !== fingerprint)
+    ).length
   }
 
   archive(id: string, _at = 0) {
@@ -352,6 +414,23 @@ export class FakeRepository implements MemoryRepositoryPort {
         row.decay_score !== null &&
         row.decay_score < decayBelow
     )
+  }
+
+  countArchiveCandidates(agentId: string, before: number, decayBelow: number) {
+    return this.listArchiveCandidates(agentId, before, decayBelow).filter(
+      (row) => row.access_count === 0
+    ).length
+  }
+
+  listTopAccessed(agentId: string, limit: number) {
+    return [...this.rows.values()]
+      .filter((row) => row.agent_id === agentId && row.kind !== 'working' && row.access_count > 0)
+      .filter((row) => row.superseded_by === null)
+      .filter((row) => row.status !== 'archived' && row.status !== 'conflicted')
+      .sort(
+        (a, b) => b.access_count - a.access_count || (b.last_accessed ?? 0) - (a.last_accessed ?? 0)
+      )
+      .slice(0, Math.max(0, Math.floor(limit)))
   }
 
   delete(id: string) {
@@ -447,6 +526,35 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
       if (latest === null || row.created_at > latest) latest = row.created_at
     }
     return latest
+  }
+
+  getHealthAuditStats(
+    agentId: string,
+    scanLimit: number,
+    failuresLimit: number
+  ): AgentMemoryHealthAuditStats {
+    const events = this.listByAgent(agentId, { limit: scanLimit })
+    const stats: AgentMemoryHealthAuditStats = {
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      recentFailures: []
+    }
+    for (const event of events) {
+      stats[event.status] += 1
+      if (
+        (event.status === 'failed' || event.status === 'skipped') &&
+        stats.recentFailures.length < failuresLimit
+      ) {
+        stats.recentFailures.push({
+          eventType: event.event_type,
+          status: event.status,
+          reason: event.reason,
+          createdAt: event.created_at
+        })
+      }
+    }
+    return stats
   }
 }
 

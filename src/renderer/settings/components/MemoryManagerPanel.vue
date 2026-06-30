@@ -8,10 +8,14 @@
     </div>
 
     <Tabs v-model="activeTab" class="w-full">
-      <TabsList class="grid w-full grid-cols-3">
+      <TabsList class="grid w-full grid-cols-4">
         <TabsTrigger value="memories">
           {{ t('settings.deepchatAgents.memoryManager.tabMemories') }}
           <Badge v-if="status" variant="secondary" class="ml-1.5">{{ status.total }}</Badge>
+        </TabsTrigger>
+        <TabsTrigger value="health">
+          {{ t('settings.deepchatAgents.memoryManager.tabHealth') }}
+          <Badge v-if="health" variant="secondary" class="ml-1.5">{{ health.totalRows }}</Badge>
         </TabsTrigger>
         <TabsTrigger value="persona">
           {{ t('settings.deepchatAgents.memoryManager.tabPersona') }}
@@ -352,6 +356,15 @@
         </ScrollArea>
       </TabsContent>
 
+      <TabsContent value="health" class="mt-3">
+        <MemoryHealthSection
+          v-if="activeTab === 'health'"
+          :health="health"
+          :loading="healthLoading"
+          :error="healthError"
+        />
+      </TabsContent>
+
       <TabsContent value="persona" class="mt-3">
         <div v-if="loading" class="py-10 text-center text-sm text-muted-foreground">
           {{ t('common.loading') }}
@@ -675,13 +688,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@shadcn/components/ui/alert-dialog'
-import { createMemoryClient } from '@api/MemoryClient'
+import { createMemoryClient, type MemoryUpdatedPayload } from '@api/MemoryClient'
 import { useToast } from '@/components/use-toast'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
+import MemoryHealthSection from './MemoryHealthSection.vue'
 import type {
   MemoryAddResult,
   MemoryAuditEvent,
   MemoryConflictItem,
+  MemoryHealthDto,
   MemoryItem,
   MemorySearchResult,
   MemorySourceSpan,
@@ -703,10 +718,12 @@ const { t } = useI18n()
 const { toast } = useToast()
 const memoryClient = createMemoryClient()
 
-const activeTab = ref<'memories' | 'persona' | 'activity'>('memories')
+const activeTab = ref<'memories' | 'health' | 'persona' | 'activity'>('memories')
 const loading = ref(false)
 const activityLoading = ref(false)
+const healthLoading = ref(false)
 const error = ref<string | null>(null)
+const healthError = ref<string | null>(null)
 const memories = ref<MemoryItem[]>([])
 const searchQuery = ref('')
 const searchResults = ref<MemorySearchResult[]>([])
@@ -725,12 +742,16 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 // superseded query (or a switched-away agent) cannot clobber the current one.
 let searchRequestId = 0
 let refreshRequestId = 0
+let healthRequestId = 0
+let memoryUpdateVersion = 0
 const conflicts = ref<MemoryConflictItem[]>([])
 const personaVersions = ref<MemoryItem[]>([])
 const personaDrafts = ref<MemoryItem[]>([])
 const auditEvents = ref<MemoryAuditEvent[]>([])
 const viewManifests = ref<MemoryViewManifest[]>([])
 const status = ref<MemoryStatusDto | null>(null)
+const health = ref<MemoryHealthDto | null>(null)
+const healthDirty = ref(true)
 const sourceSpanOpen = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
 const searchError = ref<string | null>(null)
@@ -761,6 +782,61 @@ async function refreshActivity(agentId: string): Promise<void> {
       activityLoading.value = false
     }
   }
+}
+
+async function refreshHealth(agentId: string): Promise<void> {
+  const requestId = ++healthRequestId
+  healthLoading.value = true
+  healthError.value = null
+  try {
+    const nextHealth = await memoryClient.getHealth(agentId)
+    if (!isCurrentHealth(agentId, requestId)) return
+    health.value = nextHealth
+    healthDirty.value = false
+  } catch (e) {
+    if (!isCurrentHealth(agentId, requestId)) return
+    health.value = null
+    healthError.value = e instanceof Error ? e.message : String(e)
+    healthDirty.value = false
+  } finally {
+    if (isCurrentHealth(agentId, requestId)) {
+      healthLoading.value = false
+    }
+  }
+}
+
+function isCurrentHealth(agentId: string, requestId: number): boolean {
+  return requestId === healthRequestId && props.agentId === agentId
+}
+
+async function ensureHealthFresh(): Promise<void> {
+  if (!props.agentId || activeTab.value !== 'health') return
+  if (!healthDirty.value && health.value) return
+  await refreshHealth(props.agentId)
+}
+
+function markHealthDirty(): void {
+  healthRequestId += 1
+  healthDirty.value = true
+  health.value = null
+  healthError.value = null
+  healthLoading.value = false
+}
+
+function refreshHealthIfActive(): void {
+  if (activeTab.value === 'health') void ensureHealthFresh()
+}
+
+function markHealthDirtyFromEvent(reason: MemoryUpdatedPayload['reason']): void {
+  if (reason === 'persona-anchor') return
+  markHealthDirty()
+  refreshHealthIfActive()
+}
+
+// Best-effort event coalescing: if this action observed a memory.updated event while awaiting IPC,
+// that event owns the dirty mark; otherwise this fallback keeps health stale instead of fresh-looking.
+function markHealthDirtyIfNoObservedUpdate(eventVersionBefore: number): void {
+  if (memoryUpdateVersion === eventVersionBefore) markHealthDirty()
 }
 
 async function refresh(): Promise<void> {
@@ -972,8 +1048,10 @@ function notifyActionFailed(e?: unknown): void {
 
 async function handleDelete(memoryId: string): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.remove(props.agentId, memoryId)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -982,6 +1060,7 @@ async function handleDelete(memoryId: string): Promise<void> {
 
 async function handleClear(): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const removed = await memoryClient.clear(props.agentId)
     if (removed === 0) {
       toast({
@@ -993,6 +1072,7 @@ async function handleClear(): Promise<void> {
     searchResults.value = []
     conflicts.value = []
     status.value = status.value ? { ...status.value, total: 0, pendingEmbedding: 0 } : null
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refreshActivity(props.agentId)
   } catch (e) {
     notifyActionFailed(e)
@@ -1039,6 +1119,7 @@ async function handleAdd(): Promise<void> {
   if (!content || adding.value || memoryDisabled.value) return
   adding.value = true
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const category = addCategory.value === ADD_CATEGORY_NONE ? undefined : addCategory.value
     const importance = IMPORTANCE_VALUES[addImportance.value]
     const input = category
@@ -1046,6 +1127,7 @@ async function handleAdd(): Promise<void> {
       : { content, kind: addKind.value, importance }
     const result = await memoryClient.add(props.agentId, input)
     notifyAddOutcome(result)
+    if (result.action !== 'noop') markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     resetAddForm()
     await refresh()
   } catch (e) {
@@ -1070,8 +1152,10 @@ async function handleResolveConflict(
   outcome: 'keep_target' | 'keep_challenger' | 'keep_both'
 ): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.resolveConflict(props.agentId, challengerId, outcome)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -1080,8 +1164,10 @@ async function handleResolveConflict(
 
 async function handleRollback(versionId: string): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.rollbackPersona(props.agentId, versionId)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -1090,8 +1176,10 @@ async function handleRollback(versionId: string): Promise<void> {
 
 async function handleApproveDraft(draftId: string): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.approvePersonaDraft(props.agentId, draftId)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -1100,8 +1188,10 @@ async function handleApproveDraft(draftId: string): Promise<void> {
 
 async function handleRejectDraft(draftId: string): Promise<void> {
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.rejectPersonaDraft(props.agentId, draftId)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -1121,8 +1211,10 @@ async function handleSetAnchor(versionId: string, anchored: boolean): Promise<vo
 async function handleRestore(memoryId: string): Promise<void> {
   if (memoryDisabled.value) return
   try {
+    const eventVersionBefore = memoryUpdateVersion
     const ok = await memoryClient.restore(props.agentId, memoryId)
     if (!ok) return notifyActionFailed()
+    markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refresh()
   } catch (e) {
     notifyActionFailed(e)
@@ -1134,16 +1226,25 @@ watch(
   () => {
     activeTab.value = 'memories'
     categoryFilter.value = 'all'
+    markHealthDirty()
     resetSearch()
     resetAddForm()
     void refresh()
   }
 )
 
+watch(activeTab, (tab) => {
+  if (tab === 'health') void ensureHealthFresh()
+})
+
 onMounted(() => {
   void refresh()
   disposeUpdated = memoryClient.onUpdated((payload) => {
-    if (payload.agentId === props.agentId) void refresh()
+    if (payload.agentId === props.agentId) {
+      memoryUpdateVersion += 1
+      markHealthDirtyFromEvent(payload.reason)
+      void refresh()
+    }
   })
 })
 

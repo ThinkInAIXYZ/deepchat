@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
+  createEmptyMemoryHealth,
   memoryAddRoute,
+  memoryGetHealthRoute,
   memoryListRoute,
   memoryRestoreRoute,
   memorySearchRoute
@@ -112,6 +114,65 @@ describe('memory.restore route contract round-trip', () => {
     for (const agentId of ['../etc', 'has space', '']) {
       expect(memoryRestoreRoute.input.safeParse({ agentId, memoryId: 'm1' }).success).toBe(false)
     }
+  })
+})
+
+describe('memory.getHealth route contract', () => {
+  it('round-trips the empty health DTO and a populated bounded preview', () => {
+    expect(memoryGetHealthRoute.input.parse({ agentId: 'deepchat' })).toEqual({
+      agentId: 'deepchat'
+    })
+
+    const empty = memoryGetHealthRoute.output.parse({ health: createEmptyMemoryHealth() })
+    expect(empty.health.totalRows).toBe(0)
+    expect(empty.health.maintenance.scanLimit).toBe(200)
+    expect(createEmptyMemoryHealth(0).maintenance.scanLimit).toBe(1)
+
+    const populated = memoryGetHealthRoute.output.parse({
+      health: {
+        ...createEmptyMemoryHealth(),
+        totalRows: 1,
+        byKind: {
+          episodic: 0,
+          semantic: 1,
+          reflection: 0,
+          persona: 0,
+          working: 0
+        },
+        byCategory: {
+          user_preference: 0,
+          project_fact: 1,
+          task_outcome: 0,
+          heuristic: 0,
+          anti_pattern: 0,
+          uncategorized: 0
+        },
+        byStatus: {
+          pending_embedding: 0,
+          embedded: 1,
+          error: 0,
+          fts_only: 0,
+          archived: 0,
+          conflicted: 0
+        },
+        access: {
+          topAccessed: [
+            {
+              id: 'm1',
+              kind: 'semantic',
+              category: 'project_fact',
+              content: 'repo uses pnpm',
+              importance: 0.6,
+              accessCount: 2,
+              lastAccessed: 123
+            }
+          ],
+          neverAccessed: 0
+        }
+      }
+    })
+    expect(populated.health.access.topAccessed[0].category).toBe('project_fact')
+    expect(memoryGetHealthRoute.input.safeParse({ agentId: 'bad/id' }).success).toBe(false)
   })
 })
 
