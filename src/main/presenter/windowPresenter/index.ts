@@ -1313,6 +1313,8 @@ export class WindowPresenter implements IWindowPresenter {
       y: settingsWindowState.y,
       width: settingsWindowState.width,
       height: settingsWindowState.height,
+      minWidth: 900,
+      minHeight: 640,
       show: false,
       autoHideMenuBar: true,
       fullscreenable: false,
