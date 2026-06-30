@@ -228,7 +228,7 @@ function sanitizeAggregateJson(json) {
 }
 
 async function main() {
-  const url = process.env.PROVIDER_DB_URL || DEFAULT_URL
+  const url = DEFAULT_URL
   const outDir = path.resolve(process.cwd(), 'resources', 'model-db')
   const outFile = path.join(outDir, 'providers.json')
   const tmpFile = outFile + '.tmp'
