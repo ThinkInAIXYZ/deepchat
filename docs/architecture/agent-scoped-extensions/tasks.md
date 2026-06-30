@@ -15,4 +15,4 @@
 - [x] Update i18n strings.
 - [x] Add or update tests.
 - [x] Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck:web`, and targeted Vitest suites after the latest UI-scope correction.
-- [x] Address review findings: preserve undefined MCP/plugin runtime policies, respect the global MCP master switch in agent pages, use effective agent config in management views, keep skill detail state fresh, and allow agent-scoped toggles for DeepChat-managed MCP servers.
+- [x] Address review findings: preserve undefined MCP/plugin runtime policies, respect the global MCP master switch in agent pages, use effective agent config in management views, keep skill detail state fresh, allow agent-scoped toggles for DeepChat-managed MCP servers, and enforce `enabledSkillNames` for `skill_list`/`skill_view`.
