@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.8-beta.2 (2026-06-30)
+- Added agent-scoped plugin extension controls for skills, MCP servers, and tools
+- Added Agent Memory health snapshots and audit details in settings
+- Fixed settings window sizing, sidebar chat actions, manual memory category handling, skill conflict popup layout, and provider 302 domain
+- Migrated commit hooks to commitlint and refreshed electron-builder plus provider and ACP registry data
+- 新增 Agent 级插件扩展控制，可按 Agent 限制 skills、MCP servers 和 tools
+- 新增 Agent Memory health snapshot 与设置页审计详情
+- 修复设置窗口尺寸、侧边栏会话操作、手动添加 memory category、技能冲突弹窗布局和 provider 302 domain
+- 迁移 commit hooks 到 commitlint，并刷新 electron-builder、Provider 与 ACP registry 数据
+
 ## v1.0.8-beta.1 (2026-06-29)
 - Added the main-window Plugins Hub plus Feishu/Lark install authentication and streaming card delivery for remote control
 - Upgraded the provider/runtime stack with AI SDK v7, Zod v4 schemas, Electron 40.10.5, DuckDB 1.5.4, and refreshed toolchains
