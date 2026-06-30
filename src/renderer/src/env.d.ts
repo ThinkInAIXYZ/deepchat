@@ -16,7 +16,6 @@ interface ImportMetaEnv {
   readonly VITE_GITHUB_CLIENT_SECRET: string
   readonly VITE_GITHUB_REDIRECT_URI: string
   readonly VITE_LOG_IPC_CALL: string
-  readonly VITE_PROVIDER_DB_URL?: string
 }
 
 interface ImportMeta {

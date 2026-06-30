@@ -7,7 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_LOG_IPC_CALL: string
   readonly VITE_AGENT_PRESENTER_DEBUG?: string
   readonly VITE_APP_LIFECYCLE_HOOK_DELAY?: string
-  readonly VITE_PROVIDER_DB_URL?: string
 }
 
 interface ImportMeta {
