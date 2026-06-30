@@ -28,9 +28,32 @@ import {
   type MemoryViewManifest
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import { getDeepchatBridge } from './core'
 
 export type MemoryUpdatedPayload = DeepchatEventPayload<typeof memoryUpdatedEvent.name>
+
+type MemoryAddKind = 'episodic' | 'semantic'
+type MemoryAddInputBase = {
+  content: string
+  importance?: number
+}
+type MemoryAddByKindInput = MemoryAddInputBase & {
+  kind?: MemoryAddKind
+  category?: never
+}
+type MemoryAddByCategoryInput = MemoryAddInputBase & {
+  kind?: never
+  category: AgentMemoryCategory
+}
+type MemoryAddInput = MemoryAddByKindInput | MemoryAddByCategoryInput
+type MemoryAddPayload = {
+  agentId: string
+  content: string
+  kind?: MemoryAddKind
+  category?: AgentMemoryCategory
+  importance?: number
+}
 
 export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function list(agentId: string): Promise<MemoryItem[]> {
@@ -56,16 +79,19 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.results
   }
 
-  async function add(
-    agentId: string,
-    input: { content: string; kind?: 'episodic' | 'semantic'; importance?: number }
-  ): Promise<MemoryAddResult> {
-    const result = await bridge.invoke(memoryAddRoute.name, {
+  async function add(agentId: string, input: MemoryAddInput): Promise<MemoryAddResult> {
+    const payload: MemoryAddPayload = {
       agentId,
       content: input.content,
-      kind: input.kind,
       importance: input.importance
-    })
+    }
+    if (input.category !== undefined) {
+      payload.category = input.category
+    } else if (input.kind !== undefined) {
+      payload.kind = input.kind
+    }
+
+    const result = await bridge.invoke(memoryAddRoute.name, payload)
     return result.result
   }
 

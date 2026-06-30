@@ -209,6 +209,8 @@
       "noSearchResults": "没有匹配的记忆。",
       "addMemory": "添加记忆",
       "addContentPlaceholder": "想让该助手记住的内容…",
+      "addCategoryLabel": "记忆分类",
+      "addCategoryNone": "不指定分类",
       "kindSemantic": "事实",
       "kindEpisodic": "事件",
       "importanceLow": "重要性：低",

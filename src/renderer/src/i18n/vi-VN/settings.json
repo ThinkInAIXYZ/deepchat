@@ -212,6 +212,8 @@
       "noSearchResults": "Không có ký ức nào khớp với tìm kiếm của bạn.",
       "addMemory": "Thêm ký ức",
       "addContentPlaceholder": "Nội dung bạn muốn trợ lý này ghi nhớ…",
+      "addCategoryLabel": "Danh mục bộ nhớ",
+      "addCategoryNone": "Không có danh mục",
       "kindSemantic": "Sự thật",
       "kindEpisodic": "Sự kiện",
       "importanceLow": "Mức độ quan trọng: Thấp",

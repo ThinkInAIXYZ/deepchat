@@ -209,6 +209,8 @@
       "noSearchResults": "No memories match your search.",
       "addMemory": "Add memory",
       "addContentPlaceholder": "What you want this assistant to remember…",
+      "addCategoryLabel": "Memory category",
+      "addCategoryNone": "No category",
       "kindSemantic": "Fact",
       "kindEpisodic": "Event",
       "importanceLow": "Importance: Low",

@@ -2581,6 +2581,8 @@
       "noSearchResults": "検索に一致するメモリはありません。",
       "addMemory": "メモリを追加",
       "addContentPlaceholder": "このアシスタントに覚えさせたい内容…",
+      "addCategoryLabel": "メモリカテゴリ",
+      "addCategoryNone": "カテゴリなし",
       "kindSemantic": "事実",
       "kindEpisodic": "出来事",
       "importanceLow": "重要度：低",

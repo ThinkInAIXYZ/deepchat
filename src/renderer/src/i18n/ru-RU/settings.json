@@ -2581,6 +2581,8 @@
       "noSearchResults": "Нет воспоминаний, соответствующих запросу.",
       "addMemory": "Добавить воспоминание",
       "addContentPlaceholder": "Что этот ассистент должен запомнить…",
+      "addCategoryLabel": "Категория памяти",
+      "addCategoryNone": "Без категории",
       "kindSemantic": "Факт",
       "kindEpisodic": "Событие",
       "importanceLow": "Важность: низкая",

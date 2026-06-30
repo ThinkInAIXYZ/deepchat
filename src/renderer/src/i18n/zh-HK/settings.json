@@ -2581,6 +2581,8 @@
       "noSearchResults": "沒有符合的記憶。",
       "addMemory": "新增記憶",
       "addContentPlaceholder": "想讓此助手記住的內容…",
+      "addCategoryLabel": "記憶分類",
+      "addCategoryNone": "不指定分類",
       "kindSemantic": "事實",
       "kindEpisodic": "事件",
       "importanceLow": "重要性：低",

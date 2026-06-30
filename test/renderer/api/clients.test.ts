@@ -26,6 +26,8 @@ import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
   function createBridge(): DeepchatBridge {
+    let addedMemoryCategory: unknown = null
+
     return {
       invoke: vi
         .fn()
@@ -982,6 +984,27 @@ describe('renderer api clients', () => {
               return { path: '/workspace' }
             case 'tools.listDefinitions':
               return { tools: [] }
+            case 'memory.add':
+              addedMemoryCategory = payload?.category ?? null
+              return { result: { action: 'created', memoryId: 'mem-added' } }
+            case 'memory.list':
+              return {
+                memories: [
+                  {
+                    id: 'mem-added',
+                    agentId: payload?.agentId ?? 'agent-1',
+                    kind: 'semantic',
+                    category: typeof addedMemoryCategory === 'string' ? addedMemoryCategory : null,
+                    content: 'repo uses pnpm',
+                    importance: 0.6,
+                    status: 'embedded',
+                    sourceSession: null,
+                    sourceEntryIds: null,
+                    supersededBy: null,
+                    createdAt: 1000
+                  }
+                ]
+              }
             default:
               return {}
           }
@@ -1241,6 +1264,12 @@ describe('renderer api clients', () => {
     await memoryClient.approvePersonaDraft('agent-1', 'draft-1')
     await memoryClient.rejectPersonaDraft('agent-1', 'draft-1')
     await memoryClient.setPersonaAnchor('agent-1', 'ver-1', true)
+    await memoryClient.add('agent-1', {
+      content: 'repo uses pnpm',
+      category: 'project_fact'
+    })
+    const categorizedMemories = await memoryClient.list('agent-1')
+    await memoryClient.add('agent-1', { content: 'plain note' })
     const off = memoryClient.onUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
@@ -1277,6 +1306,21 @@ describe('renderer api clients', () => {
       versionId: 'ver-1',
       anchored: true
     })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'memory.add', {
+      agentId: 'agent-1',
+      content: 'repo uses pnpm',
+      category: 'project_fact',
+      importance: undefined
+    })
+    expect(bridge.invoke.mock.calls[11][1]).not.toHaveProperty('kind')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'memory.list', { agentId: 'agent-1' })
+    expect(categorizedMemories[0].category).toBe('project_fact')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'memory.add', {
+      agentId: 'agent-1',
+      content: 'plain note',
+      importance: undefined
+    })
+    expect(bridge.invoke.mock.calls[13][1]).not.toHaveProperty('category')
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })

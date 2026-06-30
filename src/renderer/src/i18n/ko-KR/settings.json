@@ -2581,6 +2581,8 @@
       "noSearchResults": "검색과 일치하는 메모리가 없습니다.",
       "addMemory": "메모리 추가",
       "addContentPlaceholder": "이 어시스턴트가 기억하길 원하는 내용…",
+      "addCategoryLabel": "메모리 카테고리",
+      "addCategoryNone": "카테고리 없음",
       "kindSemantic": "사실",
       "kindEpisodic": "사건",
       "importanceLow": "중요도: 낮음",

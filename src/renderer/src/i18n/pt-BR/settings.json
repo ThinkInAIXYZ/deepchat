@@ -2581,6 +2581,8 @@
       "noSearchResults": "Nenhuma memória corresponde à sua busca.",
       "addMemory": "Adicionar memória",
       "addContentPlaceholder": "O que você quer que este assistente lembre…",
+      "addCategoryLabel": "Categoria da memória",
+      "addCategoryNone": "Sem categoria",
       "kindSemantic": "Fato",
       "kindEpisodic": "Evento",
       "importanceLow": "Importância: baixa",

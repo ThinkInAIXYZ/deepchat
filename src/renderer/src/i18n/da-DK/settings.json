@@ -2581,6 +2581,8 @@
       "noSearchResults": "Ingen minder matcher din søgning.",
       "addMemory": "Tilføj minde",
       "addContentPlaceholder": "Det, du vil have denne assistent til at huske…",
+      "addCategoryLabel": "Hukommelseskategori",
+      "addCategoryNone": "Ingen kategori",
       "kindSemantic": "Faktum",
       "kindEpisodic": "Hændelse",
       "importanceLow": "Vigtighed: Lav",

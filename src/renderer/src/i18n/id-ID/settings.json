@@ -212,6 +212,8 @@
       "noSearchResults": "Tidak ada memori yang cocok dengan pencarian Anda.",
       "addMemory": "Tambah memori",
       "addContentPlaceholder": "Hal yang ingin Anda ingat oleh asisten ini…",
+      "addCategoryLabel": "Kategori memori",
+      "addCategoryNone": "Tanpa kategori",
       "kindSemantic": "Fakta",
       "kindEpisodic": "Peristiwa",
       "importanceLow": "Tingkat kepentingan: Rendah",
