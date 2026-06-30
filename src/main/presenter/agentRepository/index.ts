@@ -64,6 +64,24 @@ const sanitizeString = (value?: string | null): string | null => {
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
+const normalizeNullableStringList = (
+  value: string[] | null | undefined
+): string[] | null | undefined => {
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  const normalized = Array.from(
+    new Set(value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean))
+  )
+  return normalized
+}
+
+const mergeNullableStringList = (
+  baseValue: string[] | null | undefined,
+  overrideValue: string[] | null | undefined
+): string[] | null | undefined => normalizeNullableStringList(overrideValue ?? baseValue)
+
 const mergeDeepChatConfig = (
   baseConfig: DeepChatAgentConfig,
   overrideConfig: DeepChatAgentConfig
@@ -78,6 +96,18 @@ const mergeDeepChatConfig = (
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode ?? 'full_access',
     disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
+    enabledPluginIds: mergeNullableStringList(
+      baseConfig.enabledPluginIds,
+      overrideConfig.enabledPluginIds
+    ),
+    enabledSkillNames: mergeNullableStringList(
+      baseConfig.enabledSkillNames,
+      overrideConfig.enabledSkillNames
+    ),
+    enabledMcpServerIds: mergeNullableStringList(
+      baseConfig.enabledMcpServerIds,
+      overrideConfig.enabledMcpServerIds
+    ),
     subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? true,
     subagents:
       overrideConfig.subagents ?? baseConfig.subagents ?? createDefaultDeepChatSubagentSlots(),

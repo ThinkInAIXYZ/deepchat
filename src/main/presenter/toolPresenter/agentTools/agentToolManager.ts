@@ -2102,10 +2102,14 @@ export class AgentToolManager {
     )
   }
 
-  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] {
+  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] | undefined {
+    if (!Array.isArray(activeSkillNames)) {
+      return undefined
+    }
+
     return Array.from(
       new Set(
-        (activeSkillNames ?? [])
+        activeSkillNames
           .map((skillName) => skillName.trim())
           .filter((skillName) => skillName.length > 0)
       )
@@ -2128,9 +2132,10 @@ export class AgentToolManager {
     }
 
     const skillTools = this.getSkillTools()
+    const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
 
     if (toolName === 'skill_list') {
-      const result = await skillTools.handleSkillList(conversationId)
+      const result = await skillTools.handleSkillList(conversationId, effectiveActiveSkills)
       return { content: JSON.stringify(result) }
     }
 
@@ -2145,15 +2150,19 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
-      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const result = await skillTools.handleSkillView(
+        conversationId,
+        validationResult.data,
+        effectiveActiveSkills
+      )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
+      const activeSkillNamesForResult = effectiveActiveSkills ?? []
       const activationApplied =
         Boolean(conversationId) &&
         result.success === true &&
         !isLinkedFileView &&
         Boolean(normalizedViewedSkill) &&
-        !effectiveActiveSkills.includes(normalizedViewedSkill)
+        !activeSkillNamesForResult.includes(normalizedViewedSkill)
       const activationSource =
         !conversationId || result.success !== true
           ? 'none'
@@ -2169,7 +2178,7 @@ export class AgentToolManager {
           result.isPinned === true ||
           (!isLinkedFileView &&
             Boolean(normalizedViewedSkill) &&
-            (activationApplied || effectiveActiveSkills.includes(normalizedViewedSkill))),
+            (activationApplied || activeSkillNamesForResult.includes(normalizedViewedSkill))),
         activatedForMessage: activationApplied,
         activationScope: activationApplied ? 'message' : 'none'
       })

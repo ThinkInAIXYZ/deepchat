@@ -71,7 +71,7 @@
 
           <Separator class="mb-4" />
 
-          <div v-if="loading" class="space-y-3 pb-4 animate-pulse">
+          <div v-if="loading || agentPolicyLoading" class="space-y-3 pb-4 animate-pulse">
             <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
               <div class="space-y-3">
                 <div class="h-4 w-40 rounded bg-muted/60"></div>
@@ -169,7 +169,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -187,9 +187,12 @@ import {
 } from '@shadcn/components/ui/dropdown-menu'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
+import { useAgentStore } from '@/stores/ui/agent'
+import { useSessionStore } from '@/stores/ui/session'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createWindowClient } from '@api/WindowClient'
+import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
 import type { SkillExtensionConfig } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { SkillDetail } from '@shared/types/skillSync'
@@ -206,9 +209,20 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { continueGuidedOnboardingFromSettings } from '../../lib/guidedOnboardingSettings'
 
+const props = withDefaults(
+  defineProps<{
+    scope?: 'global' | 'agent'
+  }>(),
+  {
+    scope: 'global'
+  }
+)
+
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
+const agentStore = useAgentStore()
+const sessionStore = useSessionStore()
 const configClient = createConfigClient()
 const skillClient = createSkillClient()
 const windowClient = createWindowClient()
@@ -223,10 +237,59 @@ const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsSto
 const activeTab = ref('library')
 const searchQuery = ref('')
 const draftSuggestionsEnabled = ref(false)
+const isAgentScope = computed(() => props.scope === 'agent')
+const targetAgent = ref<Agent | null>(null)
+const targetAgentConfig = ref<DeepChatAgentConfig>({})
+const agentPolicyLoading = ref(false)
+const agentPolicyRequestId = ref(0)
+
+const normalizeList = (value: string[] | null | undefined): string[] =>
+  Array.from(new Set((value ?? []).map((item) => item.trim()).filter(Boolean))).sort(
+    (left, right) => left.localeCompare(right)
+  )
+
+const targetAgentId = computed(() => {
+  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
+  if (activeSessionAgentId) {
+    return activeSessionAgentId
+  }
+
+  const selectedAgentId = agentStore.selectedAgentId?.trim()
+  if (selectedAgentId) {
+    return selectedAgentId
+  }
+
+  return 'deepchat'
+})
+const isDeepChatTarget = computed(() =>
+  Boolean(targetAgent.value && targetAgent.value.type === 'deepchat')
+)
+const globallyAvailableSkillNames = computed(() =>
+  normalizeList(skills.value.filter((skill) => !skill.deepchatDisabled).map((skill) => skill.name))
+)
+const agentEnabledSkillNames = computed(() => targetAgentConfig.value.enabledSkillNames)
+const agentEnabledSkillSet = computed(() => {
+  const enabledNames = agentEnabledSkillNames.value
+  if (enabledNames === null || enabledNames === undefined) {
+    return new Set(globallyAvailableSkillNames.value)
+  }
+  return new Set(normalizeList(enabledNames))
+})
+const agentScopedSkills = computed<UnifiedSkillItem[]>(() => {
+  if (!isAgentScope.value) {
+    return skills.value
+  }
+
+  return skills.value.map((skill) => ({
+    ...skill,
+    deepchatDisabled: skill.deepchatDisabled || !agentEnabledSkillSet.value.has(skill.name)
+  }))
+})
 const filteredSkills = computed(() => {
-  if (!searchQuery.value) return skills.value
+  const sourceSkills = agentScopedSkills.value
+  if (!searchQuery.value) return sourceSkills
   const query = searchQuery.value.toLowerCase()
-  return skills.value.filter(
+  return sourceSkills.filter(
     (skill) =>
       skill.name.toLowerCase().includes(query) || skill.description.toLowerCase().includes(query)
   )
@@ -295,7 +358,7 @@ const eventCleanup = ref<(() => void) | null>(null)
 onMounted(async () => {
   const enabled = await configClient.getSkillDraftSuggestionsEnabled()
   draftSuggestionsEnabled.value = enabled ?? false
-  await skillsStore.loadSkills()
+  await Promise.all([skillsStore.loadSkills(), loadAgentPolicy()])
   setupEventListeners()
 })
 
@@ -313,9 +376,136 @@ const setupEventListeners = () => {
   eventCleanup.value = skillClient.onCatalogChanged(handleSkillEvent)
 }
 
+watch(targetAgentId, () => {
+  void loadAgentPolicy()
+})
+
+watch(agentScopedSkills, () => {
+  const selectedSkillName = selectedDetailSkill.value?.name
+  if (!selectedSkillName) {
+    return
+  }
+  const nextSkill = agentScopedSkills.value.find((skill) => skill.name === selectedSkillName)
+  if (nextSkill) {
+    selectedDetailSkill.value = nextSkill
+  }
+})
+
+const loadAgentPolicy = async () => {
+  if (!isAgentScope.value) {
+    agentPolicyRequestId.value += 1
+    targetAgent.value = null
+    targetAgentConfig.value = {}
+    agentPolicyLoading.value = false
+    return
+  }
+
+  const requestId = ++agentPolicyRequestId.value
+  const requestedAgentId = targetAgentId.value
+  agentPolicyLoading.value = true
+  try {
+    const agents = await configClient.listAgents({
+      agentType: 'deepchat',
+      ids: [requestedAgentId]
+    })
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
+    const agent = agents[0] ?? null
+    if (!agent) {
+      targetAgent.value = null
+      targetAgentConfig.value = {}
+      return
+    }
+
+    const effectiveConfig = await configClient.resolveDeepChatAgentConfig(requestedAgentId)
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
+    targetAgent.value = agent
+    targetAgentConfig.value = effectiveConfig ?? agent?.config ?? {}
+  } catch (error) {
+    if (requestId !== agentPolicyRequestId.value) {
+      return
+    }
+
+    targetAgent.value = null
+    targetAgentConfig.value = {}
+    toast({
+      title: t('settings.pluginsHub.agentScopeUnsupported'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    if (requestId === agentPolicyRequestId.value) {
+      agentPolicyLoading.value = false
+    }
+  }
+}
+
+const buildNextAgentSkillNames = (skillName: string, disabled: boolean): string[] => {
+  const currentPolicy = agentEnabledSkillNames.value
+  const visibleSkillNames = globallyAvailableSkillNames.value
+  const nextSet =
+    currentPolicy === null || currentPolicy === undefined
+      ? new Set(visibleSkillNames)
+      : new Set(normalizeList(currentPolicy))
+
+  if (disabled) {
+    nextSet.delete(skillName)
+  } else if (visibleSkillNames.includes(skillName)) {
+    nextSet.add(skillName)
+  }
+
+  return normalizeList(Array.from(nextSet))
+}
+
+const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean) => {
+  if (!targetAgent.value || !isDeepChatTarget.value) {
+    toast({
+      title: t('settings.pluginsHub.agentScopeUnsupported'),
+      variant: 'destructive'
+    })
+    return false
+  }
+
+  try {
+    const enabledSkillNames = buildNextAgentSkillNames(skill.name, disabled)
+    const updatedAgent = await configClient.updateDeepChatAgent(targetAgent.value.id, {
+      config: {
+        enabledSkillNames
+      }
+    })
+    targetAgent.value = updatedAgent ?? targetAgent.value
+    targetAgentConfig.value = {
+      ...targetAgentConfig.value,
+      ...updatedAgent?.config,
+      enabledSkillNames
+    }
+    await agentStore.refreshAgentsByIds('deepchat', [targetAgent.value.id])
+    toast({
+      title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
+      description: disabled
+        ? t('settings.skills.disable.successMessage', { name: skill.name })
+        : t('settings.skills.enable.successMessage', { name: skill.name })
+    })
+    return true
+  } catch (error) {
+    toast({
+      title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+    return false
+  }
+}
+
 const openSkillDetail = async (skill: UnifiedSkillItem) => {
   try {
-    selectedDetailSkill.value = skill
+    selectedDetailSkill.value =
+      agentScopedSkills.value.find((item) => item.name === skill.name) ?? skill
     skillDetail.value = {
       name: skill.name,
       description: skill.description,
@@ -339,6 +529,10 @@ const openInstallToAgent = (skill: UnifiedSkillItem) => {
 }
 
 const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) => {
+  if (isAgentScope.value) {
+    return await updateAgentSkillPolicy(skill, disabled)
+  }
+
   try {
     await skillsStore.setSkillDisabled(skill.name, disabled)
     toast({

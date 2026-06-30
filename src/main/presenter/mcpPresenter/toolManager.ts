@@ -21,6 +21,36 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 
+type McpToolAccessContext = {
+  enabledTools?: string[]
+  enabledServerIds?: string[]
+  enabledPluginIds?: string[]
+  agentId?: string
+  conversationId?: string
+}
+
+const normalizeStringList = (items?: string[]): string[] | undefined => {
+  if (!Array.isArray(items)) {
+    return undefined
+  }
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)))
+}
+
+const normalizeToolAccessContext = (
+  input?: string[] | McpToolAccessContext
+): McpToolAccessContext => {
+  if (Array.isArray(input)) {
+    return { enabledTools: normalizeStringList(input) }
+  }
+  return {
+    enabledTools: normalizeStringList(input?.enabledTools),
+    enabledServerIds: normalizeStringList(input?.enabledServerIds),
+    enabledPluginIds: normalizeStringList(input?.enabledPluginIds),
+    agentId: input?.agentId?.trim() || undefined,
+    conversationId: input?.conversationId?.trim() || undefined
+  }
+}
+
 export class ToolManager {
   private configPresenter: IConfigPresenter
   private serverManager: ServerManager
@@ -71,17 +101,12 @@ export class ToolManager {
     return this.serverManager.getRunningClients()
   }
   // Get all tool definitions
-  public async getAllToolDefinitions(enabledTools?: string[]): Promise<MCPToolDefinition[]> {
+  public async getAllToolDefinitions(
+    access?: string[] | McpToolAccessContext
+  ): Promise<MCPToolDefinition[]> {
+    const context = normalizeToolAccessContext(access)
     if (this.cachedToolDefinitions !== null && this.cachedToolDefinitions.length > 0) {
-      if (enabledTools) {
-        const enabledSet = new Set(enabledTools)
-        return this.cachedToolDefinitions.filter((toolDef) => {
-          const finalName = toolDef.function.name
-          const originalName = this.toolNameToTargetMap?.get(finalName)?.originalName || finalName
-          return enabledSet.has(finalName) || enabledSet.has(originalName)
-        })
-      }
-      return this.cachedToolDefinitions
+      return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
     }
 
     console.info('Fetching/refreshing tool definitions and target map...')
@@ -242,16 +267,61 @@ export class ToolManager {
     this.cachedToolDefinitions = results
     console.info(`Cached ${results.length} final tool definitions and populated target map.`)
 
-    if (enabledTools && enabledTools.length > 0) {
-      const enabledSet = new Set(enabledTools)
-      return this.cachedToolDefinitions.filter((toolDef) => {
-        const finalName = toolDef.function.name
-        const originalName = this.toolNameToTargetMap?.get(finalName)?.originalName || finalName
-        return enabledSet.has(finalName) || enabledSet.has(originalName)
-      })
+    return this.filterToolDefinitionsByContext(this.cachedToolDefinitions, context)
+  }
+
+  private filterToolDefinitionsByContext(
+    toolDefinitions: MCPToolDefinition[],
+    context: McpToolAccessContext
+  ): MCPToolDefinition[] {
+    if (!context.enabledTools && !context.enabledServerIds && !context.enabledPluginIds) {
+      return toolDefinitions
     }
 
-    return this.cachedToolDefinitions
+    return toolDefinitions.filter((toolDef) => {
+      const finalName = toolDef.function.name
+      const target = this.toolNameToTargetMap?.get(finalName)
+      const originalName = target?.originalName || finalName
+      if (
+        context.enabledTools &&
+        !context.enabledTools.includes(finalName) &&
+        !context.enabledTools.includes(originalName)
+      ) {
+        return false
+      }
+      return this.isServerAllowedByContext(toolDef.server.name, context)
+    })
+  }
+
+  private isServerAllowedByContext(serverName: string, context: McpToolAccessContext): boolean {
+    const serverConfig = this.getServerConfigFromTargetMap(serverName)
+    if (!serverConfig) {
+      return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
+    }
+    return this.isServerConfigAllowedByContext(serverName, serverConfig, context)
+  }
+
+  private isServerConfigAllowedByContext(
+    serverName: string,
+    serverConfig: MCPServerConfig,
+    context: McpToolAccessContext
+  ): boolean {
+    const ownerPluginId =
+      serverConfig.ownerPluginId?.trim() ||
+      (serverConfig.source === 'plugin' ? serverConfig.sourceId?.trim() : undefined)
+    if (ownerPluginId) {
+      return !context.enabledPluginIds || context.enabledPluginIds.includes(ownerPluginId)
+    }
+    return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
+  }
+
+  private getServerConfigFromTargetMap(serverName: string): MCPServerConfig | undefined {
+    for (const target of this.toolNameToTargetMap?.values() ?? []) {
+      if (target.client.serverName === serverName) {
+        return target.client.serverConfig as unknown as MCPServerConfig
+      }
+    }
+    return undefined
   }
 
   // 确定权限类型的新方法
@@ -393,7 +463,10 @@ export class ToolManager {
    * Pre-check tool permissions without executing the tool
    * Returns permission requirement info if permission is needed, null if already has permission
    */
-  async preCheckToolPermission(toolCall: MCPToolCall): Promise<{
+  async preCheckToolPermission(
+    toolCall: MCPToolCall,
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds' | 'enabledPluginIds'>
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string
@@ -432,6 +505,18 @@ export class ToolManager {
     // Get server config to check auto-approve settings
     const servers = await this.configPresenter.getMcpServers()
     const serverConfig = servers[toolServerName]
+    const accessContext = normalizeToolAccessContext({
+      agentId: access?.agentId,
+      enabledServerIds: access?.enabledServerIds,
+      enabledPluginIds: access?.enabledPluginIds,
+      conversationId: toolCall.conversationId
+    })
+    if (
+      serverConfig &&
+      !this.isServerConfigAllowedByContext(toolServerName, serverConfig, accessContext)
+    ) {
+      return null
+    }
     const autoApprove = serverConfig?.autoApprove || []
     const pluginPolicy = getPluginToolPolicy(toolServerName, originalName)
 
@@ -461,7 +546,10 @@ export class ToolManager {
     }
   }
 
-  async callTool(toolCall: MCPToolCall): Promise<MCPToolResponse> {
+  async callTool(
+    toolCall: MCPToolCall,
+    access?: Pick<McpToolAccessContext, 'agentId' | 'enabledServerIds' | 'enabledPluginIds'>
+  ): Promise<MCPToolResponse> {
     try {
       const finalName = toolCall.function.name
       const argsString = toolCall.function.arguments
@@ -498,6 +586,12 @@ export class ToolManager {
 
       const { client: targetClient, originalName } = targetInfo
       const toolServerName = targetClient.serverName
+      const accessContext = normalizeToolAccessContext({
+        agentId: access?.agentId,
+        enabledServerIds: access?.enabledServerIds,
+        enabledPluginIds: access?.enabledPluginIds,
+        conversationId: toolCall.conversationId
+      })
       const hintedProviderId = toolCall.providerId?.trim()
       const shouldResolveAcpContext =
         Boolean(toolCall.conversationId) && (!hintedProviderId || hintedProviderId === 'acp')
@@ -564,6 +658,13 @@ export class ToolManager {
         return {
           toolCallId: toolCall.id,
           content: `Error: Configuration missing for server '${toolServerName}'.`,
+          isError: true
+        }
+      }
+      if (!this.isServerConfigAllowedByContext(toolServerName, serverConfig, accessContext)) {
+        return {
+          toolCallId: toolCall.id,
+          content: `MCP server '${toolServerName}' is not allowed for DeepChat agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in DeepChat agent settings.`,
           isError: true
         }
       }

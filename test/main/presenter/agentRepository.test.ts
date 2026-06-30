@@ -451,6 +451,60 @@ describe('AgentRepository', () => {
     ).toBe(2000)
   })
 
+  it('inherits extension policies from builtin and lets custom agents override with empty arrays', () => {
+    const now = Date.now()
+    const makeRow = (id: string, source: string, config: object) => ({
+      id,
+      agent_type: 'deepchat',
+      source,
+      name: id,
+      enabled: 1,
+      protected: source === 'builtin' ? 1 : 0,
+      description: null,
+      icon: null,
+      avatar_json: null,
+      config_json: JSON.stringify(config),
+      state_json: null,
+      created_at: now,
+      updated_at: now
+    })
+    const rows = new Map<string, any>([
+      [
+        'deepchat',
+        makeRow('deepchat', 'builtin', {
+          enabledPluginIds: [' plugin-a ', 'plugin-a'],
+          enabledSkillNames: ['skill-a'],
+          enabledMcpServerIds: ['server-a']
+        })
+      ],
+      ['inheriting-agent', makeRow('inheriting-agent', 'manual', {})],
+      [
+        'overriding-agent',
+        makeRow('overriding-agent', 'manual', {
+          enabledPluginIds: [],
+          enabledSkillNames: ['skill-b'],
+          enabledMcpServerIds: []
+        })
+      ]
+    ])
+    const repository = new AgentRepository({
+      agentsTable: {
+        get: (id: string) => rows.get(id)
+      }
+    } as never)
+
+    expect(repository.resolveDeepChatAgentConfig('inheriting-agent')).toMatchObject({
+      enabledPluginIds: ['plugin-a'],
+      enabledSkillNames: ['skill-a'],
+      enabledMcpServerIds: ['server-a']
+    })
+    expect(repository.resolveDeepChatAgentConfig('overriding-agent')).toMatchObject({
+      enabledPluginIds: [],
+      enabledSkillNames: ['skill-b'],
+      enabledMcpServerIds: []
+    })
+  })
+
   it('clears registry ACP installation state without deleting the row', () => {
     const row = {
       id: 'codex-acp',

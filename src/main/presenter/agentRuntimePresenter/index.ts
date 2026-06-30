@@ -196,6 +196,12 @@ type ResumeBudgetToolCall = {
   offloadPath?: string
 }
 
+type AgentExtensionPolicy = {
+  enabledPluginIds?: string[] | null
+  enabledSkillNames?: string[] | null
+  enabledMcpServerIds?: string[] | null
+}
+
 type PackageJsonManifest = {
   name?: unknown
   scripts?: Record<string, unknown>
@@ -3427,6 +3433,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         hooks: {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
           activateSkill: async (skillName) => {
+            const policy = await this.resolveAgentExtensionPolicy(sessionId)
+            if (this.filterSkillNamesByPolicy([skillName], policy).length === 0) {
+              return getEffectiveRuntimeSkillNames()
+            }
             await this.activateRuntimeSkill(sessionId, skillName)
             return getEffectiveRuntimeSkillNames()
           },
@@ -4210,6 +4220,16 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const skillDraftSuggestionsEnabled =
       this.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false
 
+    const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
+    const allowedSkillNameSet =
+      extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
+        ? null
+        : new Set(this.normalizeSkillNames(extensionPolicy.enabledSkillNames))
+    const allowedPluginIdSet =
+      extensionPolicy.enabledPluginIds === null || extensionPolicy.enabledPluginIds === undefined
+        ? null
+        : new Set(this.normalizeSkillNames(extensionPolicy.enabledPluginIds))
+
     if (skillsEnabled && skillPresenter) {
       if (skillPresenter.getMetadataList) {
         const stepStartedAt = Date.now()
@@ -4217,7 +4237,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           const metadataList = await skillPresenter.getMetadataList()
           for (const metadata of metadataList) {
             const skillName = metadata?.name?.trim()
-            if (skillName) {
+            const ownerPluginId = metadata?.ownerPluginId?.trim()
+            if (
+              skillName &&
+              (!allowedSkillNameSet || allowedSkillNameSet.has(skillName)) &&
+              (!ownerPluginId || !allowedPluginIdSet || allowedPluginIdSet.has(ownerPluginId))
+            ) {
               availableSkills.push({
                 name: skillName,
                 description: metadata.description?.trim() || '',
@@ -4258,8 +4283,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     let stepStartedAt = Date.now()
     const normalizedAvailableSkills = this.normalizeSkillMetadata(availableSkills)
     const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name))
-    const normalizedActiveSkills = this.normalizeSkillNames(
-      activeSkillNames.filter((skillName) => availableSkillNames.has(skillName))
+    const normalizedActiveSkills = this.filterSkillNamesByPolicy(
+      activeSkillNames.filter((skillName) => availableSkillNames.has(skillName)),
+      extensionPolicy
     )
     const agentToolNames = this.getAgentToolNames(toolDefinitions)
     const fingerprint = this.buildSystemPromptFingerprint({
@@ -6030,7 +6056,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       deferredAbortController?.signal ?? this.getAbortSignalForSession(sessionId)
 
     try {
+      const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
       const result = await this.toolPresenter.callTool(request, {
+        agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
+        enabledMcpServerIds: extensionPolicy.enabledMcpServerIds ?? undefined,
+        enabledPluginIds: extensionPolicy.enabledPluginIds ?? undefined,
         onProgress: (update) => {
           if (
             update.kind !== 'subagent_orchestrator' ||
@@ -6156,7 +6186,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     try {
-      const profile = await this.resolveToolProfile(sessionId, projectDir, activeSkillNamesOverride)
+      const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+      const policy = await this.resolveAgentExtensionPolicy(sessionId)
+      const effectiveActiveSkillNames =
+        activeSkillNamesOverride === undefined
+          ? await this.resolveActiveSkillNamesForToolProfile(sessionId)
+          : this.filterSkillNamesByPolicy(activeSkillNamesOverride, policy)
+      const profile = await this.resolveToolProfile(
+        sessionId,
+        projectDir,
+        effectiveActiveSkillNames,
+        policy
+      )
       const cachedProfile = this.toolProfileCache.get(sessionId)
       if (
         cachedProfile &&
@@ -6171,11 +6212,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
 
       const tools = await this.toolPresenter.getAllToolDefinitions({
+        agentId,
+        enabledMcpServerIds: policy.enabledMcpServerIds ?? undefined,
+        enabledPluginIds: policy.enabledPluginIds ?? undefined,
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
         conversationId: sessionId,
         agentWorkspacePath: projectDir,
-        activeSkillNames: activeSkillNamesOverride
+        activeSkillNames: effectiveActiveSkillNames
       })
 
       this.toolProfileCache.set(sessionId, {
@@ -6194,20 +6238,26 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private async resolveToolProfile(
     sessionId: string,
     projectDir: string | null,
-    activeSkillNamesOverride?: string[]
+    activeSkillNamesOverride?: string[],
+    extensionPolicy?: AgentExtensionPolicy
   ): Promise<{ kind: ToolProfileKind; fingerprint: string }> {
     const normalizedProjectDir = projectDir?.trim() || null
     const skillsEnabled = this.configPresenter.getSkillsEnabled()
-    const activeSkillNames =
-      activeSkillNamesOverride ?? (await this.resolveActiveSkillNamesForToolProfile(sessionId))
+    const policy = extensionPolicy ?? (await this.resolveAgentExtensionPolicy(sessionId))
+    const activeSkillNames = this.filterSkillNamesByPolicy(
+      activeSkillNamesOverride ?? (await this.resolveActiveSkillNamesForToolProfile(sessionId)),
+      policy
+    )
     const disabledAgentTools = this.getDisabledAgentTools(sessionId)
     const state = this.runtimeState.get(sessionId)
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
     const kind: ToolProfileKind = normalizedProjectDir ? 'code' : 'general'
 
     return {
       kind,
       fingerprint: JSON.stringify({
         kind,
+        agentId,
         projectDir: normalizedProjectDir ?? '',
         providerId: state?.providerId ?? '',
         modelId: state?.modelId ?? '',
@@ -6215,6 +6265,9 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
+        enabledMcpServerIds: this.normalizeNullablePolicyList(policy.enabledMcpServerIds),
+        enabledPluginIds: this.normalizeNullablePolicyList(policy.enabledPluginIds),
+        enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
         skillsEnabled,
         activeSkillNames
       })
@@ -6227,7 +6280,11 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     }
 
     try {
-      return this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId))
+      const policy = await this.resolveAgentExtensionPolicy(sessionId)
+      return this.filterSkillNamesByPolicy(
+        this.normalizeSkillNames(await this.skillPresenter.getActiveSkills(sessionId)),
+        policy
+      )
     } catch (error) {
       console.warn(
         `[DeepChatAgent] Failed to load active skills for tool profile in session ${sessionId}:`,
@@ -6235,6 +6292,48 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       )
       return []
     }
+  }
+
+  private async resolveAgentExtensionPolicy(sessionId: string): Promise<AgentExtensionPolicy> {
+    const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
+    if (typeof this.configPresenter.resolveDeepChatAgentConfig !== 'function') {
+      return {}
+    }
+
+    try {
+      const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
+      return {
+        enabledPluginIds: config.enabledPluginIds,
+        enabledSkillNames: config.enabledSkillNames,
+        enabledMcpServerIds: config.enabledMcpServerIds
+      }
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve extension policy for agent ${agentId}:`,
+        error
+      )
+      return {}
+    }
+  }
+
+  private normalizeNullablePolicyList(value?: string[] | null): string[] | null | undefined {
+    if (value === null || value === undefined) {
+      return value
+    }
+    return this.normalizeSkillNames(value)
+  }
+
+  private filterSkillNamesByPolicy(
+    skillNames: string[] | undefined,
+    policy: AgentExtensionPolicy
+  ): string[] {
+    const normalizedSkillNames = this.normalizeSkillNames(skillNames ?? [])
+    if (policy.enabledSkillNames === null || policy.enabledSkillNames === undefined) {
+      return normalizedSkillNames
+    }
+
+    const allowed = new Set(this.normalizeSkillNames(policy.enabledSkillNames))
+    return normalizedSkillNames.filter((skillName) => allowed.has(skillName))
   }
 
   private getDisabledAgentTools(sessionId: string): string[] {

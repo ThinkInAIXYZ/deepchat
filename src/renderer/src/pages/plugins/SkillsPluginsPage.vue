@@ -1,5 +1,5 @@
 <template>
-  <SkillsSettings />
+  <SkillsSettings scope="agent" />
 </template>
 
 <script setup lang="ts">

@@ -676,6 +676,9 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   systemPrompt: z.string().optional(),
   permissionMode: z.enum(['default', 'full_access']).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
+  enabledPluginIds: z.array(z.string()).nullable().optional(),
+  enabledSkillNames: z.array(z.string()).nullable().optional(),
+  enabledMcpServerIds: z.array(z.string()).nullable().optional(),
   subagentEnabled: z.boolean().optional(),
   defaultProjectPath: z.string().nullable().optional()
 })
