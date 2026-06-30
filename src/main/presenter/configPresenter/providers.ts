@@ -345,10 +345,10 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     baseUrl: 'https://api.302.ai/v1',
     enable: false,
     websites: {
-      official: 'https://302.ai',
+      official: 'https://302ai.cn/',
       apiKey: 'https://dash.302.ai/apis/list',
       docs: 'https://302ai.apifox.cn/doc-3704971',
-      models: 'https://302.ai/pricing/',
+      models: 'https://302ai.cn/pricing/',
       defaultBaseUrl: 'https://api.302.ai/v1'
     }
   },
