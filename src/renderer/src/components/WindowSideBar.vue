@@ -1301,7 +1301,7 @@ const handleNewChat = async () => {
 }
 
 const handleNewChatForProject = async (projectPath: string | null) => {
-  projectStore.selectProject(projectPath, 'manual')
+  await projectStore.selectProject(projectPath, 'manual')
   await handleNewChat()
 }
 
