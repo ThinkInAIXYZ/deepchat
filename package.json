@@ -38,7 +38,8 @@
     "dev:linux": "electron-vite dev --watch --noSandbox",
     "build": "pnpm run typecheck && electron-vite build",
     "release:ff": "node scripts/release-fast-forward.mjs",
-    "postinstall": "electron-builder install-app-deps && simple-git-hooks",
+    "postinstall": "electron-builder install-app-deps",
+    "hooks:install": "git config core.hooksPath .githooks",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "plugin:validate": "node scripts/plugin.mjs validate",
     "plugin:package": "node scripts/plugin.mjs package",
@@ -142,6 +143,8 @@
   },
   "devDependencies": {
     "@antv/infographic": "^0.2.19",
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/notarize": "^3.1.1",
     "@iconify-json/lucide": "^1.2.108",
@@ -183,7 +186,6 @@
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",
     "katex": "^0.16.47",
-    "lint-staged": "^16.4.0",
     "markstream-vue": "1.0.4",
     "mermaid": "^11.15.0",
     "minimatch": "^10.2.5",
@@ -193,7 +195,6 @@
     "picocolors": "^1.1.1",
     "pinia": "^3.0.4",
     "reka-ui": "^2.9.7",
-    "simple-git-hooks": "^2.13.1",
     "stream-monaco": "^0.0.45",
     "tailwind-merge": "^3.6.0",
     "tailwind-scrollbar-hide": "^4.0.0",
@@ -228,23 +229,13 @@
     "@opendal/lib-win32-arm64-msvc": "0.49.4",
     "@opendal/lib-win32-x64-msvc": "0.49.4"
   },
-  "simple-git-hooks": {
-    "pre-commit": "node scripts/pre-commit.mjs",
-    "commit-msg": "node scripts/verify-commit.js \"$1\""
-  },
-  "lint-staged": {
-    "*.{js,ts}": [
-      "oxfmt --no-error-on-unmatched-pattern"
-    ]
-  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@tailwindcss/oxide",
       "classic-level",
       "electron",
       "electron-winstaller",
-      "lzo",
-      "simple-git-hooks"
+      "lzo"
     ],
     "ignoredBuiltDependencies": [
       "node-pty",

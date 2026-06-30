@@ -13,6 +13,7 @@
 
 ```bash
 pnpm install
+pnpm run hooks:install
 pnpm run installRuntime
 pnpm run dev
 ```
@@ -129,6 +130,14 @@ src/
 - `src/main/presenter/exporter/formats/`
 
 ## 提交流程
+
+首次设置本地 Git hooks：
+
+```bash
+pnpm run hooks:install
+```
+
+当前 tracked hook 只校验 commit message。
 
 做完改动后至少执行：
 
