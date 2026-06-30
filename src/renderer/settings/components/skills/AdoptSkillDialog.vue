@@ -49,35 +49,35 @@
           </Badge>
         </div>
 
-        <div class="space-y-3 rounded-md border px-3 py-3 text-sm">
-          <div>
+        <div class="min-w-0 space-y-3 rounded-md border px-3 py-3 text-sm">
+          <div class="min-w-0">
             <div class="text-xs font-medium text-muted-foreground">
               {{ t('settings.skills.agents.adoptDialog.currentLocation') }}
             </div>
-            <div class="mt-1 truncate font-mono text-xs" :title="preview.sourcePath">
+            <div class="mt-1 break-all font-mono text-xs leading-5" :title="preview.sourcePath">
               {{ preview.sourcePath }}
             </div>
           </div>
 
-          <div>
+          <div class="min-w-0">
             <div class="text-xs font-medium text-muted-foreground">
               {{ t('settings.skills.agents.adoptDialog.afterAdoption') }}
             </div>
-            <div class="mt-1 space-y-1">
-              <div class="truncate font-mono text-xs" :title="preview.targetPath">
+            <div class="mt-1 min-w-0 space-y-1">
+              <div class="break-all font-mono text-xs leading-5" :title="preview.targetPath">
                 {{ preview.targetPath }}
               </div>
-              <div class="truncate font-mono text-xs" :title="preview.agentPath">
+              <div class="break-all font-mono text-xs leading-5" :title="preview.agentPath">
                 {{ preview.agentPath }} {{ t('settings.skills.agents.adoptDialog.linkArrow') }}
               </div>
             </div>
           </div>
 
-          <div>
+          <div class="min-w-0">
             <div class="text-xs font-medium text-muted-foreground">
               {{ t('settings.skills.agents.adoptDialog.backup') }}
             </div>
-            <div class="mt-1 truncate font-mono text-xs" :title="preview.backupRoot">
+            <div class="mt-1 break-all font-mono text-xs leading-5" :title="preview.backupRoot">
               {{ preview.backupRoot }}
             </div>
           </div>
