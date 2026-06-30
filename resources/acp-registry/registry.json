@@ -103,7 +103,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.52.0",
+      "version": "0.53.0",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -114,7 +114,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.52.0"
+          "package": "@agentclientprotocol/claude-agent-acp@0.53.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -122,7 +122,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "3.0.31",
+      "version": "3.0.34",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -133,7 +133,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@3.0.31",
+          "package": "cline@3.0.34",
           "args": [
             "--acp"
           ]
@@ -163,7 +163,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -174,7 +174,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@1.0.1"
+          "package": "@agentclientprotocol/codex-acp@1.0.2"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"
@@ -467,7 +467,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.2.11",
+      "version": "0.2.12",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -476,7 +476,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.2.11",
+          "package": "dimcode@0.2.12",
           "args": [
             "acp"
           ]
@@ -487,7 +487,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.4.10",
+      "version": "0.4.12",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -498,7 +498,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.4.10",
+          "package": "dirac-cli@0.4.12",
           "args": [
             "--acp"
           ]
@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.8.0",
+          "package": "fast-agent-acp==0.8.1",
           "args": [
             "-x"
           ]
@@ -666,7 +666,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "0.2.73",
+      "version": "0.2.75",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -675,7 +675,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@0.2.73",
+          "package": "@xai-official/grok@0.2.75",
           "args": [
             "agent",
             "stdio"
@@ -869,7 +869,7 @@
     {
       "id": "mistral-vibe",
       "name": "Mistral Vibe",
-      "version": "2.18.0",
+      "version": "2.18.2",
       "description": "Mistral's open-source coding assistant",
       "repository": "https://github.com/mistralai/mistral-vibe",
       "website": "https://mistral.ai/products/vibe",
@@ -881,23 +881,23 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.0/vibe-acp-darwin-aarch64-2.18.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.2/vibe-acp-darwin-aarch64-2.18.2.zip",
             "cmd": "./vibe-acp"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.0/vibe-acp-darwin-x86_64-2.18.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.2/vibe-acp-darwin-x86_64-2.18.2.zip",
             "cmd": "./vibe-acp"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.0/vibe-acp-linux-aarch64-2.18.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.2/vibe-acp-linux-aarch64-2.18.2.zip",
             "cmd": "./vibe-acp"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.0/vibe-acp-linux-x86_64-2.18.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.2/vibe-acp-linux-x86_64-2.18.2.zip",
             "cmd": "./vibe-acp"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.0/vibe-acp-windows-x86_64-2.18.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.18.2/vibe-acp-windows-x86_64-2.18.2.zip",
             "cmd": "./vibe-acp.exe"
           }
         }
