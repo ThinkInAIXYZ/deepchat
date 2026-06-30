@@ -244,6 +244,30 @@ describe('ToolManager', () => {
     ])
   })
 
+  it('gates source plugin MCP servers by plugin policy instead of server policy', async () => {
+    const pluginClient = createClient('plugin-source-server', undefined, {
+      source: 'plugin',
+      sourceId: 'plugin-b'
+    })
+    const configPresenter = createConfigPresenter('plugin-source-server')
+    const manager = new ToolManager(
+      configPresenter as never,
+      createServerManager([pluginClient]) as never
+    )
+
+    const blockedDefinitions = await manager.getAllToolDefinitions({
+      enabledServerIds: ['plugin-source-server'],
+      enabledPluginIds: []
+    })
+    const allowedDefinitions = await manager.getAllToolDefinitions({
+      enabledServerIds: [],
+      enabledPluginIds: ['plugin-b']
+    })
+
+    expect(blockedDefinitions).toEqual([])
+    expect(allowedDefinitions.map((tool) => tool.server.name)).toEqual(['plugin-source-server'])
+  })
+
   it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {
     const client = createClient('blocked-server')
     const configPresenter = createConfigPresenter('blocked-server')

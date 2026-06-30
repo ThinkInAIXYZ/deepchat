@@ -113,6 +113,18 @@ describe('AgentExtensionPolicyPanel', () => {
         enabled: true,
         type: 'stdio',
         ownerPluginId: 'plugin-alpha'
+      },
+      'plugin-source-owned': {
+        command: '',
+        args: [],
+        env: {},
+        descriptions: 'Plugin Source Owned',
+        icons: '',
+        autoApprove: [],
+        enabled: true,
+        type: 'stdio',
+        source: 'plugin',
+        sourceId: 'plugin-alpha'
       }
     })
 
@@ -163,6 +175,7 @@ describe('AgentExtensionPolicyPanel', () => {
     const { wrapper } = await mountPanel()
 
     expect(wrapper.text()).not.toContain('Plugin Owned')
+    expect(wrapper.text()).not.toContain('Plugin Source Owned')
 
     for (const selector of [
       '[data-testid="agent-extension-plugins-mode"]',
@@ -176,6 +189,7 @@ describe('AgentExtensionPolicyPanel', () => {
     expect(wrapper.text()).toContain('skill-alpha')
     expect(wrapper.text()).toContain('Server Alpha')
     expect(wrapper.text()).not.toContain('Plugin Owned')
+    expect(wrapper.text()).not.toContain('Plugin Source Owned')
 
     await wrapper.find('[data-testid="agent-extension-policy-save"]').trigger('click')
     await flushPromises()

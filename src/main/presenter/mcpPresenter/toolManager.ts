@@ -306,7 +306,9 @@ export class ToolManager {
     serverConfig: MCPServerConfig,
     context: McpToolAccessContext
   ): boolean {
-    const ownerPluginId = serverConfig.ownerPluginId?.trim()
+    const ownerPluginId =
+      serverConfig.ownerPluginId?.trim() ||
+      (serverConfig.source === 'plugin' ? serverConfig.sourceId?.trim() : undefined)
     if (ownerPluginId) {
       return !context.enabledPluginIds || context.enabledPluginIds.includes(ownerPluginId)
     }

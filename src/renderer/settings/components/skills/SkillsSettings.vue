@@ -241,6 +241,7 @@ const isAgentScope = computed(() => props.scope === 'agent')
 const targetAgent = ref<Agent | null>(null)
 const targetAgentConfig = ref<DeepChatAgentConfig>({})
 const agentPolicyLoading = ref(false)
+const agentPolicyRequestId = ref(0)
 
 const normalizeList = (value: string[] | null | undefined): string[] =>
   Array.from(new Set((value ?? []).map((item) => item.trim()).filter(Boolean))).sort(
@@ -392,24 +393,44 @@ watch(agentScopedSkills, () => {
 
 const loadAgentPolicy = async () => {
   if (!isAgentScope.value) {
+    agentPolicyRequestId.value += 1
     targetAgent.value = null
     targetAgentConfig.value = {}
+    agentPolicyLoading.value = false
     return
   }
 
+  const requestId = ++agentPolicyRequestId.value
+  const requestedAgentId = targetAgentId.value
   agentPolicyLoading.value = true
   try {
-    const [agents, effectiveConfig] = await Promise.all([
-      configClient.listAgents({
-        agentType: 'deepchat',
-        ids: [targetAgentId.value]
-      }),
-      configClient.resolveDeepChatAgentConfig(targetAgentId.value)
-    ])
+    const agents = await configClient.listAgents({
+      agentType: 'deepchat',
+      ids: [requestedAgentId]
+    })
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
     const agent = agents[0] ?? null
+    if (!agent) {
+      targetAgent.value = null
+      targetAgentConfig.value = {}
+      return
+    }
+
+    const effectiveConfig = await configClient.resolveDeepChatAgentConfig(requestedAgentId)
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
+      return
+    }
+
     targetAgent.value = agent
     targetAgentConfig.value = effectiveConfig ?? agent?.config ?? {}
   } catch (error) {
+    if (requestId !== agentPolicyRequestId.value) {
+      return
+    }
+
     targetAgent.value = null
     targetAgentConfig.value = {}
     toast({
@@ -418,7 +439,9 @@ const loadAgentPolicy = async () => {
       variant: 'destructive'
     })
   } finally {
-    agentPolicyLoading.value = false
+    if (requestId === agentPolicyRequestId.value) {
+      agentPolicyLoading.value = false
+    }
   }
 }
 

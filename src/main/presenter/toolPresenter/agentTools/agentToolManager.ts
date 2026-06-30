@@ -2102,10 +2102,14 @@ export class AgentToolManager {
     )
   }
 
-  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] {
+  private normalizeActiveSkillOption(activeSkillNames?: string[]): string[] | undefined {
+    if (!Array.isArray(activeSkillNames)) {
+      return undefined
+    }
+
     return Array.from(
       new Set(
-        (activeSkillNames ?? [])
+        activeSkillNames
           .map((skillName) => skillName.trim())
           .filter((skillName) => skillName.length > 0)
       )
@@ -2152,12 +2156,13 @@ export class AgentToolManager {
         effectiveActiveSkills
       )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
+      const activeSkillNamesForResult = effectiveActiveSkills ?? []
       const activationApplied =
         Boolean(conversationId) &&
         result.success === true &&
         !isLinkedFileView &&
         Boolean(normalizedViewedSkill) &&
-        !effectiveActiveSkills.includes(normalizedViewedSkill)
+        !activeSkillNamesForResult.includes(normalizedViewedSkill)
       const activationSource =
         !conversationId || result.success !== true
           ? 'none'
@@ -2173,7 +2178,7 @@ export class AgentToolManager {
           result.isPinned === true ||
           (!isLinkedFileView &&
             Boolean(normalizedViewedSkill) &&
-            (activationApplied || effectiveActiveSkills.includes(normalizedViewedSkill))),
+            (activationApplied || activeSkillNamesForResult.includes(normalizedViewedSkill))),
         activatedForMessage: activationApplied,
         activationScope: activationApplied ? 'message' : 'none'
       })

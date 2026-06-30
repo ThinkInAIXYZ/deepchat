@@ -66,7 +66,7 @@ export class SkillTools {
       }
     }
 
-    return await this.skillPresenter.viewSkill(input.name, {
+    return await this.skillPresenter.viewSkill(requestedSkillName, {
       filePath: input.file_path,
       conversationId
     })

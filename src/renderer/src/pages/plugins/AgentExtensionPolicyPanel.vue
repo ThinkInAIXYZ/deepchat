@@ -197,6 +197,8 @@ const modeFromConfig = (value: string[] | null | undefined): PolicyMode =>
   value === null || value === undefined ? 'inherit' : 'custom'
 const valueForSave = (mode: PolicyMode, values: string[]): string[] | null =>
   mode === 'inherit' ? null : normalizeList(values)
+const isPluginOwnedMcpServer = (config: MCPServerConfig): boolean =>
+  Boolean(config.ownerPluginId?.trim() || (config.source === 'plugin' && config.sourceId?.trim()))
 
 const targetAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
@@ -229,7 +231,9 @@ const mcpOptions = computed<PolicyOption[]>(() =>
   mcpServers.value
     .filter(
       (server) =>
-        server.config.enabled !== false && !server.config.disable && !server.config.ownerPluginId
+        server.config.enabled !== false &&
+        !server.config.disable &&
+        !isPluginOwnedMcpServer(server.config)
     )
     .map((server) => ({ id: server.id, label: server.config.descriptions || server.id }))
     .sort((left, right) => left.label.localeCompare(right.label))

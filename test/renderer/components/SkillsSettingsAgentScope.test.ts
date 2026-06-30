@@ -91,6 +91,43 @@ const SkillCardStub = defineComponent({
     '<button :data-testid="`skill-${skill.name}`" @click="$emit(\'toggle-disabled\', !skill.deepchatDisabled)">{{ skill.name }}:{{ skill.deepchatDisabled }}</button>'
 })
 
+const mountAgentScopeSkillsSettings = async () => {
+  const SkillsSettings = (
+    await import('../../../src/renderer/settings/components/skills/SkillsSettings.vue')
+  ).default
+  return mount(SkillsSettings, {
+    props: {
+      scope: 'agent'
+    },
+    global: {
+      stubs: {
+        SettingsPageShell: passthrough('SettingsPageShell'),
+        GuidedOnboardingOverlay: true,
+        Separator: true,
+        Button: defineComponent({ name: 'Button', template: '<button><slot /></button>' }),
+        Input: true,
+        Switch: true,
+        Tabs: passthrough('Tabs'),
+        TabsList: passthrough('TabsList'),
+        TabsTrigger: passthrough('TabsTrigger'),
+        TabsContent: tabsContentStub,
+        DropdownMenu: passthrough('DropdownMenu'),
+        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        DropdownMenuContent: passthrough('DropdownMenuContent'),
+        DropdownMenuItem: passthrough('DropdownMenuItem'),
+        SkillCard: SkillCardStub,
+        SkillAgentsTab: true,
+        SkillImportExportTab: true,
+        SkillInstallDialog: true,
+        InstallFromGitDialog: true,
+        InstallSkillToAgentDialog: true,
+        SkillDetailDialog: true,
+        Icon: true
+      }
+    }
+  })
+}
+
 describe('SkillsSettings agent scope', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -150,40 +187,7 @@ describe('SkillsSettings agent scope', () => {
     const { useAgentStore } = await import('@/stores/ui/agent')
     useAgentStore().setSelectedAgent('agent-a')
 
-    const SkillsSettings = (
-      await import('../../../src/renderer/settings/components/skills/SkillsSettings.vue')
-    ).default
-    const wrapper = mount(SkillsSettings, {
-      props: {
-        scope: 'agent'
-      },
-      global: {
-        stubs: {
-          SettingsPageShell: passthrough('SettingsPageShell'),
-          GuidedOnboardingOverlay: true,
-          Separator: true,
-          Button: defineComponent({ name: 'Button', template: '<button><slot /></button>' }),
-          Input: true,
-          Switch: true,
-          Tabs: passthrough('Tabs'),
-          TabsList: passthrough('TabsList'),
-          TabsTrigger: passthrough('TabsTrigger'),
-          TabsContent: tabsContentStub,
-          DropdownMenu: passthrough('DropdownMenu'),
-          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
-          DropdownMenuContent: passthrough('DropdownMenuContent'),
-          DropdownMenuItem: passthrough('DropdownMenuItem'),
-          SkillCard: SkillCardStub,
-          SkillAgentsTab: true,
-          SkillImportExportTab: true,
-          SkillInstallDialog: true,
-          InstallFromGitDialog: true,
-          InstallSkillToAgentDialog: true,
-          SkillDetailDialog: true,
-          Icon: true
-        }
-      }
-    })
+    const wrapper = await mountAgentScopeSkillsSettings()
 
     await flushPromises()
 
@@ -200,5 +204,61 @@ describe('SkillsSettings agent scope', () => {
         enabledSkillNames: ['skill-alpha', 'skill-beta']
       }
     })
+  })
+
+  it('ignores stale agent policy responses after the selected agent changes', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+
+    let resolveAgentA: ((agents: unknown[]) => void) | undefined
+    mocks.configClient.listAgents.mockImplementation(({ ids }: { ids: string[] }) => {
+      if (ids[0] === 'agent-a') {
+        return new Promise((resolve) => {
+          resolveAgentA = resolve
+        })
+      }
+      return Promise.resolve([
+        {
+          id: 'agent-b',
+          type: 'deepchat',
+          name: 'Agent B',
+          enabled: true,
+          config: {
+            enabledSkillNames: ['skill-beta']
+          }
+        }
+      ])
+    })
+    mocks.configClient.resolveDeepChatAgentConfig.mockImplementation((agentId: string) =>
+      Promise.resolve({
+        enabledSkillNames: agentId === 'agent-b' ? ['skill-beta'] : ['skill-alpha']
+      })
+    )
+
+    const wrapper = await mountAgentScopeSkillsSettings()
+
+    await Promise.resolve()
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').text()).toContain('skill-alpha:true')
+    expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:false')
+
+    resolveAgentA?.([
+      {
+        id: 'agent-a',
+        type: 'deepchat',
+        name: 'Agent A',
+        enabled: true,
+        config: {
+          enabledSkillNames: ['skill-alpha']
+        }
+      }
+    ])
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').text()).toContain('skill-alpha:true')
+    expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:false')
   })
 })
