@@ -272,7 +272,7 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/302ai.svg" width="50" height="50" alt="302.AI Icon"><br/>
-      <a href="https://302.ai">302.AI</a>
+      <a href="https://302ai.cn/">302.AI</a>
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/together-color.svg" width="50" height="50" alt="Together Icon"><br/>
