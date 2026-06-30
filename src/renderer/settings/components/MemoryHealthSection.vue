@@ -17,11 +17,7 @@
     </div>
 
     <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      <div
-        v-for="metric in headlineMetrics"
-        :key="metric.label"
-        class="rounded-lg border px-3 py-2"
-      >
+      <div v-for="metric in headlineMetrics" :key="metric.key" class="rounded-lg border px-3 py-2">
         <div class="text-[10px] uppercase text-muted-foreground">{{ metric.label }}</div>
         <div class="mt-1 text-lg font-semibold tabular-nums">{{ metric.value }}</div>
       </div>
@@ -35,7 +31,7 @@
         <div class="space-y-2">
           <DistributionRow
             v-for="row in kindRows"
-            :key="row.label"
+            :key="row.key"
             :label="row.label"
             :count="row.count"
             :total="health.totalRows"
@@ -50,7 +46,7 @@
         <div class="space-y-2">
           <DistributionRow
             v-for="row in categoryRows"
-            :key="row.label"
+            :key="row.key"
             :label="row.label"
             :count="row.count"
             :total="health.totalRows"
@@ -65,7 +61,7 @@
         <div class="space-y-2">
           <DistributionRow
             v-for="row in statusRows"
-            :key="row.label"
+            :key="row.key"
             :label="row.label"
             :count="row.count"
             :total="health.totalRows"
@@ -82,7 +78,7 @@
         <div class="grid grid-cols-2 gap-2 text-xs">
           <MetricCell
             v-for="metric in pipelineMetrics"
-            :key="metric.label"
+            :key="metric.key"
             :label="metric.label"
             :value="metric.value"
           />
@@ -96,7 +92,7 @@
         <div class="grid grid-cols-3 gap-2 text-xs">
           <MetricCell
             v-for="metric in qualityMetrics"
-            :key="metric.label"
+            :key="metric.key"
             :label="metric.label"
             :value="metric.value"
           />
@@ -159,7 +155,7 @@
         <div class="mb-3 grid grid-cols-3 gap-2 text-xs">
           <MetricCell
             v-for="metric in maintenanceMetrics"
-            :key="metric.label"
+            :key="metric.key"
             :label="metric.label"
             :value="metric.value"
           />
@@ -285,18 +281,22 @@ const headlineMetrics = computed(() => {
   if (!health) return []
   return [
     {
+      key: 'totalRows',
       label: t('settings.deepchatAgents.memoryManager.health.totalRows'),
       value: formatCount(health.totalRows)
     },
     {
+      key: 'neverAccessed',
       label: t('settings.deepchatAgents.memoryManager.health.neverAccessed'),
       value: formatCount(health.access.neverAccessed)
     },
     {
+      key: 'archiveCandidates',
       label: t('settings.deepchatAgents.memoryManager.health.archiveCandidates'),
       value: formatCount(health.lifecycle.archiveCandidates)
     },
     {
+      key: 'staleEmbeddings',
       label: t('settings.deepchatAgents.memoryManager.health.staleEmbeddings'),
       value: formatCount(health.embeddings.stale)
     }
@@ -307,6 +307,7 @@ const kindRows = computed(() => {
   const health = props.health
   if (!health) return []
   return AGENT_MEMORY_HEALTH_KIND_KEYS.map((kind) => ({
+    key: kind,
     label: kindLabel(kind),
     count: health.byKind[kind]
   }))
@@ -317,10 +318,11 @@ const categoryRows = computed(() => {
   if (!health) return []
   return [
     ...AGENT_MEMORY_CATEGORIES.map((category) => ({
+      key: category,
       label: categoryLabel(category),
       count: health.byCategory[category]
     })),
-    { label: categoryLabel(null), count: health.byCategory.uncategorized }
+    { key: 'uncategorized', label: categoryLabel(null), count: health.byCategory.uncategorized }
   ]
 })
 
@@ -328,6 +330,7 @@ const statusRows = computed(() => {
   const health = props.health
   if (!health) return []
   return AGENT_MEMORY_HEALTH_STATUS_KEYS.map((status) => ({
+    key: status,
     label: t(`settings.deepchatAgents.memoryManager.status.${status}`),
     count: health.byStatus[status]
   }))
@@ -338,26 +341,32 @@ const pipelineMetrics = computed(() => {
   if (!health) return []
   return [
     {
+      key: 'pending',
       label: t('settings.deepchatAgents.memoryManager.health.pending'),
       value: formatCount(health.embeddings.pending)
     },
     {
+      key: 'error',
       label: t('settings.deepchatAgents.memoryManager.health.error'),
       value: formatCount(health.embeddings.error)
     },
     {
+      key: 'ftsOnly',
       label: t('settings.deepchatAgents.memoryManager.health.ftsOnly'),
       value: formatCount(health.embeddings.ftsOnly)
     },
     {
+      key: 'archived',
       label: t('settings.deepchatAgents.memoryManager.health.archived'),
       value: formatCount(health.lifecycle.archived)
     },
     {
+      key: 'conflicted',
       label: t('settings.deepchatAgents.memoryManager.health.conflicted'),
       value: formatCount(health.conflicts.conflicted)
     },
     {
+      key: 'challenged',
       label: t('settings.deepchatAgents.memoryManager.health.challenged'),
       value: formatCount(health.conflicts.challenged)
     }
@@ -369,14 +378,17 @@ const qualityMetrics = computed(() => {
   if (!health) return []
   return [
     {
+      key: 'importanceAvg',
       label: t('settings.deepchatAgents.memoryManager.health.importanceAvg'),
       value: formatDecimal(health.quality.importanceAvg)
     },
     {
+      key: 'importanceMedian',
       label: t('settings.deepchatAgents.memoryManager.health.importanceMedian'),
       value: formatDecimal(health.quality.importanceMedian)
     },
     {
+      key: 'confidenceAvg',
       label: t('settings.deepchatAgents.memoryManager.health.confidenceAvg'),
       value: formatDecimal(health.quality.confidenceAvg)
     }
@@ -388,14 +400,17 @@ const maintenanceMetrics = computed(() => {
   if (!health) return []
   return [
     {
+      key: 'completed',
       label: t('settings.deepchatAgents.memoryManager.health.completed'),
       value: formatCount(health.maintenance.completed)
     },
     {
+      key: 'skipped',
       label: t('settings.deepchatAgents.memoryManager.health.skipped'),
       value: formatCount(health.maintenance.skipped)
     },
     {
+      key: 'failed',
       label: t('settings.deepchatAgents.memoryManager.health.failed'),
       value: formatCount(health.maintenance.failed)
     }

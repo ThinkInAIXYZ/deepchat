@@ -66,7 +66,7 @@ const loadedHealth: MemoryHealthDto = {
         eventType: 'memory/maintenance_llm',
         status: 'failed',
         reason: 'model unavailable',
-        createdAt: 3000
+        createdAt: Date.UTC(2026, 0, 15, 12, 0)
       }
     ]
   }
