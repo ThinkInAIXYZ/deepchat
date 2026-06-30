@@ -1040,12 +1040,11 @@ async function handleAdd(): Promise<void> {
   adding.value = true
   try {
     const category = addCategory.value === ADD_CATEGORY_NONE ? undefined : addCategory.value
-    const result = await memoryClient.add(props.agentId, {
-      content,
-      kind: category ? undefined : addKind.value,
-      category,
-      importance: IMPORTANCE_VALUES[addImportance.value]
-    })
+    const importance = IMPORTANCE_VALUES[addImportance.value]
+    const input = category
+      ? { content, category, importance }
+      : { content, kind: addKind.value, importance }
+    const result = await memoryClient.add(props.agentId, input)
     notifyAddOutcome(result)
     resetAddForm()
     await refresh()

@@ -386,9 +386,9 @@ describe('MemoryManagerDialog manual add category passthrough (#15)', () => {
     expect(memoryClient.add).toHaveBeenCalledWith('a', {
       content: 'plain note',
       kind: 'semantic',
-      category: undefined,
       importance: 0.5
     })
+    expect(memoryClient.add.mock.calls[0][1]).not.toHaveProperty('category')
   })
 
   it('passes the selected category when adding a memory', async () => {
@@ -402,10 +402,10 @@ describe('MemoryManagerDialog manual add category passthrough (#15)', () => {
 
     expect(memoryClient.add).toHaveBeenCalledWith('a', {
       content: 'repo uses pnpm',
-      kind: undefined,
       category: 'project_fact',
       importance: 0.5
     })
+    expect(memoryClient.add.mock.calls[0][1]).not.toHaveProperty('kind')
   })
 
   it('lets the main process derive episodic kind for task outcome memories', async () => {
@@ -418,10 +418,10 @@ describe('MemoryManagerDialog manual add category passthrough (#15)', () => {
 
     expect(memoryClient.add).toHaveBeenCalledWith('a', {
       content: 'task finished',
-      kind: undefined,
       category: 'task_outcome',
       importance: 0.5
     })
+    expect(memoryClient.add.mock.calls[0][1]).not.toHaveProperty('kind')
   })
 
   it('omits category by default after the add form is reset', async () => {
@@ -442,7 +442,7 @@ describe('MemoryManagerDialog manual add category passthrough (#15)', () => {
         importance: 0.5
       })
     )
-    expect(memoryClient.add.mock.calls[0][1].category).toBeUndefined()
+    expect(memoryClient.add.mock.calls[0][1]).not.toHaveProperty('category')
   })
 })
 

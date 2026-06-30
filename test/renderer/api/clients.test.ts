@@ -1309,19 +1309,18 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'memory.add', {
       agentId: 'agent-1',
       content: 'repo uses pnpm',
-      kind: undefined,
       category: 'project_fact',
       importance: undefined
     })
+    expect(bridge.invoke.mock.calls[11][1]).not.toHaveProperty('kind')
     expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'memory.list', { agentId: 'agent-1' })
     expect(categorizedMemories[0].category).toBe('project_fact')
     expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'memory.add', {
       agentId: 'agent-1',
       content: 'plain note',
-      kind: undefined,
-      category: undefined,
       importance: undefined
     })
+    expect(bridge.invoke.mock.calls[13][1]).not.toHaveProperty('category')
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })
