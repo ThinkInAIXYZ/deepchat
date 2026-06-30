@@ -134,6 +134,23 @@ describe('SkillTools', () => {
         })
       )
     })
+
+    it('filters listed and pinned skills by the agent allowlist', async () => {
+      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue(['code-review', 'git-commit'])
+
+      const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
+
+      expect(result.totalCount).toBe(1)
+      expect(result.pinnedCount).toBe(1)
+      expect(result.activeCount).toBe(1)
+      expect(result.skills).toEqual([
+        expect.objectContaining({
+          name: 'git-commit',
+          isPinned: true,
+          active: true
+        })
+      ])
+    })
   })
 
   describe('handleSkillView', () => {
@@ -153,6 +170,23 @@ describe('SkillTools', () => {
           name: 'code-review'
         })
       )
+    })
+
+    it('rejects viewing skills outside the agent allowlist', async () => {
+      const result = await skillTools.handleSkillView(
+        'conv-123',
+        {
+          name: 'code-review'
+        },
+        ['git-commit']
+      )
+
+      expect(mockSkillPresenter.viewSkill).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        success: false,
+        name: 'code-review',
+        error: "Skill 'code-review' is not enabled for this agent"
+      })
     })
   })
 

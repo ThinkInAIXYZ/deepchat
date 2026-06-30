@@ -1772,7 +1772,17 @@ export interface IMCPPresenter {
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
   getServerLastError?(serverName: string): string | undefined
-  getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]>
+  getAllToolDefinitions(
+    enabledMcpTools?:
+      | string[]
+      | {
+          enabledTools?: string[]
+          enabledServerIds?: string[]
+          enabledPluginIds?: string[]
+          agentId?: string
+          conversationId?: string
+        }
+  ): Promise<MCPToolDefinition[]>
   getAllPrompts(): Promise<Array<PromptListEntry & { client: { name: string; icon: string } }>>
   getAllResources(): Promise<Array<ResourceListEntry & { client: { name: string; icon: string } }>>
   getPrompt(prompt: PromptListEntry, args?: Record<string, unknown>): Promise<unknown>
@@ -1787,9 +1797,19 @@ export interface IMCPPresenter {
         progressJson: string
       }) => void
       signal?: AbortSignal
+      agentId?: string
+      enabledServerIds?: string[]
+      enabledPluginIds?: string[]
     }
   ): Promise<{ content: string; rawData: MCPToolResponse }>
-  preCheckToolPermission?(request: MCPToolCall): Promise<{
+  preCheckToolPermission?(
+    request: MCPToolCall,
+    options?: {
+      agentId?: string
+      enabledServerIds?: string[]
+      enabledPluginIds?: string[]
+    }
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string

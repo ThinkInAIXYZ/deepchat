@@ -2643,7 +2643,25 @@
     "pluginNotFound": "Plugin not found.",
     "capabilities": "Capabilities",
     "actionResult": "Action result",
-    "cuaDescription": "DeepChat's ComputerUse plugin built on the trycua/cua project."
+    "cuaDescription": "DeepChat's ComputerUse plugin built on the trycua/cua project.",
+    "agentScopeTitle": "Current agent scope",
+    "agentScopeDescription": "Choose which globally installed plugins, skills, and MCP servers the current DeepChat agent can use. Plugin-owned MCP servers follow plugin selection.",
+    "agentScopeNoAgent": "No DeepChat agent is selected.",
+    "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents.",
+    "agentScopeRefresh": "Refresh",
+    "agentScopePlugins": "Plugins",
+    "agentScopeSkills": "Skills",
+    "agentScopeMcp": "MCP servers",
+    "agentScopeInherited": "Inherited",
+    "agentScopeCustom": "Custom",
+    "agentScopeInheritedSummary": "Use the default availability ({count} available).",
+    "agentScopeDenyAllSummary": "None selected; this category is disabled for this agent.",
+    "agentScopeSelectedSummary": "{count} selected",
+    "agentScopeSelectAll": "Select all",
+    "agentScopeClearAll": "Clear",
+    "agentScopeNoPlugins": "No enabled plugins available.",
+    "agentScopeNoSkills": "No skills available.",
+    "agentScopeNoMcp": "No global MCP servers available."
   },
   "controlCenter": {
     "groups": {

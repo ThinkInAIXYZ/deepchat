@@ -56,6 +56,9 @@ interface PreCheckedPermissionResult {
 export interface IToolPresenter {
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    enabledPluginIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
@@ -74,6 +77,9 @@ export interface IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      agentId?: string
+      enabledMcpServerIds?: string[]
+      enabledPluginIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -125,6 +131,15 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
   )
 }
 
+const normalizeOptionalToolNames = (toolNames?: string[]): string[] | undefined =>
+  Array.isArray(toolNames) ? normalizeToolNames(toolNames) : undefined
+
+type StoredMcpAccessContext = {
+  agentId?: string
+  enabledMcpServerIds?: string[]
+  enabledPluginIds?: string[]
+}
+
 /**
  * ToolPresenter - Unified tool routing presenter
  * Manages all tool sources (MCP, Agent) and provides unified interface
@@ -132,6 +147,7 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
 export class ToolPresenter implements IToolPresenter {
   private readonly mapper: ToolMapper
   private readonly conversationMappers: Map<string, ToolMapper>
+  private readonly conversationMcpAccessContexts = new Map<string, StoredMcpAccessContext>()
   private readonly options: ToolPresenterOptions
   private agentToolManager: AgentToolManager | null = null
 
@@ -160,6 +176,9 @@ export class ToolPresenter implements IToolPresenter {
    */
   async getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    enabledPluginIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
@@ -177,12 +196,23 @@ export class ToolPresenter implements IToolPresenter {
     const chatMode = context.chatMode || 'agent'
     const supportsVision = context.supportsVision || false
     const agentWorkspacePath = context.agentWorkspacePath || null
+    this.rememberConversationMcpAccessContext(context.conversationId, {
+      agentId: context.agentId,
+      enabledMcpServerIds: context.enabledMcpServerIds,
+      enabledPluginIds: context.enabledPluginIds
+    })
 
     // 1. Get MCP tools
     const mcpDefs = withToolSource(
-      (await this.options.mcpPresenter.getAllToolDefinitions(context.enabledMcpTools)).filter(
-        (tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)
-      ),
+      (
+        await this.options.mcpPresenter.getAllToolDefinitions({
+          enabledTools: context.enabledMcpTools,
+          enabledServerIds: context.enabledMcpServerIds,
+          enabledPluginIds: context.enabledPluginIds,
+          agentId: context.agentId,
+          conversationId: context.conversationId
+        })
+      ).filter((tool) => !RESERVED_AGENT_TOOL_NAMES.has(tool.function.name)),
       'mcp'
     )
     defs.push(...mcpDefs)
@@ -243,6 +273,7 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     this.conversationMappers.delete(normalizedConversationId)
+    this.conversationMcpAccessContexts.delete(normalizedConversationId)
     this.clearAgentPlanState(normalizedConversationId)
   }
 
@@ -265,6 +296,9 @@ export class ToolPresenter implements IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      agentId?: string
+      enabledMcpServerIds?: string[]
+      enabledPluginIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -339,7 +373,12 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     // Route to MCP (default)
-    return await this.options.mcpPresenter.callTool(request)
+    const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+    return await this.options.mcpPresenter.callTool(request, {
+      agentId: options?.agentId ?? storedAccess?.agentId,
+      enabledServerIds: options?.enabledMcpServerIds ?? storedAccess?.enabledMcpServerIds,
+      enabledPluginIds: options?.enabledPluginIds ?? storedAccess?.enabledPluginIds
+    })
   }
 
   /**
@@ -402,7 +441,12 @@ export class ToolPresenter implements IToolPresenter {
 
     // Route to MCP for permission pre-check
     if (this.options.mcpPresenter.preCheckToolPermission) {
-      return await this.options.mcpPresenter.preCheckToolPermission(request)
+      const storedAccess = this.getConversationMcpAccessContext(request.conversationId)
+      return await this.options.mcpPresenter.preCheckToolPermission(request, {
+        agentId: storedAccess?.agentId,
+        enabledServerIds: storedAccess?.enabledMcpServerIds,
+        enabledPluginIds: storedAccess?.enabledPluginIds
+      })
     }
 
     // If MCP presenter doesn't support preCheckToolPermission, skip it
@@ -414,6 +458,31 @@ export class ToolPresenter implements IToolPresenter {
       return { content: response }
     }
     return response
+  }
+
+  private rememberConversationMcpAccessContext(
+    conversationId: string | undefined,
+    context: StoredMcpAccessContext
+  ): void {
+    const normalizedConversationId = conversationId?.trim()
+    if (!normalizedConversationId) {
+      return
+    }
+
+    this.conversationMcpAccessContexts.set(normalizedConversationId, {
+      agentId: context.agentId?.trim() || undefined,
+      enabledMcpServerIds: normalizeOptionalToolNames(context.enabledMcpServerIds),
+      enabledPluginIds: normalizeOptionalToolNames(context.enabledPluginIds)
+    })
+  }
+
+  private getConversationMcpAccessContext(
+    conversationId?: string
+  ): StoredMcpAccessContext | undefined {
+    const normalizedConversationId = conversationId?.trim()
+    return normalizedConversationId
+      ? this.conversationMcpAccessContexts.get(normalizedConversationId)
+      : undefined
   }
 
   private resolveMapper(conversationId?: string): ToolMapper {

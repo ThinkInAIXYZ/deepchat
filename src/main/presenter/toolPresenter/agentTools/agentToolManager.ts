@@ -2128,9 +2128,10 @@ export class AgentToolManager {
     }
 
     const skillTools = this.getSkillTools()
+    const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
 
     if (toolName === 'skill_list') {
-      const result = await skillTools.handleSkillList(conversationId)
+      const result = await skillTools.handleSkillList(conversationId, effectiveActiveSkills)
       return { content: JSON.stringify(result) }
     }
 
@@ -2145,8 +2146,11 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
-      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
+      const result = await skillTools.handleSkillView(
+        conversationId,
+        validationResult.data,
+        effectiveActiveSkills
+      )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activationApplied =
         Boolean(conversationId) &&

@@ -21,6 +21,8 @@
         {{ errorMessage }}
       </div>
 
+      <AgentExtensionPolicyPanel :kinds="['plugins']" />
+
       <section class="space-y-4">
         <div class="border-b border-border/70 pb-2">
           <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.available') }}</h2>
@@ -90,6 +92,7 @@ import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
 import type { RemoteChannel, RemoteChannelDescriptor, RemoteChannelStatus } from '@shared/presenter'
+import AgentExtensionPolicyPanel from './AgentExtensionPolicyPanel.vue'
 
 type CatalogItem = {
   id: string

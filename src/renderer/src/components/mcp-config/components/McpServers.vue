@@ -38,11 +38,19 @@ const router = useRouter()
 const props = withDefaults(
   defineProps<{
     showFooterAddButton?: boolean
+    serverEnabledOverrides?: Record<string, boolean>
+    agentScopedToggle?: boolean
   }>(),
   {
-    showFooterAddButton: true
+    showFooterAddButton: true,
+    serverEnabledOverrides: () => ({}),
+    agentScopedToggle: false
   }
 )
+
+const emit = defineEmits<{
+  'toggle-agent-server': [serverName: string, enabled: boolean]
+}>()
 
 const isAddServerDialogOpen = ref(false)
 const isEditServerDialogOpen = ref(false)
@@ -116,6 +124,9 @@ const getServerResourcesCount = (serverName: string) => {
   return mcpStore.visibleResources.filter((resource) => resource.client.name === serverName).length
 }
 
+const getServerEnabled = (serverName: string, fallback: boolean) =>
+  props.serverEnabledOverrides[serverName] ?? fallback
+
 const handleAddServer = async (serverName: string, serverConfig: MCPServerConfig) => {
   const result = await mcpStore.addServer(serverName, serverConfig)
   if (result.success) {
@@ -156,6 +167,16 @@ const confirmRemoveServer = async () => {
 }
 
 const handleToggleServer = async (serverName: string) => {
+  if (mcpStore.serverLoadingStates[serverName]) {
+    return
+  }
+
+  if (props.agentScopedToggle) {
+    const server = mcpStore.serverList.find((item) => item.name === serverName)
+    emit('toggle-agent-server', serverName, !getServerEnabled(serverName, Boolean(server?.enabled)))
+    return
+  }
+
   const config = mcpStore.config.mcpServers[serverName]
   if (isDeepChatManagedServer(config)) {
     toast({
@@ -165,9 +186,6 @@ const handleToggleServer = async (serverName: string) => {
     return
   }
 
-  if (mcpStore.serverLoadingStates[serverName]) {
-    return
-  }
   const success = await mcpStore.toggleServer(serverName)
   if (!success) {
     toast({
@@ -292,7 +310,10 @@ defineExpose({
           <McpServerCard
             v-for="server in filteredServers"
             :key="server.name"
-            :server="server"
+            :server="{
+              ...server,
+              enabled: getServerEnabled(server.name, Boolean(server.enabled))
+            }"
             :is-built-in="isBuiltInServer(server.name)"
             :is-managed="mcpStore.config.mcpServers[server.name]?.source === 'deepchat'"
             :is-loading="mcpStore.serverLoadingStates[server.name]"
