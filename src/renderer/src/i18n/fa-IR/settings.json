@@ -2581,6 +2581,8 @@
       "noSearchResults": "هیچ حافظه‌ای با جست‌وجوی شما مطابقت ندارد.",
       "addMemory": "افزودن حافظه",
       "addContentPlaceholder": "آنچه می‌خواهید این دستیار به خاطر بسپارد…",
+      "addCategoryLabel": "دسته‌بندی حافظه",
+      "addCategoryNone": "بدون دسته‌بندی",
       "kindSemantic": "واقعیت",
       "kindEpisodic": "رویداد",
       "importanceLow": "اهمیت: کم",

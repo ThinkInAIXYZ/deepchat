@@ -212,6 +212,8 @@
       "noSearchResults": "Ninguna memoria coincide con tu búsqueda.",
       "addMemory": "Añadir memoria",
       "addContentPlaceholder": "Lo que quieres que este asistente recuerde…",
+      "addCategoryLabel": "Categoría de memoria",
+      "addCategoryNone": "Sin categoría",
       "kindSemantic": "Hecho",
       "kindEpisodic": "Evento",
       "importanceLow": "Importancia: baja",

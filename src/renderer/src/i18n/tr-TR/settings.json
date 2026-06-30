@@ -212,6 +212,8 @@
       "noSearchResults": "Aramanızla eşleşen anı yok.",
       "addMemory": "Anı ekle",
       "addContentPlaceholder": "Bu asistanın hatırlamasını istediğiniz şey…",
+      "addCategoryLabel": "Bellek kategorisi",
+      "addCategoryNone": "Kategori yok",
       "kindSemantic": "Gerçek",
       "kindEpisodic": "Olay",
       "importanceLow": "Önem: Düşük",

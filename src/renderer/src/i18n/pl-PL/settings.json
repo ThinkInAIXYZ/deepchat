@@ -212,6 +212,8 @@
       "noSearchResults": "Brak wspomnień pasujących do wyszukiwania.",
       "addMemory": "Dodaj wspomnienie",
       "addContentPlaceholder": "Co ten asystent ma zapamiętać…",
+      "addCategoryLabel": "Kategoria pamięci",
+      "addCategoryNone": "Bez kategorii",
       "kindSemantic": "Fakt",
       "kindEpisodic": "Zdarzenie",
       "importanceLow": "Ważność: niska",

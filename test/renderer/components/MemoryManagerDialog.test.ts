@@ -213,11 +213,57 @@ const failedToast = {
   title: 'settings.deepchatAgents.memoryManager.actionFailed'
 }
 
+function findSelectByText(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], text: string) {
+  const select = wrapper
+    .findAllComponents({ name: 'Select' })
+    .find((item) => item.text().includes(text))
+  if (!select) throw new Error(`Missing select containing text: ${text}`)
+  return select
+}
+
 async function setCategoryFilter(
   wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
   value: string
 ): Promise<void> {
-  wrapper.findComponent({ name: 'Select' }).vm.$emit('update:modelValue', value)
+  findSelectByText(wrapper, 'settings.deepchatAgents.memoryManager.categoryFilterAll').vm.$emit(
+    'update:modelValue',
+    value
+  )
+  await nextTick()
+}
+
+async function openAddForm(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']): Promise<void> {
+  const addButton = wrapper
+    .findAllComponents(ButtonStub)
+    .find((button) => button.text().includes('settings.deepchatAgents.memoryManager.addMemory'))
+  await addButton!.trigger('click')
+  await nextTick()
+}
+
+async function setAddCategory(
+  wrapper: Awaited<ReturnType<typeof setup>>['wrapper'],
+  value: string
+): Promise<void> {
+  findSelectByText(wrapper, 'settings.deepchatAgents.memoryManager.addCategoryNone').vm.$emit(
+    'update:modelValue',
+    value
+  )
+  await nextTick()
+}
+
+async function submitAddForm(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']): Promise<void> {
+  const addButtons = wrapper
+    .findAllComponents(ButtonStub)
+    .filter((button) => button.text().includes('settings.deepchatAgents.memoryManager.addMemory'))
+  await addButtons[addButtons.length - 1].trigger('click')
+  await flushPromises()
+}
+
+async function cancelAddForm(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']): Promise<void> {
+  const cancelButton = wrapper
+    .findAllComponents(ButtonStub)
+    .find((button) => button.text().includes('common.cancel'))
+  await cancelButton!.trigger('click')
   await nextTick()
 }
 
@@ -326,6 +372,77 @@ describe('MemoryManagerDialog category UI (PR-3)', () => {
     expect(memoryClient.search).toHaveBeenCalledWith('a', 'missing')
     expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.noSearchResults')
     expect(wrapper.text()).not.toContain('settings.deepchatAgents.memoryManager.noCategoryResults')
+  })
+})
+
+describe('MemoryManagerDialog manual add category passthrough (#15)', () => {
+  it('keeps kind and omits category when adding with the default category', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    await openAddForm(wrapper)
+    await wrapper.find('textarea').setValue('plain note')
+    await submitAddForm(wrapper)
+
+    expect(memoryClient.add).toHaveBeenCalledWith('a', {
+      content: 'plain note',
+      kind: 'semantic',
+      category: undefined,
+      importance: 0.5
+    })
+  })
+
+  it('passes the selected category when adding a memory', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    await openAddForm(wrapper)
+    await wrapper.find('textarea').setValue('repo uses pnpm')
+    await setAddCategory(wrapper, 'project_fact')
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.memoryManager.kindSemantic')
+    await submitAddForm(wrapper)
+
+    expect(memoryClient.add).toHaveBeenCalledWith('a', {
+      content: 'repo uses pnpm',
+      kind: undefined,
+      category: 'project_fact',
+      importance: 0.5
+    })
+  })
+
+  it('lets the main process derive episodic kind for task outcome memories', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    await openAddForm(wrapper)
+    await wrapper.find('textarea').setValue('task finished')
+    await setAddCategory(wrapper, 'task_outcome')
+    await submitAddForm(wrapper)
+
+    expect(memoryClient.add).toHaveBeenCalledWith('a', {
+      content: 'task finished',
+      kind: undefined,
+      category: 'task_outcome',
+      importance: 0.5
+    })
+  })
+
+  it('omits category by default after the add form is reset', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    await openAddForm(wrapper)
+    await setAddCategory(wrapper, 'project_fact')
+    await cancelAddForm(wrapper)
+    await openAddForm(wrapper)
+    await wrapper.find('textarea').setValue('plain note')
+    await submitAddForm(wrapper)
+
+    expect(memoryClient.add).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        content: 'plain note',
+        kind: 'semantic',
+        importance: 0.5
+      })
+    )
+    expect(memoryClient.add.mock.calls[0][1].category).toBeUndefined()
   })
 })
 

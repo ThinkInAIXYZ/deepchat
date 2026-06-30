@@ -212,6 +212,8 @@
       "noSearchResults": "Keine Erinnerungen entsprechen Ihrer Suche.",
       "addMemory": "Erinnerung hinzufügen",
       "addContentPlaceholder": "Was dieser Assistent sich merken soll…",
+      "addCategoryLabel": "Speicherkategorie",
+      "addCategoryNone": "Keine Kategorie",
       "kindSemantic": "Fakt",
       "kindEpisodic": "Ereignis",
       "importanceLow": "Wichtigkeit: Niedrig",

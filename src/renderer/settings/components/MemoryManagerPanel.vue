@@ -86,9 +86,15 @@
             class="min-h-16 text-xs"
             :placeholder="t('settings.deepchatAgents.memoryManager.addContentPlaceholder')"
           />
-          <div class="flex items-center gap-2">
-            <Select v-model="addKind">
-              <SelectTrigger class="h-8 flex-1 text-xs">
+          <div
+            class="grid gap-2"
+            :class="{
+              'sm:grid-cols-2': addCategorySelected,
+              'sm:grid-cols-3': !addCategorySelected
+            }"
+          >
+            <Select v-if="!addCategorySelected" v-model="addKind">
+              <SelectTrigger class="h-8 w-full text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -100,8 +106,29 @@
                 </SelectItem>
               </SelectContent>
             </Select>
+            <Select v-model="addCategory">
+              <SelectTrigger
+                class="h-8 w-full text-xs"
+                :aria-label="t('settings.deepchatAgents.memoryManager.addCategoryLabel')"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="ADD_CATEGORY_NONE" class="text-xs">
+                  {{ t('settings.deepchatAgents.memoryManager.addCategoryNone') }}
+                </SelectItem>
+                <SelectItem
+                  v-for="category in AGENT_MEMORY_CATEGORIES"
+                  :key="category"
+                  :value="category"
+                  class="text-xs"
+                >
+                  {{ categoryLabel(category) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
             <Select v-model="addImportance">
-              <SelectTrigger class="h-8 flex-1 text-xs">
+              <SelectTrigger class="h-8 w-full text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -663,6 +690,7 @@ import type {
 } from '@shared/contracts/routes'
 
 type MemoryCategoryFilter = AgentMemoryCategory | 'all' | 'uncategorized'
+const ADD_CATEGORY_NONE = 'none'
 
 const props = defineProps<{
   agentId: string
@@ -688,6 +716,8 @@ const categoryFilter = ref<MemoryCategoryFilter>('all')
 const showAddForm = ref(false)
 const addContent = ref('')
 const addKind = ref<'episodic' | 'semantic'>('semantic')
+const addCategory = ref<AgentMemoryCategory | typeof ADD_CATEGORY_NONE>(ADD_CATEGORY_NONE)
+const addCategorySelected = computed(() => addCategory.value !== ADD_CATEGORY_NONE)
 const addImportance = ref<'low' | 'medium' | 'high'>('medium')
 const adding = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -973,6 +1003,7 @@ function resetAddForm(): void {
   showAddForm.value = false
   addContent.value = ''
   addKind.value = 'semantic'
+  addCategory.value = ADD_CATEGORY_NONE
   addImportance.value = 'medium'
 }
 
@@ -1008,9 +1039,11 @@ async function handleAdd(): Promise<void> {
   if (!content || adding.value || memoryDisabled.value) return
   adding.value = true
   try {
+    const category = addCategory.value === ADD_CATEGORY_NONE ? undefined : addCategory.value
     const result = await memoryClient.add(props.agentId, {
       content,
-      kind: addKind.value,
+      kind: category ? undefined : addKind.value,
+      category,
       importance: IMPORTANCE_VALUES[addImportance.value]
     })
     notifyAddOutcome(result)

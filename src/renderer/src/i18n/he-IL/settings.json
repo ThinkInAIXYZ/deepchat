@@ -2581,6 +2581,8 @@
       "noSearchResults": "אין זיכרונות התואמים את החיפוש שלך.",
       "addMemory": "הוסף זיכרון",
       "addContentPlaceholder": "מה שתרצה שהעוזר הזה יזכור…",
+      "addCategoryLabel": "קטגוריית זיכרון",
+      "addCategoryNone": "ללא קטגוריה",
       "kindSemantic": "עובדה",
       "kindEpisodic": "אירוע",
       "importanceLow": "חשיבות: נמוכה",

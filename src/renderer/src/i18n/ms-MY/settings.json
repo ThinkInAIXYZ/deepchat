@@ -212,6 +212,8 @@
       "noSearchResults": "Tiada ingatan sepadan dengan carian anda.",
       "addMemory": "Tambah ingatan",
       "addContentPlaceholder": "Perkara yang anda mahu pembantu ini ingat…",
+      "addCategoryLabel": "Kategori memori",
+      "addCategoryNone": "Tiada kategori",
       "kindSemantic": "Fakta",
       "kindEpisodic": "Peristiwa",
       "importanceLow": "Kepentingan: Rendah",

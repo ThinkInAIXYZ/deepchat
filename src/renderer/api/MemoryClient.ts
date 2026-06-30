@@ -28,6 +28,7 @@ import {
   type MemoryViewManifest
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
+import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import { getDeepchatBridge } from './core'
 
 export type MemoryUpdatedPayload = DeepchatEventPayload<typeof memoryUpdatedEvent.name>
@@ -58,12 +59,18 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function add(
     agentId: string,
-    input: { content: string; kind?: 'episodic' | 'semantic'; importance?: number }
+    input: {
+      content: string
+      kind?: 'episodic' | 'semantic'
+      category?: AgentMemoryCategory
+      importance?: number
+    }
   ): Promise<MemoryAddResult> {
     const result = await bridge.invoke(memoryAddRoute.name, {
       agentId,
       content: input.content,
       kind: input.kind,
+      category: input.category,
       importance: input.importance
     })
     return result.result
