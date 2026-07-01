@@ -272,6 +272,67 @@
           "reflection": "Refleksi",
           "persona": "Persona",
           "working": "Memori kerja"
+        },
+        "archivePrediction": {
+          "title": "Padanan arkib semasa",
+          "description": "Jika penyelenggaraan berjalan sekarang, memori ini akan memenuhi peraturan arkib.",
+          "empty": "Tiada memori yang memenuhi peraturan arkib pada masa ini.",
+          "decayScore": "Susut",
+          "ageDays": "Umur dalam hari",
+          "scanLimited": "Terhad kepada {count} baris yang diimbas",
+          "previewLimited": "Memaparkan {count} pertama"
+        }
+      },
+      "lifecycle": {
+        "toggle": "Periksa kitar hayat",
+        "empty": "Tiada data kitar hayat.",
+        "modelNote": "Garis dasar baca sahaja: panggilan semula dan pelupaan dikira berasingan; pengarkiban memerlukan semua syarat.",
+        "tier": {
+          "fresh": "Baharu",
+          "aging": "Menua",
+          "stale": "Lapuk",
+          "archive_candidate": "Calon arkib"
+        },
+        "recall": {
+          "title": "Panggilan semula",
+          "final": "Skor garis dasar",
+          "diagnosticFinal": "Skor garis dasar diagnostik",
+          "similarity": "Persamaan",
+          "recency": "Kebaharuan",
+          "importance": "Kepentingan",
+          "confidence": "Faktor keyakinan",
+          "floor": "Had bawah kepentingan",
+          "floored": "Dinaikkan ke had bawah kepentingan.",
+          "inactive": "Tidak mengambil bahagian dalam panggilan semula sekarang; nilai di bawah hanya untuk diagnostik.",
+          "baseline": "Persamaan menggunakan garis dasar tanpa pertanyaan; panggilan sebenar berubah mengikut pertanyaan.",
+          "notRecallable": "Jenis ini tidak dipanggil semula secara langsung."
+        },
+        "forget": {
+          "title": "Pelupaan",
+          "score": "Skor pereputan terkira",
+          "materialized": "Pereputan tersimpan",
+          "notRefreshed": "Belum disegar semula",
+          "stale": "Nilai tersimpan tiada atau berbeza daripada skor terkira.",
+          "halfLife": "Hari separuh hayat",
+          "age": "Hari susut",
+          "anchor": "Sauh susut"
+        },
+        "archive": {
+          "title": "Arkib",
+          "oldEnough": "Melepasi had umur arkib",
+          "decayedEnough": "Di bawah ambang susut",
+          "neverAccessed": "Belum pernah diakses",
+          "active": "Baris aktif",
+          "notExempt": "Tidak dikecualikan",
+          "eligible": "Layak diarkib lembut pada penyelenggaraan seterusnya dan boleh dipulihkan.",
+          "daysUntilOldEnough": "Baki {days} hari",
+          "decayAboveThresholdBy": "{score} melebihi ambang",
+          "accessCount": "{count} akses"
+        },
+        "exempt": {
+          "anchor": "sauh",
+          "persona": "persona",
+          "working": "memori kerja"
         }
       }
     },

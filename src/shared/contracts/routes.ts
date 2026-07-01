@@ -33,6 +33,8 @@ import {
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
+  memoryGetLifecycleRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -843,6 +845,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryAddRoute.name]: memoryAddRoute,
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryGetHealthRoute.name]: memoryGetHealthRoute,
+  [memoryGetLifecycleRoute.name]: memoryGetLifecycleRoute,
+  [memoryGetArchiveCandidateLifecyclePreviewRoute.name]:
+    memoryGetArchiveCandidateLifecyclePreviewRoute,
   [memoryListAuditEventsRoute.name]: memoryListAuditEventsRoute,
   [memoryListViewManifestsRoute.name]: memoryListViewManifestsRoute,
   [memoryDeleteRoute.name]: memoryDeleteRoute,

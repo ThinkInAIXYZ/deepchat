@@ -2641,6 +2641,67 @@
           "reflection": "リフレクション",
           "persona": "ペルソナ",
           "working": "作業メモリー"
+        },
+        "archivePrediction": {
+          "title": "現在のアーカイブ該当",
+          "description": "今メンテナンスを実行すると、これらの記憶がアーカイブ条件を満たします。",
+          "empty": "現在アーカイブ条件を満たす記憶はありません。",
+          "decayScore": "減衰",
+          "ageDays": "経過日数",
+          "scanLimited": "{count} 件のスキャン行に制限",
+          "previewLimited": "先頭 {count} 件を表示"
+        }
+      },
+      "lifecycle": {
+        "toggle": "ライフサイクルを確認",
+        "empty": "ライフサイクルデータはありません。",
+        "modelNote": "読み取り専用の基準値です。想起と忘却は別々に計算され、アーカイブにはすべての条件が必要です。",
+        "tier": {
+          "fresh": "新鮮",
+          "aging": "経年中",
+          "stale": "古い",
+          "archive_candidate": "アーカイブ候補"
+        },
+        "recall": {
+          "title": "想起",
+          "final": "基準スコア",
+          "diagnosticFinal": "診断用基準スコア",
+          "similarity": "類似度",
+          "recency": "新しさ",
+          "importance": "重要度",
+          "confidence": "信頼係数",
+          "floor": "重要度の下限",
+          "floored": "重要度の下限まで引き上げられています。",
+          "inactive": "現在は想起対象ではありません。以下の値は診断用です。",
+          "baseline": "類似度はクエリなしの基準値です。実際の想起はクエリによって変わります。",
+          "notRecallable": "この種類は直接想起されません。"
+        },
+        "forget": {
+          "title": "忘却",
+          "score": "計算済み減衰スコア",
+          "materialized": "保存済み減衰",
+          "notRefreshed": "まだ更新されていません",
+          "stale": "保存値がないか、計算済みスコアと一致していません。",
+          "halfLife": "半減期（日）",
+          "age": "減衰日数",
+          "anchor": "減衰の基準時刻"
+        },
+        "archive": {
+          "title": "アーカイブ",
+          "oldEnough": "アーカイブ年齢の下限を超過",
+          "decayedEnough": "減衰しきい値未満",
+          "neverAccessed": "未アクセス",
+          "active": "有効な行",
+          "notExempt": "除外対象ではない",
+          "eligible": "次回のメンテナンスでソフトアーカイブ対象になります。復元できます。",
+          "daysUntilOldEnough": "残り {days} 日",
+          "decayAboveThresholdBy": "しきい値より {score} 高い",
+          "accessCount": "{count} 回アクセス済み"
+        },
+        "exempt": {
+          "anchor": "固定",
+          "persona": "ペルソナ",
+          "working": "作業記憶"
         }
       }
     },

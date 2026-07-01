@@ -2641,6 +2641,67 @@
           "reflection": "反思",
           "persona": "人格",
           "working": "工作記憶"
+        },
+        "archivePrediction": {
+          "title": "目前封存匹配",
+          "description": "若現在執行維護，這些記憶會符合封存條件。",
+          "empty": "目前沒有符合封存條件的記憶。",
+          "decayScore": "衰減",
+          "ageDays": "天數",
+          "scanLimited": "已限制掃描 {count} 行",
+          "previewLimited": "僅顯示前 {count} 筆"
+        }
+      },
+      "lifecycle": {
+        "toggle": "檢視生命週期",
+        "empty": "目前沒有生命週期資料。",
+        "modelNote": "唯讀基準：召回與遺忘分開計算；封存必須同時符合所有條件。",
+        "tier": {
+          "fresh": "新鮮",
+          "aging": "老化中",
+          "stale": "陳舊",
+          "archive_candidate": "待封存"
+        },
+        "recall": {
+          "title": "召回",
+          "final": "基準分數",
+          "diagnosticFinal": "診斷基準分數",
+          "similarity": "相似度",
+          "recency": "新近度",
+          "importance": "重要度",
+          "confidence": "信心因子",
+          "floor": "重要度下限",
+          "floored": "已由重要度下限抬高。",
+          "inactive": "目前不參與召回；以下數值僅供診斷。",
+          "baseline": "相似度使用無查詢基準；實際召回會隨查詢改變。",
+          "notRecallable": "此類型不會被直接召回。"
+        },
+        "forget": {
+          "title": "遺忘",
+          "score": "現算衰減分數",
+          "materialized": "已儲存衰減分數",
+          "notRefreshed": "尚未重新整理",
+          "stale": "已儲存值缺失或與現算分數不一致。",
+          "halfLife": "半衰期天數",
+          "age": "已衰減天數",
+          "anchor": "衰減錨點"
+        },
+        "archive": {
+          "title": "封存",
+          "oldEnough": "超過封存年齡下限",
+          "decayedEnough": "低於衰減門檻",
+          "neverAccessed": "從未存取",
+          "active": "目前有效列",
+          "notExempt": "未豁免",
+          "eligible": "將在後續維護時進入軟封存，可還原。",
+          "daysUntilOldEnough": "尚需 {days} 天",
+          "decayAboveThresholdBy": "高於門檻 {score}",
+          "accessCount": "已存取 {count} 次"
+        },
+        "exempt": {
+          "anchor": "錨定",
+          "persona": "人格",
+          "working": "工作記憶"
         }
       }
     },

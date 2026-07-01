@@ -14,11 +14,11 @@ const AgentIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/, 'invalid agentI
 export const MemoryItemSchema = z.object({
   id: z.string(),
   agentId: z.string(),
-  kind: z.enum(['episodic', 'semantic', 'reflection', 'persona']),
+  kind: z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS),
   category: z.enum(AGENT_MEMORY_CATEGORIES).nullable(),
   content: z.string(),
   importance: z.number(),
-  status: z.enum(['pending_embedding', 'embedded', 'error', 'fts_only', 'archived', 'conflicted']),
+  status: z.enum(AGENT_MEMORY_HEALTH_STATUS_KEYS),
   sourceSession: z.string().nullable(),
   sourceEntryIds: z.array(z.number().int().nonnegative()).nullable(),
   supersededBy: z.string().nullable(),
@@ -60,6 +60,8 @@ export const MemoryStatusSchema = z.object({
 
 const NonnegativeCountSchema = z.number().int().nonnegative()
 export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT = 25
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT = 200
 
 function countRecordShape<const Keys extends readonly string[]>(
   keys: Keys
@@ -130,6 +132,121 @@ export const MemoryHealthSchema = z.object({
 })
 
 export type MemoryHealthDto = z.infer<typeof MemoryHealthSchema>
+
+const MemoryLifecycleKindSchema = z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS)
+const MemoryLifecycleStatusSchema = z.enum(AGENT_MEMORY_HEALTH_STATUS_KEYS)
+const MemoryLifecycleDecayTierSchema = z.enum(['fresh', 'aging', 'stale', 'archive_candidate'])
+
+const MemoryLifecycleRecallSchema = z.object({
+  weights: z.object({
+    similarity: z.number(),
+    recency: z.number(),
+    importance: z.number()
+  }),
+  similarity: z.number(),
+  similaritySource: z.literal('baseline'),
+  recency: z.number(),
+  importance: z.number(),
+  confidenceFactor: z.number(),
+  importanceFloor: z.number(),
+  final: z.number(),
+  flooredByImportance: z.boolean(),
+  halfLifeMs: z.number()
+})
+
+export const MemoryLifecycleSchema = z
+  .object({
+    memoryId: z.string(),
+    kind: MemoryLifecycleKindSchema,
+    status: MemoryLifecycleStatusSchema,
+    recallable: z.boolean(),
+    decayTier: MemoryLifecycleDecayTierSchema,
+    recall: MemoryLifecycleRecallSchema.nullable(),
+    forget: z.object({
+      anchorAt: z.number(),
+      ageDays: z.number(),
+      halfLifeDays: z.number(),
+      decayScore: z.number(),
+      materializedDecay: z.number().nullable(),
+      materializedStale: z.boolean()
+    }),
+    archiveEligibility: z.object({
+      eligible: z.boolean(),
+      oldEnough: z.boolean(),
+      decayedEnough: z.boolean(),
+      neverAccessed: z.boolean(),
+      active: z.boolean(),
+      exempt: z.boolean(),
+      exemptReasons: z.array(z.enum(['anchor', 'persona', 'working'])),
+      gaps: z.object({
+        daysUntilOldEnough: z.number().optional(),
+        decayAboveThresholdBy: z.number().optional(),
+        accessCount: z.number().int().nonnegative().optional()
+      })
+    })
+  })
+  .superRefine((lifecycle, ctx) => {
+    if (lifecycle.kind === 'persona' && lifecycle.recall !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recall'],
+        message: 'persona lifecycle recall must be null'
+      })
+    }
+
+    if (lifecycle.kind !== 'persona' && lifecycle.recall === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recall'],
+        message: 'non-persona lifecycle recall must be present'
+      })
+    }
+  })
+
+export type MemoryLifecycle = z.infer<typeof MemoryLifecycleSchema>
+
+export const MemoryArchiveCandidateLifecyclePreviewSchema = z
+  .object({
+    lifecycles: z
+      .array(MemoryLifecycleSchema)
+      .max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    previewLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    scanLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    scanned: NonnegativeCountSchema.max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    previewTruncated: z.boolean(),
+    scanTruncated: z.boolean()
+  })
+  .superRefine((preview, ctx) => {
+    if (preview.previewTruncated && preview.lifecycles.length !== preview.previewLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lifecycles'],
+        message: 'truncated archive candidate preview must fill the configured preview limit'
+      })
+    }
+    if (preview.scanTruncated && preview.scanned !== preview.scanLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scanned'],
+        message: 'truncated archive candidate preview must scan the configured scan limit'
+      })
+    }
+  })
+
+export type MemoryArchiveCandidateLifecyclePreview = z.infer<
+  typeof MemoryArchiveCandidateLifecyclePreviewSchema
+>
+
+export function createEmptyArchiveCandidateLifecyclePreview(): MemoryArchiveCandidateLifecyclePreview {
+  return {
+    lifecycles: [],
+    previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+    scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
+    scanned: 0,
+    previewTruncated: false,
+    scanTruncated: false
+  }
+}
 
 export function createEmptyMemoryHealth(
   scanLimit = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
@@ -203,6 +320,18 @@ export const memoryGetHealthRoute = defineRouteContract({
   name: 'memory.getHealth',
   input: z.object({ agentId: AgentIdSchema }),
   output: z.object({ health: MemoryHealthSchema })
+})
+
+export const memoryGetLifecycleRoute = defineRouteContract({
+  name: 'memory.getLifecycle',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1) }),
+  output: z.object({ lifecycles: z.array(MemoryLifecycleSchema) })
+})
+
+export const memoryGetArchiveCandidateLifecyclePreviewRoute = defineRouteContract({
+  name: 'memory.getArchiveCandidateLifecyclePreview',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ preview: MemoryArchiveCandidateLifecyclePreviewSchema })
 })
 
 export const memorySearchRoute = defineRouteContract({

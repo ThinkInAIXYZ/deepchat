@@ -4,8 +4,10 @@ import {
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
+  memoryGetLifecycleRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -20,10 +22,12 @@ import {
   memorySearchRoute,
   memorySetPersonaAnchorRoute,
   type MemoryAddResult,
+  type MemoryArchiveCandidateLifecyclePreview,
   type MemoryConflictItem,
   type MemoryAuditEvent,
   type MemoryHealthDto,
   type MemoryItem,
+  type MemoryLifecycle,
   type MemorySearchResult,
   type MemorySourceSpan,
   type MemoryStatusDto,
@@ -71,6 +75,20 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function getHealth(agentId: string): Promise<MemoryHealthDto> {
     const result = await bridge.invoke(memoryGetHealthRoute.name, { agentId })
     return result.health
+  }
+
+  async function getLifecycle(agentId: string, memoryId: string): Promise<MemoryLifecycle[]> {
+    const result = await bridge.invoke(memoryGetLifecycleRoute.name, { agentId, memoryId })
+    return result.lifecycles
+  }
+
+  async function getArchiveCandidateLifecyclePreview(
+    agentId: string
+  ): Promise<MemoryArchiveCandidateLifecyclePreview> {
+    const result = await bridge.invoke(memoryGetArchiveCandidateLifecyclePreviewRoute.name, {
+      agentId
+    })
+    return result.preview
   }
 
   async function search(
@@ -215,6 +233,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     list,
     getStatus,
     getHealth,
+    getLifecycle,
+    getArchiveCandidateLifecyclePreview,
     search,
     add,
     listAuditEvents,

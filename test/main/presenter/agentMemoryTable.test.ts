@@ -705,6 +705,81 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('lists archive candidate lifecycle projections without content payloads', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      const createdAt = 1000
+      table.insert({
+        id: 'eligible-null',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'large blob',
+        createdAt
+      })
+      table.insert({
+        id: 'eligible-stored',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'stored',
+        createdAt
+      })
+      table.insert({ id: 'accessed', agentId: 'a', kind: 'semantic', content: 'used', createdAt })
+      table.recordAccess('accessed', 2000)
+      table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'persona', createdAt })
+      table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working', createdAt })
+      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other', createdAt })
+      table.insert({
+        id: 'archived',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'archived',
+        createdAt
+      })
+      table.archive('archived', 2000)
+      table.insert({
+        id: 'conflicted',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'conflicted',
+        createdAt
+      })
+      table.updateStatus('conflicted', 'conflicted')
+      table.insert({
+        id: 'superseded',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'superseded',
+        createdAt
+      })
+      table.markSuperseded('superseded', 'eligible-null')
+      table.insert({
+        id: 'anchor',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'anchor',
+        createdAt,
+        isAnchor: true
+      })
+      table.updateDecayScore('eligible-stored', 0.9)
+
+      const rows = table.listArchiveCandidateLifecycleRows('a', 5000, 10)
+      expect(rows.map((row) => row.id).sort()).toEqual(['eligible-null', 'eligible-stored'])
+      expect(rows.every((row) => row.access_count === 0)).toBe(true)
+      expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'content'))).toBe(true)
+      expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'embedding_id'))).toBe(
+        true
+      )
+      expect(
+        rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'source_entry_ids'))
+      ).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
   it('never requeues the working blob for embedding', () => {
     const db = new DatabaseCtor(':memory:')
     try {

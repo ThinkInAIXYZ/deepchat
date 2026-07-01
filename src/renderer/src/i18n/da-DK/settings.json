@@ -2641,6 +2641,67 @@
           "reflection": "Refleksion",
           "persona": "Persona",
           "working": "Arbejdshukommelse"
+        },
+        "archivePrediction": {
+          "title": "Aktuelle arkivmatches",
+          "description": "Hvis vedligeholdelse kørte nu, ville disse minder opfylde arkivreglerne.",
+          "empty": "Ingen minder opfylder arkivreglerne lige nu.",
+          "decayScore": "Forfald",
+          "ageDays": "Alder i dage",
+          "scanLimited": "Begrænset til {count} scannede rækker",
+          "previewLimited": "Viser de første {count}"
+        }
+      },
+      "lifecycle": {
+        "toggle": "Inspicer livscyklus",
+        "empty": "Ingen livscyklusdata tilgængelige.",
+        "modelNote": "Skrivebeskyttet grundlinje: genkaldelse og glemsel beregnes separat; arkivering kræver alle betingelser.",
+        "tier": {
+          "fresh": "Frisk",
+          "aging": "Ældes",
+          "stale": "Forældet",
+          "archive_candidate": "Arkivkandidat"
+        },
+        "recall": {
+          "title": "Genkaldelse",
+          "final": "Grundscore",
+          "diagnosticFinal": "Diagnostisk grundscore",
+          "similarity": "Lighed",
+          "recency": "Nylighed",
+          "importance": "Vigtighed",
+          "confidence": "Tillidsfaktor",
+          "floor": "Vigtighedsgulv",
+          "floored": "Hævet til vigtighedsgulvet.",
+          "inactive": "Deltager ikke aktuelt i genkaldelse; værdierne nedenfor er kun diagnostiske.",
+          "baseline": "Lighed bruger en grundlinje uden forespørgsel; reel genkaldelse ændres med forespørgslen.",
+          "notRecallable": "Denne type genkaldes ikke direkte."
+        },
+        "forget": {
+          "title": "Glemsel",
+          "score": "Beregnet henfaldsscore",
+          "materialized": "Gemt henfald",
+          "notRefreshed": "Ikke opdateret endnu",
+          "stale": "Den gemte værdi mangler eller afviger fra den beregnede score.",
+          "halfLife": "Halveringstid i dage",
+          "age": "Henfaldsdage",
+          "anchor": "Henfaldsanker"
+        },
+        "archive": {
+          "title": "Arkiv",
+          "oldEnough": "Ældre end arkivgrænsen",
+          "decayedEnough": "Under henfaldstærsklen",
+          "neverAccessed": "Aldrig tilgået",
+          "active": "Aktiv række",
+          "notExempt": "Ikke undtaget",
+          "eligible": "Klar til blød arkivering ved næste vedligeholdelse og kan gendannes.",
+          "daysUntilOldEnough": "{days} dage tilbage",
+          "decayAboveThresholdBy": "{score} over tærsklen",
+          "accessCount": "{count} adgange"
+        },
+        "exempt": {
+          "anchor": "anker",
+          "persona": "persona",
+          "working": "arbejdshukommelse"
         }
       }
     },

@@ -1,5 +1,6 @@
 import type {
   AgentMemoryKind,
+  AgentMemoryLifecycleRow,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -24,6 +25,7 @@ import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 
 export type {
   AgentMemoryKind,
+  AgentMemoryLifecycleRow,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -92,6 +94,11 @@ export interface MemoryRepositoryPort {
   countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): number
   archive(id: string, at?: number): void
   listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
+  listArchiveCandidateLifecycleRows(
+    agentId: string,
+    before: number,
+    limit: number
+  ): AgentMemoryLifecycleRow[]
   countArchiveCandidates(agentId: string, before: number, decayBelow: number): number
   listTopAccessed(agentId: string, limit: number): AgentMemoryRow[]
   delete(id: string): void

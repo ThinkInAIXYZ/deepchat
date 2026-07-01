@@ -272,6 +272,67 @@
           "reflection": "Reflexión",
           "persona": "Persona",
           "working": "Memoria de trabajo"
+        },
+        "archivePrediction": {
+          "title": "Coincidencias de archivo actuales",
+          "description": "Si el mantenimiento se ejecutara ahora, estas memorias cumplirían las reglas de archivo.",
+          "empty": "Ahora no hay memorias que cumplan las reglas de archivo.",
+          "decayScore": "Decaimiento",
+          "ageDays": "Edad en días",
+          "scanLimited": "Limitado a {count} filas analizadas",
+          "previewLimited": "Mostrando las primeras {count}"
+        }
+      },
+      "lifecycle": {
+        "toggle": "Inspeccionar ciclo de vida",
+        "empty": "No hay datos de ciclo de vida disponibles.",
+        "modelNote": "Referencia de solo lectura: recuperación y olvido se calculan por separado; archivar requiere todas las condiciones.",
+        "tier": {
+          "fresh": "Reciente",
+          "aging": "Envejeciendo",
+          "stale": "Obsoleta",
+          "archive_candidate": "Candidata a archivar"
+        },
+        "recall": {
+          "title": "Recuperación",
+          "final": "Puntuación base",
+          "diagnosticFinal": "Puntuación base diagnóstica",
+          "similarity": "Similitud",
+          "recency": "Recencia",
+          "importance": "Importancia",
+          "confidence": "Factor de confianza",
+          "floor": "Suelo de importancia",
+          "floored": "Elevada al suelo de importancia.",
+          "inactive": "Actualmente no participa en la recuperación; los valores siguientes son solo diagnósticos.",
+          "baseline": "La similitud usa una base sin consulta; la recuperación real cambia con la consulta.",
+          "notRecallable": "Este tipo no se recupera directamente."
+        },
+        "forget": {
+          "title": "Olvido",
+          "score": "Puntuación de decaimiento calculada",
+          "materialized": "Decaimiento guardado",
+          "notRefreshed": "Aún no actualizado",
+          "stale": "El valor guardado falta o difiere de la puntuación calculada.",
+          "halfLife": "Días de semivida",
+          "age": "Días de decaimiento",
+          "anchor": "Ancla de decaimiento"
+        },
+        "archive": {
+          "title": "Archivo",
+          "oldEnough": "Supera la edad mínima de archivo",
+          "decayedEnough": "Por debajo del umbral de decaimiento",
+          "neverAccessed": "Nunca accedida",
+          "active": "Fila activa",
+          "notExempt": "Sin exención",
+          "eligible": "Apta para archivo reversible en el próximo mantenimiento.",
+          "daysUntilOldEnough": "Quedan {days} días",
+          "decayAboveThresholdBy": "{score} por encima del umbral",
+          "accessCount": "{count} accesos"
+        },
+        "exempt": {
+          "anchor": "anclada",
+          "persona": "persona",
+          "working": "memoria de trabajo"
         }
       }
     },

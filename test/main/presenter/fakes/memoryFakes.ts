@@ -13,6 +13,7 @@ import type {
   AgentMemoryHealthAuditStats,
   AgentMemoryHealthStats,
   AgentMemoryInsertInput,
+  AgentMemoryLifecycleRow,
   AgentMemoryRow,
   IMemoryVectorStore,
   MemoryAuditListOptions,
@@ -22,6 +23,23 @@ import type {
   MemoryVectorRecord
 } from '@/presenter/memoryPresenter/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+
+function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
+  return {
+    id: row.id,
+    agent_id: row.agent_id,
+    kind: row.kind,
+    importance: row.importance,
+    status: row.status,
+    is_anchor: row.is_anchor,
+    superseded_by: row.superseded_by,
+    created_at: row.created_at,
+    last_accessed: row.last_accessed,
+    access_count: row.access_count,
+    decay_score: row.decay_score,
+    confidence: row.confidence
+  }
+}
 
 // In-memory stand-in for the SQLite-backed repository. Mirrors the authoritative table's observable
 // behavior (provenance uniqueness, supersede/persona state machine, archive/decay) closely enough to
@@ -416,6 +434,31 @@ export class FakeRepository implements MemoryRepositoryPort {
     )
   }
 
+  listArchiveCandidateLifecycleRows(agentId: string, before: number, limit: number) {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          !row.superseded_by &&
+          row.status !== 'archived' &&
+          row.status !== 'conflicted' &&
+          row.is_anchor === 0 &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          row.access_count === 0 &&
+          row.created_at < before
+      )
+      .sort(
+        (a, b) =>
+          (a.last_accessed ?? a.created_at) - (b.last_accessed ?? b.created_at) ||
+          a.created_at - b.created_at ||
+          a.id.localeCompare(b.id)
+      )
+      .slice(0, cappedLimit)
+      .map(toLifecycleRow)
+  }
+
   countArchiveCandidates(agentId: string, before: number, decayBelow: number) {
     return this.listArchiveCandidates(agentId, before, decayBelow).filter(
       (row) => row.access_count === 0
@@ -606,7 +649,11 @@ export const enabledConfig: DeepChatAgentConfig = {
   memoryEmbedding: { providerId: 'p', modelId: 'm' }
 }
 
-export function makePresenter(config: DeepChatAgentConfig | null, repo = new FakeRepository()) {
+export function makePresenter(
+  config: DeepChatAgentConfig | null,
+  repo = new FakeRepository(),
+  options: { isManagedAgent?: (agentId: string) => boolean } = {}
+) {
   const store = new FakeVectorStore()
   const auditRepo = new FakeAuditRepository()
   const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
@@ -623,6 +670,7 @@ export function makePresenter(config: DeepChatAgentConfig | null, repo = new Fak
     repository: repo,
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,
+    isManagedAgent: options.isManagedAgent,
     getEmbeddings,
     getDimensions,
     generateText: vi.fn(async () => ''),

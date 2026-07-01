@@ -2641,6 +2641,67 @@
           "reflection": "회고",
           "persona": "페르소나",
           "working": "작업 메모리"
+        },
+        "archivePrediction": {
+          "title": "현재 보관 대상",
+          "description": "지금 유지 관리를 실행하면 이 기억들이 보관 조건을 충족합니다.",
+          "empty": "현재 보관 조건을 충족하는 기억이 없습니다.",
+          "decayScore": "감쇠",
+          "ageDays": "경과일",
+          "scanLimited": "스캔한 {count}개 행으로 제한됨",
+          "previewLimited": "처음 {count}개 표시"
+        }
+      },
+      "lifecycle": {
+        "toggle": "수명 주기 보기",
+        "empty": "수명 주기 데이터가 없습니다.",
+        "modelNote": "읽기 전용 기준값입니다. 회상과 망각은 별도로 계산되며, 보관은 모든 조건을 만족해야 합니다.",
+        "tier": {
+          "fresh": "신선함",
+          "aging": "노화 중",
+          "stale": "오래됨",
+          "archive_candidate": "보관 후보"
+        },
+        "recall": {
+          "title": "회상",
+          "final": "기준 점수",
+          "diagnosticFinal": "진단용 기준 점수",
+          "similarity": "유사도",
+          "recency": "최신성",
+          "importance": "중요도",
+          "confidence": "신뢰 계수",
+          "floor": "중요도 하한",
+          "floored": "중요도 하한까지 올려졌습니다.",
+          "inactive": "현재 회상에 참여하지 않으며, 아래 값은 진단용입니다.",
+          "baseline": "유사도는 쿼리 없는 기준값입니다. 실제 회상은 쿼리에 따라 달라집니다.",
+          "notRecallable": "이 종류는 직접 회상되지 않습니다."
+        },
+        "forget": {
+          "title": "망각",
+          "score": "계산된 감쇠 점수",
+          "materialized": "저장된 감쇠",
+          "notRefreshed": "아직 갱신되지 않음",
+          "stale": "저장된 값이 없거나 계산된 점수와 다릅니다.",
+          "halfLife": "반감기 일수",
+          "age": "감쇠 일수",
+          "anchor": "감쇠 기준 시각"
+        },
+        "archive": {
+          "title": "보관",
+          "oldEnough": "보관 최소 나이를 넘김",
+          "decayedEnough": "감쇠 임계값 미만",
+          "neverAccessed": "접근한 적 없음",
+          "active": "활성 행",
+          "notExempt": "예외 아님",
+          "eligible": "다음 유지 관리 때 소프트 보관 대상이며 복원할 수 있습니다.",
+          "daysUntilOldEnough": "{days}일 남음",
+          "decayAboveThresholdBy": "임계값보다 {score} 높음",
+          "accessCount": "{count}회 접근"
+        },
+        "exempt": {
+          "anchor": "고정",
+          "persona": "페르소나",
+          "working": "작업 기억"
         }
       }
     },

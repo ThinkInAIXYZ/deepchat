@@ -272,6 +272,67 @@
           "reflection": "Reflexion",
           "persona": "Persona",
           "working": "Arbeitsgedächtnis"
+        },
+        "archivePrediction": {
+          "title": "Aktuelle Archivtreffer",
+          "description": "Wenn die Wartung jetzt liefe, würden diese Erinnerungen die Archivregeln erfüllen.",
+          "empty": "Derzeit erfüllen keine Erinnerungen die Archivregeln.",
+          "decayScore": "Verfall",
+          "ageDays": "Alter in Tagen",
+          "scanLimited": "Auf {count} geprüfte Zeilen begrenzt",
+          "previewLimited": "Zeigt die ersten {count}"
+        }
+      },
+      "lifecycle": {
+        "toggle": "Lebenszyklus prüfen",
+        "empty": "Keine Lebenszyklusdaten verfügbar.",
+        "modelNote": "Schreibgeschützte Basislinie: Abruf und Vergessen werden getrennt berechnet; Archivierung braucht alle Bedingungen.",
+        "tier": {
+          "fresh": "Frisch",
+          "aging": "Alternd",
+          "stale": "Veraltet",
+          "archive_candidate": "Archivkandidat"
+        },
+        "recall": {
+          "title": "Abruf",
+          "final": "Basiswert",
+          "diagnosticFinal": "Diagnostischer Basiswert",
+          "similarity": "Ähnlichkeit",
+          "recency": "Aktualität",
+          "importance": "Wichtigkeit",
+          "confidence": "Konfidenzfaktor",
+          "floor": "Wichtigkeitsuntergrenze",
+          "floored": "Auf die Wichtigkeitsuntergrenze angehoben.",
+          "inactive": "Nimmt derzeit nicht am Abruf teil; die folgenden Werte dienen nur der Diagnose.",
+          "baseline": "Die Ähnlichkeit nutzt eine Basislinie ohne Abfrage; der echte Abruf ändert sich mit der Abfrage.",
+          "notRecallable": "Dieser Typ wird nicht direkt abgerufen."
+        },
+        "forget": {
+          "title": "Vergessen",
+          "score": "Berechneter Verfallswert",
+          "materialized": "Gespeicherter Verfall",
+          "notRefreshed": "Noch nicht aktualisiert",
+          "stale": "Der gespeicherte Wert fehlt oder weicht vom berechneten Wert ab.",
+          "halfLife": "Halbwertszeit in Tagen",
+          "age": "Abklingtage",
+          "anchor": "Abkling-Anker"
+        },
+        "archive": {
+          "title": "Archivierung",
+          "oldEnough": "Älter als Archivuntergrenze",
+          "decayedEnough": "Unter dem Abkling-Schwellenwert",
+          "neverAccessed": "Nie abgerufen",
+          "active": "Aktive Zeile",
+          "notExempt": "Nicht ausgenommen",
+          "eligible": "Geeignet für reversible Archivierung beim nächsten Wartungslauf.",
+          "daysUntilOldEnough": "Noch {days} Tage",
+          "decayAboveThresholdBy": "{score} über Schwelle",
+          "accessCount": "{count} Zugriffe"
+        },
+        "exempt": {
+          "anchor": "Anker",
+          "persona": "Persona",
+          "working": "Arbeitsgedächtnis"
         }
       }
     },

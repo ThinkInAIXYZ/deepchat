@@ -4,13 +4,16 @@ import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
   createEmptyMemoryHealth,
   memoryAddRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetHealthRoute,
+  memoryGetLifecycleRoute,
   memoryListRoute,
   memoryRestoreRoute,
   memorySearchRoute
 } from '@shared/contracts/routes'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { MemoryLifecycle } from '@shared/contracts/routes'
 
 function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
   return {
@@ -39,6 +42,51 @@ function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
     conflict_state: null,
     conflict_with: null,
     persona_state: null,
+    ...overrides
+  }
+}
+
+function makeLifecycleRecall(): NonNullable<MemoryLifecycle['recall']> {
+  return {
+    weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+    similarity: 0.3,
+    similaritySource: 'baseline',
+    recency: 0.8,
+    importance: 0.5,
+    confidenceFactor: 1,
+    importanceFloor: 0.075,
+    final: 0.455,
+    flooredByImportance: false,
+    halfLifeMs: 14 * 24 * 60 * 60 * 1000
+  }
+}
+
+function makeLifecycle(overrides: Partial<MemoryLifecycle> = {}): MemoryLifecycle {
+  return {
+    memoryId: 'm1',
+    kind: 'semantic',
+    status: 'embedded',
+    recallable: true,
+    decayTier: 'aging',
+    recall: makeLifecycleRecall(),
+    forget: {
+      anchorAt: 1000,
+      ageDays: 10,
+      halfLifeDays: 45,
+      decayScore: 0.8,
+      materializedDecay: null,
+      materializedStale: true
+    },
+    archiveEligibility: {
+      eligible: false,
+      oldEnough: false,
+      decayedEnough: false,
+      neverAccessed: true,
+      active: true,
+      exempt: false,
+      exemptReasons: [],
+      gaps: { daysUntilOldEnough: 80, decayAboveThresholdBy: 0.75 }
+    },
     ...overrides
   }
 }
@@ -173,6 +221,124 @@ describe('memory.getHealth route contract', () => {
     })
     expect(populated.health.access.topAccessed[0].category).toBe('project_fact')
     expect(memoryGetHealthRoute.input.safeParse({ agentId: 'bad/id' }).success).toBe(false)
+  })
+})
+
+describe('memory.getLifecycle route contract', () => {
+  it('round-trips lifecycle input and output without Ebbinghaus fields', () => {
+    expect(memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat', memoryId: 'm1' })).toEqual({
+      agentId: 'deepchat',
+      memoryId: 'm1'
+    })
+    expect(() =>
+      memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat', memoryId: '' })
+    ).toThrow()
+    expect(() => memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat' })).toThrow()
+
+    const parsed = memoryGetLifecycleRoute.output.parse({
+      lifecycles: [
+        {
+          memoryId: 'm1',
+          kind: 'semantic',
+          status: 'embedded',
+          recallable: true,
+          decayTier: 'aging',
+          recall: {
+            weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+            similarity: 0.3,
+            similaritySource: 'baseline',
+            recency: 0.8,
+            importance: 0.5,
+            confidenceFactor: 1,
+            importanceFloor: 0.075,
+            final: 0.455,
+            flooredByImportance: false,
+            halfLifeMs: 14 * 24 * 60 * 60 * 1000
+          },
+          forget: {
+            anchorAt: 1000,
+            ageDays: 10,
+            halfLifeDays: 45,
+            decayScore: 0.8,
+            materializedDecay: null,
+            materializedStale: true
+          },
+          archiveEligibility: {
+            eligible: false,
+            oldEnough: false,
+            decayedEnough: false,
+            neverAccessed: true,
+            active: true,
+            exempt: false,
+            exemptReasons: [],
+            gaps: { daysUntilOldEnough: 80, decayAboveThresholdBy: 0.75 }
+          }
+        }
+      ]
+    })
+
+    expect(parsed.lifecycles[0].memoryId).toBe('m1')
+    expect(JSON.stringify(parsed)).not.toMatch(/nextReview|reinforcement|promotion|reviewInterval/)
+  })
+
+  it('rejects lifecycle outputs that violate public lifecycle invariants', () => {
+    const workingLifecycle = { ...makeLifecycle(), kind: 'working' }
+
+    expect(
+      memoryGetLifecycleRoute.output.safeParse({ lifecycles: [workingLifecycle] }).success
+    ).toBe(false)
+    expect(
+      memoryGetLifecycleRoute.output.safeParse({
+        lifecycles: [makeLifecycle({ kind: 'semantic', recall: null })]
+      }).success
+    ).toBe(false)
+    expect(
+      memoryGetLifecycleRoute.output.safeParse({
+        lifecycles: [makeLifecycle({ kind: 'persona', recall: makeLifecycleRecall() })]
+      }).success
+    ).toBe(false)
+    expect(
+      memoryGetLifecycleRoute.output.safeParse({
+        lifecycles: [makeLifecycle({ kind: 'persona', recall: null })]
+      }).success
+    ).toBe(true)
+  })
+
+  it('round-trips archive candidate lifecycle predictions', () => {
+    const parsed = memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+      preview: {
+        lifecycles: [makeLifecycle({ decayTier: 'archive_candidate' })],
+        previewLimit: 25,
+        scanLimit: 200,
+        scanned: 1,
+        previewTruncated: false,
+        scanTruncated: false
+      }
+    })
+
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.input.parse({ agentId: 'deepchat' })
+    ).toEqual({
+      agentId: 'deepchat'
+    })
+    expect(parsed.preview.lifecycles[0].decayTier).toBe('archive_candidate')
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.input.safeParse({ agentId: 'bad/id' }).success
+    ).toBe(false)
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.output.safeParse({
+        preview: {
+          lifecycles: Array.from({ length: 26 }, (_, index) =>
+            makeLifecycle({ memoryId: `m${index}` })
+          ),
+          previewLimit: 25,
+          scanLimit: 200,
+          scanned: 26,
+          previewTruncated: false,
+          scanTruncated: false
+        }
+      }).success
+    ).toBe(false)
   })
 })
 

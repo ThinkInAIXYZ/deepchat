@@ -269,6 +269,67 @@
           "reflection": "反思",
           "persona": "人格",
           "working": "工作记忆"
+        },
+        "archivePrediction": {
+          "title": "当前归档匹配",
+          "description": "若现在执行维护，这些记忆会符合归档条件。",
+          "empty": "当前没有符合归档条件的记忆。",
+          "decayScore": "衰减",
+          "ageDays": "天数",
+          "scanLimited": "已限制扫描 {count} 行",
+          "previewLimited": "仅显示前 {count} 条"
+        }
+      },
+      "lifecycle": {
+        "toggle": "查看生命周期",
+        "empty": "暂无生命周期数据。",
+        "modelNote": "只读基线：召回与遗忘分开计算；归档必须同时满足全部条件。",
+        "tier": {
+          "fresh": "新鲜",
+          "aging": "老化中",
+          "stale": "陈旧",
+          "archive_candidate": "待归档"
+        },
+        "recall": {
+          "title": "召回",
+          "final": "基线分",
+          "diagnosticFinal": "诊断基线分",
+          "similarity": "相似度",
+          "recency": "新近度",
+          "importance": "重要度",
+          "confidence": "置信因子",
+          "floor": "重要度地板",
+          "floored": "已被重要度地板抬高。",
+          "inactive": "当前不参与召回；下列数值仅用于诊断。",
+          "baseline": "相似度使用无查询基线；实际召回会随查询变化。",
+          "notRecallable": "该类型不会被直接召回。"
+        },
+        "forget": {
+          "title": "遗忘",
+          "score": "现算衰减分",
+          "materialized": "已存衰减分",
+          "notRefreshed": "尚未刷新",
+          "stale": "已存值缺失或与现算分不一致。",
+          "halfLife": "半衰天数",
+          "age": "已衰减天数",
+          "anchor": "衰减锚点"
+        },
+        "archive": {
+          "title": "归档",
+          "oldEnough": "超过归档年龄下限",
+          "decayedEnough": "低于衰减阈值",
+          "neverAccessed": "从未访问",
+          "active": "当前有效行",
+          "notExempt": "未豁免",
+          "eligible": "将在后续维护时进入软归档，可恢复。",
+          "daysUntilOldEnough": "还需 {days} 天",
+          "decayAboveThresholdBy": "高出阈值 {score}",
+          "accessCount": "已访问 {count} 次"
+        },
+        "exempt": {
+          "anchor": "锚定",
+          "persona": "人格",
+          "working": "工作记忆"
         }
       }
     },

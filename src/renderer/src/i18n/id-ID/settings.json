@@ -272,6 +272,67 @@
           "reflection": "Refleksi",
           "persona": "Persona",
           "working": "Memori kerja"
+        },
+        "archivePrediction": {
+          "title": "Kecocokan arsip saat ini",
+          "description": "Jika pemeliharaan berjalan sekarang, memori ini akan memenuhi aturan arsip.",
+          "empty": "Saat ini tidak ada memori yang memenuhi aturan arsip.",
+          "decayScore": "Peluruhan",
+          "ageDays": "Usia dalam hari",
+          "scanLimited": "Dibatasi ke {count} baris yang dipindai",
+          "previewLimited": "Menampilkan {count} pertama"
+        }
+      },
+      "lifecycle": {
+        "toggle": "Periksa siklus hidup",
+        "empty": "Tidak ada data siklus hidup.",
+        "modelNote": "Garis dasar baca-saja: pemanggilan dan pelupaan dihitung terpisah; pengarsipan butuh semua kondisi.",
+        "tier": {
+          "fresh": "Segar",
+          "aging": "Menua",
+          "stale": "Usang",
+          "archive_candidate": "Kandidat arsip"
+        },
+        "recall": {
+          "title": "Pemanggilan",
+          "final": "Skor garis dasar",
+          "diagnosticFinal": "Skor garis dasar diagnostik",
+          "similarity": "Kemiripan",
+          "recency": "Kebaruan",
+          "importance": "Kepentingan",
+          "confidence": "Faktor keyakinan",
+          "floor": "Batas bawah kepentingan",
+          "floored": "Dinaikkan ke batas bawah kepentingan.",
+          "inactive": "Saat ini tidak ikut dalam pemanggilan; nilai di bawah hanya untuk diagnostik.",
+          "baseline": "Kemiripan memakai garis dasar tanpa kueri; pemanggilan aktual berubah sesuai kueri.",
+          "notRecallable": "Jenis ini tidak dipanggil langsung."
+        },
+        "forget": {
+          "title": "Pelupaan",
+          "score": "Skor peluruhan terhitung",
+          "materialized": "Peluruhan tersimpan",
+          "notRefreshed": "Belum diperbarui",
+          "stale": "Nilai tersimpan hilang atau berbeda dari skor terhitung.",
+          "halfLife": "Hari paruh waktu",
+          "age": "Hari peluruhan",
+          "anchor": "Patokan peluruhan"
+        },
+        "archive": {
+          "title": "Arsip",
+          "oldEnough": "Melewati batas usia arsip",
+          "decayedEnough": "Di bawah ambang peluruhan",
+          "neverAccessed": "Belum pernah diakses",
+          "active": "Baris aktif",
+          "notExempt": "Tidak dikecualikan",
+          "eligible": "Layak diarsipkan lunak pada pemeliharaan berikutnya dan dapat dipulihkan.",
+          "daysUntilOldEnough": "{days} hari tersisa",
+          "decayAboveThresholdBy": "{score} di atas ambang",
+          "accessCount": "{count} akses"
+        },
+        "exempt": {
+          "anchor": "jangkar",
+          "persona": "persona",
+          "working": "memori kerja"
         }
       }
     },
