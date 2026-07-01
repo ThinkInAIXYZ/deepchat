@@ -268,89 +268,116 @@
             <li
               v-for="memory in displayedMemories"
               :key="memory.id"
-              class="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2"
+              class="rounded-lg border border-border px-3 py-2"
               :class="{ 'opacity-60': memory.status === 'archived' }"
             >
-              <div class="min-w-0 flex-1">
-                <p class="wrap-break-word text-sm">{{ memory.content }}</p>
-                <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" class="text-[10px]">{{ memory.kind }}</Badge>
-                  <Badge variant="secondary" class="text-[10px]">
-                    {{ categoryLabel(memory.category) }}
-                  </Badge>
-                  <Badge :variant="statusVariant(memory.status)" class="text-[10px]">
-                    {{ t(`settings.deepchatAgents.memoryManager.status.${memory.status}`) }}
-                  </Badge>
-                  <Badge
-                    v-if="memory.conflictState === 'challenged'"
-                    variant="destructive"
-                    class="text-[10px]"
-                  >
-                    {{ t('settings.deepchatAgents.memoryManager.conflict') }}
-                  </Badge>
-                  <span class="text-[10px] text-muted-foreground">
-                    {{ formatTime(memory.createdAt) }}
-                  </span>
-                </div>
-                <button
-                  v-if="memory.sourceSession && memory.sourceEntryIds?.length"
-                  class="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground hover:text-foreground"
-                  :title="sourceEntryTitle(memory)"
-                  type="button"
-                  @click="handleOpenSource(memory)"
-                >
-                  {{
-                    t('settings.deepchatAgents.memoryManager.sourceLine', {
-                      session: shortSession(memory.sourceSession),
-                      count: memory.sourceEntryIds?.length ?? 0
-                    })
-                  }}
-                </button>
-              </div>
-              <div class="flex shrink-0 items-center gap-1">
-                <Button
-                  v-if="memory.status === 'archived'"
-                  variant="ghost"
-                  size="sm"
-                  :disabled="memoryDisabled"
-                  class="h-7 px-2 text-xs"
-                  :aria-label="t('settings.deepchatAgents.memoryManager.restore')"
-                  @click="handleRestore(memory.id)"
-                >
-                  <Icon icon="lucide:archive-restore" class="h-3.5 w-3.5" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger as-child>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 px-2 text-xs text-destructive"
-                      :aria-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="wrap-break-word text-sm">{{ memory.content }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" class="text-[10px]">{{ memory.kind }}</Badge>
+                    <Badge variant="secondary" class="text-[10px]">
+                      {{ categoryLabel(memory.category) }}
+                    </Badge>
+                    <Badge :variant="statusVariant(memory.status)" class="text-[10px]">
+                      {{ t(`settings.deepchatAgents.memoryManager.status.${memory.status}`) }}
+                    </Badge>
+                    <Badge
+                      v-if="memory.conflictState === 'challenged'"
+                      variant="destructive"
+                      class="text-[10px]"
                     >
-                      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                      <AlertDialogAction
-                        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        @click="handleDelete(memory.id)"
+                      {{ t('settings.deepchatAgents.memoryManager.conflict') }}
+                    </Badge>
+                    <span class="text-[10px] text-muted-foreground">
+                      {{ formatTime(memory.createdAt) }}
+                    </span>
+                  </div>
+                  <button
+                    v-if="memory.sourceSession && memory.sourceEntryIds?.length"
+                    class="mt-1 block max-w-full truncate text-left text-[10px] text-muted-foreground hover:text-foreground"
+                    :title="sourceEntryTitle(memory)"
+                    type="button"
+                    @click="handleOpenSource(memory)"
+                  >
+                    {{
+                      t('settings.deepchatAgents.memoryManager.sourceLine', {
+                        session: shortSession(memory.sourceSession),
+                        count: memory.sourceEntryIds?.length ?? 0
+                      })
+                    }}
+                  </button>
+                </div>
+
+                <div class="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 w-7 px-0"
+                    :aria-label="t('settings.deepchatAgents.memoryManager.lifecycle.toggle')"
+                    :aria-expanded="isLifecycleExpanded(memory.id)"
+                    @click="toggleLifecycle(memory.id)"
+                  >
+                    <Icon
+                      :icon="
+                        isLifecycleExpanded(memory.id)
+                          ? 'lucide:chevron-down'
+                          : 'lucide:chevron-right'
+                      "
+                      class="h-3.5 w-3.5"
+                    />
+                  </Button>
+                  <Button
+                    v-if="memory.status === 'archived'"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="memoryDisabled"
+                    class="h-7 px-2 text-xs"
+                    :aria-label="t('settings.deepchatAgents.memoryManager.restore')"
+                    @click="handleRestore(memory.id)"
+                  >
+                    <Icon icon="lucide:archive-restore" class="h-3.5 w-3.5" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-7 px-2 text-xs text-destructive"
+                        :aria-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
                       >
-                        {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        <Icon icon="lucide:x" class="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
+                        <AlertDialogAction
+                          class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          @click="handleDelete(memory.id)"
+                        >
+                          {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
+              <MemoryLifecyclePanel
+                v-if="isLifecycleExpanded(memory.id)"
+                class="mt-2"
+                :lifecycle="lifecycleFor(memory.id)"
+                :loading="isLifecycleLoading(memory.id)"
+                :error="lifecycleErrorFor(memory.id)"
+              />
             </li>
           </ul>
         </ScrollArea>
@@ -692,12 +719,14 @@ import { createMemoryClient, type MemoryUpdatedPayload } from '@api/MemoryClient
 import { useToast } from '@/components/use-toast'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import MemoryHealthSection from './MemoryHealthSection.vue'
+import MemoryLifecyclePanel from './MemoryLifecyclePanel.vue'
 import type {
   MemoryAddResult,
   MemoryAuditEvent,
   MemoryConflictItem,
   MemoryHealthDto,
   MemoryItem,
+  MemoryLifecycle,
   MemorySearchResult,
   MemorySourceSpan,
   MemoryStatusDto,
@@ -755,6 +784,12 @@ const healthDirty = ref(true)
 const sourceSpanOpen = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
 const searchError = ref<string | null>(null)
+const expandedLifecycleIds = ref<Set<string>>(new Set())
+const lifecycleCache = ref<Record<string, MemoryLifecycle | null>>({})
+const lifecycleLoading = ref<Record<string, boolean>>({})
+const lifecycleErrors = ref<Record<string, string | null>>({})
+let lifecycleRequestSeq = 0
+const lifecycleRequestIds = new Map<string, number>()
 
 const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === true)
 // Only gates the write surface when the caller explicitly reports memory disabled; existing rows
@@ -860,6 +895,7 @@ async function refresh(): Promise<void> {
     personaVersions.value = versions
     personaDrafts.value = drafts
     status.value = currentStatus
+    resetLifecycleState()
     // Reconcile the search cache with server truth so a mutation that reloads memories does not
     // leave a stale (or already-deleted) row showing in search mode.
     if (searchActive.value) {
@@ -926,6 +962,80 @@ function resetSearch(): void {
   searchResults.value = []
   searchError.value = null
   searching.value = false
+}
+
+function resetLifecycleState(): void {
+  expandedLifecycleIds.value = new Set()
+  lifecycleCache.value = {}
+  lifecycleLoading.value = {}
+  lifecycleErrors.value = {}
+  lifecycleRequestIds.clear()
+  lifecycleRequestSeq += 1
+}
+
+function isLifecycleExpanded(memoryId: string): boolean {
+  return expandedLifecycleIds.value.has(memoryId)
+}
+
+function lifecycleFor(memoryId: string): MemoryLifecycle | null {
+  return lifecycleCache.value[memoryId] ?? null
+}
+
+function isLifecycleLoading(memoryId: string): boolean {
+  return lifecycleLoading.value[memoryId] === true
+}
+
+function lifecycleErrorFor(memoryId: string): string | null {
+  return lifecycleErrors.value[memoryId] ?? null
+}
+
+function hasLifecycleCache(memoryId: string): boolean {
+  return Object.prototype.hasOwnProperty.call(lifecycleCache.value, memoryId)
+}
+
+function setLifecycleExpanded(memoryId: string, expanded: boolean): void {
+  const next = new Set(expandedLifecycleIds.value)
+  if (expanded) next.add(memoryId)
+  else next.delete(memoryId)
+  expandedLifecycleIds.value = next
+}
+
+async function toggleLifecycle(memoryId: string): Promise<void> {
+  if (isLifecycleExpanded(memoryId)) {
+    setLifecycleExpanded(memoryId, false)
+    return
+  }
+  setLifecycleExpanded(memoryId, true)
+  if (hasLifecycleCache(memoryId) || lifecycleLoading.value[memoryId]) return
+  await loadLifecycle(memoryId)
+}
+
+async function loadLifecycle(memoryId: string): Promise<void> {
+  const agentId = props.agentId
+  if (!agentId) return
+  const requestId = ++lifecycleRequestSeq
+  lifecycleRequestIds.set(memoryId, requestId)
+  lifecycleLoading.value = { ...lifecycleLoading.value, [memoryId]: true }
+  lifecycleErrors.value = { ...lifecycleErrors.value, [memoryId]: null }
+  try {
+    const lifecycles = await memoryClient.getLifecycle(agentId, memoryId)
+    if (!isCurrentLifecycleRequest(agentId, memoryId, requestId)) return
+    lifecycleCache.value = { ...lifecycleCache.value, [memoryId]: lifecycles[0] ?? null }
+  } catch (e) {
+    if (!isCurrentLifecycleRequest(agentId, memoryId, requestId)) return
+    lifecycleErrors.value = {
+      ...lifecycleErrors.value,
+      [memoryId]: e instanceof Error ? e.message : String(e)
+    }
+  } finally {
+    if (isCurrentLifecycleRequest(agentId, memoryId, requestId)) {
+      lifecycleLoading.value = { ...lifecycleLoading.value, [memoryId]: false }
+    }
+  }
+}
+
+function isCurrentLifecycleRequest(agentId: string, memoryId: string, requestId: number): boolean {
+  return props.agentId === agentId && lifecycleRequestIds.get(memoryId) === requestId
 }
 
 function matchesCategoryFilter(memory: MemoryItem): boolean {
@@ -1072,6 +1182,7 @@ async function handleClear(): Promise<void> {
     searchResults.value = []
     conflicts.value = []
     status.value = status.value ? { ...status.value, total: 0, pendingEmbedding: 0 } : null
+    resetLifecycleState()
     markHealthDirtyIfNoObservedUpdate(eventVersionBefore)
     await refreshActivity(props.agentId)
   } catch (e) {
@@ -1227,6 +1338,7 @@ watch(
     activeTab.value = 'memories'
     categoryFilter.value = 'all'
     markHealthDirty()
+    resetLifecycleState()
     resetSearch()
     resetAddForm()
     void refresh()

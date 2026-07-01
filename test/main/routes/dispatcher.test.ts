@@ -1398,6 +1398,72 @@ describe('dispatchDeepchatRoute', () => {
     expect(getHealth).toHaveBeenCalledWith('deepchat')
   })
 
+  it('dispatches memory lifecycle with deepchat guard and empty fallback', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const lifecycles = [
+      {
+        memoryId: 'm1',
+        kind: 'semantic',
+        status: 'embedded',
+        recallable: true,
+        decayTier: 'fresh',
+        recall: {
+          weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+          similarity: 0.3,
+          similaritySource: 'baseline',
+          recency: 1,
+          importance: 0.5,
+          confidenceFactor: 1,
+          importanceFloor: 0.075,
+          final: 0.48,
+          flooredByImportance: false,
+          halfLifeMs: 14 * 24 * 60 * 60 * 1000
+        },
+        forget: {
+          anchorAt: 1000,
+          ageDays: 0,
+          halfLifeDays: 30,
+          decayScore: 1,
+          materializedDecay: null,
+          materializedStale: true
+        },
+        archiveEligibility: {
+          eligible: false,
+          oldEnough: false,
+          decayedEnough: false,
+          neverAccessed: true,
+          active: true,
+          exempt: false,
+          exemptReasons: [],
+          gaps: {}
+        }
+      }
+    ]
+    const getLifecycle = vi.fn(() => lifecycles)
+    ;(runtime as any).memoryPresenter = { getLifecycle }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getLifecycle',
+        { agentId: 'other', memoryId: 'm1' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ lifecycles: [] })
+    expect(getLifecycle).not.toHaveBeenCalled()
+
+    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getLifecycle',
+        { agentId: 'deepchat', memoryId: 'm1' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ lifecycles })
+    expect(getLifecycle).toHaveBeenCalledWith('deepchat', 'm1')
+  })
+
   it('returns no memory audit events when the SQLite presenter has no memory audit table', async () => {
     const { runtime } = createRuntime()
 

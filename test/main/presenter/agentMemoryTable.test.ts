@@ -705,6 +705,40 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('lists all non-working rows for lifecycle inspection', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'active', agentId: 'a', kind: 'semantic', content: 'active' })
+      table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'persona' })
+      table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working' })
+      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other' })
+      table.insert({ id: 'archived', agentId: 'a', kind: 'semantic', content: 'archived' })
+      table.archive('archived', 2000)
+      table.insert({ id: 'conflicted', agentId: 'a', kind: 'semantic', content: 'conflicted' })
+      table.updateStatus('conflicted', 'conflicted')
+      table.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'superseded' })
+      table.markSuperseded('superseded', 'active')
+
+      expect(
+        table
+          .listByAgent('a', { includeArchived: true })
+          .map((row) => row.id)
+          .sort()
+      ).toEqual(['active', 'archived', 'persona'])
+      expect(
+        table
+          .listForLifecycle('a')
+          .map((row) => row.id)
+          .sort()
+      ).toEqual(['active', 'archived', 'conflicted', 'persona', 'superseded'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('never requeues the working blob for embedding', () => {
     const db = new DatabaseCtor(':memory:')
     try {

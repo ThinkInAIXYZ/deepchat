@@ -2642,6 +2642,58 @@
           "persona": "פרסונה",
           "working": "זיכרון עבודה"
         }
+      },
+      "lifecycle": {
+        "toggle": "בדיקת מחזור חיים",
+        "empty": "אין נתוני מחזור חיים זמינים.",
+        "modelNote": "קו בסיס לקריאה בלבד: שליפה ושכחה מחושבות בנפרד; ארכוב דורש את כל התנאים.",
+        "tier": {
+          "fresh": "טרי",
+          "aging": "מזדקן",
+          "stale": "מיושן",
+          "archive_candidate": "מועמד לארכוב"
+        },
+        "recall": {
+          "title": "שליפה",
+          "final": "ציון בסיס",
+          "diagnosticFinal": "ציון בסיס אבחוני",
+          "similarity": "דמיון",
+          "recency": "עדכניות",
+          "importance": "חשיבות",
+          "confidence": "מקדם ביטחון",
+          "floor": "רצפת חשיבות",
+          "floored": "הועלה לרצפת החשיבות.",
+          "inactive": "אינו משתתף כעת בשליפה; הערכים הבאים הם לאבחון בלבד.",
+          "baseline": "הדמיון משתמש בקו בסיס ללא שאילתה; השליפה בפועל משתנה לפי השאילתה.",
+          "notRecallable": "סוג זה אינו נשלף ישירות."
+        },
+        "forget": {
+          "title": "שכחה",
+          "score": "ציון דעיכה מחושב",
+          "materialized": "דעיכה שמורה",
+          "notRefreshed": "עדיין לא עודכן",
+          "stale": "הערך השמור חסר או שונה מהציון המחושב.",
+          "halfLife": "ימי מחצית חיים",
+          "age": "ימי דעיכה",
+          "anchor": "עוגן דעיכה"
+        },
+        "archive": {
+          "title": "ארכוב",
+          "oldEnough": "ישן מסף גיל הארכוב",
+          "decayedEnough": "מתחת לסף הדעיכה",
+          "neverAccessed": "מעולם לא ניגשו אליו",
+          "active": "שורה פעילה",
+          "notExempt": "לא מוחרג",
+          "eligible": "כשיר לארכוב רך בתחזוקה הבאה וניתן לשחזור.",
+          "daysUntilOldEnough": "נותרו {days} ימים",
+          "decayAboveThresholdBy": "{score} מעל הסף",
+          "accessCount": "{count} גישות"
+        },
+        "exempt": {
+          "anchor": "עוגן",
+          "persona": "פרסונה",
+          "working": "זיכרון עבודה"
+        }
       }
     },
     "personaEvolutionTitle": "התפתחות פרסונה (ניסיוני)",

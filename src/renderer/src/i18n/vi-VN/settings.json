@@ -273,6 +273,58 @@
           "persona": "Persona",
           "working": "Bộ nhớ làm việc"
         }
+      },
+      "lifecycle": {
+        "toggle": "Xem vòng đời",
+        "empty": "Không có dữ liệu vòng đời.",
+        "modelNote": "Mốc chỉ đọc: truy hồi và lãng quên được tính riêng; lưu trữ cần đủ mọi điều kiện.",
+        "tier": {
+          "fresh": "Mới",
+          "aging": "Đang cũ dần",
+          "stale": "Cũ",
+          "archive_candidate": "Ứng viên lưu trữ"
+        },
+        "recall": {
+          "title": "Truy hồi",
+          "final": "Điểm mốc",
+          "diagnosticFinal": "Điểm mốc chẩn đoán",
+          "similarity": "Độ tương đồng",
+          "recency": "Độ mới",
+          "importance": "Độ quan trọng",
+          "confidence": "Hệ số tin cậy",
+          "floor": "Sàn độ quan trọng",
+          "floored": "Đã nâng lên sàn độ quan trọng.",
+          "inactive": "Hiện không tham gia truy hồi; các giá trị bên dưới chỉ dùng để chẩn đoán.",
+          "baseline": "Độ tương đồng dùng mốc không có truy vấn; truy hồi thực tế thay đổi theo truy vấn.",
+          "notRecallable": "Loại này không được truy hồi trực tiếp."
+        },
+        "forget": {
+          "title": "Lãng quên",
+          "score": "Điểm suy giảm đã tính",
+          "materialized": "Suy giảm đã lưu",
+          "notRefreshed": "Chưa được làm mới",
+          "stale": "Giá trị đã lưu bị thiếu hoặc khác với điểm đã tính.",
+          "halfLife": "Số ngày bán rã",
+          "age": "Số ngày suy giảm",
+          "anchor": "Mốc suy giảm"
+        },
+        "archive": {
+          "title": "Lưu trữ",
+          "oldEnough": "Vượt tuổi tối thiểu để lưu trữ",
+          "decayedEnough": "Dưới ngưỡng suy giảm",
+          "neverAccessed": "Chưa từng truy cập",
+          "active": "Dòng đang hoạt động",
+          "notExempt": "Không được miễn",
+          "eligible": "Đủ điều kiện lưu trữ mềm trong lần bảo trì kế tiếp, có thể khôi phục.",
+          "daysUntilOldEnough": "Còn {days} ngày",
+          "decayAboveThresholdBy": "Cao hơn ngưỡng {score}",
+          "accessCount": "{count} lần truy cập"
+        },
+        "exempt": {
+          "anchor": "neo",
+          "persona": "persona",
+          "working": "bộ nhớ làm việc"
+        }
       }
     },
     "personaEvolutionTitle": "Tiến hóa tính cách (thử nghiệm)",

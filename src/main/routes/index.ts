@@ -72,6 +72,7 @@ import {
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
+  memoryGetLifecycleRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -2251,6 +2252,17 @@ export async function dispatchDeepchatRoute(
       }
       return memoryGetHealthRoute.output.parse({
         health: runtime.memoryPresenter.getHealth(input.agentId)
+      })
+    }
+
+    case memoryGetLifecycleRoute.name: {
+      const input = memoryGetLifecycleRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetLifecycleRoute.output.parse({ lifecycles: [] })
+      }
+      return memoryGetLifecycleRoute.output.parse({
+        lifecycles: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
       })
     }
 

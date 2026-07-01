@@ -25,7 +25,8 @@ import {
 import {
   MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT,
   createEmptyMemoryHealth,
-  type MemoryHealthDto
+  type MemoryHealthDto,
+  type MemoryLifecycle
 } from '@shared/contracts/routes/memory.routes'
 import {
   buildMemoryProvenanceKey,
@@ -34,6 +35,8 @@ import {
   fuse,
   resolveRetrieval
 } from './scoring'
+import { deriveLifecycle } from './lifecycle'
+import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from './lifecycleConstants'
 import { ADD_DECISION, buildDecisionPrompt, parseDecision, type MemoryDecision } from './decision'
 import { CONFIDENCE_INCREMENT, DEFAULT_CONFIDENCE } from './types'
 import {
@@ -117,8 +120,6 @@ const STARTUP_ARM_STAGGER_MS = 5 * 1000
 const STARTUP_PREWARM_STAGGER_MS = 1500
 const EMBEDDING_PREWARM_TEXT = 'memory warmup'
 const WARM_DIMENSION_FAILURE_COOLDOWN_MS = 30 * 1000
-const ARCHIVE_DECAY_THRESHOLD = 0.05
-const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
 const MEMORY_HEALTH_TOP_ACCESSED_LIMIT = 5
 const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
 const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
@@ -2310,6 +2311,30 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return []
     return this.deps.repository.listByAgent(agentId, { includeArchived: true })
+  }
+
+  getLifecycle(agentId: string, memoryId?: string): MemoryLifecycle[] {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return []
+
+    const config = this.deps.resolveAgentConfig(agentId)
+    const weights = resolveRetrieval(config?.memoryRetrieval).weights
+    const now = Date.now()
+    const options = {
+      weights,
+      archiveAgeMs: ARCHIVE_AGE_MS,
+      archiveDecayThreshold: ARCHIVE_DECAY_THRESHOLD
+    }
+
+    if (memoryId !== undefined) {
+      const row = this.deps.repository.getById(memoryId)
+      if (!row || row.agent_id !== agentId || row.kind === 'working') return []
+      return [deriveLifecycle(row, now, options)]
+    }
+
+    return this.deps.repository
+      .listForLifecycle(agentId)
+      .map((row) => deriveLifecycle(row, now, options))
   }
 
   getHealth(agentId: string): MemoryHealthDto {

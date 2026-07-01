@@ -2642,6 +2642,58 @@
           "persona": "Persona",
           "working": "Memória de trabalho"
         }
+      },
+      "lifecycle": {
+        "toggle": "Inspecionar ciclo de vida",
+        "empty": "Nenhum dado de ciclo de vida disponível.",
+        "modelNote": "Linha de base somente leitura: recuperação e esquecimento são calculados separadamente; arquivar exige todas as condições.",
+        "tier": {
+          "fresh": "Recente",
+          "aging": "Envelhecendo",
+          "stale": "Obsoleta",
+          "archive_candidate": "Candidata a arquivar"
+        },
+        "recall": {
+          "title": "Recuperação",
+          "final": "Pontuação base",
+          "diagnosticFinal": "Pontuação base diagnóstica",
+          "similarity": "Similaridade",
+          "recency": "Recência",
+          "importance": "Importância",
+          "confidence": "Fator de confiança",
+          "floor": "Piso de importância",
+          "floored": "Elevada ao piso de importância.",
+          "inactive": "Atualmente não participa da recuperação; os valores abaixo são apenas diagnósticos.",
+          "baseline": "A similaridade usa uma linha de base sem consulta; a recuperação real muda com a consulta.",
+          "notRecallable": "Este tipo não é recuperado diretamente."
+        },
+        "forget": {
+          "title": "Esquecimento",
+          "score": "Pontuação de decaimento calculada",
+          "materialized": "Decaimento armazenado",
+          "notRefreshed": "Ainda não atualizado",
+          "stale": "O valor armazenado está ausente ou difere da pontuação calculada.",
+          "halfLife": "Dias de meia-vida",
+          "age": "Dias de decaimento",
+          "anchor": "Âncora de decaimento"
+        },
+        "archive": {
+          "title": "Arquivo",
+          "oldEnough": "Acima da idade mínima de arquivo",
+          "decayedEnough": "Abaixo do limite de decaimento",
+          "neverAccessed": "Nunca acessada",
+          "active": "Linha ativa",
+          "notExempt": "Sem isenção",
+          "eligible": "Elegível para arquivamento reversível na próxima manutenção.",
+          "daysUntilOldEnough": "Faltam {days} dias",
+          "decayAboveThresholdBy": "{score} acima do limite",
+          "accessCount": "{count} acessos"
+        },
+        "exempt": {
+          "anchor": "âncora",
+          "persona": "persona",
+          "working": "memória de trabalho"
+        }
       }
     },
     "personaEvolutionTitle": "Evolução da persona (experimental)",

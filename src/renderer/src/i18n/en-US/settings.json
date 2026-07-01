@@ -270,6 +270,58 @@
           "persona": "Persona",
           "working": "Working memory"
         }
+      },
+      "lifecycle": {
+        "toggle": "Inspect lifecycle",
+        "empty": "No lifecycle data available.",
+        "modelNote": "Read-only baseline: recall and forgetting are separate; archive needs every condition.",
+        "tier": {
+          "fresh": "Fresh",
+          "aging": "Aging",
+          "stale": "Stale",
+          "archive_candidate": "Archive candidate"
+        },
+        "recall": {
+          "title": "Recall",
+          "final": "Baseline score",
+          "diagnosticFinal": "Diagnostic baseline score",
+          "similarity": "Similarity",
+          "recency": "Recency",
+          "importance": "Importance",
+          "confidence": "Confidence factor",
+          "floor": "Importance floor",
+          "floored": "Raised to the importance floor.",
+          "inactive": "Currently excluded from recall; the values below are diagnostic only.",
+          "baseline": "Similarity uses a no-query baseline; actual recall changes with the query.",
+          "notRecallable": "This kind is not recalled directly."
+        },
+        "forget": {
+          "title": "Forgetting",
+          "score": "Computed decay score",
+          "materialized": "Stored decay",
+          "notRefreshed": "Not refreshed yet",
+          "stale": "Stored decay is missing or differs from the computed score.",
+          "halfLife": "Half-life days",
+          "age": "Age days",
+          "anchor": "Decay anchor"
+        },
+        "archive": {
+          "title": "Archive",
+          "oldEnough": "Older than archive floor",
+          "decayedEnough": "Below decay threshold",
+          "neverAccessed": "Never accessed",
+          "active": "Active row",
+          "notExempt": "Not exempt",
+          "eligible": "Eligible for soft archive on the next maintenance pass.",
+          "daysUntilOldEnough": "{days} days remaining",
+          "decayAboveThresholdBy": "{score} above threshold",
+          "accessCount": "{count} accesses"
+        },
+        "exempt": {
+          "anchor": "anchor",
+          "persona": "persona",
+          "working": "working memory"
+        }
       }
     },
     "compactionThreshold": "Trigger threshold",

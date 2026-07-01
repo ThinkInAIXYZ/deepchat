@@ -1022,6 +1022,48 @@ describe('renderer api clients', () => {
                   }
                 }
               }
+            case 'memory.getLifecycle':
+              return {
+                lifecycles: [
+                  {
+                    memoryId: payload?.memoryId ?? 'mem-1',
+                    kind: 'semantic',
+                    status: 'embedded',
+                    recallable: true,
+                    decayTier: 'fresh',
+                    recall: {
+                      weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+                      similarity: 0.3,
+                      similaritySource: 'baseline',
+                      recency: 1,
+                      importance: 0.5,
+                      confidenceFactor: 1,
+                      importanceFloor: 0.075,
+                      final: 0.48,
+                      flooredByImportance: false,
+                      halfLifeMs: 14 * 24 * 60 * 60 * 1000
+                    },
+                    forget: {
+                      anchorAt: 1000,
+                      ageDays: 0,
+                      halfLifeDays: 30,
+                      decayScore: 1,
+                      materializedDecay: null,
+                      materializedStale: true
+                    },
+                    archiveEligibility: {
+                      eligible: false,
+                      oldEnough: false,
+                      decayedEnough: false,
+                      neverAccessed: true,
+                      active: true,
+                      exempt: false,
+                      exemptReasons: [],
+                      gaps: {}
+                    }
+                  }
+                ]
+              }
             case 'memory.list':
               return {
                 memories: [
@@ -1306,6 +1348,7 @@ describe('renderer api clients', () => {
     const categorizedMemories = await memoryClient.list('agent-1')
     await memoryClient.add('agent-1', { content: 'plain note' })
     const health = await memoryClient.getHealth('agent-1')
+    const lifecycles = await memoryClient.getLifecycle('agent-1', 'mem-1')
     const off = memoryClient.onUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
@@ -1359,6 +1402,11 @@ describe('renderer api clients', () => {
     expect(bridge.invoke.mock.calls[13][1]).not.toHaveProperty('category')
     expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'memory.getHealth', { agentId: 'agent-1' })
     expect(health.totalRows).toBe(1)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'memory.getLifecycle', {
+      agentId: 'agent-1',
+      memoryId: 'mem-1'
+    })
+    expect(lifecycles[0].memoryId).toBe('mem-1')
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })

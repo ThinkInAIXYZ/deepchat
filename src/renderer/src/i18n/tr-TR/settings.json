@@ -273,6 +273,58 @@
           "persona": "Persona",
           "working": "Çalışma belleği"
         }
+      },
+      "lifecycle": {
+        "toggle": "Yaşam döngüsünü incele",
+        "empty": "Yaşam döngüsü verisi yok.",
+        "modelNote": "Salt okunur temel değer: geri çağırma ve unutma ayrı hesaplanır; arşivleme tüm koşulları ister.",
+        "tier": {
+          "fresh": "Taze",
+          "aging": "Yaşlanıyor",
+          "stale": "Bayat",
+          "archive_candidate": "Arşiv adayı"
+        },
+        "recall": {
+          "title": "Geri çağırma",
+          "final": "Temel puan",
+          "diagnosticFinal": "Tanısal temel puan",
+          "similarity": "Benzerlik",
+          "recency": "Güncellik",
+          "importance": "Önem",
+          "confidence": "Güven katsayısı",
+          "floor": "Önem alt sınırı",
+          "floored": "Önem alt sınırına yükseltildi.",
+          "inactive": "Şu anda geri çağırmaya katılmıyor; aşağıdaki değerler yalnızca tanısaldır.",
+          "baseline": "Benzerlik sorgusuz temel değeri kullanır; gerçek geri çağırma sorguya göre değişir.",
+          "notRecallable": "Bu tür doğrudan geri çağrılmaz."
+        },
+        "forget": {
+          "title": "Unutma",
+          "score": "Hesaplanan zayıflama puanı",
+          "materialized": "Kaydedilen zayıflama",
+          "notRefreshed": "Henüz yenilenmedi",
+          "stale": "Kaydedilen değer yok veya hesaplanan puandan farklı.",
+          "halfLife": "Yarı ömür günü",
+          "age": "Azalma günü",
+          "anchor": "Azalma dayanağı"
+        },
+        "archive": {
+          "title": "Arşiv",
+          "oldEnough": "Arşiv yaş alt sınırını geçti",
+          "decayedEnough": "Azalma eşiğinin altında",
+          "neverAccessed": "Hiç erişilmedi",
+          "active": "Etkin satır",
+          "notExempt": "Muaf değil",
+          "eligible": "Sonraki bakımda geri alınabilir arşive uygun.",
+          "daysUntilOldEnough": "{days} gün kaldı",
+          "decayAboveThresholdBy": "Eşiğin {score} üstünde",
+          "accessCount": "{count} erişim"
+        },
+        "exempt": {
+          "anchor": "sabitlenmiş",
+          "persona": "persona",
+          "working": "çalışma belleği"
+        }
       }
     },
     "personaEvolutionTitle": "Kişilik evrimi (deneysel)",

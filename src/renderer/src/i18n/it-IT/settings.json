@@ -273,6 +273,58 @@
           "persona": "Persona",
           "working": "Memoria di lavoro"
         }
+      },
+      "lifecycle": {
+        "toggle": "Ispeziona ciclo di vita",
+        "empty": "Nessun dato sul ciclo di vita disponibile.",
+        "modelNote": "Riferimento in sola lettura: richiamo e oblio sono calcolati separatamente; l’archiviazione richiede tutte le condizioni.",
+        "tier": {
+          "fresh": "Fresca",
+          "aging": "Invecchiamento",
+          "stale": "Obsoleta",
+          "archive_candidate": "Candidata archivio"
+        },
+        "recall": {
+          "title": "Richiamo",
+          "final": "Punteggio base",
+          "diagnosticFinal": "Punteggio base diagnostico",
+          "similarity": "Similarità",
+          "recency": "Recenza",
+          "importance": "Importanza",
+          "confidence": "Fattore di confidenza",
+          "floor": "Soglia minima di importanza",
+          "floored": "Alzata alla soglia minima di importanza.",
+          "inactive": "Attualmente non partecipa al richiamo; i valori sotto sono solo diagnostici.",
+          "baseline": "La similarità usa una base senza interrogazione; il richiamo reale cambia con l’interrogazione.",
+          "notRecallable": "Questo tipo non viene richiamato direttamente."
+        },
+        "forget": {
+          "title": "Oblio",
+          "score": "Punteggio di decadimento calcolato",
+          "materialized": "Decadimento salvato",
+          "notRefreshed": "Non ancora aggiornato",
+          "stale": "Il valore salvato manca o differisce dal punteggio calcolato.",
+          "halfLife": "Giorni di emivita",
+          "age": "Giorni di decadimento",
+          "anchor": "Ancora del decadimento"
+        },
+        "archive": {
+          "title": "Archivio",
+          "oldEnough": "Oltre l’età minima di archivio",
+          "decayedEnough": "Sotto la soglia di decadimento",
+          "neverAccessed": "Mai acceduta",
+          "active": "Riga attiva",
+          "notExempt": "Non esente",
+          "eligible": "Idonea all’archiviazione reversibile alla prossima manutenzione.",
+          "daysUntilOldEnough": "{days} giorni rimanenti",
+          "decayAboveThresholdBy": "{score} sopra la soglia",
+          "accessCount": "{count} accessi"
+        },
+        "exempt": {
+          "anchor": "ancorata",
+          "persona": "persona",
+          "working": "memoria di lavoro"
+        }
       }
     },
     "personaEvolutionTitle": "Evoluzione della persona (sperimentale)",

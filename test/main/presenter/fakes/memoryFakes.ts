@@ -108,6 +108,12 @@ export class FakeRepository implements MemoryRepositoryPort {
     return result
   }
 
+  listForLifecycle(agentId: string) {
+    return [...this.rows.values()]
+      .filter((row) => row.agent_id === agentId && row.kind !== 'working')
+      .sort((a, b) => b.created_at - a.created_at)
+  }
+
   getActivePersona(agentId: string) {
     return [...this.rows.values()]
       .filter(

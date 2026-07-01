@@ -273,6 +273,58 @@
           "persona": "Persona",
           "working": "Pamięć robocza"
         }
+      },
+      "lifecycle": {
+        "toggle": "Sprawdź cykl życia",
+        "empty": "Brak danych cyklu życia.",
+        "modelNote": "Tylko do odczytu: przywołanie i zapominanie liczone są osobno; archiwizacja wymaga wszystkich warunków.",
+        "tier": {
+          "fresh": "Świeża",
+          "aging": "Starzeje się",
+          "stale": "Nieświeża",
+          "archive_candidate": "Kandydat do archiwum"
+        },
+        "recall": {
+          "title": "Przywołanie",
+          "final": "Wynik bazowy",
+          "diagnosticFinal": "Diagnostyczny wynik bazowy",
+          "similarity": "Podobieństwo",
+          "recency": "Aktualność",
+          "importance": "Ważność",
+          "confidence": "Współczynnik pewności",
+          "floor": "Dolny próg ważności",
+          "floored": "Podniesiono do dolnego progu ważności.",
+          "inactive": "Obecnie nie uczestniczy w przywołaniu; poniższe wartości są tylko diagnostyczne.",
+          "baseline": "Podobieństwo używa bazy bez zapytania; rzeczywiste przywołanie zależy od zapytania.",
+          "notRecallable": "Ten typ nie jest przywoływany bezpośrednio."
+        },
+        "forget": {
+          "title": "Zapominanie",
+          "score": "Obliczony wynik zaniku",
+          "materialized": "Zapisany zanik",
+          "notRefreshed": "Jeszcze nie odświeżono",
+          "stale": "Zapisanej wartości brakuje albo różni się od obliczonego wyniku.",
+          "halfLife": "Dni półtrwania",
+          "age": "Dni zaniku",
+          "anchor": "Punkt zaniku"
+        },
+        "archive": {
+          "title": "Archiwum",
+          "oldEnough": "Starsza niż próg archiwizacji",
+          "decayedEnough": "Poniżej progu zaniku",
+          "neverAccessed": "Nigdy nie użyto",
+          "active": "Aktywny wiersz",
+          "notExempt": "Bez wyjątku",
+          "eligible": "Kwalifikuje się do miękkiej archiwizacji przy następnej konserwacji.",
+          "daysUntilOldEnough": "Pozostało {days} dni",
+          "decayAboveThresholdBy": "{score} powyżej progu",
+          "accessCount": "{count} użyć"
+        },
+        "exempt": {
+          "anchor": "zakotwiczenie",
+          "persona": "persona",
+          "working": "pamięć robocza"
+        }
       }
     },
     "personaEvolutionTitle": "Ewolucja persony (eksperymentalna)",

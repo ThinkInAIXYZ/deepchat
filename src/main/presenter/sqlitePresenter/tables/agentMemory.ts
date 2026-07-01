@@ -518,6 +518,16 @@ export class AgentMemoryTable extends BaseTable {
     return this.db.prepare(sql).all(...params) as AgentMemoryRow[]
   }
 
+  listForLifecycle(agentId: string): AgentMemoryRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM agent_memory
+         WHERE agent_id = ? AND kind != 'working'
+         ORDER BY created_at DESC`
+      )
+      .all(agentId) as AgentMemoryRow[]
+  }
+
   // Active = the approved self-model. A draft persona also has superseded_by IS NULL, so the state
   // must be checked explicitly; legacy rows (persona_state NULL) stay active only while not
   // superseded. The superseded_by guard on legacy rows is load-bearing: a row left with a later

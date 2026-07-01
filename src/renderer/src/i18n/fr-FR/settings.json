@@ -2642,6 +2642,58 @@
           "persona": "Persona",
           "working": "Mémoire de travail"
         }
+      },
+      "lifecycle": {
+        "toggle": "Inspecter le cycle de vie",
+        "empty": "Aucune donnée de cycle de vie disponible.",
+        "modelNote": "Référence en lecture seule : le rappel et l’oubli sont calculés séparément ; l’archivage exige toutes les conditions.",
+        "tier": {
+          "fresh": "Frais",
+          "aging": "Vieillissant",
+          "stale": "Périmé",
+          "archive_candidate": "Candidat à l’archive"
+        },
+        "recall": {
+          "title": "Rappel",
+          "final": "Score de référence",
+          "diagnosticFinal": "Score de référence diagnostique",
+          "similarity": "Similarité",
+          "recency": "Récence",
+          "importance": "Importance",
+          "confidence": "Facteur de confiance",
+          "floor": "Plancher d’importance",
+          "floored": "Relevé au plancher d’importance.",
+          "inactive": "Ne participe pas actuellement au rappel ; les valeurs ci-dessous sont seulement diagnostiques.",
+          "baseline": "La similarité utilise une référence sans requête ; le rappel réel varie selon la requête.",
+          "notRecallable": "Ce type n’est pas rappelé directement."
+        },
+        "forget": {
+          "title": "Oubli",
+          "score": "Score de décroissance calculé",
+          "materialized": "Décroissance stockée",
+          "notRefreshed": "Pas encore actualisé",
+          "stale": "La valeur stockée est absente ou diffère du score calculé.",
+          "halfLife": "Demi-vie en jours",
+          "age": "Jours de décroissance",
+          "anchor": "Ancre de décroissance"
+        },
+        "archive": {
+          "title": "Archive",
+          "oldEnough": "Plus ancien que le seuil d’âge",
+          "decayedEnough": "Sous le seuil de décroissance",
+          "neverAccessed": "Jamais consulté",
+          "active": "Ligne active",
+          "notExempt": "Non exempté",
+          "eligible": "Éligible à l’archivage souple lors de la prochaine maintenance.",
+          "daysUntilOldEnough": "{days} jours restants",
+          "decayAboveThresholdBy": "{score} au-dessus du seuil",
+          "accessCount": "{count} consultations"
+        },
+        "exempt": {
+          "anchor": "ancre",
+          "persona": "persona",
+          "working": "mémoire de travail"
+        }
       }
     },
     "personaEvolutionTitle": "Évolution de la persona (expérimental)",

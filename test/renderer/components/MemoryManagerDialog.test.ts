@@ -6,6 +6,7 @@ import type {
   MemoryAuditEvent,
   MemoryHealthDto,
   MemoryItem,
+  MemoryLifecycle,
   MemorySourceSpan,
   MemoryStatusDto,
   MemoryViewManifest
@@ -147,6 +148,44 @@ const health: MemoryHealthDto = {
   }
 }
 
+const lifecycle: MemoryLifecycle = {
+  memoryId: 'm1',
+  kind: 'semantic',
+  status: 'embedded',
+  recallable: true,
+  decayTier: 'aging',
+  recall: {
+    weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+    similarity: 0.3,
+    similaritySource: 'baseline',
+    recency: 0.8,
+    importance: 0.5,
+    confidenceFactor: 1,
+    importanceFloor: 0.075,
+    final: 0.455,
+    flooredByImportance: false,
+    halfLifeMs: 14 * 24 * 60 * 60 * 1000
+  },
+  forget: {
+    anchorAt: 1000,
+    ageDays: 10,
+    halfLifeDays: 45,
+    decayScore: 0.8,
+    materializedDecay: null,
+    materializedStale: true
+  },
+  archiveEligibility: {
+    eligible: false,
+    oldEnough: false,
+    decayedEnough: false,
+    neverAccessed: true,
+    active: true,
+    exempt: false,
+    exemptReasons: [],
+    gaps: { daysUntilOldEnough: 80, decayAboveThresholdBy: 0.75 }
+  }
+}
+
 async function setup(
   overrides: {
     remove?: boolean
@@ -169,6 +208,9 @@ async function setup(
     health?: MemoryHealthDto
     healthPromise?: Promise<MemoryHealthDto>
     healthReject?: boolean
+    lifecycle?: MemoryLifecycle
+    lifecyclePromise?: Promise<MemoryLifecycle[]>
+    lifecycleReject?: boolean
     auditPromise?: Promise<MemoryAuditEvent[]>
     manifestPromise?: Promise<MemoryViewManifest[]>
     auditReject?: boolean
@@ -187,6 +229,11 @@ async function setup(
       : overrides.healthReject
         ? vi.fn().mockRejectedValue(new Error('health unavailable'))
         : vi.fn().mockResolvedValue(overrides.health ?? health),
+    getLifecycle: overrides.lifecyclePromise
+      ? vi.fn().mockReturnValue(overrides.lifecyclePromise)
+      : overrides.lifecycleReject
+        ? vi.fn().mockRejectedValue(new Error('lifecycle unavailable'))
+        : vi.fn().mockResolvedValue([overrides.lifecycle ?? lifecycle]),
     search: vi.fn().mockResolvedValue(overrides.searchResults ?? []),
     listConflicts: vi.fn().mockResolvedValue(overrides.conflicts ?? []),
     getSourceSpan: vi.fn().mockResolvedValue(overrides.sourceSpan ?? null),
@@ -1267,9 +1314,87 @@ describe('MemoryManagerDialog persona draft approval (SDD-6)', () => {
   })
 })
 
+describe('MemoryManagerDialog lifecycle inspector', () => {
+  const lifecycleToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
+    wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.attributes('aria-label') ===
+          'settings.deepchatAgents.memoryManager.lifecycle.toggle'
+      )
+
+  it('loads a memory lifecycle only when the row is expanded and reuses the cached result', async () => {
+    const { wrapper, memoryClient } = await setup()
+    expect(memoryClient.getLifecycle).not.toHaveBeenCalled()
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getLifecycle).toHaveBeenCalledWith('a', 'm1')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.modelNote')
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.recall.final')
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await nextTick()
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries lifecycle loading after a transient error when the row is expanded again', async () => {
+    const { wrapper, memoryClient } = await setup()
+    vi.mocked(memoryClient.getLifecycle)
+      .mockRejectedValueOnce(new Error('lifecycle unavailable'))
+      .mockResolvedValueOnce([lifecycle])
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('lifecycle unavailable')
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await nextTick()
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.modelNote')
+    expect(wrapper.text()).not.toContain('lifecycle unavailable')
+  })
+
+  it('caches a successful empty lifecycle result as an empty state', async () => {
+    const { wrapper, memoryClient } = await setup()
+    vi.mocked(memoryClient.getLifecycle).mockResolvedValueOnce([])
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.empty')
+
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await nextTick()
+    await lifecycleToggle(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.empty')
+  })
+})
+
 describe('MemoryManagerDialog manual add (PR-5)', () => {
   const addToggle = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
-    wrapper.findAll('button').find((b) => b.attributes('aria-expanded') !== undefined)
+    wrapper
+      .findAll('button')
+      .find(
+        (b) =>
+          b.attributes('aria-expanded') !== undefined &&
+          b.text().includes('settings.deepchatAgents.memoryManager.addMemory')
+      )
   const addSubmit = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) =>
     wrapper
       .findAll('button')
