@@ -211,6 +211,7 @@ export interface ProcessParams {
   toolOutputGuard: ToolOutputGuard
   initialBlocks?: AssistantMessageBlock[]
   onFirstProviderRoundReady?: () => void
+  onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
   hooks?: ProcessHooks
   io: IoParams

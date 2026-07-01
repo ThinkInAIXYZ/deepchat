@@ -533,6 +533,14 @@ function captureViewportAnchor(): ViewportAnchor | null {
   return fallback
 }
 
+function messageIdSelector(messageId: string): string {
+  const escapedMessageId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(messageId)
+      : messageId.replace(/["\\]/g, '\\$&')
+  return `[data-message-id="${escapedMessageId}"]`
+}
+
 function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
   if (!anchor || isProgrammaticScrollActive()) {
     return
@@ -553,11 +561,7 @@ function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
     const root = messageSearchRoot.value
     if (!container || !root) return
 
-    const escapedMessageId =
-      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-        ? CSS.escape(currentAnchor.messageId)
-        : currentAnchor.messageId.replace(/["\\]/g, '\\$&')
-    const target = root.querySelector<HTMLElement>(`[data-message-id="${escapedMessageId}"]`)
+    const target = root.querySelector<HTMLElement>(messageIdSelector(currentAnchor.messageId))
     if (!target) return
 
     const containerRect = container.getBoundingClientRect()
@@ -845,13 +849,8 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   await nextTick()
 
-  const escapedMessageId =
-    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-      ? CSS.escape(pendingJump.messageId)
-      : pendingJump.messageId.replace(/["\\]/g, '\\$&')
-  let target = messageSearchRoot.value?.querySelector<HTMLElement>(
-    `[data-message-id="${escapedMessageId}"]`
-  )
+  const selector = messageIdSelector(pendingJump.messageId)
+  let target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
 
   if (!target) {
     const entry = messageWindow.getEntry(pendingJump.messageId)
@@ -860,9 +859,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
       scrollMode.value = 'manual-jump'
       container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
       await nextTick()
-      target = messageSearchRoot.value?.querySelector<HTMLElement>(
-        `[data-message-id="${escapedMessageId}"]`
-      )
+      target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
     }
   }
 

@@ -1305,6 +1305,61 @@ describe('dispatch', () => {
       expect(result.executed).toBe(1)
     })
 
+    it('does not flash reviewing when no auto approve reviewer is registered', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn()
+      }
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+      const rendererFlushHandle = {
+        flush: vi.fn(),
+        schedule: vi.fn(),
+        rescheduleRenderer: vi.fn()
+      }
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-read',
+          name: 'read',
+          params: '{"path":"/tmp/outside.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{"path":"/tmp/outside.txt"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks,
+        undefined,
+        DEFAULT_INTERLEAVED_REASONING,
+        rendererFlushHandle
+      )
+
+      expect(rendererFlushHandle.flush).not.toHaveBeenCalled()
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(
+        state.blocks.find((block) => block.tool_call?.id === 'tc-read')?.extra
+          ?.autoApproveReviewStatus
+      ).toBeUndefined()
+    })
+
     it('pauses auto-approve Agent tool calls when the reviewer asks the user', async () => {
       const hooks = {
         onPermissionRequest: vi.fn(),
@@ -1432,6 +1487,57 @@ describe('dispatch', () => {
       expect(toolBlock?.status).toBe('error')
       expect(toolBlock?.tool_call?.response).toContain('blocked by reviewer')
       expect(toolBlock?.extra?.autoApproveReviewStatus).toBeUndefined()
+    })
+
+    it('falls back to user approval for unknown auto approve reviewer decisions', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'unknown',
+          riskLevel: 'low'
+        })
+      }
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
     })
 
     it('auto-approves pre-checked permissions before execution', async () => {

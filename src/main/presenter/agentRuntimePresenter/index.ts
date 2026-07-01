@@ -3400,9 +3400,13 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       let contextOverflowHandoffAttemptedForRun = false
       let strictProviderOverflowRetryUsedForRun = false
+      let reviewConversationMessages = messages
       const result = await processStream({
         messages,
         tools,
+        onConversationMessagesChange: (nextMessages) => {
+          reviewConversationMessages = nextMessages
+        },
         refreshTools: async (activeSkillNames) =>
           await this.loadToolDefinitionsForSession(
             sessionId,
@@ -3846,7 +3850,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
             await this.reviewToolPermissionForAutoApprove(request, {
               providerId: state.providerId,
               modelId: state.modelId,
-              messages: messages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
+              messages: reviewConversationMessages.slice(-AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES),
               signal: abortController.signal
             }),
           normalizeToolResult: async (tool) =>

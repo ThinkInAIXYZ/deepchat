@@ -26,7 +26,7 @@ Context Map
 - Side effects: `messageStore.clearStreamingState()`, `sessionClient.deleteMessage()`, `loadMessagesAndRehydrate()`.
 - Styling/layout constraints: chat list uses content visibility and row measurement; avoid per-row modal DOM.
 - Performance-sensitive areas: message list rows and toolbar buttons.
-- Accessibility concerns: modal focus, Escape close, keyboard reachable cancel/confirm.
+- Accessibility concerns: modal focus, Escape close, keyboard-reachable cancel/confirm.
 - Electron boundary: existing `SessionClient.deleteMessage` route only; no new IPC.
 - Existing project patterns: Vue Composition API, shadcn AlertDialog, i18n.
 

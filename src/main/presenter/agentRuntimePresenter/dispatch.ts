@@ -913,12 +913,17 @@ async function reviewAutoApproveAction(params: {
   reason: 'tool_call' | 'precheck' | 'requires_permission'
 }): Promise<'auto_allow' | 'ask_user'> {
   const { hooks, io, state, rendererFlushHandle, execution, permission, reason } = params
+  const reviewToolPermission = hooks?.reviewToolPermission
+  if (!reviewToolPermission) {
+    return 'ask_user'
+  }
+
   if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, true)) {
     state.dirty = true
     rendererFlushHandle.flush()
   }
   try {
-    const result = await hooks?.reviewToolPermission?.({
+    const result = await reviewToolPermission({
       sessionId: io.sessionId,
       messageId: io.messageId,
       toolCallId: execution.completedToolCall.id,
@@ -937,7 +942,10 @@ async function reviewAutoApproveAction(params: {
       const rationale = result.rationale?.trim() || 'Auto-review blocked this action.'
       throw new Error(rationale)
     }
-    return 'auto_allow'
+    if (result.decision === 'auto_allow') {
+      return 'auto_allow'
+    }
+    return 'ask_user'
   } finally {
     if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, false)) {
       state.dirty = true
