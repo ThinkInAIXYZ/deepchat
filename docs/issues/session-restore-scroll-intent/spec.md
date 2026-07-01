@@ -16,6 +16,8 @@ Respect scroll-only user intent during the bounded session restore bottom-settli
 - If the user scrolls away from the bottom during restore settling, the pending bottom settling is
   cancelled.
 - Scroll-only input paths are covered, not only wheel, pointer, touch, mouse, or keyboard events.
+- Slow upward wheel input near the bottom exits auto-follow even while still inside the bottom
+  proximity threshold.
 - Message height measurement after scroll-away does not re-enter bottom-follow mode.
 - Streaming auto-follow and explicit send-to-bottom behavior stay unchanged.
 

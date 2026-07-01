@@ -6,6 +6,7 @@
       :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
       @scroll.passive="onScroll"
+      @wheel.passive="onWheel"
     >
       <ChatTopBar
         class="chat-capture-hide"
@@ -349,6 +350,7 @@ type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manua
 const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
 const TOP_HISTORY_THRESHOLD = 80
+const USER_SCROLL_AWAY_INTENT_MS = 300
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
@@ -395,6 +397,7 @@ let sessionRestoreScrollTimer: number | null = null
 let chatSearchRefreshFrame: number | null = null
 let programmaticScrollUntil = 0
 let sessionRestoreBottomScrollTop: number | null = null
+let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
@@ -572,11 +575,20 @@ function isProgrammaticScrollActive(): boolean {
   return Date.now() < programmaticScrollUntil
 }
 
+function hasRecentUserScrollAwayIntent(): boolean {
+  return Date.now() < userScrollAwayIntentUntil
+}
+
 function enterAnchoredReadingMode(): void {
   programmaticScrollUntil = 0
   isNearBottom.value = false
   scrollMode.value = 'anchored-reading'
   shouldAutoFollow.value = false
+}
+
+function markUserScrollAwayIntent(): void {
+  userScrollAwayIntentUntil = Date.now() + USER_SCROLL_AWAY_INTENT_MS
+  enterAnchoredReadingMode()
 }
 
 function isAtBottom(): boolean {
@@ -735,6 +747,11 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
 
+    if (userInitiated && hasRecentUserScrollAwayIntent()) {
+      enterAnchoredReadingMode()
+      return
+    }
+
     if (isProgrammaticScrollActive()) {
       // During a forced/programmatic scroll, only a genuine user gesture (wheel,
       // drag) may break auto-follow. Content growth pushing us off-bottom must not.
@@ -757,6 +774,14 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
   })
 }
 
+function onWheel(event: WheelEvent) {
+  if (event.deltaY < 0) {
+    markUserScrollAwayIntent()
+  } else if (event.deltaY > 0) {
+    userScrollAwayIntentUntil = 0
+  }
+}
+
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
@@ -768,13 +793,13 @@ function onScroll() {
     el.scrollTop < sessionRestoreBottomScrollTop - 1
   ) {
     cancelSessionRestoreScrollSettle()
-    enterAnchoredReadingMode()
+    markUserScrollAwayIntent()
   } else if (
     !isProgrammaticScrollActive() &&
     !isNearBottomNow &&
     scrollMode.value !== 'manual-jump'
   ) {
-    enterAnchoredReadingMode()
+    markUserScrollAwayIntent()
   }
 
   scheduleScrollMetricsRead(true)

@@ -8,6 +8,8 @@
   from that recorded bottom position.
 - Switch to anchored-reading synchronously on scroll-away so row measurement callbacks cannot reuse
   stale `initial-bottom` state.
+- Track short-lived upward wheel intent so slow upward scrolls inside the bottom threshold are not
+  reclassified as auto-follow on the next metrics frame.
 - Keep the existing gesture listeners as early cancellation for wheel, touch, pointer, mouse, and
   keyboard paths.
 
@@ -18,6 +20,7 @@
   layout growth does not force the viewport back to bottom.
 - Add a second regression check where a message `measure` event fires immediately after the
   scroll-only intent.
+- Add a near-bottom slow upward wheel regression check.
 
 ## Compatibility
 

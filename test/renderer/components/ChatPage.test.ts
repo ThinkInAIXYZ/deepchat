@@ -494,7 +494,8 @@ async function expectSessionRestoreSettleStopsAfter(
   triggerIntent: (context: {
     wrapper: ChatPageSetupResult['wrapper']
     chatPage: HTMLDivElement
-  }) => Promise<void> | void
+  }) => Promise<void> | void,
+  scrollTopAfterIntent = 420
 ) {
   let nextFrameId = 1
   const rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -542,12 +543,12 @@ async function expectSessionRestoreSettleStopsAfter(
     await flushRaf()
     expect(scrollTop).toBe(700)
 
-    scrollTop = 420
+    scrollTop = scrollTopAfterIntent
     await triggerIntent({ wrapper, chatPage })
     scrollHeight = 1350
     await flushRaf()
 
-    expect(scrollTop).toBe(420)
+    expect(scrollTop).toBe(scrollTopAfterIntent)
 
     wrapper.unmount()
   } finally {
@@ -1487,6 +1488,22 @@ describe('ChatPage', () => {
       })
       await flushPromises()
     })
+  })
+
+  it('keeps slow upward wheel intent anchored inside bottom threshold', async () => {
+    await expectSessionRestoreSettleStopsAfter(
+      async ({ wrapper }) => {
+        const chatPage = wrapper.get('[data-testid="chat-page"]')
+        await chatPage.trigger('wheel', { deltaY: -4 })
+        await chatPage.trigger('scroll')
+        wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+          messageId: 'm1',
+          height: 420
+        })
+        await flushPromises()
+      },
+      650
+    )
   })
 
   it('stops session restore bottom settling after pointer scroll intent', async () => {
