@@ -1,4 +1,6 @@
+import { isReactive, reactive } from 'vue'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import { createAcpTerminalClient } from '../../../src/renderer/api/AcpTerminalClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
 import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
@@ -1582,7 +1584,7 @@ describe('renderer api clients', () => {
     await configClient.setSkillDraftSuggestionsEnabled(true)
     await configClient.refreshProviderDb(true)
     await configClient.getHooksNotificationsConfig()
-    await configClient.setHooksNotificationsConfig({
+    const hooksConfig = reactive<HooksNotificationsSettings>({
       hooks: [
         {
           id: 'hook-1',
@@ -1593,6 +1595,7 @@ describe('renderer api clients', () => {
         }
       ]
     })
+    await configClient.setHooksNotificationsConfig(hooksConfig)
     await configClient.testHookCommand('hook-1')
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'config.getProxySettings', {})
@@ -1617,6 +1620,12 @@ describe('renderer api clients', () => {
       force: true
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'config.getHooksNotifications', {})
+    const hooksPayload = vi.mocked(bridge.invoke).mock.calls[12]?.[1] as {
+      config: HooksNotificationsSettings
+    }
+    expect(isReactive(hooksPayload.config)).toBe(false)
+    expect(isReactive(hooksPayload.config.hooks)).toBe(false)
+    expect(isReactive(hooksPayload.config.hooks[0])).toBe(false)
     expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'config.setHooksNotifications', {
       config: {
         hooks: [
