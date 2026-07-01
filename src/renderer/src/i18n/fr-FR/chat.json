@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "Autorisations par défaut",
     "fullAccess": "Accès complet",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Approuver pour moi"
   },
   "sidebar": {
     "allAgents": "Tous les agents",

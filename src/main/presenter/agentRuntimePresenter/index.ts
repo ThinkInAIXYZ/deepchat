@@ -278,13 +278,6 @@ function normalizeUserAuthorization(
     : undefined
 }
 
-function getAuthorizationRank(value: ToolPermissionReviewResult['userAuthorization']): number {
-  if (value === 'high') return 3
-  if (value === 'medium') return 2
-  if (value === 'low') return 1
-  return 0
-}
-
 function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermissionReviewResult {
   const jsonText = extractJsonObjectText(rawText)
   if (!jsonText) {
@@ -336,7 +329,7 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
 
     if (riskLevel === 'critical') {
       decision = 'block'
-    } else if (riskLevel === 'high' && getAuthorizationRank(userAuthorization) < 2) {
+    } else if (riskLevel === 'high') {
       decision = 'ask_user'
     }
 

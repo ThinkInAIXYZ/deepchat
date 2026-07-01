@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "Разрешения по умолчанию",
     "fullAccess": "Полный доступ",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Одобрять за меня"
   },
   "sidebar": {
     "allAgents": "Все агенты",

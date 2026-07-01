@@ -840,6 +840,7 @@ function extractToolArgCommand(toolArgs: string): string | undefined {
 
 function isReviewableFullAccessToolCall(execution: ToolExecutionContext): boolean {
   if (execution.toolDef?.source !== 'agent') return false
+  if (extractToolArgCommand(execution.toolContext.args)) return true
   const name = execution.toolContext.name.toLowerCase()
   if (
     [
@@ -848,10 +849,12 @@ function isReviewableFullAccessToolCall(execution: ToolExecutionContext): boolea
       'edit',
       'delete',
       'remove',
+      'exec',
       'bash',
       'shell',
       'terminal',
       'command',
+      'process',
       'file',
       'search',
       'settings',

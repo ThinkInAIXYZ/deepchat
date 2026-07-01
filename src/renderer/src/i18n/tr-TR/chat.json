@@ -328,7 +328,7 @@
   "permissionMode": {
     "default": "Varsayılan izinler",
     "fullAccess": "Tam erişim",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Benim için onayla"
   },
   "sidebar": {
     "allAgents": "Hepsi Agent",

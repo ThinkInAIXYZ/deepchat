@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "ניתן לבחור רק סוכני DeepChat כיעדי העברה. אפשר להעביר שיחות ACP אל DeepChat, אך לא אל ACP."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "למחוק את ההודעה הזו?",
+    "description": "פעולה זו תמחק את ההודעה הזו ואת ההקשר שנוצר מחדש אחריה. אי אפשר לבטל פעולה זו.",
+    "confirm": "מחק הודעה"
   }
 }

@@ -184,6 +184,25 @@ describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
     })
   })
 
+  it('normalizes invalid persisted permission modes on read', () => {
+    prepare.mockImplementation((sql: string) => {
+      if (sql === 'SELECT * FROM deepchat_sessions WHERE id = ?') {
+        return {
+          get: () => ({
+            id: 's1',
+            provider_id: 'openai',
+            model_id: 'gpt-4',
+            permission_mode: 'unexpected'
+          })
+        }
+      }
+
+      throw new Error(`Unexpected SQL: ${sql}`)
+    })
+
+    expect(table.get('s1')?.permission_mode).toBe('full_access')
+  })
+
   it('updates the memory cursor with a monotonic MAX guard (C2, AC-2.1)', () => {
     run.mockReturnValue({ changes: 1 })
 

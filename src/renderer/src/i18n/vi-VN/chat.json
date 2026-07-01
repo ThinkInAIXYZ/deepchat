@@ -328,7 +328,7 @@
   "permissionMode": {
     "default": "Quyền mặc định",
     "fullAccess": "Toàn quyền truy cập",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Phê duyệt thay tôi"
   },
   "sidebar": {
     "allAgents": "Tất cả Agents",

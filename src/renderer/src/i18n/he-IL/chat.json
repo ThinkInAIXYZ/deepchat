@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "הרשאות ברירת מחדל",
     "fullAccess": "גישה מלאה",
-    "autoApprove": "Approve for me"
+    "autoApprove": "אשר עבורי"
   },
   "sidebar": {
     "allAgents": "כל הסוכנים",

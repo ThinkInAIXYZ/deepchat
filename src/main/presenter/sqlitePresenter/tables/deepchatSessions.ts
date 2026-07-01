@@ -64,6 +64,14 @@ export interface DeepChatSessionSummaryRow {
   summary_updated_at: number | null
 }
 
+interface RawDeepChatSessionRow extends Omit<DeepChatSessionRow, 'permission_mode'> {
+  permission_mode: string | null
+}
+
+function normalizePersistedPermissionMode(mode: string | null | undefined): PermissionMode {
+  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+}
+
 export class DeepChatSessionsTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'deepchat_sessions')
@@ -380,9 +388,15 @@ export class DeepChatSessionsTable extends BaseTable {
   }
 
   get(id: string): DeepChatSessionRow | undefined {
-    return this.db.prepare('SELECT * FROM deepchat_sessions WHERE id = ?').get(id) as
-      | DeepChatSessionRow
+    const row = this.db.prepare('SELECT * FROM deepchat_sessions WHERE id = ?').get(id) as
+      | RawDeepChatSessionRow
       | undefined
+    return row
+      ? {
+          ...row,
+          permission_mode: normalizePersistedPermissionMode(row.permission_mode)
+        }
+      : undefined
   }
 
   getGenerationSettings(id: string): Partial<DeepChatSessionGenerationSettings> | null {

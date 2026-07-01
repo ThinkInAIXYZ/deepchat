@@ -1188,6 +1188,37 @@ describe('ChatPage', () => {
     expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
   })
 
+  it('does not delete when the session becomes read-only while confirmation is open', async () => {
+    const { wrapper, sessionClient, sessionStore } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    sessionStore.activeSession.sessionKind = 'subagent'
+    await flushPromises()
+
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+  })
+
+  it('closes pending delete confirmation when switching sessions', async () => {
+    const { wrapper, sessionClient } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
   it('renders pending lane above the input box when no tool interaction is active', async () => {
     const { wrapper } = await setup({
       pendingInputStorePatch: {

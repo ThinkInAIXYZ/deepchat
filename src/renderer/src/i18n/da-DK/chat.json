@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "Standardtilladelser",
     "fullAccess": "Fuld adgang",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Godkend for mig"
   },
   "sidebar": {
     "allAgents": "Alle agenter",

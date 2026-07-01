@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "مجوزهای پیش‌فرض",
     "fullAccess": "دسترسی کامل",
-    "autoApprove": "Approve for me"
+    "autoApprove": "به جای من تأیید کن"
   },
   "sidebar": {
     "allAgents": "همه عامل‌ها",

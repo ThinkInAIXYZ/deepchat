@@ -312,7 +312,7 @@
   "permissionMode": {
     "default": "デフォルト権限",
     "fullAccess": "フルアクセス",
-    "autoApprove": "Approve for me"
+    "autoApprove": "代わりに承認"
   },
   "sidebar": {
     "allAgents": "すべてのエージェント",

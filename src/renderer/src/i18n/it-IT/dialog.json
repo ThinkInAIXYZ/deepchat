@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "Solo gli agenti DeepChat possono essere selezionati come destinazioni di spostamento. Le conversazioni ACP possono essere spostate in DeepChat, ma non in ACP."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "Eliminare questo messaggio?",
+    "description": "Questo eliminerà il messaggio e il contesto rigenerato successivo. L'azione non può essere annullata.",
+    "confirm": "Elimina messaggio"
   }
 }

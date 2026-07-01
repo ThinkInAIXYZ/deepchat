@@ -328,7 +328,7 @@
   "permissionMode": {
     "default": "Permisos predeterminados",
     "fullAccess": "Acceso completo",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Aprobar por mí"
   },
   "sidebar": {
     "allAgents": "Todos los Agents",

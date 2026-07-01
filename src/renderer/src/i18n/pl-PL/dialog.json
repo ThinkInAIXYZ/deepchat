@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "Jako cele przenoszenia można wybrać tylko agentów DeepChat. Rozmowy ACP można przenieść do DeepChat, ale nie do ACP."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "Usunąć tę wiadomość?",
+    "description": "Spowoduje to usunięcie tej wiadomości oraz później wygenerowanego kontekstu. Tej czynności nie można cofnąć.",
+    "confirm": "Usuń wiadomość"
   }
 }

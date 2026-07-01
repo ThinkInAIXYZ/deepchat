@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "Hanya ejen DeepChat boleh dipilih sebagai sasaran pemindahan. Perbualan ACP boleh dipindahkan ke DeepChat, tetapi tidak ke ACP."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "Padam mesej ini?",
+    "description": "Ini akan memadam mesej ini dan konteks dijana semula selepasnya. Tindakan ini tidak boleh dibuat asal.",
+    "confirm": "Padam mesej"
   }
 }

@@ -1182,6 +1182,62 @@ describe('dispatch', () => {
       expect(result.executed).toBe(1)
     })
 
+    it('reviews command-runner Agent tool calls even without path args', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'high'
+        })
+      }
+      const tools = [makeAgentTool('exec')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-exec',
+          name: 'exec',
+          params: '{"command":"rm -rf /tmp/project"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-exec', name: 'exec', arguments: '{"command":"rm -rf /tmp/project"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolName: 'exec',
+          toolArgs: '{"command":"rm -rf /tmp/project"}',
+          permission: expect.objectContaining({
+            permissionType: 'command',
+            command: 'rm -rf /tmp/project'
+          })
+        })
+      )
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.pendingInteractions).toHaveLength(1)
+    })
+
     it('marks tool calls as reviewing while auto approve reviewer is pending', async () => {
       const reviewDecision = createDeferred<{ decision: 'auto_allow'; riskLevel: 'low' }>()
       const hooks = {
