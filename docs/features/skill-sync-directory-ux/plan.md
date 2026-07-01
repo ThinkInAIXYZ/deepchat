@@ -129,6 +129,13 @@ Skill sync presenter tests should assert:
 - The adapter registry exposes `agents`.
 - `FormatConverter` can parse and serialize the generic Agents format.
 
+Review follow-up tests should assert:
+
+- The sync directory picker cannot start another choose/save flow while `saving` is true.
+- Export and import preview failures show an existing preview-error toast and clear loading state.
+- New import/export strings are localized for non-English locale files.
+- Skill sync icon lookups use one shared tool icon/color source.
+
 ## Validation
 
 After implementation:

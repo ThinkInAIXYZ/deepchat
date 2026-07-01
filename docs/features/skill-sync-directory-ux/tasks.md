@@ -38,6 +38,11 @@
 - [x] Add `AgentsAdapter` and register it with the format adapter registry.
 - [x] Add `agents` icon mapping to Agents, install-to-agent, status, prompt, and wizard surfaces.
 - [x] Update skill sync tests for generic Agents registration and format conversion.
+- [x] Disable the full sync directory picker while saving and guard duplicate save flows.
+- [x] Catch export/import preview failures and show preview-error toasts.
+- [x] Localize the new import/export strings in non-English locale files.
+- [x] Share skill sync tool icon/color mappings across the touched UI components.
+- [x] Update review-follow-up tests.
 
 ## Verification
 
@@ -48,3 +53,4 @@
 - [x] Run targeted renderer tests for `SkillSyncSettings.test.ts`.
 - [x] Run targeted presenter tests if the presenter fallback changes.
 - [x] Run targeted skill sync tests for generic Agents registration and format conversion.
+- [x] Re-run review-follow-up validation after review fixes.

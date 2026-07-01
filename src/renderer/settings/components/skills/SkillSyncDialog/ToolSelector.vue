@@ -50,6 +50,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import type { ScanResult } from '@shared/types/skillSync'
+import { getSkillToolIcon as getToolIcon, getSkillToolIconBg as getToolIconBg } from '../toolIcon'
 
 defineProps<{
   tools: ScanResult[]
@@ -67,31 +68,5 @@ const handleSelect = (tool: ScanResult) => {
   if (tool.available && tool.skills.length > 0) {
     emit('select', tool)
   }
-}
-
-const getToolIcon = (toolId: string): string => {
-  const icons: Record<string, string> = {
-    agents: 'lucide:bot',
-    'claude-code': 'simple-icons:anthropic',
-    cursor: 'simple-icons:cursor',
-    windsurf: 'lucide:wind',
-    copilot: 'simple-icons:github',
-    kiro: 'lucide:sparkles',
-    antigravity: 'lucide:rocket'
-  }
-  return icons[toolId] || 'lucide:box'
-}
-
-const getToolIconBg = (toolId: string): string => {
-  const bgs: Record<string, string> = {
-    agents: 'bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400',
-    'claude-code': 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-    cursor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    windsurf: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
-    copilot: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
-    kiro: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-    antigravity: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-  }
-  return bgs[toolId] || 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
 }
 </script>

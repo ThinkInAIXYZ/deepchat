@@ -2,7 +2,12 @@
   <div class="space-y-4">
     <div class="rounded-md border px-4 py-3">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button type="button" class="min-w-0 flex-1 text-left" @click="chooseDirectory">
+        <button
+          type="button"
+          class="min-w-0 flex-1 text-left disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="directoryPickerDisabled"
+          @click="chooseDirectory"
+        >
           <div class="mb-2 text-sm font-medium">
             {{ t('settings.skills.importExport.directory') }}
           </div>
@@ -30,11 +35,11 @@
             {{ t('settings.skills.importExport.chooseDirectoryHint') }}
           </p>
         </button>
-        <Button variant="outline" :disabled="saving" @click="chooseDirectory">
+        <Button variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
           <Icon
-            :icon="saving ? 'lucide:loader-2' : 'lucide:folder-open'"
+            :icon="directoryPickerDisabled ? 'lucide:loader-2' : 'lucide:folder-open'"
             class="mr-1 h-4 w-4"
-            :class="{ 'animate-spin': saving }"
+            :class="{ 'animate-spin': directoryPickerDisabled }"
           />
           {{
             directory
@@ -367,6 +372,7 @@ const activeTab = ref<'export' | 'import'>('export')
 const config = ref<SkillSyncDirectoryConfig | null>(null)
 const directory = ref('')
 const directoryExists = ref<boolean | null>(null)
+const choosingDirectory = ref(false)
 const saving = ref(false)
 const previewing = ref(false)
 const exporting = ref(false)
@@ -396,6 +402,7 @@ const skills = computed(() => props.skills.filter((skill) => skill.mutable))
 const syncDirectoryReady = computed(() =>
   Boolean(config.value?.skillsDirectory && directoryExists.value)
 )
+const directoryPickerDisabled = computed(() => saving.value || choosingDirectory.value)
 const directoryStatusIcon = computed(() => {
   if (directory.value && directoryExists.value === false) {
     return 'lucide:circle-alert'
@@ -450,13 +457,20 @@ const checkDirectoryExists = async (path: string) => {
 }
 
 const chooseDirectory = async () => {
-  const result = await deviceClient.selectDirectory()
-  if (!result.canceled && result.filePaths[0]) {
-    await saveDirectory(result.filePaths[0])
+  if (directoryPickerDisabled.value) return
+  choosingDirectory.value = true
+  try {
+    const result = await deviceClient.selectDirectory()
+    if (!result.canceled && result.filePaths[0]) {
+      await saveDirectory(result.filePaths[0])
+    }
+  } finally {
+    choosingDirectory.value = false
   }
 }
 
 const saveDirectory = async (nextDirectory: string) => {
+  if (saving.value) return
   saving.value = true
   try {
     config.value = await skillClient.setSkillsSyncDirectory(nextDirectory)
@@ -554,6 +568,14 @@ const invalidateImportPreviewCache = () => {
   importPreviewInFlight = null
 }
 
+const showPreviewError = (error: unknown) => {
+  toast({
+    title: t('settings.skills.sync.previewError'),
+    description: error instanceof Error ? error.message : String(error),
+    variant: 'destructive'
+  })
+}
+
 const requestExportConfirmation = async () => {
   previewing.value = true
   try {
@@ -562,6 +584,10 @@ const requestExportConfirmation = async () => {
       includeDisabled: includeDisabled.value
     })
     exportConfirmOpen.value = true
+  } catch (error) {
+    exportPreview.value = null
+    exportConfirmOpen.value = false
+    showPreviewError(error)
   } finally {
     previewing.value = false
   }
@@ -618,8 +644,14 @@ const refreshImportPreview = async (
   }
 
   if (!options.force && importPreviewInFlight?.key === syncDirectory) {
-    const preview = await importPreviewInFlight.promise
-    applyImportPreview(preview, options)
+    try {
+      const preview = await importPreviewInFlight.promise
+      applyImportPreview(preview, options)
+    } catch (error) {
+      importPreview.value = null
+      selectedImportNames.value = new Set()
+      showPreviewError(error)
+    }
     return
   }
 
@@ -639,6 +671,15 @@ const refreshImportPreview = async (
       config.value?.skillsDirectory === syncDirectory
     ) {
       applyImportPreview(preview, options)
+    }
+  } catch (error) {
+    if (
+      requestId === importPreviewRequestId.value &&
+      config.value?.skillsDirectory === syncDirectory
+    ) {
+      importPreview.value = null
+      selectedImportNames.value = new Set()
+      showPreviewError(error)
     }
   } finally {
     if (importPreviewInFlight?.promise === promise) {

@@ -38,7 +38,7 @@
               :class="{ 'border-primary bg-primary/5': selectedAgentId === agent.id }"
               @click="selectedAgentId = agent.id"
             >
-              <Icon :icon="agentIcon(agent.id)" class="h-5 w-5 shrink-0" />
+              <Icon :icon="getSkillAgentIcon(agent.id)" class="h-5 w-5 shrink-0" />
               <span class="min-w-0 flex-1 truncate text-left">{{ agent.name }}</span>
               <Badge variant="outline" class="shrink-0 text-[11px]">
                 {{ agent.skillsCount }}
@@ -134,6 +134,7 @@ import type {
   LinkDeepChatSkillPreviewItem,
   LinkDeepChatSkillPreviewStatus
 } from '@shared/types/skillSync'
+import { getSkillAgentIcon } from './toolIcon'
 
 const props = defineProps<{
   open: boolean
@@ -175,18 +176,6 @@ const canExecute = computed(
     !loadingPreview.value &&
     !executing.value
 )
-
-const agentIcon = (id: string) => {
-  if (id === 'agents') return 'lucide:bot'
-  if (id === 'codex') return 'simple-icons:openai'
-  if (id === 'claude-code') return 'simple-icons:anthropic'
-  if (id === 'cursor') return 'simple-icons:cursor'
-  if (id === 'opencode') return 'lucide:code-2'
-  if (id === 'goose') return 'lucide:feather'
-  if (id === 'kilocode') return 'lucide:binary'
-  if (id === 'copilot-user') return 'simple-icons:github'
-  return 'lucide:bot'
-}
 
 const loadAgents = async () => {
   loadingAgents.value = true

@@ -16,7 +16,10 @@ const passthrough = (name: string) =>
 const buttonStub = defineComponent({
   name: 'Button',
   emits: ['click'],
-  template: '<button @click="$emit(\'click\')"><slot /></button>'
+  props: {
+    disabled: Boolean
+  },
+  template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const checkboxStub = defineComponent({
@@ -1155,6 +1158,198 @@ describe('skill sync settings components', () => {
       strategy: 'overwrite'
     })
     expect(wrapper.emitted('completed')).toBeTruthy()
+  })
+
+  it('blocks overlapping sync directory picker flows', async () => {
+    vi.resetModules()
+
+    const skillClient = {
+      getSkillsSyncConfig: vi.fn().mockResolvedValue(null),
+      setSkillsSyncDirectory: vi.fn().mockResolvedValue({
+        skillsDirectory: '/sync',
+        layout: 'multi-skill-repo',
+        lastExportAt: null,
+        lastImportAt: null
+      }),
+      previewSyncDirectoryExport: vi.fn(),
+      executeSyncDirectoryExport: vi.fn(),
+      previewSyncDirectoryImport: vi.fn(),
+      executeSyncDirectoryImport: vi.fn()
+    }
+    let resolveSelect: (value: { canceled: boolean; filePaths: string[] }) => void = () => {}
+    const deviceClient = {
+      selectDirectory: vi.fn(
+        () =>
+          new Promise<{ canceled: boolean; filePaths: string[] }>((resolve) => {
+            resolveSelect = resolve
+          })
+      )
+    }
+    const projectClient = {
+      pathExists: vi.fn().mockResolvedValue(true)
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+    vi.doMock('@api/DeviceClient', () => ({
+      createDeviceClient: () => deviceClient
+    }))
+    vi.doMock('@api/ProjectClient', () => ({
+      createProjectClient: () => projectClient
+    }))
+    vi.doMock('@/components/use-toast', () => ({
+      useToast: () => ({ toast: vi.fn() })
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+
+    const SkillImportExportTab = (
+      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+    ).default
+
+    const wrapper = mount(SkillImportExportTab, {
+      props: { skills: [] },
+      global: {
+        stubs: {
+          Icon: true,
+          Badge: passthrough('Badge'),
+          Button: buttonStub,
+          Checkbox: checkboxStub,
+          Dialog: passthrough('Dialog'),
+          DialogContent: passthrough('DialogContent'),
+          DialogDescription: passthrough('DialogDescription'),
+          DialogFooter: passthrough('DialogFooter'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          Input: inputStub,
+          RadioGroup: passthrough('RadioGroup'),
+          RadioGroupItem: true,
+          Tabs: passthrough('Tabs'),
+          TabsContent: passthrough('TabsContent'),
+          TabsList: passthrough('TabsList'),
+          TabsTrigger: passthrough('TabsTrigger')
+        }
+      }
+    })
+    await flushPromises()
+
+    const firstChoose = (wrapper.vm as any).chooseDirectory()
+    const secondChoose = (wrapper.vm as any).chooseDirectory()
+    expect(deviceClient.selectDirectory).toHaveBeenCalledTimes(1)
+
+    resolveSelect({ canceled: false, filePaths: ['/sync'] })
+    await firstChoose
+    await secondChoose
+    await flushPromises()
+
+    expect(skillClient.setSkillsSyncDirectory).toHaveBeenCalledTimes(1)
+    expect(skillClient.setSkillsSyncDirectory).toHaveBeenCalledWith('/sync')
+  })
+
+  it('toasts sync directory preview failures without opening export confirmation', async () => {
+    vi.resetModules()
+
+    const skillClient = {
+      getSkillsSyncConfig: vi.fn().mockResolvedValue({
+        skillsDirectory: '/sync',
+        layout: 'multi-skill-repo',
+        lastExportAt: null,
+        lastImportAt: null
+      }),
+      previewSyncDirectoryExport: vi.fn().mockRejectedValue(new Error('export preview failed')),
+      executeSyncDirectoryExport: vi.fn(),
+      previewSyncDirectoryImport: vi.fn().mockRejectedValue(new Error('import preview failed')),
+      executeSyncDirectoryImport: vi.fn()
+    }
+    const toast = vi.fn()
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+    vi.doMock('@api/DeviceClient', () => ({
+      createDeviceClient: () => ({
+        selectDirectory: vi.fn()
+      })
+    }))
+    vi.doMock('@api/ProjectClient', () => ({
+      createProjectClient: () => ({
+        pathExists: vi.fn().mockResolvedValue(true)
+      })
+    }))
+    vi.doMock('@/components/use-toast', () => ({
+      useToast: () => ({ toast })
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+
+    const SkillImportExportTab = (
+      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+    ).default
+
+    const wrapper = mount(SkillImportExportTab, {
+      props: {
+        skills: [
+          {
+            name: 'guizang-ppt-skill',
+            description: 'Create PPT files',
+            path: '/deepchat/skills/guizang-ppt-skill/SKILL.md',
+            skillRoot: '/deepchat/skills/guizang-ppt-skill',
+            canonicalPath: '/deepchat/skills/guizang-ppt-skill',
+            sourceType: 'created',
+            deepchatDisabled: false,
+            agentLinks: {},
+            mutable: true
+          }
+        ]
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Badge: passthrough('Badge'),
+          Button: buttonStub,
+          Checkbox: checkboxStub,
+          Dialog: passthrough('Dialog'),
+          DialogContent: passthrough('DialogContent'),
+          DialogDescription: passthrough('DialogDescription'),
+          DialogFooter: passthrough('DialogFooter'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          Input: inputStub,
+          RadioGroup: passthrough('RadioGroup'),
+          RadioGroupItem: true,
+          Tabs: passthrough('Tabs'),
+          TabsContent: passthrough('TabsContent'),
+          TabsList: passthrough('TabsList'),
+          TabsTrigger: passthrough('TabsTrigger')
+        }
+      }
+    })
+    await flushPromises()
+
+    ;(wrapper.vm as any).selectedExportNames = new Set(['guizang-ppt-skill'])
+    await (wrapper.vm as any).requestExportConfirmation()
+    await flushPromises()
+
+    expect((wrapper.vm as any).exportConfirmOpen).toBe(false)
+    expect((wrapper.vm as any).previewing).toBe(false)
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.skills.sync.previewError',
+        variant: 'destructive'
+      })
+    )
+
+    await (wrapper.vm as any).previewImport()
+    await flushPromises()
+
+    expect((wrapper.vm as any).importPreview).toBeNull()
+    expect((wrapper.vm as any).previewing).toBe(false)
+    expect(toast).toHaveBeenCalledTimes(2)
   })
 
   it('hides sync directory operations until a valid directory is selected', async () => {
