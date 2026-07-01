@@ -79,9 +79,33 @@ const setup = async (props: Record<string, unknown> = {}) => {
     const NodeRenderer = defineComponent({
       name: 'NodeRenderer',
       props: {
+        final: {
+          type: Boolean,
+          default: false
+        },
         smoothStreaming: {
           type: Boolean,
           default: false
+        },
+        batchRendering: {
+          type: Boolean,
+          default: undefined
+        },
+        deferNodesUntilVisible: {
+          type: Boolean,
+          default: undefined
+        },
+        maxLiveNodes: {
+          type: Number,
+          default: undefined
+        },
+        liveNodeBuffer: {
+          type: Number,
+          default: undefined
+        },
+        nodeVirtual: {
+          type: [Boolean, String],
+          default: undefined
         }
       },
       setup(props) {
@@ -90,7 +114,13 @@ const setup = async (props: Record<string, unknown> = {}) => {
             'div',
             {
               'data-testid': 'node-renderer',
-              'data-smooth-streaming': String(props.smoothStreaming)
+              'data-final': String(props.final),
+              'data-smooth-streaming': String(props.smoothStreaming),
+              'data-batch-rendering': String(props.batchRendering),
+              'data-defer-nodes-until-visible': String(props.deferNodesUntilVisible),
+              'data-max-live-nodes': String(props.maxLiveNodes),
+              'data-live-node-buffer': String(props.liveNodeBuffer),
+              'data-node-virtual': String(props.nodeVirtual)
             },
             [
               customComponents.code_block?.({
@@ -234,9 +264,25 @@ describe('MarkdownRenderer', () => {
       smoothStreaming: true
     })
 
+    expect(wrapper.classes()).not.toContain('markdown-renderer-root--stable')
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
       'true'
     )
+  })
+
+  it('disables viewport virtualization for completed chat markdown', async () => {
+    const { wrapper } = await setup({
+      smoothStreaming: false
+    })
+
+    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+    expect(wrapper.classes()).toContain('markdown-renderer-root--stable')
+    expect(nodeRenderer.attributes('data-final')).toBe('true')
+    expect(nodeRenderer.attributes('data-batch-rendering')).toBe('false')
+    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('false')
+    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe(String(Number.MAX_SAFE_INTEGER))
+    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
+    expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
   })
 
   it('routes reference clicks through the shared markdown link navigator', async () => {

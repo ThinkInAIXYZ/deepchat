@@ -19,6 +19,15 @@ Respect scroll-only user intent during the bounded session restore bottom-settli
 - Slow upward wheel input near the bottom exits auto-follow even while still inside the bottom
   proximity threshold.
 - Message height measurement after scroll-away does not re-enter bottom-follow mode.
+- Message rows must not visually jump during manual reading because `content-visibility` rows resolve
+  from intrinsic placeholder height to real height.
+- Image blocks must reserve stable inline preview space before image decode/load completes.
+- Message row height measurement must run after message load/render, not wait until the row approaches
+  the viewport during manual scrolling.
+- The sticky composer must mask scrolled message content behind it so translucent input chrome does
+  not continuously resample and repaint moving message text.
+- Completed chat markdown must not use markstream's `content-visibility: auto` intrinsic-size
+  placeholder while the user is manually reading historical messages.
 - Streaming auto-follow and explicit send-to-bottom behavior stay unchanged.
 
 ## Constraints
