@@ -311,6 +311,7 @@ describe('memory.getLifecycle route contract', () => {
         previewLimit: 25,
         scanLimit: 200,
         scanned: 1,
+        previewTruncated: false,
         scanTruncated: false
       }
     })
@@ -333,6 +334,7 @@ describe('memory.getLifecycle route contract', () => {
           previewLimit: 25,
           scanLimit: 200,
           scanned: 26,
+          previewTruncated: false,
           scanTruncated: false
         }
       }).success

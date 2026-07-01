@@ -1109,6 +1109,7 @@ describe('renderer api clients', () => {
                   previewLimit: 25,
                   scanLimit: 200,
                   scanned: 1,
+                  previewTruncated: false,
                   scanTruncated: false
                 }
               }

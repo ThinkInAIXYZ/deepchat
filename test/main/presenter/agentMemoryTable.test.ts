@@ -711,24 +711,56 @@ describeIfSqlite('AgentMemoryTable', () => {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
 
-      table.insert({ id: 'eligible-null', agentId: 'a', kind: 'semantic', content: 'large blob' })
-      table.insert({ id: 'eligible-stored', agentId: 'a', kind: 'semantic', content: 'stored' })
-      table.insert({ id: 'accessed', agentId: 'a', kind: 'semantic', content: 'used' })
+      const createdAt = 1000
+      table.insert({
+        id: 'eligible-null',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'large blob',
+        createdAt
+      })
+      table.insert({
+        id: 'eligible-stored',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'stored',
+        createdAt
+      })
+      table.insert({ id: 'accessed', agentId: 'a', kind: 'semantic', content: 'used', createdAt })
       table.recordAccess('accessed', 2000)
-      table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'persona' })
-      table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working' })
-      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other' })
-      table.insert({ id: 'archived', agentId: 'a', kind: 'semantic', content: 'archived' })
+      table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'persona', createdAt })
+      table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working', createdAt })
+      table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other', createdAt })
+      table.insert({
+        id: 'archived',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'archived',
+        createdAt
+      })
       table.archive('archived', 2000)
-      table.insert({ id: 'conflicted', agentId: 'a', kind: 'semantic', content: 'conflicted' })
+      table.insert({
+        id: 'conflicted',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'conflicted',
+        createdAt
+      })
       table.updateStatus('conflicted', 'conflicted')
-      table.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'superseded' })
+      table.insert({
+        id: 'superseded',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'superseded',
+        createdAt
+      })
       table.markSuperseded('superseded', 'eligible-null')
       table.insert({
         id: 'anchor',
         agentId: 'a',
         kind: 'semantic',
         content: 'anchor',
+        createdAt,
         isAnchor: true
       })
       table.updateDecayScore('eligible-stored', 0.9)

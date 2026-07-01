@@ -45,8 +45,8 @@ export function deriveLifecycle(
   const exempt = exemptReasons.length > 0
   const recallable = row.kind !== 'persona' && active
   const forget = deriveForget(row, now, importance)
-  const oldEnough = row.created_at < now - archiveAgeMs
-  const decayedEnough = forget.decayScore < archiveDecayThreshold
+  const oldEnough = row.created_at <= now - archiveAgeMs
+  const decayedEnough = forget.decayScore <= archiveDecayThreshold
   const neverAccessed = row.access_count === 0
   const eligible = !exempt && active && oldEnough && decayedEnough && neverAccessed
   const decayTier = deriveDecayTier(forget.decayScore, eligible, archiveDecayThreshold)
@@ -88,7 +88,7 @@ export function deriveDecayTier(
 ): MemoryLifecycle['decayTier'] {
   if (archiveEligible) return 'archive_candidate'
   if (score >= FRESH_DECAY_THRESHOLD) return 'fresh'
-  if (score >= archiveDecayThreshold) return 'aging'
+  if (score > archiveDecayThreshold) return 'aging'
   return 'stale'
 }
 

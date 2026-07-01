@@ -139,6 +139,7 @@ const archiveCandidateLifecyclePreview: MemoryArchiveCandidateLifecyclePreview =
   previewLimit: 25,
   scanLimit: 200,
   scanned: 1,
+  previewTruncated: false,
   scanTruncated: false
 }
 
@@ -271,6 +272,7 @@ describe('MemoryHealthSection', () => {
           memoryId: `archive-candidate-${index}`
         })),
         scanned: 40,
+        previewTruncated: true,
         scanTruncated: false
       }
     })
@@ -279,6 +281,22 @@ describe('MemoryHealthSection', () => {
     )
     expect(previewLimited.text()).not.toContain(
       'settings.deepchatAgents.memoryManager.health.archivePrediction.scanLimited'
+    )
+
+    const exactlyFull = mountSection({
+      health: loadedHealth,
+      archiveCandidateLifecyclePreview: {
+        ...archiveCandidateLifecyclePreview,
+        lifecycles: Array.from({ length: 25 }, (_, index) => ({
+          ...archiveCandidateLifecycle,
+          memoryId: `exact-candidate-${index}`
+        })),
+        scanned: 25,
+        previewTruncated: false
+      }
+    })
+    expect(exactlyFull.text()).not.toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.previewLimited'
     )
   })
 

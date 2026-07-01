@@ -1447,6 +1447,7 @@ describe('dispatchDeepchatRoute', () => {
       previewLimit: 25,
       scanLimit: 200,
       scanned: 1,
+      previewTruncated: false,
       scanTruncated: false
     }
     const getLifecycle = vi.fn(() => lifecycles)

@@ -326,7 +326,7 @@ const archiveCandidatePreviewLimitMessage = computed(() => {
       count: preview.scanLimit
     })
   }
-  if (preview.lifecycles.length >= preview.previewLimit) {
+  if (preview.previewTruncated) {
     return t('settings.deepchatAgents.memoryManager.health.archivePrediction.previewLimited', {
       count: preview.previewLimit
     })

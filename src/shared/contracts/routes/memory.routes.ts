@@ -213,9 +213,17 @@ export const MemoryArchiveCandidateLifecyclePreviewSchema = z
     previewLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
     scanLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
     scanned: NonnegativeCountSchema.max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    previewTruncated: z.boolean(),
     scanTruncated: z.boolean()
   })
   .superRefine((preview, ctx) => {
+    if (preview.previewTruncated && preview.lifecycles.length !== preview.previewLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lifecycles'],
+        message: 'truncated archive candidate preview must fill the configured preview limit'
+      })
+    }
     if (preview.scanTruncated && preview.scanned !== preview.scanLimit) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -235,6 +243,7 @@ export function createEmptyArchiveCandidateLifecyclePreview(): MemoryArchiveCand
     previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
     scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
     scanned: 0,
+    previewTruncated: false,
     scanTruncated: false
   }
 }

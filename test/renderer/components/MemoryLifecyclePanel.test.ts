@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
@@ -25,6 +23,27 @@ vi.mock('@shadcn/components/ui/badge', () => ({
     template: '<span><slot /></span>'
   })
 }))
+
+interface SettingsJson {
+  deepchatAgents?: {
+    memoryManager?: {
+      lifecycle?: unknown
+      health?: { archivePrediction?: unknown }
+    }
+  }
+}
+
+type SettingsModule = SettingsJson | { default: SettingsJson }
+
+const settingsModules = import.meta.glob<SettingsModule>(
+  '../../../src/renderer/src/i18n/*/settings.json',
+  { eager: true }
+)
+
+function resolveSettingsModule(module: SettingsModule): SettingsJson {
+  if (module && typeof module === 'object' && 'default' in module) return module.default
+  return module
+}
 
 const lifecycle: MemoryLifecycle = {
   memoryId: 'm1',
@@ -68,13 +87,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function getLifecycleMessages(settings: unknown): unknown {
+function getMemoryManagerMessages(
+  settings: unknown
+): { lifecycle: unknown; archivePrediction: unknown } | undefined {
   if (!isRecord(settings)) return undefined
   const deepchatAgents = settings.deepchatAgents
   if (!isRecord(deepchatAgents)) return undefined
   const memoryManager = deepchatAgents.memoryManager
   if (!isRecord(memoryManager)) return undefined
-  return memoryManager.lifecycle
+  const health = memoryManager.health
+  return {
+    lifecycle: memoryManager.lifecycle,
+    archivePrediction: isRecord(health) ? health.archivePrediction : undefined
+  }
 }
 
 function collectStrings(
@@ -111,28 +136,31 @@ describe('MemoryLifecyclePanel', () => {
     expect(text).toContain('settings.deepchatAgents.memoryManager.lifecycle.archive.eligible')
   })
 
-  it('keeps lifecycle locale strings free of review-model terms', () => {
-    const localeRoot = join(process.cwd(), 'src/renderer/src/i18n')
+  it('keeps memory manager locale strings free of review-model terms', () => {
     const bannedPatterns = [
       /\breview\b/i,
       /\bnext review\b/i,
       /\breview interval\b/i,
       /\breinforcement\b/i,
       /\bpromotion\b/i,
-      /复习|晋级|回顾|下一次|倒计时/
+      /复习|複習|晋级|晉級|回顾|回顧|下一次|倒计时|倒數/
     ]
     const failures: string[] = []
 
-    for (const localeDir of readdirSync(localeRoot, { withFileTypes: true })) {
-      if (!localeDir.isDirectory()) continue
-      const locale = localeDir.name
-      const settingsPath = join(localeRoot, locale, 'settings.json')
-      const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as unknown
-      const lifecycleMessages = getLifecycleMessages(settings)
+    if (Object.keys(settingsModules).length === 0) failures.push('missing locale modules')
 
-      expect(lifecycleMessages, `${locale} lifecycle messages`).toBeDefined()
+    for (const [settingsPath, settingsModule] of Object.entries(settingsModules)) {
+      const locale = settingsPath.match(/\/i18n\/([^/]+)\/settings\.json$/)?.[1] ?? settingsPath
+      const settings = resolveSettingsModule(settingsModule)
+      const memoryManagerMessages = getMemoryManagerMessages(settings)
 
-      for (const entry of collectStrings(lifecycleMessages)) {
+      expect(memoryManagerMessages?.lifecycle, `${locale} lifecycle messages`).toBeDefined()
+      expect(
+        memoryManagerMessages?.archivePrediction,
+        `${locale} archive prediction messages`
+      ).toBeDefined()
+
+      for (const entry of collectStrings(memoryManagerMessages, 'memoryManager')) {
         for (const pattern of bannedPatterns) {
           if (pattern.test(entry.value)) {
             failures.push(`${locale}.${entry.path}: ${entry.value}`)

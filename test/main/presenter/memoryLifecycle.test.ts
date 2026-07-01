@@ -274,6 +274,7 @@ describe('MemoryPresenter.getLifecycle', () => {
       expect(preview.previewLimit).toBe(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
       expect(preview.scanLimit).toBe(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT)
       expect(preview.scanned).toBe(3)
+      expect(preview.previewTruncated).toBe(false)
       expect(preview.scanTruncated).toBe(false)
       expect(ids).toEqual(['eligible-null', 'eligible-stale-materialized'])
       expect(lifecycles.every((lifecycle) => lifecycle.archiveEligibility.eligible)).toBe(true)
@@ -312,6 +313,7 @@ describe('MemoryPresenter.getLifecycle', () => {
         MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT + 1
       )
       expect(preview.scanned).toBe(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT)
+      expect(preview.previewTruncated).toBe(true)
       expect(preview.scanTruncated).toBe(true)
       expect(preview.lifecycles).toHaveLength(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
       expect(preview.lifecycles[0].memoryId).toBe('eligible-000')
@@ -340,6 +342,7 @@ describe('MemoryPresenter.getLifecycle', () => {
       previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
       scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
       scanned: 0,
+      previewTruncated: false,
       scanTruncated: false
     })
     expect(listSpy).not.toHaveBeenCalled()
@@ -374,8 +377,30 @@ describe('MemoryPresenter.getLifecycle', () => {
 
     expect(lifecycle.archiveEligibility.oldEnough).toBe(true)
     expect(lifecycle.archiveEligibility.decayedEnough).toBe(
-      lifecycle.forget.decayScore < ARCHIVE_DECAY_THRESHOLD
+      lifecycle.forget.decayScore <= ARCHIVE_DECAY_THRESHOLD
     )
+  })
+
+  it('treats exact archive age and decay thresholds as reached', () => {
+    const row = makeRow({
+      created_at: NOW - ARCHIVE_AGE_MS,
+      last_accessed: NOW - ARCHIVE_AGE_MS,
+      access_count: 0
+    })
+    const threshold = decayScore(row, NOW)
+    const lifecycle = deriveLifecycle(row, NOW, { archiveDecayThreshold: threshold })
+
+    expect(lifecycle.archiveEligibility.oldEnough).toBe(true)
+    expect(lifecycle.archiveEligibility.decayedEnough).toBe(true)
+    expect(lifecycle.archiveEligibility.gaps).toEqual({})
+    expect(lifecycle.archiveEligibility.eligible).toBe(true)
+    expect(lifecycle.decayTier).toBe('archive_candidate')
+
+    const accessed = deriveLifecycle({ ...row, access_count: 1 }, NOW, {
+      archiveDecayThreshold: threshold
+    })
+    expect(accessed.archiveEligibility.decayedEnough).toBe(true)
+    expect(accessed.decayTier).toBe('stale')
   })
 
   it('keeps archive eligibility equivalent to the four real archive conditions', () => {

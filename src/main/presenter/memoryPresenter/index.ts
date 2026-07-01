@@ -2334,6 +2334,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
         previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
         scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
         scanned: 0,
+        previewTruncated: false,
         scanTruncated: false
       }
     }
@@ -2345,7 +2346,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT + 1
     )
     const scanRows = rows.slice(0, MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT)
-    const lifecycles = scanRows
+    const eligibleLifecycles = scanRows
       .map((row) => deriveLifecycle(row, context.now, context.options))
       .filter((lifecycle) => lifecycle.archiveEligibility.eligible)
       .sort(
@@ -2354,13 +2355,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
           b.forget.ageDays - a.forget.ageDays ||
           a.memoryId.localeCompare(b.memoryId)
       )
-      .slice(0, MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
+    const lifecycles = eligibleLifecycles.slice(0, MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
 
     return {
       lifecycles,
       previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
       scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
       scanned: scanRows.length,
+      previewTruncated:
+        eligibleLifecycles.length > MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
       scanTruncated: rows.length > MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT
     }
   }
