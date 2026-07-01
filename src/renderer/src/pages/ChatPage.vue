@@ -394,6 +394,7 @@ let sessionRestoreScrollFrame: number | null = null
 let sessionRestoreScrollTimer: number | null = null
 let chatSearchRefreshFrame: number | null = null
 let programmaticScrollUntil = 0
+let sessionRestoreBottomScrollTop: number | null = null
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
@@ -433,6 +434,7 @@ function cancelSessionRestoreScrollSettle() {
   }
   cancelSessionRestoreScrollIntentListeners?.()
   cancelSessionRestoreScrollIntentListeners = null
+  sessionRestoreBottomScrollTop = null
   disconnectSessionRestoreResizeObserver()
 }
 
@@ -546,9 +548,11 @@ function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
     const root = messageSearchRoot.value
     if (!container || !root) return
 
-    const target = root.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(currentAnchor.messageId)}"]`
-    )
+    const escapedMessageId =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(currentAnchor.messageId)
+        : currentAnchor.messageId.replace(/["\\]/g, '\\$&')
+    const target = root.querySelector<HTMLElement>(`[data-message-id="${escapedMessageId}"]`)
     if (!target) return
 
     const containerRect = container.getBoundingClientRect()
@@ -566,6 +570,13 @@ function markProgrammaticScroll(durationMs = 300): void {
 
 function isProgrammaticScrollActive(): boolean {
   return Date.now() < programmaticScrollUntil
+}
+
+function enterAnchoredReadingMode(): void {
+  programmaticScrollUntil = 0
+  isNearBottom.value = false
+  scrollMode.value = 'anchored-reading'
+  shouldAutoFollow.value = false
 }
 
 function isAtBottom(): boolean {
@@ -624,7 +635,9 @@ function applySessionRestoreBottomScroll(requestId: number, sessionId: string): 
     return false
   }
 
-  el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  const bottomScrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  el.scrollTop = bottomScrollTop
+  sessionRestoreBottomScrollTop = bottomScrollTop
   return true
 }
 
@@ -726,9 +739,7 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
       // During a forced/programmatic scroll, only a genuine user gesture (wheel,
       // drag) may break auto-follow. Content growth pushing us off-bottom must not.
       if (userInitiated && !isNearBottom.value) {
-        programmaticScrollUntil = 0
-        scrollMode.value = 'anchored-reading'
-        shouldAutoFollow.value = false
+        enterAnchoredReadingMode()
       }
       return
     }
@@ -749,6 +760,22 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
+
+  const isNearBottomNow = isAtBottom()
+  if (
+    isSessionRestoreScrollSettleActive() &&
+    sessionRestoreBottomScrollTop !== null &&
+    el.scrollTop < sessionRestoreBottomScrollTop - 1
+  ) {
+    cancelSessionRestoreScrollSettle()
+    enterAnchoredReadingMode()
+  } else if (
+    !isProgrammaticScrollActive() &&
+    !isNearBottomNow &&
+    scrollMode.value !== 'manual-jump'
+  ) {
+    enterAnchoredReadingMode()
+  }
 
   scheduleScrollMetricsRead(true)
 

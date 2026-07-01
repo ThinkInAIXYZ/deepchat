@@ -1472,6 +1472,23 @@ describe('ChatPage', () => {
     })
   })
 
+  it('stops session restore bottom settling after scroll-only user intent', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    })
+  })
+
+  it('keeps scroll-only restore intent anchored during message measurement', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+        messageId: 'm1',
+        height: 420
+      })
+      await flushPromises()
+    })
+  })
+
   it('stops session restore bottom settling after pointer scroll intent', async () => {
     await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
       await wrapper.get('[data-testid="chat-page"]').trigger('pointerdown')
