@@ -45,8 +45,8 @@ export function deriveLifecycle(
   const exempt = exemptReasons.length > 0
   const recallable = row.kind !== 'persona' && active
   const forget = deriveForget(row, now, importance)
-  const oldEnough = row.created_at <= now - archiveAgeMs
-  const decayedEnough = forget.decayScore <= archiveDecayThreshold
+  const oldEnough = row.created_at < now - archiveAgeMs
+  const decayedEnough = forget.decayScore < archiveDecayThreshold
   const neverAccessed = row.access_count === 0
   const eligible = !exempt && active && oldEnough && decayedEnough && neverAccessed
   const decayTier = deriveDecayTier(forget.decayScore, eligible, archiveDecayThreshold)
@@ -167,10 +167,12 @@ function deriveArchiveGaps(input: {
   const gaps: MemoryLifecycle['archiveEligibility']['gaps'] = {}
   if (!input.oldEnough) {
     const ageFromCreated = Math.max(0, input.now - input.row.created_at)
-    gaps.daysUntilOldEnough = Math.max(0, (input.archiveAgeMs - ageFromCreated) / DAY_MS)
+    const daysUntilOldEnough = Math.max(0, (input.archiveAgeMs - ageFromCreated) / DAY_MS)
+    if (daysUntilOldEnough > 0) gaps.daysUntilOldEnough = daysUntilOldEnough
   }
   if (!input.decayedEnough) {
-    gaps.decayAboveThresholdBy = Math.max(0, input.decayScore - input.archiveDecayThreshold)
+    const decayAboveThresholdBy = Math.max(0, input.decayScore - input.archiveDecayThreshold)
+    if (decayAboveThresholdBy > 0) gaps.decayAboveThresholdBy = decayAboveThresholdBy
   }
   if (!input.neverAccessed) {
     gaps.accessCount = input.row.access_count

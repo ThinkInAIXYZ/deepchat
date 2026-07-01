@@ -2316,14 +2316,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.repository.listByAgent(agentId, { includeArchived: true })
   }
 
-  getLifecycle(agentId: string, memoryId: string): MemoryLifecycle[] {
+  getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {
     this.assertSafeAgentId(agentId)
-    if (!this.isManagedAgent(agentId)) return []
+    if (!this.isManagedAgent(agentId)) return null
 
     const row = this.deps.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId || row.kind === 'working') return []
+    if (!row || row.agent_id !== agentId || row.kind === 'working') return null
     const context = this.createLifecycleDerivationContext(agentId)
-    return [deriveLifecycle(row, context.now, context.options)]
+    return deriveLifecycle(row, context.now, context.options)
   }
 
   getArchiveCandidateLifecyclePreview(agentId: string): MemoryArchiveCandidateLifecyclePreview {

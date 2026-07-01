@@ -91,6 +91,23 @@ function makeLifecycle(overrides: Partial<MemoryLifecycle> = {}): MemoryLifecycl
   }
 }
 
+function makeArchiveCandidateLifecycle(overrides: Partial<MemoryLifecycle> = {}): MemoryLifecycle {
+  return makeLifecycle({
+    decayTier: 'archive_candidate',
+    archiveEligibility: {
+      eligible: true,
+      oldEnough: true,
+      decayedEnough: true,
+      neverAccessed: true,
+      active: true,
+      exempt: false,
+      exemptReasons: [],
+      gaps: {}
+    },
+    ...overrides
+  })
+}
+
 describe('toMemoryItemDto sourceEntryIds passthrough', () => {
   it('deserializes a valid source_entry_ids array alongside its session', () => {
     const dto = toMemoryItemDto(
@@ -236,70 +253,36 @@ describe('memory.getLifecycle route contract', () => {
     expect(() => memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat' })).toThrow()
 
     const parsed = memoryGetLifecycleRoute.output.parse({
-      lifecycles: [
-        {
-          memoryId: 'm1',
-          kind: 'semantic',
-          status: 'embedded',
-          recallable: true,
-          decayTier: 'aging',
-          recall: {
-            weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
-            similarity: 0.3,
-            similaritySource: 'baseline',
-            recency: 0.8,
-            importance: 0.5,
-            confidenceFactor: 1,
-            importanceFloor: 0.075,
-            final: 0.455,
-            flooredByImportance: false,
-            halfLifeMs: 14 * 24 * 60 * 60 * 1000
-          },
-          forget: {
-            anchorAt: 1000,
-            ageDays: 10,
-            halfLifeDays: 45,
-            decayScore: 0.8,
-            materializedDecay: null,
-            materializedStale: true
-          },
-          archiveEligibility: {
-            eligible: false,
-            oldEnough: false,
-            decayedEnough: false,
-            neverAccessed: true,
-            active: true,
-            exempt: false,
-            exemptReasons: [],
-            gaps: { daysUntilOldEnough: 80, decayAboveThresholdBy: 0.75 }
-          }
-        }
-      ]
+      lifecycle: makeLifecycle()
     })
 
-    expect(parsed.lifecycles[0].memoryId).toBe('m1')
+    expect(parsed.lifecycle?.memoryId).toBe('m1')
+    expect(memoryGetLifecycleRoute.output.safeParse({ lifecycle: null }).success).toBe(true)
+    expect(
+      memoryGetLifecycleRoute.output.safeParse({ lifecycles: [makeLifecycle()] }).success
+    ).toBe(false)
     expect(JSON.stringify(parsed)).not.toMatch(/nextReview|reinforcement|promotion|reviewInterval/)
   })
 
   it('rejects lifecycle outputs that violate public lifecycle invariants', () => {
     const workingLifecycle = { ...makeLifecycle(), kind: 'working' }
 
-    expect(
-      memoryGetLifecycleRoute.output.safeParse({ lifecycles: [workingLifecycle] }).success
-    ).toBe(false)
+    expect(memoryGetLifecycleRoute.output.safeParse({ lifecycle: workingLifecycle }).success).toBe(
+      false
+    )
     expect(
       memoryGetLifecycleRoute.output.safeParse({
-        lifecycles: [makeLifecycle({ kind: 'semantic', recall: null })]
+        lifecycle: makeLifecycle({ kind: 'semantic', recall: null })
       }).success
     ).toBe(false)
     expect(
       memoryGetLifecycleRoute.output.safeParse({
-        lifecycles: [makeLifecycle({ kind: 'persona', recall: makeLifecycleRecall() })]
+        lifecycle: makeLifecycle({ kind: 'persona', recall: makeLifecycleRecall() })
       }).success
     ).toBe(false)
     expect(
       memoryGetLifecycleRoute.output.safeParse({
-        lifecycles: [makeLifecycle({ kind: 'persona', recall: null })]
+        lifecycle: makeLifecycle({ kind: 'persona', recall: null })
       }).success
     ).toBe(true)
   })
@@ -307,7 +290,7 @@ describe('memory.getLifecycle route contract', () => {
   it('round-trips archive candidate lifecycle predictions', () => {
     const parsed = memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
       preview: {
-        lifecycles: [makeLifecycle({ decayTier: 'archive_candidate' })],
+        lifecycles: [makeArchiveCandidateLifecycle()],
         previewLimit: 25,
         scanLimit: 200,
         scanned: 1,
@@ -329,12 +312,36 @@ describe('memory.getLifecycle route contract', () => {
       memoryGetArchiveCandidateLifecyclePreviewRoute.output.safeParse({
         preview: {
           lifecycles: Array.from({ length: 26 }, (_, index) =>
-            makeLifecycle({ memoryId: `m${index}` })
+            makeArchiveCandidateLifecycle({ memoryId: `m${index}` })
           ),
           previewLimit: 25,
           scanLimit: 200,
           scanned: 26,
           previewTruncated: false,
+          scanTruncated: false
+        }
+      }).success
+    ).toBe(false)
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.output.safeParse({
+        preview: {
+          lifecycles: [makeLifecycle({ decayTier: 'archive_candidate' })],
+          previewLimit: 25,
+          scanLimit: 200,
+          scanned: 1,
+          previewTruncated: false,
+          scanTruncated: false
+        }
+      }).success
+    ).toBe(false)
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.output.safeParse({
+        preview: {
+          lifecycles: [makeArchiveCandidateLifecycle()],
+          previewLimit: 25,
+          scanLimit: 200,
+          scanned: 1,
+          previewTruncated: true,
           scanTruncated: false
         }
       }).success

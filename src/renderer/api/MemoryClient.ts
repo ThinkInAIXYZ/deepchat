@@ -77,9 +77,9 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.health
   }
 
-  async function getLifecycle(agentId: string, memoryId: string): Promise<MemoryLifecycle[]> {
+  async function getLifecycle(agentId: string, memoryId: string): Promise<MemoryLifecycle | null> {
     const result = await bridge.invoke(memoryGetLifecycleRoute.name, { agentId, memoryId })
-    return result.lifecycles
+    return result.lifecycle
   }
 
   async function getArchiveCandidateLifecyclePreview(

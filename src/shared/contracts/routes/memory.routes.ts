@@ -205,10 +205,18 @@ export const MemoryLifecycleSchema = z
 
 export type MemoryLifecycle = z.infer<typeof MemoryLifecycleSchema>
 
+const MemoryArchiveCandidateLifecycleSchema = MemoryLifecycleSchema.refine(
+  (lifecycle) => lifecycle.archiveEligibility.eligible,
+  {
+    path: ['archiveEligibility', 'eligible'],
+    message: 'archive candidate lifecycle must be eligible'
+  }
+)
+
 export const MemoryArchiveCandidateLifecyclePreviewSchema = z
   .object({
     lifecycles: z
-      .array(MemoryLifecycleSchema)
+      .array(MemoryArchiveCandidateLifecycleSchema)
       .max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
     previewLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
     scanLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
@@ -325,7 +333,7 @@ export const memoryGetHealthRoute = defineRouteContract({
 export const memoryGetLifecycleRoute = defineRouteContract({
   name: 'memory.getLifecycle',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1) }),
-  output: z.object({ lifecycles: z.array(MemoryLifecycleSchema) })
+  output: z.object({ lifecycle: MemoryLifecycleSchema.nullable() })
 })
 
 export const memoryGetArchiveCandidateLifecyclePreviewRoute = defineRouteContract({
