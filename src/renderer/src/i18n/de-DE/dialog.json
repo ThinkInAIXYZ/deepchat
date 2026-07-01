@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "Nur DeepChat-Agents können als Verschiebeziele ausgewählt werden. ACP-Unterhaltungen können zu DeepChat verschoben werden, aber nicht in ACP."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "Diese Nachricht löschen?",
+    "description": "Dadurch werden diese Nachricht und der danach neu generierte Kontext gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
+    "confirm": "Nachricht löschen"
   }
 }

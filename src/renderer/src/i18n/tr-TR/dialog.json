@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca DeepChat ajanları seçilebilir. ACP konuşmaları DeepChat’e taşınabilir, ancak ACP’ye taşınamaz."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "Bu mesaj silinsin mi?",
+    "description": "Bu, mesajı ve ardından yeniden oluşturulan bağlamı siler. Bu işlem geri alınamaz.",
+    "confirm": "Mesajı sil"
   }
 }

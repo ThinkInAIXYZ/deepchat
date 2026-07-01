@@ -1863,6 +1863,7 @@ async function onMessageDelete(messageId: string) {
 async function confirmMessageDelete() {
   const messageId = pendingDeleteMessageId.value
   if (!messageId) return
+  if (isReadOnlySession.value) return
   pendingDeleteMessageId.value = null
   try {
     messageStore.clearStreamingState()

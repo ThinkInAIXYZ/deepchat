@@ -328,7 +328,7 @@
   "permissionMode": {
     "default": "Izin bawaan",
     "fullAccess": "akses penuh",
-    "autoApprove": "Approve for me"
+    "autoApprove": "Setujui untuk saya"
   },
   "sidebar": {
     "allAgents": "Semua Agent",

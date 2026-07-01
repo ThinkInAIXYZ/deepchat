@@ -7116,6 +7116,48 @@ describe('AgentRuntimePresenter', () => {
         })
       )
     })
+
+    it('asks the user for high-risk auto-review decisions even when the reviewer allows', async () => {
+      llmProvider.generateCompletionStandalone.mockImplementationOnce(
+        async (_provider, messages) => {
+          const prompt = String(messages[1]?.content ?? '')
+          const actionHash = prompt.match(/"actionHash": "([^"]+)"/)?.[1] ?? ''
+          return JSON.stringify({
+            actionHash,
+            decision: 'auto_allow',
+            riskLevel: 'high',
+            userAuthorization: 'high',
+            rationale: 'high risk'
+          })
+        }
+      )
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'exec',
+          toolArgs: '{"command":"rm -rf /tmp/project"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'clean up files' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          riskLevel: 'high',
+          rationale: 'high risk'
+        })
+      )
+    })
   })
 
   describe('disabled tools', () => {

@@ -66,7 +66,7 @@ Reviewer 输出必须是 strict JSON：
 
 ```typescript
 interface PermissionReviewDecision {
-  actionHash: string
+  actionHash?: string
   riskLevel: 'low' | 'medium' | 'high' | 'critical'
   userAuthorization: 'unknown' | 'low' | 'medium' | 'high'
   decision: 'auto_allow' | 'ask_user' | 'block'
@@ -77,7 +77,7 @@ interface PermissionReviewDecision {
 Post-policy 首版规则：
 
 - `critical` 永远不能自动批准。
-- `high` 默认询问用户；如果用户在当前 turn 明确授权了同一目标和不可逆副作用，可自动批准。
+- `high` 永远不能自动批准，必须询问用户。
 - `medium` 可自动批准，除非涉及凭据导出、批量删除、安全设置弱化或不可信网络发送私有数据。
 - `low` 可自动批准。
 - `block` 用于 deterministic hard deny 或 reviewer 明确识别恶意/不可接受行为；产品表现为工具失败，不执行动作。
@@ -90,35 +90,20 @@ Post-policy 首版规则：
 ```typescript
 interface PermissionReviewActionEnvelope {
   version: 1
-  kind: 'tool_permission'
+  kind: 'deepchat_tool_permission_review'
   sessionId: string
   messageId: string
   toolCallId: string
   toolName: string
+  toolArgs: string
+  toolSource?: 'agent' | 'mcp'
   serverName?: string
-  toolArgsDigest: string
-  permission: {
-    permissionType: 'read' | 'write' | 'all' | 'command'
-    description: string
-    providerId?: string
-    requestId?: string
-    command?: string
-    commandSignature?: string
-    paths?: string[]
-    commandInfo?: {
-      command: string
-      riskLevel: 'low' | 'medium' | 'high' | 'critical'
-      suggestion: string
-      signature?: string
-      baseCommand?: string
-    }
-  }
-  createdAt: string
-  nonce: string
+  permission?: PendingToolInteraction['permission']
+  reason: 'tool_call' | 'precheck' | 'requires_permission'
 }
 ```
 
-Canonicalization 使用稳定 JSON 排序和 SHA-256。执行前必须复核 action hash；批准只绑定当前 exact action。对于仍走现有权限缓存的动作，可复用 `approvePermission()`；对于 `full_access` 风格的外部文件动作，执行器必须把 reviewer 通过的 action 作为一次性执行授权，而不是写入长期会话白名单。
+Canonicalization 使用稳定 JSON 排序和 SHA-256。Reviewer 必须回显 action hash；缺失或不匹配都降级为询问用户。批准只绑定当前 exact action。对于仍走现有权限缓存的动作，可复用 `approvePermission()`；对于 `full_access` 风格的外部文件动作，执行器必须把 reviewer 通过的 action 作为一次性执行授权，而不是写入长期会话白名单。
 
 ## Context 输入
 

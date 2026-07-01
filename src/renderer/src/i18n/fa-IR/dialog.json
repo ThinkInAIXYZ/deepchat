@@ -87,8 +87,8 @@
     "deepChatTargetOnly": "فقط عامل‌های DeepChat می‌توانند به عنوان مقصد انتقال انتخاب شوند. گفتگوهای ACP می‌توانند به DeepChat منتقل شوند، اما نمی‌توانند به ACP منتقل شوند."
   },
   "deleteMessage": {
-    "title": "Delete this message?",
-    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
-    "confirm": "Delete message"
+    "title": "این پیام حذف شود؟",
+    "description": "این پیام و زمینه بازتولیدشده پس از آن حذف می‌شود. این کار قابل بازگشت نیست.",
+    "confirm": "حذف پیام"
   }
 }
