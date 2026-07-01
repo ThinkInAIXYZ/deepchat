@@ -18,6 +18,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const skillPresenter = {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
+    getMetadataList: vi.fn(),
     viewSkill: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
     manageDraftSkill: vi.fn(),
@@ -66,6 +67,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
     skillPresenter.listSkillScripts.mockResolvedValue([])
+    skillPresenter.getMetadataList.mockResolvedValue([
+      {
+        name: 'code-review',
+        description: 'Code Review',
+        category: 'engineering',
+        platforms: [],
+        metadata: {}
+      }
+    ])
     skillPresenter.viewSkill.mockResolvedValue({
       success: true,
       name: 'code-review',
@@ -175,6 +185,24 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(names).toContain('skill_view')
     expect(names).toContain('skill_manage')
     expect(names).not.toContain('skill_control')
+  })
+
+  it('keeps skill_list unrestricted when active skill override is omitted', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue(['code-review'])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+    const result = (await manager.callTool('skill_list', {}, 'conv-1')) as { content: string }
+    const content = JSON.parse(result.content) as {
+      skills: Array<{ name: string; active: boolean }>
+    }
+
+    expect(content.skills).toEqual([
+      expect.objectContaining({
+        name: 'code-review',
+        active: true
+      })
+    ])
   })
 
   it('returns runtime skill_view activation metadata without persisting session skills', async () => {

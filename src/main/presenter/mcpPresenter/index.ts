@@ -24,6 +24,36 @@ import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
+type McpToolAccessContext = {
+  enabledTools?: string[]
+  enabledServerIds?: string[]
+  enabledPluginIds?: string[]
+  agentId?: string
+  conversationId?: string
+}
+
+const normalizeStringList = (items?: string[]): string[] | undefined => {
+  if (!Array.isArray(items)) {
+    return undefined
+  }
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)))
+}
+
+const normalizeToolAccessContext = (
+  input?: string[] | McpToolAccessContext
+): McpToolAccessContext => {
+  if (Array.isArray(input)) {
+    return { enabledTools: normalizeStringList(input) }
+  }
+  return {
+    enabledTools: normalizeStringList(input?.enabledTools),
+    enabledServerIds: normalizeStringList(input?.enabledServerIds),
+    enabledPluginIds: normalizeStringList(input?.enabledPluginIds),
+    agentId: input?.agentId?.trim() || undefined,
+    conversationId: input?.conversationId?.trim() || undefined
+  }
+}
+
 // Complete McpPresenter implementation
 export class McpPresenter implements IMCPPresenter {
   private serverManager: ServerManager
@@ -85,6 +115,21 @@ export class McpPresenter implements IMCPPresenter {
   private async isPluginOwnedServerName(serverName: string): Promise<boolean> {
     const servers = await this.configPresenter.getMcpServers()
     return this.isPluginOwnedServerConfig(servers[serverName])
+  }
+
+  private isServerAllowedByContext(
+    serverName: string,
+    serverConfig: MCPServerConfig | undefined,
+    context: McpToolAccessContext
+  ): boolean {
+    const ownerPluginId =
+      serverConfig?.ownerPluginId?.trim() ||
+      (serverConfig?.source === 'plugin' ? serverConfig.sourceId?.trim() : undefined)
+    if (ownerPluginId) {
+      return !context.enabledPluginIds || context.enabledPluginIds.includes(ownerPluginId)
+    }
+
+    return !context.enabledServerIds || context.enabledServerIds.includes(serverName)
   }
 
   async initialize() {
@@ -475,14 +520,20 @@ export class McpPresenter implements IMCPPresenter {
     return this.serverManager.getServerLastError(serverName)
   }
 
-  async getAllToolDefinitions(enabledMcpTools?: string[]): Promise<MCPToolDefinition[]> {
+  async getAllToolDefinitions(
+    enabledMcpTools?: string[] | McpToolAccessContext
+  ): Promise<MCPToolDefinition[]> {
+    const context = normalizeToolAccessContext(enabledMcpTools)
     const enabled = await this.configPresenter.getMcpEnabled()
-    const tools = await this.toolManager.getAllToolDefinitions(enabledMcpTools)
-    if (enabled) {
-      return tools
-    }
+    const tools = await this.toolManager.getAllToolDefinitions(context)
     const servers = await this.configPresenter.getMcpServers()
-    return tools.filter((tool) => this.isPluginOwnedServerConfig(servers[tool.server.name]))
+    return tools.filter((tool) => {
+      const serverConfig = servers[tool.server.name]
+      if (!enabled && !this.isPluginOwnedServerConfig(serverConfig)) {
+        return false
+      }
+      return this.isServerAllowedByContext(tool.server.name, serverConfig, context)
+    })
   }
 
   /**
@@ -566,8 +617,11 @@ export class McpPresenter implements IMCPPresenter {
     return resourcesList
   }
 
-  async callTool(request: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }> {
-    const toolCallResult = await this.toolManager.callTool(request)
+  async callTool(
+    request: MCPToolCall,
+    options?: { agentId?: string; enabledServerIds?: string[]; enabledPluginIds?: string[] }
+  ): Promise<{ content: string; rawData: MCPToolResponse }> {
+    const toolCallResult = await this.toolManager.callTool(request, options)
     const imagePreviews = await extractToolCallImagePreviews({
       toolName: request.function.name,
       toolArgs: request.function.arguments,
@@ -628,7 +682,10 @@ export class McpPresenter implements IMCPPresenter {
    * Pre-check tool permissions without executing the tool
    * Delegates to ToolManager for the actual permission check
    */
-  async preCheckToolPermission(request: MCPToolCall): Promise<{
+  async preCheckToolPermission(
+    request: MCPToolCall,
+    options?: { agentId?: string; enabledServerIds?: string[]; enabledPluginIds?: string[] }
+  ): Promise<{
     needsPermission: true
     toolName: string
     serverName: string
@@ -644,7 +701,7 @@ export class McpPresenter implements IMCPPresenter {
       baseCommand?: string
     }
   } | null> {
-    return await this.toolManager.preCheckToolPermission(request)
+    return await this.toolManager.preCheckToolPermission(request, options)
   }
 
   async handleSamplingRequest(request: McpSamplingRequestPayload): Promise<McpSamplingDecision> {

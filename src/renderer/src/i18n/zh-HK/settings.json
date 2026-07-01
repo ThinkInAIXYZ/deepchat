@@ -2854,6 +2854,24 @@
     "pluginNotFound": "找不到插件。",
     "capabilities": "能力",
     "actionResult": "操作結果",
-    "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件"
+    "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件",
+    "agentScopeTitle": "Current agent scope",
+    "agentScopeDescription": "Choose which globally installed plugins, skills, and MCP servers the current DeepChat agent can use. Plugin-owned MCP servers follow plugin selection.",
+    "agentScopeNoAgent": "No DeepChat agent is selected.",
+    "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents.",
+    "agentScopeRefresh": "Refresh",
+    "agentScopePlugins": "Plugins",
+    "agentScopeSkills": "Skills",
+    "agentScopeMcp": "MCP servers",
+    "agentScopeInherited": "Inherited",
+    "agentScopeCustom": "Custom",
+    "agentScopeInheritedSummary": "Use the default availability ({count} available).",
+    "agentScopeDenyAllSummary": "None selected; this category is disabled for this agent.",
+    "agentScopeSelectedSummary": "{count} selected",
+    "agentScopeSelectAll": "Select all",
+    "agentScopeClearAll": "Clear",
+    "agentScopeNoPlugins": "No enabled plugins available.",
+    "agentScopeNoSkills": "No skills available.",
+    "agentScopeNoMcp": "No global MCP servers available."
   }
 }

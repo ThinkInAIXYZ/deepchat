@@ -16,7 +16,11 @@ const buttonStub = defineComponent({
   template: '<button @click="$emit(\'click\')"><slot /></button>'
 })
 
-const setup = async (query: Record<string, string> = {}) => {
+const setup = async (
+  query: Record<string, string> = {},
+  props: Record<string, unknown> = {},
+  options: { mcpEnabled?: boolean } = {}
+) => {
   vi.resetModules()
 
   const route = reactive({
@@ -33,8 +37,37 @@ const setup = async (query: Record<string, string> = {}) => {
   }
 
   const toast = vi.fn()
+  const configClient = {
+    listAgents: vi.fn().mockResolvedValue([
+      {
+        id: 'deepchat',
+        type: 'deepchat',
+        name: 'DeepChat',
+        enabled: true,
+        config: {
+          enabledMcpServerIds: ['Artifacts']
+        }
+      }
+    ]),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      enabledMcpServerIds: ['Artifacts']
+    }),
+    updateDeepChatAgent: vi.fn().mockResolvedValue({
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      config: {
+        enabledMcpServerIds: ['Artifacts', 'Custom']
+      }
+    })
+  }
+  const agentStore = {
+    selectedAgentId: 'deepchat',
+    refreshAgentsByIds: vi.fn().mockResolvedValue(undefined)
+  }
   const mcpStore = reactive({
-    mcpEnabled: true,
+    mcpEnabled: options.mcpEnabled ?? true,
     configLoading: false,
     serverList: [
       {
@@ -85,6 +118,17 @@ const setup = async (query: Record<string, string> = {}) => {
       dir: 'ltr'
     })
   }))
+  vi.doMock('@/stores/ui/agent', () => ({
+    useAgentStore: () => agentStore
+  }))
+  vi.doMock('@/stores/ui/session', () => ({
+    useSessionStore: () => ({
+      activeSession: null
+    })
+  }))
+  vi.doMock('@api/ConfigClient', () => ({
+    createConfigClient: () => configClient
+  }))
   vi.doMock('@/composables/useGuidedOnboardingStep', () => ({
     useGuidedOnboardingStep: () => ({
       showGuide: ref(false),
@@ -115,6 +159,7 @@ const setup = async (query: Record<string, string> = {}) => {
     .default
 
   const wrapper = mount(McpSettings, {
+    props,
     global: {
       stubs: {
         Switch: true,
@@ -139,7 +184,13 @@ const setup = async (query: Record<string, string> = {}) => {
         GuidedOnboardingOverlay: true,
         McpServers: defineComponent({
           name: 'McpServers',
-          template: '<div data-testid="servers-view" />'
+          props: {
+            serverEnabledOverrides: { type: Object, default: () => ({}) },
+            agentScopedToggle: { type: Boolean, default: false }
+          },
+          emits: ['toggle-agent-server'],
+          template:
+            '<button data-testid="servers-view" @click="$emit(\'toggle-agent-server\', \'Custom\', true)">{{ agentScopedToggle }}:{{ serverEnabledOverrides.Custom }}</button>'
         }),
         McpBuiltinMarket: defineComponent({
           name: 'McpBuiltinMarket',
@@ -154,7 +205,9 @@ const setup = async (query: Record<string, string> = {}) => {
 
   return {
     wrapper,
-    router
+    router,
+    configClient,
+    mcpStore
   }
 }
 
@@ -183,6 +236,29 @@ describe('McpSettings', () => {
     expect(wrapper.find('[data-testid="settings-mcp-page"]').classes()).toContain('min-h-0')
     expect(serverPanel?.className).toContain('min-h-0')
     expect(scrollFrame?.className).toContain('overflow-hidden')
+  })
+
+  it('respects the global MCP master switch in agent scope', async () => {
+    const { wrapper } = await setup({}, { scope: 'agent' }, { mcpEnabled: false })
+
+    expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('settings.mcp.enableToAccess')
+  })
+
+  it('saves MCP server toggles to the current agent in agent scope', async () => {
+    const { wrapper, configClient, mcpStore } = await setup({}, { scope: 'agent' })
+
+    expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false')
+
+    await wrapper.find('[data-testid="servers-view"]').trigger('click')
+    await flushPromises()
+
+    expect(mcpStore.setMcpEnabled).not.toHaveBeenCalled()
+    expect(configClient.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+      config: {
+        enabledMcpServerIds: ['Artifacts', 'Custom']
+      }
+    })
   })
 
   it('renders the market subview and clears only the market query on back', async () => {

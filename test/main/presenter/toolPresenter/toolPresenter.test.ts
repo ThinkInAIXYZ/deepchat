@@ -300,6 +300,93 @@ describe('ToolPresenter', () => {
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
+  it('passes DeepChat agent MCP policy context to MCP presenter', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn()
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    await toolPresenter.getAllToolDefinitions({
+      agentId: 'agent-1',
+      enabledMcpServerIds: ['server-a'],
+      enabledPluginIds: ['plugin-a'],
+      chatMode: 'agent',
+      conversationId: 'session-1'
+    })
+
+    expect(mcpPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'agent-1',
+        enabledServerIds: ['server-a'],
+        enabledPluginIds: ['plugin-a'],
+        conversationId: 'session-1'
+      })
+    )
+  })
+
+  it('preserves unrestricted MCP policy in stored conversation context', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition('mcp_only', 'open-server')]),
+      callTool: vi.fn().mockResolvedValue({ content: 'ok' })
+    } as any
+    const configPresenter = {
+      getSkillsEnabled: vi.fn().mockReturnValue(false),
+      getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+      getModelConfig: vi.fn()
+    }
+
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: configPresenter as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+
+    await toolPresenter.getAllToolDefinitions({
+      agentId: 'agent-1',
+      enabledMcpServerIds: undefined,
+      enabledPluginIds: undefined,
+      chatMode: 'agent',
+      conversationId: 'session-unrestricted'
+    })
+
+    await toolPresenter.callTool({
+      id: 'tool-1',
+      type: 'function',
+      function: {
+        name: 'mcp_only',
+        arguments: '{}'
+      },
+      server: {
+        name: 'open-server'
+      },
+      conversationId: 'session-unrestricted'
+    } as any)
+
+    expect(mcpPresenter.callTool).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'session-unrestricted' }),
+      expect.objectContaining({
+        agentId: 'agent-1',
+        enabledServerIds: undefined,
+        enabledPluginIds: undefined
+      })
+    )
+  })
+
   it('omits YoBrowser prompt text when no yobrowser tools are enabled', () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),

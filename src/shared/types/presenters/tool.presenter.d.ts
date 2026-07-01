@@ -31,6 +31,9 @@ export interface IToolPresenter {
    */
   getAllToolDefinitions(context: {
     enabledMcpTools?: string[]
+    enabledMcpServerIds?: string[]
+    enabledPluginIds?: string[]
+    agentId?: string
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
     supportsVision?: boolean
@@ -58,6 +61,9 @@ export interface IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      agentId?: string
+      enabledMcpServerIds?: string[]
+      enabledPluginIds?: string[]
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 

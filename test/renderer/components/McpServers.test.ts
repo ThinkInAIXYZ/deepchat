@@ -22,7 +22,9 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  template: '<div data-testid="server-card">{{ server.name }}</div>'
+  emits: ['toggle'],
+  template:
+    '<button data-testid="server-card" @click="$emit(\'toggle\')">{{ server.name }}:{{ server.enabled }}</button>'
 })
 
 type SetupOptions = {
@@ -209,8 +211,60 @@ describe('McpServers', () => {
 
     const cards = wrapper.findAll('[data-testid="server-card"]').map((card) => card.text())
 
-    expect(cards).toEqual(['user-server'])
+    expect(cards).toEqual(['user-server:false'])
     expect(wrapper.text()).not.toContain('feishu-tools')
+  })
+
+  it('uses agent-scoped toggle overrides without toggling the global server', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+
+    await wrapper.setProps({
+      agentScopedToggle: true,
+      serverEnabledOverrides: {
+        'running-server': false
+      }
+    })
+    await wrapper.find('[data-testid="server-card"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="server-card"]').text()).toContain('running-server:false')
+    expect(mcpStore.toggleServer).not.toHaveBeenCalled()
+    expect(wrapper.emitted('toggle-agent-server')?.[0]).toEqual(['running-server', true])
+  })
+
+  it('allows agent-scoped toggles for DeepChat-managed servers without global toggles', async () => {
+    const { wrapper, mcpStore } = await setup({
+      serverList: [
+        {
+          name: 'Artifacts',
+          icons: '',
+          descriptions: '',
+          command: '',
+          args: [],
+          enabled: true,
+          isRunning: true
+        }
+      ],
+      config: {
+        mcpServers: {
+          Artifacts: {
+            type: 'inmemory',
+            source: 'deepchat'
+          }
+        }
+      }
+    })
+
+    await wrapper.setProps({
+      agentScopedToggle: true,
+      serverEnabledOverrides: {
+        Artifacts: false
+      }
+    })
+    await wrapper.find('[data-testid="server-card"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="server-card"]').text()).toContain('Artifacts:false')
+    expect(mcpStore.toggleServer).not.toHaveBeenCalled()
+    expect(wrapper.emitted('toggle-agent-server')?.[0]).toEqual(['Artifacts', true])
   })
 
   it('shows the empty state when only plugin-owned MCP servers exist', async () => {

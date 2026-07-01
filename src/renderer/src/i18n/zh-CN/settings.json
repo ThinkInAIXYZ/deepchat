@@ -2741,7 +2741,25 @@
     "pluginNotFound": "未找到插件。",
     "capabilities": "能力",
     "actionResult": "操作结果",
-    "cuaDescription": "DeepChat 基于 trycua/cua 项目实现的 ComputerUse 插件"
+    "cuaDescription": "DeepChat 基于 trycua/cua 项目实现的 ComputerUse 插件",
+    "agentScopeTitle": "当前 Agent 作用域",
+    "agentScopeDescription": "选择当前 DeepChat Agent 可使用的全局插件、技能和 MCP 服务。插件自带的 MCP 服务跟随插件选择。",
+    "agentScopeNoAgent": "当前未选择 DeepChat Agent。",
+    "agentScopeUnsupported": "Agent 级扩展配置仅支持 DeepChat Agent。",
+    "agentScopeRefresh": "刷新",
+    "agentScopePlugins": "插件",
+    "agentScopeSkills": "技能",
+    "agentScopeMcp": "MCP 服务",
+    "agentScopeInherited": "继承",
+    "agentScopeCustom": "自定义",
+    "agentScopeInheritedSummary": "使用默认可用范围（{count} 项可用）。",
+    "agentScopeDenyAllSummary": "未选择任何项；该类别对此 Agent 禁用。",
+    "agentScopeSelectedSummary": "已选择 {count} 项",
+    "agentScopeSelectAll": "全选",
+    "agentScopeClearAll": "清空",
+    "agentScopeNoPlugins": "暂无可用的已启用插件。",
+    "agentScopeNoSkills": "暂无可用技能。",
+    "agentScopeNoMcp": "暂无可用的全局 MCP 服务。"
   },
   "controlCenter": {
     "groups": {
