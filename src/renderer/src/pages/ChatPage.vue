@@ -343,6 +343,8 @@ const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 const pendingDeleteMessageId = ref<string | null>(null)
 const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
+const pendingAssistantPlaceholder = ref<{ id: string; sessionId: string } | null>(null)
+let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
@@ -901,6 +903,7 @@ watch(
   () => props.sessionId,
   async (id) => {
     pendingDeleteMessageId.value = null
+    pendingAssistantPlaceholder.value = null
     clearChatSearchState()
     displayMessageCache.clear()
     sessionRestoreRequestId += 1
@@ -940,6 +943,15 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => messageStore.isStreaming,
+  (isStreaming) => {
+    if (isStreaming) {
+      pendingAssistantPlaceholder.value = null
+    }
+  }
 )
 
 function resolveAssistantModelName(modelId: string): string {
@@ -1095,6 +1107,17 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
   return firstBlock
 })
 
+const shouldShowPendingAssistantPlaceholder = computed(() => {
+  const pending = pendingAssistantPlaceholder.value
+  return Boolean(
+    pending &&
+    pending.sessionId === props.sessionId &&
+    !messageStore.isStreaming &&
+    !hasInlineStreamingTarget.value &&
+    !ephemeralRateLimitBlock.value
+  )
+})
+
 const latestPlanSnapshot = computed(() => {
   if (!agentPlanStore.isVisible(props.sessionId)) {
     return null
@@ -1124,6 +1147,18 @@ function onDismissPlanFloat() {
   planFloatReservedHeight.value = 0
 }
 
+function createPendingAssistantPlaceholder(sessionId: string): string {
+  const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
+  pendingAssistantPlaceholder.value = { id, sessionId }
+  return id
+}
+
+function clearPendingAssistantPlaceholder(id?: string): void {
+  if (!id || pendingAssistantPlaceholder.value?.id === id) {
+    pendingAssistantPlaceholder.value = null
+  }
+}
+
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
@@ -1151,6 +1186,9 @@ const displayMessages = computed(() => {
     !ephemeralRateLimitBlock.value
   ) {
     msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
+  }
+  if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
+    msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
   }
 
   return msgs
@@ -1732,14 +1770,26 @@ async function onSubmit() {
   const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
   } else {
+    const optimisticUserMessageId = messageStore.addOptimisticUserMessage(props.sessionId, payload)
+    const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(props.sessionId)
     agentPlanStore.beginTurn(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
+    try {
+      await chatClient.sendMessage(props.sessionId, payload)
+    } catch (error) {
+      clearPendingAssistantPlaceholder(pendingAssistantPlaceholderId)
+      messageStore.removeOptimisticMessage(optimisticUserMessageId)
+      console.error('[ChatPage] send message failed:', error)
+    }
   }
-  message.value = ''
-  attachedFiles.value = []
-  clearComposerSkills()
-  schedulePostSubmitScrollToBottom()
 }
 
 async function onCommandSubmit(command: string) {

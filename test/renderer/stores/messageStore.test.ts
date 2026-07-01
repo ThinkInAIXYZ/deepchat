@@ -157,6 +157,24 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.metadata).toContain('"messageType":"compaction"')
   })
 
+  it('can remove optimistic messages by id', async () => {
+    const { store } = await setupStore()
+
+    const optimisticId = store.addOptimisticUserMessage('s1', {
+      text: 'hello',
+      files: [],
+      activeSkills: ['skill-a']
+    })
+
+    expect(store.messages.value).toHaveLength(1)
+    expect(store.messages.value[0]?.id).toBe(optimisticId)
+    expect(store.messages.value[0]?.content).toContain('skill-a')
+
+    store.removeOptimisticMessage(optimisticId)
+
+    expect(store.messages.value).toHaveLength(0)
+  })
+
   it('does not resort message ids when an existing message keeps the same order', async () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({

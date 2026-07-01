@@ -6,9 +6,13 @@
       @click="toggleExpanded"
     >
       <span
-        v-if="statusVariant === 'running'"
+        v-if="statusVariant === 'running' || statusVariant === 'reviewing'"
         data-testid="tool-call-running-indicator"
-        class="tool-call-status-ring shrink-0"
+        :data-status-variant="statusVariant"
+        :class="[
+          'tool-call-status-ring shrink-0',
+          statusVariant === 'reviewing' ? 'tool-call-status-ring-reviewing' : ''
+        ]"
         aria-hidden="true"
       />
       <Icon v-else :icon="statusIconName" :class="['w-3.5 h-3.5 shrink-0', statusIconClass]" />
@@ -232,6 +236,7 @@ const autoExpandDismissed = ref(false)
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
   if (props.block.status === 'success') return 'success'
+  if (props.block.extra?.autoApproveReviewStatus === 'reviewing') return 'reviewing'
   if (props.block.status === 'loading') return 'running'
   return 'neutral'
 })
@@ -724,6 +729,14 @@ function getSubagentStatusLabel(status: string): string {
   border-radius: inherit;
   border: 1px solid hsl(45 96% 62% / 0.88);
   opacity: 0.9;
+}
+
+.tool-call-status-ring-reviewing {
+  border-color: hsl(45 96% 62% / 0.42);
+}
+
+.tool-call-status-ring-reviewing::after {
+  background: hsl(45 96% 62% / 0.88);
 }
 
 pre {

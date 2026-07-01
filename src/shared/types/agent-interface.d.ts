@@ -453,6 +453,7 @@ export interface AssistantMessageExtra {
   plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  autoApproveReviewStatus?: 'reviewing'
   [key: string]: string | number | boolean | object[] | undefined
 }
 
