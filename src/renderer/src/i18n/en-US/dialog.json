@@ -8,6 +8,11 @@
     "description": "This action cannot be undone.",
     "confirm": "Delete"
   },
+  "deleteMessage": {
+    "title": "Delete this message?",
+    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
+    "confirm": "Delete message"
+  },
   "rename": {
     "title": "Rename Conversation",
     "description": "Please enter a new name for the conversation."

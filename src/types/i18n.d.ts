@@ -627,6 +627,7 @@ declare module 'vue-i18n' {
     permissionMode: {
       default: string
       fullAccess: string
+      autoApprove: string
     }
     sidebar: {
       allAgents: string

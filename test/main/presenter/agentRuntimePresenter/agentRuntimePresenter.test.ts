@@ -6493,7 +6493,7 @@ describe('AgentRuntimePresenter', () => {
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
         visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
       })
       makeAssistantRow({
@@ -6945,6 +6945,18 @@ describe('AgentRuntimePresenter', () => {
       )
     })
 
+    it('setPermissionMode preserves auto_approve', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.setPermissionMode('s1', 'auto_approve')
+
+      const mode = await agent.getPermissionMode('s1')
+      expect(mode).toBe('auto_approve')
+      expect(sqlitePresenter.deepchatSessionsTable.updatePermissionMode).toHaveBeenCalledWith(
+        's1',
+        'auto_approve'
+      )
+    })
+
     it('getPermissionMode falls back to db session row', async () => {
       sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
         id: 's2',
@@ -6955,6 +6967,196 @@ describe('AgentRuntimePresenter', () => {
 
       const mode = await agent.getPermissionMode('s2')
       expect(mode).toBe('default')
+    })
+
+    it('falls back to ask_user when auto-review returns invalid JSON', async () => {
+      llmProvider.generateCompletionStandalone.mockResolvedValueOnce('not json')
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/a.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          rationale: 'Auto-review did not return JSON.'
+        })
+      )
+    })
+
+    it('falls back to ask_user when auto-review action hash mismatches', async () => {
+      llmProvider.generateCompletionStandalone.mockResolvedValueOnce(
+        JSON.stringify({
+          actionHash: 'wrong',
+          decision: 'auto_allow',
+          riskLevel: 'low',
+          userAuthorization: 'high',
+          rationale: 'safe'
+        })
+      )
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/a.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          rationale: 'Auto-review action hash mismatch.'
+        })
+      )
+    })
+
+    it('falls back to ask_user when auto-review times out', async () => {
+      vi.useFakeTimers()
+      llmProvider.generateCompletionStandalone.mockImplementationOnce(
+        async (_provider, _messages, _model, _temperature, _maxTokens, options) =>
+          await new Promise<string>((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            })
+          })
+      )
+
+      const resultPromise = (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/a.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'read /tmp/a.txt' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      await expect(resultPromise).resolves.toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          rationale: 'Auto-review timed out. Ask the user.'
+        })
+      )
+    })
+
+    it('blocks critical auto-review decisions with a matching action hash', async () => {
+      llmProvider.generateCompletionStandalone.mockImplementationOnce(
+        async (_provider, messages) => {
+          const prompt = String(messages[1]?.content ?? '')
+          const actionHash = prompt.match(/"actionHash": "([^"]+)"/)?.[1] ?? ''
+          return JSON.stringify({
+            actionHash,
+            decision: 'auto_allow',
+            riskLevel: 'critical',
+            userAuthorization: 'high',
+            rationale: 'critical risk'
+          })
+        }
+      )
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'exec',
+          toolArgs: '{"command":"rm -rf /"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'clean up files' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'block',
+          riskLevel: 'critical',
+          rationale: 'critical risk'
+        })
+      )
+    })
+
+    it('asks the user for high-risk auto-review decisions even when the reviewer allows', async () => {
+      llmProvider.generateCompletionStandalone.mockImplementationOnce(
+        async (_provider, messages) => {
+          const prompt = String(messages[1]?.content ?? '')
+          const actionHash = prompt.match(/"actionHash": "([^"]+)"/)?.[1] ?? ''
+          return JSON.stringify({
+            actionHash,
+            decision: 'auto_allow',
+            riskLevel: 'high',
+            userAuthorization: 'high',
+            rationale: 'high risk'
+          })
+        }
+      )
+
+      const result = await (agent as any).reviewToolPermissionForAutoApprove(
+        {
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          toolName: 'exec',
+          toolArgs: '{"command":"rm -rf /tmp/project"}',
+          toolSource: 'agent',
+          reason: 'tool_call'
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          messages: [{ role: 'user', content: 'clean up files' }],
+          signal: new AbortController().signal
+        }
+      )
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          decision: 'ask_user',
+          riskLevel: 'high',
+          rationale: 'high risk'
+        })
+      )
     })
   })
 
@@ -7212,7 +7414,6 @@ describe('AgentRuntimePresenter', () => {
           signal: expect.any(Object)
         })
       )
-      expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
       expect(result).toEqual(
         expect.objectContaining({
           isError: false,

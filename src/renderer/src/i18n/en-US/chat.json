@@ -346,6 +346,7 @@
   },
   "permissionMode": {
     "default": "Default permissions",
+    "autoApprove": "Approve for me",
     "fullAccess": "Full access"
   },
   "sidebar": {

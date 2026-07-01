@@ -67,6 +67,7 @@ import {
 import type {
   AgentTapeContextOptions,
   CreateSessionInput,
+  PermissionMode,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type {
@@ -140,7 +141,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   async function ensureAcpDraftSession(input: {
     agentId: string
     projectDir: string
-    permissionMode?: 'default' | 'full_access'
+    permissionMode?: PermissionMode
   }) {
     const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
     return result.session
@@ -391,7 +392,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.mode
   }
 
-  async function setPermissionMode(sessionId: string, mode: 'default' | 'full_access') {
+  async function setPermissionMode(sessionId: string, mode: PermissionMode) {
     await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
   }
 

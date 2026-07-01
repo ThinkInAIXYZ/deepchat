@@ -8,6 +8,11 @@
     "description": "此操作无法撤销，请谨慎操作。",
     "confirm": "删除"
   },
+  "deleteMessage": {
+    "title": "删除这条消息？",
+    "description": "将删除这条消息以及后续重新生成的上下文，此操作无法撤销。",
+    "confirm": "删除消息"
+  },
   "rename": {
     "title": "重命名会话",
     "description": "请输入新的会话名称。"

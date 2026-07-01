@@ -949,7 +949,9 @@
                 'h-6 px-2 gap-1.5 text-xs backdrop-blur-lg',
                 permissionMode === 'full_access'
                   ? 'text-orange-500 hover:text-orange-600'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : permissionMode === 'auto_approve'
+                    ? 'text-emerald-500 hover:text-emerald-600'
+                    : 'text-muted-foreground hover:text-foreground'
               ]"
             >
               <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
@@ -1474,14 +1476,25 @@ watch(
   { immediate: true }
 )
 
-const permissionModeLabel = computed(() =>
-  permissionMode.value === 'default'
-    ? t('chat.permissionMode.default')
-    : t('chat.permissionMode.fullAccess')
-)
+const normalizePermissionMode = (mode?: PermissionMode | null): PermissionMode =>
+  mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+
+const permissionModeLabel = computed(() => {
+  if (permissionMode.value === 'default') {
+    return t('chat.permissionMode.default')
+  }
+  if (permissionMode.value === 'auto_approve') {
+    return t('chat.permissionMode.autoApprove')
+  }
+  return t('chat.permissionMode.fullAccess')
+})
 
 const permissionIcon = computed(() =>
-  permissionMode.value === 'full_access' ? 'lucide:shield-alert' : 'lucide:shield'
+  permissionMode.value === 'full_access'
+    ? 'lucide:shield-alert'
+    : permissionMode.value === 'auto_approve'
+      ? 'lucide:shield-check'
+      : 'lucide:shield'
 )
 
 const permissionOptions = computed(() => [
@@ -1490,6 +1503,12 @@ const permissionOptions = computed(() => [
     label: t('chat.permissionMode.default'),
     icon: 'lucide:shield',
     iconClass: 'text-muted-foreground'
+  },
+  {
+    value: 'auto_approve' as const,
+    label: t('chat.permissionMode.autoApprove'),
+    icon: 'lucide:shield-check',
+    iconClass: 'text-emerald-500'
   },
   {
     value: 'full_access' as const,
@@ -2300,14 +2319,14 @@ watch(
     }
 
     if (!sessionId) {
-      permissionMode.value = draftPermissionMode === 'default' ? 'default' : 'full_access'
+      permissionMode.value = normalizePermissionMode(draftPermissionMode)
       return
     }
 
     try {
       const mode = await sessionClient.getPermissionMode(sessionId)
       if (token !== permissionSyncToken) return
-      permissionMode.value = mode === 'default' ? 'default' : 'full_access'
+      permissionMode.value = normalizePermissionMode(mode)
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to load permission mode:', error)
       if (token !== permissionSyncToken) return

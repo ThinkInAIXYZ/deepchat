@@ -167,6 +167,24 @@
         </div>
       </div>
     </div>
+    <AlertDialog :open="showDeleteMessageDialog" @update:open="onDeleteMessageDialogOpenChange">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ t('dialog.deleteMessage.title') }}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ t('dialog.deleteMessage.description') }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelMessageDelete">
+            {{ t('dialog.cancel') }}
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmMessageDelete">
+            {{ t('dialog.deleteMessage.confirm') }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </TooltipProvider>
 </template>
 
@@ -174,6 +192,16 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@shadcn/components/ui/alert-dialog'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
@@ -312,6 +340,8 @@ const messageListRef = ref<{
 } | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
+const pendingDeleteMessageId = ref<string | null>(null)
+const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
@@ -818,6 +848,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 watch(
   () => props.sessionId,
   async (id) => {
+    pendingDeleteMessageId.value = null
     clearChatSearchState()
     displayMessageCache.clear()
     sessionRestoreRequestId += 1
@@ -1826,12 +1857,30 @@ async function onMessageRetry(messageId: string) {
 async function onMessageDelete(messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
+  pendingDeleteMessageId.value = messageId
+}
+
+async function confirmMessageDelete() {
+  const messageId = pendingDeleteMessageId.value
+  if (!messageId) return
+  if (isReadOnlySession.value) return
+  pendingDeleteMessageId.value = null
   try {
     messageStore.clearStreamingState()
     await sessionClient.deleteMessage(props.sessionId, messageId)
     applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
+  }
+}
+
+function cancelMessageDelete() {
+  pendingDeleteMessageId.value = null
+}
+
+function onDeleteMessageDialogOpenChange(open: boolean) {
+  if (!open) {
+    cancelMessageDelete()
   }
 }
 

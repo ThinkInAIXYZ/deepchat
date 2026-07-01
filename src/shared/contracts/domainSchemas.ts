@@ -674,7 +674,7 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   visionModel: ModelSelectionSchema.nullable().optional(),
   imageGenerationModel: ModelSelectionSchema.nullable().optional(),
   systemPrompt: z.string().optional(),
-  permissionMode: z.enum(['default', 'full_access']).optional(),
+  permissionMode: z.enum(['default', 'auto_approve', 'full_access']).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
   enabledPluginIds: z.array(z.string()).nullable().optional(),
   enabledSkillNames: z.array(z.string()).nullable().optional(),

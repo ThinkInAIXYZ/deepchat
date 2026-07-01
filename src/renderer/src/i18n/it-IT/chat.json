@@ -327,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Permessi predefiniti",
-    "fullAccess": "Accesso completo"
+    "fullAccess": "Accesso completo",
+    "autoApprove": "Approva per me"
   },
   "sidebar": {
     "allAgents": "Tutti gli Agents",

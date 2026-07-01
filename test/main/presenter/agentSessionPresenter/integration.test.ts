@@ -3,6 +3,7 @@ import { AgentSessionPresenter } from '@/presenter/agentSessionPresenter/index'
 import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 
@@ -174,7 +175,7 @@ function createMockSqlitePresenter() {
           id: string,
           providerId: string,
           modelId: string,
-          permissionMode: 'default' | 'full_access' = 'full_access',
+          permissionMode: PermissionMode = 'full_access',
           generationSettings: {
             systemPrompt?: string
             temperature?: number
@@ -229,7 +230,7 @@ function createMockSqlitePresenter() {
           summary_updated_at: row.summary_updated_at ?? null
         }
       }),
-      updatePermissionMode: vi.fn((id: string, mode: 'default' | 'full_access') => {
+      updatePermissionMode: vi.fn((id: string, mode: PermissionMode) => {
         const row = deepchatSessionsStore.get(id)
         if (row) {
           row.permission_mode = mode

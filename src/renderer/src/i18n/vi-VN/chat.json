@@ -327,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Quyền mặc định",
-    "fullAccess": "Toàn quyền truy cập"
+    "fullAccess": "Toàn quyền truy cập",
+    "autoApprove": "Phê duyệt thay tôi"
   },
   "sidebar": {
     "allAgents": "Tất cả Agents",

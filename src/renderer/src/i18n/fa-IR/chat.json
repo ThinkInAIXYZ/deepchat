@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "مجوزهای پیش‌فرض",
-    "fullAccess": "دسترسی کامل"
+    "fullAccess": "دسترسی کامل",
+    "autoApprove": "به جای من تأیید کن"
   },
   "sidebar": {
     "allAgents": "همه عامل‌ها",

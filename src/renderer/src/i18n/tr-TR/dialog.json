@@ -85,5 +85,10 @@
       "subagent": "Alt ajan"
     },
     "deepChatTargetOnly": "Taşıma hedefi olarak yalnızca DeepChat ajanları seçilebilir. ACP konuşmaları DeepChat’e taşınabilir, ancak ACP’ye taşınamaz."
+  },
+  "deleteMessage": {
+    "title": "Bu mesaj silinsin mi?",
+    "description": "Bu, mesajı ve ardından yeniden oluşturulan bağlamı siler. Bu işlem geri alınamaz.",
+    "confirm": "Mesajı sil"
   }
 }

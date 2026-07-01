@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "デフォルト権限",
-    "fullAccess": "フルアクセス"
+    "fullAccess": "フルアクセス",
+    "autoApprove": "代わりに承認"
   },
   "sidebar": {
     "allAgents": "すべてのエージェント",

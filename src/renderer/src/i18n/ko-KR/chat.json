@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "기본 권한",
-    "fullAccess": "전체 접근"
+    "fullAccess": "전체 접근",
+    "autoApprove": "대신 승인"
   },
   "sidebar": {
     "allAgents": "모든 에이전트",

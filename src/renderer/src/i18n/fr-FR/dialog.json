@@ -85,5 +85,10 @@
       "subagent": "Sous-agent"
     },
     "deepChatTargetOnly": "Seuls les agents DeepChat peuvent être sélectionnés comme cibles de déplacement. Les conversations ACP peuvent être déplacées vers DeepChat, mais pas vers ACP."
+  },
+  "deleteMessage": {
+    "title": "Supprimer ce message ?",
+    "description": "Cela supprimera ce message ainsi que le contexte régénéré qui suit. Cette action est irréversible.",
+    "confirm": "Supprimer le message"
   }
 }

@@ -85,5 +85,10 @@
       "subagent": "Underagent"
     },
     "deepChatTargetOnly": "Kun DeepChat-agenter kan vælges som overførselsmål. ACP-samtaler kan flyttes til DeepChat, men ikke ind i ACP."
+  },
+  "deleteMessage": {
+    "title": "Slet denne besked?",
+    "description": "Dette sletter beskeden og den efterfølgende regenererede kontekst. Handlingen kan ikke fortrydes.",
+    "confirm": "Slet besked"
   }
 }

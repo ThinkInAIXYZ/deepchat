@@ -346,6 +346,7 @@
   },
   "permissionMode": {
     "default": "默认权限",
+    "autoApprove": "助手代审",
     "fullAccess": "完全访问"
   },
   "sidebar": {

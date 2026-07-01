@@ -117,6 +117,10 @@ const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
 
+function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
+  return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+}
+
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
 const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
@@ -343,14 +347,10 @@ export class AgentSessionPresenter {
       deepChatAgentConfig?.defaultModelPreset?.modelId ??
       defaultModel?.modelId ??
       ''
-    const permissionMode: PermissionMode =
+    const permissionMode =
       input.permissionMode !== undefined
-        ? input.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
-        : deepChatAgentConfig?.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
+        ? normalizePermissionMode(input.permissionMode)
+        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
     const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
       deepChatAgentConfig,
       input.generationSettings
@@ -498,14 +498,10 @@ export class AgentSessionPresenter {
       deepChatAgentConfig?.defaultModelPreset?.modelId ??
       defaultModel?.modelId ??
       ''
-    const permissionMode: PermissionMode =
+    const permissionMode =
       input.permissionMode !== undefined
-        ? input.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
-        : deepChatAgentConfig?.permissionMode === 'default'
-          ? 'default'
-          : 'full_access'
+        ? normalizePermissionMode(input.permissionMode)
+        : normalizePermissionMode(deepChatAgentConfig?.permissionMode)
     const generationSettings = this.mergeDeepChatDefaultGenerationSettings(
       deepChatAgentConfig,
       input.generationSettings
@@ -679,8 +675,7 @@ export class AgentSessionPresenter {
 
     await this.assertAcpAgent(agentId)
     const agent = await this.resolveAgentImplementation(agentId)
-    const permissionMode: PermissionMode =
-      input.permissionMode === 'default' ? 'default' : 'full_access'
+    const permissionMode = normalizePermissionMode(input.permissionMode)
 
     let record = await this.findReusableDraftSession(agentId, projectDir, agent)
     let createdDraftSession = false
@@ -2990,7 +2985,7 @@ export class AgentSessionPresenter {
         config?.defaultProjectPath?.trim() ||
         this.getDefaultProjectPathCompat() ||
         null,
-      permissionMode: config?.permissionMode === 'default' ? 'default' : 'full_access',
+      permissionMode: normalizePermissionMode(config?.permissionMode),
       generationSettings: this.mergeDeepChatDefaultGenerationSettings(config),
       disabledAgentTools: this.normalizeDisabledAgentTools(config?.disabledAgentTools),
       subagentEnabled: this.resolveSessionSubagentEnabled(

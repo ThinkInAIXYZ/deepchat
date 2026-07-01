@@ -108,7 +108,7 @@ export const AppErrorSchema = z.object({
   details: z.record(z.string(), JsonValueSchema).optional()
 })
 
-export const PermissionModeSchema = z.enum(['default', 'full_access'])
+export const PermissionModeSchema = z.enum(['default', 'auto_approve', 'full_access'])
 export const SessionStatusSchema = z.enum(['idle', 'generating', 'error'])
 export const SessionKindSchema = z.enum(['regular', 'subagent'])
 export const AgentTypeSchema = z.enum(['deepchat', 'acp'])

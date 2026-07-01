@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
+import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -156,7 +157,7 @@ const setup = async (options?: {
     projectDir: projectStore.selectedProject?.path ?? undefined,
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    permissionMode: 'full_access' as const,
+    permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
