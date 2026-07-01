@@ -4,6 +4,7 @@
   >
     <NodeRenderer
       :content="debouncedContent"
+      :final="!smoothStreaming"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
       :smooth-streaming="smoothStreaming"

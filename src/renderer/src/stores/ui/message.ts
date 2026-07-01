@@ -11,6 +11,7 @@ import type {
   MessageFile,
   MessagePageCursor,
   MessageMetadata,
+  SendMessageInput,
   SessionWithState
 } from '@shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
@@ -431,16 +432,24 @@ export const useMessageStore = defineStore('message', () => {
    */
   function addOptimisticUserMessage(
     sessionId: string,
-    text: string,
+    input: string | SendMessageInput,
     files: MessageFile[] = []
-  ): void {
-    const id = `__optimistic_user_${Date.now()}`
+  ): string {
+    const normalizedInput = typeof input === 'string' ? { text: input, files } : input
+    const id = `__optimistic_user_${Date.now()}_${messageIds.value.length + 1}`
     const record: ChatMessageRecord = {
       id,
       sessionId,
       orderSeq: messageIds.value.length + 1,
       role: 'user',
-      content: JSON.stringify({ text, files, links: [], search: false, think: false }),
+      content: JSON.stringify({
+        text: normalizedInput.text,
+        files: normalizedInput.files ?? [],
+        links: [],
+        search: false,
+        think: false,
+        activeSkills: normalizedInput.activeSkills ?? []
+      }),
       status: 'sent',
       isContextEdge: 0,
       metadata: '{}',
@@ -450,6 +459,14 @@ export const useMessageStore = defineStore('message', () => {
     }
     messageCache.value.set(id, record)
     messageIds.value.push(id)
+    return id
+  }
+
+  function removeOptimisticMessage(id: string): void {
+    if (!id.startsWith('__optimistic_')) return
+    messageCache.value.delete(id)
+    messageIds.value = messageIds.value.filter((messageId) => messageId !== id)
+    parsedMessageCache.delete(id)
   }
 
   function clear(): void {
@@ -551,6 +568,7 @@ export const useMessageStore = defineStore('message', () => {
     loadOlderMessages,
     getMessage,
     addOptimisticUserMessage,
+    removeOptimisticMessage,
     clearStreamingState,
     clear
   }

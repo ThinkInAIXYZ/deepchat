@@ -87,6 +87,7 @@ export type DisplayAssistantMessageExtra = Record<string, string | number | obje
   plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  autoApproveReviewStatus?: 'reviewing'
 }
 
 export type DisplayAssistantMessageBlock = {

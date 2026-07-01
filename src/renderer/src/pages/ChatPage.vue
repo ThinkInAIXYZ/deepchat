@@ -6,6 +6,7 @@
       :data-generating="String(isGenerating)"
       class="message-list-container h-full w-full min-w-0 overflow-y-auto"
       @scroll.passive="onScroll"
+      @wheel.passive="onWheel"
     >
       <ChatTopBar
         class="chat-capture-hide"
@@ -59,7 +60,7 @@
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
         v-if="!isReadOnlySession"
-        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
+        class="chat-capture-hide sticky bottom-0 z-10 w-full bg-background px-6 pb-3 pt-3"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
@@ -342,6 +343,8 @@ const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 const pendingDeleteMessageId = ref<string | null>(null)
 const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
+const pendingAssistantPlaceholder = ref<{ id: string; sessionId: string } | null>(null)
+let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
@@ -349,6 +352,7 @@ type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manua
 const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
 const TOP_HISTORY_THRESHOLD = 80
+const USER_SCROLL_AWAY_INTENT_MS = 300
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
@@ -394,6 +398,8 @@ let sessionRestoreScrollFrame: number | null = null
 let sessionRestoreScrollTimer: number | null = null
 let chatSearchRefreshFrame: number | null = null
 let programmaticScrollUntil = 0
+let sessionRestoreBottomScrollTop: number | null = null
+let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
@@ -433,6 +439,7 @@ function cancelSessionRestoreScrollSettle() {
   }
   cancelSessionRestoreScrollIntentListeners?.()
   cancelSessionRestoreScrollIntentListeners = null
+  sessionRestoreBottomScrollTop = null
   disconnectSessionRestoreResizeObserver()
 }
 
@@ -526,6 +533,14 @@ function captureViewportAnchor(): ViewportAnchor | null {
   return fallback
 }
 
+function messageIdSelector(messageId: string): string {
+  const escapedMessageId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(messageId)
+      : messageId.replace(/["\\]/g, '\\$&')
+  return `[data-message-id="${escapedMessageId}"]`
+}
+
 function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
   if (!anchor || isProgrammaticScrollActive()) {
     return
@@ -546,9 +561,7 @@ function scheduleViewportAnchorRestore(anchor: ViewportAnchor | null): void {
     const root = messageSearchRoot.value
     if (!container || !root) return
 
-    const target = root.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(currentAnchor.messageId)}"]`
-    )
+    const target = root.querySelector<HTMLElement>(messageIdSelector(currentAnchor.messageId))
     if (!target) return
 
     const containerRect = container.getBoundingClientRect()
@@ -566,6 +579,22 @@ function markProgrammaticScroll(durationMs = 300): void {
 
 function isProgrammaticScrollActive(): boolean {
   return Date.now() < programmaticScrollUntil
+}
+
+function hasRecentUserScrollAwayIntent(): boolean {
+  return Date.now() < userScrollAwayIntentUntil
+}
+
+function enterAnchoredReadingMode(): void {
+  programmaticScrollUntil = 0
+  isNearBottom.value = false
+  scrollMode.value = 'anchored-reading'
+  shouldAutoFollow.value = false
+}
+
+function markUserScrollAwayIntent(): void {
+  userScrollAwayIntentUntil = Date.now() + USER_SCROLL_AWAY_INTENT_MS
+  enterAnchoredReadingMode()
 }
 
 function isAtBottom(): boolean {
@@ -624,7 +653,9 @@ function applySessionRestoreBottomScroll(requestId: number, sessionId: string): 
     return false
   }
 
-  el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  const bottomScrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  el.scrollTop = bottomScrollTop
+  sessionRestoreBottomScrollTop = bottomScrollTop
   return true
 }
 
@@ -722,13 +753,16 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
 
+    if (userInitiated && hasRecentUserScrollAwayIntent()) {
+      enterAnchoredReadingMode()
+      return
+    }
+
     if (isProgrammaticScrollActive()) {
       // During a forced/programmatic scroll, only a genuine user gesture (wheel,
       // drag) may break auto-follow. Content growth pushing us off-bottom must not.
       if (userInitiated && !isNearBottom.value) {
-        programmaticScrollUntil = 0
-        scrollMode.value = 'anchored-reading'
-        shouldAutoFollow.value = false
+        enterAnchoredReadingMode()
       }
       return
     }
@@ -746,9 +780,33 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
   })
 }
 
+function onWheel(event: WheelEvent) {
+  if (event.deltaY < 0) {
+    markUserScrollAwayIntent()
+  } else if (event.deltaY > 0) {
+    userScrollAwayIntentUntil = 0
+  }
+}
+
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
+
+  const isNearBottomNow = isAtBottom()
+  if (
+    isSessionRestoreScrollSettleActive() &&
+    sessionRestoreBottomScrollTop !== null &&
+    el.scrollTop < sessionRestoreBottomScrollTop - 1
+  ) {
+    cancelSessionRestoreScrollSettle()
+    markUserScrollAwayIntent()
+  } else if (
+    !isProgrammaticScrollActive() &&
+    !isNearBottomNow &&
+    scrollMode.value !== 'manual-jump'
+  ) {
+    markUserScrollAwayIntent()
+  }
 
   scheduleScrollMetricsRead(true)
 
@@ -791,13 +849,8 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
 
   await nextTick()
 
-  const escapedMessageId =
-    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-      ? CSS.escape(pendingJump.messageId)
-      : pendingJump.messageId.replace(/["\\]/g, '\\$&')
-  let target = messageSearchRoot.value?.querySelector<HTMLElement>(
-    `[data-message-id="${escapedMessageId}"]`
-  )
+  const selector = messageIdSelector(pendingJump.messageId)
+  let target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
 
   if (!target) {
     const entry = messageWindow.getEntry(pendingJump.messageId)
@@ -806,9 +859,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
       scrollMode.value = 'manual-jump'
       container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
       await nextTick()
-      target = messageSearchRoot.value?.querySelector<HTMLElement>(
-        `[data-message-id="${escapedMessageId}"]`
-      )
+      target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
     }
   }
 
@@ -849,6 +900,7 @@ watch(
   () => props.sessionId,
   async (id) => {
     pendingDeleteMessageId.value = null
+    pendingAssistantPlaceholder.value = null
     clearChatSearchState()
     displayMessageCache.clear()
     sessionRestoreRequestId += 1
@@ -888,6 +940,15 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => messageStore.isStreaming,
+  (isStreaming) => {
+    if (isStreaming) {
+      pendingAssistantPlaceholder.value = null
+    }
+  }
 )
 
 function resolveAssistantModelName(modelId: string): string {
@@ -1043,6 +1104,17 @@ const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(()
   return firstBlock
 })
 
+const shouldShowPendingAssistantPlaceholder = computed(() => {
+  const pending = pendingAssistantPlaceholder.value
+  return Boolean(
+    pending &&
+    pending.sessionId === props.sessionId &&
+    !messageStore.isStreaming &&
+    !hasInlineStreamingTarget.value &&
+    !ephemeralRateLimitBlock.value
+  )
+})
+
 const latestPlanSnapshot = computed(() => {
   if (!agentPlanStore.isVisible(props.sessionId)) {
     return null
@@ -1072,6 +1144,18 @@ function onDismissPlanFloat() {
   planFloatReservedHeight.value = 0
 }
 
+function createPendingAssistantPlaceholder(sessionId: string): string {
+  const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
+  pendingAssistantPlaceholder.value = { id, sessionId }
+  return id
+}
+
+function clearPendingAssistantPlaceholder(id?: string): void {
+  if (!id || pendingAssistantPlaceholder.value?.id === id) {
+    pendingAssistantPlaceholder.value = null
+  }
+}
+
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
@@ -1099,6 +1183,9 @@ const displayMessages = computed(() => {
     !ephemeralRateLimitBlock.value
   ) {
     msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
+  }
+  if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
+    msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
   }
 
   return msgs
@@ -1680,14 +1767,26 @@ async function onSubmit() {
   const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
   } else {
+    const optimisticUserMessageId = messageStore.addOptimisticUserMessage(props.sessionId, payload)
+    const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(props.sessionId)
     agentPlanStore.beginTurn(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, payload)
+    message.value = ''
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
+    try {
+      await chatClient.sendMessage(props.sessionId, payload)
+    } catch (error) {
+      clearPendingAssistantPlaceholder(pendingAssistantPlaceholderId)
+      messageStore.removeOptimisticMessage(optimisticUserMessageId)
+      console.error('[ChatPage] send message failed:', error)
+    }
   }
-  message.value = ''
-  attachedFiles.value = []
-  clearComposerSkills()
-  schedulePostSubmitScrollToBottom()
 }
 
 async function onCommandSubmit(command: string) {
@@ -2030,12 +2129,8 @@ onUnmounted(() => {
   scrollbar-gutter: stable both-edges;
   will-change: scroll-position;
   overscroll-behavior: contain;
+  overflow-anchor: none;
   scroll-behavior: auto;
-}
-
-/* 流式生成时，最后一行始终渲染以保证流式流畅 */
-[data-generating='true'] .message-list-row:last-child {
-  content-visibility: visible;
 }
 
 .agent-question-panel {

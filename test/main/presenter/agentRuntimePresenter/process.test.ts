@@ -314,6 +314,7 @@ describe('processStream', () => {
 
   it('single tool call → loop once, finalize', async () => {
     let callCount = 0
+    let liveMessages: any[] | null = null
     const coreStream = vi.fn(function () {
       callCount++
       if (callCount === 1) {
@@ -342,7 +343,10 @@ describe('processStream', () => {
     const params = createParams({
       coreStream,
       toolPresenter,
-      tools: [makeTool('get_weather')]
+      tools: [makeTool('get_weather')],
+      onConversationMessagesChange: (messages) => {
+        liveMessages = messages
+      }
     })
 
     const promise = processStream(params)
@@ -356,6 +360,7 @@ describe('processStream', () => {
     // Second call should have tool result in messages
     const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
+    expect(liveMessages).toBe(secondCallMessages)
     expect(toolResultMsg).toBeDefined()
     expect(toolResultMsg.content).toBe('Sunny, 72F')
   })

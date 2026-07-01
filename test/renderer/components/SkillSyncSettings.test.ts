@@ -781,6 +781,24 @@ describe('skill sync settings components', () => {
       }
     })
 
+    expect(wrapper.get('[data-testid="skill-detail-status-toggle"]').classes()).toContain('pr-8')
+    const actionButtons = wrapper
+      .get('[data-testid="skill-detail-actions"]')
+      .findAll('button')
+      .map((button) => button.text())
+    const editIndex = actionButtons.findIndex((text) =>
+      text.includes('settings.skills.detail.edit')
+    )
+    const installIndex = actionButtons.findIndex((text) =>
+      text.includes('settings.skills.detail.installToAgent')
+    )
+    const deleteIndex = actionButtons.findIndex((text) =>
+      text.includes('settings.skills.detail.delete')
+    )
+    expect(editIndex).toBeGreaterThanOrEqual(0)
+    expect(installIndex).toBeGreaterThan(editIndex)
+    expect(deleteIndex).toBeGreaterThan(installIndex)
+
     const editButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('settings.skills.detail.edit'))

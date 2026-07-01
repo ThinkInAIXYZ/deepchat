@@ -1,17 +1,20 @@
 <template>
   <div class="my-1">
-    <div class="rounded-lg border bg-card text-card-foreground p-4 w-fit">
+    <div class="w-full max-w-[432px] rounded-lg border bg-card p-4 text-card-foreground">
       <div class="flex flex-col space-y-2">
-        <!-- 图片加载区域 -->
         <div class="flex justify-center">
           <template v-if="resolvedImageData">
             <ImageActionContextMenu :source="resolvedImageSrc" :mime-type="resolvedImageMimeType">
-              <img
-                :src="resolvedImageSrc"
-                class="max-w-[400px] rounded-md cursor-pointer hover:shadow-md transition-shadow"
-                @click="openFullImage"
-                @error="handleImageError"
-              />
+              <div class="image-frame">
+                <img
+                  :src="resolvedImageSrc"
+                  :alt="t('common.image')"
+                  class="max-h-full max-w-full cursor-pointer rounded-md object-contain transition-shadow hover:shadow-md"
+                  decoding="async"
+                  @click="openFullImage"
+                  @error="handleImageError"
+                />
+              </div>
             </ImageActionContextMenu>
           </template>
           <div v-else-if="imageError" class="text-sm text-red-500 p-4">
@@ -278,7 +281,14 @@ const handleSaveImage = () => {
 </script>
 
 <style scoped>
-.image-container {
-  transition: all 0.3s ease;
+.image-frame {
+  display: flex;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background: hsl(var(--muted) / 0.18);
 }
 </style>

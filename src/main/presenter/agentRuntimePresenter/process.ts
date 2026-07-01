@@ -326,6 +326,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   const echo = startEcho(state, io)
   const conversationMessages = [...messages]
+  params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = [...tools]
   let toolCallCount = 0
   let firstProviderRoundReady = false

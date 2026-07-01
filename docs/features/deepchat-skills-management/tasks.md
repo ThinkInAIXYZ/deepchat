@@ -178,6 +178,27 @@ The standalone draft has been absorbed into this SDD folder and removed.
 - [x] Run `pnpm run lint`.
 - [x] Run targeted main and renderer tests for touched skills modules.
 
+## Phase 9: Library Grid Density
+
+- [x] Update the Library SDD ASCII layout from one skill per row to a responsive card grid.
+- [x] Change `SkillsSettings.vue` Library rendering from a vertical list to a responsive grid.
+- [x] Tighten `SkillCard.vue` so half-width cards keep icon, description, badges, and controls
+      readable.
+- [x] Add a renderer assertion for the Library grid container.
+- [x] Run formatting with `oxfmt .`; `pnpm run format` was blocked by pnpm dependency status
+      cleanup before executing the script.
+- [x] Run i18n with `i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n`.
+- [x] Run lint guards and `oxlint .`.
+- [x] Run targeted renderer tests for `SkillsSettings` and `SkillCard`.
+
+## Phase 10: Detail Dialog Action Placement
+
+- [x] Update the Skill Detail SDD ASCII layout so Install to Agent sits beside Edit/Preview.
+- [x] Move `SkillDetailDialog.vue` Install to Agent from the header to the detail action row.
+- [x] Add close-button spacing to the header enable/disable control group.
+- [x] Add a renderer assertion for detail action placement.
+- [x] Run formatting, i18n, lint, and targeted renderer tests.
+
 ## Deferred
 
 - [ ] Built-in Git commit/pull/push for the sync directory.

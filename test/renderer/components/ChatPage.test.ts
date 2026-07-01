@@ -3,6 +3,14 @@ import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { WORKSPACE_EVENTS } from '@/events'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
 const passthrough = (name: string) =>
   defineComponent({
     name,
@@ -117,7 +125,8 @@ const setup = async (options: SetupOptions = {}) => {
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
-    addOptimisticUserMessage: vi.fn()
+    addOptimisticUserMessage: vi.fn().mockReturnValue('__optimistic_user_1'),
+    removeOptimisticMessage: vi.fn()
   })
 
   const pendingInputStore = reactive({
@@ -494,7 +503,8 @@ async function expectSessionRestoreSettleStopsAfter(
   triggerIntent: (context: {
     wrapper: ChatPageSetupResult['wrapper']
     chatPage: HTMLDivElement
-  }) => Promise<void> | void
+  }) => Promise<void> | void,
+  scrollTopAfterIntent = 420
 ) {
   let nextFrameId = 1
   const rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -542,12 +552,12 @@ async function expectSessionRestoreSettleStopsAfter(
     await flushRaf()
     expect(scrollTop).toBe(700)
 
-    scrollTop = 420
+    scrollTop = scrollTopAfterIntent
     await triggerIntent({ wrapper, chatPage })
     scrollHeight = 1350
     await flushRaf()
 
-    expect(scrollTop).toBe(420)
+    expect(scrollTop).toBe(scrollTopAfterIntent)
 
     wrapper.unmount()
   } finally {
@@ -824,6 +834,80 @@ describe('ChatPage', () => {
       activeSkills: ['algorithmic-art']
     })
     expect(chatInputClearPendingSkills).toHaveBeenCalled()
+  })
+
+  it('shows a pending assistant row immediately after submitting before stream starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'slow first token')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: 'slow first token',
+      files: []
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    messageStore.isStreaming = true
+    await flushPromises()
+
+    const streamingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(streamingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
+      false
+    )
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('clears the pending assistant row when sending fails before streaming starts', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const { wrapper, chatClient, messageStore } = await setup()
+      chatClient.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+      const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+      input.vm.$emit('update:modelValue', 'will fail')
+      await flushPromises()
+      input.vm.$emit('submit')
+      await flushPromises()
+
+      const messageList = wrapper.findComponent({ name: 'MessageList' })
+      const messages = messageList.props('messages') as Array<{ id: string }>
+      expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('clears the pending assistant row when switching sessions', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'switch away')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
   })
 
   it('maps reasoning metadata into message usage for think duration fallback', async () => {
@@ -1316,7 +1400,7 @@ describe('ChatPage', () => {
   })
 
   it('queues active draft on submit while generating', async () => {
-    const { wrapper, pendingInputStore, chatClient } = await setup({
+    const { wrapper, pendingInputStore, chatClient, messageStore } = await setup({
       isStreaming: true
     })
 
@@ -1334,6 +1418,10 @@ describe('ChatPage', () => {
       text: 'tighten the answer',
       files: []
     })
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
   })
@@ -1501,6 +1589,36 @@ describe('ChatPage', () => {
     await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
       await wrapper.get('[data-testid="chat-page"]').trigger('wheel')
     })
+  })
+
+  it('stops session restore bottom settling after scroll-only user intent', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+    })
+  })
+
+  it('keeps scroll-only restore intent anchored during message measurement', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      await wrapper.get('[data-testid="chat-page"]').trigger('scroll')
+      wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+        messageId: 'm1',
+        height: 420
+      })
+      await flushPromises()
+    })
+  })
+
+  it('keeps slow upward wheel intent anchored inside bottom threshold', async () => {
+    await expectSessionRestoreSettleStopsAfter(async ({ wrapper }) => {
+      const chatPage = wrapper.get('[data-testid="chat-page"]')
+      await chatPage.trigger('wheel', { deltaY: -4 })
+      await chatPage.trigger('scroll')
+      wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+        messageId: 'm1',
+        height: 420
+      })
+      await flushPromises()
+    }, 650)
   })
 
   it('stops session restore bottom settling after pointer scroll intent', async () => {

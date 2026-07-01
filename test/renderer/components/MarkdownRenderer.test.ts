@@ -79,6 +79,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
     const NodeRenderer = defineComponent({
       name: 'NodeRenderer',
       props: {
+        final: {
+          type: Boolean,
+          default: false
+        },
         smoothStreaming: {
           type: Boolean,
           default: false
@@ -90,6 +94,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
             'div',
             {
               'data-testid': 'node-renderer',
+              'data-final': String(props.final),
               'data-smooth-streaming': String(props.smoothStreaming)
             },
             [
@@ -237,6 +242,16 @@ describe('MarkdownRenderer', () => {
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
       'true'
     )
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-final')).toBe('false')
+  })
+
+  it('marks completed chat markdown as final', async () => {
+    const { wrapper } = await setup({
+      smoothStreaming: false
+    })
+
+    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+    expect(nodeRenderer.attributes('data-final')).toBe('true')
   })
 
   it('routes reference clicks through the shared markdown link navigator', async () => {

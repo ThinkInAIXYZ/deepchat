@@ -174,6 +174,8 @@ Those tools remain available through the existing import/export conversion flow.
 - Users can open a reusable skill detail dialog from each row.
 - Users can install a single DeepChat skill to a detected local agent from that skill row.
 - Users can add skills from folder, ZIP, URL, or Git repository from the top add menu.
+- The Library list uses a responsive card grid so wide settings panes show multiple skills per row
+  while narrow panes fall back to one column.
 - The Library tab must not show the old external-tool import grid.
 - Disabled skills remain on disk and remain eligible for agent links and manual export when the user
   explicitly includes them.
@@ -286,17 +288,18 @@ Library tab:
 +--------------------------------------------------------------------------+
 | Summary: 18 skills - 15 enabled - 3 disabled - 4 agent links             |
 |                                                                          |
-| [wand] guizang-ppt                                                       |
-|        Create PowerPoint decks from structured plans.                    |
-|        Git install  Enabled  Claude             [Install to Agent] [on] |
-|                                                                          |
-| [wand] frontend-design                                                   |
-|        UI and UX implementation guidance.                                |
-|        Built-in     Enabled  -                  [Install to Agent] [on] |
-|                                                                          |
-| [wand] old-review                                                        |
-|        Review legacy code paths.                                         |
-|        Adopted      Disabled Codex              [Install to Agent] [off]|
+| +----------------------------------+ +----------------------------------+ |
+| | [wand] guizang-ppt         [on] | | [wand] frontend-design     [on] | |
+| | Create PowerPoint decks...      | | UI and UX guidance.             | |
+| | Git install  Enabled           | | Built-in  Enabled               | |
+| |              [Install to Agent] | |              [Install to Agent] | |
+| +----------------------------------+ +----------------------------------+ |
+| +----------------------------------+                                      |
+| | [wand] old-review         [off] |                                      |
+| | Review legacy code paths.       |                                      |
+| | Adopted  Disabled              |                                      |
+| |              [Install to Agent] |                                      |
+| +----------------------------------+                                      |
 |                                                                          |
 | Empty: No skills installed. Use Add Skill to add folder, ZIP, URL, Git.  |
 +--------------------------------------------------------------------------+
@@ -316,9 +319,10 @@ Skill detail:
 
 ```txt
 +--------------------------------------------------------------------------+
-| G  guizang-ppt                                       [Install to Agent]   |
-|    Create PowerPoint decks from structured plans.              Enabled [] |
-| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md       [Edit] [Delete]   |
+| G  guizang-ppt                                             Enabled [on]  |
+|    Create PowerPoint decks from structured plans.                        |
+| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md                          |
+|                         [Edit] [Install to Agent] [Delete]               |
 |                                                                          |
 | +----------------------------------------------------------------------+ |
 | | Rendered Markdown preview of SKILL.md without YAML frontmatter        | |
@@ -328,8 +332,9 @@ Skill detail:
 Edit mode keeps the same dialog:
 
 +--------------------------------------------------------------------------+
-| G  guizang-ppt                                       [Install to Agent]   |
-| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md     [Preview] [Delete]  |
+| G  guizang-ppt                                             Enabled [on]  |
+| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md                          |
+|                      [Preview] [Install to Agent] [Delete]               |
 |                                                                          |
 | Name: guizang-ppt (read-only)                                            |
 | Description: [.........................................................] |
@@ -691,7 +696,8 @@ When the user chooses Edit
 Then the dialog switches to editable name, description, allowed tools, and Markdown content fields
 And Delete is next to Edit/Preview inside the same dialog
 And Delete requires a second confirmation before removing the skill
-And Install to Agent and DeepChat enable/disable are also available inside the detail dialog
+And Install to Agent sits beside Edit/Preview in the action row
+And DeepChat enable/disable stays in the header with spacing from the dialog close button
 ```
 
 ### Skill Detail Preview

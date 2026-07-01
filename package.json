@@ -186,7 +186,7 @@
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",
     "katex": "^0.16.47",
-    "markstream-vue": "1.0.4",
+    "markstream-vue": "1.0.5-beta.2",
     "mermaid": "^11.15.0",
     "minimatch": "^10.2.5",
     "monaco-editor": "^0.55.1",

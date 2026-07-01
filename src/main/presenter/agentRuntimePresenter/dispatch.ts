@@ -350,6 +350,27 @@ function updateToolCallBlock(
   }
 }
 
+function setToolCallAutoApproveReviewing(
+  blocks: AssistantMessageBlock[],
+  toolCallId: string,
+  reviewing: boolean
+): boolean {
+  const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
+  if (!block?.tool_call) return false
+  const extra = { ...block.extra }
+  if (reviewing) {
+    extra.autoApproveReviewStatus = 'reviewing'
+  } else {
+    delete extra.autoApproveReviewStatus
+  }
+  if (Object.keys(extra).length > 0) {
+    block.extra = extra
+  } else {
+    delete block.extra
+  }
+  return true
+}
+
 function updateSubagentToolCallBlock(
   blocks: AssistantMessageBlock[],
   toolCallId: string,
@@ -885,31 +906,52 @@ function buildSyntheticPermissionForReview(
 async function reviewAutoApproveAction(params: {
   hooks: ProcessHooks | undefined
   io: IoParams
+  state: StreamState
+  rendererFlushHandle: RendererFlushHandle
   execution: ToolExecutionContext
   permission: NonNullable<PendingToolInteraction['permission']>
   reason: 'tool_call' | 'precheck' | 'requires_permission'
 }): Promise<'auto_allow' | 'ask_user'> {
-  const { hooks, io, execution, permission, reason } = params
-  const result = await hooks?.reviewToolPermission?.({
-    sessionId: io.sessionId,
-    messageId: io.messageId,
-    toolCallId: execution.completedToolCall.id,
-    toolName: execution.toolContext.name,
-    toolArgs: execution.toolContext.args,
-    toolSource: execution.toolDef?.source ?? 'mcp',
-    serverName: permission.serverName || execution.toolContext.serverName,
-    permission,
-    reason
-  })
-
-  if (!result || result.decision === 'ask_user') {
+  const { hooks, io, state, rendererFlushHandle, execution, permission, reason } = params
+  const reviewToolPermission = hooks?.reviewToolPermission
+  if (!reviewToolPermission) {
     return 'ask_user'
   }
-  if (result.decision === 'block') {
-    const rationale = result.rationale?.trim() || 'Auto-review blocked this action.'
-    throw new Error(rationale)
+
+  if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, true)) {
+    state.dirty = true
+    rendererFlushHandle.flush()
   }
-  return 'auto_allow'
+  try {
+    const result = await reviewToolPermission({
+      sessionId: io.sessionId,
+      messageId: io.messageId,
+      toolCallId: execution.completedToolCall.id,
+      toolName: execution.toolContext.name,
+      toolArgs: execution.toolContext.args,
+      toolSource: execution.toolDef?.source ?? 'mcp',
+      serverName: permission.serverName || execution.toolContext.serverName,
+      permission,
+      reason
+    })
+
+    if (!result || result.decision === 'ask_user') {
+      return 'ask_user'
+    }
+    if (result.decision === 'block') {
+      const rationale = result.rationale?.trim() || 'Auto-review blocked this action.'
+      throw new Error(rationale)
+    }
+    if (result.decision === 'auto_allow') {
+      return 'auto_allow'
+    }
+    return 'ask_user'
+  } finally {
+    if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, false)) {
+      state.dirty = true
+      rendererFlushHandle.flush()
+    }
+  }
 }
 
 function appendPermissionActionBlock(
@@ -1170,6 +1212,8 @@ async function runToolCall(params: {
           const review = await reviewAutoApproveAction({
             hooks,
             io,
+            state,
+            rendererFlushHandle,
             execution,
             permission: pendingPermission,
             reason: 'requires_permission'
@@ -1547,6 +1591,8 @@ export async function executeTools(
           const review = await reviewAutoApproveAction({
             hooks,
             io,
+            state,
+            rendererFlushHandle,
             execution,
             permission: preCheckedPermission,
             reason: 'precheck'
@@ -1598,6 +1644,8 @@ export async function executeTools(
         const review = await reviewAutoApproveAction({
           hooks,
           io,
+          state,
+          rendererFlushHandle,
           execution,
           permission: reviewPermission,
           reason: 'tool_call'
