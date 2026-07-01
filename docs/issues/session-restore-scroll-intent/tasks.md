@@ -13,4 +13,4 @@
 - [x] Reserve stable preview space for image blocks.
 - [x] Measure message rows at mount instead of first viewport intersection.
 - [x] Mask message content behind the sticky composer.
-- [x] Disable markstream viewport virtualization and intrinsic-size placeholders for completed chat markdown.
+- [x] Mark completed chat markdown final and rely on markstream stable completed layout.

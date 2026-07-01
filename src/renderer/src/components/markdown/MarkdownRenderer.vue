@@ -1,11 +1,10 @@
 <template>
   <div
     class="markdown-renderer-root prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all"
-    :class="{ 'markdown-renderer-root--stable': !smoothStreaming }"
   >
     <NodeRenderer
-      v-bind="stableCompletedRenderProps"
       :content="debouncedContent"
+      :final="!smoothStreaming"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
       :smooth-streaming="smoothStreaming"
@@ -89,18 +88,6 @@ const customRendererId = computed(() =>
 const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
 const codeBlockDarkTheme = codeBlockThemes[0]
 const codeBlockLightTheme = codeBlockThemes[1]
-const stableCompletedRenderProps = computed(() =>
-  props.smoothStreaming
-    ? {}
-    : {
-        final: true,
-        batchRendering: false,
-        deferNodesUntilVisible: false,
-        maxLiveNodes: Number.MAX_SAFE_INTEGER,
-        liveNodeBuffer: 0,
-        nodeVirtual: false
-      }
-)
 const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   wordWrap: 'on' as const
@@ -314,11 +301,6 @@ defineEmits(['copy'])
   */
   a .markdown-renderer {
     display: inline;
-  }
-
-  &.markdown-renderer-root--stable .markstream-vue.markdown-renderer {
-    content-visibility: visible;
-    contain-intrinsic-size: none;
   }
 
   .table-node-wrapper {

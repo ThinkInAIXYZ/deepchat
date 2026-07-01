@@ -20,9 +20,9 @@
   intersection.
 - Give the sticky composer layer an opaque background so message content no longer scrolls underneath
   the input blur region.
-- Disable markstream viewport virtualization and its internal `content-visibility` intrinsic-size
-  placeholder only for completed chat markdown so first-time scrollback does not resolve a 600px
-  offscreen estimate into real content height under the visible message wrapper.
+- Mark completed chat markdown as final and rely on markstream's stable completed-layout path so
+  first-time scrollback does not resolve an offscreen estimate into real content height under the
+  visible message wrapper.
 - Keep the existing gesture listeners as early cancellation for wheel, touch, pointer, mouse, and
   keyboard paths.
 
@@ -34,8 +34,8 @@
 - Add a second regression check where a message `measure` event fires immediately after the
   scroll-only intent.
 - Add a near-bottom slow upward wheel regression check.
-- Add a MarkdownRenderer regression check that completed chat markdown disables markstream viewport
-  virtualization and intrinsic placeholder behavior while streaming markdown keeps its existing path.
+- Add a MarkdownRenderer regression check that completed chat markdown is marked final while
+  streaming markdown keeps its existing path.
 
 ## Compatibility
 

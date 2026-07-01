@@ -26,8 +26,8 @@ Respect scroll-only user intent during the bounded session restore bottom-settli
   the viewport during manual scrolling.
 - The sticky composer must mask scrolled message content behind it so translucent input chrome does
   not continuously resample and repaint moving message text.
-- Completed chat markdown must not use markstream's `content-visibility: auto` intrinsic-size
-  placeholder while the user is manually reading historical messages.
+- Completed chat markdown must be marked final so markstream can use its stable completed-layout path
+  while the user is manually reading historical messages.
 - Streaming auto-follow and explicit send-to-bottom behavior stay unchanged.
 
 ## Constraints
