@@ -14,7 +14,7 @@ import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from '.
  */
 
 export type SessionStatus = 'idle' | 'generating' | 'error'
-export type PermissionMode = 'default' | 'full_access'
+export type PermissionMode = 'default' | 'auto_approve' | 'full_access'
 export type SessionCompactionStatus = 'idle' | 'compacting' | 'compacted'
 
 export interface SessionCompactionState {

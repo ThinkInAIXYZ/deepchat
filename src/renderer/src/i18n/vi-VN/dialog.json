@@ -85,5 +85,10 @@
       "subagent": "Agent con"
     },
     "deepChatTargetOnly": "Chỉ có thể chọn agent DeepChat làm đích chuyển. Cuộc trò chuyện ACP có thể chuyển sang DeepChat, nhưng không thể chuyển vào ACP."
+  },
+  "deleteMessage": {
+    "title": "Delete this message?",
+    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
+    "confirm": "Delete message"
   }
 }

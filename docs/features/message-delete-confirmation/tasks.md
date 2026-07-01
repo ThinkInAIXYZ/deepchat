@@ -2,35 +2,35 @@
 
 ## 0. Review Gate
 
-- [ ] Review `spec.md` copy and destructive-action behavior.
-- [ ] Confirm no undo/soft-delete requirement for this increment.
+- [x] Review `spec.md` copy and destructive-action behavior.
+- [x] Confirm no undo/soft-delete requirement for this increment.
 
 ## 1. Renderer Implementation
 
-- [ ] Add local pending-delete state in `ChatPage.vue`.
-- [ ] Split delete request from confirmed delete.
-- [ ] Add one controlled shadcn `AlertDialog` in `ChatPage.vue`.
-- [ ] Clear pending delete state when dialog closes.
-- [ ] Clear pending delete state when session id changes.
-- [ ] Keep existing delete API call and rehydrate flow unchanged.
+- [x] Add local pending-delete state in `ChatPage.vue`.
+- [x] Split delete request from confirmed delete.
+- [x] Add one controlled shadcn `AlertDialog` in `ChatPage.vue`.
+- [x] Clear pending delete state when dialog closes.
+- [x] Clear pending delete state when session id changes.
+- [x] Keep existing delete API call and rehydrate flow unchanged.
 
 ## 2. i18n
 
-- [ ] Add `dialog.deleteMessage.title`.
-- [ ] Add `dialog.deleteMessage.description`.
-- [ ] Add `dialog.deleteMessage.confirm`.
-- [ ] Run i18n sync for other locale files.
+- [x] Add `dialog.deleteMessage.title`.
+- [x] Add `dialog.deleteMessage.description`.
+- [x] Add `dialog.deleteMessage.confirm`.
+- [x] Run i18n sync for other locale files.
 
 ## 3. Tests
 
-- [ ] Add renderer test: trash request opens confirm and does not delete immediately.
-- [ ] Add renderer test: confirm deletes selected message.
-- [ ] Add renderer test: cancel/Escape path does not delete.
-- [ ] Add renderer test: read-only session cannot open delete confirm.
+- [x] Add renderer test: trash request opens confirm and does not delete immediately.
+- [x] Add renderer test: confirm deletes selected message.
+- [x] Add renderer test: cancel/Escape path does not delete.
+- [x] Add renderer test: read-only session cannot open delete confirm.
 
 ## 4. Verification
 
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run focused ChatPage renderer test.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run focused ChatPage renderer test.

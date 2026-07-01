@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "Разрешения по умолчанию",
-    "fullAccess": "Полный доступ"
+    "fullAccess": "Полный доступ",
+    "autoApprove": "Approve for me"
   },
   "sidebar": {
     "allAgents": "Все агенты",

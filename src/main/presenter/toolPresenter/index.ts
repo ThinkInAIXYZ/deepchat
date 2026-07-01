@@ -134,6 +134,9 @@ const normalizeToolNames = (toolNames?: string[]): string[] => {
 const normalizeOptionalToolNames = (toolNames?: string[]): string[] | undefined =>
   Array.isArray(toolNames) ? normalizeToolNames(toolNames) : undefined
 
+const allowsExternalFileAccess = (mode?: PermissionMode): boolean =>
+  mode === 'full_access' || mode === 'auto_approve'
+
 type StoredMcpAccessContext = {
   agentId?: string
   enabledMcpServerIds?: string[]
@@ -339,7 +342,7 @@ export class ToolPresenter implements IToolPresenter {
           toolCallId: request.id,
           onProgress: options?.onProgress,
           signal: options?.signal,
-          allowExternalFileAccess: options?.permissionMode === 'full_access',
+          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
           activeSkillNames: options?.activeSkillNames
         }
       )
@@ -430,7 +433,7 @@ export class ToolPresenter implements IToolPresenter {
         args,
         request.conversationId,
         {
-          allowExternalFileAccess: options?.permissionMode === 'full_access'
+          allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode)
         }
       )
       if (!result) {

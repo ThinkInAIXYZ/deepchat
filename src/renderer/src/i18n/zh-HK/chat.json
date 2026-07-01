@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "預設權限",
-    "fullAccess": "完全存取"
+    "fullAccess": "完全存取",
+    "autoApprove": "助手代審"
   },
   "sidebar": {
     "allAgents": "所有 Agents",

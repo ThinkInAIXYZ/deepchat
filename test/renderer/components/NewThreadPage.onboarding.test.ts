@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
 const chatInputFocusMock = vi.fn()
 const chatInputTriggerAttachMock = vi.fn()
@@ -115,7 +116,7 @@ const setup = async () => {
     projectDir: '/tmp/workspace',
     providerId: 'openai' as string | undefined,
     modelId: 'gpt-4.1' as string | undefined,
-    permissionMode: 'full_access' as const,
+    permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
     subagentEnabled: false,
     systemPrompt: undefined as string | undefined,

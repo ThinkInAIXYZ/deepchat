@@ -327,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Keizinan lalai",
-    "fullAccess": "akses penuh"
+    "fullAccess": "akses penuh",
+    "autoApprove": "Approve for me"
   },
   "sidebar": {
     "allAgents": "Semua Agents",

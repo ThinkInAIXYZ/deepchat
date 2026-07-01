@@ -9,6 +9,13 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const clickStub = (name: string) =>
+  defineComponent({
+    name,
+    emits: ['click'],
+    template: '<button type="button" @click="$emit(\'click\', $event)"><slot /></button>'
+  })
+
 const buildAssistantMessage = (content: unknown) => ({
   id: 'm1',
   sessionId: 's1',
@@ -248,6 +255,26 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
+  }))
+  vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
+    AlertDialog: defineComponent({
+      name: 'AlertDialog',
+      props: {
+        open: {
+          type: Boolean,
+          default: false
+        }
+      },
+      emits: ['update:open'],
+      template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>'
+    }),
+    AlertDialogAction: clickStub('AlertDialogAction'),
+    AlertDialogCancel: clickStub('AlertDialogCancel'),
+    AlertDialogContent: passthrough('AlertDialogContent'),
+    AlertDialogDescription: passthrough('AlertDialogDescription'),
+    AlertDialogFooter: passthrough('AlertDialogFooter'),
+    AlertDialogHeader: passthrough('AlertDialogHeader'),
+    AlertDialogTitle: passthrough('AlertDialogTitle')
   }))
   vi.doMock('@/components/chat/ChatTopBar.vue', () => ({
     default: defineComponent({
@@ -1029,6 +1056,52 @@ describe('ChatPage', () => {
       }
     })
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
+  })
+
+  it('confirms before deleting a message', async () => {
+    const { wrapper, sessionClient, messageStore } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+    expect(wrapper.text()).toContain('dialog.deleteMessage.title')
+
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(messageStore.clearStreamingState).toHaveBeenCalled()
+    expect(sessionClient.deleteMessage).toHaveBeenCalledWith('s1', 'm1')
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('does not delete when the message delete dialog closes without confirmation', async () => {
+    const { wrapper, sessionClient } = await setup()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true)
+
+    wrapper.findComponent({ name: 'AlertDialog' }).vm.$emit('update:open', false)
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('does not open delete confirmation in read-only sessions', async () => {
+    const { wrapper, sessionClient } = await setup({ sessionKind: 'subagent' })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+
+    expect(sessionClient.deleteMessage).not.toHaveBeenCalled()
+    expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
   })
 
   it('renders pending lane above the input box when no tool interaction is active', async () => {

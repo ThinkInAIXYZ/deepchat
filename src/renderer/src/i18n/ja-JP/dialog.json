@@ -85,5 +85,10 @@
       "subagent": "サブエージェント"
     },
     "deepChatTargetOnly": "移動先として選択できるのは DeepChat エージェントのみです。ACP の会話は DeepChat へ移動できますが、ACP へは移動できません。"
+  },
+  "deleteMessage": {
+    "title": "Delete this message?",
+    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
+    "confirm": "Delete message"
   }
 }

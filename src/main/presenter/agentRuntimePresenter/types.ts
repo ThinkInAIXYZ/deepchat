@@ -93,6 +93,9 @@ export interface ProcessHooks {
   autoGrantPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>
   ) => Promise<void>
+  reviewToolPermission?: (
+    request: ToolPermissionReviewRequest
+  ) => Promise<ToolPermissionReviewResult>
   onStreamingProviderPermission?: (
     permission: NonNullable<PendingToolInteraction['permission']>,
     tool: {
@@ -113,6 +116,26 @@ export interface ProcessHooks {
     isError: boolean
   }) => Promise<MCPToolResponse['content']>
   cacheImage?: (data: string) => Promise<string>
+}
+
+export interface ToolPermissionReviewRequest {
+  sessionId: string
+  messageId: string
+  toolCallId: string
+  toolName: string
+  toolArgs: string
+  toolSource?: 'agent' | 'mcp'
+  serverName?: string
+  permission?: NonNullable<PendingToolInteraction['permission']>
+  reason: 'tool_call' | 'precheck' | 'requires_permission'
+}
+
+export interface ToolPermissionReviewResult {
+  decision: 'auto_allow' | 'ask_user' | 'block'
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical'
+  userAuthorization?: 'unknown' | 'low' | 'medium' | 'high'
+  rationale?: string
+  actionHash?: string
 }
 
 export interface PendingToolInteraction {

@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "הרשאות ברירת מחדל",
-    "fullAccess": "גישה מלאה"
+    "fullAccess": "גישה מלאה",
+    "autoApprove": "Approve for me"
   },
   "sidebar": {
     "allAgents": "כל הסוכנים",

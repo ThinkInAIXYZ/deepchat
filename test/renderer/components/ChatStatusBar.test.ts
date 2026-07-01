@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
+import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
 const TEST_TIMEOUT_MS = 20000
 
@@ -43,6 +44,7 @@ type SetupOptions = {
   activeProviderId?: string
   activeModelId?: string
   activeProjectDir?: string | null
+  activePermissionMode?: PermissionMode
   activeSessionSubagentEnabled?: boolean
   draftSubagentEnabled?: boolean
   supportsEffort?: boolean
@@ -81,6 +83,13 @@ const passthrough = (name: string) =>
   defineComponent({
     name,
     template: '<div><slot /></div>'
+  })
+
+const clickablePassthrough = (name: string) =>
+  defineComponent({
+    name,
+    emits: ['select'],
+    template: '<div @click="$emit(\'select\', $event)"><slot /></div>'
   })
 
 const ButtonStub = defineComponent({
@@ -397,7 +406,7 @@ const setup = async (options: SetupOptions = {}) => {
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
-    permissionMode: 'full_access' as const,
+    permissionMode: 'full_access' as PermissionMode,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,
@@ -513,7 +522,7 @@ const setup = async (options: SetupOptions = {}) => {
     | undefined
 
   const agentSessionPresenter = {
-    getPermissionMode: vi.fn().mockResolvedValue('full_access'),
+    getPermissionMode: vi.fn().mockResolvedValue(options.activePermissionMode ?? 'full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
     getSessionGenerationSettings: vi.fn().mockResolvedValue(sessionSettingsResult),
     getAcpSessionConfigOptions: vi.fn().mockResolvedValue(options.acpSessionConfig ?? null),
@@ -686,7 +695,7 @@ const setup = async (options: SetupOptions = {}) => {
         Input: InputStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: passthrough('DropdownMenuItem'),
+        DropdownMenuItem: clickablePassthrough('DropdownMenuItem'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
         Popover: passthrough('Popover'),
         PopoverContent: passthrough('PopoverContent'),
@@ -778,6 +787,33 @@ describe('ChatStatusBar model and session panels', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it('renders the auto approve permission mode for active sessions', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true,
+      activePermissionMode: 'auto_approve'
+    })
+
+    expect(agentSessionPresenter.getPermissionMode).toHaveBeenCalledWith('s1')
+    expect(wrapper.text()).toContain('chat.permissionMode.autoApprove')
+  })
+
+  it('selects auto approve permission mode for active sessions', async () => {
+    const { wrapper, agentSessionPresenter } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: true
+    })
+
+    const item = wrapper
+      .findAllComponents({ name: 'DropdownMenuItem' })
+      .find((candidate) => candidate.text().includes('chat.permissionMode.autoApprove'))
+    expect(item).toBeTruthy()
+    await item!.trigger('click')
+    await flushPromises()
+
+    expect(agentSessionPresenter.setPermissionMode).toHaveBeenCalledWith('s1', 'auto_approve')
+  })
 
   it('routes the subagent toggle through the unified tools panel', async () => {
     const active = await setup({

@@ -29,6 +29,7 @@ import {
   sessionsActivateRoute,
   sessionsCompactRoute,
   sessionsGetGenerationSettingsRoute,
+  sessionsGetPermissionModeRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
@@ -37,6 +38,7 @@ import {
   sessionsGetActiveRoute,
   sessionsListRoute,
   sessionsRestoreRoute,
+  sessionsSetPermissionModeRoute,
   sessionsUpdateGenerationSettingsRoute,
   systemOpenSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
@@ -823,6 +825,26 @@ describe('main kernel contracts', () => {
       generationSettings: {
         timeout: 5000
       }
+    })
+  })
+
+  it('accepts auto approve in session permission mode contracts', () => {
+    expect(
+      sessionsSetPermissionModeRoute.input.parse({
+        sessionId: 'session-1',
+        mode: 'auto_approve'
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      mode: 'auto_approve'
+    })
+
+    expect(
+      sessionsGetPermissionModeRoute.output.parse({
+        mode: 'auto_approve'
+      })
+    ).toEqual({
+      mode: 'auto_approve'
     })
   })
 

@@ -13,6 +13,7 @@ import { createState } from '@/presenter/agentRuntimePresenter/types'
 import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import type { MCPToolDefinition } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import {
@@ -146,7 +147,7 @@ async function executeTools(
   toolPresenter: IToolPresenter,
   modelId: string,
   io: IoParams,
-  permissionMode: 'default' | 'full_access',
+  permissionMode: PermissionMode,
   toolOutputGuard: ToolOutputGuard,
   contextLength: number,
   maxTokens: number,
@@ -1105,6 +1106,227 @@ describe('dispatch', () => {
       expect(rendererFlushHandle.rescheduleRenderer.mock.invocationCallOrder[0]).toBeLessThan(
         rendererFlushHandle.schedule.mock.invocationCallOrder.at(-1)!
       )
+    })
+
+    it('auto-approves reviewed Agent tool calls with full-access capability reach', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'auto_allow',
+          riskLevel: 'low'
+        })
+      }
+      const tools = [makeAgentTool('read')]
+      const toolPresenter = createMockToolPresenter({ read: 'file content' })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-read',
+          name: 'read',
+          params: '{"path":"/tmp/outside.txt"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-read', name: 'read', arguments: '{"path":"/tmp/outside.txt"}' }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.pendingInteractions).toHaveLength(0)
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc-read',
+          toolName: 'read',
+          toolArgs: '{"path":"/tmp/outside.txt"}',
+          toolSource: 'agent',
+          reason: 'tool_call',
+          permission: expect.objectContaining({
+            permissionType: 'read',
+            serverName: 'agent-filesystem',
+            paths: ['/tmp/outside.txt'],
+            rememberable: false
+          })
+        })
+      )
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-read' }),
+        expect.objectContaining({ permissionMode: 'full_access' })
+      )
+      expect(result.executed).toBe(1)
+    })
+
+    it('pauses auto-approve Agent tool calls when the reviewer asks the user', async () => {
+      const hooks = {
+        onPermissionRequest: vi.fn(),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'high'
+        })
+      }
+      const tools = [makeAgentTool('write')]
+      const toolPresenter = createMockToolPresenter()
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.callTool).not.toHaveBeenCalled()
+      expect(result.executed).toBe(0)
+      expect(result.pendingInteractions).toHaveLength(1)
+      expect(result.pendingInteractions[0].permission).toEqual(
+        expect.objectContaining({
+          permissionType: 'write',
+          serverName: 'agent-filesystem',
+          paths: ['/tmp/outside.txt']
+        })
+      )
+      expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
+      expect(state.blocks.at(-1)).toEqual(
+        expect.objectContaining({
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          extra: expect.objectContaining({
+            needsUserAction: true,
+            permissionType: 'write',
+            serverName: 'agent-filesystem'
+          })
+        })
+      )
+    })
+
+    it('auto-approves pre-checked permissions before execution', async () => {
+      const hooks = {
+        autoGrantPermission: vi.fn().mockResolvedValue(undefined),
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'auto_allow',
+          riskLevel: 'medium'
+        })
+      }
+      const tools = [makeAgentTool('write_file')]
+      const toolPresenter = createMockToolPresenter({ write_file: 'written' }) as IToolPresenter & {
+        preCheckToolPermission: ReturnType<typeof vi.fn>
+      }
+      toolPresenter.preCheckToolPermission = vi.fn().mockResolvedValue({
+        needsPermission: true,
+        permissionType: 'write',
+        description: 'Need write permission',
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        paths: ['/tmp/outside.txt'],
+        rememberable: false
+      })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write_file',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write_file',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await executeTools(
+        state,
+        [],
+        0,
+        tools,
+        toolPresenter,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(toolPresenter.preCheckToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-write' }),
+        { permissionMode: 'full_access' }
+      )
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'precheck',
+          permission: expect.objectContaining({
+            permissionType: 'write',
+            paths: ['/tmp/outside.txt']
+          })
+        })
+      )
+      expect(hooks.autoGrantPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          permissionType: 'write',
+          paths: ['/tmp/outside.txt']
+        })
+      )
+      expect(toolPresenter.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-write' }),
+        expect.objectContaining({ permissionMode: 'full_access' })
+      )
+      expect(result.executed).toBe(1)
+      expect(result.pendingInteractions).toHaveLength(0)
     })
 
     it('enriches tool_call blocks with server info', async () => {

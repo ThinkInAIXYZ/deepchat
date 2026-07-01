@@ -311,7 +311,8 @@
   },
   "permissionMode": {
     "default": "Standardtilladelser",
-    "fullAccess": "Fuld adgang"
+    "fullAccess": "Fuld adgang",
+    "autoApprove": "Approve for me"
   },
   "sidebar": {
     "allAgents": "Alle agenter",

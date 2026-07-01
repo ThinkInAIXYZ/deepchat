@@ -753,6 +753,162 @@ async function autoGrantPermission(
   }
 }
 
+function getToolCapabilityPermissionMode(permissionMode: PermissionMode): PermissionMode {
+  return permissionMode === 'auto_approve' ? 'full_access' : permissionMode
+}
+
+function collectStringValues(value: unknown, keys: Set<string>, results: string[]): void {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim()) results.push(item)
+      else collectStringValues(item, keys, results)
+    }
+    return
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    const normalizedKey = key.toLowerCase()
+    if (typeof entry === 'string' && keys.has(normalizedKey) && entry.trim()) {
+      results.push(entry)
+      continue
+    }
+    if (Array.isArray(entry) && keys.has(normalizedKey)) {
+      for (const item of entry) {
+        if (typeof item === 'string' && item.trim()) results.push(item)
+      }
+      continue
+    }
+    collectStringValues(entry, keys, results)
+  }
+}
+
+function parseToolArgs(toolArgs: string): Record<string, unknown> | null {
+  if (!toolArgs.trim()) return null
+  try {
+    const parsed = JSON.parse(toolArgs) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function extractToolArgPaths(toolArgs: string): string[] {
+  const parsed = parseToolArgs(toolArgs)
+  if (!parsed) return []
+  const paths: string[] = []
+  collectStringValues(
+    parsed,
+    new Set(['path', 'paths', 'file', 'files', 'filepath', 'filepaths', 'dir', 'cwd']),
+    paths
+  )
+  return Array.from(new Set(paths))
+}
+
+function extractToolArgCommand(toolArgs: string): string | undefined {
+  const parsed = parseToolArgs(toolArgs)
+  if (!parsed) return undefined
+  for (const key of ['command', 'cmd', 'script']) {
+    const value = parsed[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return undefined
+}
+
+function isReviewableFullAccessToolCall(execution: ToolExecutionContext): boolean {
+  if (execution.toolDef?.source !== 'agent') return false
+  const name = execution.toolContext.name.toLowerCase()
+  if (
+    [
+      'read',
+      'write',
+      'edit',
+      'delete',
+      'remove',
+      'bash',
+      'shell',
+      'terminal',
+      'command',
+      'file',
+      'search',
+      'settings',
+      'memory',
+      'skill'
+    ].some((part) => name.includes(part))
+  ) {
+    return true
+  }
+  return extractToolArgPaths(execution.toolContext.args).length > 0
+}
+
+function buildSyntheticPermissionForReview(
+  execution: ToolExecutionContext
+): NonNullable<PendingToolInteraction['permission']> {
+  const name = execution.toolContext.name
+  const lowerName = name.toLowerCase()
+  const paths = extractToolArgPaths(execution.toolContext.args)
+  const command = extractToolArgCommand(execution.toolContext.args)
+  if (
+    command ||
+    ['bash', 'shell', 'terminal', 'command'].some((part) => lowerName.includes(part))
+  ) {
+    return {
+      permissionType: 'command',
+      description: `Auto-review requested approval for command tool ${name}.`,
+      toolName: name,
+      serverName: execution.toolContext.serverName,
+      command,
+      rememberable: false
+    }
+  }
+
+  const permissionType: 'read' | 'write' | 'all' = ['read', 'search', 'list', 'find'].some((part) =>
+    lowerName.includes(part)
+  )
+    ? 'read'
+    : 'write'
+  return {
+    permissionType,
+    description: `Auto-review requested approval for tool ${name}.`,
+    toolName: name,
+    serverName: paths.length > 0 ? 'agent-filesystem' : execution.toolContext.serverName,
+    paths: paths.length > 0 ? paths : undefined,
+    rememberable: false
+  }
+}
+
+async function reviewAutoApproveAction(params: {
+  hooks: ProcessHooks | undefined
+  io: IoParams
+  execution: ToolExecutionContext
+  permission: NonNullable<PendingToolInteraction['permission']>
+  reason: 'tool_call' | 'precheck' | 'requires_permission'
+}): Promise<'auto_allow' | 'ask_user'> {
+  const { hooks, io, execution, permission, reason } = params
+  const result = await hooks?.reviewToolPermission?.({
+    sessionId: io.sessionId,
+    messageId: io.messageId,
+    toolCallId: execution.completedToolCall.id,
+    toolName: execution.toolContext.name,
+    toolArgs: execution.toolContext.args,
+    toolSource: execution.toolDef?.source ?? 'mcp',
+    serverName: permission.serverName || execution.toolContext.serverName,
+    permission,
+    reason
+  })
+
+  if (!result || result.decision === 'ask_user') {
+    return 'ask_user'
+  }
+  if (result.decision === 'block') {
+    const rationale = result.rationale?.trim() || 'Auto-review blocked this action.'
+    throw new Error(rationale)
+  }
+  return 'auto_allow'
+}
+
 function appendPermissionActionBlock(
   state: StreamState,
   io: IoParams,
@@ -926,6 +1082,7 @@ async function runToolCall(params: {
   execution: ToolExecutionContext
   toolPresenter: IToolPresenter
   permissionMode: PermissionMode
+  toolPermissionMode: PermissionMode
   hooks?: ProcessHooks
   io: IoParams
   state: StreamState
@@ -937,6 +1094,7 @@ async function runToolCall(params: {
     execution,
     toolPresenter,
     permissionMode,
+    toolPermissionMode,
     hooks,
     io,
     state,
@@ -983,7 +1141,7 @@ async function runToolCall(params: {
       await toolPresenter.callTool(toolCall, {
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
-        permissionMode,
+        permissionMode: toolPermissionMode,
         activeSkillNames: hooks?.getActiveSkillNames?.()
       })
 
@@ -1005,6 +1163,25 @@ async function runToolCall(params: {
           await autoGrantPermission(hooks, io.sessionId, pendingPermission)
           toolCallResult = await callTool()
           toolRawData = toolCallResult.rawData
+        } else if (permissionMode === 'auto_approve') {
+          const review = await reviewAutoApproveAction({
+            hooks,
+            io,
+            execution,
+            permission: pendingPermission,
+            reason: 'requires_permission'
+          })
+          if (review === 'auto_allow') {
+            await autoGrantPermission(hooks, io.sessionId, pendingPermission)
+            toolCallResult = await callTool()
+            toolRawData = toolCallResult.rawData
+          } else {
+            return {
+              kind: 'permission',
+              permission: pendingPermission,
+              toolContext
+            }
+          }
         } else {
           return {
             kind: 'permission',
@@ -1123,6 +1300,7 @@ export async function executeTools(
 }> {
   finalizePendingNarrativeBeforeToolExecution(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
+  const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
 
   if (state.pendingInteractions?.length) {
     state.pendingInteractions = []
@@ -1203,7 +1381,7 @@ export async function executeTools(
         try {
           if (toolPresenter.preCheckToolPermission) {
             const preChecked = await toolPresenter.preCheckToolPermission(execution.toolCall, {
-              permissionMode
+              permissionMode: toolPermissionMode
             })
             if (preChecked?.needsPermission) {
               const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1227,6 +1405,7 @@ export async function executeTools(
             execution,
             toolPresenter,
             permissionMode,
+            toolPermissionMode,
             hooks,
             io,
             state,
@@ -1347,7 +1526,7 @@ export async function executeTools(
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       if (toolPresenter.preCheckToolPermission) {
         const preChecked = await toolPresenter.preCheckToolPermission(toolCall, {
-          permissionMode
+          permissionMode: toolPermissionMode
         })
         if (preChecked?.needsPermission) {
           preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
@@ -1361,6 +1540,33 @@ export async function executeTools(
       if (preCheckedPermission) {
         if (permissionMode === 'full_access') {
           await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+        } else if (permissionMode === 'auto_approve') {
+          const review = await reviewAutoApproveAction({
+            hooks,
+            io,
+            execution,
+            permission: preCheckedPermission,
+            reason: 'precheck'
+          })
+          if (review === 'auto_allow') {
+            await autoGrantPermission(hooks, io.sessionId, preCheckedPermission)
+          } else {
+            hooks?.onPermissionRequest?.(preCheckedPermission, {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            })
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              preCheckedPermission
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(state.blocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
+            continue
+          }
         } else {
           hooks?.onPermissionRequest?.(preCheckedPermission, {
             callId: tc.id,
@@ -1380,6 +1586,33 @@ export async function executeTools(
         }
       }
 
+      if (
+        permissionMode === 'auto_approve' &&
+        !preCheckedPermission &&
+        isReviewableFullAccessToolCall(execution)
+      ) {
+        const reviewPermission = buildSyntheticPermissionForReview(execution)
+        const review = await reviewAutoApproveAction({
+          hooks,
+          io,
+          execution,
+          permission: reviewPermission,
+          reason: 'tool_call'
+        })
+        if (review !== 'auto_allow') {
+          hooks?.onPermissionRequest?.(reviewPermission, {
+            callId: tc.id,
+            name: tc.name,
+            params: tc.arguments
+          })
+          const interaction = appendPermissionActionBlock(state, io, toolContext, reviewPermission)
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(state.blocks, tc.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
+          continue
+        }
+      }
+
       hooks?.onPreToolUse?.({
         callId: tc.id,
         name: tc.name,
@@ -1390,6 +1623,7 @@ export async function executeTools(
         execution,
         toolPresenter,
         permissionMode,
+        toolPermissionMode,
         hooks,
         io,
         state,

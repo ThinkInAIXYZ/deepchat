@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   isReasoningEffort,
   isReasoningVisibility,
@@ -38,7 +38,7 @@ export interface DeepChatSessionRow {
   id: string
   provider_id: string
   model_id: string
-  permission_mode: 'default' | 'full_access'
+  permission_mode: PermissionMode
   system_prompt: string | null
   temperature: number | null
   top_p: number | null
@@ -322,7 +322,7 @@ export class DeepChatSessionsTable extends BaseTable {
     id: string,
     providerId: string,
     modelId: string,
-    permissionMode: 'default' | 'full_access' = 'full_access',
+    permissionMode: PermissionMode = 'full_access',
     generationSettings?: Partial<DeepChatSessionGenerationSettings>
   ): void {
     this.db
@@ -438,7 +438,7 @@ export class DeepChatSessionsTable extends BaseTable {
     return settings
   }
 
-  updatePermissionMode(id: string, mode: 'default' | 'full_access'): void {
+  updatePermissionMode(id: string, mode: PermissionMode): void {
     this.db.prepare('UPDATE deepchat_sessions SET permission_mode = ? WHERE id = ?').run(mode, id)
   }
 

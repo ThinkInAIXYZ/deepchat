@@ -85,5 +85,10 @@
       "subagent": "하위 에이전트"
     },
     "deepChatTargetOnly": "이동 대상으로는 DeepChat 에이전트만 선택할 수 있습니다. ACP 대화는 DeepChat으로 이동할 수 있지만 ACP로는 이동할 수 없습니다."
+  },
+  "deleteMessage": {
+    "title": "Delete this message?",
+    "description": "This will delete this message and following regenerated context. This action cannot be undone.",
+    "confirm": "Delete message"
   }
 }

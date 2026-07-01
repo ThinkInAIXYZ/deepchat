@@ -327,7 +327,8 @@
   },
   "permissionMode": {
     "default": "Varsayılan izinler",
-    "fullAccess": "Tam erişim"
+    "fullAccess": "Tam erişim",
+    "autoApprove": "Approve for me"
   },
   "sidebar": {
     "allAgents": "Hepsi Agent",
