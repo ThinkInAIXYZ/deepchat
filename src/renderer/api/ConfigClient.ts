@@ -116,6 +116,18 @@ type VoiceAIConfig = {
   agentId: string
 }
 
+const cloneHooksNotificationsConfigForIpc = (
+  config: HooksNotificationsSettings
+): HooksNotificationsSettings => ({
+  hooks: config.hooks.map((hook) => ({
+    id: hook.id,
+    name: hook.name,
+    enabled: hook.enabled,
+    command: hook.command,
+    events: [...hook.events]
+  }))
+})
+
 type GeminiSafetyValue =
   | 'BLOCK_NONE'
   | 'BLOCK_ONLY_HIGH'
@@ -318,7 +330,9 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function setHooksNotificationsConfig(
     config: HooksNotificationsSettings
   ): Promise<HooksNotificationsSettings> {
-    const result = await bridge.invoke(configSetHooksNotificationsRoute.name, { config })
+    const result = await bridge.invoke(configSetHooksNotificationsRoute.name, {
+      config: cloneHooksNotificationsConfigForIpc(config)
+    })
     return result.config
   }
 
