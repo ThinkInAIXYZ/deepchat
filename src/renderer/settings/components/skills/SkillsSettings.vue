@@ -71,7 +71,10 @@
 
           <Separator class="mb-4" />
 
-          <div v-if="loading || agentPolicyLoading" class="space-y-3 pb-4 animate-pulse">
+          <div
+            v-if="loading || agentPolicyLoading"
+            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] gap-2 pb-4 animate-pulse"
+          >
             <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
               <div class="space-y-3">
                 <div class="h-4 w-40 rounded bg-muted/60"></div>
@@ -94,7 +97,11 @@
             </p>
           </div>
 
-          <div v-else class="flex flex-col gap-2 pb-4">
+          <div
+            v-else
+            data-testid="skills-library-grid"
+            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] gap-2 pb-4"
+          >
             <SkillCard
               v-for="skill in filteredSkills"
               :key="skill.name"

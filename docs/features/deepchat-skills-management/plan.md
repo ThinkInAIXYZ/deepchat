@@ -423,7 +423,7 @@ SettingsPageShell
 
 Reuse or adapt:
 
-- Existing `SkillCard` for Library rows.
+- Existing `SkillCard` for Library cards.
 - Existing `SkillInstallDialog` folder/ZIP/URL UI from the top Add Skill menu.
 - Existing Git install dialog logic from the top Add Skill menu.
 - Existing link/sync-to-agent backend from a single-skill Library row action.
@@ -448,6 +448,7 @@ Use current settings UI patterns instead of a new design system:
 - Shell: `SettingsPageShell`.
 - Tabs: existing shadcn tabs.
 - Tables/lists: plain bordered row groups with compact spacing.
+- Library: responsive card grid with a minimum card width and one-column fallback for narrow panes.
 - Actions: `Button` with lucide/Iconify icons; destructive actions stay in menus or confirm dialogs.
 - Toggles: `Switch` for DeepChat-only enabled/disabled.
 - Selection: `Checkbox` for skill multi-select.
@@ -485,6 +486,7 @@ Library row interaction:
 
 ```txt
 SkillCard.vue
+  rendered inside SkillsSettings.vue responsive grid
   non-control area click -> SkillDetailDialog.vue
   exposed controls:
     [Install to Agent] InstallSkillToAgentDialog.vue
@@ -493,7 +495,9 @@ SkillCard.vue
 SkillDetailDialog.vue
   preview mode: rendered SKILL.md body
   edit mode: name (read-only), description, allowedTools, Markdown content
-  actions: Install to Agent, enable/disable, Edit/Preview, Delete with confirm, Save/Cancel
+  header controls: enable/disable with close-button spacing
+  action row: Edit/Preview, Install to Agent, Delete with confirm
+  footer actions in edit mode: Save/Cancel
 ```
 
 Loading, empty, and error states:
@@ -604,6 +608,7 @@ Main unit tests:
 Renderer tests:
 
 - Skills tabs render as Library, Agents, and Sync Directory only.
+- Library skills render inside a responsive grid container.
 - Top Add Skill menu exposes folder, ZIP, URL, and Git install choices.
 - Disabled toggle calls typed client and updates UI.
 - Library row Install to Agent opens detected local agents and calls the link client for one skill.

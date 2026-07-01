@@ -192,6 +192,9 @@ describe('SkillsSettings agent scope', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('settings.skills.addSkill')
+    const grid = wrapper.get('[data-testid="skills-library-grid"]')
+    expect(grid.classes()).toContain('grid')
+    expect(grid.classes()).toContain('grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))]')
     expect(wrapper.find('[data-testid="skill-skill-alpha"]').text()).toContain('skill-alpha:false')
     expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:true')
 

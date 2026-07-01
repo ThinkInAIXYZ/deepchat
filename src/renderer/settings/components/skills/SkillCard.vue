@@ -1,15 +1,18 @@
 <template>
   <div
-    class="border rounded-md px-3 py-3 bg-card hover:bg-accent/50 transition-colors grid grid-cols-[minmax(0,1fr)_auto] gap-3 cursor-pointer"
+    class="border rounded-md px-3 py-3 bg-card hover:bg-accent/50 transition-colors grid h-full grid-cols-[auto_minmax(0,1fr)] gap-3 cursor-pointer sm:grid-cols-[auto_minmax(0,1fr)_auto]"
     role="button"
     tabindex="0"
     @click="$emit('view')"
     @keydown.enter.prevent="$emit('view')"
     @keydown.space.prevent="$emit('view')"
   >
+    <div class="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-primary">
+      <Icon icon="lucide:wand-sparkles" class="w-4 h-4" />
+    </div>
+
     <div class="min-w-0 space-y-2">
-      <div class="flex items-center gap-1.5 min-w-0">
-        <Icon icon="lucide:wand-sparkles" class="w-4 h-4 text-primary shrink-0" />
+      <div class="min-w-0">
         <span class="font-medium text-sm truncate">{{ skill.name }}</span>
       </div>
 
@@ -37,19 +40,24 @@
       </div>
     </div>
 
-    <div class="flex items-start gap-2" @click.stop @keydown.stop>
+    <div
+      class="col-span-2 flex items-center justify-end gap-2 sm:col-span-1 sm:items-start"
+      @click.stop
+      @keydown.stop
+    >
       <Button
         variant="outline"
         size="sm"
-        class="h-8 px-3 text-xs whitespace-nowrap"
+        class="h-8 px-2 text-xs whitespace-nowrap gap-1.5"
         :title="t('settings.skills.card.installToAgent')"
         :aria-label="t('settings.skills.card.installToAgent')"
         @click="$emit('install-to-agent')"
       >
+        <Icon icon="lucide:bot" class="w-3.5 h-3.5" />
         {{ t('settings.skills.card.installToAgent') }}
       </Button>
       <Switch
-        class="mt-1"
+        class="shrink-0 sm:mt-1"
         :model-value="!skill.deepchatDisabled"
         :aria-label="
           skill.deepchatDisabled

@@ -14,16 +14,12 @@
               {{ headerDescription || t('settings.skills.detail.noDescription') }}
             </DialogDescription>
           </div>
-          <div v-if="mutable || canInstallToAgent" class="flex shrink-0 items-center gap-2">
-            <Button
-              v-if="canInstallToAgent"
-              variant="outline"
-              size="sm"
-              @click="emit('install-to-agent')"
-            >
-              {{ t('settings.skills.detail.installToAgent') }}
-            </Button>
-            <div v-if="mutable" class="flex items-center gap-2 rounded-md border px-2 py-1.5">
+          <div
+            v-if="mutable"
+            data-testid="skill-detail-status-toggle"
+            class="flex shrink-0 items-center gap-2 pr-8"
+          >
+            <div class="flex items-center gap-2 rounded-md border px-2 py-1.5">
               <span class="text-xs text-muted-foreground">
                 {{
                   deepchatDisabled
@@ -50,12 +46,24 @@
           {{ sourcePath }}
         </div>
         <div v-else></div>
-        <div v-if="mutable" class="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" @click="toggleEditing">
+        <div
+          v-if="mutable || canInstallToAgent"
+          data-testid="skill-detail-actions"
+          class="flex shrink-0 items-center gap-2"
+        >
+          <Button v-if="mutable" variant="outline" size="sm" @click="toggleEditing">
             <Icon :icon="editing ? 'lucide:eye' : 'lucide:pencil'" class="mr-1 h-4 w-4" />
             {{ editing ? t('settings.skills.detail.preview') : t('settings.skills.detail.edit') }}
           </Button>
-          <AlertDialog>
+          <Button
+            v-if="canInstallToAgent"
+            variant="outline"
+            size="sm"
+            @click="emit('install-to-agent')"
+          >
+            {{ t('settings.skills.detail.installToAgent') }}
+          </Button>
+          <AlertDialog v-if="mutable">
             <AlertDialogTrigger as-child>
               <Button variant="destructive" size="sm">
                 <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
