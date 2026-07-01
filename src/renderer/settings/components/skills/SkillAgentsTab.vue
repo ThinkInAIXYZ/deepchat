@@ -337,6 +337,7 @@ const agentStatusClass = (status: InstalledSkillAgent['status']) => {
 }
 
 const agentIcon = (id: string) => {
+  if (id === 'agents') return 'lucide:bot'
   if (id === 'codex') return 'simple-icons:openai'
   if (id === 'claude-code') return 'simple-icons:anthropic'
   if (id === 'cursor') return 'simple-icons:cursor'

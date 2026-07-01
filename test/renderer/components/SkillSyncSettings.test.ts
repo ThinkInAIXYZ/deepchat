@@ -937,7 +937,7 @@ describe('skill sync settings components', () => {
     expect(wrapper.emitted('installed')).toBeTruthy()
   })
 
-  it('previews and executes manual sync directory export and import', async () => {
+  it('exports selected sync directory skills and refreshes imports on tab switch', async () => {
     vi.resetModules()
 
     const skillClient = {
@@ -972,6 +972,25 @@ describe('skill sync settings components', () => {
             state: 'new',
             sourcePath: '/sync/skills/guizang-ppt-skill',
             targetPath: '/deepchat/skills/guizang-ppt-skill'
+          },
+          {
+            name: 'same-skill',
+            state: 'same',
+            sourcePath: '/sync/skills/same-skill',
+            targetPath: '/deepchat/skills/same-skill'
+          },
+          {
+            name: 'broken-skill',
+            state: 'invalid',
+            sourcePath: '/sync/skills/broken-skill',
+            targetPath: '/deepchat/skills/broken-skill',
+            error: 'missing SKILL.md'
+          },
+          {
+            name: 'conflict-skill',
+            state: 'conflict',
+            sourcePath: '/sync/skills/conflict-skill',
+            targetPath: '/deepchat/skills/conflict-skill'
           }
         ]
       }),
@@ -982,8 +1001,14 @@ describe('skill sync settings components', () => {
         failed: []
       })
     }
+    const projectClient = {
+      pathExists: vi.fn().mockResolvedValue(true)
+    }
     vi.doMock('@api/SkillClient', () => ({
       createSkillClient: () => skillClient
+    }))
+    vi.doMock('@api/ProjectClient', () => ({
+      createProjectClient: () => projectClient
     }))
     vi.doMock('@api/DeviceClient', () => ({
       createDeviceClient: () => ({
@@ -1017,6 +1042,17 @@ describe('skill sync settings components', () => {
             deepchatDisabled: false,
             agentLinks: {},
             mutable: true
+          },
+          {
+            name: 'disabled-skill',
+            description: 'Disabled skill',
+            path: '/deepchat/skills/disabled-skill/SKILL.md',
+            skillRoot: '/deepchat/skills/disabled-skill',
+            canonicalPath: '/deepchat/skills/disabled-skill',
+            sourceType: 'created',
+            deepchatDisabled: true,
+            agentLinks: {},
+            mutable: true
           }
         ]
       },
@@ -1026,6 +1062,12 @@ describe('skill sync settings components', () => {
           Badge: passthrough('Badge'),
           Button: buttonStub,
           Checkbox: checkboxStub,
+          Dialog: passthrough('Dialog'),
+          DialogContent: passthrough('DialogContent'),
+          DialogDescription: passthrough('DialogDescription'),
+          DialogFooter: passthrough('DialogFooter'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
           Input: inputStub,
           RadioGroup: passthrough('RadioGroup'),
           RadioGroupItem: true,
@@ -1038,42 +1080,182 @@ describe('skill sync settings components', () => {
     })
     await flushPromises()
 
-    const previewExportButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.importExport.previewExport'))
-    await previewExportButton?.trigger('click')
+    expect(projectClient.pathExists).toHaveBeenCalledWith('/sync')
+    expect((wrapper.vm as any).syncDirectoryReady).toBe(true)
+    expect(Array.from((wrapper.vm as any).selectedExportNames)).toEqual([])
+    expect(wrapper.text()).toContain('disabled-skill')
+    expect(wrapper.findAll('.overflow-y-auto').length).toBeGreaterThanOrEqual(2)
+
+    ;(wrapper.vm as any).exportQuery = 'disabled'
+    await flushPromises()
+    ;(wrapper.vm as any).selectVisibleExport()
+    expect(Array.from((wrapper.vm as any).selectedExportNames)).toEqual(['disabled-skill'])
+
+    ;(wrapper.vm as any).clearExportSelection()
+    ;(wrapper.vm as any).exportQuery = ''
+    await flushPromises()
+    ;(wrapper.vm as any).selectVisibleExport()
+    expect(Array.from((wrapper.vm as any).selectedExportNames).sort()).toEqual([
+      'disabled-skill',
+      'guizang-ppt-skill'
+    ])
+
+    expect((wrapper.vm as any).canExport).toBe(true)
+    await (wrapper.vm as any).requestExportConfirmation()
     await flushPromises()
     expect(skillClient.previewSyncDirectoryExport).toHaveBeenCalledWith({
-      skillNames: ['guizang-ppt-skill'],
-      includeDisabled: false
+      skillNames: ['guizang-ppt-skill', 'disabled-skill'],
+      includeDisabled: true
     })
+    expect((wrapper.vm as any).exportConfirmOpen).toBe(true)
+    expect(skillClient.executeSyncDirectoryExport).not.toHaveBeenCalled()
 
-    const exportButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.importExport.exportNow'))
-    await exportButton?.trigger('click')
+    ;(wrapper.vm as any).exportConfirmOpen = false
+    await flushPromises()
+    expect(skillClient.executeSyncDirectoryExport).not.toHaveBeenCalled()
+
+    ;(wrapper.vm as any).exportConfirmOpen = true
+    await (wrapper.vm as any).executeExport()
     await flushPromises()
     expect(skillClient.executeSyncDirectoryExport).toHaveBeenCalledWith({
-      skillNames: ['guizang-ppt-skill'],
-      includeDisabled: false
+      skillNames: ['guizang-ppt-skill', 'disabled-skill'],
+      includeDisabled: true
     })
+    expect((wrapper.vm as any).exportConfirmOpen).toBe(false)
 
-    const previewImportButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('settings.skills.importExport.previewImport'))
-    await previewImportButton?.trigger('click')
+    ;(wrapper.vm as any).activeTab = 'import'
+    await flushPromises()
+    expect(skillClient.previewSyncDirectoryImport).toHaveBeenCalledTimes(1)
+    expect(Array.from((wrapper.vm as any).selectedImportNames)).toEqual([])
+
+    ;(wrapper.vm as any).activeTab = 'export'
+    await flushPromises()
+    ;(wrapper.vm as any).activeTab = 'import'
     await flushPromises()
     expect(skillClient.previewSyncDirectoryImport).toHaveBeenCalledTimes(1)
 
-    const importButton = wrapper
+    const refreshImportButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('settings.skills.importExport.importSelected'))
-    await importButton?.trigger('click')
+      .find((button) => button.text().includes('settings.skills.importExport.refresh'))
+    await refreshImportButton?.trigger('click')
+    await flushPromises()
+    expect(skillClient.previewSyncDirectoryImport).toHaveBeenCalledTimes(2)
+
+    ;(wrapper.vm as any).selectVisibleImport()
+    expect(Array.from((wrapper.vm as any).selectedImportNames).sort()).toEqual([
+      'conflict-skill',
+      'guizang-ppt-skill'
+    ])
+
+    expect((wrapper.vm as any).canImport).toBe(true)
+    await (wrapper.vm as any).executeImport()
     await flushPromises()
     expect(skillClient.executeSyncDirectoryImport).toHaveBeenCalledWith({
-      skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
+      skillNames: ['guizang-ppt-skill', 'conflict-skill'],
+      strategy: 'overwrite'
     })
     expect(wrapper.emitted('completed')).toBeTruthy()
+  })
+
+  it('hides sync directory operations until a valid directory is selected', async () => {
+    vi.resetModules()
+
+    const skillClient = {
+      getSkillsSyncConfig: vi.fn().mockResolvedValue({
+        skillsDirectory: '/missing-sync',
+        layout: 'multi-skill-repo',
+        lastExportAt: null,
+        lastImportAt: null
+      }),
+      setSkillsSyncDirectory: vi.fn().mockResolvedValue({
+        skillsDirectory: '/sync',
+        layout: 'multi-skill-repo',
+        lastExportAt: null,
+        lastImportAt: null
+      }),
+      previewSyncDirectoryExport: vi.fn(),
+      executeSyncDirectoryExport: vi.fn(),
+      previewSyncDirectoryImport: vi.fn(),
+      executeSyncDirectoryImport: vi.fn()
+    }
+    const deviceClient = {
+      selectDirectory: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/sync'] })
+    }
+    const projectClient = {
+      pathExists: vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+    vi.doMock('@api/DeviceClient', () => ({
+      createDeviceClient: () => deviceClient
+    }))
+    vi.doMock('@api/ProjectClient', () => ({
+      createProjectClient: () => projectClient
+    }))
+    vi.doMock('@/components/use-toast', () => ({
+      useToast: () => ({ toast: vi.fn() })
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({
+        t: (key: string) => key
+      })
+    }))
+
+    const SkillImportExportTab = (
+      await import('../../../src/renderer/settings/components/skills/SkillImportExportTab.vue')
+    ).default
+
+    const wrapper = mount(SkillImportExportTab, {
+      props: {
+        skills: [
+          {
+            name: 'guizang-ppt-skill',
+            description: 'Create PPT files',
+            path: '/deepchat/skills/guizang-ppt-skill/SKILL.md',
+            skillRoot: '/deepchat/skills/guizang-ppt-skill',
+            canonicalPath: '/deepchat/skills/guizang-ppt-skill',
+            sourceType: 'created',
+            deepchatDisabled: false,
+            agentLinks: {},
+            mutable: true
+          }
+        ]
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Badge: passthrough('Badge'),
+          Button: buttonStub,
+          Checkbox: checkboxStub,
+          Dialog: passthrough('Dialog'),
+          DialogContent: passthrough('DialogContent'),
+          DialogDescription: passthrough('DialogDescription'),
+          DialogFooter: passthrough('DialogFooter'),
+          DialogHeader: passthrough('DialogHeader'),
+          DialogTitle: passthrough('DialogTitle'),
+          Input: inputStub,
+          RadioGroup: passthrough('RadioGroup'),
+          RadioGroupItem: true,
+          Tabs: passthrough('Tabs'),
+          TabsContent: passthrough('TabsContent'),
+          TabsList: passthrough('TabsList'),
+          TabsTrigger: passthrough('TabsTrigger')
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('settings.skills.importExport.directoryMissingAction')
+    expect(wrapper.text()).not.toContain('guizang-ppt-skill')
+    expect((wrapper.vm as any).syncDirectoryReady).toBe(false)
+
+    await (wrapper.vm as any).chooseDirectory()
+    await flushPromises()
+
+    expect(deviceClient.selectDirectory).toHaveBeenCalledTimes(1)
+    expect(skillClient.setSkillsSyncDirectory).toHaveBeenCalledWith('/sync')
+    expect((wrapper.vm as any).syncDirectoryReady).toBe(true)
+    expect(wrapper.text()).toContain('guizang-ppt-skill')
   })
 })

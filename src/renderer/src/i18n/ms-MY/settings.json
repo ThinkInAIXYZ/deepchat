@@ -2267,7 +2267,25 @@
         "modified": "Diubah",
         "conflict": "Konflik",
         "invalid": "Tidak sah"
-      }
+      },
+      "searchPlaceholder": "Search skills",
+      "selectedCount": "{count} selected",
+      "selectVisible": "Select visible",
+      "clearSelection": "Clear selection",
+      "refresh": "Refresh",
+      "stateFilter": "State filter",
+      "allStates": "All states",
+      "exportConfirmTitle": "Confirm export",
+      "exportConfirmDescription": "Export {count} skills to {directory}",
+      "emptyExportConfirm": "No skills available to export.",
+      "confirmExport": "Confirm Export",
+      "noDirectory": "No sync directory set",
+      "chooseDirectoryHint": "Choose a folder before importing or exporting skills.",
+      "directoryMissing": "Directory not found. Choose another folder.",
+      "chooseDirectory": "Choose Directory",
+      "changeDirectory": "Change Directory",
+      "noDirectoryAction": "Choose a sync directory before importing or exporting skills.",
+      "directoryMissingAction": "The current sync directory is missing. Choose another folder to continue."
     },
     "detail": {
       "failed": "Gagal memuat butiran skill",

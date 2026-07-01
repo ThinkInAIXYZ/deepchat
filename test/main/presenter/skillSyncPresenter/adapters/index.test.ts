@@ -12,7 +12,8 @@ import {
   WindsurfAdapter,
   CopilotAdapter,
   KiroAdapter,
-  AntigravityAdapter
+  AntigravityAdapter,
+  AgentsAdapter
 } from '../../../../../src/main/presenter/skillSyncPresenter/adapters'
 import type {
   IFormatAdapter,
@@ -53,6 +54,11 @@ describe('Adapters Registry', () => {
       expect(adapter).toBeInstanceOf(AntigravityAdapter)
     })
 
+    it('should return AgentsAdapter for agents id', () => {
+      const adapter = getAdapter('agents')
+      expect(adapter).toBeInstanceOf(AgentsAdapter)
+    })
+
     it('should return undefined for unknown id', () => {
       const adapter = getAdapter('unknown-adapter')
       expect(adapter).toBeUndefined()
@@ -72,6 +78,7 @@ describe('Adapters Registry', () => {
       expect(ids).toContain('copilot')
       expect(ids).toContain('kiro')
       expect(ids).toContain('antigravity')
+      expect(ids).toContain('agents')
     })
 
     it('should return array of IFormatAdapter instances', () => {
@@ -273,6 +280,12 @@ No specific format here.`
       expect(AntigravityAdapter).toBeDefined()
       const instance = new AntigravityAdapter()
       expect(instance.id).toBe('antigravity')
+    })
+
+    it('should export AgentsAdapter', () => {
+      expect(AgentsAdapter).toBeDefined()
+      const instance = new AgentsAdapter()
+      expect(instance.id).toBe('agents')
     })
   })
 })

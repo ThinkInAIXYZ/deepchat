@@ -1599,7 +1599,7 @@ export class SkillPresenter implements ISkillPresenter {
   ): Promise<SkillSyncDirectoryResult> {
     const preview = await this.previewSyncDirectoryImport()
     const selected = new Set(input.skillNames)
-    const strategy = input.strategy ?? 'rename'
+    const strategy = input.strategy ?? 'overwrite'
     let imported = 0
     let skipped = 0
     const failed: Array<{ skillName: string; reason: string }> = []

@@ -71,6 +71,7 @@ const handleSelect = (tool: ScanResult) => {
 
 const getToolIcon = (toolId: string): string => {
   const icons: Record<string, string> = {
+    agents: 'lucide:bot',
     'claude-code': 'simple-icons:anthropic',
     cursor: 'simple-icons:cursor',
     windsurf: 'lucide:wind',
@@ -83,6 +84,7 @@ const getToolIcon = (toolId: string): string => {
 
 const getToolIconBg = (toolId: string): string => {
   const bgs: Record<string, string> = {
+    agents: 'bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400',
     'claude-code': 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
     cursor: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
     windsurf: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',

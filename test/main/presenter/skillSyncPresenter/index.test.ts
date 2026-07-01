@@ -63,6 +63,7 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 vi.mock('../../../../src/main/presenter/skillSyncPresenter/security', () => ({
   isValidToolId: vi.fn((id) =>
     [
+      'agents',
       'claude-code',
       'codex',
       'cursor',
