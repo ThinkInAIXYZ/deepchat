@@ -171,10 +171,9 @@ describe('MemoryPresenter.getLifecycle', () => {
     const { presenter } = makePresenter(enabledConfig, repo)
     const candidateSpy = vi.spyOn(repo, 'listArchiveCandidateLifecycleRows')
 
-    const lifecycles = presenter.getLifecycle('a', 'm1')
+    const lifecycle = presenter.getLifecycle('a', 'm1')
 
-    expect(lifecycles).toHaveLength(1)
-    expect(lifecycles[0].memoryId).toBe('m1')
+    expect(lifecycle?.memoryId).toBe('m1')
     expect(candidateSpy).not.toHaveBeenCalled()
   })
 
@@ -354,8 +353,8 @@ describe('MemoryPresenter.getLifecycle', () => {
     repo.insert({ id: 'w1', agentId: 'a', kind: 'working', content: 'working' })
     const { presenter } = makePresenter(enabledConfig, repo)
 
-    expect(presenter.getLifecycle('b', 'm1')).toEqual([])
-    expect(presenter.getLifecycle('a', 'w1')).toEqual([])
+    expect(presenter.getLifecycle('b', 'm1')).toBeNull()
+    expect(presenter.getLifecycle('a', 'w1')).toBeNull()
   })
 
   it('treats an explicitly provided empty memory id as a single-memory read', () => {
@@ -364,7 +363,7 @@ describe('MemoryPresenter.getLifecycle', () => {
     const { presenter } = makePresenter(enabledConfig, repo)
     const getSpy = vi.spyOn(repo, 'getById')
 
-    expect(presenter.getLifecycle('a', '')).toEqual([])
+    expect(presenter.getLifecycle('a', '')).toBeNull()
     expect(getSpy).toHaveBeenCalledWith('')
   })
 
@@ -377,11 +376,11 @@ describe('MemoryPresenter.getLifecycle', () => {
 
     expect(lifecycle.archiveEligibility.oldEnough).toBe(true)
     expect(lifecycle.archiveEligibility.decayedEnough).toBe(
-      lifecycle.forget.decayScore <= ARCHIVE_DECAY_THRESHOLD
+      lifecycle.forget.decayScore < ARCHIVE_DECAY_THRESHOLD
     )
   })
 
-  it('treats exact archive age and decay thresholds as reached', () => {
+  it('treats exact archive age and decay thresholds as not yet eligible', () => {
     const row = makeRow({
       created_at: NOW - ARCHIVE_AGE_MS,
       last_accessed: NOW - ARCHIVE_AGE_MS,
@@ -390,16 +389,16 @@ describe('MemoryPresenter.getLifecycle', () => {
     const threshold = decayScore(row, NOW)
     const lifecycle = deriveLifecycle(row, NOW, { archiveDecayThreshold: threshold })
 
-    expect(lifecycle.archiveEligibility.oldEnough).toBe(true)
-    expect(lifecycle.archiveEligibility.decayedEnough).toBe(true)
+    expect(lifecycle.archiveEligibility.oldEnough).toBe(false)
+    expect(lifecycle.archiveEligibility.decayedEnough).toBe(false)
     expect(lifecycle.archiveEligibility.gaps).toEqual({})
-    expect(lifecycle.archiveEligibility.eligible).toBe(true)
-    expect(lifecycle.decayTier).toBe('archive_candidate')
+    expect(lifecycle.archiveEligibility.eligible).toBe(false)
+    expect(lifecycle.decayTier).toBe('stale')
 
     const accessed = deriveLifecycle({ ...row, access_count: 1 }, NOW, {
       archiveDecayThreshold: threshold
     })
-    expect(accessed.archiveEligibility.decayedEnough).toBe(true)
+    expect(accessed.archiveEligibility.decayedEnough).toBe(false)
     expect(accessed.decayTier).toBe('stale')
   })
 

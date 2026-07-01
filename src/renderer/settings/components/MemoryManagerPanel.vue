@@ -311,6 +311,7 @@
 
                 <div class="flex shrink-0 items-center gap-1">
                   <Button
+                    v-if="isLifecycleSupported(memory)"
                     variant="ghost"
                     size="sm"
                     class="h-7 w-7 px-0"
@@ -372,7 +373,7 @@
                 </div>
               </div>
               <MemoryLifecyclePanel
-                v-if="isLifecycleExpanded(memory.id)"
+                v-if="isLifecycleSupported(memory) && isLifecycleExpanded(memory.id)"
                 class="mt-2"
                 :lifecycle="lifecycleFor(memory.id)"
                 :loading="isLifecycleLoading(memory.id)"
@@ -1039,6 +1040,15 @@ function hasLifecycleCache(memoryId: string): boolean {
   return Object.prototype.hasOwnProperty.call(lifecycleCache.value, memoryId)
 }
 
+function isLifecycleSupported(memory: { kind: string }): boolean {
+  return memory.kind !== 'working'
+}
+
+function isLifecycleSupportedById(memoryId: string): boolean {
+  const memory = baseDisplayedMemories.value.find((item) => item.id === memoryId)
+  return Boolean(memory && isLifecycleSupported(memory))
+}
+
 function setLifecycleExpanded(memoryId: string, expanded: boolean): void {
   const next = new Set(expandedLifecycleIds.value)
   if (expanded) next.add(memoryId)
@@ -1047,6 +1057,7 @@ function setLifecycleExpanded(memoryId: string, expanded: boolean): void {
 }
 
 async function toggleLifecycle(memoryId: string): Promise<void> {
+  if (!isLifecycleSupportedById(memoryId)) return
   if (isLifecycleExpanded(memoryId)) {
     setLifecycleExpanded(memoryId, false)
     return
@@ -1058,15 +1069,15 @@ async function toggleLifecycle(memoryId: string): Promise<void> {
 
 async function loadLifecycle(memoryId: string): Promise<void> {
   const agentId = props.agentId
-  if (!agentId) return
+  if (!agentId || !isLifecycleSupportedById(memoryId)) return
   const requestId = ++lifecycleRequestSeq
   lifecycleRequestIds.set(memoryId, requestId)
   lifecycleLoading.value = { ...lifecycleLoading.value, [memoryId]: true }
   lifecycleErrors.value = { ...lifecycleErrors.value, [memoryId]: null }
   try {
-    const lifecycles = await memoryClient.getLifecycle(agentId, memoryId)
+    const lifecycle = await memoryClient.getLifecycle(agentId, memoryId)
     if (!isCurrentLifecycleRequest(agentId, memoryId, requestId)) return
-    lifecycleCache.value = { ...lifecycleCache.value, [memoryId]: lifecycles[0] ?? null }
+    lifecycleCache.value = { ...lifecycleCache.value, [memoryId]: lifecycle }
   } catch (e) {
     if (!isCurrentLifecycleRequest(agentId, memoryId, requestId)) return
     lifecycleErrors.value = {

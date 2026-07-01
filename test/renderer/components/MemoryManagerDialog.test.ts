@@ -187,8 +187,23 @@ const lifecycle: MemoryLifecycle = {
   }
 }
 
+const archiveCandidateLifecycle: MemoryLifecycle = {
+  ...lifecycle,
+  decayTier: 'archive_candidate',
+  archiveEligibility: {
+    eligible: true,
+    oldEnough: true,
+    decayedEnough: true,
+    neverAccessed: true,
+    active: true,
+    exempt: false,
+    exemptReasons: [],
+    gaps: {}
+  }
+}
+
 const archiveCandidateLifecyclePreview: MemoryArchiveCandidateLifecyclePreview = {
-  lifecycles: [lifecycle],
+  lifecycles: [archiveCandidateLifecycle],
   previewLimit: 25,
   scanLimit: 200,
   scanned: 1,
@@ -222,7 +237,7 @@ async function setup(
     archiveCandidateLifecyclePreviewPromise?: Promise<MemoryArchiveCandidateLifecyclePreview>
     archiveCandidateLifecyclePreviewReject?: boolean
     lifecycle?: MemoryLifecycle
-    lifecyclePromise?: Promise<MemoryLifecycle[]>
+    lifecyclePromise?: Promise<MemoryLifecycle | null>
     lifecycleReject?: boolean
     auditPromise?: Promise<MemoryAuditEvent[]>
     manifestPromise?: Promise<MemoryViewManifest[]>
@@ -246,7 +261,7 @@ async function setup(
       ? vi.fn().mockReturnValue(overrides.lifecyclePromise)
       : overrides.lifecycleReject
         ? vi.fn().mockRejectedValue(new Error('lifecycle unavailable'))
-        : vi.fn().mockResolvedValue([overrides.lifecycle ?? lifecycle]),
+        : vi.fn().mockResolvedValue(overrides.lifecycle ?? lifecycle),
     getArchiveCandidateLifecyclePreview: overrides.archiveCandidateLifecyclePreviewPromise
       ? vi.fn().mockReturnValue(overrides.archiveCandidateLifecyclePreviewPromise)
       : overrides.archiveCandidateLifecyclePreviewReject
@@ -1171,14 +1186,14 @@ describe('MemoryManagerDialog memory health', () => {
 
     fresh.resolve({
       ...archiveCandidateLifecyclePreview,
-      lifecycles: [{ ...lifecycle, memoryId: 'fresh-candidate' }]
+      lifecycles: [{ ...archiveCandidateLifecycle, memoryId: 'fresh-candidate' }]
     })
     await flushPromises()
     expect(wrapper.text()).toContain('fresh-candidate')
 
     stale.resolve({
       ...archiveCandidateLifecyclePreview,
-      lifecycles: [{ ...lifecycle, memoryId: 'stale-candidate' }]
+      lifecycles: [{ ...archiveCandidateLifecycle, memoryId: 'stale-candidate' }]
     })
     await flushPromises()
 
@@ -1443,7 +1458,7 @@ describe('MemoryManagerDialog lifecycle inspector', () => {
     const { wrapper, memoryClient } = await setup()
     vi.mocked(memoryClient.getLifecycle)
       .mockRejectedValueOnce(new Error('lifecycle unavailable'))
-      .mockResolvedValueOnce([lifecycle])
+      .mockResolvedValueOnce(lifecycle)
 
     await lifecycleToggle(wrapper)!.trigger('click')
     await flushPromises()
@@ -1463,7 +1478,7 @@ describe('MemoryManagerDialog lifecycle inspector', () => {
 
   it('caches a successful empty lifecycle result as an empty state', async () => {
     const { wrapper, memoryClient } = await setup()
-    vi.mocked(memoryClient.getLifecycle).mockResolvedValueOnce([])
+    vi.mocked(memoryClient.getLifecycle).mockResolvedValueOnce(null)
 
     await lifecycleToggle(wrapper)!.trigger('click')
     await flushPromises()
@@ -1478,6 +1493,15 @@ describe('MemoryManagerDialog lifecycle inspector', () => {
 
     expect(memoryClient.getLifecycle).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.lifecycle.empty')
+  })
+
+  it('does not render the lifecycle toggle for working memory rows', async () => {
+    const { wrapper, memoryClient } = await setup({
+      items: [{ ...memory, id: 'w1', kind: 'working', content: 'session summary' } as MemoryItem]
+    })
+
+    expect(lifecycleToggle(wrapper)).toBeUndefined()
+    expect(memoryClient.getLifecycle).not.toHaveBeenCalled()
   })
 })
 

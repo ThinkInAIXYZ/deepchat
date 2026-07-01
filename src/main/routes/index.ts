@@ -2263,10 +2263,10 @@ export async function dispatchDeepchatRoute(
       const input = memoryGetLifecycleRoute.input.parse(rawInput)
       const agentType = await runtime.configPresenter.getAgentType(input.agentId)
       if (agentType !== 'deepchat') {
-        return memoryGetLifecycleRoute.output.parse({ lifecycles: [] })
+        return memoryGetLifecycleRoute.output.parse({ lifecycle: null })
       }
       return memoryGetLifecycleRoute.output.parse({
-        lifecycles: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
+        lifecycle: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
       })
     }
 
