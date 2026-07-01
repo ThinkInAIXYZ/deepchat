@@ -272,6 +272,15 @@
           "reflection": "Phản tư",
           "persona": "Persona",
           "working": "Bộ nhớ làm việc"
+        },
+        "archivePrediction": {
+          "title": "Khớp lưu trữ hiện tại",
+          "description": "Nếu bảo trì chạy ngay bây giờ, các ký ức này sẽ đáp ứng quy tắc lưu trữ.",
+          "empty": "Hiện không có ký ức nào đáp ứng quy tắc lưu trữ.",
+          "decayScore": "Suy giảm",
+          "ageDays": "Tuổi theo ngày",
+          "scanLimited": "Giới hạn ở {count} hàng đã quét",
+          "previewLimited": "Hiển thị {count} mục đầu tiên"
         }
       },
       "lifecycle": {

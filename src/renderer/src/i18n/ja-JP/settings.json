@@ -2641,6 +2641,15 @@
           "reflection": "リフレクション",
           "persona": "ペルソナ",
           "working": "作業メモリー"
+        },
+        "archivePrediction": {
+          "title": "現在のアーカイブ該当",
+          "description": "今メンテナンスを実行すると、これらの記憶がアーカイブ条件を満たします。",
+          "empty": "現在アーカイブ条件を満たす記憶はありません。",
+          "decayScore": "減衰",
+          "ageDays": "経過日数",
+          "scanLimited": "{count} 件のスキャン行に制限",
+          "previewLimited": "先頭 {count} 件を表示"
         }
       },
       "lifecycle": {

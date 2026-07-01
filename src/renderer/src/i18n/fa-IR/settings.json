@@ -2641,6 +2641,15 @@
           "reflection": "بازاندیشی",
           "persona": "شخصیت",
           "working": "حافظه کاری"
+        },
+        "archivePrediction": {
+          "title": "موارد کنونی بایگانی",
+          "description": "اگر نگهداری همین حالا اجرا شود، این خاطره‌ها شرایط بایگانی را دارند.",
+          "empty": "در حال حاضر هیچ خاطره‌ای شرایط بایگانی را ندارد.",
+          "decayScore": "افت",
+          "ageDays": "سن به روز",
+          "scanLimited": "محدود به {count} ردیف بررسی‌شده",
+          "previewLimited": "نمایش {count} مورد نخست"
         }
       },
       "lifecycle": {

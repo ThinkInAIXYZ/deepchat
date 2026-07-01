@@ -2641,6 +2641,15 @@
           "reflection": "회고",
           "persona": "페르소나",
           "working": "작업 메모리"
+        },
+        "archivePrediction": {
+          "title": "현재 보관 대상",
+          "description": "지금 유지 관리를 실행하면 이 기억들이 보관 조건을 충족합니다.",
+          "empty": "현재 보관 조건을 충족하는 기억이 없습니다.",
+          "decayScore": "감쇠",
+          "ageDays": "경과일",
+          "scanLimited": "스캔한 {count}개 행으로 제한됨",
+          "previewLimited": "처음 {count}개 표시"
         }
       },
       "lifecycle": {

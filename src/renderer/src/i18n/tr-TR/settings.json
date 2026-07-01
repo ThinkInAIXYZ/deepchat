@@ -272,6 +272,15 @@
           "reflection": "Yansıma",
           "persona": "Persona",
           "working": "Çalışma belleği"
+        },
+        "archivePrediction": {
+          "title": "Geçerli arşiv eşleşmeleri",
+          "description": "Bakım şimdi çalışsa bu anılar arşiv kurallarını karşılar.",
+          "empty": "Şu anda arşiv kurallarını karşılayan anı yok.",
+          "decayScore": "Azalma",
+          "ageDays": "Gün cinsinden yaş",
+          "scanLimited": "{count} taranan satırla sınırlı",
+          "previewLimited": "İlk {count} gösteriliyor"
         }
       },
       "lifecycle": {

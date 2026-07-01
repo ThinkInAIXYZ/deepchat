@@ -1064,6 +1064,54 @@ describe('renderer api clients', () => {
                   }
                 ]
               }
+            case 'memory.getArchiveCandidateLifecyclePreview':
+              return {
+                preview: {
+                  lifecycles: [
+                    {
+                      memoryId: 'mem-1',
+                      kind: 'semantic',
+                      status: 'embedded',
+                      recallable: true,
+                      decayTier: 'fresh',
+                      recall: {
+                        weights: { similarity: 0.6, recency: 0.25, importance: 0.15 },
+                        similarity: 0.3,
+                        similaritySource: 'baseline',
+                        recency: 1,
+                        importance: 0.5,
+                        confidenceFactor: 1,
+                        importanceFloor: 0.075,
+                        final: 0.48,
+                        flooredByImportance: false,
+                        halfLifeMs: 14 * 24 * 60 * 60 * 1000
+                      },
+                      forget: {
+                        anchorAt: 1000,
+                        ageDays: 0,
+                        halfLifeDays: 30,
+                        decayScore: 1,
+                        materializedDecay: null,
+                        materializedStale: true
+                      },
+                      archiveEligibility: {
+                        eligible: false,
+                        oldEnough: false,
+                        decayedEnough: false,
+                        neverAccessed: true,
+                        active: true,
+                        exempt: false,
+                        exemptReasons: [],
+                        gaps: {}
+                      }
+                    }
+                  ],
+                  previewLimit: 25,
+                  scanLimit: 200,
+                  scanned: 1,
+                  scanTruncated: false
+                }
+              }
             case 'memory.list':
               return {
                 memories: [
@@ -1349,6 +1397,8 @@ describe('renderer api clients', () => {
     await memoryClient.add('agent-1', { content: 'plain note' })
     const health = await memoryClient.getHealth('agent-1')
     const lifecycles = await memoryClient.getLifecycle('agent-1', 'mem-1')
+    const archiveCandidatePreview =
+      await memoryClient.getArchiveCandidateLifecyclePreview('agent-1')
     const off = memoryClient.onUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'memory.list', { agentId: 'agent-1' })
@@ -1407,6 +1457,14 @@ describe('renderer api clients', () => {
       memoryId: 'mem-1'
     })
     expect(lifecycles[0].memoryId).toBe('mem-1')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(
+      17,
+      'memory.getArchiveCandidateLifecyclePreview',
+      {
+        agentId: 'agent-1'
+      }
+    )
+    expect(archiveCandidatePreview.lifecycles[0].memoryId).toBe('mem-1')
     expect(bridge.on).toHaveBeenCalledWith('memory.updated', expect.any(Function))
     expect(typeof off).toBe('function')
   })

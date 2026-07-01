@@ -20,7 +20,10 @@ import type {
   ISkillSyncPresenter
 } from '@shared/presenter'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
-import { createEmptyMemoryHealth } from '@shared/contracts/routes'
+import {
+  createEmptyArchiveCandidateLifecyclePreview,
+  createEmptyMemoryHealth
+} from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
@@ -1439,8 +1442,16 @@ describe('dispatchDeepchatRoute', () => {
         }
       }
     ]
+    const preview = {
+      lifecycles,
+      previewLimit: 25,
+      scanLimit: 200,
+      scanned: 1,
+      scanTruncated: false
+    }
     const getLifecycle = vi.fn(() => lifecycles)
-    ;(runtime as any).memoryPresenter = { getLifecycle }
+    const getArchiveCandidateLifecyclePreview = vi.fn(() => preview)
+    ;(runtime as any).memoryPresenter = { getLifecycle, getArchiveCandidateLifecyclePreview }
 
     await expect(
       dispatchDeepchatRoute(
@@ -1462,6 +1473,27 @@ describe('dispatchDeepchatRoute', () => {
       )
     ).resolves.toEqual({ lifecycles })
     expect(getLifecycle).toHaveBeenCalledWith('deepchat', 'm1')
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getArchiveCandidateLifecyclePreview',
+        { agentId: 'other' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ preview: createEmptyArchiveCandidateLifecyclePreview() })
+    expect(getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
+
+    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.getArchiveCandidateLifecyclePreview',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ preview })
+    expect(getArchiveCandidateLifecyclePreview).toHaveBeenCalledWith('deepchat')
   })
 
   it('returns no memory audit events when the SQLite presenter has no memory audit table', async () => {

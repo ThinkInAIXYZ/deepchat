@@ -6,7 +6,7 @@ import {
   FORGET_HALF_LIFE_MS,
   FTS_SIMILARITY_BASELINE,
   IMPORTANCE_FLOOR_COEF,
-  type AgentMemoryRow
+  type AgentMemoryLifecycleRow
 } from './types'
 import { decayScore, halfLifeForKind, recencyScore, retrievalScore, clamp01 } from './scoring'
 import {
@@ -27,7 +27,7 @@ export interface DeriveLifecycleOptions {
 }
 
 export function deriveLifecycle(
-  row: AgentMemoryRow,
+  row: AgentMemoryLifecycleRow,
   now: number,
   options: DeriveLifecycleOptions = {}
 ): MemoryLifecycle {
@@ -93,7 +93,7 @@ export function deriveDecayTier(
 }
 
 function deriveRecall(
-  row: AgentMemoryRow,
+  row: AgentMemoryLifecycleRow,
   now: number,
   weights: { similarity: number; recency: number; importance: number },
   importance: number
@@ -124,7 +124,7 @@ function deriveRecall(
 }
 
 function deriveForget(
-  row: AgentMemoryRow,
+  row: AgentMemoryLifecycleRow,
   now: number,
   importance: number
 ): MemoryLifecycle['forget'] {
@@ -144,7 +144,9 @@ function deriveForget(
   }
 }
 
-function deriveExemptReasons(row: AgentMemoryRow): Array<'anchor' | 'persona' | 'working'> {
+function deriveExemptReasons(
+  row: AgentMemoryLifecycleRow
+): Array<'anchor' | 'persona' | 'working'> {
   const reasons: Array<'anchor' | 'persona' | 'working'> = []
   if (row.is_anchor === 1) reasons.push('anchor')
   if (row.kind === 'persona') reasons.push('persona')
@@ -153,7 +155,7 @@ function deriveExemptReasons(row: AgentMemoryRow): Array<'anchor' | 'persona' | 
 }
 
 function deriveArchiveGaps(input: {
-  row: AgentMemoryRow
+  row: AgentMemoryLifecycleRow
   now: number
   archiveAgeMs: number
   archiveDecayThreshold: number

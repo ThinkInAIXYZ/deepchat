@@ -269,6 +269,15 @@
           "reflection": "Reflection",
           "persona": "Persona",
           "working": "Working memory"
+        },
+        "archivePrediction": {
+          "title": "Current archive matches",
+          "description": "If maintenance ran now, these memories would meet the archive rules.",
+          "empty": "No memories currently meet the archive rules.",
+          "decayScore": "Decay",
+          "ageDays": "Age days",
+          "scanLimited": "Limited to {count} scanned rows",
+          "previewLimited": "Showing first {count}"
         }
       },
       "lifecycle": {

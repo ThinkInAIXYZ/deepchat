@@ -269,6 +269,15 @@
           "reflection": "反思",
           "persona": "人格",
           "working": "工作记忆"
+        },
+        "archivePrediction": {
+          "title": "当前归档匹配",
+          "description": "若现在执行维护，这些记忆会符合归档条件。",
+          "empty": "当前没有符合归档条件的记忆。",
+          "decayScore": "衰减",
+          "ageDays": "天数",
+          "scanLimited": "已限制扫描 {count} 行",
+          "previewLimited": "仅显示前 {count} 条"
         }
       },
       "lifecycle": {

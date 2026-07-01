@@ -60,6 +60,8 @@ export const MemoryStatusSchema = z.object({
 
 const NonnegativeCountSchema = z.number().int().nonnegative()
 export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT = 25
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT = 200
 
 function countRecordShape<const Keys extends readonly string[]>(
   keys: Keys
@@ -203,6 +205,40 @@ export const MemoryLifecycleSchema = z
 
 export type MemoryLifecycle = z.infer<typeof MemoryLifecycleSchema>
 
+export const MemoryArchiveCandidateLifecyclePreviewSchema = z
+  .object({
+    lifecycles: z
+      .array(MemoryLifecycleSchema)
+      .max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    previewLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    scanLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    scanned: NonnegativeCountSchema.max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    scanTruncated: z.boolean()
+  })
+  .superRefine((preview, ctx) => {
+    if (preview.scanTruncated && preview.scanned !== preview.scanLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scanned'],
+        message: 'truncated archive candidate preview must scan the configured scan limit'
+      })
+    }
+  })
+
+export type MemoryArchiveCandidateLifecyclePreview = z.infer<
+  typeof MemoryArchiveCandidateLifecyclePreviewSchema
+>
+
+export function createEmptyArchiveCandidateLifecyclePreview(): MemoryArchiveCandidateLifecyclePreview {
+  return {
+    lifecycles: [],
+    previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+    scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
+    scanned: 0,
+    scanTruncated: false
+  }
+}
+
 export function createEmptyMemoryHealth(
   scanLimit = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
 ): MemoryHealthDto {
@@ -279,8 +315,14 @@ export const memoryGetHealthRoute = defineRouteContract({
 
 export const memoryGetLifecycleRoute = defineRouteContract({
   name: 'memory.getLifecycle',
-  input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1).optional() }),
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1) }),
   output: z.object({ lifecycles: z.array(MemoryLifecycleSchema) })
+})
+
+export const memoryGetArchiveCandidateLifecyclePreviewRoute = defineRouteContract({
+  name: 'memory.getArchiveCandidateLifecyclePreview',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ preview: MemoryArchiveCandidateLifecyclePreviewSchema })
 })
 
 export const memorySearchRoute = defineRouteContract({

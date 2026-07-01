@@ -50,6 +50,22 @@ export interface AgentMemoryRow {
   persona_state: string | null
 }
 
+export type AgentMemoryLifecycleRow = Pick<
+  AgentMemoryRow,
+  | 'id'
+  | 'agent_id'
+  | 'kind'
+  | 'importance'
+  | 'status'
+  | 'is_anchor'
+  | 'superseded_by'
+  | 'created_at'
+  | 'last_accessed'
+  | 'access_count'
+  | 'decay_score'
+  | 'confidence'
+>
+
 export interface AgentMemoryInsertInput {
   id: string
   agentId: string
@@ -516,16 +532,6 @@ export class AgentMemoryTable extends BaseTable {
     }
 
     return this.db.prepare(sql).all(...params) as AgentMemoryRow[]
-  }
-
-  listForLifecycle(agentId: string): AgentMemoryRow[] {
-    return this.db
-      .prepare(
-        `SELECT * FROM agent_memory
-         WHERE agent_id = ? AND kind != 'working'
-         ORDER BY created_at DESC`
-      )
-      .all(agentId) as AgentMemoryRow[]
   }
 
   // Active = the approved self-model. A draft persona also has superseded_by IS NULL, so the state
@@ -1015,6 +1021,41 @@ export class AgentMemoryTable extends BaseTable {
            AND decay_score < ?`
       )
       .all(agentId, before, decayBelow) as AgentMemoryRow[]
+  }
+
+  listArchiveCandidateLifecycleRows(
+    agentId: string,
+    before: number,
+    limit: number
+  ): AgentMemoryLifecycleRow[] {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    return this.db
+      .prepare(
+        `SELECT id,
+                agent_id,
+                kind,
+                importance,
+                status,
+                is_anchor,
+                superseded_by,
+                created_at,
+                last_accessed,
+                access_count,
+                decay_score,
+                confidence
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status NOT IN ('archived', 'conflicted')
+           AND is_anchor = 0
+           AND kind NOT IN ('persona', 'working')
+           AND access_count = 0
+           AND created_at < ?
+         ORDER BY COALESCE(last_accessed, created_at) ASC, created_at ASC, id ASC
+         LIMIT ?`
+      )
+      .all(agentId, before, cappedLimit) as AgentMemoryLifecycleRow[]
   }
 
   countArchiveCandidates(agentId: string, before: number, decayBelow: number): number {

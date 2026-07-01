@@ -23,8 +23,11 @@ import {
   type AgentMemoryCategory
 } from '@shared/types/agent-memory'
 import {
+  MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+  MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
   MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT,
   createEmptyMemoryHealth,
+  type MemoryArchiveCandidateLifecyclePreview,
   type MemoryHealthDto,
   type MemoryLifecycle
 } from '@shared/contracts/routes/memory.routes'
@@ -35,7 +38,7 @@ import {
   fuse,
   resolveRetrieval
 } from './scoring'
-import { deriveLifecycle } from './lifecycle'
+import { deriveLifecycle, type DeriveLifecycleOptions } from './lifecycle'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from './lifecycleConstants'
 import { ADD_DECISION, buildDecisionPrompt, parseDecision, type MemoryDecision } from './decision'
 import { CONFIDENCE_INCREMENT, DEFAULT_CONFIDENCE } from './types'
@@ -2313,28 +2316,68 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.repository.listByAgent(agentId, { includeArchived: true })
   }
 
-  getLifecycle(agentId: string, memoryId?: string): MemoryLifecycle[] {
+  getLifecycle(agentId: string, memoryId: string): MemoryLifecycle[] {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return []
 
+    const row = this.deps.repository.getById(memoryId)
+    if (!row || row.agent_id !== agentId || row.kind === 'working') return []
+    const context = this.createLifecycleDerivationContext(agentId)
+    return [deriveLifecycle(row, context.now, context.options)]
+  }
+
+  getArchiveCandidateLifecyclePreview(agentId: string): MemoryArchiveCandidateLifecyclePreview {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) {
+      return {
+        lifecycles: [],
+        previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+        scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
+        scanned: 0,
+        scanTruncated: false
+      }
+    }
+
+    const context = this.createLifecycleDerivationContext(agentId)
+    const rows = this.deps.repository.listArchiveCandidateLifecycleRows(
+      agentId,
+      context.now - ARCHIVE_AGE_MS,
+      MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT + 1
+    )
+    const scanRows = rows.slice(0, MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT)
+    const lifecycles = scanRows
+      .map((row) => deriveLifecycle(row, context.now, context.options))
+      .filter((lifecycle) => lifecycle.archiveEligibility.eligible)
+      .sort(
+        (a, b) =>
+          a.forget.decayScore - b.forget.decayScore ||
+          b.forget.ageDays - a.forget.ageDays ||
+          a.memoryId.localeCompare(b.memoryId)
+      )
+      .slice(0, MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT)
+
+    return {
+      lifecycles,
+      previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+      scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
+      scanned: scanRows.length,
+      scanTruncated: rows.length > MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT
+    }
+  }
+
+  private createLifecycleDerivationContext(agentId: string): {
+    now: number
+    options: DeriveLifecycleOptions
+  } {
     const config = this.deps.resolveAgentConfig(agentId)
-    const weights = resolveRetrieval(config?.memoryRetrieval).weights
-    const now = Date.now()
-    const options = {
-      weights,
-      archiveAgeMs: ARCHIVE_AGE_MS,
-      archiveDecayThreshold: ARCHIVE_DECAY_THRESHOLD
+    return {
+      now: Date.now(),
+      options: {
+        weights: resolveRetrieval(config?.memoryRetrieval).weights,
+        archiveAgeMs: ARCHIVE_AGE_MS,
+        archiveDecayThreshold: ARCHIVE_DECAY_THRESHOLD
+      }
     }
-
-    if (memoryId !== undefined) {
-      const row = this.deps.repository.getById(memoryId)
-      if (!row || row.agent_id !== agentId || row.kind === 'working') return []
-      return [deriveLifecycle(row, now, options)]
-    }
-
-    return this.deps.repository
-      .listForLifecycle(agentId)
-      .map((row) => deriveLifecycle(row, now, options))
   }
 
   getHealth(agentId: string): MemoryHealthDto {

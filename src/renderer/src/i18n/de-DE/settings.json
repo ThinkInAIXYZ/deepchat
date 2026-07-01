@@ -272,6 +272,15 @@
           "reflection": "Reflexion",
           "persona": "Persona",
           "working": "Arbeitsgedächtnis"
+        },
+        "archivePrediction": {
+          "title": "Aktuelle Archivtreffer",
+          "description": "Wenn die Wartung jetzt liefe, würden diese Erinnerungen die Archivregeln erfüllen.",
+          "empty": "Derzeit erfüllen keine Erinnerungen die Archivregeln.",
+          "decayScore": "Verfall",
+          "ageDays": "Alter in Tagen",
+          "scanLimited": "Auf {count} geprüfte Zeilen begrenzt",
+          "previewLimited": "Zeigt die ersten {count}"
         }
       },
       "lifecycle": {

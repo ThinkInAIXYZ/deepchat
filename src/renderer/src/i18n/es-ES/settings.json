@@ -272,6 +272,15 @@
           "reflection": "Reflexión",
           "persona": "Persona",
           "working": "Memoria de trabajo"
+        },
+        "archivePrediction": {
+          "title": "Coincidencias de archivo actuales",
+          "description": "Si el mantenimiento se ejecutara ahora, estas memorias cumplirían las reglas de archivo.",
+          "empty": "Ahora no hay memorias que cumplan las reglas de archivo.",
+          "decayScore": "Decaimiento",
+          "ageDays": "Edad en días",
+          "scanLimited": "Limitado a {count} filas analizadas",
+          "previewLimited": "Mostrando las primeras {count}"
         }
       },
       "lifecycle": {

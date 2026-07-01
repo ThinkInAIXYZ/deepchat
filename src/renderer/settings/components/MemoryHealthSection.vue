@@ -23,6 +23,72 @@
       </div>
     </div>
 
+    <section class="rounded-lg border px-3 py-2">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div class="text-xs font-medium">
+            {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.title') }}
+          </div>
+          <div class="mt-0.5 text-[10px] text-muted-foreground">
+            {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.description') }}
+          </div>
+        </div>
+        <Badge variant="secondary" class="text-[10px]">
+          {{ formatCount(archiveCandidateLifecycles.length) }}
+        </Badge>
+        <Badge v-if="archiveCandidatePreviewLimitMessage" variant="outline" class="text-[10px]">
+          {{ archiveCandidatePreviewLimitMessage }}
+        </Badge>
+      </div>
+      <div
+        v-if="archiveCandidateLifecyclePreviewLoading"
+        class="py-4 text-center text-xs text-muted-foreground"
+      >
+        {{ t('common.loading') }}
+      </div>
+      <div
+        v-else-if="archiveCandidateLifecyclePreviewError"
+        class="py-4 text-center text-xs text-destructive"
+      >
+        {{ archiveCandidateLifecyclePreviewError }}
+      </div>
+      <div
+        v-else-if="archiveCandidateLifecycles.length === 0"
+        class="py-4 text-center text-xs text-muted-foreground"
+      >
+        {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.empty') }}
+      </div>
+      <ol v-else class="grid gap-2 sm:grid-cols-2">
+        <li
+          v-for="candidate in archiveCandidateLifecycles"
+          :key="candidate.memoryId"
+          class="rounded-md bg-muted/50 px-2 py-1.5"
+        >
+          <div class="mb-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" class="text-[10px]">{{ kindLabel(candidate.kind) }}</Badge>
+            <Badge variant="secondary" class="text-[10px]">
+              {{ decayTierLabel(candidate.decayTier) }}
+            </Badge>
+            <span class="break-all font-mono text-[10px] text-muted-foreground">
+              {{ candidate.memoryId }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <MetricCell
+              :label="
+                t('settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore')
+              "
+              :value="formatDecimal(candidate.forget.decayScore)"
+            />
+            <MetricCell
+              :label="t('settings.deepchatAgents.memoryManager.health.archivePrediction.ageDays')"
+              :value="formatDecimal(candidate.forget.ageDays)"
+            />
+          </div>
+        </li>
+      </ol>
+    </section>
+
     <div class="grid gap-3 lg:grid-cols-3">
       <section class="rounded-lg border px-3 py-2">
         <div class="mb-2 text-xs font-medium">
@@ -198,7 +264,11 @@
 import { computed, defineComponent, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Badge } from '@shadcn/components/ui/badge'
-import type { MemoryHealthDto } from '@shared/contracts/routes'
+import type {
+  MemoryArchiveCandidateLifecyclePreview,
+  MemoryHealthDto,
+  MemoryLifecycle
+} from '@shared/contracts/routes'
 import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
@@ -206,11 +276,21 @@ import {
   type AgentMemoryCategory
 } from '@shared/types/agent-memory'
 
-const props = defineProps<{
-  health: MemoryHealthDto | null
-  loading: boolean
-  error: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    health: MemoryHealthDto | null
+    loading: boolean
+    error: string | null
+    archiveCandidateLifecyclePreview?: MemoryArchiveCandidateLifecyclePreview | null
+    archiveCandidateLifecyclePreviewLoading?: boolean
+    archiveCandidateLifecyclePreviewError?: string | null
+  }>(),
+  {
+    archiveCandidateLifecyclePreview: null,
+    archiveCandidateLifecyclePreviewLoading: false,
+    archiveCandidateLifecyclePreviewError: null
+  }
+)
 
 const { t, locale } = useI18n()
 const dash = '—'
@@ -234,6 +314,25 @@ const dateFormatter = computed(
       minute: '2-digit'
     })
 )
+const archiveCandidateLifecyclePreview = computed(() => props.archiveCandidateLifecyclePreview)
+const archiveCandidateLifecycles = computed(
+  () => archiveCandidateLifecyclePreview.value?.lifecycles ?? []
+)
+const archiveCandidatePreviewLimitMessage = computed(() => {
+  const preview = archiveCandidateLifecyclePreview.value
+  if (!preview) return null
+  if (preview.scanTruncated) {
+    return t('settings.deepchatAgents.memoryManager.health.archivePrediction.scanLimited', {
+      count: preview.scanLimit
+    })
+  }
+  if (preview.lifecycles.length >= preview.previewLimit) {
+    return t('settings.deepchatAgents.memoryManager.health.archivePrediction.previewLimited', {
+      count: preview.previewLimit
+    })
+  }
+  return null
+})
 
 const DistributionRow = defineComponent({
   name: 'DistributionRow',
@@ -438,5 +537,9 @@ function kindLabel(kind: keyof MemoryHealthDto['byKind']): string {
   if (kind === 'semantic') return t('settings.deepchatAgents.memoryManager.kindSemantic')
   if (kind === 'episodic') return t('settings.deepchatAgents.memoryManager.kindEpisodic')
   return t(`settings.deepchatAgents.memoryManager.health.kind.${kind}`)
+}
+
+function decayTierLabel(tier: MemoryLifecycle['decayTier']): string {
+  return t(`settings.deepchatAgents.memoryManager.lifecycle.tier.${tier}`)
 }
 </script>

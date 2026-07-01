@@ -72,6 +72,7 @@ import {
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetLifecycleRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
@@ -362,7 +363,10 @@ import {
   workspaceWatchRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { createEmptyMemoryHealth } from '@shared/contracts/routes/memory.routes'
+import {
+  createEmptyArchiveCandidateLifecyclePreview,
+  createEmptyMemoryHealth
+} from '@shared/contracts/routes/memory.routes'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
 import { ChatService } from './chat/chatService'
@@ -2263,6 +2267,19 @@ export async function dispatchDeepchatRoute(
       }
       return memoryGetLifecycleRoute.output.parse({
         lifecycles: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
+      })
+    }
+
+    case memoryGetArchiveCandidateLifecyclePreviewRoute.name: {
+      const input = memoryGetArchiveCandidateLifecyclePreviewRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+          preview: createEmptyArchiveCandidateLifecyclePreview()
+        })
+      }
+      return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+        preview: runtime.memoryPresenter.getArchiveCandidateLifecyclePreview(input.agentId)
       })
     }
 

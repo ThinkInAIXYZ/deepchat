@@ -272,6 +272,15 @@
           "reflection": "Refleksi",
           "persona": "Persona",
           "working": "Memori kerja"
+        },
+        "archivePrediction": {
+          "title": "Kecocokan arsip saat ini",
+          "description": "Jika pemeliharaan berjalan sekarang, memori ini akan memenuhi aturan arsip.",
+          "empty": "Saat ini tidak ada memori yang memenuhi aturan arsip.",
+          "decayScore": "Peluruhan",
+          "ageDays": "Usia dalam hari",
+          "scanLimited": "Dibatasi ke {count} baris yang dipindai",
+          "previewLimited": "Menampilkan {count} pertama"
         }
       },
       "lifecycle": {

@@ -2641,6 +2641,15 @@
           "reflection": "רפלקציה",
           "persona": "פרסונה",
           "working": "זיכרון עבודה"
+        },
+        "archivePrediction": {
+          "title": "התאמות ארכוב נוכחיות",
+          "description": "אם התחזוקה תרוץ עכשיו, הזיכרונות האלה יעמדו בכללי הארכוב.",
+          "empty": "כרגע אין זיכרונות שעומדים בכללי הארכוב.",
+          "decayScore": "דעיכה",
+          "ageDays": "גיל בימים",
+          "scanLimited": "מוגבל ל-{count} שורות שנסרקו",
+          "previewLimited": "מציג את {count} הראשונים"
         }
       },
       "lifecycle": {

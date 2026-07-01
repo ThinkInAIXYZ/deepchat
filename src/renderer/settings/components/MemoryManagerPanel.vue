@@ -389,6 +389,9 @@
           :health="health"
           :loading="healthLoading"
           :error="healthError"
+          :archive-candidate-lifecycle-preview="archiveCandidateLifecyclePreview"
+          :archive-candidate-lifecycle-preview-loading="archiveCandidateLifecyclePreviewLoading"
+          :archive-candidate-lifecycle-preview-error="archiveCandidateLifecyclePreviewError"
         />
       </TabsContent>
 
@@ -722,6 +725,7 @@ import MemoryHealthSection from './MemoryHealthSection.vue'
 import MemoryLifecyclePanel from './MemoryLifecyclePanel.vue'
 import type {
   MemoryAddResult,
+  MemoryArchiveCandidateLifecyclePreview,
   MemoryAuditEvent,
   MemoryConflictItem,
   MemoryHealthDto,
@@ -781,6 +785,10 @@ const viewManifests = ref<MemoryViewManifest[]>([])
 const status = ref<MemoryStatusDto | null>(null)
 const health = ref<MemoryHealthDto | null>(null)
 const healthDirty = ref(true)
+const archiveCandidateLifecyclePreview = ref<MemoryArchiveCandidateLifecyclePreview | null>(null)
+const archiveCandidateLifecyclePreviewLoading = ref(false)
+const archiveCandidateLifecyclePreviewError = ref<string | null>(null)
+const archiveCandidateLifecyclePreviewDirty = ref(true)
 const sourceSpanOpen = ref(false)
 const sourceSpan = ref<MemorySourceSpan>(null)
 const searchError = ref<string | null>(null)
@@ -790,6 +798,7 @@ const lifecycleLoading = ref<Record<string, boolean>>({})
 const lifecycleErrors = ref<Record<string, string | null>>({})
 let lifecycleRequestSeq = 0
 const lifecycleRequestIds = new Map<string, number>()
+let archiveCandidateLifecyclePreviewRequestId = 0
 
 const hasEmbeddingConfigured = computed(() => props.hasEmbeddingConfigured === true)
 // Only gates the write surface when the caller explicitly reports memory disabled; existing rows
@@ -840,22 +849,59 @@ async function refreshHealth(agentId: string): Promise<void> {
   }
 }
 
+async function refreshArchiveCandidateLifecyclePreview(agentId: string): Promise<void> {
+  const requestId = ++archiveCandidateLifecyclePreviewRequestId
+  archiveCandidateLifecyclePreviewLoading.value = true
+  archiveCandidateLifecyclePreviewError.value = null
+  try {
+    const preview = await memoryClient.getArchiveCandidateLifecyclePreview(agentId)
+    if (!isCurrentArchiveCandidateLifecyclePreview(agentId, requestId)) return
+    archiveCandidateLifecyclePreview.value = preview
+    archiveCandidateLifecyclePreviewDirty.value = false
+  } catch (e) {
+    if (!isCurrentArchiveCandidateLifecyclePreview(agentId, requestId)) return
+    archiveCandidateLifecyclePreview.value = null
+    archiveCandidateLifecyclePreviewError.value = e instanceof Error ? e.message : String(e)
+    archiveCandidateLifecyclePreviewDirty.value = false
+  } finally {
+    if (isCurrentArchiveCandidateLifecyclePreview(agentId, requestId)) {
+      archiveCandidateLifecyclePreviewLoading.value = false
+    }
+  }
+}
+
 function isCurrentHealth(agentId: string, requestId: number): boolean {
   return requestId === healthRequestId && props.agentId === agentId
 }
 
+function isCurrentArchiveCandidateLifecyclePreview(agentId: string, requestId: number): boolean {
+  return requestId === archiveCandidateLifecyclePreviewRequestId && props.agentId === agentId
+}
+
 async function ensureHealthFresh(): Promise<void> {
   if (!props.agentId || activeTab.value !== 'health') return
-  if (!healthDirty.value && health.value) return
-  await refreshHealth(props.agentId)
+  const tasks: Promise<void>[] = []
+  if (healthDirty.value || !health.value) tasks.push(refreshHealth(props.agentId))
+  if (
+    archiveCandidateLifecyclePreviewDirty.value ||
+    archiveCandidateLifecyclePreviewError.value !== null
+  ) {
+    tasks.push(refreshArchiveCandidateLifecyclePreview(props.agentId))
+  }
+  await Promise.all(tasks)
 }
 
 function markHealthDirty(): void {
   healthRequestId += 1
+  archiveCandidateLifecyclePreviewRequestId += 1
   healthDirty.value = true
   health.value = null
   healthError.value = null
   healthLoading.value = false
+  archiveCandidateLifecyclePreviewDirty.value = true
+  archiveCandidateLifecyclePreview.value = null
+  archiveCandidateLifecyclePreviewError.value = null
+  archiveCandidateLifecyclePreviewLoading.value = false
 }
 
 function refreshHealthIfActive(): void {

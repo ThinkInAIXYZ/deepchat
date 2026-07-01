@@ -4,6 +4,7 @@ import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
   createEmptyMemoryHealth,
   memoryAddRoute,
+  memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
   memoryListRoute,
@@ -232,6 +233,7 @@ describe('memory.getLifecycle route contract', () => {
     expect(() =>
       memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat', memoryId: '' })
     ).toThrow()
+    expect(() => memoryGetLifecycleRoute.input.parse({ agentId: 'deepchat' })).toThrow()
 
     const parsed = memoryGetLifecycleRoute.output.parse({
       lifecycles: [
@@ -300,6 +302,41 @@ describe('memory.getLifecycle route contract', () => {
         lifecycles: [makeLifecycle({ kind: 'persona', recall: null })]
       }).success
     ).toBe(true)
+  })
+
+  it('round-trips archive candidate lifecycle predictions', () => {
+    const parsed = memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
+      preview: {
+        lifecycles: [makeLifecycle({ decayTier: 'archive_candidate' })],
+        previewLimit: 25,
+        scanLimit: 200,
+        scanned: 1,
+        scanTruncated: false
+      }
+    })
+
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.input.parse({ agentId: 'deepchat' })
+    ).toEqual({
+      agentId: 'deepchat'
+    })
+    expect(parsed.preview.lifecycles[0].decayTier).toBe('archive_candidate')
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.input.safeParse({ agentId: 'bad/id' }).success
+    ).toBe(false)
+    expect(
+      memoryGetArchiveCandidateLifecyclePreviewRoute.output.safeParse({
+        preview: {
+          lifecycles: Array.from({ length: 26 }, (_, index) =>
+            makeLifecycle({ memoryId: `m${index}` })
+          ),
+          previewLimit: 25,
+          scanLimit: 200,
+          scanned: 26,
+          scanTruncated: false
+        }
+      }).success
+    ).toBe(false)
   })
 })
 

@@ -2641,6 +2641,15 @@
           "reflection": "Refleksion",
           "persona": "Persona",
           "working": "Arbejdshukommelse"
+        },
+        "archivePrediction": {
+          "title": "Aktuelle arkivmatches",
+          "description": "Hvis vedligeholdelse kørte nu, ville disse minder opfylde arkivreglerne.",
+          "empty": "Ingen minder opfylder arkivreglerne lige nu.",
+          "decayScore": "Forfald",
+          "ageDays": "Alder i dage",
+          "scanLimited": "Begrænset til {count} scannede rækker",
+          "previewLimited": "Viser de første {count}"
         }
       },
       "lifecycle": {

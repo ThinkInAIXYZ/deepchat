@@ -2641,6 +2641,15 @@
           "reflection": "反思",
           "persona": "人格",
           "working": "工作記憶"
+        },
+        "archivePrediction": {
+          "title": "目前封存匹配",
+          "description": "若現在執行維護，這些記憶會符合封存條件。",
+          "empty": "目前沒有符合封存條件的記憶。",
+          "decayScore": "衰減",
+          "ageDays": "天數",
+          "scanLimited": "已限制掃描 {count} 行",
+          "previewLimited": "僅顯示前 {count} 筆"
         }
       },
       "lifecycle": {

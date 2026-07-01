@@ -1,5 +1,6 @@
 import type {
   AgentMemoryKind,
+  AgentMemoryLifecycleRow,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -24,6 +25,7 @@ import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 
 export type {
   AgentMemoryKind,
+  AgentMemoryLifecycleRow,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -40,7 +42,6 @@ export interface MemoryRepositoryPort {
   getById(id: string): AgentMemoryRow | undefined
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
-  listForLifecycle(agentId: string): AgentMemoryRow[]
   getActivePersona(agentId: string): AgentMemoryRow | undefined
   getDraftPersona(agentId: string): AgentMemoryRow | undefined
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
@@ -93,6 +94,11 @@ export interface MemoryRepositoryPort {
   countStaleEmbeddings(agentId: string, currentDim: number, fingerprint: string): number
   archive(id: string, at?: number): void
   listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[]
+  listArchiveCandidateLifecycleRows(
+    agentId: string,
+    before: number,
+    limit: number
+  ): AgentMemoryLifecycleRow[]
   countArchiveCandidates(agentId: string, before: number, decayBelow: number): number
   listTopAccessed(agentId: string, limit: number): AgentMemoryRow[]
   delete(id: string): void

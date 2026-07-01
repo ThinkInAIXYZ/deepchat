@@ -272,6 +272,15 @@
           "reflection": "Refleksja",
           "persona": "Persona",
           "working": "Pamięć robocza"
+        },
+        "archivePrediction": {
+          "title": "Bieżące dopasowania archiwum",
+          "description": "Gdyby konserwacja uruchomiła się teraz, te pamięci spełniłyby reguły archiwizacji.",
+          "empty": "Obecnie żadna pamięć nie spełnia reguł archiwizacji.",
+          "decayScore": "Zanik",
+          "ageDays": "Wiek w dniach",
+          "scanLimited": "Ograniczono do {count} przeskanowanych wierszy",
+          "previewLimited": "Wyświetlanie pierwszych {count}"
         }
       },
       "lifecycle": {

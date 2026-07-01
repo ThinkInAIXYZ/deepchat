@@ -3,6 +3,7 @@ import { defineComponent, inject, nextTick, provide } from 'vue'
 import type { InjectionKey } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type {
+  MemoryArchiveCandidateLifecyclePreview,
   MemoryAuditEvent,
   MemoryHealthDto,
   MemoryItem,
@@ -186,6 +187,14 @@ const lifecycle: MemoryLifecycle = {
   }
 }
 
+const archiveCandidateLifecyclePreview: MemoryArchiveCandidateLifecyclePreview = {
+  lifecycles: [lifecycle],
+  previewLimit: 25,
+  scanLimit: 200,
+  scanned: 1,
+  scanTruncated: false
+}
+
 async function setup(
   overrides: {
     remove?: boolean
@@ -208,6 +217,9 @@ async function setup(
     health?: MemoryHealthDto
     healthPromise?: Promise<MemoryHealthDto>
     healthReject?: boolean
+    archiveCandidateLifecyclePreview?: MemoryArchiveCandidateLifecyclePreview
+    archiveCandidateLifecyclePreviewPromise?: Promise<MemoryArchiveCandidateLifecyclePreview>
+    archiveCandidateLifecyclePreviewReject?: boolean
     lifecycle?: MemoryLifecycle
     lifecyclePromise?: Promise<MemoryLifecycle[]>
     lifecycleReject?: boolean
@@ -234,6 +246,15 @@ async function setup(
       : overrides.lifecycleReject
         ? vi.fn().mockRejectedValue(new Error('lifecycle unavailable'))
         : vi.fn().mockResolvedValue([overrides.lifecycle ?? lifecycle]),
+    getArchiveCandidateLifecyclePreview: overrides.archiveCandidateLifecyclePreviewPromise
+      ? vi.fn().mockReturnValue(overrides.archiveCandidateLifecyclePreviewPromise)
+      : overrides.archiveCandidateLifecyclePreviewReject
+        ? vi.fn().mockRejectedValue(new Error('candidate unavailable'))
+        : vi
+            .fn()
+            .mockResolvedValue(
+              overrides.archiveCandidateLifecyclePreview ?? archiveCandidateLifecyclePreview
+            ),
     search: vi.fn().mockResolvedValue(overrides.searchResults ?? []),
     listConflicts: vi.fn().mockResolvedValue(overrides.conflicts ?? []),
     getSourceSpan: vi.fn().mockResolvedValue(overrides.sourceSpan ?? null),
@@ -984,18 +1005,25 @@ describe('MemoryManagerDialog memory health', () => {
     const { wrapper, memoryClient } = await setup()
 
     expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('redis fact')
 
     await activateHealthTab(wrapper)
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
     expect(memoryClient.getHealth).toHaveBeenCalledWith('a')
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledWith('a')
     expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.health.totalRows')
+    expect(wrapper.text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.title'
+    )
 
     await deactivateHealthTab(wrapper)
     await activateHealthTab(wrapper)
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
   })
 
   it('clears the Health badge after an inactive memory update until health is refreshed', async () => {
@@ -1031,27 +1059,60 @@ describe('MemoryManagerDialog memory health', () => {
     expect(wrapper.text()).toContain('redis fact')
   })
 
+  it('retries archive candidate lifecycle loading after Health is reopened', async () => {
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.getArchiveCandidateLifecyclePreview.mockReset()
+    memoryClient.getArchiveCandidateLifecyclePreview
+      .mockRejectedValueOnce(new Error('candidate unavailable'))
+      .mockResolvedValueOnce({
+        ...archiveCandidateLifecyclePreview,
+        lifecycles: [],
+        scanned: 0
+      })
+
+    await activateHealthTab(wrapper)
+    await flushPromises()
+
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('candidate unavailable')
+
+    await deactivateHealthTab(wrapper)
+    await activateHealthTab(wrapper)
+    await flushPromises()
+
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.empty'
+    )
+    expect(wrapper.text()).not.toContain('candidate unavailable')
+  })
+
   it('marks health dirty on memory updates while inactive and reloads when opened', async () => {
     const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
     expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
 
     emitMemoryUpdated()
     await flushPromises()
 
     expect(memoryClient.getHealth).not.toHaveBeenCalled()
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
     await activateHealthTab(wrapper)
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes health immediately on memory updates while the Health tab is active', async () => {
     const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
     await activateHealthTab(wrapper)
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
 
     emitMemoryUpdated()
     await flushPromises()
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(2)
   })
 
   it('does not let an older health response overwrite the latest response', async () => {
@@ -1089,6 +1150,39 @@ describe('MemoryManagerDialog memory health', () => {
 
     expect(wrapper.text()).toContain('fresh health')
     expect(wrapper.text()).not.toContain('stale health')
+  })
+
+  it('does not let an older archive candidate response overwrite the latest response', async () => {
+    const stale = deferred<MemoryArchiveCandidateLifecyclePreview>()
+    const fresh = deferred<MemoryArchiveCandidateLifecyclePreview>()
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup()
+    memoryClient.getArchiveCandidateLifecyclePreview.mockReset()
+    memoryClient.getArchiveCandidateLifecyclePreview
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(fresh.promise)
+
+    await activateHealthTab(wrapper)
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
+
+    emitMemoryUpdated()
+    await flushPromises()
+    expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(2)
+
+    fresh.resolve({
+      ...archiveCandidateLifecyclePreview,
+      lifecycles: [{ ...lifecycle, memoryId: 'fresh-candidate' }]
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('fresh-candidate')
+
+    stale.resolve({
+      ...archiveCandidateLifecyclePreview,
+      lifecycles: [{ ...lifecycle, memoryId: 'stale-candidate' }]
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('fresh-candidate')
+    expect(wrapper.text()).not.toContain('stale-candidate')
   })
 
   it('waits for memory.updated before refreshing dirty health after an active mutation', async () => {

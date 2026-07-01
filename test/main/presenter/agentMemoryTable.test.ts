@@ -705,13 +705,16 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
-  it('lists all non-working rows for lifecycle inspection', () => {
+  it('lists archive candidate lifecycle projections without content payloads', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new AgentMemoryTableCtor(db)
       table.createTable()
 
-      table.insert({ id: 'active', agentId: 'a', kind: 'semantic', content: 'active' })
+      table.insert({ id: 'eligible-null', agentId: 'a', kind: 'semantic', content: 'large blob' })
+      table.insert({ id: 'eligible-stored', agentId: 'a', kind: 'semantic', content: 'stored' })
+      table.insert({ id: 'accessed', agentId: 'a', kind: 'semantic', content: 'used' })
+      table.recordAccess('accessed', 2000)
       table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'persona' })
       table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working' })
       table.insert({ id: 'other', agentId: 'b', kind: 'semantic', content: 'other' })
@@ -720,20 +723,26 @@ describeIfSqlite('AgentMemoryTable', () => {
       table.insert({ id: 'conflicted', agentId: 'a', kind: 'semantic', content: 'conflicted' })
       table.updateStatus('conflicted', 'conflicted')
       table.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'superseded' })
-      table.markSuperseded('superseded', 'active')
+      table.markSuperseded('superseded', 'eligible-null')
+      table.insert({
+        id: 'anchor',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'anchor',
+        isAnchor: true
+      })
+      table.updateDecayScore('eligible-stored', 0.9)
 
+      const rows = table.listArchiveCandidateLifecycleRows('a', 5000, 10)
+      expect(rows.map((row) => row.id).sort()).toEqual(['eligible-null', 'eligible-stored'])
+      expect(rows.every((row) => row.access_count === 0)).toBe(true)
+      expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'content'))).toBe(true)
+      expect(rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'embedding_id'))).toBe(
+        true
+      )
       expect(
-        table
-          .listByAgent('a', { includeArchived: true })
-          .map((row) => row.id)
-          .sort()
-      ).toEqual(['active', 'archived', 'persona'])
-      expect(
-        table
-          .listForLifecycle('a')
-          .map((row) => row.id)
-          .sort()
-      ).toEqual(['active', 'archived', 'conflicted', 'persona', 'superseded'])
+        rows.every((row) => !Object.prototype.hasOwnProperty.call(row, 'source_entry_ids'))
+      ).toBe(true)
     } finally {
       db.close()
     }

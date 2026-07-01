@@ -2641,6 +2641,15 @@
           "reflection": "Reflexão",
           "persona": "Persona",
           "working": "Memória de trabalho"
+        },
+        "archivePrediction": {
+          "title": "Correspondências de arquivo atuais",
+          "description": "Se a manutenção rodasse agora, estas memórias atenderiam às regras de arquivamento.",
+          "empty": "Nenhuma memória atende às regras de arquivamento no momento.",
+          "decayScore": "Decaimento",
+          "ageDays": "Idade em dias",
+          "scanLimited": "Limitado a {count} linhas verificadas",
+          "previewLimited": "Mostrando os primeiros {count}"
         }
       },
       "lifecycle": {
