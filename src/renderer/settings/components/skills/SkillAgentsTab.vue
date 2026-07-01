@@ -46,7 +46,7 @@
           :class="{ 'border-primary bg-primary/5': agent.id === selectedAgentId }"
           @click="selectAgent(agent.id)"
         >
-          <Icon :icon="agentIcon(agent.id)" class="h-5 w-5 shrink-0" />
+          <Icon :icon="getSkillAgentIcon(agent.id)" class="h-5 w-5 shrink-0" />
           <span class="min-w-0 flex-1 truncate text-left">{{ agent.name }}</span>
           <Badge variant="outline" class="ml-2 text-[11px]">
             {{ agent.skillsCount }}
@@ -147,6 +147,7 @@ import type {
 import AdoptSkillDialog from './AdoptSkillDialog.vue'
 import AgentSkillTable from './AgentSkillTable.vue'
 import SkillDetailDialog from './SkillDetailDialog.vue'
+import { getSkillAgentIcon } from './toolIcon'
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -334,17 +335,6 @@ const agentStatusClass = (status: InstalledSkillAgent['status']) => {
     return 'border-destructive/40 bg-destructive/10 text-destructive'
   }
   return ''
-}
-
-const agentIcon = (id: string) => {
-  if (id === 'codex') return 'simple-icons:openai'
-  if (id === 'claude-code') return 'simple-icons:anthropic'
-  if (id === 'cursor') return 'simple-icons:cursor'
-  if (id === 'opencode') return 'lucide:code-2'
-  if (id === 'goose') return 'lucide:feather'
-  if (id === 'kilocode') return 'lucide:binary'
-  if (id === 'copilot-user') return 'simple-icons:github'
-  return 'lucide:bot'
 }
 
 onMounted(loadAgents)

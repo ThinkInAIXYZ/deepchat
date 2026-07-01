@@ -2328,7 +2328,25 @@
         "modified": "Đã sửa",
         "conflict": "Xung đột",
         "invalid": "Không hợp lệ"
-      }
+      },
+      "searchPlaceholder": "Tìm kiếm kỹ năng",
+      "selectedCount": "Đã chọn {count}",
+      "selectVisible": "Chọn mục đang hiển thị",
+      "clearSelection": "Xóa lựa chọn",
+      "refresh": "Làm mới",
+      "stateFilter": "Bộ lọc trạng thái",
+      "allStates": "Tất cả trạng thái",
+      "exportConfirmTitle": "Xác nhận xuất",
+      "exportConfirmDescription": "Xuất {count} kỹ năng vào {directory}",
+      "emptyExportConfirm": "Không có kỹ năng nào để xuất.",
+      "confirmExport": "Xác nhận xuất",
+      "noDirectory": "Chưa đặt thư mục đồng bộ",
+      "chooseDirectoryHint": "Chọn một thư mục trước khi nhập hoặc xuất kỹ năng.",
+      "directoryMissing": "Không tìm thấy thư mục. Chọn thư mục khác.",
+      "chooseDirectory": "Chọn thư mục",
+      "changeDirectory": "Đổi thư mục",
+      "noDirectoryAction": "Chọn thư mục đồng bộ trước khi nhập hoặc xuất kỹ năng.",
+      "directoryMissingAction": "Thư mục đồng bộ hiện tại không tồn tại. Chọn thư mục khác để tiếp tục."
     },
     "detail": {
       "failed": "Khong tai duoc chi tiet skill",

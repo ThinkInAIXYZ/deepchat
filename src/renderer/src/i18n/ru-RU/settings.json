@@ -2131,7 +2131,25 @@
         "modified": "Изменен",
         "conflict": "Конфликт",
         "invalid": "Недействителен"
-      }
+      },
+      "searchPlaceholder": "Поиск навыков",
+      "selectedCount": "Выбрано: {count}",
+      "selectVisible": "Выбрать видимые",
+      "clearSelection": "Очистить выбор",
+      "refresh": "Обновить",
+      "stateFilter": "Фильтр состояния",
+      "allStates": "Все состояния",
+      "exportConfirmTitle": "Подтвердить экспорт",
+      "exportConfirmDescription": "Экспортировать {count} навыков в {directory}",
+      "emptyExportConfirm": "Нет навыков, доступных для экспорта.",
+      "confirmExport": "Подтвердить экспорт",
+      "noDirectory": "Каталог синхронизации не задан",
+      "chooseDirectoryHint": "Выберите папку перед импортом или экспортом навыков.",
+      "directoryMissing": "Каталог не найден. Выберите другую папку.",
+      "chooseDirectory": "Выбрать каталог",
+      "changeDirectory": "Изменить каталог",
+      "noDirectoryAction": "Выберите каталог синхронизации перед импортом или экспортом навыков.",
+      "directoryMissingAction": "Текущий каталог синхронизации отсутствует. Выберите другую папку, чтобы продолжить."
     },
     "detail": {
       "failed": "Не удалось загрузить детали skill",

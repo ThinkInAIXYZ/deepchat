@@ -2131,7 +2131,25 @@
         "modified": "שונה",
         "conflict": "התנגשות",
         "invalid": "לא תקין"
-      }
+      },
+      "searchPlaceholder": "חיפוש מיומנויות",
+      "selectedCount": "{count} נבחרו",
+      "selectVisible": "בחר גלויים",
+      "clearSelection": "נקה בחירה",
+      "refresh": "רענון",
+      "stateFilter": "מסנן מצב",
+      "allStates": "כל המצבים",
+      "exportConfirmTitle": "אישור ייצוא",
+      "exportConfirmDescription": "ייצוא {count} מיומנויות אל {directory}",
+      "emptyExportConfirm": "אין מיומנויות זמינות לייצוא.",
+      "confirmExport": "אשר ייצוא",
+      "noDirectory": "לא הוגדרה תיקיית סנכרון",
+      "chooseDirectoryHint": "בחר תיקייה לפני ייבוא או ייצוא מיומנויות.",
+      "directoryMissing": "התיקייה לא נמצאה. בחר תיקייה אחרת.",
+      "chooseDirectory": "בחר תיקייה",
+      "changeDirectory": "שנה תיקייה",
+      "noDirectoryAction": "בחר תיקיית סנכרון לפני ייבוא או ייצוא מיומנויות.",
+      "directoryMissingAction": "תיקיית הסנכרון הנוכחית חסרה. בחר תיקייה אחרת כדי להמשיך."
     },
     "detail": {
       "failed": "טעינת פרטי skill נכשלה",

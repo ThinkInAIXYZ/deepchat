@@ -2328,7 +2328,25 @@
         "modified": "Diubah",
         "conflict": "Konflik",
         "invalid": "Tidak valid"
-      }
+      },
+      "searchPlaceholder": "Cari keterampilan",
+      "selectedCount": "{count} dipilih",
+      "selectVisible": "Pilih yang terlihat",
+      "clearSelection": "Bersihkan pilihan",
+      "refresh": "Segarkan",
+      "stateFilter": "Filter status",
+      "allStates": "Semua status",
+      "exportConfirmTitle": "Konfirmasi ekspor",
+      "exportConfirmDescription": "Ekspor {count} keterampilan ke {directory}",
+      "emptyExportConfirm": "Tidak ada keterampilan yang tersedia untuk diekspor.",
+      "confirmExport": "Konfirmasi ekspor",
+      "noDirectory": "Direktori sinkronisasi belum diatur",
+      "chooseDirectoryHint": "Pilih folder sebelum mengimpor atau mengekspor keterampilan.",
+      "directoryMissing": "Direktori tidak ditemukan. Pilih folder lain.",
+      "chooseDirectory": "Pilih direktori",
+      "changeDirectory": "Ubah direktori",
+      "noDirectoryAction": "Pilih direktori sinkronisasi sebelum mengimpor atau mengekspor keterampilan.",
+      "directoryMissingAction": "Direktori sinkronisasi saat ini tidak ada. Pilih folder lain untuk melanjutkan."
     },
     "detail": {
       "failed": "Gagal memuat detail skill",

@@ -52,6 +52,17 @@ describe('ToolScanner', () => {
   })
 
   describe('EXTERNAL_TOOLS configuration', () => {
+    it('should have generic Agents tool configured', () => {
+      const agents = EXTERNAL_TOOLS.find((t) => t.id === 'agents')
+      expect(agents).toBeDefined()
+      expect(agents?.name).toBe('Agents')
+      expect(agents?.skillsDir).toBe('~/.agents/skills/')
+      expect(agents?.filePattern).toBe('*/SKILL.md')
+      expect(agents?.format).toBe('agents')
+      expect(agents?.isProjectLevel).toBeUndefined()
+      expect(agents?.capabilities.supportsSubfolders).toBe(true)
+    })
+
     it('should have claude-code tool configured', () => {
       const claudeCode = EXTERNAL_TOOLS.find((t) => t.id === 'claude-code')
       expect(claudeCode).toBeDefined()
@@ -220,6 +231,7 @@ describe('ToolScanner', () => {
     it('should return all registered tools', () => {
       const tools = scanner.getAllTools()
       expect(tools.length).toBe(EXTERNAL_TOOLS.length)
+      expect(tools.some((t) => t.id === 'agents')).toBe(true)
       expect(tools.some((t) => t.id === 'claude-code')).toBe(true)
       expect(tools.some((t) => t.id === 'cursor')).toBe(true)
     })
@@ -318,6 +330,7 @@ description: A test skill
 
       // Should only include user-level tools
       const toolIds = results.map((r) => r.toolId)
+      expect(toolIds).toContain('agents')
       expect(toolIds).toContain('claude-code')
       expect(toolIds).toContain('cursor') // cursor is now user-level
       expect(toolIds).not.toContain('cursor-project') // cursor-project is project-level

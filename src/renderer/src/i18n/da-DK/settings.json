@@ -2064,7 +2064,25 @@
         "modified": "Ændret",
         "conflict": "Konflikt",
         "invalid": "Ugyldig"
-      }
+      },
+      "searchPlaceholder": "Søg i færdigheder",
+      "selectedCount": "{count} valgt",
+      "selectVisible": "Vælg synlige",
+      "clearSelection": "Ryd valg",
+      "refresh": "Opdater",
+      "stateFilter": "Statusfilter",
+      "allStates": "Alle statusser",
+      "exportConfirmTitle": "Bekræft eksport",
+      "exportConfirmDescription": "Eksportér {count} færdigheder til {directory}",
+      "emptyExportConfirm": "Ingen færdigheder tilgængelige til eksport.",
+      "confirmExport": "Bekræft eksport",
+      "noDirectory": "Ingen synkroniseringsmappe angivet",
+      "chooseDirectoryHint": "Vælg en mappe, før du importerer eller eksporterer færdigheder.",
+      "directoryMissing": "Mappen blev ikke fundet. Vælg en anden mappe.",
+      "chooseDirectory": "Vælg mappe",
+      "changeDirectory": "Skift mappe",
+      "noDirectoryAction": "Vælg en synkroniseringsmappe, før du importerer eller eksporterer færdigheder.",
+      "directoryMissingAction": "Den nuværende synkroniseringsmappe mangler. Vælg en anden mappe for at fortsætte."
     },
     "detail": {
       "failed": "Kunne ikke indlaese skill-detaljer",

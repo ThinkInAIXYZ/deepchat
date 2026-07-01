@@ -2131,7 +2131,25 @@
         "modified": "已修改",
         "conflict": "衝突",
         "invalid": "無效"
-      }
+      },
+      "searchPlaceholder": "搜尋技能",
+      "selectedCount": "已選 {count} 個",
+      "selectVisible": "選取可見項目",
+      "clearSelection": "清除選取",
+      "refresh": "重新整理",
+      "stateFilter": "狀態篩選",
+      "allStates": "所有狀態",
+      "exportConfirmTitle": "確認匯出",
+      "exportConfirmDescription": "將 {count} 個技能匯出到 {directory}",
+      "emptyExportConfirm": "沒有可匯出的技能。",
+      "confirmExport": "確認匯出",
+      "noDirectory": "未設定同步目錄",
+      "chooseDirectoryHint": "匯入或匯出技能前請先選擇資料夾。",
+      "directoryMissing": "找不到目錄。請選擇其他資料夾。",
+      "chooseDirectory": "選擇目錄",
+      "changeDirectory": "更改目錄",
+      "noDirectoryAction": "匯入或匯出技能前請先選擇同步目錄。",
+      "directoryMissingAction": "目前的同步目錄不存在。請選擇其他資料夾以繼續。"
     },
     "detail": {
       "failed": "讀取 skill 詳情失敗",

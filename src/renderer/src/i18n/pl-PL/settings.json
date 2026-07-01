@@ -2328,7 +2328,25 @@
         "modified": "Zmieniony",
         "conflict": "Konflikt",
         "invalid": "Nieprawidłowy"
-      }
+      },
+      "searchPlaceholder": "Szukaj umiejętności",
+      "selectedCount": "Wybrano {count}",
+      "selectVisible": "Wybierz widoczne",
+      "clearSelection": "Wyczyść wybór",
+      "refresh": "Odśwież",
+      "stateFilter": "Filtr stanu",
+      "allStates": "Wszystkie stany",
+      "exportConfirmTitle": "Potwierdź eksport",
+      "exportConfirmDescription": "Wyeksportuj {count} umiejętności do {directory}",
+      "emptyExportConfirm": "Brak umiejętności dostępnych do eksportu.",
+      "confirmExport": "Potwierdź eksport",
+      "noDirectory": "Nie ustawiono katalogu synchronizacji",
+      "chooseDirectoryHint": "Wybierz folder przed importem lub eksportem umiejętności.",
+      "directoryMissing": "Nie znaleziono katalogu. Wybierz inny folder.",
+      "chooseDirectory": "Wybierz katalog",
+      "changeDirectory": "Zmień katalog",
+      "noDirectoryAction": "Wybierz katalog synchronizacji przed importem lub eksportem umiejętności.",
+      "directoryMissingAction": "Bieżący katalog synchronizacji nie istnieje. Wybierz inny folder, aby kontynuować."
     },
     "detail": {
       "failed": "Nie udało się wczytać szczegółów skill",

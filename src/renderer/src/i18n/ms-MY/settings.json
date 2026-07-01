@@ -2328,7 +2328,25 @@
         "modified": "Diubah",
         "conflict": "Konflik",
         "invalid": "Tidak sah"
-      }
+      },
+      "searchPlaceholder": "Cari kemahiran",
+      "selectedCount": "{count} dipilih",
+      "selectVisible": "Pilih yang kelihatan",
+      "clearSelection": "Kosongkan pilihan",
+      "refresh": "Segar semula",
+      "stateFilter": "Penapis keadaan",
+      "allStates": "Semua keadaan",
+      "exportConfirmTitle": "Sahkan eksport",
+      "exportConfirmDescription": "Eksport {count} kemahiran ke {directory}",
+      "emptyExportConfirm": "Tiada kemahiran tersedia untuk dieksport.",
+      "confirmExport": "Sahkan eksport",
+      "noDirectory": "Tiada direktori penyegerakan ditetapkan",
+      "chooseDirectoryHint": "Pilih folder sebelum mengimport atau mengeksport kemahiran.",
+      "directoryMissing": "Direktori tidak ditemui. Pilih folder lain.",
+      "chooseDirectory": "Pilih direktori",
+      "changeDirectory": "Tukar direktori",
+      "noDirectoryAction": "Pilih direktori penyegerakan sebelum mengimport atau mengeksport kemahiran.",
+      "directoryMissingAction": "Direktori penyegerakan semasa tiada. Pilih folder lain untuk meneruskan."
     },
     "detail": {
       "failed": "Gagal memuat butiran skill",

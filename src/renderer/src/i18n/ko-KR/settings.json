@@ -2131,7 +2131,25 @@
         "modified": "수정됨",
         "conflict": "충돌",
         "invalid": "유효하지 않음"
-      }
+      },
+      "searchPlaceholder": "스킬 검색",
+      "selectedCount": "{count}개 선택됨",
+      "selectVisible": "보이는 항목 선택",
+      "clearSelection": "선택 해제",
+      "refresh": "새로 고침",
+      "stateFilter": "상태 필터",
+      "allStates": "모든 상태",
+      "exportConfirmTitle": "내보내기 확인",
+      "exportConfirmDescription": "{count}개 스킬을 {directory}에 내보내기",
+      "emptyExportConfirm": "내보낼 수 있는 스킬이 없습니다.",
+      "confirmExport": "내보내기 확인",
+      "noDirectory": "동기화 디렉터리가 설정되지 않았습니다",
+      "chooseDirectoryHint": "스킬을 가져오거나 내보내기 전에 폴더를 선택하세요.",
+      "directoryMissing": "디렉터리를 찾을 수 없습니다. 다른 폴더를 선택하세요.",
+      "chooseDirectory": "디렉터리 선택",
+      "changeDirectory": "디렉터리 변경",
+      "noDirectoryAction": "스킬을 가져오거나 내보내기 전에 동기화 디렉터리를 선택하세요.",
+      "directoryMissingAction": "현재 동기화 디렉터리가 없습니다. 계속하려면 다른 폴더를 선택하세요."
     },
     "detail": {
       "failed": "skill 세부 정보를 불러오지 못했습니다",

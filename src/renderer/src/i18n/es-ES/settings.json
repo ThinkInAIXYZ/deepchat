@@ -2328,7 +2328,25 @@
         "modified": "Modificada",
         "conflict": "Conflicto",
         "invalid": "No válida"
-      }
+      },
+      "searchPlaceholder": "Buscar habilidades",
+      "selectedCount": "{count} seleccionadas",
+      "selectVisible": "Seleccionar visibles",
+      "clearSelection": "Borrar selección",
+      "refresh": "Actualizar",
+      "stateFilter": "Filtro de estado",
+      "allStates": "Todos los estados",
+      "exportConfirmTitle": "Confirmar exportación",
+      "exportConfirmDescription": "Exportar {count} habilidades a {directory}",
+      "emptyExportConfirm": "No hay habilidades disponibles para exportar.",
+      "confirmExport": "Confirmar exportación",
+      "noDirectory": "No se ha configurado un directorio de sincronización",
+      "chooseDirectoryHint": "Elige una carpeta antes de importar o exportar habilidades.",
+      "directoryMissing": "Directorio no encontrado. Elige otra carpeta.",
+      "chooseDirectory": "Elegir directorio",
+      "changeDirectory": "Cambiar directorio",
+      "noDirectoryAction": "Elige un directorio de sincronización antes de importar o exportar habilidades.",
+      "directoryMissingAction": "El directorio de sincronización actual no existe. Elige otra carpeta para continuar."
     },
     "detail": {
       "failed": "No se pudieron cargar los detalles del skill",

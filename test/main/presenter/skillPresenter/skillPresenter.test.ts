@@ -1908,6 +1908,41 @@ describe('SkillPresenter', () => {
         })
       ])
     })
+
+    it('defaults sync directory import conflicts to overwrite', async () => {
+      const syncDir = '/mock/sync'
+      await skillPresenter.setSkillsSyncDirectory({ skillsDirectory: syncDir })
+      vi.spyOn(skillPresenter, 'previewSyncDirectoryImport').mockResolvedValue({
+        skillsDirectory: syncDir,
+        items: [
+          {
+            name: 'conflict-skill',
+            state: 'conflict',
+            sourcePath: `${syncDir}/skills/conflict-skill`,
+            targetPath: `${DEFAULT_SKILLS_DIR}/conflict-skill`
+          }
+        ]
+      })
+      const installSpy = vi
+        .spyOn(skillPresenter as any, 'installFromDirectory')
+        .mockResolvedValue({ success: true })
+
+      const result = await skillPresenter.executeSyncDirectoryImport({
+        skillNames: ['conflict-skill']
+      })
+
+      expect(result).toMatchObject({ success: true, imported: 1 })
+      expect(installSpy).toHaveBeenCalledWith(
+        `${syncDir}/skills/conflict-skill`,
+        { overwrite: true },
+        'imported',
+        expect.objectContaining({
+          importedFrom: `${syncDir}/skills/conflict-skill`,
+          importedAt: expect.any(String)
+        }),
+        'conflict-skill'
+      )
+    })
   })
 
   describe('installFromZip', () => {

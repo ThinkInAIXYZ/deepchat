@@ -2388,7 +2388,25 @@
         "modified": "已修改",
         "conflict": "冲突",
         "invalid": "无效"
-      }
+      },
+      "searchPlaceholder": "搜索技能",
+      "selectedCount": "已选 {count} 个",
+      "selectVisible": "选择可见项",
+      "clearSelection": "清除选择",
+      "refresh": "刷新",
+      "stateFilter": "状态筛选",
+      "allStates": "所有状态",
+      "exportConfirmTitle": "确认导出",
+      "exportConfirmDescription": "将 {count} 个技能导出到 {directory}",
+      "emptyExportConfirm": "没有可导出的技能。",
+      "confirmExport": "确认导出",
+      "noDirectory": "未设置同步目录",
+      "chooseDirectoryHint": "导入或导出技能前，请先选择文件夹。",
+      "directoryMissing": "目录不存在。请选择其他文件夹。",
+      "chooseDirectory": "选择目录",
+      "changeDirectory": "更改目录",
+      "noDirectoryAction": "导入或导出技能前，请先选择同步目录。",
+      "directoryMissingAction": "当前同步目录不存在。请选择其他文件夹继续。"
     },
     "detail": {
       "failed": "读取 skill 详情失败",

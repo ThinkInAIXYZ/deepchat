@@ -2131,7 +2131,25 @@
         "modified": "変更あり",
         "conflict": "競合",
         "invalid": "無効"
-      }
+      },
+      "searchPlaceholder": "スキルを検索",
+      "selectedCount": "{count} 件選択済み",
+      "selectVisible": "表示中を選択",
+      "clearSelection": "選択を解除",
+      "refresh": "更新",
+      "stateFilter": "状態フィルター",
+      "allStates": "すべての状態",
+      "exportConfirmTitle": "エクスポートの確認",
+      "exportConfirmDescription": "{count} 件のスキルを {directory} にエクスポート",
+      "emptyExportConfirm": "エクスポートできるスキルがありません。",
+      "confirmExport": "エクスポートを確認",
+      "noDirectory": "同期ディレクトリが設定されていません",
+      "chooseDirectoryHint": "スキルをインポートまたはエクスポートする前にフォルダーを選択してください。",
+      "directoryMissing": "ディレクトリが見つかりません。別のフォルダーを選択してください。",
+      "chooseDirectory": "ディレクトリを選択",
+      "changeDirectory": "ディレクトリを変更",
+      "noDirectoryAction": "スキルをインポートまたはエクスポートする前に同期ディレクトリを選択してください。",
+      "directoryMissingAction": "現在の同期ディレクトリが見つかりません。続行するには別のフォルダーを選択してください。"
     },
     "detail": {
       "failed": "skill の詳細を読み込めませんでした",

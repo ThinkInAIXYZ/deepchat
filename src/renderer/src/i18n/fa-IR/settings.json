@@ -2131,7 +2131,25 @@
         "modified": "تغییریافته",
         "conflict": "تداخل",
         "invalid": "نامعتبر"
-      }
+      },
+      "searchPlaceholder": "جست‌وجوی مهارت‌ها",
+      "selectedCount": "{count} انتخاب‌شده",
+      "selectVisible": "انتخاب موارد قابل‌مشاهده",
+      "clearSelection": "پاک کردن انتخاب",
+      "refresh": "بازخوانی",
+      "stateFilter": "فیلتر وضعیت",
+      "allStates": "همه وضعیت‌ها",
+      "exportConfirmTitle": "تأیید خروجی گرفتن",
+      "exportConfirmDescription": "خروجی گرفتن {count} مهارت در {directory}",
+      "emptyExportConfirm": "هیچ مهارتی برای خروجی گرفتن موجود نیست.",
+      "confirmExport": "تأیید خروجی",
+      "noDirectory": "هیچ پوشه همگام‌سازی تنظیم نشده است",
+      "chooseDirectoryHint": "پیش از وارد کردن یا خروجی گرفتن مهارت‌ها، یک پوشه انتخاب کنید.",
+      "directoryMissing": "پوشه پیدا نشد. پوشه دیگری انتخاب کنید.",
+      "chooseDirectory": "انتخاب پوشه",
+      "changeDirectory": "تغییر پوشه",
+      "noDirectoryAction": "پیش از وارد کردن یا خروجی گرفتن مهارت‌ها، یک پوشه همگام‌سازی انتخاب کنید.",
+      "directoryMissingAction": "پوشه همگام‌سازی فعلی وجود ندارد. برای ادامه پوشه دیگری انتخاب کنید."
     },
     "detail": {
       "failed": "بارگیری جزئیات skill ناموفق بود",

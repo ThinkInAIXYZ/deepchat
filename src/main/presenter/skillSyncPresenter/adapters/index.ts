@@ -17,6 +17,7 @@ import { OpenCodeAdapter } from './openCodeAdapter'
 import { GooseAdapter } from './gooseAdapter'
 import { KiloCodeAdapter } from './kiloCodeAdapter'
 import { CopilotUserAdapter } from './copilotUserAdapter'
+import { AgentsAdapter } from './agentsAdapter'
 
 /**
  * Registry of all available format adapters
@@ -38,7 +39,8 @@ function registerBuiltinAdapters(): void {
     new OpenCodeAdapter(),
     new GooseAdapter(),
     new KiloCodeAdapter(),
-    new CopilotUserAdapter()
+    new CopilotUserAdapter(),
+    new AgentsAdapter()
   ]
 
   for (const adapter of builtinAdapters) {
@@ -93,5 +95,6 @@ export {
   OpenCodeAdapter,
   GooseAdapter,
   KiloCodeAdapter,
-  CopilotUserAdapter
+  CopilotUserAdapter,
+  AgentsAdapter
 }

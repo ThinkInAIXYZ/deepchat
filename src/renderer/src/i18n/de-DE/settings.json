@@ -2328,7 +2328,25 @@
         "modified": "Geändert",
         "conflict": "Konflikt",
         "invalid": "Ungültig"
-      }
+      },
+      "searchPlaceholder": "Skills suchen",
+      "selectedCount": "{count} ausgewählt",
+      "selectVisible": "Sichtbare auswählen",
+      "clearSelection": "Auswahl löschen",
+      "refresh": "Aktualisieren",
+      "stateFilter": "Statusfilter",
+      "allStates": "Alle Status",
+      "exportConfirmTitle": "Export bestätigen",
+      "exportConfirmDescription": "{count} Skills nach {directory} exportieren",
+      "emptyExportConfirm": "Keine Skills zum Exportieren verfügbar.",
+      "confirmExport": "Export bestätigen",
+      "noDirectory": "Kein Synchronisierungsverzeichnis festgelegt",
+      "chooseDirectoryHint": "Wählen Sie einen Ordner aus, bevor Sie Skills importieren oder exportieren.",
+      "directoryMissing": "Verzeichnis nicht gefunden. Wählen Sie einen anderen Ordner.",
+      "chooseDirectory": "Verzeichnis wählen",
+      "changeDirectory": "Verzeichnis ändern",
+      "noDirectoryAction": "Wählen Sie ein Synchronisierungsverzeichnis aus, bevor Sie Skills importieren oder exportieren.",
+      "directoryMissingAction": "Das aktuelle Synchronisierungsverzeichnis fehlt. Wählen Sie einen anderen Ordner, um fortzufahren."
     },
     "detail": {
       "failed": "Skill-Details konnten nicht geladen werden",

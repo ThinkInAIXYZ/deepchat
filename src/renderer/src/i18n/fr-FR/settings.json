@@ -2131,7 +2131,25 @@
         "modified": "Modifié",
         "conflict": "Conflit",
         "invalid": "Invalide"
-      }
+      },
+      "searchPlaceholder": "Rechercher des compétences",
+      "selectedCount": "{count} sélectionnée(s)",
+      "selectVisible": "Sélectionner les visibles",
+      "clearSelection": "Effacer la sélection",
+      "refresh": "Actualiser",
+      "stateFilter": "Filtre d’état",
+      "allStates": "Tous les états",
+      "exportConfirmTitle": "Confirmer l’exportation",
+      "exportConfirmDescription": "Exporter {count} compétences vers {directory}",
+      "emptyExportConfirm": "Aucune compétence disponible pour l’exportation.",
+      "confirmExport": "Confirmer l’exportation",
+      "noDirectory": "Aucun répertoire de synchronisation défini",
+      "chooseDirectoryHint": "Choisissez un dossier avant d’importer ou d’exporter des compétences.",
+      "directoryMissing": "Répertoire introuvable. Choisissez un autre dossier.",
+      "chooseDirectory": "Choisir un répertoire",
+      "changeDirectory": "Changer de répertoire",
+      "noDirectoryAction": "Choisissez un répertoire de synchronisation avant d’importer ou d’exporter des compétences.",
+      "directoryMissingAction": "Le répertoire de synchronisation actuel est introuvable. Choisissez un autre dossier pour continuer."
     },
     "detail": {
       "failed": "Echec du chargement des details du skill",
