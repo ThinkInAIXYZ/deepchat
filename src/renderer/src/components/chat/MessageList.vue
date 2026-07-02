@@ -1,6 +1,11 @@
 <template>
   <div data-testid="chat-message-list" class="chat-message-list w-full min-w-0">
     <div class="mx-auto w-full max-w-5xl space-y-1 px-6 py-6">
+      <div
+        v-if="beforeSpacerHeight > 0"
+        aria-hidden="true"
+        :style="{ height: `${beforeSpacerHeight}px` }"
+      />
       <MessageListRow
         v-for="item in allRenderedMessages"
         :key="item.id"
@@ -17,6 +22,11 @@
         @edit-save="onEditSave"
         @copy-image="handleCopyImage"
         @measure="onMeasure"
+      />
+      <div
+        v-if="afterSpacerHeight > 0"
+        aria-hidden="true"
+        :style="{ height: `${afterSpacerHeight}px` }"
       />
 
       <div v-if="ephemeralRateLimitBlock" data-rate-limit-indicator="true" class="pl-11 pr-11 pt-1">
@@ -51,6 +61,9 @@ const props = withDefaults(
     isGenerating?: boolean
     traceMessageIds?: string[]
     isReadOnly?: boolean
+    allMessagesForCapture?: MessageListItem[]
+    beforeSpacerHeight?: number
+    afterSpacerHeight?: number
   }>(),
   {
     conversationId: '',
@@ -58,7 +71,10 @@ const props = withDefaults(
     ephemeralRateLimitMessageId: null,
     isGenerating: false,
     traceMessageIds: () => [],
-    isReadOnly: false
+    isReadOnly: false,
+    allMessagesForCapture: () => [],
+    beforeSpacerHeight: 0,
+    afterSpacerHeight: 0
   }
 )
 
@@ -74,7 +90,9 @@ const emit = defineEmits<{
 
 const traceMessageIdSet = computed(() => new Set(props.traceMessageIds))
 const allRenderedMessages = computed(() => props.messages)
-const displayMessages = computed(() => allRenderedMessages.value)
+const captureSearchMessages = computed(() =>
+  props.allMessagesForCapture.length > 0 ? props.allMessagesForCapture : props.messages
+)
 const { isCapturing, captureMessage } = useMessageCapture()
 
 const onRetry = (messageId: string) => emit('retry', messageId)
@@ -87,7 +105,7 @@ const onEditSave = (payload: { messageId: string; text: string }) => emit('editS
 const onMeasure = (payload: { messageId: string; height: number }) => emit('measure', payload)
 
 const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {
-  const messageItems = displayMessages.value
+  const messageItems = captureSearchMessages.value
   if (parentId) {
     const parentMessage = messageItems.find((msg) => msg.id === parentId)
     if (parentMessage?.role === 'user') return parentId

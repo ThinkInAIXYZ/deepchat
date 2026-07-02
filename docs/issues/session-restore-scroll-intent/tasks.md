@@ -12,5 +12,5 @@
 - [x] Remove row-level `content-visibility` placeholders from manual reading flow.
 - [x] Reserve stable preview space for image blocks.
 - [x] Measure message rows at mount instead of first viewport intersection.
-- [x] Mask message content behind the sticky composer.
+- [x] Restore the transparent sticky composer background after accepting the repaint cost.
 - [x] Mark completed chat markdown final and rely on markstream stable completed layout.

@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   applyChatSearchHighlights,
+  collectChatSearchResults,
   clearChatSearchHighlights,
+  setActiveChatSearchResult,
   setActiveChatSearchMatch
 } from '@/lib/chatSearch'
 
@@ -65,5 +67,52 @@ describe('chatSearch', () => {
     expect(matches).toHaveLength(2)
     expect(matches.map((match) => match.textContent)).toEqual(['hi', 'Hi'])
     expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(2)
+  })
+
+  it('counts message matches from data and activates the matching rendered row only', () => {
+    const results = collectChatSearchResults(
+      [
+        { id: 'm1', content: { text: 'alpha beta alpha' } },
+        {
+          id: 'm2',
+          content: [{ type: 'content', content: 'gamma alpha' }]
+        },
+        {
+          id: 'm3',
+          content: [
+            {
+              type: 'tool_call',
+              tool_call: {
+                name: 'search',
+                params: '{"query":"alpha"}',
+                response: 'tool alpha result'
+              }
+            }
+          ]
+        }
+      ],
+      'alpha'
+    )
+    expect(results).toEqual([
+      { messageId: 'm1', matchIndex: 0 },
+      { messageId: 'm1', matchIndex: 1 },
+      { messageId: 'm2', matchIndex: 0 },
+      { messageId: 'm3', matchIndex: 0 },
+      { messageId: 'm3', matchIndex: 1 }
+    ])
+
+    const container = document.createElement('div')
+    container.innerHTML = `
+      <div data-message-id="m2">
+        <p>gamma alpha</p>
+      </div>
+    `
+    applyChatSearchHighlights(container, 'alpha')
+
+    expect(setActiveChatSearchResult(container, results[0], { scroll: false })).toBeNull()
+    const active = setActiveChatSearchResult(container, results[2], { scroll: false })
+
+    expect(active?.textContent).toBe('alpha')
+    expect(active?.dataset.chatSearchActive).toBe('true')
   })
 })

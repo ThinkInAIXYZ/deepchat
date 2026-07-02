@@ -18,8 +18,8 @@
 - Measure each message row immediately after mount now that row-level `content-visibility` is gone;
   keep ResizeObserver for later real resizes instead of deferring first measurement until viewport
   intersection.
-- Give the sticky composer layer an opaque background so message content no longer scrolls underneath
-  the input blur region.
+- Keep the sticky composer layer transparent so the existing `ChatInputBox` translucent background
+  and backdrop blur remain visible; accept the repaint cost from content behind the input.
 - Mark completed chat markdown as final and rely on markstream's stable completed-layout path so
   first-time scrollback does not resolve an offscreen estimate into real content height under the
   visible message wrapper.

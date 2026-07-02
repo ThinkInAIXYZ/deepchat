@@ -328,6 +328,18 @@ const setup = async (options: SetupOptions = {}) => {
         isReadOnly: {
           type: Boolean,
           default: false
+        },
+        allMessagesForCapture: {
+          type: Array,
+          default: () => []
+        },
+        beforeSpacerHeight: {
+          type: Number,
+          default: 0
+        },
+        afterSpacerHeight: {
+          type: Number,
+          default: 0
         }
       },
       template:
@@ -567,6 +579,29 @@ async function expectSessionRestoreSettleStopsAfter(
 }
 
 describe('ChatPage', () => {
+  it('bounds mounted message rows for long loaded histories', async () => {
+    const messages = Array.from({ length: 300 }, (_, index) => ({
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: `message ${index}`,
+          status: 'success',
+          timestamp: index
+        }
+      ]),
+      id: `m${index}`,
+      orderSeq: index + 1,
+      createdAt: index + 1,
+      updatedAt: index + 1
+    }))
+    const { wrapper } = await setup({ messages })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    expect((messageList.props('messages') as unknown[]).length).toBeLessThanOrEqual(90)
+    expect((messageList.props('allMessagesForCapture') as unknown[]).length).toBe(300)
+    expect(messageList.props('beforeSpacerHeight')).toBeGreaterThan(0)
+  })
+
   it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
     const { wrapper, agentPlanStore } = await setup()
 

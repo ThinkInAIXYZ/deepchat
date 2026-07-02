@@ -1,4 +1,4 @@
-import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
@@ -25,7 +25,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
+import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
@@ -66,6 +66,7 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  debugCreateMockChatSessionRoute,
   memoryAddRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
@@ -4025,6 +4026,28 @@ export async function dispatchDeepchatRoute(
       upgradeClearMockRoute.input.parse(rawInput)
       const updated = runtime.upgradePresenter.clearMockUpdate()
       return upgradeClearMockRoute.output.parse({ updated })
+    }
+
+    case debugCreateMockChatSessionRoute.name: {
+      debugCreateMockChatSessionRoute.input.parse(rawInput)
+      if (!import.meta.env.DEV || app.isPackaged) {
+        return debugCreateMockChatSessionRoute.output.parse({
+          created: false,
+          sessionId: null,
+          title: null,
+          messageCount: 0
+        })
+      }
+
+      const { createDebugMockChatSession } = await import('./debug/createMockChatSession')
+      const result = createDebugMockChatSession(runtime.sqlitePresenter.getDatabase())
+      if (result.sessionId) {
+        publishDeepchatEvent(sessionsUpdatedEvent.name, {
+          sessionIds: [result.sessionId],
+          reason: 'created'
+        })
+      }
+      return debugCreateMockChatSessionRoute.output.parse(result)
     }
 
     case upgradeRestartToUpdateRoute.name: {

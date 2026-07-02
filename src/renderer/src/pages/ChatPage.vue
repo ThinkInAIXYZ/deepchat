@@ -22,7 +22,7 @@
             v-model="chatSearchQuery"
             class="pointer-events-auto"
             :active-match="activeChatSearchIndex"
-            :total-matches="chatSearchMatches.length"
+            :total-matches="chatSearchResults.length"
             @previous="goToPreviousChatSearchMatch"
             @next="goToNextChatSearchMatch"
             @close="closeChatSearch"
@@ -38,7 +38,10 @@
         </div>
         <MessageList
           ref="messageListRef"
-          :messages="displayMessages"
+          :messages="visibleDisplayMessages"
+          :all-messages-for-capture="displayMessages"
+          :before-spacer-height="messageWindowBeforeHeight"
+          :after-spacer-height="messageWindowAfterHeight"
           :conversation-id="props.sessionId"
           :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
           :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
@@ -60,7 +63,7 @@
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
         v-if="!isReadOnlySession"
-        class="chat-capture-hide sticky bottom-0 z-10 w-full bg-background px-6 pb-3 pt-3"
+        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
@@ -232,9 +235,10 @@ import { createSessionClient } from '@api/SessionClient'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import {
   applyChatSearchHighlights,
+  collectChatSearchResults,
   clearChatSearchHighlights,
-  setActiveChatSearchMatch,
-  type ChatSearchMatch
+  setActiveChatSearchResult,
+  type ChatSearchResult
 } from '@/lib/chatSearch'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { WORKSPACE_EVENTS } from '@/events'
@@ -276,6 +280,9 @@ const isGenerating = computed(
 )
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 40
+const MESSAGE_WINDOWING_THRESHOLD = 160
+const MESSAGE_INITIAL_WINDOW_COUNT = 90
+const MESSAGE_WINDOW_OVERSCAN_PX = 2400
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -348,6 +355,8 @@ let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
 const shouldAutoFollow = ref(true)
+const scrollViewportTop = ref(0)
+const scrollViewportHeight = ref(0)
 type ScrollMode = 'initial-bottom' | 'auto-follow' | 'anchored-reading' | 'manual-jump'
 const scrollMode = ref<ScrollMode>('initial-bottom')
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -385,7 +394,6 @@ const displayMessageCache = new Map<
 const traceMessageId = ref<string | null>(null)
 const isChatSearchOpen = ref(false)
 const chatSearchQuery = ref('')
-const chatSearchMatches = ref<ChatSearchMatch[]>([])
 const activeChatSearchIndex = ref(0)
 const chatSearchBarRef = ref<{
   focusInput: () => void
@@ -603,6 +611,17 @@ function isAtBottom(): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
 }
 
+function syncMessageViewportMetrics(el: HTMLElement | null | undefined = scrollContainer.value) {
+  if (!el) {
+    scrollViewportTop.value = 0
+    scrollViewportHeight.value = 0
+    return
+  }
+
+  scrollViewportTop.value = el.scrollTop
+  scrollViewportHeight.value = el.clientHeight
+}
+
 function scrollDomToBottom(): void {
   const el = scrollContainer.value
   if (!el) return
@@ -610,6 +629,7 @@ function scrollDomToBottom(): void {
   // the anchor sits before the sticky input area in flow, so scrollIntoView stops
   // short by the input's height and never reaches the true bottom during generation.
   el.scrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  syncMessageViewportMetrics(el)
 }
 
 function scrollToBottom(force = false) {
@@ -749,6 +769,7 @@ function scheduleScrollMetricsRead(fromUserScroll = false) {
     pendingUserScrollMetrics = false
     const el = scrollContainer.value
     if (!el) return
+    syncMessageViewportMetrics(el)
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
@@ -791,6 +812,7 @@ function onWheel(event: WheelEvent) {
 function onScroll() {
   const el = scrollContainer.value
   if (!el) return
+  syncMessageViewportMetrics(el)
 
   const isNearBottomNow = isAtBottom()
   if (
@@ -839,6 +861,7 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   await nextTick()
   const nextScrollHeight = el.scrollHeight
   el.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight)
+  syncMessageViewportMetrics(el)
 }
 
 async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
@@ -858,6 +881,7 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
     if (entry && container) {
       scrollMode.value = 'manual-jump'
       container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
+      syncMessageViewportMetrics(container)
       await nextTick()
       target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
     }
@@ -1195,6 +1219,85 @@ const messageWindow = useMessageWindow({
   messages: displayMessages
 })
 
+const findFirstEntryWithBottomAtOrAfter = (
+  entries: Array<{ bottom: number }>,
+  target: number
+): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].bottom >= target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
+const findFirstEntryWithTopAfter = (entries: Array<{ top: number }>, target: number): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].top > target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
+const messageWindowRange = computed(() => {
+  const entries = messageWindow.entries.value
+  const total = entries.length
+  if (total === 0) {
+    return { start: 0, end: 0, before: 0, after: 0 }
+  }
+
+  if (total <= MESSAGE_WINDOWING_THRESHOLD) {
+    return { start: 0, end: total, before: 0, after: 0 }
+  }
+
+  const viewportHeight = scrollViewportHeight.value
+  if (viewportHeight <= 0) {
+    const start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
+    return {
+      start,
+      end: total,
+      before: entries[start]?.top ?? 0,
+      after: 0
+    }
+  }
+
+  const viewportTop = scrollViewportTop.value
+  const windowTop = Math.max(0, viewportTop - MESSAGE_WINDOW_OVERSCAN_PX)
+  const windowBottom = viewportTop + viewportHeight + MESSAGE_WINDOW_OVERSCAN_PX
+  let start = findFirstEntryWithBottomAtOrAfter(entries, windowTop)
+  if (start >= total) start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
+
+  let end = findFirstEntryWithTopAfter(entries, windowBottom)
+  end = Math.min(total, Math.max(end, start + 1))
+
+  return {
+    start,
+    end,
+    before: entries[start]?.top ?? 0,
+    after: Math.max((messageWindow.totalHeight.value ?? 0) - (entries[end - 1]?.bottom ?? 0), 0)
+  }
+})
+
+const visibleDisplayMessages = computed(() =>
+  displayMessages.value.slice(messageWindowRange.value.start, messageWindowRange.value.end)
+)
+const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
+const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
+const chatSearchResults = computed(() =>
+  collectChatSearchResults(displayMessages.value, chatSearchQuery.value)
+)
+
 function onMessageMeasure(payload: { messageId: string; height: number }) {
   // Snapshot the reading anchor from pre-change geometry: capturing after
   // setMeasuredHeight resizes the row would compare against post-layout DOM and
@@ -1272,16 +1375,43 @@ async function refreshChatSearchHighlights() {
   }
 
   const root = messageSearchRoot.value
-  chatSearchMatches.value = applyChatSearchHighlights(root, chatSearchQuery.value)
+  applyChatSearchHighlights(root, chatSearchQuery.value)
 
-  if (chatSearchMatches.value.length === 0) {
+  if (chatSearchResults.value.length === 0) {
     activeChatSearchIndex.value = 0
     return
   }
 
-  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchMatches.value.length - 1)
+  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchResults.value.length - 1)
   activeChatSearchIndex.value = nextIndex
-  setActiveChatSearchMatch(chatSearchMatches.value, nextIndex, { behavior: 'auto' })
+  await revealChatSearchResult(chatSearchResults.value[nextIndex], 'auto')
+}
+
+async function revealChatSearchResult(
+  result: ChatSearchResult | undefined,
+  behavior: ScrollBehavior = 'smooth'
+) {
+  if (!result) return
+
+  await nextTick()
+  const root = messageSearchRoot.value
+  if (setActiveChatSearchResult(root, result, { behavior })) {
+    return
+  }
+
+  const entry = messageWindow.getEntry(result.messageId)
+  const container = scrollContainer.value
+  if (!entry || !container) {
+    return
+  }
+
+  scrollMode.value = 'manual-jump'
+  markProgrammaticScroll()
+  container.scrollTop = Math.max(entry.top - Math.round(container.clientHeight / 3), 0)
+  syncMessageViewportMetrics(container)
+  await nextTick()
+  applyChatSearchHighlights(root, chatSearchQuery.value)
+  setActiveChatSearchResult(root, result, { behavior })
 }
 
 function cancelScheduledChatSearchRefresh() {
@@ -1313,7 +1443,6 @@ function focusChatSearchInput() {
 function clearChatSearchState() {
   cancelScheduledChatSearchRefresh()
   clearChatSearchHighlights(messageSearchRoot.value)
-  chatSearchMatches.value = []
   chatSearchQuery.value = ''
   activeChatSearchIndex.value = 0
   isChatSearchOpen.value = false
@@ -1330,17 +1459,17 @@ function closeChatSearch() {
 }
 
 function activateChatSearchMatch(index: number, behavior: ScrollBehavior = 'smooth') {
-  if (chatSearchMatches.value.length === 0) {
+  if (chatSearchResults.value.length === 0) {
     activeChatSearchIndex.value = 0
     return
   }
 
   const normalizedIndex =
-    ((index % chatSearchMatches.value.length) + chatSearchMatches.value.length) %
-    chatSearchMatches.value.length
+    ((index % chatSearchResults.value.length) + chatSearchResults.value.length) %
+    chatSearchResults.value.length
 
   activeChatSearchIndex.value = normalizedIndex
-  setActiveChatSearchMatch(chatSearchMatches.value, normalizedIndex, { behavior })
+  void revealChatSearchResult(chatSearchResults.value[normalizedIndex], behavior)
 }
 
 function goToNextChatSearchMatch() {
@@ -1394,7 +1523,7 @@ watch(chatSearchQuery, () => {
 })
 
 watch(
-  displayMessages,
+  [visibleDisplayMessages, chatSearchResults],
   () => {
     if (!isChatSearchOpen.value) {
       return
@@ -2081,6 +2210,7 @@ onMounted(() => {
   // 初始化滚动状态
   const el = scrollContainer.value
   if (el) {
+    syncMessageViewportMetrics(el)
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottom.value = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD
   }
