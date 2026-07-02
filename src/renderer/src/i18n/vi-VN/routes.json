@@ -21,7 +21,7 @@
   "settings-remote": "Từ xa",
   "settings-plugins": "Plugin",
   "settings-overview": "Tổng quan về cài đặt",
-  "settings-scheduled-tasks": "Tác vụ đã lên lịch",
+  "settings-scheduled-tasks": "Cron Jobs",
   "settings-memory": "Bộ nhớ",
   "plugins": "Plugins"
 }

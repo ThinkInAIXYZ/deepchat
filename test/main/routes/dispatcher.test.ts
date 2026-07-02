@@ -1155,6 +1155,50 @@ function createRuntime() {
       settings: { enabled: false, tasks: [{ id }] }
     }))
   }
+  const cronJob = {
+    id: 'cron-1',
+    name: 'Cron smoke',
+    enabled: true,
+    cronExpr: '0 9 * * *',
+    timezone: 'UTC',
+    agentId: null,
+    nextRunAt: null,
+    createdAt: 1,
+    updatedAt: 2
+  }
+  const cronRun = {
+    id: 'run-1',
+    jobId: 'cron-1',
+    scheduledAt: 3,
+    queuedAt: 3,
+    startedAt: 4,
+    completedAt: 5,
+    status: 'completed' as const,
+    reason: 'manual' as const,
+    error: null,
+    createdAt: 3,
+    updatedAt: 5
+  }
+  const cronStatus = {
+    state: 'idle' as const,
+    pid: null,
+    enabledJobCount: 1,
+    nextRunAt: null,
+    lastHeartbeatAt: null,
+    lastError: null,
+    restartAttempts: 0,
+    updatedAt: 6
+  }
+  const cronJobs = {
+    list: vi.fn(async () => ({ jobs: [cronJob], schedulerStatus: cronStatus })),
+    upsert: vi.fn(async () => ({ job: cronJob, schedulerStatus: cronStatus })),
+    delete: vi.fn(async () => cronStatus),
+    toggle: vi.fn(async () => ({ job: cronJob, schedulerStatus: cronStatus })),
+    runNow: vi.fn(async () => ({ job: cronJob, run: cronRun, schedulerStatus: cronStatus })),
+    getSchedulerStatus: vi.fn(() => cronStatus),
+    reconcileScheduler: vi.fn(async () => cronStatus),
+    restartScheduler: vi.fn(async () => cronStatus)
+  }
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
@@ -1180,7 +1224,8 @@ function createRuntime() {
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
-      scheduledTasks
+      scheduledTasks,
+      cronJobs
     }),
     configPresenter,
     llmProviderPresenter,
@@ -1200,11 +1245,115 @@ function createRuntime() {
     knowledgePresenter,
     workspacePresenter,
     yoBrowserPresenter,
-    tabPresenter
+    tabPresenter,
+    cronJobs
   }
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('dispatches Cron Jobs routes through the runtime service', async () => {
+    const { runtime, cronJobs } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const listResult = await dispatchDeepchatRoute(runtime, 'cronJobs.list', {}, context)
+    const upsertResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.upsert',
+      {
+        name: 'Cron smoke',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: null,
+        nextRunAt: null
+      },
+      context
+    )
+    const toggleResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.toggle',
+      {
+        id: 'cron-1',
+        enabled: false
+      },
+      context
+    )
+    const runNowResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.runNow',
+      {
+        id: 'cron-1'
+      },
+      context
+    )
+    const statusResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.getSchedulerStatus',
+      {},
+      context
+    )
+    const reconcileResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.reconcileScheduler',
+      {
+        reason: 'test'
+      },
+      context
+    )
+    const restartResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.restartScheduler',
+      {},
+      context
+    )
+    const deleteResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.delete',
+      {
+        id: 'cron-1'
+      },
+      context
+    )
+
+    expect(listResult).toEqual({
+      jobs: [expect.objectContaining({ id: 'cron-1' })],
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(upsertResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(toggleResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(runNowResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      run: expect.objectContaining({ id: 'run-1', status: 'completed' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(statusResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(reconcileResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(restartResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(deleteResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(cronJobs.toggle).toHaveBeenCalledWith('cron-1', false)
+    expect(cronJobs.runNow).toHaveBeenCalledWith('cron-1')
+    expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
+    expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
+    expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')
+  })
+
   it('ensures the built-in chat workspace before startup bootstrap returns', async () => {
     const { runtime, settings, projectPresenter } = createRuntime()
     vi.mocked(projectPresenter.ensureDefaultWorkspace).mockImplementation(async () => {

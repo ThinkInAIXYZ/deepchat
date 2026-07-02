@@ -28,6 +28,8 @@ import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -254,6 +256,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'settings_activity',
     createTable: (db) => new SettingsActivityTable(db)
+  },
+  {
+    name: 'cron_jobs',
+    createTable: (db) => new CronJobsTable(db)
+  },
+  {
+    name: 'cron_job_runs',
+    createTable: (db) => new CronJobRunsTable(db)
   }
 ]
 

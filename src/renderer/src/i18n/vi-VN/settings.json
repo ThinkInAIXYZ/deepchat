@@ -2764,6 +2764,39 @@
       "databaseRepaired": "Sửa chữa cơ sở dữ liệu đã hoàn tất: {status}"
     }
   },
+  "cronJobs": {
+    "title": "Cron Jobs",
+    "description": "Manage persisted Cron Jobs and the scheduler process.",
+    "empty": "No Cron Jobs yet.",
+    "none": "None",
+    "nextRunAt": "Next run",
+    "defaults": {
+      "name": "Morning cron job"
+    },
+    "actions": {
+      "newJob": "New job",
+      "runNow": "Run now",
+      "clearNextRun": "Clear next run",
+      "reconcile": "Reconcile",
+      "restart": "Restart"
+    },
+    "fields": {
+      "name": "Name",
+      "cronExpr": "Cron expression",
+      "timezone": "Timezone"
+    },
+    "status": {
+      "state": "State",
+      "enabled": "Enabled jobs",
+      "heartbeat": "Heartbeat",
+      "stopped": "Stopped",
+      "starting": "Starting",
+      "running": "Running",
+      "idle": "Idle",
+      "error": "Error"
+    },
+    "runNowSuccess": "Cron job run completed"
+  },
   "scheduledTasks": {
     "title": "Tác vụ đã lên lịch",
     "description": "Kích hoạt thông báo hệ thống hoặc gửi prompt đặt sẵn cho tác nhân vào thời điểm đã chọn.",

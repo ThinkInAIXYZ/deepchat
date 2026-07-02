@@ -15,7 +15,7 @@
   "settings-acp": "Agent ACP",
   "settings-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
-  "settings-scheduled-tasks": "Tâches planifiées",
+  "settings-scheduled-tasks": "Cron Jobs",
   "settings-dashboard": "Tableau de bord",
   "settings-environments": "Environnements",
   "settings-remote": "Accès distant",

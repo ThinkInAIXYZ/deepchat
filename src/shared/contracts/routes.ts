@@ -265,6 +265,16 @@ import {
   scheduledTasksUpsertRoute
 } from './routes/scheduledTasks.routes'
 import {
+  cronJobsDeleteRoute,
+  cronJobsGetSchedulerStatusRoute,
+  cronJobsListRoute,
+  cronJobsReconcileSchedulerRoute,
+  cronJobsRestartSchedulerRoute,
+  cronJobsRunNowRoute,
+  cronJobsToggleRoute,
+  cronJobsUpsertRoute
+} from './routes/cronJobs.routes'
+import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetEmbeddingDimensionsRoute,
@@ -504,6 +514,7 @@ export * from './routes/providers.routes'
 export * from './routes/project.routes'
 export * from './routes/remote-control.routes'
 export * from './routes/scheduledTasks.routes'
+export * from './routes/cronJobs.routes'
 export * from './routes/settings.routes'
 export * from './routes/shortcut.routes'
 export * from './routes/startup.routes'
@@ -599,6 +610,14 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [scheduledTasksDeleteRoute.name]: scheduledTasksDeleteRoute,
   [scheduledTasksToggleRoute.name]: scheduledTasksToggleRoute,
   [scheduledTasksFireNowRoute.name]: scheduledTasksFireNowRoute,
+  [cronJobsListRoute.name]: cronJobsListRoute,
+  [cronJobsUpsertRoute.name]: cronJobsUpsertRoute,
+  [cronJobsDeleteRoute.name]: cronJobsDeleteRoute,
+  [cronJobsToggleRoute.name]: cronJobsToggleRoute,
+  [cronJobsRunNowRoute.name]: cronJobsRunNowRoute,
+  [cronJobsGetSchedulerStatusRoute.name]: cronJobsGetSchedulerStatusRoute,
+  [cronJobsReconcileSchedulerRoute.name]: cronJobsReconcileSchedulerRoute,
+  [cronJobsRestartSchedulerRoute.name]: cronJobsRestartSchedulerRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

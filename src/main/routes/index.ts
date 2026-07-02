@@ -61,6 +61,14 @@ import {
   configSetSystemPromptsRoute,
   configUpdateCustomPromptRoute,
   configUpdateSystemPromptRoute,
+  cronJobsDeleteRoute,
+  cronJobsGetSchedulerStatusRoute,
+  cronJobsListRoute,
+  cronJobsReconcileSchedulerRoute,
+  cronJobsRestartSchedulerRoute,
+  cronJobsRunNowRoute,
+  cronJobsToggleRoute,
+  cronJobsUpsertRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
@@ -400,6 +408,7 @@ import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/age
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
+import type { CronJobsService } from '@/presenter/cronJobs'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
 import {
   scheduledTasksDeleteRoute,
@@ -447,6 +456,7 @@ export type MainKernelRouteRuntime = {
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   scheduledTasks: ScheduledTasksService
+  cronJobs: CronJobsService
 }
 
 function parseSourceEntryIds(raw: string | null): number[] | null {
@@ -707,6 +717,7 @@ export function createMainKernelRouteRuntime(deps: {
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   scheduledTasks: ScheduledTasksService
+  cronJobs: CronJobsService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -812,7 +823,8 @@ export function createMainKernelRouteRuntime(deps: {
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryPresenter: deps.memoryPresenter,
-    scheduledTasks: deps.scheduledTasks
+    scheduledTasks: deps.scheduledTasks,
+    cronJobs: deps.cronJobs
   }
 }
 
@@ -2595,6 +2607,54 @@ export async function dispatchDeepchatRoute(
       const input = scheduledTasksFireNowRoute.input.parse(rawInput)
       const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
       return scheduledTasksFireNowRoute.output.parse({ task, settings })
+    }
+
+    case cronJobsListRoute.name: {
+      cronJobsListRoute.input.parse(rawInput)
+      const { jobs, schedulerStatus } = await runtime.cronJobs.list()
+      return cronJobsListRoute.output.parse({ jobs, schedulerStatus })
+    }
+
+    case cronJobsUpsertRoute.name: {
+      const input = cronJobsUpsertRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.upsert(input)
+      return cronJobsUpsertRoute.output.parse({ job, schedulerStatus })
+    }
+
+    case cronJobsDeleteRoute.name: {
+      const input = cronJobsDeleteRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.delete(input.id)
+      return cronJobsDeleteRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsToggleRoute.name: {
+      const input = cronJobsToggleRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.toggle(input.id, input.enabled)
+      return cronJobsToggleRoute.output.parse({ job, schedulerStatus })
+    }
+
+    case cronJobsRunNowRoute.name: {
+      const input = cronJobsRunNowRoute.input.parse(rawInput)
+      const { job, run, schedulerStatus } = await runtime.cronJobs.runNow(input.id)
+      return cronJobsRunNowRoute.output.parse({ job, run, schedulerStatus })
+    }
+
+    case cronJobsGetSchedulerStatusRoute.name: {
+      cronJobsGetSchedulerStatusRoute.input.parse(rawInput)
+      const schedulerStatus = runtime.cronJobs.getSchedulerStatus()
+      return cronJobsGetSchedulerStatusRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsReconcileSchedulerRoute.name: {
+      const input = cronJobsReconcileSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.reconcileScheduler(input.reason)
+      return cronJobsReconcileSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsRestartSchedulerRoute.name: {
+      cronJobsRestartSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.restartScheduler()
+      return cronJobsRestartSchedulerRoute.output.parse({ schedulerStatus })
     }
 
     case startupGetBootstrapRoute.name: {

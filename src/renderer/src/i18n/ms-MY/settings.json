@@ -2764,6 +2764,39 @@
       "databaseRepaired": "Pembaikan pangkalan data selesai: {status}"
     }
   },
+  "cronJobs": {
+    "title": "Cron Jobs",
+    "description": "Manage persisted Cron Jobs and the scheduler process.",
+    "empty": "No Cron Jobs yet.",
+    "none": "None",
+    "nextRunAt": "Next run",
+    "defaults": {
+      "name": "Morning cron job"
+    },
+    "actions": {
+      "newJob": "New job",
+      "runNow": "Run now",
+      "clearNextRun": "Clear next run",
+      "reconcile": "Reconcile",
+      "restart": "Restart"
+    },
+    "fields": {
+      "name": "Name",
+      "cronExpr": "Cron expression",
+      "timezone": "Timezone"
+    },
+    "status": {
+      "state": "State",
+      "enabled": "Enabled jobs",
+      "heartbeat": "Heartbeat",
+      "stopped": "Stopped",
+      "starting": "Starting",
+      "running": "Running",
+      "idle": "Idle",
+      "error": "Error"
+    },
+    "runNowSuccess": "Cron job run completed"
+  },
   "scheduledTasks": {
     "title": "Tugasan Berjadual",
     "description": "Cetuskkan pemberitahuan sistem atau hantar prompt pratetap kepada ejen pada masa yang dipilih.",

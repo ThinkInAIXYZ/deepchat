@@ -42,6 +42,8 @@ import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
 import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
@@ -246,6 +248,8 @@ export class SQLitePresenter implements ISQLitePresenter {
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
   public settingsActivityTable!: SettingsActivityTable
+  public cronJobsTable!: CronJobsTable
+  public cronJobRunsTable!: CronJobRunsTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -434,6 +438,8 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
     this.settingsActivityTable = new SettingsActivityTable(this.db)
+    this.cronJobsTable = new CronJobsTable(this.db)
+    this.cronJobRunsTable = new CronJobRunsTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -463,6 +469,8 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
     this.settingsActivityTable.createTable()
+    this.cronJobsTable.createTable()
+    this.cronJobRunsTable.createTable()
   }
 
   private initVersionTable() {
@@ -507,7 +515,9 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,
-      this.settingsActivityTable
+      this.settingsActivityTable,
+      this.cronJobsTable,
+      this.cronJobRunsTable
     ]
   }
 
