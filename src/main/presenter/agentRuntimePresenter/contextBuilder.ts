@@ -37,6 +37,12 @@ type TokenizedTurn = {
   tokens: number
 }
 
+type UserMessageContentBuildOptions = {
+  includeFileContent?: boolean
+  includeImageData?: boolean
+  includeAudioData?: boolean
+}
+
 export type HistoryTurn = {
   records: ChatMessageRecord[]
   messages: ChatMessage[]
@@ -208,28 +214,44 @@ export function isContextHistoryRecord(record: ChatMessageRecord): boolean {
   return record.role === 'assistant' && record.status === 'error'
 }
 
-function buildNonImageFileContext(files: MessageFile[], excludeAudio: boolean = false): string {
+function buildNonImageFileContext(
+  files: MessageFile[],
+  options: {
+    excludeAudio?: boolean
+    includeFileContent?: boolean
+  } = {}
+): string {
   const nonImageFiles = files.filter(
-    (file) => !isImageFile(file) && (!excludeAudio || !isAudioFile(file))
+    (file) => !isImageFile(file) && (!options.excludeAudio || !isAudioFile(file))
   )
   if (nonImageFiles.length === 0) {
     return ''
   }
 
   const blocks = nonImageFiles.map((file, index) => {
+    const isAudio = isAudioFile(file)
     const fileName = typeof file.name === 'string' ? file.name : `file-${index + 1}`
     const filePath = typeof file.path === 'string' ? file.path : ''
     const mimeType = resolveFileMimeType(file)
     const fileContent = typeof file.content === 'string' ? file.content : ''
+    const shouldIncludeContent =
+      options.includeFileContent === true ||
+      (isAudio && !fileContent.trim().toLowerCase().startsWith('data:audio/'))
+    const byteSize = resolveFileByteSize(file)
     const metadataLines = [
       `name: ${fileName}`,
       filePath ? `path: ${filePath}` : '',
-      mimeType ? `mime: ${mimeType}` : ''
+      mimeType ? `mime: ${mimeType}` : '',
+      byteSize ? `size: ${byteSize}` : ''
     ]
       .filter(Boolean)
       .join('\n')
     if (!fileContent.trim()) {
-      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: [empty]`
+      const placeholder = filePath ? '[omitted; use read if needed]' : '[empty]'
+      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: ${placeholder}`
+    }
+    if (!shouldIncludeContent) {
+      return `[Attached File ${index + 1}]\n${metadataLines}\ncontent: [omitted; use read if needed]`
     }
     return `[Attached File ${index + 1}]\n${metadataLines}\ncontent:\n${fileContent}`
   })
@@ -383,10 +405,13 @@ function buildImageMetadataContext(files: MessageFile[]): string {
 export function buildUserMessageContent(
   input: SendMessageInput,
   supportsVision: boolean,
-  supportsAudioInput: boolean = false
+  supportsAudioInput: boolean = false,
+  options: UserMessageContentBuildOptions = {}
 ): ChatMessage['content'] {
   const text = input.text ?? ''
   const files = Array.isArray(input.files) ? input.files : []
+  const includeImageData = options.includeImageData !== false
+  const includeAudioData = options.includeAudioData !== false
 
   const imageFiles = files.filter((file) => isImageFile(file))
   const audioFiles = files.filter((file) => isAudioFile(file))
@@ -398,37 +423,44 @@ export function buildUserMessageContent(
       filename?: string
       estimated_tokens?: number
     }
-  }> = supportsAudioInput
-    ? audioFiles.flatMap((file) => {
-        const payload = resolveAudioAttachmentPayload(file)
-        if (!payload) {
-          return []
-        }
-
-        return [
-          {
-            type: 'input_audio' as const,
-            input_audio: {
-              data: payload.data,
-              media_type: payload.mediaType,
-              ...(typeof file.name === 'string' && file.name.trim() ? { filename: file.name } : {}),
-              estimated_tokens: estimateAudioInputTokens(file, payload.byteLength)
-            }
+  }> =
+    supportsAudioInput && includeAudioData
+      ? audioFiles.flatMap((file) => {
+          const payload = resolveAudioAttachmentPayload(file)
+          if (!payload) {
+            return []
           }
-        ]
-      })
-    : []
+
+          return [
+            {
+              type: 'input_audio' as const,
+              input_audio: {
+                data: payload.data,
+                media_type: payload.mediaType,
+                ...(typeof file.name === 'string' && file.name.trim()
+                  ? { filename: file.name }
+                  : {}),
+                estimated_tokens: estimateAudioInputTokens(file, payload.byteLength)
+              }
+            }
+          ]
+        })
+      : []
 
   const excludeAudioFromFallback = supportsAudioInput && audioParts.length > 0
-  const nonImageContext = buildNonImageFileContext(files, excludeAudioFromFallback)
+  const nonImageContext = buildNonImageFileContext(files, {
+    excludeAudio: excludeAudioFromFallback,
+    includeFileContent: options.includeFileContent === true
+  })
   const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
-  const baseText = [text, nonImageContext, audioMetadata]
+  const shouldBuildImageParts = supportsVision && includeImageData && imageFiles.length > 0
+  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imageFiles)
+  const baseText = [text, nonImageContext, audioMetadata, imageMetadata]
     .filter((value) => value.trim())
     .join('\n\n')
 
   if ((!supportsVision || imageFiles.length === 0) && audioParts.length === 0) {
-    const imageMetadata = buildImageMetadataContext(imageFiles)
-    return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
+    return baseText
   }
 
   const parts: Array<
@@ -450,7 +482,7 @@ export function buildUserMessageContent(
     image_url: { url: string; detail?: 'auto' | 'low' | 'high' }
   }> = []
 
-  if (supportsVision) {
+  if (supportsVision && includeImageData) {
     for (const file of imageFiles) {
       const primaryData = typeof file.content === 'string' ? file.content : ''
       const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
@@ -466,12 +498,18 @@ export function buildUserMessageContent(
   }
 
   const hasStructuredParts = imageParts.length > 0 || audioParts.length > 0
+  const structuredText = [
+    baseText,
+    shouldBuildImageParts && imageParts.length === 0 ? buildImageMetadataContext(imageFiles) : ''
+  ]
+    .filter((value) => value.trim())
+    .join('\n\n')
   if (!hasStructuredParts) {
-    const imageMetadata = buildImageMetadataContext(imageFiles)
-    return [baseText, imageMetadata].filter((value) => value.trim()).join('\n\n')
+    return structuredText
   }
 
-  const textPart = baseText || buildStructuredAttachmentText(imageParts.length, audioParts.length)
+  const textPart =
+    structuredText || buildStructuredAttachmentText(imageParts.length, audioParts.length)
   parts.push({ type: 'text', text: textPart })
   parts.push(...imageParts, ...audioParts)
 
@@ -486,7 +524,11 @@ export function createUserChatMessage(
   const normalizedInput = normalizeUserInput(input)
   return {
     role: 'user',
-    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput)
+    content: buildUserMessageContent(normalizedInput, supportsVision, supportsAudioInput, {
+      includeImageData: true,
+      includeAudioData: true,
+      includeFileContent: false
+    })
   }
 }
 
@@ -639,7 +681,11 @@ export function recordToChatMessages(
     const parsed = parseUserRecordContent(record.content)
     const message: ChatMessage = {
       role: 'user',
-      content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput)
+      content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput, {
+        includeImageData: false,
+        includeAudioData: true,
+        includeFileContent: false
+      })
     }
     return hasPromptMessageContent(message) ? [message] : []
   }

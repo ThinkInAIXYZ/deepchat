@@ -209,7 +209,7 @@ describe('CompactionService', () => {
     vi.clearAllMocks()
   })
 
-  it('preserves file bodies and image metadata in user summary blocks', async () => {
+  it('preserves attachment metadata without replaying file bodies in user summary blocks', async () => {
     const { service, messageStore } = createService()
 
     messageStore.getMessages.mockReturnValue([
@@ -247,7 +247,10 @@ describe('CompactionService', () => {
     })
 
     expect(intent).not.toBeNull()
-    expect(intent?.summaryBlocks[0]).toContain('Detailed file body')
+    expect(intent?.summaryBlocks[0]).toContain('[Attached File 1]')
+    expect(intent?.summaryBlocks[0]).toContain('path: /tmp/spec.md')
+    expect(intent?.summaryBlocks[0]).toContain('content: [omitted; use read if needed]')
+    expect(intent?.summaryBlocks[0]).not.toContain('Detailed file body')
     expect(intent?.summaryBlocks[0]).toContain('[Attached Image 1]')
     expect(intent?.summaryBlocks[0]).not.toContain('data:image/png')
   })

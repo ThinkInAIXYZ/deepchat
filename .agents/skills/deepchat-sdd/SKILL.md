@@ -42,6 +42,8 @@ Resolve every `[NEEDS CLARIFICATION]` marker before implementation. If a request
 5. Implement the change after the SDD artifacts are complete.
 6. Update `tasks.md` as work lands.
 7. Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` before handoff.
+8. After implementation is accepted and validation passes, delete `plan.md` and `tasks.md` for
+   that goal; keep `spec.md` as the durable contract.
 
 ## Documentation Hygiene
 
