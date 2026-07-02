@@ -24,8 +24,8 @@ Respect scroll-only user intent during the bounded session restore bottom-settli
 - Image blocks must reserve stable inline preview space before image decode/load completes.
 - Message row height measurement must run after message load/render, not wait until the row approaches
   the viewport during manual scrolling.
-- The sticky composer must mask scrolled message content behind it so translucent input chrome does
-  not continuously resample and repaint moving message text.
+- The sticky composer keeps the chat input translucent; repaint from content behind the input is an
+  accepted trade-off.
 - Completed chat markdown must be marked final so markstream can use its stable completed-layout path
   while the user is manually reading historical messages.
 - Streaming auto-follow and explicit send-to-bottom behavior stay unchanged.

@@ -60,7 +60,7 @@
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
         v-if="!isReadOnlySession"
-        class="chat-capture-hide sticky bottom-0 z-10 w-full bg-background px-6 pb-3 pt-3"
+        class="chat-capture-hide sticky bottom-0 z-10 w-full px-6 pb-3 pt-3"
       >
         <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
           <div class="relative w-full">
