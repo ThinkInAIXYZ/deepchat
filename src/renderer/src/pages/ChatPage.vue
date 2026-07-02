@@ -1219,6 +1219,37 @@ const messageWindow = useMessageWindow({
   messages: displayMessages
 })
 
+const findFirstEntryWithBottomAtOrAfter = (
+  entries: Array<{ bottom: number }>,
+  target: number
+): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].bottom >= target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
+const findFirstEntryWithTopAfter = (entries: Array<{ top: number }>, target: number): number => {
+  let low = 0
+  let high = entries.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (entries[middle].top > target) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+  return low
+}
+
 const messageWindowRange = computed(() => {
   const entries = messageWindow.entries.value
   const total = entries.length
@@ -1244,13 +1275,10 @@ const messageWindowRange = computed(() => {
   const viewportTop = scrollViewportTop.value
   const windowTop = Math.max(0, viewportTop - MESSAGE_WINDOW_OVERSCAN_PX)
   const windowBottom = viewportTop + viewportHeight + MESSAGE_WINDOW_OVERSCAN_PX
-  let start = entries.findIndex((entry) => entry.bottom >= windowTop)
-  if (start === -1) start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
+  let start = findFirstEntryWithBottomAtOrAfter(entries, windowTop)
+  if (start >= total) start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
 
-  let end = start
-  while (end < total && entries[end].top <= windowBottom) {
-    end += 1
-  }
+  let end = findFirstEntryWithTopAfter(entries, windowBottom)
   end = Math.min(total, Math.max(end, start + 1))
 
   return {

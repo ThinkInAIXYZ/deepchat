@@ -82,7 +82,11 @@ describe('chatSearch', () => {
           content: [
             {
               type: 'tool_call',
-              tool_call: { name: 'search', response: 'tool alpha result' }
+              tool_call: {
+                name: 'search',
+                params: '{"query":"alpha"}',
+                response: 'tool alpha result'
+              }
             }
           ]
         }
@@ -93,7 +97,8 @@ describe('chatSearch', () => {
       { messageId: 'm1', matchIndex: 0 },
       { messageId: 'm1', matchIndex: 1 },
       { messageId: 'm2', matchIndex: 0 },
-      { messageId: 'm3', matchIndex: 0 }
+      { messageId: 'm3', matchIndex: 0 },
+      { messageId: 'm3', matchIndex: 1 }
     ])
 
     const container = document.createElement('div')

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const buttonStub = defineComponent({
   name: 'Button',
   emits: ['click'],
-  template: '<button @click="$emit(\'click\')"><slot /></button>'
+  template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
 })
 
 const passthroughStub = (name: string) =>
@@ -31,6 +31,7 @@ const browserClientMock = vi.hoisted(() => ({
 const debugClientMock = vi.hoisted(() => ({
   createMockChatSession: vi.fn()
 }))
+const toastMock = vi.hoisted(() => vi.fn())
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn(),
   onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
@@ -96,7 +97,7 @@ vi.mock('@/stores/theme', () => ({
 
 vi.mock('@/components/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn()
+    toast: toastMock
   })
 }))
 
@@ -406,6 +407,18 @@ describe('AboutUsSettings', () => {
   })
 
   it('creates mock long chat data from the about page', async () => {
+    let resolveCreateMockChat!: (value: {
+      created: boolean
+      sessionId: string
+      title: string
+      messageCount: number
+    }) => void
+    debugClientMock.createMockChatSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreateMockChat = resolve
+      })
+    )
+
     const { default: AboutUsSettings } =
       await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
 
@@ -439,8 +452,26 @@ describe('AboutUsSettings', () => {
     expect(mockChatButton).toBeTruthy()
 
     await mockChatButton!.trigger('click')
-    await flushPromises()
+    await nextTick()
 
     expect(debugClientMock.createMockChatSession).toHaveBeenCalledTimes(1)
+    const pendingButton = wrapper.findAll('button').find((button) => button.text() === '创建中...')
+    expect(pendingButton?.attributes('disabled')).toBeDefined()
+
+    resolveCreateMockChat({
+      created: true,
+      sessionId: 'debug-long-chat-test',
+      title: 'Debug long chat test',
+      messageCount: 200
+    })
+    await flushPromises()
+
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Mock会话已创建',
+      description: '已创建Debug long chat test，共200条消息'
+    })
+    expect(wrapper.findAll('button').some((button) => button.text() === '创建长会话Mock数据')).toBe(
+      true
+    )
   })
 })

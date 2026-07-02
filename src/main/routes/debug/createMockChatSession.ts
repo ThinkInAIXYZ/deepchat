@@ -195,7 +195,8 @@ function readMessageSamples(db: DebugMockChatDatabase) {
       user: (rows ?? []).filter((row) => row.role === 'user'),
       assistant: (rows ?? []).filter((row) => row.role === 'assistant')
     }
-  } catch {
+  } catch (error) {
+    console.warn('[DebugMockChatSession] Failed to read message samples:', error)
     return { user: [], assistant: [] }
   }
 }
@@ -207,7 +208,8 @@ function readModelSample(db: DebugMockChatDatabase): ModelRow {
         .prepare('SELECT provider_id, model_id FROM deepchat_sessions ORDER BY rowid DESC LIMIT 1')
         .get() as ModelRow | undefined) ?? {}
     )
-  } catch {
+  } catch (error) {
+    console.warn('[DebugMockChatSession] Failed to read model sample:', error)
     return {}
   }
 }

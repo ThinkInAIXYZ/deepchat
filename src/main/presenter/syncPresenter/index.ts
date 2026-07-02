@@ -573,7 +573,7 @@ export class SyncPresenter implements ISyncPresenter {
       this.ensureSqliteConfigStorageReady()
       this.checkpointDatabaseForBackup()
       const files: Record<string, Uint8Array> = {}
-      files[ZIP_PATHS.agentDb] = new Uint8Array(await fs.promises.readFile(this.DB_PATH))
+      files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
       files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
       await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
       await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)

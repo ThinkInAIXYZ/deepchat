@@ -25,7 +25,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
+import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { DEV_EVENTS } from '../events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
@@ -3972,7 +3972,7 @@ export async function dispatchDeepchatRoute(
       const { createDebugMockChatSession } = await import('./debug/createMockChatSession')
       const result = createDebugMockChatSession(runtime.sqlitePresenter.getDatabase())
       if (result.sessionId) {
-        publishDeepchatEvent('sessions.updated', {
+        publishDeepchatEvent(sessionsUpdatedEvent.name, {
           sessionIds: [result.sessionId],
           reason: 'created'
         })

@@ -689,6 +689,7 @@ let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 let remoteControlStatusTimer: number | null = null
 let remoteControlStatusErrors = 0
+let remoteControlStatusUnmounted = false
 let pinFeedbackTimer: number | null = null
 let sessionListScrollFrame: number | null = null
 let sessionListFillFrame: number | null = null
@@ -1251,7 +1252,7 @@ const runRemoteControlStatusRefresh = async () => {
   const refreshed = await refreshRemoteControlStatus()
   remoteControlStatusErrors = refreshed ? 0 : remoteControlStatusErrors + 1
 
-  if (document.visibilityState === 'hidden') return
+  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
   const backoffMs = Math.min(30_000, 2_000 * 2 ** remoteControlStatusErrors)
   scheduleRemoteControlStatusRefresh(
     hasEnabledRemoteChannelStatus()
@@ -1264,7 +1265,7 @@ const runRemoteControlStatusRefresh = async () => {
 
 const scheduleRemoteControlStatusRefresh = (delayMs = 0) => {
   clearRemoteControlStatusTimer()
-  if (document.visibilityState === 'hidden') return
+  if (remoteControlStatusUnmounted || document.visibilityState === 'hidden') return
 
   if (delayMs <= 0) {
     void runRemoteControlStatusRefresh()
@@ -1961,6 +1962,7 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
+  remoteControlStatusUnmounted = false
   void refreshProjectEnvironmentMetadata()
   void loadShortcutPlatform()
   window.addEventListener('keydown', handleWindowShortcutKeydown)
@@ -1982,6 +1984,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  remoteControlStatusUnmounted = true
   window.removeEventListener('keydown', handleWindowShortcutKeydown)
   window.removeEventListener('keyup', handleWindowShortcutKeyup)
   window.removeEventListener('blur', handleWindowShortcutBlur)

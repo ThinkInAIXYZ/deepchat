@@ -187,7 +187,16 @@ const collectUnknownText = (value: unknown, output: string[]): void => {
   }
 
   const record = value as Record<string, unknown>
-  for (const key of ['text', 'content', 'name', 'response', 'tool_call']) {
+  for (const key of [
+    'text',
+    'content',
+    'name',
+    'params',
+    'response',
+    'server_name',
+    'server_description',
+    'tool_call'
+  ]) {
     collectUnknownText(record[key], output)
   }
 }

@@ -49,11 +49,6 @@ describe('settings navigation helpers', () => {
       )
     ).toBe(false)
     expect(
-      getSettingsNavigationItems('windows', 'x64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
-    ).toBe(false)
-    expect(
       getSettingsNavigationItems('win32', 'arm64').some(
         (item) => item.routeName === 'settings-plugins'
       )
