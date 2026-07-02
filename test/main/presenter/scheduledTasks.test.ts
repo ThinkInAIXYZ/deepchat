@@ -1,20 +1,52 @@
 import { describe, expect, it, vi } from 'vitest'
+import Database from 'better-sqlite3-multiple-ciphers'
 import { ScheduledTasksService } from '../../../src/main/presenter/scheduledTasks'
 import {
   computeNextFireAt,
   normalizeScheduledTasksConfig,
   shouldBackfillOneShot
 } from '../../../src/main/presenter/scheduledTasks/normalize'
-import type { ScheduledTask } from '@shared/scheduledTasks'
+import { SCHEDULED_TASKS_VERSION, type ScheduledTask } from '@shared/scheduledTasks'
+import { ScheduledTaskLocksTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTaskLocks'
+import { ScheduledTaskRunsTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTaskRuns'
+import { ScheduledTasksTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTasks'
 
-const baseTask = <T extends ScheduledTask>(overrides: T): T => overrides
+let sqliteAvailable = false
+try {
+  const smokeDb = new Database(':memory:')
+  smokeDb.close()
+  sqliteAvailable = true
+} catch {
+  sqliteAvailable = false
+}
+const describeIfSqlite = sqliteAvailable ? describe : describe.skip
+
+const baseTask = (
+  overrides: Partial<ScheduledTask> & Pick<ScheduledTask, 'trigger' | 'action'>
+): ScheduledTask => ({
+  id: 'task-1',
+  version: SCHEDULED_TASKS_VERSION,
+  name: 'task',
+  enabled: true,
+  timezone: 'UTC',
+  nextRunAt: null,
+  lastRunId: null,
+  createdAt: 0,
+  updatedAt: 0,
+  lastFiredAt: null,
+  ...overrides
+})
 
 interface ServiceHarnessOptions {
   createSessionForTask?: ReturnType<typeof vi.fn>
 }
 
 const createServiceHarness = (tasks: ScheduledTask[], options: ServiceHarnessOptions = {}) => {
-  let settings = { version: 1 as const, tasks }
+  const db = new Database(':memory:')
+  new ScheduledTasksTable(db).createTable()
+  new ScheduledTaskRunsTable(db).createTable()
+  new ScheduledTaskLocksTable(db).createTable()
+  const settings = { version: SCHEDULED_TASKS_VERSION, tasks }
   const showNotification = vi.fn().mockResolvedValue(undefined)
   const sendToWindow = vi.fn()
   const focusMainWindow = vi.fn()
@@ -24,11 +56,15 @@ const createServiceHarness = (tasks: ScheduledTask[], options: ServiceHarnessOpt
   const service = new ScheduledTasksService({
     configPresenter: {
       getScheduledTasksConfig: () => settings,
-      setScheduledTasksConfig: (nextSettings) => {
-        settings = nextSettings
+      setScheduledTasksConfig: () => {
         return settings
       },
       getNotificationsEnabled: () => true
+    },
+    sqlitePresenter: {
+      getDatabase: () => db,
+      getDatabasePath: () => ':memory:',
+      getDatabasePassword: () => undefined
     },
     notificationPresenter: { showNotification },
     windowPresenter: {
@@ -41,7 +77,8 @@ const createServiceHarness = (tasks: ScheduledTask[], options: ServiceHarnessOpt
 
   return {
     service,
-    getSettings: () => settings,
+    getSettings: () => service.list(),
+    close: () => db.close(),
     showNotification,
     sendToWindow,
     focusMainWindow,
@@ -52,7 +89,7 @@ const createServiceHarness = (tasks: ScheduledTask[], options: ServiceHarnessOpt
 describe('computeNextFireAt', () => {
   it('returns the absolute one-shot time when it is still in the future', () => {
     const future = Date.parse('2030-01-01T12:00:00Z')
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'once',
       enabled: true,
@@ -66,7 +103,7 @@ describe('computeNextFireAt', () => {
 
   it('returns null for a one-shot whose firesAt is in the past', () => {
     const past = Date.parse('2020-01-01T00:00:00Z')
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'once',
       enabled: true,
@@ -80,7 +117,7 @@ describe('computeNextFireAt', () => {
 
   it('returns null for a one-shot that has already fired', () => {
     const future = Date.parse('2030-01-01T12:00:00Z')
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'once',
       enabled: true,
@@ -93,7 +130,7 @@ describe('computeNextFireAt', () => {
   })
 
   it('rolls daily triggers to the next day when today is already past', () => {
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'daily',
       enabled: true,
@@ -117,7 +154,7 @@ describe('computeNextFireAt', () => {
     // on next Tuesday 09:00.
     const reference = new Date('2026-01-03T16:00:00')
     expect(reference.getDay()).toBe(6) // sanity: Saturday
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'weekly',
       enabled: true,
@@ -135,7 +172,7 @@ describe('computeNextFireAt', () => {
     // Tuesday 15:00 reference; trigger Tuesday 09:00 → next Tuesday.
     const reference = new Date('2026-01-06T15:00:00')
     expect(reference.getDay()).toBe(2)
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'weekly',
       enabled: true,
@@ -152,7 +189,7 @@ describe('computeNextFireAt', () => {
 
 describe('shouldBackfillOneShot', () => {
   it('returns true for a one-shot whose firesAt is in the past with no lastFiredAt', () => {
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'once',
       enabled: true,
@@ -165,7 +202,7 @@ describe('shouldBackfillOneShot', () => {
   })
 
   it('returns false for a one-shot that has already fired', () => {
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: '1',
       name: 'once',
       enabled: true,
@@ -178,7 +215,7 @@ describe('shouldBackfillOneShot', () => {
   })
 
   it('returns false for recurring tasks', () => {
-    const daily = baseTask<ScheduledTask>({
+    const daily = baseTask({
       id: '1',
       name: 'daily',
       enabled: true,
@@ -194,7 +231,7 @@ describe('shouldBackfillOneShot', () => {
 describe('normalizeScheduledTasksConfig', () => {
   it('returns defaults when input is undefined or malformed', () => {
     const fromUndefined = normalizeScheduledTasksConfig(undefined, 1000)
-    expect(fromUndefined.version).toBe(1)
+    expect(fromUndefined.version).toBe(SCHEDULED_TASKS_VERSION)
     expect(fromUndefined.tasks).toEqual([])
 
     const fromGarbage = normalizeScheduledTasksConfig('not an object', 1000)
@@ -306,9 +343,9 @@ describe('normalizeScheduledTasksConfig', () => {
   })
 })
 
-describe('ScheduledTasksService', () => {
+describeIfSqlite('ScheduledTasksService', () => {
   it('fires notification tasks immediately and disables one-shot tasks after firing', async () => {
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: 'once-notify',
       name: 'once notify',
       enabled: true,
@@ -332,7 +369,7 @@ describe('ScheduledTasksService', () => {
   })
 
   it('auto-sends prompt tasks through the wired session creator', async () => {
-    const task = baseTask<ScheduledTask>({
+    const task = baseTask({
       id: 'daily-prompt',
       name: 'daily prompt',
       enabled: true,

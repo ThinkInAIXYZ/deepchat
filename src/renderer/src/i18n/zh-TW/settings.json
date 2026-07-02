@@ -1508,6 +1508,33 @@
       "once": "{time}",
       "daily": "每天 {time}",
       "weekly": "{day} {time}"
+    },
+    "scheduler": {
+      "title": "Scheduler",
+      "enabledTasks": "Enabled: {count}",
+      "nextRun": "Next: {time}",
+      "reconcileNow": "Reconcile now",
+      "restart": "Restart",
+      "none": "none",
+      "state": {
+        "stopped": "Stopped",
+        "starting": "Starting",
+        "running": "Running",
+        "idle": "Idle",
+        "crashed": "Crashed"
+      }
+    },
+    "run": {
+      "latest": "Latest run: {status} | {time}",
+      "error": "Error: {error}",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "success": "Success",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "skipped": "Skipped"
+      }
     }
   },
   "about": {

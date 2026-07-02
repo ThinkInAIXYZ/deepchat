@@ -1,6 +1,6 @@
 /**
  * Scheduled tasks stop hook for beforeQuit phase
- * Cancels all armed timers so the scheduler does not fire during shutdown.
+ * Stops the scheduler utility process during shutdown.
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'

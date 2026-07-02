@@ -42,6 +42,9 @@ import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { ScheduledTasksTable } from './tables/scheduledTasks'
+import { ScheduledTaskRunsTable } from './tables/scheduledTaskRuns'
+import { ScheduledTaskLocksTable } from './tables/scheduledTaskLocks'
 import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
@@ -246,6 +249,9 @@ export class SQLitePresenter implements ISQLitePresenter {
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
   public settingsActivityTable!: SettingsActivityTable
+  public scheduledTasksTable!: ScheduledTasksTable
+  public scheduledTaskRunsTable!: ScheduledTaskRunsTable
+  public scheduledTaskLocksTable!: ScheduledTaskLocksTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -434,6 +440,9 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
     this.settingsActivityTable = new SettingsActivityTable(this.db)
+    this.scheduledTasksTable = new ScheduledTasksTable(this.db)
+    this.scheduledTaskRunsTable = new ScheduledTaskRunsTable(this.db)
+    this.scheduledTaskLocksTable = new ScheduledTaskLocksTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -463,6 +472,9 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
     this.settingsActivityTable.createTable()
+    this.scheduledTasksTable.createTable()
+    this.scheduledTaskRunsTable.createTable()
+    this.scheduledTaskLocksTable.createTable()
   }
 
   private initVersionTable() {
@@ -507,7 +519,10 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,
-      this.settingsActivityTable
+      this.settingsActivityTable,
+      this.scheduledTasksTable,
+      this.scheduledTaskRunsTable,
+      this.scheduledTaskLocksTable
     ]
   }
 

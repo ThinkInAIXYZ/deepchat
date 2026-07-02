@@ -401,7 +401,11 @@ import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpIn
 import {
   scheduledTasksDeleteRoute,
   scheduledTasksFireNowRoute,
+  scheduledTasksGetSchedulerStatusRoute,
   scheduledTasksListRoute,
+  scheduledTasksListRunsRoute,
+  scheduledTasksReconcileNowRoute,
+  scheduledTasksRestartSchedulerRoute,
   scheduledTasksToggleRoute,
   scheduledTasksUpsertRoute
 } from '@shared/contracts/routes/scheduledTasks.routes'
@@ -2543,6 +2547,34 @@ export async function dispatchDeepchatRoute(
       const input = scheduledTasksFireNowRoute.input.parse(rawInput)
       const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
       return scheduledTasksFireNowRoute.output.parse({ task, settings })
+    }
+
+    case scheduledTasksGetSchedulerStatusRoute.name: {
+      scheduledTasksGetSchedulerStatusRoute.input.parse(rawInput)
+      return scheduledTasksGetSchedulerStatusRoute.output.parse({
+        status: runtime.scheduledTasks.getSchedulerStatus()
+      })
+    }
+
+    case scheduledTasksListRunsRoute.name: {
+      const input = scheduledTasksListRunsRoute.input.parse(rawInput)
+      return scheduledTasksListRunsRoute.output.parse({
+        runs: runtime.scheduledTasks.listRuns(input.taskId, input.limit)
+      })
+    }
+
+    case scheduledTasksReconcileNowRoute.name: {
+      scheduledTasksReconcileNowRoute.input.parse(rawInput)
+      return scheduledTasksReconcileNowRoute.output.parse({
+        status: await runtime.scheduledTasks.reconcileNow()
+      })
+    }
+
+    case scheduledTasksRestartSchedulerRoute.name: {
+      scheduledTasksRestartSchedulerRoute.input.parse(rawInput)
+      return scheduledTasksRestartSchedulerRoute.output.parse({
+        status: await runtime.scheduledTasks.restartScheduler()
+      })
     }
 
     case startupGetBootstrapRoute.name: {

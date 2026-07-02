@@ -28,6 +28,9 @@ import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { ScheduledTasksTable } from './tables/scheduledTasks'
+import { ScheduledTaskRunsTable } from './tables/scheduledTaskRuns'
+import { ScheduledTaskLocksTable } from './tables/scheduledTaskLocks'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -254,6 +257,18 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'settings_activity',
     createTable: (db) => new SettingsActivityTable(db)
+  },
+  {
+    name: 'scheduled_tasks',
+    createTable: (db) => new ScheduledTasksTable(db)
+  },
+  {
+    name: 'scheduled_task_runs',
+    createTable: (db) => new ScheduledTaskRunsTable(db)
+  },
+  {
+    name: 'scheduled_task_locks',
+    createTable: (db) => new ScheduledTaskLocksTable(db)
   }
 ]
 

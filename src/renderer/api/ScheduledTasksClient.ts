@@ -2,11 +2,17 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   scheduledTasksDeleteRoute,
   scheduledTasksFireNowRoute,
+  scheduledTasksGetSchedulerStatusRoute,
   scheduledTasksListRoute,
+  scheduledTasksListRunsRoute,
+  scheduledTasksReconcileNowRoute,
+  scheduledTasksRestartSchedulerRoute,
   scheduledTasksToggleRoute,
   scheduledTasksUpsertRoute,
+  scheduledTaskRunSchema,
   scheduledTasksSettingsSchema,
   scheduledTaskSchema,
+  schedulerProcessStatusSchema,
   type scheduledTasksUpsertInputSchema
 } from '@shared/contracts/routes/scheduledTasks.routes'
 import type { z } from 'zod'
@@ -36,6 +42,28 @@ const parseTaskResponse = (routeName: string, result: unknown) => {
     throw new Error(`[ScheduledTasksClient] Invalid task response from ${routeName}`)
   }
   return parsedTask.data
+}
+
+const parseStatusResponse = (routeName: string, result: unknown) => {
+  if (typeof result !== 'object' || result === null) {
+    throw new Error(`[ScheduledTasksClient] Invalid response shape from ${routeName}`)
+  }
+  const parsed = schedulerProcessStatusSchema.safeParse((result as { status?: unknown }).status)
+  if (!parsed.success) {
+    throw new Error(`[ScheduledTasksClient] Invalid status response from ${routeName}`)
+  }
+  return parsed.data
+}
+
+const parseRunsResponse = (routeName: string, result: unknown) => {
+  if (typeof result !== 'object' || result === null) {
+    throw new Error(`[ScheduledTasksClient] Invalid response shape from ${routeName}`)
+  }
+  const parsed = scheduledTaskRunSchema.array().safeParse((result as { runs?: unknown }).runs)
+  if (!parsed.success) {
+    throw new Error(`[ScheduledTasksClient] Invalid runs response from ${routeName}`)
+  }
+  return parsed.data
 }
 
 export function createScheduledTasksClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -73,12 +101,36 @@ export function createScheduledTasksClient(bridge: DeepchatBridge = getDeepchatB
     }
   }
 
+  async function getSchedulerStatus() {
+    const result = await bridge.invoke(scheduledTasksGetSchedulerStatusRoute.name, {})
+    return parseStatusResponse(scheduledTasksGetSchedulerStatusRoute.name, result)
+  }
+
+  async function listRuns(taskId: string, limit?: number) {
+    const result = await bridge.invoke(scheduledTasksListRunsRoute.name, { taskId, limit })
+    return parseRunsResponse(scheduledTasksListRunsRoute.name, result)
+  }
+
+  async function reconcileNow() {
+    const result = await bridge.invoke(scheduledTasksReconcileNowRoute.name, {})
+    return parseStatusResponse(scheduledTasksReconcileNowRoute.name, result)
+  }
+
+  async function restartScheduler() {
+    const result = await bridge.invoke(scheduledTasksRestartSchedulerRoute.name, {})
+    return parseStatusResponse(scheduledTasksRestartSchedulerRoute.name, result)
+  }
+
   return {
     list,
     upsert,
     remove,
     toggle,
-    fireNow
+    fireNow,
+    getSchedulerStatus,
+    listRuns,
+    reconcileNow,
+    restartScheduler
   }
 }
 

@@ -1153,6 +1153,22 @@ function createRuntime() {
     fireNow: vi.fn(async (id: string) => ({
       task: { id },
       settings: { enabled: false, tasks: [{ id }] }
+    })),
+    getSchedulerStatus: vi.fn(() => ({
+      state: 'stopped',
+      enabledTaskCount: 0,
+      nextRunAt: null
+    })),
+    listRuns: vi.fn(() => []),
+    reconcileNow: vi.fn(async () => ({
+      state: 'stopped',
+      enabledTaskCount: 0,
+      nextRunAt: null
+    })),
+    restartScheduler: vi.fn(async () => ({
+      state: 'stopped',
+      enabledTaskCount: 0,
+      nextRunAt: null
     }))
   }
 

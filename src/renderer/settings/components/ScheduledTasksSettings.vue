@@ -29,6 +29,65 @@
         {{ t('settings.scheduledTasks.hint') }}
       </p>
 
+      <div class="rounded-lg border bg-card/30 p-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0 space-y-1">
+            <div class="flex flex-wrap items-center gap-2 text-sm font-medium">
+              <Icon icon="lucide:activity" class="h-4 w-4 text-muted-foreground" />
+              <span>{{ t('settings.scheduledTasks.scheduler.title') }}</span>
+              <span
+                :class="[
+                  'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                  schedulerStatus?.state === 'running'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : schedulerStatus?.state === 'crashed'
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted text-muted-foreground'
+                ]"
+              >
+                {{ getSchedulerStateLabel(schedulerStatus?.state) }}
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>
+                {{
+                  t('settings.scheduledTasks.scheduler.enabledTasks', {
+                    count: schedulerStatus?.enabledTaskCount ?? 0
+                  })
+                }}
+              </span>
+              <span>
+                {{
+                  t('settings.scheduledTasks.scheduler.nextRun', {
+                    time: formatOptionalDate(schedulerStatus?.nextRunAt ?? null)
+                  })
+                }}
+              </span>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isSchedulerActionRunning"
+              @click="reconcileScheduler"
+            >
+              <Icon icon="lucide:refresh-cw" class="mr-1 h-4 w-4" />
+              {{ t('settings.scheduledTasks.scheduler.reconcileNow') }}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="isSchedulerActionRunning"
+              @click="restartScheduler"
+            >
+              <Icon icon="lucide:rotate-cw" class="mr-1 h-4 w-4" />
+              {{ t('settings.scheduledTasks.scheduler.restart') }}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div
         v-if="settings.tasks.length === 0"
         class="flex flex-col items-center gap-2 rounded-xl border border-dashed bg-card/30 px-6 py-12 text-center"
@@ -108,6 +167,27 @@
                       </div>
                       <div class="truncate text-xs text-muted-foreground">
                         {{ getTriggerSummary(task.trigger) }}
+                      </div>
+                      <div
+                        v-if="getLatestRun(task.id)"
+                        class="truncate text-[11px] text-muted-foreground"
+                      >
+                        {{
+                          t('settings.scheduledTasks.run.latest', {
+                            status: getRunStatusLabel(getLatestRun(task.id)?.status),
+                            time: formatOptionalDate(getLatestRun(task.id)?.createdAt ?? null)
+                          })
+                        }}
+                      </div>
+                      <div
+                        v-if="getLatestRun(task.id)?.error"
+                        class="truncate text-[11px] text-destructive"
+                      >
+                        {{
+                          t('settings.scheduledTasks.run.error', {
+                            error: getLatestRun(task.id)?.error
+                          })
+                        }}
                       </div>
                     </div>
                   </button>
@@ -518,8 +598,10 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import type {
   ScheduledTask,
   ScheduledTaskAction,
+  ScheduledTaskRun,
   ScheduledTaskTrigger,
-  ScheduledTasksSettings
+  ScheduledTasksSettings,
+  SchedulerProcessStatus
 } from '@shared/scheduledTasks'
 import type { Agent } from '@shared/types/agent-interface'
 import type { RENDERER_MODEL_META } from '@shared/presenter'
@@ -542,8 +624,11 @@ const saveCounter = ref(0)
 const isLoading = ref(false)
 const isSaving = ref(false)
 const firingId = ref<string | null>(null)
+const isSchedulerActionRunning = ref(false)
 const modelPickerOpen = ref<Record<string, boolean>>({})
 const openTaskIds = ref<string[]>([])
+const schedulerStatus = ref<SchedulerProcessStatus | null>(null)
+const taskRuns = ref<Record<string, ScheduledTaskRun[]>>({})
 
 const onceInputValues = ref<string[]>([])
 const recurringTimeValues = ref<string[]>([])
@@ -591,6 +676,22 @@ const getTriggerSummary = (trigger: ScheduledTaskTrigger): string => {
   }
 }
 
+const getLatestRun = (taskId: string): ScheduledTaskRun | undefined => taskRuns.value[taskId]?.[0]
+
+const getSchedulerStateLabel = (state: SchedulerProcessStatus['state'] | undefined): string => {
+  return t(`settings.scheduledTasks.scheduler.state.${state ?? 'stopped'}`)
+}
+
+const getRunStatusLabel = (status: ScheduledTaskRun['status'] | undefined): string => {
+  return t(`settings.scheduledTasks.run.status.${status ?? 'queued'}`)
+}
+
+const formatOptionalDate = (timestamp: number | null): string => {
+  return timestamp
+    ? new Date(timestamp).toLocaleString()
+    : t('settings.scheduledTasks.scheduler.none')
+}
+
 const setTaskOpen = (taskId: string, open: boolean) => {
   if (open) {
     if (!openTaskIds.value.includes(taskId)) {
@@ -633,6 +734,7 @@ const applySettingsResponse = (nextSettings: ScheduledTasksSettings, requestId: 
   }
   settings.value = nextSettings
   refreshFormBuffers()
+  void loadSchedulerSnapshot(nextSettings.tasks)
 }
 
 const refreshFormBuffers = () => {
@@ -659,10 +761,16 @@ watch(
 const loadSettings = async () => {
   isLoading.value = true
   try {
-    const [nextSettings, nextAgents] = await Promise.all([client.list(), configClient.listAgents()])
+    const [nextSettings, nextAgents, nextStatus] = await Promise.all([
+      client.list(),
+      configClient.listAgents(),
+      client.getSchedulerStatus()
+    ])
     settings.value = nextSettings
     agents.value = nextAgents
+    schedulerStatus.value = nextStatus
     refreshFormBuffers()
+    await loadTaskRuns(nextSettings.tasks)
   } catch (error) {
     console.error('[ScheduledTasks] Failed to load settings:', error)
     toast({
@@ -672,6 +780,22 @@ const loadSettings = async () => {
     })
   } finally {
     isLoading.value = false
+  }
+}
+
+const loadTaskRuns = async (taskList: ScheduledTask[]): Promise<void> => {
+  const entries = await Promise.all(
+    taskList.map(async (task) => [task.id, await client.listRuns(task.id, 1)] as const)
+  )
+  taskRuns.value = Object.fromEntries(entries)
+}
+
+const loadSchedulerSnapshot = async (taskList: ScheduledTask[] = tasks.value): Promise<void> => {
+  try {
+    const [nextStatus] = await Promise.all([client.getSchedulerStatus(), loadTaskRuns(taskList)])
+    schedulerStatus.value = nextStatus
+  } catch (error) {
+    console.error('[ScheduledTasks] Failed to load scheduler snapshot:', error)
   }
 }
 
@@ -949,6 +1073,40 @@ const runTaskNow = async (id: string) => {
     })
   } finally {
     firingId.value = null
+  }
+}
+
+const reconcileScheduler = async () => {
+  isSchedulerActionRunning.value = true
+  try {
+    schedulerStatus.value = await client.reconcileNow()
+    await loadTaskRuns(tasks.value)
+  } catch (error) {
+    console.error('[ScheduledTasks] Failed to reconcile scheduler:', error)
+    toast({
+      title: t('common.error.operationFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    isSchedulerActionRunning.value = false
+  }
+}
+
+const restartScheduler = async () => {
+  isSchedulerActionRunning.value = true
+  try {
+    schedulerStatus.value = await client.restartScheduler()
+    await loadTaskRuns(tasks.value)
+  } catch (error) {
+    console.error('[ScheduledTasks] Failed to restart scheduler:', error)
+    toast({
+      title: t('common.error.operationFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    isSchedulerActionRunning.value = false
   }
 }
 

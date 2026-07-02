@@ -1765,6 +1765,33 @@
       "once": "{time}",
       "daily": "每天 {time}",
       "weekly": "{day} {time}"
+    },
+    "scheduler": {
+      "title": "调度器",
+      "enabledTasks": "已启用：{count}",
+      "nextRun": "下次执行：{time}",
+      "reconcileNow": "立即校准",
+      "restart": "重启",
+      "none": "无",
+      "state": {
+        "stopped": "已停止",
+        "starting": "启动中",
+        "running": "运行中",
+        "idle": "空闲",
+        "crashed": "已崩溃"
+      }
+    },
+    "run": {
+      "latest": "最近执行：{status} | {time}",
+      "error": "错误：{error}",
+      "status": {
+        "queued": "排队中",
+        "running": "运行中",
+        "success": "成功",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "skipped": "已跳过"
+      }
     }
   },
   "about": {

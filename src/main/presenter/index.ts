@@ -475,6 +475,7 @@ export class Presenter implements IPresenter {
     })
     this.scheduledTasks = new ScheduledTasksService({
       configPresenter: this.configPresenter,
+      sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
       notificationPresenter: this.notificationPresenter,
       windowPresenter: this.windowPresenter
     })

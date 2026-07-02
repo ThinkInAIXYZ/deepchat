@@ -257,7 +257,11 @@ import {
 import {
   scheduledTasksDeleteRoute,
   scheduledTasksFireNowRoute,
+  scheduledTasksGetSchedulerStatusRoute,
   scheduledTasksListRoute,
+  scheduledTasksListRunsRoute,
+  scheduledTasksReconcileNowRoute,
+  scheduledTasksRestartSchedulerRoute,
   scheduledTasksToggleRoute,
   scheduledTasksUpsertRoute
 } from './routes/scheduledTasks.routes'
@@ -595,6 +599,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [scheduledTasksDeleteRoute.name]: scheduledTasksDeleteRoute,
   [scheduledTasksToggleRoute.name]: scheduledTasksToggleRoute,
   [scheduledTasksFireNowRoute.name]: scheduledTasksFireNowRoute,
+  [scheduledTasksGetSchedulerStatusRoute.name]: scheduledTasksGetSchedulerStatusRoute,
+  [scheduledTasksListRunsRoute.name]: scheduledTasksListRunsRoute,
+  [scheduledTasksReconcileNowRoute.name]: scheduledTasksReconcileNowRoute,
+  [scheduledTasksRestartSchedulerRoute.name]: scheduledTasksRestartSchedulerRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

@@ -76,6 +76,9 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.newSessionActiveSkillsTable = emptyTable
     presenter.newSessionDisabledAgentToolsTable = emptyTable
     presenter.settingsActivityTable = emptyTable
+    presenter.scheduledTasksTable = emptyTable
+    presenter.scheduledTaskRunsTable = emptyTable
+    presenter.scheduledTaskLocksTable = emptyTable
 
     presenter.migrate()
 

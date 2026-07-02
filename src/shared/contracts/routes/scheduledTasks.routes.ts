@@ -3,7 +3,10 @@ import { defineRouteContract } from '../common'
 import {
   SCHEDULED_TASKS_VERSION,
   SCHEDULED_TASK_TRIGGER_KINDS,
-  SCHEDULED_TASK_ACTION_KINDS
+  SCHEDULED_TASK_ACTION_KINDS,
+  SCHEDULED_TASK_RUN_STATUSES,
+  SCHEDULED_TASK_RUN_REASONS,
+  SCHEDULER_PROCESS_STATES
 } from '../../scheduledTasks'
 
 export const scheduledTaskTriggerKindSchema = z.enum(SCHEDULED_TASK_TRIGGER_KINDS)
@@ -51,17 +54,54 @@ export const scheduledTaskActionSchema = z.discriminatedUnion('kind', [
 
 export const scheduledTaskSchema = z.object({
   id: z.string().min(1),
+  version: z.literal(SCHEDULED_TASKS_VERSION),
   name: z.string().min(1).max(200),
   enabled: z.boolean(),
   trigger: scheduledTaskTriggerSchema,
   action: scheduledTaskActionSchema,
+  timezone: z.string().min(1),
+  nextRunAt: z.number().int().nonnegative().nullable(),
+  lastRunId: z.string().min(1).nullable(),
   createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
   lastFiredAt: z.number().int().nonnegative().nullable()
 })
 
 export const scheduledTasksSettingsSchema = z.object({
   version: z.literal(SCHEDULED_TASKS_VERSION),
   tasks: z.array(scheduledTaskSchema)
+})
+
+export const scheduledTaskRunStatusSchema = z.enum(SCHEDULED_TASK_RUN_STATUSES)
+export const scheduledTaskRunReasonSchema = z.enum(SCHEDULED_TASK_RUN_REASONS)
+
+export const scheduledTaskRunSchema = z.object({
+  id: z.string().min(1),
+  taskId: z.string().min(1),
+  scheduledAt: z.number().int().nonnegative(),
+  queuedAt: z.number().int().nonnegative(),
+  startedAt: z.number().int().nonnegative().nullable(),
+  completedAt: z.number().int().nonnegative().nullable(),
+  status: scheduledTaskRunStatusSchema,
+  reason: scheduledTaskRunReasonSchema,
+  sessionId: z.string().optional(),
+  tapeId: z.string().optional(),
+  outputMessageId: z.string().optional(),
+  error: z.string().optional(),
+  outputPreview: z.string().optional(),
+  owner: z.string().optional(),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative()
+})
+
+export const schedulerProcessStatusSchema = z.object({
+  state: z.enum(SCHEDULER_PROCESS_STATES),
+  pid: z.number().int().positive().optional(),
+  startedAt: z.number().int().nonnegative().optional(),
+  lastHeartbeatAt: z.number().int().nonnegative().optional(),
+  enabledTaskCount: z.number().int().nonnegative(),
+  nextRunAt: z.number().int().nonnegative().nullable(),
+  lastError: z.string().optional()
 })
 
 export const scheduledTasksListRoute = defineRouteContract({
@@ -72,11 +112,13 @@ export const scheduledTasksListRoute = defineRouteContract({
   })
 })
 
-export const scheduledTasksUpsertInputSchema = scheduledTaskSchema
-  .omit({ id: true, createdAt: true, lastFiredAt: true })
-  .extend({
-    id: z.string().min(1).optional()
-  })
+export const scheduledTasksUpsertInputSchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().min(1).max(200),
+  enabled: z.boolean(),
+  trigger: scheduledTaskTriggerSchema,
+  action: scheduledTaskActionSchema
+})
 
 export const scheduledTasksUpsertRoute = defineRouteContract({
   name: 'scheduledTasks.upsert',
@@ -117,5 +159,40 @@ export const scheduledTasksFireNowRoute = defineRouteContract({
   output: z.object({
     task: scheduledTaskSchema,
     settings: scheduledTasksSettingsSchema
+  })
+})
+
+export const scheduledTasksGetSchedulerStatusRoute = defineRouteContract({
+  name: 'scheduledTasks.getSchedulerStatus',
+  input: z.object({}),
+  output: z.object({
+    status: schedulerProcessStatusSchema
+  })
+})
+
+export const scheduledTasksListRunsRoute = defineRouteContract({
+  name: 'scheduledTasks.listRuns',
+  input: z.object({
+    taskId: z.string().min(1),
+    limit: z.number().int().positive().max(100).optional()
+  }),
+  output: z.object({
+    runs: z.array(scheduledTaskRunSchema)
+  })
+})
+
+export const scheduledTasksReconcileNowRoute = defineRouteContract({
+  name: 'scheduledTasks.reconcileNow',
+  input: z.object({}),
+  output: z.object({
+    status: schedulerProcessStatusSchema
+  })
+})
+
+export const scheduledTasksRestartSchedulerRoute = defineRouteContract({
+  name: 'scheduledTasks.restartScheduler',
+  input: z.object({}),
+  output: z.object({
+    status: schedulerProcessStatusSchema
   })
 })

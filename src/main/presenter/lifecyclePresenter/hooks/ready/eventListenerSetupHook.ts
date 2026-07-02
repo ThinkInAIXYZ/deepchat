@@ -4,7 +4,7 @@ import logger from '@shared/logger'
  * Sets up application event listeners and browser window event handlers
  */
 
-import { app } from 'electron'
+import { app, powerMonitor } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
@@ -120,6 +120,10 @@ export const eventListenerSetupHook: LifecycleHook = {
           eventBus.sendToMain(WINDOW_EVENTS.APP_BLUR)
         }
       }, 50) // 50ms delay
+    })
+
+    powerMonitor.on('resume', () => {
+      presenter.scheduledTasks.onPowerResume()
     })
 
     logger.info('eventListenerSetupHook: Application event listeners set up successfully')

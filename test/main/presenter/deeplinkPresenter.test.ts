@@ -164,9 +164,20 @@ describe('DeeplinkPresenter', () => {
     )
   })
 
-  it('routes MCP imports through settings IPC instead of localStorage injection', async () => {
+  it('routes MCP imports through chat window IPC instead of localStorage injection', async () => {
     const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
     const deeplinkPresenter = new DeeplinkPresenter()
+    const chatWindow = {
+      id: 1,
+      isDestroyed: () => false,
+      isMinimized: () => false,
+      show: vi.fn(),
+      focus: vi.fn(),
+      webContents: {
+        isLoadingMainFrame: () => false,
+        once: vi.fn()
+      }
+    }
     const payload = {
       mcpServers: {
         demo: {
@@ -176,12 +187,15 @@ describe('DeeplinkPresenter', () => {
       }
     }
     const url = `deepchat://mcp/install?code=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
+    browserWindowFromIdMock.mockReturnValue(chatWindow)
 
     await deeplinkPresenter.handleDeepLink(url)
 
-    expect(presenterMock.windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
+    expect(presenterMock.windowPresenter.createAppWindow).toHaveBeenCalledWith({
+      initialRoute: 'chat'
+    })
     expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
-      9,
+      1,
       DEEPLINK_EVENTS.MCP_INSTALL,
       {
         mcpConfig: JSON.stringify({

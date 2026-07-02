@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import log from 'electron-log'
 import { z } from 'zod'
 import {
+  SCHEDULED_TASK_DEFAULT_TIMEZONE,
   SCHEDULED_TASKS_VERSION,
   type ScheduledTask,
   type ScheduledTaskAction,
@@ -9,6 +10,7 @@ import {
   type ScheduledTasksSettings,
   createDefaultScheduledTasksSettings
 } from '@shared/scheduledTasks'
+import { computeNextRunAt } from './schedulerCore/computeNextRunAt'
 
 const TriggerSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('once'), firesAt: z.number().int().nonnegative() }),
@@ -45,11 +47,16 @@ const ActionSchema = z.discriminatedUnion('kind', [
 
 const ScheduledTaskSchema = z.object({
   id: z.string().min(1),
+  version: z.literal(SCHEDULED_TASKS_VERSION),
   name: z.string().min(1).max(200),
   enabled: z.boolean(),
   trigger: TriggerSchema,
   action: ActionSchema,
+  timezone: z.string().min(1),
+  nextRunAt: z.number().int().nonnegative().nullable(),
+  lastRunId: z.string().min(1).nullable(),
   createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
   lastFiredAt: z.number().int().nonnegative().nullable()
 })
 
@@ -98,8 +105,42 @@ const sanitizeTask = (input: unknown, fallbackIndex: number, now: number): Sched
     record.lastFiredAt > 0
       ? record.lastFiredAt
       : null
+  const updatedAt =
+    typeof record.updatedAt === 'number' &&
+    Number.isFinite(record.updatedAt) &&
+    record.updatedAt > 0
+      ? record.updatedAt
+      : createdAt
+  const timezone =
+    typeof record.timezone === 'string' && record.timezone.trim().length > 0
+      ? record.timezone.trim()
+      : getSystemTimezone()
+  const lastRunId =
+    typeof record.lastRunId === 'string' && record.lastRunId.trim().length > 0
+      ? record.lastRunId.trim()
+      : null
 
-  const candidate = { id, name, enabled, trigger, action, createdAt, lastFiredAt }
+  const candidateWithoutNextRun = {
+    id,
+    version: SCHEDULED_TASKS_VERSION,
+    name,
+    enabled,
+    trigger,
+    action,
+    timezone,
+    nextRunAt: null,
+    lastRunId,
+    createdAt,
+    updatedAt,
+    lastFiredAt
+  }
+  const nextRunAt =
+    typeof record.nextRunAt === 'number' &&
+    Number.isFinite(record.nextRunAt) &&
+    record.nextRunAt >= 0
+      ? record.nextRunAt
+      : computeNextRunAt({ task: candidateWithoutNextRun, referenceTime: now })
+  const candidate = { ...candidateWithoutNextRun, nextRunAt: enabled ? nextRunAt : null }
   const parsed = ScheduledTaskSchema.safeParse(candidate)
   return parsed.success ? parsed.data : null
 }
@@ -155,16 +196,12 @@ const startOfMinute = (timestamp: number): number => {
   return date.getTime()
 }
 
-const buildWallClockToday = (
-  reference: number,
-  hour: number,
-  minute: number,
-  dayOffset = 0
-): number => {
-  const date = new Date(reference)
-  date.setDate(date.getDate() + dayOffset)
-  date.setHours(hour, minute, 0, 0)
-  return date.getTime()
+const getSystemTimezone = (): string => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || SCHEDULED_TASK_DEFAULT_TIMEZONE
+  } catch {
+    return SCHEDULED_TASK_DEFAULT_TIMEZONE
+  }
 }
 
 /**
@@ -174,35 +211,7 @@ const buildWallClockToday = (
  * `after` — backfill handling is up to the caller via `lastFiredAt`).
  */
 export const computeNextFireAt = (task: ScheduledTask, after: number): number | null => {
-  const trigger = task.trigger
-  switch (trigger.kind) {
-    case 'once': {
-      if (task.lastFiredAt) {
-        return null
-      }
-      return trigger.firesAt > after ? trigger.firesAt : null
-    }
-    case 'daily': {
-      let candidate = buildWallClockToday(after, trigger.hour, trigger.minute, 0)
-      if (candidate <= after) {
-        candidate = buildWallClockToday(after, trigger.hour, trigger.minute, 1)
-      }
-      return candidate
-    }
-    case 'weekly': {
-      const reference = new Date(after)
-      const currentDay = reference.getDay()
-      let dayOffset = (trigger.dayOfWeek - currentDay + 7) % 7
-      let candidate = buildWallClockToday(after, trigger.hour, trigger.minute, dayOffset)
-      if (candidate <= after) {
-        dayOffset += 7
-        candidate = buildWallClockToday(after, trigger.hour, trigger.minute, dayOffset)
-      }
-      return candidate
-    }
-    default:
-      return null
-  }
+  return computeNextRunAt({ task, referenceTime: after, misfirePolicy: 'skip' })
 }
 
 /**

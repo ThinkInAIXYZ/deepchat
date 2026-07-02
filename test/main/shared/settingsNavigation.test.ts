@@ -34,31 +34,21 @@ describe('settings navigation helpers', () => {
     expect(resolveSettingsNavigationPath('settings-provider')).toBe('/provider')
   })
 
-  it('shows plugin settings navigation on CUA-supported targets', () => {
+  it('exposes plugin settings route on CUA-supported targets', () => {
     expect(
-      getSettingsNavigationItems('darwin', 'arm64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
+      getSettingsRouteItems('darwin', 'arm64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
     expect(
-      getSettingsNavigationItems('win32', 'x64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
+      getSettingsRouteItems('win32', 'x64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
     expect(
-      getSettingsNavigationItems('windows', 'x64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
+      getSettingsRouteItems('windows', 'x64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
     expect(
-      getSettingsNavigationItems('win32', 'arm64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
+      getSettingsRouteItems('win32', 'arm64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
     expect(
-      getSettingsNavigationItems('linux', 'x64').some(
-        (item) => item.routeName === 'settings-plugins'
-      )
+      getSettingsRouteItems('linux', 'x64').some((item) => item.routeName === 'settings-plugins')
     ).toBe(true)
   })
 

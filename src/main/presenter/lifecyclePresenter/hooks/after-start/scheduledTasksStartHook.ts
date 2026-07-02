@@ -5,7 +5,7 @@ import logger from '@shared/logger'
  * The route runtime owns the wiring between the scheduled tasks service and
  * the session service (for auto-send actions), so we force its construction
  * by reading any route runtime via getRuntime, then call `start()` so the
- * scheduler arms timers and backfills missed one-shot tasks.
+ * scheduler process manager reconciles missed runs.
  */
 
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
@@ -34,6 +34,6 @@ export const scheduledTasksStartHook: LifecycleHook = {
     }
 
     presenter.scheduledTasks.start()
-    logger.info('scheduledTasksStartHook: Scheduler started')
+    logger.info('scheduledTasksStartHook: Scheduler process manager started')
   }
 }

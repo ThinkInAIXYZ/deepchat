@@ -1127,8 +1127,8 @@ describe('Integration: multi-turn context', () => {
 
   it('rebudgets long converted steer inputs as their own visible turn', async () => {
     let releaseFirstTurn: (() => void) | null = null
-    const firstPrompt = 'P'.repeat(2000)
-    const firstResponse = 'R'.repeat(2000)
+    const firstPrompt = 'P'.repeat(20000)
+    const firstResponse = 'R'.repeat(20000)
     const steerFileContent = 'S'.repeat(8000)
     const providerInstance = {
       coreStream: vi
