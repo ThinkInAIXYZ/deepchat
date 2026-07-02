@@ -405,6 +405,7 @@ import {
   scheduledTasksGetSchedulerStatusRoute,
   scheduledTasksListRoute,
   scheduledTasksListRunsRoute,
+  scheduledTasksOpenRunSessionRoute,
   scheduledTasksReconcileNowRoute,
   scheduledTasksRestartSchedulerRoute,
   scheduledTasksToggleRoute,
@@ -2600,6 +2601,27 @@ export async function dispatchDeepchatRoute(
       return scheduledTasksListRunsRoute.output.parse({
         runs: runtime.scheduledTasks.listRuns(input.taskId, input.limit)
       })
+    }
+
+    case scheduledTasksOpenRunSessionRoute.name: {
+      const input = scheduledTasksOpenRunSessionRoute.input.parse(rawInput)
+      const mainWindow = runtime.windowPresenter.getAllWindows()[0]
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return scheduledTasksOpenRunSessionRoute.output.parse({ opened: false })
+      }
+      const restored = await runtime.sessionService.restoreSession(input.sessionId, 1)
+      if (!restored.session) {
+        return scheduledTasksOpenRunSessionRoute.output.parse({ opened: false })
+      }
+      await runtime.sessionService.activateSession(
+        {
+          webContentsId: mainWindow.webContents.id,
+          windowId: mainWindow.id
+        },
+        input.sessionId
+      )
+      runtime.windowPresenter.focusMainWindow()
+      return scheduledTasksOpenRunSessionRoute.output.parse({ opened: true })
     }
 
     case scheduledTasksReconcileNowRoute.name: {

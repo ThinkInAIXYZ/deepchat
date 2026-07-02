@@ -165,6 +165,7 @@ Add minimal routes:
 
 - `scheduledTasks.getSchedulerStatus`
 - `scheduledTasks.listRuns`
+- `scheduledTasks.openRunSession`
 - `scheduledTasks.reconcileNow`
 - `scheduledTasks.restartScheduler`
 

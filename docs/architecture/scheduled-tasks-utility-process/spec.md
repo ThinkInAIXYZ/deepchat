@@ -63,6 +63,8 @@ task storage, run storage, or the due-run protocol.
   delivery policy alongside the trigger and action.
 - Run records bind successful agent runs to `sessionId`, optional `outputMessageId`, and an
   `outputPreview` suitable for history and follow-up entry points.
+- Run history can open a successful agent-run session in the main chat window so the user can audit
+  and continue the conversation.
 - Prompt and notify tasks remain backward-compatible and receive default context/execution/delivery
   policy during migration or normalization.
 

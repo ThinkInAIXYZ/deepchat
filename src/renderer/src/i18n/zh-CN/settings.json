@@ -1810,7 +1810,9 @@
         "failed": "失败",
         "cancelled": "已取消",
         "skipped": "已跳过"
-      }
+      },
+      "openSession": "继续会话",
+      "openSessionFailed": "无法打开该运行会话"
     }
   },
   "about": {

@@ -465,6 +465,24 @@ function createRuntime() {
         updatedAt: 1
       }
     ]),
+    listMessagesPage: vi.fn().mockResolvedValue({
+      messages: [
+        {
+          id: 'message-1',
+          sessionId: 'session-1',
+          orderSeq: 1,
+          role: 'user',
+          content: '{"text":"hello"}',
+          status: 'sent',
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      nextCursor: null,
+      hasMore: false
+    }),
     getSessionList: vi.fn().mockResolvedValue([]),
     getActiveSession: vi.fn().mockResolvedValue(null),
     activateSession: vi.fn().mockResolvedValue(undefined),
@@ -783,6 +801,9 @@ function createRuntime() {
     closeSettingsWindow: vi.fn(),
     focusMainWindow: vi.fn().mockReturnValue(true),
     notifySettingsReady: vi.fn(),
+    getAllWindows: vi.fn(() =>
+      [...browserWindowState.windows.values()].filter((window) => !window.destroyed)
+    ),
     consumePendingSettingsProviderInstall: vi.fn(() => pendingProviderInstalls.shift() ?? null),
     setPendingSettingsProviderInstall: vi.fn((preview: ProviderInstallPreview) => {
       pendingProviderInstalls.push(preview)
@@ -3405,6 +3426,29 @@ describe('dispatchDeepchatRoute', () => {
         id: 'session-1'
       })
     })
+  })
+
+  it('opens scheduled task run sessions in the main chat window', async () => {
+    const { runtime, agentSessionPresenter, windowPresenter } = createRuntime()
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'scheduledTasks.openRunSession',
+      {
+        sessionId: 'session-1'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(agentSessionPresenter.getSession).toHaveBeenCalledWith('session-1')
+    expect(agentSessionPresenter.listMessagesPage).toHaveBeenCalledWith('session-1', { limit: 1 })
+    expect(windowPresenter.getAllWindows).toHaveBeenCalledTimes(1)
+    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(42, 'session-1')
+    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ opened: true })
   })
 
   it('resolves stopStream by requestId when sessionId is omitted', async () => {

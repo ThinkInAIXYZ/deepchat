@@ -1556,7 +1556,9 @@
         "skipped": "Skipped"
       },
       "session": "Session: {id}",
-      "output": "Output: {output}"
+      "output": "Output: {output}",
+      "openSession": "Continue session",
+      "openSessionFailed": "Unable to open this run session"
     }
   },
   "about": {

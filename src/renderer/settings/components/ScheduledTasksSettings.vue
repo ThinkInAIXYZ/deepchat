@@ -208,6 +208,29 @@
                 </CollapsibleTrigger>
 
                 <div class="flex shrink-0 items-center gap-1">
+                  <Button
+                    v-if="getLatestRun(task.id)?.sessionId"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8"
+                    :disabled="openingSessionId === getLatestRun(task.id)?.sessionId"
+                    :title="t('settings.scheduledTasks.run.openSession')"
+                    @click="openRunSession(getLatestRun(task.id)?.sessionId)"
+                  >
+                    <Icon
+                      :icon="
+                        openingSessionId === getLatestRun(task.id)?.sessionId
+                          ? 'lucide:loader-2'
+                          : 'lucide:message-square-more'
+                      "
+                      :class="[
+                        'h-4 w-4',
+                        openingSessionId === getLatestRun(task.id)?.sessionId
+                          ? 'animate-spin text-muted-foreground'
+                          : ''
+                      ]"
+                    />
+                  </Button>
                   <Switch
                     :model-value="task.enabled"
                     :aria-label="task.enabled ? t('common.enabled') : t('common.disabled')"
@@ -898,6 +921,7 @@ const saveCounter = ref(0)
 const isLoading = ref(false)
 const isSaving = ref(false)
 const firingId = ref<string | null>(null)
+const openingSessionId = ref<string | null>(null)
 const isSchedulerActionRunning = ref(false)
 const modelPickerOpen = ref<Record<string, boolean>>({})
 const openTaskIds = ref<string[]>([])
@@ -1541,6 +1565,26 @@ const runTaskNow = async (id: string) => {
     })
   } finally {
     firingId.value = null
+  }
+}
+
+const openRunSession = async (sessionId: string | undefined) => {
+  if (!sessionId) return
+  openingSessionId.value = sessionId
+  try {
+    const opened = await client.openRunSession(sessionId)
+    if (!opened) {
+      throw new Error(t('settings.scheduledTasks.run.openSessionFailed'))
+    }
+  } catch (error) {
+    console.error('[ScheduledTasks] Failed to open run session:', error)
+    toast({
+      title: t('common.error.operationFailed'),
+      description: error instanceof Error ? error.message : String(error),
+      variant: 'destructive'
+    })
+  } finally {
+    openingSessionId.value = null
   }
 }
 

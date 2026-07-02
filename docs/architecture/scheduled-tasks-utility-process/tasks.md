@@ -90,5 +90,6 @@
 - [x] Execute `agent_run` through main-process session creation and one scheduled message send.
 - [x] Record session ID, output message ID, and output preview in run history.
 - [x] Add minimal settings UI controls for `agent_run`, permission, context, and delivery.
+- [x] Add a run-history action that opens the agent-run session in the main chat window.
 - [x] Add focused service/store coverage and validate the renderer through full Vitest.
 - [x] Run format, i18n, lint, typecheck, and relevant Vitest coverage.

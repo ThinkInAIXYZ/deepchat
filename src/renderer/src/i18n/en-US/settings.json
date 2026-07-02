@@ -1810,7 +1810,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "openSession": "Continue session",
+      "openSessionFailed": "Unable to open this run session"
     }
   },
   "about": {

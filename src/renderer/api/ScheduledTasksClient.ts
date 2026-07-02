@@ -5,6 +5,7 @@ import {
   scheduledTasksGetSchedulerStatusRoute,
   scheduledTasksListRoute,
   scheduledTasksListRunsRoute,
+  scheduledTasksOpenRunSessionRoute,
   scheduledTasksReconcileNowRoute,
   scheduledTasksRestartSchedulerRoute,
   scheduledTasksToggleRoute,
@@ -66,6 +67,17 @@ const parseRunsResponse = (routeName: string, result: unknown) => {
   return parsed.data
 }
 
+const parseOpenRunSessionResponse = (routeName: string, result: unknown) => {
+  if (typeof result !== 'object' || result === null) {
+    throw new Error(`[ScheduledTasksClient] Invalid response shape from ${routeName}`)
+  }
+  const opened = (result as { opened?: unknown }).opened
+  if (typeof opened !== 'boolean') {
+    throw new Error(`[ScheduledTasksClient] Invalid open session response from ${routeName}`)
+  }
+  return opened
+}
+
 export function createScheduledTasksClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function list() {
     const result = await bridge.invoke(scheduledTasksListRoute.name, {})
@@ -111,6 +123,11 @@ export function createScheduledTasksClient(bridge: DeepchatBridge = getDeepchatB
     return parseRunsResponse(scheduledTasksListRunsRoute.name, result)
   }
 
+  async function openRunSession(sessionId: string) {
+    const result = await bridge.invoke(scheduledTasksOpenRunSessionRoute.name, { sessionId })
+    return parseOpenRunSessionResponse(scheduledTasksOpenRunSessionRoute.name, result)
+  }
+
   async function reconcileNow() {
     const result = await bridge.invoke(scheduledTasksReconcileNowRoute.name, {})
     return parseStatusResponse(scheduledTasksReconcileNowRoute.name, result)
@@ -129,6 +146,7 @@ export function createScheduledTasksClient(bridge: DeepchatBridge = getDeepchatB
     fireNow,
     getSchedulerStatus,
     listRuns,
+    openRunSession,
     reconcileNow,
     restartScheduler
   }

@@ -218,6 +218,16 @@ export const scheduledTasksListRunsRoute = defineRouteContract({
   })
 })
 
+export const scheduledTasksOpenRunSessionRoute = defineRouteContract({
+  name: 'scheduledTasks.openRunSession',
+  input: z.object({
+    sessionId: z.string().min(1)
+  }),
+  output: z.object({
+    opened: z.boolean()
+  })
+})
+
 export const scheduledTasksReconcileNowRoute = defineRouteContract({
   name: 'scheduledTasks.reconcileNow',
   input: z.object({}),

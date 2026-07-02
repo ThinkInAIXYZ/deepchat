@@ -34,6 +34,8 @@ describe('ScheduledTasksClient', () => {
                 }
               ]
             }
+          case 'scheduledTasks.openRunSession':
+            return { opened: true }
           default:
             throw new Error(routeName)
         }
@@ -45,6 +47,7 @@ describe('ScheduledTasksClient', () => {
 
     await expect(client.getSchedulerStatus()).resolves.toMatchObject({ state: 'stopped' })
     await expect(client.listRuns('task-1', 1)).resolves.toHaveLength(1)
+    await expect(client.openRunSession('session-1')).resolves.toBe(true)
     await expect(client.reconcileNow()).resolves.toMatchObject({ state: 'stopped' })
     await expect(client.restartScheduler()).resolves.toMatchObject({ state: 'stopped' })
 
@@ -53,7 +56,10 @@ describe('ScheduledTasksClient', () => {
       taskId: 'task-1',
       limit: 1
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'scheduledTasks.reconcileNow', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'scheduledTasks.restartScheduler', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'scheduledTasks.openRunSession', {
+      sessionId: 'session-1'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'scheduledTasks.reconcileNow', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'scheduledTasks.restartScheduler', {})
   })
 })
