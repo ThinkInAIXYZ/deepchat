@@ -297,6 +297,8 @@
         "found": "Найдено",
         "not_found": "Не найдено",
         "error": "Ошибка",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "Неподдерживаемая платформа"
       },
       "targetKind": {
@@ -630,6 +632,7 @@
       "resetConfirm": {
         "confirm": "Подтвердите сброс",
         "message": "Вы уверены, что хотите сбросить конфигурацию этой модели по умолчанию? Эта операция безвозврата.",
+        "prompt": "Prompt",
         "title": "Подтвердите сброс"
       },
       "reasoningEffort": {
@@ -1480,6 +1483,7 @@
       "kind": "Тип действия",
       "kindNotify": "Уведомление",
       "kindPrompt": "Чат-промпт",
+      "kindAgentRun": "Agent run",
       "titleField": "Заголовок",
       "titlePlaceholder": "Заголовок уведомления",
       "body": "Текст",
@@ -1489,8 +1493,24 @@
       "modelId": "Модель",
       "modelIdPlaceholder": "оставьте пустым для значения по умолчанию",
       "systemPrompt": "Системный промпт",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "Автоматически отправить выбранному агенту",
-      "description": "Выберите уведомление или промпт для агента."
+      "description": "Выберите уведомление или промпт для агента.",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Вс",
@@ -1534,7 +1554,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

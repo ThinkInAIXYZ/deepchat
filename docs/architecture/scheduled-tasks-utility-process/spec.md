@@ -57,6 +57,14 @@ task storage, run storage, or the due-run protocol.
 - Scheduler status exposes stopped/starting/running/idle/crashed, enabled count, and next run time.
 - No scheduler utility process directly shows UI, sends notifications, invokes tools, opens sessions,
   or runs agent code.
+- `agent_run` is a first-class scheduled action that creates an auditable DeepChat agent session,
+  sends exactly one scheduled prompt, and records the resulting session and output message metadata.
+- Scheduled tasks persist minimal execution context, permission profile, concurrency policy, and
+  delivery policy alongside the trigger and action.
+- Run records bind successful agent runs to `sessionId`, optional `outputMessageId`, and an
+  `outputPreview` suitable for history and follow-up entry points.
+- Prompt and notify tasks remain backward-compatible and receive default context/execution/delivery
+  policy during migration or normalization.
 
 ## Constraints
 
@@ -69,6 +77,10 @@ task storage, run storage, or the due-run protocol.
   redesign in this pass.
 - Do not split the implementation into separate PRs.
 - Technical strings, schema names, and code comments stay in English.
+- Keep scheduled agent runs inside the main process execution path; the utility process only queues
+  due runs.
+- Permission profiles are stored as product policy. P0 maps them to current session permission modes
+  conservatively instead of adding new runtime permission states.
 
 ## UI Target
 
@@ -112,6 +124,8 @@ No enabled tasks:
 - Multi-device task sync.
 - Moving agent runtime, permission, model, skill, or MCP execution into the scheduler host.
 - Reworking scheduled task settings layout beyond status and minimal history.
+- Script tasks, pipelines, event triggers, remote continuation, multi-device inbox sync, cron/rrule,
+  and Hermes-level distributed orchestration.
 
 ## Open Questions
 

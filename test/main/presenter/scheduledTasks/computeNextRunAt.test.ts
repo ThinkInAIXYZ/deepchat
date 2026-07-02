@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { SCHEDULED_TASKS_VERSION, type ScheduledTask } from '@shared/scheduledTasks'
+import {
+  SCHEDULED_TASKS_VERSION,
+  type ScheduledTask,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
+} from '@shared/scheduledTasks'
 import { computeNextRunAt } from '@/presenter/scheduledTasks/schedulerCore/computeNextRunAt'
 
 const task = (overrides: Partial<ScheduledTask>): ScheduledTask => ({
@@ -9,6 +15,9 @@ const task = (overrides: Partial<ScheduledTask>): ScheduledTask => ({
   enabled: true,
   trigger: { kind: 'daily', hour: 9, minute: 0 },
   action: { kind: 'notify', title: 'Title', body: 'Body' },
+  context: createDefaultScheduledTaskContext(),
+  execution: createDefaultScheduledTaskExecution(),
+  delivery: createDefaultScheduledTaskDelivery(),
   timezone: 'UTC',
   nextRunAt: null,
   lastRunId: null,

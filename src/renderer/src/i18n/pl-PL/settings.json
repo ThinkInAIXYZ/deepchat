@@ -123,6 +123,14 @@
     "verbosity": "Szczegółowość",
     "interleaved": "Kompatybilność myślenia z przeplataniem siły",
     "systemPrompt": "Domyślny system prompt",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Pozostaw puste dla pustego system prompt",
     "defaultProjectPath": "Katalog domyślny (opcjonalnie)",
     "defaultProjectPathPlaceholder": "Pozostaw puste, aby użyć globalnego katalogu domyślnego",
@@ -175,6 +183,8 @@
         "pending_embedding": "Embedding",
         "embedded": "Zindeksowane",
         "error": "Błąd",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Tylko słowa kluczowe",
         "archived": "Zarchiwizowano",
         "conflicted": "W konflikcie"
@@ -887,6 +897,7 @@
       "resetConfirm": {
         "confirm": "Potwierdź reset",
         "message": "Czy na pewno chcesz zresetować konfigurację tego modelu do ustawień domyślnych? \nTa operacja jest nieodwołalna.",
+        "prompt": "Prompt",
         "title": "Potwierdź reset"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Typ akcji",
       "kindNotify": "Powiadomienie",
       "kindPrompt": "Prompt czatu",
+      "kindAgentRun": "Agent run",
       "titleField": "Tytuł",
       "titlePlaceholder": "Tytuł powiadomienia",
       "body": "Treść",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "zostaw puste dla domyślnego",
       "systemPrompt": "Prompt systemowy",
       "autoSend": "Wyślij automatycznie do wybranego agenta",
-      "description": "Wybierz powiadomienie lub prompt agenta."
+      "description": "Wybierz powiadomienie lub prompt agenta.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Nd",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

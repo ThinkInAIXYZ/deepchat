@@ -4,7 +4,10 @@ import {
   SCHEDULED_TASKS_VERSION,
   type ScheduledTask,
   type ScheduledTaskAction,
-  type ScheduledTaskTrigger
+  type ScheduledTaskTrigger,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
 } from '@shared/scheduledTasks'
 import { ScheduledTaskLocksTable } from '@/presenter/sqlitePresenter/tables/scheduledTaskLocks'
 import { ScheduledTaskRunsTable } from '@/presenter/sqlitePresenter/tables/scheduledTaskRuns'
@@ -33,6 +36,9 @@ const createTask = (
   enabled: true,
   trigger: { kind: 'daily', hour: 9, minute: 0 },
   action: { kind: 'notify', title: 'Title', body: 'Body' },
+  context: createDefaultScheduledTaskContext(),
+  execution: createDefaultScheduledTaskExecution(),
+  delivery: createDefaultScheduledTaskDelivery(),
   timezone: 'UTC',
   nextRunAt: 1000,
   lastRunId: null,

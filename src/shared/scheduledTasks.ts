@@ -8,11 +8,26 @@ export const SCHEDULED_TASKS_VERSION = 2 as const
 export const SCHEDULED_TASK_TRIGGER_KINDS = ['once', 'daily', 'weekly'] as const
 export type ScheduledTaskTriggerKind = (typeof SCHEDULED_TASK_TRIGGER_KINDS)[number]
 
-export const SCHEDULED_TASK_ACTION_KINDS = ['notify', 'prompt'] as const
+export const SCHEDULED_TASK_ACTION_KINDS = ['notify', 'prompt', 'agent_run'] as const
 export type ScheduledTaskActionKind = (typeof SCHEDULED_TASK_ACTION_KINDS)[number]
 
 export const SCHEDULED_TASK_DEFAULT_AGENT_ID = 'deepchat'
 export const SCHEDULED_TASK_DEFAULT_TIMEZONE = 'UTC'
+
+export const SCHEDULED_TASK_PERMISSION_PROFILES = [
+  'notify_only',
+  'read_only',
+  'workspace_write',
+  'command',
+  'computer_use'
+] as const
+export type ScheduledTaskPermissionProfile = (typeof SCHEDULED_TASK_PERMISSION_PROFILES)[number]
+
+export const SCHEDULED_TASK_CONCURRENCY_POLICIES = ['skip', 'queue', 'parallel'] as const
+export type ScheduledTaskConcurrencyPolicy = (typeof SCHEDULED_TASK_CONCURRENCY_POLICIES)[number]
+
+export const SCHEDULED_TASK_DELIVERY_TARGETS = ['inbox', 'desktop'] as const
+export type ScheduledTaskDeliveryTarget = (typeof SCHEDULED_TASK_DELIVERY_TARGETS)[number]
 
 export const SCHEDULED_TASK_RUN_STATUSES = [
   'queued',
@@ -65,6 +80,34 @@ export type ScheduledTaskAction =
       modelId?: string
       systemPrompt?: string
     }
+  | {
+      kind: 'agent_run'
+      title: string
+      prompt: string
+      outputFormat?: 'message' | 'markdown' | 'json'
+    }
+
+export interface ScheduledTaskContext {
+  sessionMode: 'fresh'
+  workdir?: string
+  skillIds: string[]
+}
+
+export interface ScheduledTaskExecutionPolicy {
+  agentId?: string
+  providerId?: string
+  modelId?: string
+  systemPrompt?: string
+  permissionProfile: ScheduledTaskPermissionProfile
+  concurrencyPolicy: ScheduledTaskConcurrencyPolicy
+}
+
+export interface ScheduledTaskDeliveryPolicy {
+  targets: ScheduledTaskDeliveryTarget[]
+  continuable: boolean
+  suppressSuccess: boolean
+  notifyOnFailure: boolean
+}
 
 export interface ScheduledTask {
   id: string
@@ -73,6 +116,9 @@ export interface ScheduledTask {
   enabled: boolean
   trigger: ScheduledTaskTrigger
   action: ScheduledTaskAction
+  context: ScheduledTaskContext
+  execution: ScheduledTaskExecutionPolicy
+  delivery: ScheduledTaskDeliveryPolicy
   timezone: string
   nextRunAt: number | null
   lastRunId: string | null
@@ -118,4 +164,21 @@ export interface SchedulerProcessStatus {
 export const createDefaultScheduledTasksSettings = (): ScheduledTasksSettings => ({
   version: SCHEDULED_TASKS_VERSION,
   tasks: []
+})
+
+export const createDefaultScheduledTaskContext = (): ScheduledTaskContext => ({
+  sessionMode: 'fresh',
+  skillIds: []
+})
+
+export const createDefaultScheduledTaskExecution = (): ScheduledTaskExecutionPolicy => ({
+  permissionProfile: 'read_only',
+  concurrencyPolicy: 'skip'
+})
+
+export const createDefaultScheduledTaskDelivery = (): ScheduledTaskDeliveryPolicy => ({
+  targets: ['inbox', 'desktop'],
+  continuable: true,
+  suppressSuccess: false,
+  notifyOnFailure: true
 })

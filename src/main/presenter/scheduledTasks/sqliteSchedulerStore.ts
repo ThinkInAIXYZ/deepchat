@@ -7,7 +7,10 @@ import {
   type ScheduledTaskRun,
   type ScheduledTaskRunReason,
   type ScheduledTaskRunStatus,
-  type ScheduledTaskTrigger
+  type ScheduledTaskTrigger,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
 } from '@shared/scheduledTasks'
 import type { ScheduledTaskRow } from '../sqlitePresenter/tables/scheduledTasks'
 import type { ScheduledTaskRunRow } from '../sqlitePresenter/tables/scheduledTaskRuns'
@@ -116,19 +119,25 @@ export class SQLiteSchedulerStore implements SchedulerStore {
           enabled,
           trigger_json,
           action_json,
+          context_json,
+          execution_json,
+          delivery_json,
           timezone,
           next_run_at,
           last_run_id,
           last_fired_at,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           version = excluded.version,
           name = excluded.name,
           enabled = excluded.enabled,
           trigger_json = excluded.trigger_json,
           action_json = excluded.action_json,
+          context_json = excluded.context_json,
+          execution_json = excluded.execution_json,
+          delivery_json = excluded.delivery_json,
           timezone = excluded.timezone,
           next_run_at = excluded.next_run_at,
           last_run_id = excluded.last_run_id,
@@ -142,6 +151,9 @@ export class SQLiteSchedulerStore implements SchedulerStore {
         task.enabled ? 1 : 0,
         JSON.stringify(task.trigger),
         JSON.stringify(task.action),
+        JSON.stringify(task.context),
+        JSON.stringify(task.execution),
+        JSON.stringify(task.delivery),
         task.timezone,
         task.nextRunAt,
         task.lastRunId,
@@ -200,6 +212,24 @@ export class SQLiteSchedulerStore implements SchedulerStore {
         )
         .run(task.id, runId, input.now, input.owner)
       if (lockResult.changes === 0) {
+        return null
+      }
+
+      if (task.execution.concurrencyPolicy === 'skip' && this.hasActiveRun(task.id)) {
+        const run = this.insertRun({
+          id: runId,
+          taskId: task.id,
+          scheduledAt: task.nextRunAt,
+          queuedAt: input.now,
+          status: 'queued',
+          reason: input.reason,
+          owner: input.owner
+        })
+        this.markRunSkipped(run.id, input.now, 'Skipped because a previous run is still active.')
+        this.upsertTask(this.taskAfterRun(task, input.now, run.id))
+        this.db
+          .prepare('DELETE FROM scheduled_task_locks WHERE task_id = ? AND run_id = ?')
+          .run(task.id, run.id)
         return null
       }
 
@@ -288,6 +318,19 @@ export class SQLiteSchedulerStore implements SchedulerStore {
          WHERE id = ?`
       )
       .run(completedAt, completedAt, runId)
+  }
+
+  markRunSkipped(runId: string, completedAt: number, error?: string): void {
+    this.db
+      .prepare(
+        `UPDATE scheduled_task_runs
+         SET status = 'skipped',
+             completed_at = ?,
+             error = ?,
+             updated_at = ?
+         WHERE id = ?`
+      )
+      .run(completedAt, error ?? null, completedAt, runId)
   }
 
   recoverStaleRuns(input: { now: number; staleQueuedMs: number; staleRunningMs: number }): void {
@@ -381,6 +424,9 @@ export class SQLiteSchedulerStore implements SchedulerStore {
       enabled: row.enabled === 1,
       trigger: parseJson<ScheduledTaskTrigger>(row.trigger_json),
       action: parseJson<ScheduledTaskAction>(row.action_json),
+      context: parseJson(row.context_json, createDefaultScheduledTaskContext()),
+      execution: parseJson(row.execution_json, createDefaultScheduledTaskExecution()),
+      delivery: parseJson(row.delivery_json, createDefaultScheduledTaskDelivery()),
       timezone: row.timezone,
       nextRunAt: row.next_run_at,
       lastRunId: row.last_run_id,
@@ -505,8 +551,33 @@ export class SQLiteSchedulerStore implements SchedulerStore {
       updatedAt: row.updated_at
     }
   }
+
+  private hasActiveRun(taskId: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1
+         FROM scheduled_task_runs
+         WHERE task_id = ? AND status IN ('queued', 'running')
+         LIMIT 1`
+      )
+      .get(taskId)
+    return Boolean(row)
+  }
 }
 
-function parseJson<T>(raw: string): T {
-  return JSON.parse(raw) as T
+function parseJson<T>(raw: string | null, fallback?: T): T {
+  if (!raw) {
+    if (fallback !== undefined) {
+      return fallback
+    }
+    throw new Error('Missing required JSON value')
+  }
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    if (fallback !== undefined) {
+      return fallback
+    }
+    throw new Error('Invalid required JSON value')
+  }
 }

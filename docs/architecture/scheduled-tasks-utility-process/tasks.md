@@ -81,3 +81,14 @@
 - [x] Run `pnpm run lint`.
 - [x] Run `pnpm run typecheck`.
 - [ ] Validate packaged Windows and Linux utility-process behavior in CI runner after PR.
+
+## 7. Scheduled Agent Runs P0 Gap
+
+- [x] Update SDD acceptance and plan for first-class scheduled agent runs.
+- [x] Add shared action, context, execution, delivery, and route schemas.
+- [x] Persist agent-run policies in SQLite and migrate existing rows with defaults.
+- [x] Execute `agent_run` through main-process session creation and one scheduled message send.
+- [x] Record session ID, output message ID, and output preview in run history.
+- [x] Add minimal settings UI controls for `agent_run`, permission, context, and delivery.
+- [x] Add focused service/store coverage and validate the renderer through full Vitest.
+- [x] Run format, i18n, lint, typecheck, and relevant Vitest coverage.

@@ -123,6 +123,14 @@
     "verbosity": "Độ dài",
     "interleaved": "Buộc tương thích tư duy xen kẽ",
     "systemPrompt": "system prompt mặc định",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Để trống cho system prompt trống",
     "defaultProjectPath": "Thư mục mặc định (tùy chọn)",
     "defaultProjectPathPlaceholder": "Để trống để sử dụng thư mục mặc định chung",
@@ -175,6 +183,8 @@
         "pending_embedding": "Đang embedding",
         "embedded": "Đã lập chỉ mục",
         "error": "Lỗi",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Chỉ từ khóa",
         "archived": "Đã lưu trữ",
         "conflicted": "Xung đột"
@@ -887,6 +897,7 @@
       "resetConfirm": {
         "confirm": "Xác nhận đặt lại",
         "message": "Bạn có chắc chắn muốn đặt lại cấu hình của model này về mặc định không? \nHoạt động này là không thể hủy ngang.",
+        "prompt": "Prompt",
         "title": "Xác nhận đặt lại"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Loại hành động",
       "kindNotify": "Thông báo",
       "kindPrompt": "Prompt trò chuyện",
+      "kindAgentRun": "Agent run",
       "titleField": "Tiêu đề",
       "titlePlaceholder": "Tiêu đề thông báo",
       "body": "Nội dung",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "để trống để dùng mặc định",
       "systemPrompt": "Prompt hệ thống",
       "autoSend": "Tự động gửi tới tác nhân đã chọn",
-      "description": "Chọn thông báo hoặc prompt Tác nhân."
+      "description": "Chọn thông báo hoặc prompt Tác nhân.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "CN",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

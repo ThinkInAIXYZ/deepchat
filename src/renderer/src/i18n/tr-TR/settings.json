@@ -123,6 +123,14 @@
     "verbosity": "ayrıntı",
     "interleaved": "Aralıklı düşünme uyumluluğunu zorla",
     "systemPrompt": "Varsayılan sistem prompt",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Boş bir sistem için boş bırakın prompt",
     "defaultProjectPath": "Varsayılan dizin (isteğe bağlı)",
     "defaultProjectPathPlaceholder": "Genel varsayılan dizini kullanmak için boş bırakın",
@@ -175,6 +183,8 @@
         "pending_embedding": "Embedding",
         "embedded": "Dizinlendi",
         "error": "Hata",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Yalnızca anahtar kelime",
         "archived": "Arşivlendi",
         "conflicted": "Çakışıyor"
@@ -925,6 +935,7 @@
       "resetConfirm": {
         "title": "Sıfırlamayı onayla",
         "message": "Bu modelin yapılandırmasını varsayılana sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+        "prompt": "Prompt",
         "confirm": "Sıfırlamayı onayla"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Eylem türü",
       "kindNotify": "Bildirim",
       "kindPrompt": "Sohbet istemi",
+      "kindAgentRun": "Agent run",
       "titleField": "Başlık",
       "titlePlaceholder": "Bildirim başlığı",
       "body": "Gövde",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "varsayılan için boş bırakın",
       "systemPrompt": "Sistem istemi",
       "autoSend": "Seçili ajana otomatik gönder",
-      "description": "Bir bildirim veya Ajan istemi seçin."
+      "description": "Bir bildirim veya Ajan istemi seçin.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Paz",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

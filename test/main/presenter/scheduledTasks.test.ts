@@ -6,7 +6,13 @@ import {
   normalizeScheduledTasksConfig,
   shouldBackfillOneShot
 } from '../../../src/main/presenter/scheduledTasks/normalize'
-import { SCHEDULED_TASKS_VERSION, type ScheduledTask } from '@shared/scheduledTasks'
+import {
+  SCHEDULED_TASKS_VERSION,
+  type ScheduledTask,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
+} from '@shared/scheduledTasks'
 import { ScheduledTaskLocksTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTaskLocks'
 import { ScheduledTaskRunsTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTaskRuns'
 import { ScheduledTasksTable } from '../../../src/main/presenter/sqlitePresenter/tables/scheduledTasks'
@@ -29,6 +35,9 @@ const baseTask = (
   name: 'task',
   enabled: true,
   timezone: 'UTC',
+  context: createDefaultScheduledTaskContext(),
+  execution: createDefaultScheduledTaskExecution(),
+  delivery: createDefaultScheduledTaskDelivery(),
   nextRunAt: null,
   lastRunId: null,
   createdAt: 0,
@@ -396,7 +405,10 @@ describeIfSqlite('ScheduledTasksService', () => {
       message: 'Create my plan',
       providerId: 'provider-1',
       modelId: 'model-1',
-      systemPrompt: 'Be concise'
+      systemPrompt: 'Be concise',
+      projectDir: null,
+      permissionMode: 'default',
+      activeSkills: []
     })
     expect(harness.sendToWindow).not.toHaveBeenCalled()
     expect(harness.showNotification).toHaveBeenCalledWith({
@@ -406,5 +418,71 @@ describeIfSqlite('ScheduledTasksService', () => {
     })
     expect(result.task.enabled).toBe(true)
     expect(result.task.lastFiredAt).toEqual(expect.any(Number))
+  })
+
+  it('runs scheduled agent tasks as auditable sessions', async () => {
+    const createSessionForTask = vi.fn().mockResolvedValue({
+      sessionId: 'session-1',
+      outputMessageId: 'assistant-1',
+      outputPreview: 'Done'
+    })
+    const task = baseTask({
+      id: 'agent-run',
+      name: 'agent run',
+      enabled: true,
+      trigger: { kind: 'daily', hour: 9, minute: 0 },
+      action: {
+        kind: 'agent_run',
+        title: 'Daily digest',
+        prompt: 'Summarize the repository'
+      },
+      context: {
+        sessionMode: 'fresh',
+        workdir: '/tmp/project',
+        skillIds: ['code-review']
+      },
+      execution: {
+        agentId: 'deepchat',
+        providerId: 'provider-1',
+        modelId: 'model-1',
+        systemPrompt: 'Be precise',
+        permissionProfile: 'workspace_write',
+        concurrencyPolicy: 'skip'
+      },
+      delivery: {
+        targets: ['inbox', 'desktop'],
+        continuable: true,
+        suppressSuccess: false,
+        notifyOnFailure: true
+      },
+      createdAt: 1,
+      lastFiredAt: null
+    })
+    const harness = createServiceHarness([task], { createSessionForTask })
+
+    await harness.service.fireNow(task.id)
+
+    expect(createSessionForTask).toHaveBeenCalledWith({
+      agentId: 'deepchat',
+      message: 'Summarize the repository',
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      systemPrompt: 'Be precise',
+      projectDir: '/tmp/project',
+      permissionMode: 'auto_approve',
+      activeSkills: ['code-review']
+    })
+    expect(harness.showNotification).toHaveBeenCalledWith({
+      id: 'scheduled:agent-run',
+      title: 'Daily digest',
+      body: 'Done'
+    })
+    const [run] = harness.service.listRuns(task.id, 1)
+    expect(run).toMatchObject({
+      status: 'success',
+      sessionId: 'session-1',
+      outputMessageId: 'assistant-1',
+      outputPreview: 'Done'
+    })
   })
 })

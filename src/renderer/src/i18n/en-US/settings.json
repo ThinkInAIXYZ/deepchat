@@ -1737,17 +1737,34 @@
       "kind": "Action kind",
       "kindNotify": "Notification",
       "kindPrompt": "Chat prompt",
+      "kindAgentRun": "Agent run",
       "titleField": "Title",
       "titlePlaceholder": "Notification title",
       "body": "Body",
       "message": "Message",
+      "prompt": "Prompt",
       "agentId": "Agent",
       "agentIdPlaceholder": "default: deepchat",
       "modelId": "Model",
       "modelIdPlaceholder": "leave blank for default",
       "systemPrompt": "System prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "Auto-send to the selected agent",
       "description": "Choose a notification or an Agent prompt."
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Sun",
@@ -1784,6 +1801,8 @@
     "run": {
       "latest": "Latest run: {status} | {time}",
       "error": "Error: {error}",
+      "session": "Session: {id}",
+      "output": "Output: {output}",
       "status": {
         "queued": "Queued",
         "running": "Running",

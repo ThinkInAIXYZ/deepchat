@@ -9,13 +9,22 @@ import {
   SCHEDULED_TASKS_VERSION,
   type ScheduledTask,
   type ScheduledTaskAction,
+  type ScheduledTaskDeliveryPolicy,
+  type ScheduledTaskPermissionProfile,
   type ScheduledTaskRun,
   type ScheduledTasksSettings,
-  type SchedulerProcessStatus
+  type SchedulerProcessStatus,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
 } from '@shared/scheduledTasks'
+import type { PermissionMode } from '@shared/types/agent-interface'
 import type { z } from 'zod'
 import {
   scheduledTaskActionSchema,
+  scheduledTaskContextSchema,
+  scheduledTaskDeliveryPolicySchema,
+  scheduledTaskExecutionPolicySchema,
   scheduledTaskTriggerSchema,
   type scheduledTasksUpsertInputSchema
 } from '@shared/contracts/routes/scheduledTasks.routes'
@@ -32,7 +41,10 @@ interface SessionCreator {
     providerId?: string
     modelId?: string
     systemPrompt?: string
-  }): Promise<{ sessionId: string | null }>
+    projectDir?: string | null
+    permissionMode?: PermissionMode
+    activeSkills?: string[]
+  }): Promise<{ sessionId: string | null; outputMessageId?: string; outputPreview?: string }>
 }
 
 interface SQLitePresenterPort {
@@ -56,6 +68,8 @@ export interface ScheduledTasksServiceDeps {
 
 interface DispatchResult {
   sessionId?: string
+  tapeId?: string
+  outputMessageId?: string
   outputPreview?: string
 }
 
@@ -198,6 +212,8 @@ export class ScheduledTasksService {
         runId,
         completedAt: Date.now(),
         sessionId: result.sessionId,
+        tapeId: result.tapeId,
+        outputMessageId: result.outputMessageId,
         outputPreview: result.outputPreview
       })
     } catch (error) {
@@ -206,6 +222,7 @@ export class ScheduledTasksService {
         completedAt: Date.now(),
         error: error instanceof Error ? error.message : String(error)
       })
+      await this.notifyRunFailed(task, error)
       throw error
     }
   }
@@ -223,6 +240,15 @@ export class ScheduledTasksService {
     const existing = input.id ? this.store.getTask(input.id) : null
     const trigger = scheduledTaskTriggerSchema.parse(input.trigger)
     const action = scheduledTaskActionSchema.parse(input.action)
+    const context = scheduledTaskContextSchema.parse(
+      input.context ?? existing?.context ?? createDefaultScheduledTaskContext()
+    )
+    const execution = scheduledTaskExecutionPolicySchema.parse(
+      input.execution ?? existing?.execution ?? createDefaultScheduledTaskExecution()
+    )
+    const delivery = scheduledTaskDeliveryPolicySchema.parse(
+      input.delivery ?? existing?.delivery ?? createDefaultScheduledTaskDelivery()
+    )
     const triggerChanged = !existing || JSON.stringify(existing.trigger) !== JSON.stringify(trigger)
 
     return this.withNextRunAt(
@@ -233,6 +259,9 @@ export class ScheduledTasksService {
         enabled: input.enabled,
         trigger,
         action,
+        context,
+        execution,
+        delivery,
         timezone: existing?.timezone ?? getSystemTimezone(),
         nextRunAt: null,
         lastRunId: existing?.lastRunId ?? null,
@@ -255,23 +284,28 @@ export class ScheduledTasksService {
   }
 
   private async dispatch(task: ScheduledTask): Promise<DispatchResult> {
-    return await this.runAction(task.id, task.action)
+    return await this.runAction(task, task.action)
   }
 
-  private async runAction(taskId: string, action: ScheduledTaskAction): Promise<DispatchResult> {
+  private async runAction(
+    task: ScheduledTask,
+    action: ScheduledTaskAction
+  ): Promise<DispatchResult> {
     switch (action.kind) {
       case 'notify':
         await this.notificationPresenter.showNotification({
-          id: `scheduled:${taskId}`,
+          id: `scheduled:${task.id}`,
           title: action.title,
           body: action.body
         })
         return { outputPreview: action.body.slice(0, 200) }
       case 'prompt':
         if (action.autoSend) {
-          return await this.runPromptAutoSend(taskId, action)
+          return await this.runPromptAutoSend(task, action)
         }
-        return await this.runPromptDraft(taskId, action)
+        return await this.runPromptDraft(task.id, action)
+      case 'agent_run':
+        return await this.runAgentRun(task, action)
       default: {
         const _exhaustive: never = action
         throw new Error(`[ScheduledTasks] Unhandled action kind: ${String(_exhaustive)}`)
@@ -306,12 +340,12 @@ export class ScheduledTasksService {
   }
 
   private async runPromptAutoSend(
-    taskId: string,
+    task: ScheduledTask,
     action: Extract<ScheduledTaskAction, { kind: 'prompt' }>
   ): Promise<DispatchResult> {
     if (!this.sessionCreator) {
       log.warn('[ScheduledTasks] sessionCreator is not wired; falling back to draft mode')
-      return await this.runPromptDraft(taskId, action)
+      return await this.runPromptDraft(task.id, action)
     }
 
     try {
@@ -320,21 +354,83 @@ export class ScheduledTasksService {
         message: action.message,
         providerId: action.providerId,
         modelId: action.modelId,
-        systemPrompt: action.systemPrompt
+        systemPrompt: action.systemPrompt,
+        projectDir: task.context.workdir ?? null,
+        permissionMode: 'default',
+        activeSkills: task.context.skillIds
       })
 
       await this.notificationPresenter.showNotification({
-        id: `scheduled:${taskId}`,
+        id: `scheduled:${task.id}`,
         title: action.title,
         body: action.message.slice(0, 200)
       })
       return {
         sessionId: result.sessionId ?? undefined,
+        outputMessageId: result.outputMessageId,
         outputPreview: action.message.slice(0, 200)
       }
     } catch (error) {
       log.error('[ScheduledTasks] Failed to create session for task:', error)
-      return await this.runPromptDraft(taskId, action)
+      return await this.runPromptDraft(task.id, action)
+    }
+  }
+
+  private async runAgentRun(
+    task: ScheduledTask,
+    action: Extract<ScheduledTaskAction, { kind: 'agent_run' }>
+  ): Promise<DispatchResult> {
+    if (!this.sessionCreator) {
+      throw new Error('[ScheduledTasks] sessionCreator is not wired for agent_run')
+    }
+
+    const result = await this.sessionCreator.createSessionForTask({
+      agentId: task.execution.agentId ?? SCHEDULED_TASK_DEFAULT_AGENT_ID,
+      message: action.prompt,
+      providerId: task.execution.providerId,
+      modelId: task.execution.modelId,
+      systemPrompt: task.execution.systemPrompt,
+      projectDir: task.context.workdir ?? null,
+      permissionMode: mapPermissionProfileToMode(task.execution.permissionProfile),
+      activeSkills: task.context.skillIds
+    })
+
+    if (!result.sessionId) {
+      throw new Error('[ScheduledTasks] agent_run did not create a session')
+    }
+
+    const outputPreview = result.outputPreview ?? action.prompt.slice(0, 200)
+    if (shouldShowSuccessNotification(task.delivery)) {
+      await this.notificationPresenter.showNotification({
+        id: `scheduled:${task.id}`,
+        title: action.title,
+        body: outputPreview
+      })
+    }
+
+    return {
+      sessionId: result.sessionId,
+      outputMessageId: result.outputMessageId,
+      outputPreview
+    }
+  }
+
+  private async notifyRunFailed(task: ScheduledTask, error: unknown): Promise<void> {
+    if (!task.delivery.notifyOnFailure || !task.delivery.targets.includes('desktop')) {
+      return
+    }
+
+    try {
+      await this.notificationPresenter.showNotification({
+        id: `scheduled:${task.id}:failed`,
+        title: `${getActionTitle(task)} failed`,
+        body: error instanceof Error ? error.message.slice(0, 200) : String(error).slice(0, 200)
+      })
+    } catch (notificationError) {
+      log.warn(
+        '[ScheduledTasks] Failed to show scheduled task failure notification:',
+        notificationError
+      )
     }
   }
 }
@@ -344,6 +440,26 @@ function getSystemTimezone(): string {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || SCHEDULED_TASK_DEFAULT_TIMEZONE
   } catch {
     return SCHEDULED_TASK_DEFAULT_TIMEZONE
+  }
+}
+
+function shouldShowSuccessNotification(delivery: ScheduledTaskDeliveryPolicy): boolean {
+  return !delivery.suppressSuccess && delivery.targets.includes('desktop')
+}
+
+function getActionTitle(task: ScheduledTask): string {
+  return task.action.title || task.name
+}
+
+function mapPermissionProfileToMode(profile: ScheduledTaskPermissionProfile): PermissionMode {
+  switch (profile) {
+    case 'workspace_write':
+    case 'command':
+    case 'computer_use':
+      return 'auto_approve'
+    case 'notify_only':
+    case 'read_only':
+      return 'default'
   }
 }
 

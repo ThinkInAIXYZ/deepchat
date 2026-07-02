@@ -153,16 +153,10 @@
                         <span
                           :class="[
                             'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                            task.action.kind === 'prompt'
-                              ? 'bg-primary/10 text-primary'
-                              : 'bg-muted text-muted-foreground'
+                            getActionKindClass(task.action.kind)
                           ]"
                         >
-                          {{
-                            task.action.kind === 'prompt'
-                              ? t('settings.scheduledTasks.action.kindPrompt')
-                              : t('settings.scheduledTasks.action.kindNotify')
-                          }}
+                          {{ getActionKindLabel(task.action.kind) }}
                         </span>
                       </div>
                       <div class="truncate text-xs text-muted-foreground">
@@ -186,6 +180,26 @@
                         {{
                           t('settings.scheduledTasks.run.error', {
                             error: getLatestRun(task.id)?.error
+                          })
+                        }}
+                      </div>
+                      <div
+                        v-if="getLatestRun(task.id)?.sessionId"
+                        class="truncate text-[11px] text-muted-foreground"
+                      >
+                        {{
+                          t('settings.scheduledTasks.run.session', {
+                            id: getLatestRun(task.id)?.sessionId
+                          })
+                        }}
+                      </div>
+                      <div
+                        v-if="getLatestRun(task.id)?.outputPreview"
+                        class="truncate text-[11px] text-muted-foreground"
+                      >
+                        {{
+                          t('settings.scheduledTasks.run.output', {
+                            output: getLatestRun(task.id)?.outputPreview
                           })
                         }}
                       </div>
@@ -365,6 +379,9 @@
                                 </SelectItem>
                                 <SelectItem value="prompt">
                                   {{ t('settings.scheduledTasks.action.kindPrompt') }}
+                                </SelectItem>
+                                <SelectItem value="agent_run">
+                                  {{ t('settings.scheduledTasks.action.kindAgentRun') }}
                                 </SelectItem>
                               </SelectContent>
                             </Select>
@@ -554,6 +571,252 @@
                             {{ t('settings.scheduledTasks.action.autoSend') }}
                           </label>
                         </div>
+
+                        <div v-if="task.action.kind === 'agent_run'" class="space-y-3">
+                          <div class="space-y-1.5">
+                            <Label class="text-xs text-muted-foreground">
+                              {{ t('settings.scheduledTasks.action.prompt') }}
+                            </Label>
+                            <textarea
+                              :value="(task.action as AgentRunAction).prompt"
+                              class="min-h-24 w-full rounded-md border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              rows="3"
+                              @input="
+                                (event) =>
+                                  updateActionField(
+                                    index,
+                                    'prompt',
+                                    (event.target as HTMLTextAreaElement).value
+                                  )
+                              "
+                              @blur="commitTask(index)"
+                            />
+                          </div>
+
+                          <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs text-muted-foreground">
+                                {{ t('settings.scheduledTasks.action.agentId') }}
+                              </Label>
+                              <Select
+                                :model-value="task.execution.agentId ?? 'deepchat'"
+                                @update:model-value="
+                                  (value) => updateAgentSelection(index, String(value))
+                                "
+                              >
+                                <SelectTrigger class="h-8! w-full min-w-0">
+                                  <SelectValue
+                                    class="min-w-0 truncate"
+                                    :placeholder="
+                                      t('settings.scheduledTasks.action.agentIdPlaceholder')
+                                    "
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem
+                                    v-for="agent in enabledAgents"
+                                    :key="agent.id"
+                                    :value="agent.id"
+                                  >
+                                    <span class="block max-w-[18rem] truncate">
+                                      {{ agent.name }} ({{ agent.id }})
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs text-muted-foreground">
+                                {{ t('settings.scheduledTasks.action.modelId') }}
+                              </Label>
+                              <Popover
+                                :open="modelPickerOpen[`${task.id}:agent_run`] ?? false"
+                                @update:open="
+                                  (value) => setModelPickerOpen(`${task.id}:agent_run`, value)
+                                "
+                              >
+                                <PopoverTrigger as-child>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="h-8! w-full min-w-0 justify-between px-3 text-left font-normal"
+                                  >
+                                    <span class="flex min-w-0 items-center gap-2">
+                                      <ModelIcon
+                                        v-if="getSelectedModelProviderId(task.execution)"
+                                        :model-id="getSelectedModelProviderId(task.execution)"
+                                        class="h-4 w-4 shrink-0"
+                                      />
+                                      <span class="truncate">
+                                        {{ getModelLabel(task.execution) }}
+                                      </span>
+                                    </span>
+                                    <Icon
+                                      icon="lucide:chevron-down"
+                                      class="h-4 w-4 shrink-0 opacity-50"
+                                    />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="start"
+                                  class="w-[min(22rem,calc(100vw-2rem))] p-0"
+                                >
+                                  <ModelSelect
+                                    :exclude-providers="['acp']"
+                                    :respect-chat-mode="false"
+                                    :selected-provider-id="task.execution.providerId ?? ''"
+                                    :selected-model-id="task.execution.modelId ?? ''"
+                                    @update:model="
+                                      (model, providerId) =>
+                                        updateModelSelection(
+                                          index,
+                                          `${task.id}:agent_run`,
+                                          model,
+                                          providerId
+                                        )
+                                    "
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
+
+                          <div class="space-y-1.5">
+                            <Label class="text-xs text-muted-foreground">
+                              {{ t('settings.scheduledTasks.action.systemPrompt') }}
+                            </Label>
+                            <textarea
+                              :value="task.execution.systemPrompt ?? ''"
+                              class="min-h-20 w-full rounded-md border bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              rows="2"
+                              @input="
+                                (event) =>
+                                  updateExecutionField(
+                                    index,
+                                    'systemPrompt',
+                                    (event.target as HTMLTextAreaElement).value
+                                  )
+                              "
+                              @blur="commitTask(index)"
+                            />
+                          </div>
+
+                          <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs text-muted-foreground">
+                                {{ t('settings.scheduledTasks.action.workdir') }}
+                              </Label>
+                              <Input
+                                :model-value="task.context.workdir ?? ''"
+                                class="h-8!"
+                                :placeholder="
+                                  t('settings.scheduledTasks.action.workdirPlaceholder')
+                                "
+                                @update:model-value="
+                                  (value) => updateContextField(index, 'workdir', String(value))
+                                "
+                                @blur="commitTask(index)"
+                              />
+                            </div>
+
+                            <div class="min-w-0 space-y-1.5">
+                              <Label class="text-xs text-muted-foreground">
+                                {{ t('settings.scheduledTasks.action.permissionProfile') }}
+                              </Label>
+                              <Select
+                                :model-value="task.execution.permissionProfile"
+                                @update:model-value="
+                                  (value) =>
+                                    updateExecutionField(
+                                      index,
+                                      'permissionProfile',
+                                      value as ScheduledTaskPermissionProfile
+                                    )
+                                "
+                              >
+                                <SelectTrigger class="h-8! w-full min-w-0">
+                                  <SelectValue class="min-w-0 truncate" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem
+                                    v-for="profile in permissionProfileOptions"
+                                    :key="profile"
+                                    :value="profile"
+                                  >
+                                    {{ t(`settings.scheduledTasks.permission.${profile}`) }}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div class="space-y-1.5">
+                            <Label class="text-xs text-muted-foreground">
+                              {{ t('settings.scheduledTasks.action.skillIds') }}
+                            </Label>
+                            <Input
+                              :model-value="task.context.skillIds.join(', ')"
+                              class="h-8!"
+                              :placeholder="t('settings.scheduledTasks.action.skillIdsPlaceholder')"
+                              @update:model-value="
+                                (value) => updateContextSkillIds(index, String(value))
+                              "
+                              @blur="commitTask(index)"
+                            />
+                          </div>
+
+                          <div class="grid gap-2 sm:grid-cols-2">
+                            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                :checked="task.delivery.targets.includes('desktop')"
+                                @change="
+                                  (event) =>
+                                    updateDeliveryTarget(
+                                      index,
+                                      'desktop',
+                                      (event.target as HTMLInputElement).checked
+                                    )
+                                "
+                                @blur="commitTask(index)"
+                              />
+                              {{ t('settings.scheduledTasks.action.deliveryDesktop') }}
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                :checked="task.delivery.suppressSuccess"
+                                @change="
+                                  (event) =>
+                                    updateDeliveryField(
+                                      index,
+                                      'suppressSuccess',
+                                      (event.target as HTMLInputElement).checked
+                                    )
+                                "
+                                @blur="commitTask(index)"
+                              />
+                              {{ t('settings.scheduledTasks.action.suppressSuccess') }}
+                            </label>
+                            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                :checked="task.delivery.notifyOnFailure"
+                                @change="
+                                  (event) =>
+                                    updateDeliveryField(
+                                      index,
+                                      'notifyOnFailure',
+                                      (event.target as HTMLInputElement).checked
+                                    )
+                                "
+                                @blur="commitTask(index)"
+                              />
+                              {{ t('settings.scheduledTasks.action.notifyOnFailure') }}
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </section>
                   </div>
@@ -595,9 +858,18 @@ import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
 import { createScheduledTasksClient } from '@api/ScheduledTasksClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import {
+  SCHEDULED_TASK_PERMISSION_PROFILES,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution
+} from '@shared/scheduledTasks'
 import type {
   ScheduledTask,
   ScheduledTaskAction,
+  ScheduledTaskDeliveryTarget,
+  ScheduledTaskExecutionPolicy,
+  ScheduledTaskPermissionProfile,
   ScheduledTaskRun,
   ScheduledTaskTrigger,
   ScheduledTasksSettings,
@@ -610,7 +882,9 @@ type TriggerKind = ScheduledTaskTrigger['kind']
 type ActionKind = ScheduledTaskAction['kind']
 type NotifyAction = Extract<ScheduledTaskAction, { kind: 'notify' }>
 type PromptAction = Extract<ScheduledTaskAction, { kind: 'prompt' }>
+type AgentRunAction = Extract<ScheduledTaskAction, { kind: 'agent_run' }>
 type WeeklyTrigger = Extract<ScheduledTaskTrigger, { kind: 'weekly' }>
+type ModelSelectionTarget = Pick<ScheduledTaskExecutionPolicy, 'providerId' | 'modelId'>
 
 const { t } = useI18n()
 const { toast } = useToast()
@@ -642,20 +916,41 @@ const DAY_OF_WEEK_OPTIONS: Record<number, string> = {
   5: 'settings.scheduledTasks.weekday.fri',
   6: 'settings.scheduledTasks.weekday.sat'
 }
+const permissionProfileOptions = SCHEDULED_TASK_PERMISSION_PROFILES.filter(
+  (profile) => profile !== 'notify_only'
+)
 
 const tasks = computed(() => settings.value?.tasks ?? [])
 const enabledAgents = computed(() => agents.value.filter((agent) => agent.enabled))
 
-const getSelectedModelProviderId = (action: PromptAction): string => action.providerId ?? ''
+const getSelectedModelProviderId = (target: ModelSelectionTarget): string => target.providerId ?? ''
 
-const getModelLabel = (action: PromptAction): string => {
-  if (!action.modelId) {
+const getModelLabel = (target: ModelSelectionTarget): string => {
+  if (!target.modelId) {
     return t('settings.scheduledTasks.action.modelIdPlaceholder')
   }
 
-  const provider = modelStore.enabledModels.find((entry) => entry.providerId === action.providerId)
-  const model = provider?.models.find((entry) => entry.id === action.modelId)
-  return model?.name ?? action.modelId
+  const provider = modelStore.enabledModels.find((entry) => entry.providerId === target.providerId)
+  const model = provider?.models.find((entry) => entry.id === target.modelId)
+  return model?.name ?? target.modelId
+}
+
+const getActionKindLabel = (kind: ActionKind): string => {
+  switch (kind) {
+    case 'notify':
+      return t('settings.scheduledTasks.action.kindNotify')
+    case 'prompt':
+      return t('settings.scheduledTasks.action.kindPrompt')
+    case 'agent_run':
+      return t('settings.scheduledTasks.action.kindAgentRun')
+  }
+}
+
+const getActionKindClass = (kind: ActionKind): string => {
+  if (kind === 'agent_run') {
+    return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+  }
+  return kind === 'prompt' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
 }
 
 const getTriggerSummary = (trigger: ScheduledTaskTrigger): string => {
@@ -808,7 +1103,10 @@ const persistTask = async (task: ScheduledTask): Promise<void> => {
       name: task.name,
       enabled: task.enabled,
       trigger: cloneForIpc(task.trigger),
-      action: cloneForIpc(task.action)
+      action: cloneForIpc(task.action),
+      context: cloneForIpc(task.context),
+      execution: cloneForIpc(task.execution),
+      delivery: cloneForIpc(task.delivery)
     })
     applySettingsResponse(response.settings, requestId)
   } catch (error) {
@@ -927,10 +1225,51 @@ const updateActionKind = (index: number, kind: ActionKind) => {
       body: ''
     }
   } else {
+    if (kind === 'agent_run') {
+      const prompt =
+        target.action.kind === 'prompt'
+          ? target.action.message
+          : target.action.kind === 'notify'
+            ? target.action.body
+            : target.action.prompt
+      action = {
+        kind: 'agent_run',
+        title: target.action.title || target.name || t('settings.scheduledTasks.defaults.title'),
+        prompt
+      }
+      next[index] = {
+        ...target,
+        action,
+        context: target.context ?? createDefaultScheduledTaskContext(),
+        execution: {
+          ...createDefaultScheduledTaskExecution(),
+          ...target.execution,
+          agentId:
+            target.action.kind === 'prompt'
+              ? (target.action.agentId ?? 'deepchat')
+              : (target.execution.agentId ?? 'deepchat'),
+          providerId:
+            target.action.kind === 'prompt'
+              ? target.action.providerId
+              : target.execution.providerId,
+          modelId:
+            target.action.kind === 'prompt' ? target.action.modelId : target.execution.modelId
+        },
+        delivery: target.delivery ?? createDefaultScheduledTaskDelivery()
+      }
+      settings.value = { ...settings.value, tasks: next }
+      void commitTask(index)
+      return
+    }
     action = {
       kind: 'prompt',
       title: target.action.title || target.name || t('settings.scheduledTasks.defaults.title'),
-      message: target.action.kind === 'notify' ? target.action.body : '',
+      message:
+        target.action.kind === 'notify'
+          ? target.action.body
+          : target.action.kind === 'agent_run'
+            ? target.action.prompt
+            : '',
       autoSend: false,
       agentId: 'deepchat'
     }
@@ -942,7 +1281,7 @@ const updateActionKind = (index: number, kind: ActionKind) => {
 
 const updateActionField = (
   index: number,
-  field: keyof PromptAction | keyof NotifyAction,
+  field: keyof PromptAction | keyof NotifyAction | keyof AgentRunAction,
   value: string | boolean
 ) => {
   if (!settings.value) return
@@ -958,10 +1297,24 @@ const updateAgentSelection = (index: number, agentId: string) => {
   if (!settings.value) return
   const next = settings.value.tasks.slice()
   const target = next[index]
-  if (!target || target.action.kind !== 'prompt') return
+  if (!target || (target.action.kind !== 'prompt' && target.action.kind !== 'agent_run')) return
 
   const agent = enabledAgents.value.find((entry) => entry.id === agentId)
   const preset = agent?.config?.defaultModelPreset
+  if (target.action.kind === 'agent_run') {
+    next[index] = {
+      ...target,
+      execution: {
+        ...target.execution,
+        agentId,
+        ...(preset ? { providerId: preset.providerId, modelId: preset.modelId } : {})
+      }
+    }
+    settings.value = { ...settings.value, tasks: next }
+    void commitTask(index)
+    return
+  }
+
   const action: PromptAction = {
     ...target.action,
     agentId,
@@ -981,7 +1334,22 @@ const updateModelSelection = (
   if (!settings.value) return
   const next = settings.value.tasks.slice()
   const target = next[index]
-  if (!target || target.action.kind !== 'prompt') return
+  if (!target || (target.action.kind !== 'prompt' && target.action.kind !== 'agent_run')) return
+
+  if (target.action.kind === 'agent_run') {
+    next[index] = {
+      ...target,
+      execution: {
+        ...target.execution,
+        providerId,
+        modelId: model.id
+      }
+    }
+    settings.value = { ...settings.value, tasks: next }
+    setModelPickerOpen(taskId, false)
+    void commitTask(index)
+    return
+  }
 
   const action: PromptAction = {
     ...target.action,
@@ -992,6 +1360,103 @@ const updateModelSelection = (
   settings.value = { ...settings.value, tasks: next }
   setModelPickerOpen(taskId, false)
   void commitTask(index)
+}
+
+const updateContextField = (index: number, field: 'workdir', value: string) => {
+  if (!settings.value) return
+  const next = settings.value.tasks.slice()
+  const target = next[index]
+  if (!target) return
+  next[index] = {
+    ...target,
+    context: {
+      ...target.context,
+      [field]: value.trim() || undefined
+    }
+  }
+  settings.value = { ...settings.value, tasks: next }
+}
+
+const updateContextSkillIds = (index: number, value: string) => {
+  if (!settings.value) return
+  const next = settings.value.tasks.slice()
+  const target = next[index]
+  if (!target) return
+  next[index] = {
+    ...target,
+    context: {
+      ...target.context,
+      skillIds: value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+  }
+  settings.value = { ...settings.value, tasks: next }
+}
+
+const updateExecutionField = <K extends keyof ScheduledTaskExecutionPolicy>(
+  index: number,
+  field: K,
+  value: ScheduledTaskExecutionPolicy[K]
+) => {
+  if (!settings.value) return
+  const next = settings.value.tasks.slice()
+  const target = next[index]
+  if (!target) return
+  next[index] = {
+    ...target,
+    execution: {
+      ...target.execution,
+      [field]: typeof value === 'string' && value.trim() === '' ? undefined : value
+    }
+  }
+  settings.value = { ...settings.value, tasks: next }
+}
+
+const updateDeliveryField = (
+  index: number,
+  field: 'suppressSuccess' | 'notifyOnFailure',
+  value: boolean
+) => {
+  if (!settings.value) return
+  const next = settings.value.tasks.slice()
+  const target = next[index]
+  if (!target) return
+  next[index] = {
+    ...target,
+    delivery: {
+      ...target.delivery,
+      [field]: value
+    }
+  }
+  settings.value = { ...settings.value, tasks: next }
+}
+
+const updateDeliveryTarget = (
+  index: number,
+  targetName: ScheduledTaskDeliveryTarget,
+  enabled: boolean
+) => {
+  if (!settings.value) return
+  const next = settings.value.tasks.slice()
+  const target = next[index]
+  if (!target) return
+  const targets = new Set(target.delivery.targets)
+  if (enabled) {
+    targets.add(targetName)
+  } else {
+    targets.delete(targetName)
+  }
+  targets.add('inbox')
+  next[index] = {
+    ...target,
+    delivery: {
+      ...target.delivery,
+      targets: [...targets]
+    }
+  }
+  settings.value = { ...settings.value, tasks: next }
 }
 
 const addTask = async () => {
@@ -1006,7 +1471,10 @@ const addTask = async () => {
         kind: 'notify',
         title: t('settings.scheduledTasks.defaults.title'),
         body: t('settings.scheduledTasks.defaults.body')
-      }
+      },
+      context: createDefaultScheduledTaskContext(),
+      execution: createDefaultScheduledTaskExecution(),
+      delivery: createDefaultScheduledTaskDelivery()
     })
     applySettingsResponse(response.settings, requestId)
     if (requestId === saveCounter.value && response.task) {

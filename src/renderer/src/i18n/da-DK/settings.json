@@ -230,6 +230,8 @@
         "found": "Fundet",
         "not_found": "Ikke fundet",
         "error": "Fejl",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "Ikke-understøttet platform"
       },
       "targetKind": {
@@ -563,6 +565,7 @@
       "resetConfirm": {
         "confirm": "Bekræft nulstilling",
         "message": "Er du sikker på, at du vil nulstille konfigurationen for denne model til standard?\nDenne handling kan ikke fortrydes.",
+        "prompt": "Prompt",
         "title": "Bekræft nulstilling"
       },
       "reasoningEffort": {
@@ -1413,6 +1416,7 @@
       "kind": "Handlingstype",
       "kindNotify": "Notifikation",
       "kindPrompt": "Chatprompt",
+      "kindAgentRun": "Agent run",
       "titleField": "Titel",
       "titlePlaceholder": "Notifikationstitel",
       "body": "Indhold",
@@ -1422,8 +1426,24 @@
       "modelId": "Model",
       "modelIdPlaceholder": "lad stå tom for standard",
       "systemPrompt": "Systemprompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "Send automatisk til den valgte agent",
-      "description": "Vælg en notifikation eller en agentprompt."
+      "description": "Vælg en notifikation eller en agentprompt.",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Søn",
@@ -1467,7 +1487,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

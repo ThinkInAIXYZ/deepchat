@@ -123,6 +123,14 @@
     "verbosity": "Detailgrad",
     "interleaved": "Interleaved Thinking-Kompatibilität erzwingen",
     "systemPrompt": "Standard-System-prompt",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Leer lassen, um einen leeren System-prompt zu verwenden",
     "defaultProjectPath": "Standardverzeichnis (optional)",
     "defaultProjectPathPlaceholder": "Leer lassen, um das globale Standardverzeichnis zu verwenden",
@@ -175,6 +183,8 @@
         "pending_embedding": "Embedding",
         "embedded": "Indiziert",
         "error": "Fehler",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Nur Stichwort",
         "archived": "Archiviert",
         "conflicted": "Im Konflikt"
@@ -925,6 +935,7 @@
       "resetConfirm": {
         "title": "Zurücksetzen bestätigen",
         "message": "Konfiguration dieses Modells wirklich auf Standardwerte zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden.",
+        "prompt": "Prompt",
         "confirm": "Zurücksetzen bestätigen"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Aktionstyp",
       "kindNotify": "Benachrichtigung",
       "kindPrompt": "Chat-Prompt",
+      "kindAgentRun": "Agent run",
       "titleField": "Titel",
       "titlePlaceholder": "Benachrichtigungstitel",
       "body": "Inhalt",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "leer lassen für Standard",
       "systemPrompt": "System-Prompt",
       "autoSend": "Automatisch an den ausgewählten Agenten senden",
-      "description": "Wählen Sie eine Benachrichtigung oder einen Agenten-Prompt."
+      "description": "Wählen Sie eine Benachrichtigung oder einen Agenten-Prompt.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "So",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

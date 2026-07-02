@@ -297,6 +297,8 @@
         "found": "已找到",
         "not_found": "未找到",
         "error": "讀取失敗",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "不支援目前平台"
       },
       "targetKind": {
@@ -630,6 +632,7 @@
       "resetConfirm": {
         "confirm": "確定重置",
         "message": "確定要重置此模型的配置為默認值嗎？\n此操作不可撤銷。",
+        "prompt": "Prompt",
         "title": "確認重置"
       },
       "reasoningEffort": {
@@ -1480,6 +1483,7 @@
       "kind": "動作類型",
       "kindNotify": "系統通知",
       "kindPrompt": "聊天提示",
+      "kindAgentRun": "Agent run",
       "titleField": "標題",
       "titlePlaceholder": "通知標題",
       "body": "通知內容",
@@ -1489,8 +1493,24 @@
       "modelId": "模型",
       "modelIdPlaceholder": "留空使用預設",
       "systemPrompt": "System Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "自動發送到所選 Agent",
-      "description": "選擇通知或傳送給 Agent 的提示。"
+      "description": "選擇通知或傳送給 Agent 的提示。",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "週日",
@@ -1534,7 +1554,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

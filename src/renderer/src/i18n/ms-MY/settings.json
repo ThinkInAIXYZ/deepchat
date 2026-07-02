@@ -123,6 +123,14 @@
     "verbosity": "Tahap terperinci",
     "interleaved": "Keserasian paksa dan pemikiran bersilang",
     "systemPrompt": "Kata gesaan sistem lalai",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Biarkan kosong untuk menggunakan kata gesaan sistem kosong",
     "defaultProjectPath": "Direktori lalai (pilihan)",
     "defaultProjectPathPlaceholder": "Biarkan kosong untuk menggunakan direktori lalai global",
@@ -175,6 +183,8 @@
         "pending_embedding": "Embedding",
         "embedded": "Diindeks",
         "error": "Ralat",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Kata kunci sahaja",
         "archived": "Diarkibkan",
         "conflicted": "Bercanggah"
@@ -925,6 +935,7 @@
       "resetConfirm": {
         "title": "Sahkan tetapan semula",
         "message": "Adakah anda pasti mahu menetapkan semula konfigurasi model ini kepada lalai? Tindakan ini tidak boleh dibuat asal.",
+        "prompt": "Prompt",
         "confirm": "Sahkan tetapan semula"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Jenis tindakan",
       "kindNotify": "Pemberitahuan",
       "kindPrompt": "Prompt sembang",
+      "kindAgentRun": "Agent run",
       "titleField": "Tajuk",
       "titlePlaceholder": "Tajuk pemberitahuan",
       "body": "Kandungan",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "biarkan kosong untuk lalai",
       "systemPrompt": "Prompt sistem",
       "autoSend": "Hantar automatik kepada ejen dipilih",
-      "description": "Pilih pemberitahuan atau prompt Ejen."
+      "description": "Pilih pemberitahuan atau prompt Ejen.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Ahd",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

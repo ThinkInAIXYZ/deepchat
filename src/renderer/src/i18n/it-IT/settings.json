@@ -123,6 +123,14 @@
     "verbosity": "Livello di dettaglio",
     "interleaved": "Forza compatibilità Interleaved Thinking",
     "systemPrompt": "Prompt di sistema predefinito",
+    "workdir": "Working directory",
+    "workdirPlaceholder": "Optional local path",
+    "permissionProfile": "Permission profile",
+    "skillIds": "Skill IDs",
+    "skillIdsPlaceholder": "skill-a, skill-b",
+    "deliveryDesktop": "Desktop success notification",
+    "suppressSuccess": "Suppress success notification",
+    "notifyOnFailure": "Notify on failure",
     "systemPromptPlaceholder": "Lascia vuoto per usare un prompt di sistema vuoto",
     "defaultProjectPath": "Directory predefinita (opzionale)",
     "defaultProjectPathPlaceholder": "Lascia vuoto per usare la directory globale predefinita",
@@ -175,6 +183,8 @@
         "pending_embedding": "Embedding",
         "embedded": "Indicizzato",
         "error": "Errore",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "fts_only": "Solo parole chiave",
         "archived": "Archiviato",
         "conflicted": "In conflitto"
@@ -925,6 +935,7 @@
       "resetConfirm": {
         "title": "Conferma ripristino",
         "message": "Vuoi davvero ripristinare la configurazione di questo modello ai valori predefiniti? Questa operazione non può essere annullata.",
+        "prompt": "Prompt",
         "confirm": "Conferma ripristino"
       },
       "reasoningEffort": {
@@ -2794,6 +2805,7 @@
       "kind": "Tipo di azione",
       "kindNotify": "Notifica",
       "kindPrompt": "Prompt chat",
+      "kindAgentRun": "Agent run",
       "titleField": "Titolo",
       "titlePlaceholder": "Titolo notifica",
       "body": "Corpo",
@@ -2804,7 +2816,23 @@
       "modelIdPlaceholder": "lascia vuoto per predefinito",
       "systemPrompt": "Prompt di sistema",
       "autoSend": "Invia automaticamente all’agente selezionato",
-      "description": "Scegli una notifica o un prompt agente."
+      "description": "Scegli una notifica o un prompt agente.",
+      "prompt": "Prompt",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Dom",
@@ -2848,7 +2876,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "memory": {

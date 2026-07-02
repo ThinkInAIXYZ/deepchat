@@ -297,6 +297,8 @@
         "found": "찾음",
         "not_found": "찾을 수 없음",
         "error": "오류",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "지원되지 않는 플랫폼"
       },
       "targetKind": {
@@ -630,6 +632,7 @@
       "resetConfirm": {
         "confirm": "재설정 확인",
         "message": "이 모델의 구성을 기본값으로 재설정 하시겠습니까? 이 작업은 돌이킬 수 없습니다.",
+        "prompt": "Prompt",
         "title": "재설정 확인"
       },
       "reasoningEffort": {
@@ -1480,6 +1483,7 @@
       "kind": "작업 종류",
       "kindNotify": "알림",
       "kindPrompt": "채팅 프롬프트",
+      "kindAgentRun": "Agent run",
       "titleField": "제목",
       "titlePlaceholder": "알림 제목",
       "body": "본문",
@@ -1489,8 +1493,24 @@
       "modelId": "모델",
       "modelIdPlaceholder": "비워 두면 기본값 사용",
       "systemPrompt": "시스템 프롬프트",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "선택한 에이전트로 자동 전송",
-      "description": "알림 또는 에이전트 프롬프트를 선택하세요."
+      "description": "알림 또는 에이전트 프롬프트를 선택하세요.",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "일",
@@ -1534,7 +1554,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

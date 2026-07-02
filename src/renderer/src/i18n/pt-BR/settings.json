@@ -297,6 +297,8 @@
         "found": "Encontrado",
         "not_found": "Não encontrado",
         "error": "Erro",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "Plataforma incompatível"
       },
       "targetKind": {
@@ -630,6 +632,7 @@
       "resetConfirm": {
         "confirm": "Confirmar redefinição",
         "message": "Tem certeza de que deseja redefinir a configuração deste modelo para o padrão? \nEsta operação é irrevogável.",
+        "prompt": "Prompt",
         "title": "Confirmar redefinição"
       },
       "reasoningEffort": {
@@ -1480,6 +1483,7 @@
       "kind": "Tipo de ação",
       "kindNotify": "Notificação",
       "kindPrompt": "Prompt de chat",
+      "kindAgentRun": "Agent run",
       "titleField": "Título",
       "titlePlaceholder": "Título da notificação",
       "body": "Corpo",
@@ -1489,8 +1493,24 @@
       "modelId": "Modelo",
       "modelIdPlaceholder": "deixe em branco para usar o padrão",
       "systemPrompt": "Prompt do sistema",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "Enviar automaticamente para o agente selecionado",
-      "description": "Escolha uma notificação ou um prompt de agente."
+      "description": "Escolha uma notificação ou um prompt de agente.",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "Dom",
@@ -1534,7 +1554,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

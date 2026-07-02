@@ -1737,17 +1737,34 @@
       "kind": "动作类型",
       "kindNotify": "系统通知",
       "kindPrompt": "聊天提示",
+      "kindAgentRun": "Agent 运行",
       "titleField": "标题",
       "titlePlaceholder": "通知标题",
       "body": "通知内容",
       "message": "消息内容",
+      "prompt": "提示词",
       "agentId": "Agent",
       "agentIdPlaceholder": "默认 deepchat",
       "modelId": "模型",
       "modelIdPlaceholder": "留空使用默认",
       "systemPrompt": "系统提示词",
+      "workdir": "工作目录",
+      "workdirPlaceholder": "可选本地路径",
+      "permissionProfile": "权限配置",
+      "skillIds": "Skill ID",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "成功时桌面通知",
+      "suppressSuccess": "静默保存成功结果",
+      "notifyOnFailure": "失败时通知",
       "autoSend": "自动发送到所选 Agent",
       "description": "选择通知或发送给 Agent 的提示。"
+    },
+    "permission": {
+      "notify_only": "仅通知",
+      "read_only": "只读",
+      "workspace_write": "工作区写入",
+      "command": "命令",
+      "computer_use": "电脑使用"
     },
     "weekday": {
       "sun": "周日",
@@ -1784,6 +1801,8 @@
     "run": {
       "latest": "最近执行：{status} | {time}",
       "error": "错误：{error}",
+      "session": "会话：{id}",
+      "output": "输出：{output}",
       "status": {
         "queued": "排队中",
         "running": "运行中",

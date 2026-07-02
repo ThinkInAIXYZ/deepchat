@@ -4,6 +4,9 @@ import {
   SCHEDULED_TASKS_VERSION,
   SCHEDULED_TASK_TRIGGER_KINDS,
   SCHEDULED_TASK_ACTION_KINDS,
+  SCHEDULED_TASK_PERMISSION_PROFILES,
+  SCHEDULED_TASK_CONCURRENCY_POLICIES,
+  SCHEDULED_TASK_DELIVERY_TARGETS,
   SCHEDULED_TASK_RUN_STATUSES,
   SCHEDULED_TASK_RUN_REASONS,
   SCHEDULER_PROCESS_STATES
@@ -49,8 +52,36 @@ export const scheduledTaskActionSchema = z.discriminatedUnion('kind', [
     providerId: z.string().optional(),
     modelId: z.string().optional(),
     systemPrompt: z.string().max(20000).optional()
+  }),
+  z.object({
+    kind: z.literal('agent_run'),
+    title: z.string().max(200),
+    prompt: z.string().max(20000),
+    outputFormat: z.enum(['message', 'markdown', 'json']).optional()
   })
 ])
+
+export const scheduledTaskContextSchema = z.object({
+  sessionMode: z.literal('fresh'),
+  workdir: z.string().max(2000).optional(),
+  skillIds: z.array(z.string().min(1).max(200)).max(100)
+})
+
+export const scheduledTaskExecutionPolicySchema = z.object({
+  agentId: z.string().optional(),
+  providerId: z.string().optional(),
+  modelId: z.string().optional(),
+  systemPrompt: z.string().max(20000).optional(),
+  permissionProfile: z.enum(SCHEDULED_TASK_PERMISSION_PROFILES),
+  concurrencyPolicy: z.enum(SCHEDULED_TASK_CONCURRENCY_POLICIES)
+})
+
+export const scheduledTaskDeliveryPolicySchema = z.object({
+  targets: z.array(z.enum(SCHEDULED_TASK_DELIVERY_TARGETS)).max(10),
+  continuable: z.boolean(),
+  suppressSuccess: z.boolean(),
+  notifyOnFailure: z.boolean()
+})
 
 export const scheduledTaskSchema = z.object({
   id: z.string().min(1),
@@ -59,6 +90,9 @@ export const scheduledTaskSchema = z.object({
   enabled: z.boolean(),
   trigger: scheduledTaskTriggerSchema,
   action: scheduledTaskActionSchema,
+  context: scheduledTaskContextSchema,
+  execution: scheduledTaskExecutionPolicySchema,
+  delivery: scheduledTaskDeliveryPolicySchema,
   timezone: z.string().min(1),
   nextRunAt: z.number().int().nonnegative().nullable(),
   lastRunId: z.string().min(1).nullable(),
@@ -117,7 +151,10 @@ export const scheduledTasksUpsertInputSchema = z.object({
   name: z.string().min(1).max(200),
   enabled: z.boolean(),
   trigger: scheduledTaskTriggerSchema,
-  action: scheduledTaskActionSchema
+  action: scheduledTaskActionSchema,
+  context: scheduledTaskContextSchema.optional(),
+  execution: scheduledTaskExecutionPolicySchema.optional(),
+  delivery: scheduledTaskDeliveryPolicySchema.optional()
 })
 
 export const scheduledTasksUpsertRoute = defineRouteContract({

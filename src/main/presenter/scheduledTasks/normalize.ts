@@ -3,11 +3,20 @@ import log from 'electron-log'
 import { z } from 'zod'
 import {
   SCHEDULED_TASK_DEFAULT_TIMEZONE,
+  SCHEDULED_TASK_PERMISSION_PROFILES,
+  SCHEDULED_TASK_CONCURRENCY_POLICIES,
+  SCHEDULED_TASK_DELIVERY_TARGETS,
   SCHEDULED_TASKS_VERSION,
   type ScheduledTask,
   type ScheduledTaskAction,
+  type ScheduledTaskContext,
+  type ScheduledTaskDeliveryPolicy,
+  type ScheduledTaskExecutionPolicy,
   type ScheduledTaskTrigger,
   type ScheduledTasksSettings,
+  createDefaultScheduledTaskContext,
+  createDefaultScheduledTaskDelivery,
+  createDefaultScheduledTaskExecution,
   createDefaultScheduledTasksSettings
 } from '@shared/scheduledTasks'
 import { computeNextRunAt } from './schedulerCore/computeNextRunAt'
@@ -42,8 +51,36 @@ const ActionSchema = z.discriminatedUnion('kind', [
     providerId: z.string().optional(),
     modelId: z.string().optional(),
     systemPrompt: z.string().max(20000).optional()
+  }),
+  z.object({
+    kind: z.literal('agent_run'),
+    title: z.string().max(200),
+    prompt: z.string().max(20000),
+    outputFormat: z.enum(['message', 'markdown', 'json']).optional()
   })
 ])
+
+const ContextSchema = z.object({
+  sessionMode: z.literal('fresh'),
+  workdir: z.string().max(2000).optional(),
+  skillIds: z.array(z.string().min(1).max(200)).max(100)
+})
+
+const ExecutionSchema = z.object({
+  agentId: z.string().optional(),
+  providerId: z.string().optional(),
+  modelId: z.string().optional(),
+  systemPrompt: z.string().max(20000).optional(),
+  permissionProfile: z.enum(SCHEDULED_TASK_PERMISSION_PROFILES),
+  concurrencyPolicy: z.enum(SCHEDULED_TASK_CONCURRENCY_POLICIES)
+})
+
+const DeliverySchema = z.object({
+  targets: z.array(z.enum(SCHEDULED_TASK_DELIVERY_TARGETS)).max(10),
+  continuable: z.boolean(),
+  suppressSuccess: z.boolean(),
+  notifyOnFailure: z.boolean()
+})
 
 const ScheduledTaskSchema = z.object({
   id: z.string().min(1),
@@ -52,6 +89,9 @@ const ScheduledTaskSchema = z.object({
   enabled: z.boolean(),
   trigger: TriggerSchema,
   action: ActionSchema,
+  context: ContextSchema,
+  execution: ExecutionSchema,
+  delivery: DeliverySchema,
   timezone: z.string().min(1),
   nextRunAt: z.number().int().nonnegative().nullable(),
   lastRunId: z.string().min(1).nullable(),
@@ -75,6 +115,21 @@ const sanitizeAction = (input: unknown): ScheduledTaskAction | null => {
   return parsed.success ? parsed.data : null
 }
 
+const sanitizeContext = (input: unknown): ScheduledTaskContext => {
+  const parsed = ContextSchema.safeParse(input)
+  return parsed.success ? parsed.data : createDefaultScheduledTaskContext()
+}
+
+const sanitizeExecution = (input: unknown): ScheduledTaskExecutionPolicy => {
+  const parsed = ExecutionSchema.safeParse(input)
+  return parsed.success ? parsed.data : createDefaultScheduledTaskExecution()
+}
+
+const sanitizeDelivery = (input: unknown): ScheduledTaskDeliveryPolicy => {
+  const parsed = DeliverySchema.safeParse(input)
+  return parsed.success ? parsed.data : createDefaultScheduledTaskDelivery()
+}
+
 const sanitizeTask = (input: unknown, fallbackIndex: number, now: number): ScheduledTask | null => {
   if (!input || typeof input !== 'object') {
     return null
@@ -82,6 +137,9 @@ const sanitizeTask = (input: unknown, fallbackIndex: number, now: number): Sched
   const record = input as Record<string, unknown>
   const trigger = sanitizeTrigger(record.trigger)
   const action = sanitizeAction(record.action)
+  const context = sanitizeContext(record.context)
+  const execution = sanitizeExecution(record.execution)
+  const delivery = sanitizeDelivery(record.delivery)
   if (!trigger || !action) {
     return null
   }
@@ -127,6 +185,9 @@ const sanitizeTask = (input: unknown, fallbackIndex: number, now: number): Sched
     enabled,
     trigger,
     action,
+    context,
+    execution,
+    delivery,
     timezone,
     nextRunAt: null,
     lastRunId,

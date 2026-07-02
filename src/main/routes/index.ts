@@ -487,6 +487,28 @@ export function formatMemorySourceRecordContent(record: ChatMessageRecord): stri
   }
 }
 
+function extractAssistantMessagePreview(record: ChatMessageRecord): string {
+  try {
+    const parsed = JSON.parse(record.content) as unknown
+    const blockText = (block: unknown): string => {
+      const value = block as { type?: string; content?: unknown }
+      if (
+        (value?.type === 'content' || value?.type === 'error') &&
+        typeof value.content === 'string'
+      ) {
+        return value.content
+      }
+      return ''
+    }
+    const text = Array.isArray(parsed)
+      ? parsed.map(blockText).filter(Boolean).join(' ')
+      : blockText(parsed)
+    return text.trim().slice(0, 1000)
+  } catch {
+    return ''
+  }
+}
+
 function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null {
   if (typeof value === 'string' && MEMORY_PERSONA_STATE_SET.has(value)) {
     return value as MemoryPersonaState
@@ -715,9 +737,12 @@ export function createMainKernelRouteRuntime(deps: {
       const session = await sessionService.createSession(
         {
           agentId: input.agentId,
-          message: input.message,
+          message: '',
+          projectDir: input.projectDir,
           providerId: input.providerId,
           modelId: input.modelId,
+          permissionMode: input.permissionMode,
+          activeSkills: input.activeSkills,
           ...(input.systemPrompt
             ? { generationSettings: { systemPrompt: input.systemPrompt } }
             : {})
@@ -731,8 +756,21 @@ export function createMainKernelRouteRuntime(deps: {
         return { sessionId: null }
       }
 
-      await chatService.sendMessage(session.id, input.message)
-      return { sessionId: session.id }
+      const sendResult = await chatService.sendMessage(
+        session.id,
+        input.activeSkills?.length
+          ? { text: input.message, activeSkills: input.activeSkills }
+          : input.message
+      )
+      const outputMessage = sendResult.messageId
+        ? await hotPathPorts.messageRepository.get(sendResult.messageId)
+        : null
+      const outputPreview = outputMessage ? extractAssistantMessagePreview(outputMessage) : ''
+      return {
+        sessionId: session.id,
+        outputMessageId: sendResult.messageId ?? undefined,
+        outputPreview: outputPreview || undefined
+      }
     }
   })
 

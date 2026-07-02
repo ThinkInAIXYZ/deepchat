@@ -297,6 +297,8 @@
         "found": "یافت شد",
         "not_found": "یافت نشد",
         "error": "خطا",
+        "session": "Session: {id}",
+        "output": "Output: {output}",
         "unsupported_platform": "پلتفرم پشتیبانی‌نشده"
       },
       "targetKind": {
@@ -630,6 +632,7 @@
       "resetConfirm": {
         "confirm": "تأیید مجدد",
         "message": "آیا مطمئن هستید که می خواهید پیکربندی این مدل را به صورت پیش فرض تنظیم کنید؟ این عمل غیرقابل برگشت است.",
+        "prompt": "Prompt",
         "title": "تأیید مجدد"
       },
       "reasoningEffort": {
@@ -1480,6 +1483,7 @@
       "kind": "نوع عملیات",
       "kindNotify": "اعلان",
       "kindPrompt": "پرامپت گفتگو",
+      "kindAgentRun": "Agent run",
       "titleField": "عنوان",
       "titlePlaceholder": "عنوان اعلان",
       "body": "متن",
@@ -1489,8 +1493,24 @@
       "modelId": "مدل",
       "modelIdPlaceholder": "برای پیش‌فرض خالی بگذارید",
       "systemPrompt": "پرامپت سیستم",
+      "workdir": "Working directory",
+      "workdirPlaceholder": "Optional local path",
+      "permissionProfile": "Permission profile",
+      "skillIds": "Skill IDs",
+      "skillIdsPlaceholder": "skill-a, skill-b",
+      "deliveryDesktop": "Desktop success notification",
+      "suppressSuccess": "Suppress success notification",
+      "notifyOnFailure": "Notify on failure",
       "autoSend": "ارسال خودکار به عامل انتخاب‌شده",
-      "description": "یک اعلان یا پرامپت عامل را انتخاب کنید."
+      "description": "یک اعلان یا پرامپت عامل را انتخاب کنید.",
+      "prompt": "Prompt"
+    },
+    "permission": {
+      "notify_only": "Notify only",
+      "read_only": "Read-only",
+      "workspace_write": "Workspace write",
+      "command": "Command",
+      "computer_use": "Computer use"
     },
     "weekday": {
       "sun": "یکشنبه",
@@ -1534,7 +1554,9 @@
         "failed": "Failed",
         "cancelled": "Cancelled",
         "skipped": "Skipped"
-      }
+      },
+      "session": "Session: {id}",
+      "output": "Output: {output}"
     }
   },
   "about": {

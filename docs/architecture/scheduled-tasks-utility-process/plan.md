@@ -137,6 +137,20 @@ RUN_DUE
 Keep fallback-to-draft inside prompt auto-send handling. A fallback that produces a draft still counts
 as successful user-visible delivery unless the existing behavior throws before fallback completes.
 
+For scheduled agent runs, add `agent_run` as a separate action instead of overloading `prompt`.
+Execution stays in the main process:
+
+```txt
+queued run
+  -> create empty session with stored agent/model/context/permission policy
+  -> send one scheduled prompt
+  -> read the assistant output message when available
+  -> mark run success with sessionId/outputMessageId/outputPreview
+```
+
+Default context/execution/delivery policies are stored for all tasks so old `notify` and `prompt`
+records keep schema compatibility without changing their visible behavior.
+
 ## API
 
 Keep existing routes compatible:
@@ -156,6 +170,13 @@ Add minimal routes:
 
 Extend shared schemas to expose V2 scheduler fields without breaking renderer callers that only read
 V1 fields.
+
+Agent-run fields:
+
+- `context`: fresh-session context, optional working directory, active skill IDs.
+- `execution`: optional agent/model/system prompt, permission profile, concurrency policy, max
+  duration.
+- `delivery`: inbox/desktop delivery flags and success/failure notification policy.
 
 ## Lifecycle
 
@@ -209,6 +230,8 @@ Add tests near the touched owner:
 - `test/main/presenter/scheduledTasks/schedulerProcessManager.test.ts`
 - `test/main/routes/scheduledTasks.test.ts`
 - `test/renderer/components/ScheduledTasksSettings.test.ts`
+- `test/main/presenter/scheduledTasks.test.ts` coverage for `agent_run` session creation and run
+  metadata persistence.
 
 ### Shared Types
 
