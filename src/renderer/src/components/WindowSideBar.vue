@@ -687,7 +687,8 @@ const remoteControlStatus =
   ref<Record<RemoteChannel, RemoteChannelStatus | null>>(createRemoteStatusMap())
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
-let remoteControlStatusTimer: ReturnType<typeof setInterval> | null = null
+let remoteControlStatusTimer: number | null = null
+let remoteControlStatusErrors = 0
 let pinFeedbackTimer: number | null = null
 let sessionListScrollFrame: number | null = null
 let sessionListFillFrame: number | null = null
@@ -698,6 +699,8 @@ const shortcutPlatform = ref<ShortcutPlatform>(
 )
 const shortcutModifierDown = ref(false)
 const showShortcutBadges = ref(false)
+const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
+const REMOTE_STATUS_IDLE_POLL_MS = 30_000
 const sidebarSelectedAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
   if (sessionStore.hasActiveSession && activeSessionAgentId) {
@@ -1235,7 +1238,46 @@ const openRemoteSettings = async () => {
   await settingsClient.openSettings({ routeName: 'settings-remote' })
 }
 
-const refreshRemoteControlStatus = async () => {
+const hasEnabledRemoteChannelStatus = () =>
+  Object.values(remoteControlStatus.value).some((status) => status?.enabled === true)
+
+const clearRemoteControlStatusTimer = () => {
+  if (!remoteControlStatusTimer) return
+  window.clearTimeout(remoteControlStatusTimer)
+  remoteControlStatusTimer = null
+}
+
+const runRemoteControlStatusRefresh = async () => {
+  const refreshed = await refreshRemoteControlStatus()
+  remoteControlStatusErrors = refreshed ? 0 : remoteControlStatusErrors + 1
+
+  if (document.visibilityState === 'hidden') return
+  const backoffMs = Math.min(30_000, 2_000 * 2 ** remoteControlStatusErrors)
+  scheduleRemoteControlStatusRefresh(
+    hasEnabledRemoteChannelStatus()
+      ? refreshed
+        ? REMOTE_STATUS_ACTIVE_POLL_MS
+        : backoffMs
+      : REMOTE_STATUS_IDLE_POLL_MS
+  )
+}
+
+const scheduleRemoteControlStatusRefresh = (delayMs = 0) => {
+  clearRemoteControlStatusTimer()
+  if (document.visibilityState === 'hidden') return
+
+  if (delayMs <= 0) {
+    void runRemoteControlStatusRefresh()
+    return
+  }
+
+  remoteControlStatusTimer = window.setTimeout(() => {
+    remoteControlStatusTimer = null
+    void runRemoteControlStatusRefresh()
+  }, delayMs)
+}
+
+const refreshRemoteControlStatus = async (): Promise<boolean> => {
   try {
     remoteChannelDescriptors.value =
       (await remoteControlClient.listRemoteChannels()) ?? fallbackRemoteChannels
@@ -1258,7 +1300,7 @@ const refreshRemoteControlStatus = async () => {
         }),
         createRemoteStatusMap()
       )
-      return
+      return true
     }
 
     remoteControlStatus.value = {
@@ -1266,8 +1308,10 @@ const refreshRemoteControlStatus = async () => {
       telegram: await remoteControlClient.getTelegramStatus(),
       'weixin-ilink': await remoteControlClient.getWeixinIlinkStatus()
     }
+    return true
   } catch (error) {
     console.warn('[WindowSideBar] Failed to refresh remote control status:', error)
+    return false
   }
 }
 
@@ -1496,7 +1540,11 @@ const handleWindowShortcutBlur = () => {
 const handleDocumentVisibilityChange = () => {
   if (document.visibilityState === 'hidden') {
     hideShortcutBadges()
+    clearRemoteControlStatusTimer()
+    return
   }
+
+  scheduleRemoteControlStatusRefresh()
 }
 
 watch(collapsed, (isCollapsed) => {
@@ -1930,10 +1978,7 @@ onMounted(() => {
   }
 
   scheduleSessionListFillCheck()
-  void refreshRemoteControlStatus()
-  remoteControlStatusTimer = setInterval(() => {
-    void refreshRemoteControlStatus()
-  }, 2_000)
+  scheduleRemoteControlStatusRefresh()
 })
 
 onUnmounted(() => {
@@ -1942,10 +1987,7 @@ onUnmounted(() => {
   window.removeEventListener('blur', handleWindowShortcutBlur)
   document.removeEventListener('visibilitychange', handleDocumentVisibilityChange)
 
-  if (remoteControlStatusTimer) {
-    clearInterval(remoteControlStatusTimer)
-    remoteControlStatusTimer = null
-  }
+  clearRemoteControlStatusTimer()
 
   if (sessionListScrollFrame !== null) {
     window.cancelAnimationFrame(sessionListScrollFrame)

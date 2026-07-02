@@ -379,7 +379,7 @@ export class SkillPresenter implements ISkillPresenter {
 
   private async discoverSkillsOnMainThread(): Promise<SkillMetadata[]> {
     const discovered = new Map<string, SkillMetadata>()
-    const skillManifestPaths = [...this.collectSkillManifestPaths(this.skillsDir)].sort(
+    const skillManifestPaths = (await this.collectSkillManifestPaths(this.skillsDir)).sort(
       (left, right) => left.localeCompare(right)
     )
 
@@ -3132,18 +3132,18 @@ export class SkillPresenter implements ISkillPresenter {
     return acc
   }
 
-  private collectSkillManifestPaths(
+  private async collectSkillManifestPaths(
     currentDir: string,
     depth: number = 0,
     acc: string[] = []
-  ): string[] {
+  ): Promise<string[]> {
     if (depth > SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH) {
       return acc
     }
 
     let entries: fs.Dirent[]
     try {
-      entries = fs.readdirSync(currentDir, { withFileTypes: true })
+      entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
     } catch (error) {
       logger.warn('[SkillPresenter] Failed to scan skill directory, skipping subtree', {
         currentDir,
@@ -3162,7 +3162,7 @@ export class SkillPresenter implements ISkillPresenter {
         if (this.shouldIgnoreSkillsRootEntry(entry.name)) {
           continue
         }
-        this.collectSkillManifestPaths(fullPath, depth + 1, acc)
+        await this.collectSkillManifestPaths(fullPath, depth + 1, acc)
         continue
       }
 

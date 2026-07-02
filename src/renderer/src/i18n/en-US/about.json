@@ -17,6 +17,12 @@
   "mockUpdateButton": "Mock Downloaded Update",
   "clearMockUpdateButton": "Clear Mock Update",
   "mockOnboardingButton": "Mock First-Run Guide",
+  "mockChatButton": "Create Mock Long Chat",
+  "mockChatCreating": "Creating...",
+  "mockChatCreated": "Mock Chat Created",
+  "mockChatCreatedDesc": "Created \"{title}\" with {count} messages.",
+  "mockChatCreateFailed": "Failed to create mock chat.",
+  "mockChatCreateUnavailable": "Mock chat data is only available in development builds.",
   "updateChannel": "Update Channel",
   "stableChannel": "Stable",
   "betaChannel": "Beta"

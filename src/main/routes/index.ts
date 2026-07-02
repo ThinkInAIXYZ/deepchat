@@ -1,4 +1,4 @@
-import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
@@ -66,6 +66,7 @@ import {
   databaseSecurityEnableRoute,
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
+  debugCreateMockChatSessionRoute,
   memoryAddRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
@@ -3955,6 +3956,28 @@ export async function dispatchDeepchatRoute(
       upgradeClearMockRoute.input.parse(rawInput)
       const updated = runtime.upgradePresenter.clearMockUpdate()
       return upgradeClearMockRoute.output.parse({ updated })
+    }
+
+    case debugCreateMockChatSessionRoute.name: {
+      debugCreateMockChatSessionRoute.input.parse(rawInput)
+      if (!import.meta.env.DEV || app.isPackaged) {
+        return debugCreateMockChatSessionRoute.output.parse({
+          created: false,
+          sessionId: null,
+          title: null,
+          messageCount: 0
+        })
+      }
+
+      const { createDebugMockChatSession } = await import('./debug/createMockChatSession')
+      const result = createDebugMockChatSession(runtime.sqlitePresenter.getDatabase())
+      if (result.sessionId) {
+        publishDeepchatEvent('sessions.updated', {
+          sessionIds: [result.sessionId],
+          reason: 'created'
+        })
+      }
+      return debugCreateMockChatSessionRoute.output.parse(result)
     }
 
     case upgradeRestartToUpdateRoute.name: {

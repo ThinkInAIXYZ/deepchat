@@ -40,13 +40,11 @@ From the 42 public methods:
    last, after its dependencies are already out.
 4. No behavior changes. Any bug found during extraction is fixed in a separate commit/PR.
 
-## Open questions (resolve before implementation)
+## Resolved questions
 
-- [NEEDS CLARIFICATION] Shared mutable state audit: which private fields are touched by more
-  than one cluster (e.g. generation tokens vs. pending-input state)? The split boundary may
-  need a small shared `runtimeState` object instead of per-service ownership.
-- [NEEDS CLARIFICATION] `agentSessionPresenter` (3898 lines) holds a parallel structure; decide
-  whether to split it in the same effort or sequence it after.
+- Shared mutable state audit: see `state-map.md`. Cross-cutting turn state should live in one
+  explicit shared runtime-state object before extracting stateful services.
+- `agentSessionPresenter` sequencing: split it after this presenter, not in the same effort.
 
 ## Success criteria
 

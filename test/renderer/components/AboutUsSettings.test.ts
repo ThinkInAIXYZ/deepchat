@@ -28,6 +28,9 @@ const deviceClientMock = vi.hoisted(() => ({
 const browserClientMock = vi.hoisted(() => ({
   openExternal: vi.fn()
 }))
+const debugClientMock = vi.hoisted(() => ({
+  createMockChatSession: vi.fn()
+}))
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn(),
   onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
@@ -68,6 +71,9 @@ vi.mock('@api/DeviceClient', () => ({
 vi.mock('@api/BrowserClient', () => ({
   createBrowserClient: () => browserClientMock
 }))
+vi.mock('@api/DebugClient', () => ({
+  createDebugClient: () => debugClientMock
+}))
 vi.mock('@api/WindowClient', () => ({
   createWindowClient: () => windowClientMock
 }))
@@ -96,7 +102,7 @@ vi.mock('@/components/use-toast', () => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { version?: string }) => {
+    t: (key: string, params?: { version?: string; title?: string; count?: number }) => {
       const messages: Record<string, string> = {
         'about.title': 'DeepChat',
         'about.description': 'DeepChat description',
@@ -111,6 +117,12 @@ vi.mock('vue-i18n', () => ({
         'about.mockUpdateButton': '模拟已下载更新',
         'about.clearMockUpdateButton': '清除模拟更新',
         'about.mockOnboardingButton': '模拟首次进入引导',
+        'about.mockChatButton': '创建长会话Mock数据',
+        'about.mockChatCreating': '创建中...',
+        'about.mockChatCreated': 'Mock会话已创建',
+        'about.mockChatCreatedDesc': `已创建${params?.title ?? ''}，共${params?.count ?? ''}条消息`,
+        'about.mockChatCreateFailed': '创建Mock会话失败',
+        'about.mockChatCreateUnavailable': 'Mock会话只在开发模式可用',
         'update.versionAvailable': `${params?.version ?? ''} 可用`,
         'update.autoUpdateFailed': '自动更新可能不稳定，请手动下载更新',
         'update.githubDownload': 'GitHub 下载',
@@ -139,6 +151,12 @@ describe('AboutUsSettings', () => {
     configClientMock.setUpdateChannel.mockResolvedValue('stable')
     deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
     browserClientMock.openExternal.mockResolvedValue(undefined)
+    debugClientMock.createMockChatSession.mockResolvedValue({
+      created: true,
+      sessionId: 'debug-long-chat-test',
+      title: 'Debug long chat test',
+      messageCount: 200
+    })
     windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
     Object.assign(upgradeStoreMock, {
       shouldShowUpdateNotes: true,
@@ -202,6 +220,7 @@ describe('AboutUsSettings', () => {
       '免责声明',
       '模拟已下载更新',
       '模拟首次进入引导',
+      '创建长会话Mock数据',
       'GitHub 下载',
       '官网下载',
       '关闭'
@@ -384,5 +403,44 @@ describe('AboutUsSettings', () => {
     await onboardingButton!.trigger('click')
 
     expect(windowClientMock.startGuidedOnboarding).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates mock long chat data from the about page', async () => {
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          Button: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: passthroughStub('Select'),
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+
+    const mockChatButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '创建长会话Mock数据')
+
+    expect(mockChatButton).toBeTruthy()
+
+    await mockChatButton!.trigger('click')
+    await flushPromises()
+
+    expect(debugClientMock.createMockChatSession).toHaveBeenCalledTimes(1)
   })
 })

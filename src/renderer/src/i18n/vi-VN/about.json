@@ -17,6 +17,12 @@
   "mockUpdateButton": "Cập nhật đã tải xuống mô phỏng",
   "clearMockUpdateButton": "Xóa bản cập nhật giả",
   "mockOnboardingButton": "Hướng dẫn mô phỏng lần chạy đầu tiên",
+  "mockChatButton": "Create Mock Long Chat",
+  "mockChatCreating": "Creating...",
+  "mockChatCreated": "Mock Chat Created",
+  "mockChatCreatedDesc": "Created \"{title}\" with {count} messages.",
+  "mockChatCreateFailed": "Failed to create mock chat.",
+  "mockChatCreateUnavailable": "Mock chat data is only available in development builds.",
   "updateChannel": "Cập nhật kênh",
   "stableChannel": "Ổn định",
   "betaChannel": "bản thử nghiệm"

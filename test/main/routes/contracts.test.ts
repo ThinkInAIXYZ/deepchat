@@ -57,6 +57,7 @@ describe('main kernel contracts', () => {
         'browser.attachCurrentWindow',
         'browser.clearSandboxData',
         'databaseSecurity.repairSchema',
+        'debug.createMockChatSession',
         'config.addManualAcpAgent',
         'config.ensureAcpAgentInstalled',
         'config.getProxySettings',

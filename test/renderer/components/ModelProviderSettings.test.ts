@@ -107,7 +107,8 @@ const setup = async (options?: {
     push: vi.fn(async ({ params }: { params?: Record<string, string> }) => {
       route.params.providerId = params?.providerId
     }),
-    replace: vi.fn()
+    replace: vi.fn(),
+    hasRoute: vi.fn(() => false)
   }
   const completeStep = vi.fn().mockResolvedValue({
     status: 'active',

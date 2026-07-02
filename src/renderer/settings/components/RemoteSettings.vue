@@ -1997,8 +1997,11 @@ const saveTasks: Record<RemoteChannel, Promise<void> | null> = {
   'weixin-ilink': null
 }
 
-let statusRefreshTimer: ReturnType<typeof setInterval> | null = null
+let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let pairDialogRefreshTimer: ReturnType<typeof setInterval> | null = null
+let statusRefreshErrors = 0
+const REMOTE_STATUS_ACTIVE_POLL_MS = 2_000
+const REMOTE_STATUS_IDLE_POLL_MS = 30_000
 
 const defaultTelegramSettings = (): TelegramRemoteSettings => ({
   botToken: '',
@@ -2534,7 +2537,53 @@ const getSnapshotPrincipalIds = (
         : normalizeDiscordPairingSnapshot(snapshot as Partial<DiscordPairingSnapshot>)
             .pairedChannelIds
 
-const refreshStatus = async () => {
+const hasEnabledRemoteSettings = () =>
+  Boolean(
+    telegramSettings.value?.remoteEnabled ||
+    feishuSettings.value?.remoteEnabled ||
+    qqbotSettings.value?.remoteEnabled ||
+    discordSettings.value?.remoteEnabled ||
+    weixinIlinkSettings.value?.remoteEnabled ||
+    weixinIlinkSettings.value?.accounts?.some((account) => account.enabled)
+  )
+
+const clearStatusRefreshTimer = () => {
+  if (!statusRefreshTimer) return
+  clearTimeout(statusRefreshTimer)
+  statusRefreshTimer = null
+}
+
+const runStatusRefresh = async () => {
+  const refreshed = await refreshStatus()
+  statusRefreshErrors = refreshed ? 0 : statusRefreshErrors + 1
+
+  if (remoteSettingsUnmounted || document.visibilityState === 'hidden') return
+  const backoffMs = Math.min(30_000, 2_000 * 2 ** statusRefreshErrors)
+  scheduleStatusRefresh(
+    hasEnabledRemoteSettings()
+      ? refreshed
+        ? REMOTE_STATUS_ACTIVE_POLL_MS
+        : backoffMs
+      : REMOTE_STATUS_IDLE_POLL_MS
+  )
+}
+
+const scheduleStatusRefresh = (delayMs = 0) => {
+  clearStatusRefreshTimer()
+  if (remoteSettingsUnmounted || document.visibilityState === 'hidden') return
+
+  if (delayMs <= 0) {
+    void runStatusRefresh()
+    return
+  }
+
+  statusRefreshTimer = setTimeout(() => {
+    statusRefreshTimer = null
+    void runStatusRefresh()
+  }, delayMs)
+}
+
+const refreshStatus = async (): Promise<boolean> => {
   try {
     const [
       nextTelegramStatus,
@@ -2554,8 +2603,10 @@ const refreshStatus = async () => {
     qqbotStatus.value = nextQQBotStatus
     discordStatus.value = nextDiscordStatus
     weixinIlinkStatus.value = nextWeixinIlinkStatus
+    return true
   } catch (error) {
     console.warn('Failed to refresh remote channel status:', error)
+    return false
   }
 }
 
@@ -2631,6 +2682,9 @@ const loadState = async () => {
     if (!implementedChannels.value.includes(activeChannel.value)) {
       activeChannel.value = implementedChannels.value[0] ?? 'telegram'
     }
+    scheduleStatusRefresh(
+      hasEnabledRemoteSettings() ? REMOTE_STATUS_ACTIVE_POLL_MS : REMOTE_STATUS_IDLE_POLL_MS
+    )
   } catch (error) {
     console.error('Failed to load remote settings:', error)
     toast({
@@ -3714,21 +3768,27 @@ const formatOverviewLine = (channel: RemoteChannel) => {
 
 watch(() => props.channel, syncActiveChannelFromProps)
 
+const handleRemoteSettingsVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    clearStatusRefreshTimer()
+    return
+  }
+
+  scheduleStatusRefresh()
+}
+
 onMounted(() => {
   remoteSettingsUnmounted = false
   syncActiveChannelFromProps()
   void loadState()
-  statusRefreshTimer = setInterval(() => {
-    void refreshStatus()
-  }, 2_000)
+  document.addEventListener('visibilitychange', handleRemoteSettingsVisibilityChange)
+  scheduleStatusRefresh()
 })
 
 onUnmounted(() => {
   remoteSettingsUnmounted = true
-  if (statusRefreshTimer) {
-    clearInterval(statusRefreshTimer)
-    statusRefreshTimer = null
-  }
+  document.removeEventListener('visibilitychange', handleRemoteSettingsVisibilityChange)
+  clearStatusRefreshTimer()
   stopPairDialogPolling()
   void cancelFeishuInstall(false)
   void cancelFeishuScanAuth(false)

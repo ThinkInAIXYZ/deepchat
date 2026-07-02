@@ -26,6 +26,7 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute
 } from './routes/database-security.routes'
+import { debugCreateMockChatSessionRoute } from './routes/debug.routes'
 import {
   memoryAddRoute,
   memoryApprovePersonaDraftRoute,
@@ -485,6 +486,7 @@ export * from './routes/acp-terminal.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
 export * from './routes/database-security.routes'
+export * from './routes/debug.routes'
 export * from './routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
@@ -952,6 +954,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [upgradeMockDownloadedRoute.name]: upgradeMockDownloadedRoute,
   [upgradeClearMockRoute.name]: upgradeClearMockRoute,
   [upgradeRestartToUpdateRoute.name]: upgradeRestartToUpdateRoute,
+  [debugCreateMockChatSessionRoute.name]: debugCreateMockChatSessionRoute,
   [dialogRespondRoute.name]: dialogRespondRoute,
   [dialogErrorRoute.name]: dialogErrorRoute,
   [toolsListDefinitionsRoute.name]: toolsListDefinitionsRoute,
