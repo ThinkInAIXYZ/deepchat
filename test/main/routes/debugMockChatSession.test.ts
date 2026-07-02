@@ -60,18 +60,6 @@ class FakeDebugDb implements DebugMockChatDatabase {
       })
     }
 
-    if (sql.includes('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?')) {
-      return this.statement({
-        run: (agentId, previousAgentId) => {
-          for (const session of this.newSessions) {
-            if (session.agent_id === previousAgentId) {
-              session.agent_id = String(agentId)
-            }
-          }
-        }
-      })
-    }
-
     if (sql.includes('INSERT INTO deepchat_sessions')) {
       return this.statement({
         run: (id, providerId, modelId, permissionMode, systemPrompt) => {
@@ -139,11 +127,6 @@ class FakeDebugDb implements DebugMockChatDatabase {
 describe('createDebugMockChatSession', () => {
   it('creates a rewritten 100-round session with varied assistant blocks', () => {
     const db = new FakeDebugDb()
-    db.newSessions.push({
-      id: 'legacy-debug-session',
-      agent_id: 'debug-long-chat',
-      title: 'Legacy debug session'
-    })
     db.deepchatSessions.push({
       id: 'existing-session',
       provider_id: 'sample-provider',
@@ -193,13 +176,9 @@ describe('createDebugMockChatSession', () => {
     expect(result.created).toBe(true)
     expect(result.sessionId).toMatch(/^debug-long-chat-/)
     expect(result.messageCount).toBe(200)
-    expect(db.newSessions).toHaveLength(2)
-    expect(db.newSessions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'legacy-debug-session', agent_id: 'deepchat' }),
-        expect.objectContaining({ id: result.sessionId, agent_id: 'deepchat' })
-      ])
-    )
+    expect(db.newSessions).toEqual([
+      expect.objectContaining({ id: result.sessionId, agent_id: 'deepchat' })
+    ])
 
     const insertedSession = db.deepchatSessions.find((session) => session.id === result.sessionId)
     expect(insertedSession).toMatchObject({

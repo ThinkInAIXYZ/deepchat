@@ -64,7 +64,6 @@ type AssistantBlock = {
 
 const PAIR_COUNT = 100
 const DEFAULT_AGENT_ID = 'deepchat'
-const LEGACY_DEBUG_AGENT_ID = 'debug-long-chat'
 const SEARCH_NEEDLE = 'mock-long-chat-alpha'
 const ONE_PIXEL_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
@@ -129,12 +128,7 @@ export function createDebugMockChatSession(db: DebugMockChatDatabase): DebugMock
       updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-  const repairLegacyDebugAgent = db.prepare(
-    'UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?'
-  )
-
   const run = db.transaction(() => {
-    repairLegacyDebugAgent.run(DEFAULT_AGENT_ID, LEGACY_DEBUG_AGENT_ID)
     insertSession.run(
       sessionId,
       DEFAULT_AGENT_ID,
