@@ -1849,6 +1849,69 @@ describe('MemoryPresenter management', () => {
     expect(repo.getById(ids[0])?.status).toBe('embedded')
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).toContain(ids[0])
   })
+
+  it('getByIds returns owned memories in input order without status filtering', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const ids = presenter.writeMemoriesSync(
+      [
+        { kind: 'semantic', content: 'active redis' },
+        { kind: 'semantic', content: 'archived redis' },
+        { kind: 'semantic', content: 'superseded redis' }
+      ],
+      { agentId: 'a' }
+    )
+    repo.archive(ids[1], 2000)
+    repo.markSuperseded(ids[2], ids[0])
+    repo.insert({
+      id: 'other-agent-memory',
+      agentId: 'other',
+      kind: 'semantic',
+      content: 'other agent memory'
+    })
+
+    expect(presenter.getByIds('a', [ids[2], ids[2], 'missing', ids[1], ids[0], ids[1]])).toEqual([
+      expect.objectContaining({ id: ids[2], superseded_by: ids[0] }),
+      expect.objectContaining({ id: ids[1], status: 'archived' }),
+      expect.objectContaining({ id: ids[0], status: 'pending_embedding' })
+    ])
+    expect(presenter.getByIds('a', ['other-agent-memory'])).toEqual([])
+  })
+
+  it('archiveUserMemory soft-archives owned memory and writes content-free user audit', async () => {
+    const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {
+      agentId: 'a'
+    })
+
+    await expect(presenter.archiveUserMemory('other-agent', id)).resolves.toBe(false)
+    await expect(presenter.archiveUserMemory('a', id)).resolves.toBe(true)
+
+    expect(repo.getById(id)?.status).toBe('archived')
+    const [firstAudit] = auditRepo.listByAgent('a', {
+      eventType: 'memory/archive',
+      actorType: 'user'
+    })
+    expect(firstAudit).toMatchObject({
+      event_type: 'memory/archive',
+      actor_type: 'user',
+      status: 'completed',
+      reason: null
+    })
+    expect(JSON.parse(firstAudit.input_refs_json)).toEqual({ memoryId: id })
+    expect(JSON.parse(firstAudit.output_refs_json)).toEqual({ action: 'archived', memoryId: id })
+    expect(firstAudit.input_refs_json).not.toContain('redis cache')
+    expect(firstAudit.output_refs_json).not.toContain('redis cache')
+
+    await expect(presenter.archiveUserMemory('a', id)).resolves.toBe(true)
+    const archiveAudits = auditRepo.listByAgent('a', {
+      eventType: 'memory/archive',
+      actorType: 'user'
+    })
+    expect(archiveAudits).toHaveLength(2)
+    expect(archiveAudits.some((audit) => audit.reason === 'already_archived')).toBe(true)
+    expect(presenter.restoreMemory('a', id)).toBe(true)
+    expect(repo.getById(id)?.status).toBe('pending_embedding')
+  })
 })
 
 describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
@@ -2161,7 +2224,7 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     })
     onMemoryChanged.mockClear()
     await presenter.deleteMemory('a', ids[0])
-    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'delete')
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'delete', { memoryId: ids[0] })
   })
 
   it('emits "clear" only when something was removed', async () => {
@@ -2230,10 +2293,81 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     const result = await presenter.extractAndStore({
       agentId: 'a',
       spanText: 'User: I like redis',
-      model: { providerId: 'p', modelId: 'm' }
+      model: { providerId: 'p', modelId: 'm' },
+      sourceSession: 'session-1'
     })
     expect(result.ok).toBe(true)
-    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'extract')
+    expect(onMemoryChanged).toHaveBeenCalledWith(
+      'a',
+      'extract',
+      expect.objectContaining({ sessionId: 'session-1', createdIds: result.createdIds })
+    )
+  })
+
+  it('emits chip createdIds only for pure created rows in mixed extraction outcomes', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const onMemoryChanged = vi.fn()
+    const generateText = routedLLM({
+      extraction: JSON.stringify([
+        { kind: 'semantic', content: 'new alpha', importance: 0.8 },
+        { kind: 'semantic', content: 'redis', importance: 0.8 },
+        { kind: 'semantic', content: 'postgres', importance: 0.8 }
+      ]),
+      decision: [
+        '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"redis replaced"}',
+        '{"decision":"CHALLENGE","targetIndex":0,"mergedContent":null}'
+      ]
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'p', modelId: 'm' },
+        memoryExtractionModel: { providerId: 'cheap', modelId: 'cheap' }
+      }),
+      getEmbeddings: async (_providerId, _modelId, texts) =>
+        texts.map((text) => textToVector(text)),
+      getDimensions: embeddingDimensions,
+      generateText,
+      createVectorStore: async () => store,
+      onMemoryChanged
+    })
+    await seedEmbedded(presenter, 'redis old')
+    await seedEmbedded(presenter, 'postgres old')
+    onMemoryChanged.mockClear()
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: new alpha, redis, postgres',
+      model: { providerId: 'main', modelId: 'main' },
+      sourceSession: 'session-1'
+    })
+
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(3)
+    const chipCreatedIds = onMemoryChanged.mock.calls[0]?.[2]?.createdIds
+    const supersedeCreatedIds = result.createdIds.filter((id) =>
+      [...repo.rows.values()].some((row) => row.superseded_by === id)
+    )
+    const challengeCreatedIds = result.createdIds.filter(
+      (id) => repo.getById(id)?.status === 'conflicted'
+    )
+
+    expect(chipCreatedIds).toHaveLength(1)
+    expect(supersedeCreatedIds).toHaveLength(1)
+    expect(challengeCreatedIds).toHaveLength(1)
+    expect(result.createdIds).toContain(chipCreatedIds![0])
+    expect(chipCreatedIds).not.toContain(supersedeCreatedIds[0])
+    expect(chipCreatedIds).not.toContain(challengeCreatedIds[0])
+    expect(onMemoryChanged).toHaveBeenCalledWith(
+      'a',
+      'extract',
+      expect.objectContaining({
+        sessionId: 'session-1',
+        createdIds: chipCreatedIds
+      })
+    )
   })
 })
 
@@ -3021,12 +3155,23 @@ const embeddingConfig: DeepChatAgentConfig = {
 
 // Routes a single generateText stub by prompt so triage/extraction/decision can be controlled
 // independently. The decision-prompt branch returns whatever JSON the test wants.
-function routedLLM(opts: { extraction?: string; decision?: string; throwDecision?: boolean }) {
+function routedLLM(opts: {
+  extraction?: string
+  decision?: string | string[]
+  throwDecision?: boolean
+}) {
+  let decisionIndex = 0
   return vi.fn(async (_p: string, _m: string, prompt: string) => {
     if (prompt.includes('KEEP or SKIP')) return 'KEEP'
     if (prompt.includes('JSON array')) return opts.extraction ?? '[]'
     if (prompt.includes('Choose exactly ONE decision')) {
       if (opts.throwDecision) throw new Error('decision model down')
+      if (Array.isArray(opts.decision)) {
+        return (
+          opts.decision[decisionIndex++] ??
+          '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+        )
+      }
       return opts.decision ?? '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
     }
     return ''

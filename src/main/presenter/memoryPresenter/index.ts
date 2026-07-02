@@ -71,6 +71,7 @@ import type {
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
   MemoryReflectionResult,
+  MemoryUpdateContext,
   MemoryUpdateReason
 } from './types'
 
@@ -126,6 +127,7 @@ const WARM_DIMENSION_FAILURE_COOLDOWN_MS = 30 * 1000
 const MEMORY_HEALTH_TOP_ACCESSED_LIMIT = 5
 const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
 const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
+const MEMORY_CREATED_IDS_EVENT_LIMIT = 50
 
 function embeddingFingerprint(providerId: string, modelId: string): string {
   return `${providerId}:${modelId}`
@@ -149,6 +151,23 @@ function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
     default:
       return []
   }
+}
+
+function chipCreatedIdsFromOutcomes(outcomes: MemoryWriteOutcome[]): string[] {
+  const referencedIds = new Set<string>()
+  for (const outcome of outcomes) {
+    if (outcome.action === 'superseded') {
+      referencedIds.add(outcome.supersededId)
+    } else if (outcome.action === 'challenged') {
+      referencedIds.add(outcome.targetId)
+    }
+  }
+
+  return outcomes
+    .filter((outcome): outcome is Extract<MemoryWriteOutcome, { action: 'created' }> => {
+      return outcome.action === 'created' && !referencedIds.has(outcome.id)
+    })
+    .map((outcome) => outcome.id)
 }
 
 function toHealthTopAccessedItem(
@@ -459,9 +478,17 @@ export class MemoryPresenter implements MemoryRuntimePort {
     )
   }
 
-  private emitChanged(agentId: string, reason: MemoryUpdateReason): void {
-    this.deps.onMemoryChanged?.(agentId, reason)
+  private emitChanged(
+    agentId: string,
+    reason: MemoryUpdateReason,
+    context?: MemoryUpdateContext
+  ): void {
+    if (context) this.deps.onMemoryChanged?.(agentId, reason, context)
+    else this.deps.onMemoryChanged?.(agentId, reason)
   }
+
+  // Chat memory chips only consume extract events that carry sessionId and createdIds.
+  // Extract events without that context are broad refresh signals for memory views.
 
   // Phase 1 (synchronous, inside the caller's transaction): write memory rows as
   // pending_embedding with idempotent dedup. Returns the ids of newly-created (non-duplicate)
@@ -806,15 +833,27 @@ export class MemoryPresenter implements MemoryRuntimePort {
       }
       const now = Date.now()
       const createdIds: string[] = []
+      const outcomes: MemoryWriteOutcome[] = []
       let touched = false
       for (const candidate of candidates) {
         const outcome = await this.coordinateWrite(input.agentId, candidate, model, options, now)
+        outcomes.push(outcome)
         createdIds.push(...createdIdsFromOutcome(outcome))
         if (outcomeTouched(outcome)) touched = true
       }
       if (createdIds.length || touched) {
         this.syncWorkingMemoryAfterMutation(input.agentId)
-        this.emitChanged(input.agentId, 'extract')
+        const chipCreatedIds = chipCreatedIdsFromOutcomes(outcomes)
+        const updateContext: MemoryUpdateContext = {}
+        if (input.sourceSession) updateContext.sessionId = input.sourceSession
+        if (chipCreatedIds.length > 0) {
+          updateContext.createdIds = chipCreatedIds.slice(0, MEMORY_CREATED_IDS_EVENT_LIMIT)
+        }
+        this.emitChanged(
+          input.agentId,
+          'extract',
+          Object.keys(updateContext).length > 0 ? updateContext : undefined
+        )
         // Phase 2 embedding runs in the background; it must not block the caller.
         void this.processPendingEmbeddings(input.agentId).catch((error) => {
           logger.warn(`[Memory] background embedding failed: ${String(error)}`)
@@ -1414,6 +1453,32 @@ export class MemoryPresenter implements MemoryRuntimePort {
     if (this.disposed) return true
     this.syncWorkingMemoryAfterMutation(agentId)
     this.emitChanged(agentId, 'extract')
+    return true
+  }
+
+  async archiveUserMemory(agentId: string, memoryId: string): Promise<boolean> {
+    if (this.disposed) return false
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return false
+    const row = this.deps.repository.getById(memoryId)
+    if (!row || row.agent_id !== agentId) return false
+    const alreadyArchived = row.status === 'archived'
+    if (!alreadyArchived) {
+      this.deps.repository.archive(row.id, Date.now())
+      if (!this.disposed) {
+        this.syncWorkingMemoryAfterMutation(agentId)
+        this.emitChanged(agentId, 'extract')
+      }
+    }
+    if (this.disposed) return true
+    this.writeAudit(agentId, {
+      eventType: 'memory/archive',
+      actorType: 'user',
+      status: 'completed',
+      reason: alreadyArchived ? 'already_archived' : null,
+      inputRefs: { memoryId },
+      outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
+    })
     return true
   }
 
@@ -2316,6 +2381,15 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.deps.repository.listByAgent(agentId, { includeArchived: true })
   }
 
+  getByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {
+    this.assertSafeAgentId(agentId)
+    if (!this.isManagedAgent(agentId)) return []
+    const orderedIds = [...new Set(memoryIds.filter((id) => id.length > 0))]
+    const rows = this.deps.repository.listByIds(agentId, orderedIds)
+    const rowsById = new Map(rows.map((row) => [row.id, row]))
+    return orderedIds.map((id) => rowsById.get(id)).filter((row): row is AgentMemoryRow => !!row)
+  }
+
   getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {
     this.assertSafeAgentId(agentId)
     if (!this.isManagedAgent(agentId)) return null
@@ -2464,7 +2538,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     }
     await this.deleteVectorsForMemoryIds(agentId, [memoryId])
     if (this.disposed) return true
-    this.emitChanged(agentId, 'delete')
+    this.emitChanged(agentId, 'delete', { memoryId })
     return true
   }
 

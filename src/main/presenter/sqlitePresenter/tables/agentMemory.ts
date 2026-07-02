@@ -499,6 +499,15 @@ export class AgentMemoryTable extends BaseTable {
       .get(agentId, provenanceKey) as AgentMemoryRow | undefined
   }
 
+  listByIds(agentId: string, ids: string[]): AgentMemoryRow[] {
+    const uniqueIds = [...new Set(ids.filter((id) => id.length > 0))]
+    if (uniqueIds.length === 0) return []
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    return this.db
+      .prepare(`SELECT * FROM agent_memory WHERE agent_id = ? AND id IN (${placeholders})`)
+      .all(agentId, ...uniqueIds) as AgentMemoryRow[]
+  }
+
   listByAgent(agentId: string, options: AgentMemoryListOptions = {}): AgentMemoryRow[] {
     const where: string[] = ['agent_id = ?']
     const params: Array<string | number> = [agentId]

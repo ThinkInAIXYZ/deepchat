@@ -433,5 +433,57 @@
       "minute": "p ",
       "second": "gi"
     }
+  },
+  "memory": {
+    "toolbar": "Bộ nhớ đã dùng",
+    "status": {
+      "archived": "Đã quên"
+    },
+    "actions": {
+      "undo": "Hoàn tác",
+      "forget": "Quên",
+      "edit": "Sửa"
+    },
+    "chip": {
+      "title": "Đã cập nhật bộ nhớ {count}",
+      "heading": "Đã cập nhật bộ nhớ",
+      "description": "Lượt này đã thêm các bộ nhớ sau."
+    },
+    "selection": {
+      "remember": "Ghi nhớ nội dung này"
+    },
+    "turn": {
+      "title": "Bộ nhớ dùng trong lượt này",
+      "empty": "Không có bộ nhớ nào được chèn trong lượt này",
+      "selected": "Đã chọn",
+      "dropped": "Đã bỏ",
+      "tokens": "Token",
+      "budget": "Ngân sách",
+      "countOnly": "Bản ghi này chỉ có tóm tắt số lượng.",
+      "unavailable": "Bộ nhớ này không còn khả dụng.",
+      "noSelectedDetails": "Không có chi tiết bộ nhớ để hiển thị cho lượt này.",
+      "refreshFailed": "Không thể làm mới. Đang hiển thị các bộ nhớ đã tải gần nhất.",
+      "error": "Không thể tải ký ức cho lượt này."
+    },
+    "toast": {
+      "undoSuccess": "Đã hoàn tác bộ nhớ",
+      "undoFailed": "Không thể hoàn tác bộ nhớ",
+      "forgetSuccess": "Đã quên bộ nhớ",
+      "forgetFailed": "Không thể quên bộ nhớ",
+      "amendFailed": "Không thể cập nhật bộ nhớ",
+      "rememberFailed": "Không thể lưu bộ nhớ",
+      "add": {
+        "created": "Đã lưu thành bộ nhớ mới",
+        "updated": "Đã cập nhật bộ nhớ hiện có",
+        "superseded": "Đã hợp nhất vào bộ nhớ đã cập nhật",
+        "challenged": "Đã ghi nhận là bộ nhớ cần xem lại",
+        "noop": "Không thêm bộ nhớ mới"
+      }
+    },
+    "errors": {
+      "actionFailed": "Thao tác thất bại. Vui lòng thử lại.",
+      "amendRetryable": "Chỉnh sửa thất bại. Ký ức ban đầu đã được khôi phục, hãy thử lại.",
+      "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
+    }
   }
 }

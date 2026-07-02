@@ -433,5 +433,57 @@
       "minute": "Min. ",
       "second": "Sek."
     }
+  },
+  "memory": {
+    "toolbar": "Verwendete Erinnerungen",
+    "status": {
+      "archived": "Vergessen"
+    },
+    "actions": {
+      "undo": "Rückgängig",
+      "forget": "Vergessen",
+      "edit": "Bearbeiten"
+    },
+    "chip": {
+      "title": "Erinnerung aktualisiert {count}",
+      "heading": "Erinnerung aktualisiert",
+      "description": "Diese Runde hat die folgenden Erinnerungen hinzugefügt."
+    },
+    "selection": {
+      "remember": "Dies merken"
+    },
+    "turn": {
+      "title": "In dieser Runde verwendete Erinnerungen",
+      "empty": "Für diese Runde wurden keine Erinnerungen eingefügt",
+      "selected": "Ausgewählt",
+      "dropped": "Verworfen",
+      "tokens": "Token",
+      "budget": "Budget",
+      "countOnly": "Dieser Eintrag enthält nur eine Zählübersicht.",
+      "unavailable": "Diese Erinnerung ist nicht mehr verfügbar.",
+      "noSelectedDetails": "Für diese Runde gibt es keine Erinnerungsdetails.",
+      "refreshFailed": "Aktualisierung fehlgeschlagen. Die zuletzt geladenen Erinnerungen werden angezeigt.",
+      "error": "Die für diese Runde verwendeten Erinnerungen konnten nicht geladen werden."
+    },
+    "toast": {
+      "undoSuccess": "Erinnerung wurde rückgängig gemacht",
+      "undoFailed": "Erinnerung konnte nicht rückgängig gemacht werden",
+      "forgetSuccess": "Erinnerung wurde vergessen",
+      "forgetFailed": "Erinnerung konnte nicht vergessen werden",
+      "amendFailed": "Erinnerung konnte nicht aktualisiert werden",
+      "rememberFailed": "Erinnerung konnte nicht gespeichert werden",
+      "add": {
+        "created": "Als neue Erinnerung gespeichert",
+        "updated": "Vorhandene Erinnerung aktualisiert",
+        "superseded": "In eine aktualisierte Erinnerung zusammengeführt",
+        "challenged": "Als zu prüfende Erinnerung erfasst",
+        "noop": "Keine neue Erinnerung hinzugefügt"
+      }
+    },
+    "errors": {
+      "actionFailed": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
+      "amendRetryable": "Die Änderung ist fehlgeschlagen. Die ursprüngliche Erinnerung wurde wiederhergestellt. Bitte versuche es erneut.",
+      "amendRestoreFailed": "Die Änderung ist fehlgeschlagen, und die ursprüngliche Erinnerung konnte nicht wiederhergestellt werden."
+    }
   }
 }

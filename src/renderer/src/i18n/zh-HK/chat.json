@@ -433,5 +433,57 @@
       "minute": "分鐘",
       "second": "秒"
     }
+  },
+  "memory": {
+    "toolbar": "本輪用到嘅記憶",
+    "status": {
+      "archived": "已忘記"
+    },
+    "actions": {
+      "undo": "還原",
+      "forget": "忘記",
+      "edit": "修改"
+    },
+    "chip": {
+      "title": "已更新記憶 {count}",
+      "heading": "已更新記憶",
+      "description": "呢輪對話新增咗以下記憶。"
+    },
+    "selection": {
+      "remember": "記住呢段"
+    },
+    "turn": {
+      "title": "本輪用到嘅記憶",
+      "empty": "本輪未注入記憶",
+      "selected": "已選",
+      "dropped": "已略過",
+      "tokens": "Token",
+      "budget": "預算",
+      "countOnly": "呢筆記錄只包含數量摘要。",
+      "unavailable": "呢條記憶已不可用。",
+      "noSelectedDetails": "本輪冇可顯示嘅記憶明細。",
+      "refreshFailed": "刷新失敗，現正顯示上次載入嘅記憶。",
+      "error": "無法載入本輪使用的記憶。"
+    },
+    "toast": {
+      "undoSuccess": "已還原呢條記憶",
+      "undoFailed": "還原記憶失敗",
+      "forgetSuccess": "已忘記呢條記憶",
+      "forgetFailed": "忘記記憶失敗",
+      "amendFailed": "修改記憶失敗",
+      "rememberFailed": "儲存記憶失敗",
+      "add": {
+        "created": "已儲存為新記憶",
+        "updated": "已更新現有記憶",
+        "superseded": "已合併成更新後嘅記憶",
+        "challenged": "已記錄為待確認記憶",
+        "noop": "冇新增記憶"
+      }
+    },
+    "errors": {
+      "actionFailed": "操作失敗，請稍後再試。",
+      "amendRetryable": "修改失敗，原記憶已還原。請保留輸入後重試。",
+      "amendRestoreFailed": "修改失敗，而且原記憶未能還原。請手動重新記住這段內容。"
+    }
   }
 }

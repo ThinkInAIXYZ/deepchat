@@ -591,11 +591,14 @@ export class Presenter implements IPresenter {
         }
         MemoryVectorStore.destroyFile(memoryVectorDbPath(agentId))
       },
-      onMemoryChanged: (agentId, reason) =>
+      onMemoryChanged: (agentId, reason, context) =>
         publishDeepchatEvent('memory.updated', {
           agentId,
           reason,
-          version: Date.now()
+          version: Date.now(),
+          ...(typeof context?.memoryId === 'string' ? { memoryId: context.memoryId } : {}),
+          ...(typeof context?.sessionId === 'string' ? { sessionId: context.sessionId } : {}),
+          ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
         })
     })
     ;(

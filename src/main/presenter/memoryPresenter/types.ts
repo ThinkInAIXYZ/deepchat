@@ -42,6 +42,7 @@ export interface MemoryRepositoryPort {
   getById(id: string): AgentMemoryRow | undefined
   getByProvenanceKey(agentId: string, provenanceKey: string): AgentMemoryRow | undefined
   listByAgent(agentId: string, options?: AgentMemoryListOptions): AgentMemoryRow[]
+  listByIds(agentId: string, ids: string[]): AgentMemoryRow[]
   getActivePersona(agentId: string): AgentMemoryRow | undefined
   getDraftPersona(agentId: string): AgentMemoryRow | undefined
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
@@ -297,7 +298,11 @@ export interface MemoryPresenterDeps {
   resetVectorStore: (agentId: string) => Promise<void>
   // Fires after write/delete/clear/persona changes; the host bridges it to typed UI events.
   // Optional — without it the presenter is side-effect free (tests).
-  onMemoryChanged?: (agentId: string, reason: MemoryUpdateReason) => void
+  onMemoryChanged?: (
+    agentId: string,
+    reason: MemoryUpdateReason,
+    context?: MemoryUpdateContext
+  ) => void
 }
 
 // Mirrors MemoryUpdateReasonSchema in shared/contracts memory.events.
@@ -312,6 +317,12 @@ export type MemoryUpdateReason =
   | 'persona-reject'
   | 'persona-rollback'
   | 'reindex'
+
+export interface MemoryUpdateContext {
+  memoryId?: string
+  sessionId?: string | null
+  createdIds?: string[]
+}
 
 export interface MemoryExtractionInput {
   agentId: string

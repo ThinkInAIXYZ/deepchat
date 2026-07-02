@@ -126,6 +126,11 @@ export class FakeRepository implements MemoryRepositoryPort {
     return result
   }
 
+  listByIds(agentId: string, ids: string[]) {
+    const idSet = new Set(ids)
+    return [...this.rows.values()].filter((row) => row.agent_id === agentId && idSet.has(row.id))
+  }
+
   getActivePersona(agentId: string) {
     return [...this.rows.values()]
       .filter(

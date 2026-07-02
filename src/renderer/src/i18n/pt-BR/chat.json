@@ -433,5 +433,57 @@
       "minute": "min ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Memórias usadas",
+    "status": {
+      "archived": "Esquecida"
+    },
+    "actions": {
+      "undo": "Desfazer",
+      "forget": "Esquecer",
+      "edit": "Editar"
+    },
+    "chip": {
+      "title": "Memória atualizada {count}",
+      "heading": "Memória atualizada",
+      "description": "Este turno adicionou as seguintes memórias."
+    },
+    "selection": {
+      "remember": "Lembrar isto"
+    },
+    "turn": {
+      "title": "Memórias usadas neste turno",
+      "empty": "Nenhuma memória foi injetada neste turno",
+      "selected": "Selecionadas",
+      "dropped": "Descartadas",
+      "tokens": "Tokens",
+      "budget": "Orçamento",
+      "countOnly": "Este registro contém apenas um resumo de contagem.",
+      "unavailable": "Esta memória não está mais disponível.",
+      "noSelectedDetails": "Não há detalhes de memória para mostrar neste turno.",
+      "refreshFailed": "Não foi possível atualizar. Mostrando as memórias carregadas por último.",
+      "error": "Não foi possível carregar as memórias deste turno."
+    },
+    "toast": {
+      "undoSuccess": "A memória foi desfeita",
+      "undoFailed": "Não foi possível desfazer a memória",
+      "forgetSuccess": "A memória foi esquecida",
+      "forgetFailed": "Não foi possível esquecer a memória",
+      "amendFailed": "Não foi possível atualizar a memória",
+      "rememberFailed": "Não foi possível salvar a memória",
+      "add": {
+        "created": "Salva como nova memória",
+        "updated": "Memória existente atualizada",
+        "superseded": "Mesclada em uma memória atualizada",
+        "challenged": "Registrada como memória para revisão",
+        "noop": "Nenhuma nova memória adicionada"
+      }
+    },
+    "errors": {
+      "actionFailed": "A ação falhou. Tente novamente.",
+      "amendRetryable": "A edição falhou. A memória original foi restaurada; tente novamente.",
+      "amendRestoreFailed": "A edição falhou e a memória original não pôde ser restaurada."
+    }
   }
 }

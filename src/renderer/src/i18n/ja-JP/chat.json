@@ -433,5 +433,57 @@
       "minute": "分",
       "second": "秒"
     }
+  },
+  "memory": {
+    "toolbar": "使用したメモリ",
+    "status": {
+      "archived": "忘却済み"
+    },
+    "actions": {
+      "undo": "元に戻す",
+      "forget": "忘れる",
+      "edit": "編集"
+    },
+    "chip": {
+      "title": "メモリを更新 {count}",
+      "heading": "メモリを更新",
+      "description": "このターンで次のメモリが追加されました。"
+    },
+    "selection": {
+      "remember": "これを記憶"
+    },
+    "turn": {
+      "title": "このターンで使用したメモリ",
+      "empty": "このターンではメモリが注入されていません",
+      "selected": "選択",
+      "dropped": "除外",
+      "tokens": "トークン",
+      "budget": "予算",
+      "countOnly": "この記録には件数の概要のみが含まれています。",
+      "unavailable": "このメモリは利用できなくなりました。",
+      "noSelectedDetails": "このターンで表示できるメモリ詳細はありません。",
+      "refreshFailed": "更新に失敗しました。前回読み込んだメモリを表示しています。",
+      "error": "このターンで使用されたメモリを読み込めませんでした。"
+    },
+    "toast": {
+      "undoSuccess": "メモリを元に戻しました",
+      "undoFailed": "メモリを元に戻せませんでした",
+      "forgetSuccess": "メモリを忘却しました",
+      "forgetFailed": "メモリを忘却できませんでした",
+      "amendFailed": "メモリを更新できませんでした",
+      "rememberFailed": "メモリを保存できませんでした",
+      "add": {
+        "created": "新しいメモリとして保存しました",
+        "updated": "既存のメモリを更新しました",
+        "superseded": "更新済みメモリに統合しました",
+        "challenged": "確認が必要なメモリとして記録しました",
+        "noop": "新しいメモリは追加されませんでした"
+      }
+    },
+    "errors": {
+      "actionFailed": "操作に失敗しました。もう一度お試しください。",
+      "amendRetryable": "編集に失敗しました。元のメモリは復元されたので、もう一度お試しください。",
+      "amendRestoreFailed": "編集に失敗し、元のメモリも復元できませんでした。"
+    }
   }
 }

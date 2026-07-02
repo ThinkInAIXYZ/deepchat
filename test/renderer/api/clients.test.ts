@@ -989,6 +989,24 @@ describe('renderer api clients', () => {
             case 'memory.add':
               addedMemoryCategory = payload?.category ?? null
               return { result: { action: 'created', memoryId: 'mem-added' } }
+            case 'memory.getByIds':
+              return {
+                memories: (payload?.memoryIds ?? []).map((memoryId: string, index: number) => ({
+                  id: memoryId,
+                  agentId: payload?.agentId ?? 'agent-1',
+                  kind: 'semantic',
+                  category: null,
+                  content: `memory ${index}`,
+                  importance: 0.6,
+                  status: index === 0 ? 'archived' : 'embedded',
+                  sourceSession: null,
+                  sourceEntryIds: null,
+                  supersededBy: null,
+                  createdAt: 1000 + index
+                }))
+              }
+            case 'memory.archive':
+              return { ok: true }
             case 'memory.getHealth':
               return {
                 health: {
@@ -1392,10 +1410,13 @@ describe('renderer api clients', () => {
     await memoryClient.setPersonaAnchor('agent-1', 'ver-1', true)
     await memoryClient.add('agent-1', {
       content: 'repo uses pnpm',
-      category: 'project_fact'
+      category: 'project_fact',
+      sessionId: 'session-1'
     })
     const categorizedMemories = await memoryClient.list('agent-1')
     await memoryClient.add('agent-1', { content: 'plain note' })
+    const selectedMemories = await memoryClient.getByIds('agent-1', ['mem-archived', 'mem-added'])
+    const archived = await memoryClient.archive('agent-1', 'mem-added')
     const health = await memoryClient.getHealth('agent-1')
     const lifecycle = await memoryClient.getLifecycle('agent-1', 'mem-1')
     const archiveCandidatePreview =
@@ -1440,7 +1461,8 @@ describe('renderer api clients', () => {
       agentId: 'agent-1',
       content: 'repo uses pnpm',
       category: 'project_fact',
-      importance: undefined
+      importance: undefined,
+      sessionId: 'session-1'
     })
     expect(bridge.invoke.mock.calls[11][1]).not.toHaveProperty('kind')
     expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'memory.list', { agentId: 'agent-1' })
@@ -1448,18 +1470,30 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'memory.add', {
       agentId: 'agent-1',
       content: 'plain note',
-      importance: undefined
+      importance: undefined,
+      sessionId: undefined
     })
     expect(bridge.invoke.mock.calls[13][1]).not.toHaveProperty('category')
-    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'memory.getHealth', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'memory.getByIds', {
+      agentId: 'agent-1',
+      memoryIds: ['mem-archived', 'mem-added']
+    })
+    expect(selectedMemories.map((memory) => memory.id)).toEqual(['mem-archived', 'mem-added'])
+    expect(selectedMemories[0].status).toBe('archived')
+    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'memory.archive', {
+      agentId: 'agent-1',
+      memoryId: 'mem-added'
+    })
+    expect(archived).toBe(true)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'memory.getHealth', { agentId: 'agent-1' })
     expect(health.totalRows).toBe(1)
-    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'memory.getLifecycle', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'memory.getLifecycle', {
       agentId: 'agent-1',
       memoryId: 'mem-1'
     })
     expect(lifecycle?.memoryId).toBe('mem-1')
     expect(bridge.invoke).toHaveBeenNthCalledWith(
-      17,
+      19,
       'memory.getArchiveCandidateLifecyclePreview',
       {
         agentId: 'agent-1'

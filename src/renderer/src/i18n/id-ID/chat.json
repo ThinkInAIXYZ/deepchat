@@ -433,5 +433,57 @@
       "minute": "m ",
       "second": "d"
     }
+  },
+  "memory": {
+    "toolbar": "Memori yang digunakan",
+    "status": {
+      "archived": "Dilupakan"
+    },
+    "actions": {
+      "undo": "Urungkan",
+      "forget": "Lupakan",
+      "edit": "Edit"
+    },
+    "chip": {
+      "title": "Memori diperbarui {count}",
+      "heading": "Memori diperbarui",
+      "description": "Giliran ini menambahkan memori berikut."
+    },
+    "selection": {
+      "remember": "Ingat ini"
+    },
+    "turn": {
+      "title": "Memori yang digunakan di giliran ini",
+      "empty": "Tidak ada memori yang disisipkan untuk giliran ini",
+      "selected": "Dipilih",
+      "dropped": "Dibuang",
+      "tokens": "Token",
+      "budget": "Batas",
+      "countOnly": "Catatan ini hanya berisi ringkasan jumlah.",
+      "unavailable": "Memori ini tidak lagi tersedia.",
+      "noSelectedDetails": "Tidak ada detail memori untuk ditampilkan pada giliran ini.",
+      "refreshFailed": "Gagal menyegarkan. Menampilkan memori yang terakhir dimuat.",
+      "error": "Tidak dapat memuat memori untuk giliran ini."
+    },
+    "toast": {
+      "undoSuccess": "Memori diurungkan",
+      "undoFailed": "Tidak dapat mengurungkan memori",
+      "forgetSuccess": "Memori dilupakan",
+      "forgetFailed": "Tidak dapat melupakan memori",
+      "amendFailed": "Tidak dapat memperbarui memori",
+      "rememberFailed": "Tidak dapat menyimpan memori",
+      "add": {
+        "created": "Disimpan sebagai memori baru",
+        "updated": "Memori yang ada diperbarui",
+        "superseded": "Digabungkan ke memori yang diperbarui",
+        "challenged": "Dicatat sebagai memori untuk ditinjau",
+        "noop": "Tidak ada memori baru yang ditambahkan"
+      }
+    },
+    "errors": {
+      "actionFailed": "Tindakan gagal. Coba lagi.",
+      "amendRetryable": "Pengeditan gagal. Memori asli sudah dipulihkan, silakan coba lagi.",
+      "amendRestoreFailed": "Pengeditan gagal, dan memori asli tidak dapat dipulihkan."
+    }
   }
 }

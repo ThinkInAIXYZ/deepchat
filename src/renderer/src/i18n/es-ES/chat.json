@@ -433,5 +433,57 @@
       "minute": "min ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Memorias usadas",
+    "status": {
+      "archived": "Olvidada"
+    },
+    "actions": {
+      "undo": "Deshacer",
+      "forget": "Olvidar",
+      "edit": "Editar"
+    },
+    "chip": {
+      "title": "Memoria actualizada {count}",
+      "heading": "Memoria actualizada",
+      "description": "Este turno añadió las siguientes memorias."
+    },
+    "selection": {
+      "remember": "Recordar esto"
+    },
+    "turn": {
+      "title": "Memorias usadas en este turno",
+      "empty": "No se inyectaron memorias en este turno",
+      "selected": "Seleccionadas",
+      "dropped": "Descartadas",
+      "tokens": "Tokens",
+      "budget": "Presupuesto",
+      "countOnly": "Este registro solo contiene un resumen de recuento.",
+      "unavailable": "Esta memoria ya no está disponible.",
+      "noSelectedDetails": "No hay detalles de memoria para mostrar en este turno.",
+      "refreshFailed": "No se pudo actualizar. Se muestran las memorias cargadas más recientemente.",
+      "error": "No se pudieron cargar las memorias de este turno."
+    },
+    "toast": {
+      "undoSuccess": "La memoria se deshizo",
+      "undoFailed": "No se pudo deshacer la memoria",
+      "forgetSuccess": "La memoria se olvidó",
+      "forgetFailed": "No se pudo olvidar la memoria",
+      "amendFailed": "No se pudo actualizar la memoria",
+      "rememberFailed": "No se pudo guardar la memoria",
+      "add": {
+        "created": "Guardada como nueva memoria",
+        "updated": "Memoria existente actualizada",
+        "superseded": "Fusionada en una memoria actualizada",
+        "challenged": "Registrada como memoria por revisar",
+        "noop": "No se añadió ninguna memoria nueva"
+      }
+    },
+    "errors": {
+      "actionFailed": "La acción falló. Inténtalo de nuevo.",
+      "amendRetryable": "No se pudo guardar el cambio. Se restauró la memoria original; inténtalo de nuevo.",
+      "amendRestoreFailed": "No se pudo guardar el cambio y tampoco se pudo restaurar la memoria original."
+    }
   }
 }

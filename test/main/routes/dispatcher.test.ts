@@ -1600,11 +1600,180 @@ describe('dispatchDeepchatRoute', () => {
           messageId: 'msg-old',
           entryId: 10,
           selectedCount: 1,
+          selectedIds: ['old'],
           droppedCount: 1,
           queryHash: 'oldhash'
         })
       ]
     })
+  })
+
+  it('derives selected memory ids from string and object manifest selections', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
+      {
+        session_id: 's1',
+        entry_id: 30,
+        kind: 'anchor',
+        name: 'memory/view_assembled',
+        source_type: 'memory',
+        source_id: 'msg-1',
+        source_seq: 0,
+        provenance_key: null,
+        payload_json: JSON.stringify({
+          state: {
+            policyVersion: 1,
+            tokenBudget: 1000,
+            estimatedTokens: 10,
+            selected: [
+              'm-string',
+              { id: 'm-object' },
+              'm-string',
+              { id: 'm-object' },
+              { nope: 'ignored' },
+              3
+            ],
+            dropped: [],
+            queryHash: 'hash'
+          }
+        }),
+        meta_json: JSON.stringify({ messageId: 'msg-1' }),
+        created_at: 300
+      }
+    ])
+    ;(runtime as any).sqlitePresenter = {
+      deepchatTapeEntriesTable: {
+        listMemoryViewManifestAnchorsByAgent
+      }
+    }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.listViewManifests',
+      { agentId: 'deepchat', sessionId: 's1', messageId: 'msg-1', limit: 1 },
+      { webContentsId: 42, windowId: 7 }
+    )
+
+    expect(result).toEqual({
+      manifests: [
+        expect.objectContaining({
+          selectedCount: 6,
+          selectedIds: ['m-string', 'm-object']
+        })
+      ]
+    })
+  })
+
+  it('dispatches memory.getByIds with deepchat guard and input order projection', async () => {
+    const { runtime } = createRuntime()
+    const getByIds = vi.fn().mockReturnValue([
+      {
+        id: 'm2',
+        agent_id: 'deepchat',
+        user_scope: null,
+        kind: 'semantic',
+        category: 'project_fact',
+        content: 'archived memory',
+        importance: 0.7,
+        status: 'archived',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null,
+        source_session: null,
+        provenance_key: null,
+        is_anchor: 0,
+        superseded_by: null,
+        created_at: 200,
+        last_accessed: null,
+        access_count: 0,
+        decay_score: null,
+        source_entry_ids: null,
+        confidence: null,
+        last_consolidated_at: null,
+        conflict_state: null,
+        conflict_with: null,
+        persona_state: null
+      },
+      {
+        id: 'm1',
+        agent_id: 'deepchat',
+        user_scope: null,
+        kind: 'semantic',
+        category: null,
+        content: 'active memory',
+        importance: 0.5,
+        status: 'embedded',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null,
+        source_session: null,
+        provenance_key: null,
+        is_anchor: 0,
+        superseded_by: null,
+        created_at: 100,
+        last_accessed: null,
+        access_count: 0,
+        decay_score: null,
+        source_entry_ids: null,
+        confidence: null,
+        last_consolidated_at: null,
+        conflict_state: null,
+        conflict_with: null,
+        persona_state: null
+      }
+    ])
+    ;(runtime as any).memoryPresenter = { getByIds }
+
+    const guarded = await dispatchDeepchatRoute(
+      runtime,
+      'memory.getByIds',
+      { agentId: 'other', memoryIds: ['m1'] },
+      { webContentsId: 42, windowId: 7 }
+    )
+    expect(guarded).toEqual({ memories: [] })
+    expect(getByIds).not.toHaveBeenCalled()
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.getByIds',
+      { agentId: 'deepchat', memoryIds: ['m2', 'm1'] },
+      { webContentsId: 42, windowId: 7 }
+    )
+
+    expect(getByIds).toHaveBeenCalledWith('deepchat', ['m2', 'm1'])
+    expect(result).toEqual({
+      memories: [
+        expect.objectContaining({ id: 'm2', status: 'archived' }),
+        expect.objectContaining({ id: 'm1', status: 'embedded' })
+      ]
+    })
+  })
+
+  it('dispatches memory.archive with deepchat guard', async () => {
+    const { runtime } = createRuntime()
+    const archiveUserMemory = vi.fn().mockResolvedValue(true)
+    ;(runtime as any).memoryPresenter = { archiveUserMemory }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.archive',
+        { agentId: 'other', memoryId: 'm1' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ ok: false })
+    expect(archiveUserMemory).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.archive',
+        { agentId: 'deepchat', memoryId: 'm1' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ ok: true })
+    expect(archiveUserMemory).toHaveBeenCalledWith('deepchat', 'm1')
   })
 
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {

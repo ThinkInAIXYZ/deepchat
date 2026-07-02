@@ -433,5 +433,57 @@
       "minute": "분",
       "second": "초"
     }
+  },
+  "memory": {
+    "toolbar": "사용된 메모리",
+    "status": {
+      "archived": "잊음"
+    },
+    "actions": {
+      "undo": "되돌리기",
+      "forget": "잊기",
+      "edit": "편집"
+    },
+    "chip": {
+      "title": "메모리 업데이트 {count}",
+      "heading": "메모리 업데이트",
+      "description": "이번 턴에서 다음 메모리가 추가되었습니다."
+    },
+    "selection": {
+      "remember": "이 내용 기억"
+    },
+    "turn": {
+      "title": "이번 턴에 사용된 메모리",
+      "empty": "이번 턴에는 메모리가 주입되지 않았습니다",
+      "selected": "선택됨",
+      "dropped": "제외됨",
+      "tokens": "토큰",
+      "budget": "예산",
+      "countOnly": "이 기록에는 개수 요약만 포함되어 있습니다.",
+      "unavailable": "이 메모리는 더 이상 사용할 수 없습니다.",
+      "noSelectedDetails": "이번 턴에 표시할 메모리 세부 정보가 없습니다.",
+      "refreshFailed": "새로 고치지 못했습니다. 마지막으로 불러온 메모리를 표시합니다.",
+      "error": "이번 턴에 사용된 기억을 불러올 수 없습니다."
+    },
+    "toast": {
+      "undoSuccess": "메모리를 되돌렸습니다",
+      "undoFailed": "메모리를 되돌리지 못했습니다",
+      "forgetSuccess": "메모리를 잊었습니다",
+      "forgetFailed": "메모리를 잊지 못했습니다",
+      "amendFailed": "메모리를 업데이트하지 못했습니다",
+      "rememberFailed": "메모리를 저장하지 못했습니다",
+      "add": {
+        "created": "새 메모리로 저장했습니다",
+        "updated": "기존 메모리를 업데이트했습니다",
+        "superseded": "업데이트된 메모리에 병합했습니다",
+        "challenged": "검토할 메모리로 기록했습니다",
+        "noop": "새 메모리가 추가되지 않았습니다"
+      }
+    },
+    "errors": {
+      "actionFailed": "작업에 실패했습니다. 다시 시도하세요.",
+      "amendRetryable": "수정에 실패했습니다. 원래 기억은 복원되었으니 다시 시도하세요.",
+      "amendRestoreFailed": "수정에 실패했고 원래 기억도 복원하지 못했습니다."
+    }
   }
 }

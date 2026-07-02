@@ -433,5 +433,57 @@
       "minute": "dk ",
       "second": "sn"
     }
+  },
+  "memory": {
+    "toolbar": "Kullanılan anılar",
+    "status": {
+      "archived": "Unutuldu"
+    },
+    "actions": {
+      "undo": "Geri al",
+      "forget": "Unut",
+      "edit": "Düzenle"
+    },
+    "chip": {
+      "title": "Anı güncellendi {count}",
+      "heading": "Anı güncellendi",
+      "description": "Bu tur aşağıdaki anıları ekledi."
+    },
+    "selection": {
+      "remember": "Bunu hatırla"
+    },
+    "turn": {
+      "title": "Bu turda kullanılan anılar",
+      "empty": "Bu turda bağlama anı eklenmedi",
+      "selected": "Seçilen",
+      "dropped": "Atılan",
+      "tokens": "Token",
+      "budget": "Bütçe",
+      "countOnly": "Bu kayıt yalnızca sayı özeti içeriyor.",
+      "unavailable": "Bu anı artık kullanılamıyor.",
+      "noSelectedDetails": "Bu tur için gösterilecek anı ayrıntısı yok.",
+      "refreshFailed": "Yenileme başarısız oldu. Son yüklenen anılar gösteriliyor.",
+      "error": "Bu tur için kullanılan anılar yüklenemedi."
+    },
+    "toast": {
+      "undoSuccess": "Anı geri alındı",
+      "undoFailed": "Anı geri alınamadı",
+      "forgetSuccess": "Anı unutuldu",
+      "forgetFailed": "Anı unutulamadı",
+      "amendFailed": "Anı güncellenemedi",
+      "rememberFailed": "Anı kaydedilemedi",
+      "add": {
+        "created": "Yeni anı olarak kaydedildi",
+        "updated": "Mevcut anı güncellendi",
+        "superseded": "Güncellenmiş bir anıyla birleştirildi",
+        "challenged": "İncelenecek anı olarak kaydedildi",
+        "noop": "Yeni anı eklenmedi"
+      }
+    },
+    "errors": {
+      "actionFailed": "İşlem başarısız. Lütfen tekrar deneyin.",
+      "amendRetryable": "Düzenleme başarısız oldu. Özgün bellek geri yüklendi; tekrar deneyin.",
+      "amendRestoreFailed": "Düzenleme başarısız oldu ve özgün bellek geri yüklenemedi."
+    }
   }
 }

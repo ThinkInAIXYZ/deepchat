@@ -118,6 +118,7 @@
             :is-in-generating-thread="resolvedIsInGeneratingThread"
             :is-capturing-image="isCapturingImage"
             :show-trace="showTrace"
+            :show-memory="memoryActivity.enabled && !isReadOnly"
             :is-read-only="isReadOnly"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
@@ -128,6 +129,7 @@
             @next="handleAction('next')"
             @fork="handleAction('fork')"
             @trace="handleAction('trace')"
+            @memory="handleMemoryDetails"
           />
         </div>
       </div>
@@ -137,6 +139,12 @@
       <template v-if="showSelectionMenu">
         <ContextMenuItem @select="handleSelectionCopy">
           {{ t('common.copy') }}
+        </ContextMenuItem>
+        <ContextMenuItem
+          v-if="!isReadOnly && memoryActivity.enabled"
+          @select="handleSelectionRemember"
+        >
+          {{ t('chat.memory.selection.remember') }}
         </ContextMenuItem>
         <ContextMenuItem @select="handleSelectionTranslate">
           {{ t('contextMenu.translate.title') }}
@@ -231,6 +239,8 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from '@/components/use-toast'
+import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 const props = defineProps<{
   message: DisplayAssistantMessage
   isCapturingImage: boolean
@@ -244,6 +254,8 @@ const themeStore = useThemeStore()
 const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
+const { toast } = useToast()
+const memoryActivity = useMemoryActivityStore()
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv']
@@ -541,6 +553,30 @@ const handleSelectionAskAI = () => {
     return
   }
   window.dispatchEvent(new CustomEvent('context-menu-ask-ai', { detail: text }))
+}
+
+const handleSelectionRemember = async () => {
+  if (isReadOnly.value || !memoryActivity.enabled) {
+    return
+  }
+  const text = resolveSelectionText()
+  if (!text) {
+    return
+  }
+  const result = await memoryActivity.rememberSelection(text)
+  toast({
+    title: result
+      ? t(`chat.memory.toast.add.${result.action}`)
+      : t('chat.memory.toast.rememberFailed'),
+    variant: result ? 'default' : 'destructive'
+  })
+}
+
+const handleMemoryDetails = () => {
+  if (isReadOnly.value || !memoryActivity.enabled) {
+    return
+  }
+  void memoryActivity.openTurnMemories(props.message.id)
 }
 
 const handleBlockContinue = (conversationId: string, messageId: string) => {

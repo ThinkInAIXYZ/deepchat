@@ -56,6 +56,7 @@
         <div ref="bottomScrollAnchor" class="h-px w-full" aria-hidden="true" />
       </div>
       <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
+      <MemoryTurnDialog :read-only="isReadOnlySession" />
 
       <!-- Input area (sticky bottom, messages scroll under) -->
       <div
@@ -122,47 +123,53 @@
                   @toggle-collapse="agentPlanStore.toggleCollapsed(props.sessionId)"
                 />
               </div>
-              <template v-if="!activePendingInteraction">
-                <div ref="chatInputHeroHostRef" class="mx-auto flex w-full max-w-4xl flex-col">
-                  <ChatInputBox
-                    ref="chatInputRef"
-                    v-model="message"
-                    max-width-class="max-w-4xl"
-                    :files="attachedFiles"
-                    :session-id="props.sessionId"
-                    :workspace-path="sessionStore.activeSession?.projectDir ?? null"
-                    :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
-                    :is-generating="isGenerating"
-                    :submit-disabled="isInputSubmitDisabled"
-                    :queue-submit-enabled="isGenerating && hasDraftInput"
-                    :queue-submit-disabled="isQueueSubmitDisabled"
-                    @update:files="onFilesChange"
-                    @command-submit="onCommandSubmit"
-                    @queue-submit="onQueueSubmit"
-                    @submit="onSubmit"
-                    @toggle-voice-input="onToggleVoiceInput"
-                  >
-                    <template #toolbar>
-                      <ChatInputToolbar
-                        :is-generating="isGenerating"
-                        :has-input="hasDraftInput"
-                        :send-disabled="isInputSubmitDisabled"
-                        :queue-disabled="isQueueSubmitDisabled"
-                        :show-voice-input="isVoiceInputEnabled"
-                        :is-voice-input-listening="isVoiceInputListening"
-                        :is-voice-input-transcribing="isVoiceInputTranscribing"
-                        @attach="onAttach"
-                        @voice-input="onToggleVoiceInput"
-                        @queue="onQueueSubmit"
-                        @steer="onSteer"
-                        @send="onSubmit"
-                        @stop="onStop"
-                      />
-                    </template>
-                  </ChatInputBox>
-                  <ChatStatusBar max-width-class="max-w-4xl" />
+              <div
+                ref="chatInputHeroHostRef"
+                data-testid="chat-input-memory-host"
+                class="mx-auto flex w-full max-w-4xl flex-col"
+              >
+                <div v-show="!activePendingInteraction">
+                  <MemoryUpdateChip :visible="!activePendingInteraction" />
                 </div>
-              </template>
+                <ChatInputBox
+                  v-if="!activePendingInteraction"
+                  ref="chatInputRef"
+                  v-model="message"
+                  max-width-class="max-w-4xl"
+                  :files="attachedFiles"
+                  :session-id="props.sessionId"
+                  :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+                  :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
+                  :is-generating="isGenerating"
+                  :submit-disabled="isInputSubmitDisabled"
+                  :queue-submit-enabled="isGenerating && hasDraftInput"
+                  :queue-submit-disabled="isQueueSubmitDisabled"
+                  @update:files="onFilesChange"
+                  @command-submit="onCommandSubmit"
+                  @queue-submit="onQueueSubmit"
+                  @submit="onSubmit"
+                  @toggle-voice-input="onToggleVoiceInput"
+                >
+                  <template #toolbar>
+                    <ChatInputToolbar
+                      :is-generating="isGenerating"
+                      :has-input="hasDraftInput"
+                      :send-disabled="isInputSubmitDisabled"
+                      :queue-disabled="isQueueSubmitDisabled"
+                      :show-voice-input="isVoiceInputEnabled"
+                      :is-voice-input-listening="isVoiceInputListening"
+                      :is-voice-input-transcribing="isVoiceInputTranscribing"
+                      @attach="onAttach"
+                      @voice-input="onToggleVoiceInput"
+                      @queue="onQueueSubmit"
+                      @steer="onSteer"
+                      @send="onSubmit"
+                      @stop="onStop"
+                    />
+                  </template>
+                </ChatInputBox>
+                <ChatStatusBar v-if="!activePendingInteraction" max-width-class="max-w-4xl" />
+              </div>
             </div>
           </div>
         </div>
@@ -217,6 +224,8 @@ import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
+import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
+import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useToast } from '@/components/use-toast'
 import { createChatClient } from '../../api/ChatClient'

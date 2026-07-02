@@ -1,10 +1,12 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   memoryAddRoute,
+  memoryArchiveRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
+  memoryGetByIdsRoute,
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
@@ -43,6 +45,7 @@ type MemoryAddKind = 'episodic' | 'semantic'
 type MemoryAddInputBase = {
   content: string
   importance?: number
+  sessionId?: string
 }
 type MemoryAddByKindInput = MemoryAddInputBase & {
   kind?: MemoryAddKind
@@ -59,6 +62,7 @@ type MemoryAddPayload = {
   kind?: MemoryAddKind
   category?: AgentMemoryCategory
   importance?: number
+  sessionId?: string
 }
 
 export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -108,7 +112,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     const payload: MemoryAddPayload = {
       agentId,
       content: input.content,
-      importance: input.importance
+      importance: input.importance,
+      sessionId: input.sessionId
     }
     if (input.category !== undefined) {
       payload.category = input.category
@@ -118,6 +123,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
     const result = await bridge.invoke(memoryAddRoute.name, payload)
     return result.result
+  }
+
+  async function getByIds(agentId: string, memoryIds: string[]): Promise<MemoryItem[]> {
+    const result = await bridge.invoke(memoryGetByIdsRoute.name, { agentId, memoryIds })
+    return result.memories
   }
 
   async function listAuditEvents(
@@ -151,6 +161,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function remove(agentId: string, memoryId: string): Promise<boolean> {
     const result = await bridge.invoke(memoryDeleteRoute.name, { agentId, memoryId })
+    return result.ok
+  }
+
+  async function archive(agentId: string, memoryId: string): Promise<boolean> {
+    const result = await bridge.invoke(memoryArchiveRoute.name, { agentId, memoryId })
     return result.ok
   }
 
@@ -237,9 +252,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     getArchiveCandidateLifecyclePreview,
     search,
     add,
+    getByIds,
     listAuditEvents,
     listViewManifests,
     remove,
+    archive,
     clear,
     restore,
     getSourceSpan,

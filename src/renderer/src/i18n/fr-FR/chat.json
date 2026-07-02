@@ -433,5 +433,57 @@
       "minute": "min ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Mémoires utilisées",
+    "status": {
+      "archived": "Oubliée"
+    },
+    "actions": {
+      "undo": "Annuler",
+      "forget": "Oublier",
+      "edit": "Modifier"
+    },
+    "chip": {
+      "title": "Mémoire mise à jour {count}",
+      "heading": "Mémoire mise à jour",
+      "description": "Ce tour a ajouté les mémoires suivantes."
+    },
+    "selection": {
+      "remember": "Mémoriser ceci"
+    },
+    "turn": {
+      "title": "Mémoires utilisées dans ce tour",
+      "empty": "Aucune mémoire n’a été injectée pour ce tour",
+      "selected": "Sélectionnées",
+      "dropped": "Écartées",
+      "tokens": "Tokens",
+      "budget": "Budget",
+      "countOnly": "Cet enregistrement ne contient qu’un résumé chiffré.",
+      "unavailable": "Cette mémoire n’est plus disponible.",
+      "noSelectedDetails": "Aucun détail de mémoire à afficher pour ce tour.",
+      "refreshFailed": "Actualisation impossible. Les dernières mémoires chargées restent affichées.",
+      "error": "Impossible de charger les souvenirs de ce tour."
+    },
+    "toast": {
+      "undoSuccess": "La mémoire a été annulée",
+      "undoFailed": "Impossible d’annuler la mémoire",
+      "forgetSuccess": "La mémoire a été oubliée",
+      "forgetFailed": "Impossible d’oublier la mémoire",
+      "amendFailed": "Impossible de modifier la mémoire",
+      "rememberFailed": "Impossible d’enregistrer la mémoire",
+      "add": {
+        "created": "Enregistrée comme nouvelle mémoire",
+        "updated": "Mémoire existante mise à jour",
+        "superseded": "Fusionnée dans une mémoire mise à jour",
+        "challenged": "Enregistrée comme mémoire à vérifier",
+        "noop": "Aucune nouvelle mémoire ajoutée"
+      }
+    },
+    "errors": {
+      "actionFailed": "Action échouée. Veuillez réessayer.",
+      "amendRetryable": "La modification a échoué. Le souvenir initial a été restauré ; réessayez.",
+      "amendRestoreFailed": "La modification a échoué et le souvenir initial n’a pas pu être restauré."
+    }
   }
 }

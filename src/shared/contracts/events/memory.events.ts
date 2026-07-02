@@ -15,12 +15,20 @@ export const MemoryUpdateReasonSchema = z.enum([
   'reindex'
 ])
 
-/** Lightweight memory update notification; payload never includes memory content. */
+/**
+ * Lightweight memory update notification; payload never includes memory content.
+ * memoryId is content-free id-only context for targeted reconciliation.
+ * Only extract events with both sessionId and createdIds describe chip-safe newly-created rows.
+ * Other extract events are generic refresh signals for memory views.
+ */
 export const memoryUpdatedEvent = defineEventContract({
   name: 'memory.updated',
   payload: z.object({
     agentId: z.string(),
     reason: MemoryUpdateReasonSchema,
-    version: TimestampMsSchema
+    version: TimestampMsSchema,
+    memoryId: z.string().optional(),
+    sessionId: z.string().optional(),
+    createdIds: z.array(z.string()).max(50).optional()
   })
 })

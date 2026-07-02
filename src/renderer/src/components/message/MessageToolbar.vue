@@ -165,6 +165,19 @@
               </TooltipTrigger>
               <TooltipContent>{{ t('thread.toolbar.trace') }}</TooltipContent>
             </Tooltip>
+            <Tooltip v-if="isAssistant && allowMemory && !isReadOnly">
+              <TooltipTrigger as-child>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  @click="emit('memory')"
+                >
+                  <Icon icon="lucide:brain" class="w-3 h-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('chat.memory.toolbar') }}</TooltipContent>
+            </Tooltip>
             <Tooltip v-if="isAssistant && !loading && !isInGeneratingThread && !isReadOnly">
               <TooltipTrigger as-child>
                 <Button
@@ -305,6 +318,7 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   isCapturingImage: boolean
   showTrace?: boolean
+  showMemory?: boolean
   isReadOnly?: boolean
 }>()
 const emit = defineEmits<{
@@ -320,11 +334,13 @@ const emit = defineEmits<{
   (e: 'fork'): void
   (e: 'copyImageFromTop'): void
   (e: 'trace'): void
+  (e: 'memory'): void
 }>()
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
+const allowMemory = computed(() => props.showMemory ?? false)
 const isReadOnly = computed(() => props.isReadOnly === true)
 </script>
 

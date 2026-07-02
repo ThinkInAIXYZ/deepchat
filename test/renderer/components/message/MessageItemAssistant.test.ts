@@ -1,15 +1,35 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
   DisplayAssistantMessage,
   DisplayAssistantMessageBlock
 } from '@/components/chat/messageListItems'
 
+const memoryActivity = vi.hoisted(() => ({
+  enabled: false,
+  openTurnMemories: vi.fn(),
+  rememberSelection: vi.fn()
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
+  })
+}))
+
+vi.mock('@/stores/ui/memoryActivity', () => ({
+  useMemoryActivityStore: () => memoryActivity
+}))
+
+vi.mock('@/components/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() })
+}))
+
+vi.mock('@api/DeviceClient', () => ({
+  createDeviceClient: () => ({
+    copyText: vi.fn()
   })
 }))
 
@@ -95,7 +115,8 @@ const componentStub = (name: string) =>
 
 const createMessage = (
   status: 'sent' | 'pending' | 'error',
-  content: DisplayAssistantMessage['content']
+  content: DisplayAssistantMessage['content'],
+  overrides: Partial<DisplayAssistantMessage> = {}
 ): DisplayAssistantMessage => ({
   id: 'm1',
   role: 'assistant',
@@ -122,7 +143,8 @@ const createMessage = (
   conversationId: 's1',
   is_variant: 0,
   orderSeq: 1,
-  content
+  content,
+  ...overrides
 })
 
 const createVideoLikeImageBlock = (
@@ -162,6 +184,12 @@ const createToolCallBlock = (
 })
 
 describe('MessageItemAssistant', () => {
+  beforeEach(() => {
+    memoryActivity.enabled = false
+    memoryActivity.openTurnMemories.mockClear()
+    memoryActivity.rememberSelection.mockClear()
+  })
+
   const global = {
     stubs: {
       ModelIcon: componentStub('ModelIcon'),
@@ -345,5 +373,67 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="activity-group"]').attributes('data-block-count')).toBe('1')
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
+
+  it('opens turn memories with the primary assistant message id when a variant is selected', async () => {
+    memoryActivity.enabled = true
+    const variant = createMessage('sent', [createThinkingBlock({ content: 'variant thinking' })], {
+      id: 'assistant-variant',
+      is_variant: 1
+    })
+    const message = createMessage('sent', [createThinkingBlock({ content: 'primary thinking' })], {
+      id: 'assistant-primary',
+      variants: [variant]
+    })
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message,
+        isCapturingImage: false
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageToolbar: defineComponent({
+            name: 'MessageToolbar',
+            emits: ['next', 'memory'],
+            template:
+              '<div><button data-testid="next" @click="$emit(\'next\')" /><button data-testid="memory" @click="$emit(\'memory\')" /></div>'
+          })
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="next"]').trigger('click')
+    await wrapper.find('[data-testid="memory"]').trigger('click')
+
+    expect(memoryActivity.openTurnMemories).toHaveBeenCalledWith('assistant-primary')
+    expect(memoryActivity.openTurnMemories).not.toHaveBeenCalledWith('assistant-variant')
+  })
+
+  it('does not open turn memories when read-only mode emits a memory action defensively', async () => {
+    memoryActivity.enabled = true
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock()], { id: 'assistant-primary' }),
+        isCapturingImage: false,
+        isReadOnly: true
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageToolbar: defineComponent({
+            name: 'MessageToolbar',
+            emits: ['memory'],
+            template: '<button data-testid="memory" @click="$emit(\'memory\')" />'
+          })
+        }
+      }
+    })
+
+    await wrapper.find('[data-testid="memory"]').trigger('click')
+
+    expect(memoryActivity.openTurnMemories).not.toHaveBeenCalled()
   })
 })

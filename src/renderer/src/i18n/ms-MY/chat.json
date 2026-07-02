@@ -433,5 +433,57 @@
       "minute": "m ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Memori digunakan",
+    "status": {
+      "archived": "Dilupakan"
+    },
+    "actions": {
+      "undo": "Buat asal",
+      "forget": "Lupakan",
+      "edit": "Edit"
+    },
+    "chip": {
+      "title": "Memori dikemas kini {count}",
+      "heading": "Memori dikemas kini",
+      "description": "Pusingan ini menambah memori berikut."
+    },
+    "selection": {
+      "remember": "Ingat ini"
+    },
+    "turn": {
+      "title": "Memori digunakan dalam pusingan ini",
+      "empty": "Tiada memori disuntik untuk pusingan ini",
+      "selected": "Dipilih",
+      "dropped": "Dibuang",
+      "tokens": "Token",
+      "budget": "Bajet",
+      "countOnly": "Rekod ini hanya mempunyai ringkasan kiraan.",
+      "unavailable": "Memori ini tidak lagi tersedia.",
+      "noSelectedDetails": "Tiada butiran memori untuk dipaparkan bagi pusingan ini.",
+      "refreshFailed": "Gagal menyegarkan. Memaparkan memori yang terakhir dimuat.",
+      "error": "Tidak dapat memuatkan memori untuk giliran ini."
+    },
+    "toast": {
+      "undoSuccess": "Memori telah dibuat asal",
+      "undoFailed": "Tidak dapat membuat asal memori",
+      "forgetSuccess": "Memori telah dilupakan",
+      "forgetFailed": "Tidak dapat melupakan memori",
+      "amendFailed": "Tidak dapat mengemas kini memori",
+      "rememberFailed": "Tidak dapat menyimpan memori",
+      "add": {
+        "created": "Disimpan sebagai memori baharu",
+        "updated": "Memori sedia ada dikemas kini",
+        "superseded": "Digabungkan ke dalam memori yang dikemas kini",
+        "challenged": "Direkodkan sebagai memori untuk disemak",
+        "noop": "Tiada memori baharu ditambah"
+      }
+    },
+    "errors": {
+      "actionFailed": "Tindakan gagal. Sila cuba lagi.",
+      "amendRetryable": "Suntingan gagal. Memori asal telah dipulihkan, sila cuba lagi.",
+      "amendRestoreFailed": "Suntingan gagal dan memori asal tidak dapat dipulihkan."
+    }
   }
 }

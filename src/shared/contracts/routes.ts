@@ -28,10 +28,12 @@ import {
 } from './routes/database-security.routes'
 import {
   memoryAddRoute,
+  memoryArchiveRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
   memoryDeleteRoute,
   memoryGetSourceSpanRoute,
+  memoryGetByIdsRoute,
   memoryGetHealthRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetLifecycleRoute,
@@ -843,6 +845,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryListRoute.name]: memoryListRoute,
   [memorySearchRoute.name]: memorySearchRoute,
   [memoryAddRoute.name]: memoryAddRoute,
+  [memoryGetByIdsRoute.name]: memoryGetByIdsRoute,
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryGetHealthRoute.name]: memoryGetHealthRoute,
   [memoryGetLifecycleRoute.name]: memoryGetLifecycleRoute,
@@ -851,6 +854,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryListAuditEventsRoute.name]: memoryListAuditEventsRoute,
   [memoryListViewManifestsRoute.name]: memoryListViewManifestsRoute,
   [memoryDeleteRoute.name]: memoryDeleteRoute,
+  [memoryArchiveRoute.name]: memoryArchiveRoute,
   [memoryClearRoute.name]: memoryClearRoute,
   [memoryRestoreRoute.name]: memoryRestoreRoute,
   [memoryGetSourceSpanRoute.name]: memoryGetSourceSpanRoute,

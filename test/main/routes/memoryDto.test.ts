@@ -4,13 +4,16 @@ import { formatMemorySourceRecordContent, toMemoryItemDto } from '@/routes'
 import {
   createEmptyMemoryHealth,
   memoryAddRoute,
+  memoryArchiveRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
+  memoryGetByIdsRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
   memoryListRoute,
   memoryRestoreRoute,
   memorySearchRoute
 } from '@shared/contracts/routes'
+import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { MemoryLifecycle } from '@shared/contracts/routes'
@@ -389,11 +392,13 @@ describe('memory.add route contract', () => {
       content: 'redis on 6379',
       kind: 'episodic',
       category: 'project_fact',
-      importance: 0.8
+      importance: 0.8,
+      sessionId: 'session-1'
     })
     expect(full.kind).toBe('episodic')
     expect(full.category).toBe('project_fact')
     expect(full.importance).toBe(0.8)
+    expect(full.sessionId).toBe('session-1')
     expect(memoryAddRoute.input.safeParse({ agentId: 'has space', content: 'x' }).success).toBe(
       false
     )
@@ -427,6 +432,81 @@ describe('memory.add route contract', () => {
     expect(
       memoryAddRoute.output.parse({ result: { action: 'noop', reason: 'duplicate' } }).result.reason
     ).toBe('duplicate')
+  })
+})
+
+describe('memory.getByIds route contract', () => {
+  it('round-trips input and rejects oversized batches', () => {
+    expect(
+      memoryGetByIdsRoute.input.parse({ agentId: 'deepchat', memoryIds: ['m2', 'm1'] })
+    ).toEqual({
+      agentId: 'deepchat',
+      memoryIds: ['m2', 'm1']
+    })
+    expect(
+      memoryGetByIdsRoute.input.safeParse({ agentId: 'deepchat', memoryIds: [] }).success
+    ).toBe(false)
+    expect(
+      memoryGetByIdsRoute.input.safeParse({
+        agentId: 'deepchat',
+        memoryIds: Array.from({ length: 51 }, (_, index) => `m${index}`)
+      }).success
+    ).toBe(false)
+    expect(
+      memoryGetByIdsRoute.output.parse({
+        memories: [toMemoryItemDto(makeRow({ id: 'm1', status: 'archived' }))]
+      }).memories[0].status
+    ).toBe('archived')
+  })
+})
+
+describe('memory.archive route contract', () => {
+  it('round-trips archive input and output', () => {
+    expect(memoryArchiveRoute.input.parse({ agentId: 'deepchat', memoryId: 'm1' })).toEqual({
+      agentId: 'deepchat',
+      memoryId: 'm1'
+    })
+    expect(memoryArchiveRoute.output.parse({ ok: true })).toEqual({ ok: true })
+    expect(memoryArchiveRoute.output.parse({ ok: false })).toEqual({ ok: false })
+    expect(memoryArchiveRoute.input.safeParse({ agentId: 'bad/id', memoryId: 'm1' }).success).toBe(
+      false
+    )
+  })
+})
+
+describe('memory.updated event contract', () => {
+  it('keeps createdIds optional and capped at the memory detail batch limit', () => {
+    expect(
+      memoryUpdatedEvent.payload.parse({
+        agentId: 'deepchat',
+        reason: 'extract',
+        version: 1000
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      reason: 'extract',
+      version: 1000
+    })
+
+    expect(
+      memoryUpdatedEvent.payload.safeParse({
+        agentId: 'deepchat',
+        reason: 'extract',
+        version: 1000,
+        memoryId: 'm1',
+        sessionId: 'session-1',
+        createdIds: Array.from({ length: 50 }, (_, index) => `m${index}`)
+      }).success
+    ).toBe(true)
+
+    expect(
+      memoryUpdatedEvent.payload.safeParse({
+        agentId: 'deepchat',
+        reason: 'extract',
+        version: 1000,
+        createdIds: Array.from({ length: 51 }, (_, index) => `m${index}`)
+      }).success
+    ).toBe(false)
   })
 })
 

@@ -419,7 +419,28 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
-    default: passthrough('ChatStatusBar')
+    default: defineComponent({
+      name: 'ChatStatusBar',
+      template: '<div class="chat-status-bar-stub" />'
+    })
+  }))
+  vi.doMock('@/components/chat/MemoryUpdateChip.vue', () => ({
+    default: defineComponent({
+      name: 'MemoryUpdateChip',
+      props: {
+        visible: {
+          type: Boolean,
+          default: true
+        }
+      },
+      template: '<div class="memory-update-chip-stub" :data-visible="String(visible)" />'
+    })
+  }))
+  vi.doMock('@/components/chat/MemoryTurnDialog.vue', () => ({
+    default: defineComponent({
+      name: 'MemoryTurnDialog',
+      template: '<div class="memory-turn-dialog-stub" />'
+    })
   }))
   vi.doMock('@/components/chat/ChatToolInteractionOverlay.vue', () => ({
     default: defineComponent({
@@ -1039,7 +1060,11 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="chat-input-memory-host"]').exists()).toBe(true)
+    expect(wrapper.find('.memory-update-chip-stub').exists()).toBe(true)
+    expect(wrapper.find('.memory-update-chip-stub').attributes('data-visible')).toBe('false')
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(false)
+    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(false)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-tool-interaction-overlay-stub')
     )
@@ -1242,6 +1267,7 @@ describe('ChatPage', () => {
     const html = wrapper.html()
     expect(wrapper.find('.pending-input-lane-stub').exists()).toBe(true)
     expect(wrapper.find('.chat-input-box-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-status-bar-stub').exists()).toBe(true)
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )

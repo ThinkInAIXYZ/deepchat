@@ -307,6 +307,7 @@ export const MemoryViewManifestSchema = z.object({
   tokenBudget: z.number(),
   estimatedTokens: z.number(),
   selectedCount: z.number(),
+  selectedIds: z.array(z.string()).nullable(),
   droppedCount: z.number(),
   queryHash: z.string().nullable(),
   createdAt: z.number()
@@ -360,9 +361,19 @@ export const memoryAddRoute = defineRouteContract({
     content: z.string().min(1),
     kind: z.enum(['episodic', 'semantic']).optional(),
     category: z.enum(AGENT_MEMORY_CATEGORIES).optional(),
-    importance: z.number().min(0).max(1).optional()
+    importance: z.number().min(0).max(1).optional(),
+    sessionId: z.string().optional()
   }),
   output: z.object({ result: MemoryAddResultSchema })
+})
+
+export const memoryGetByIdsRoute = defineRouteContract({
+  name: 'memory.getByIds',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryIds: z.array(z.string().min(1)).min(1).max(50)
+  }),
+  output: z.object({ memories: z.array(MemoryItemSchema) })
 })
 
 export const memoryListAuditEventsRoute = defineRouteContract({
@@ -393,6 +404,12 @@ export const memoryListViewManifestsRoute = defineRouteContract({
 
 export const memoryDeleteRoute = defineRouteContract({
   name: 'memory.delete',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: z.object({ ok: z.boolean() })
+})
+
+export const memoryArchiveRoute = defineRouteContract({
+  name: 'memory.archive',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
   output: z.object({ ok: z.boolean() })
 })

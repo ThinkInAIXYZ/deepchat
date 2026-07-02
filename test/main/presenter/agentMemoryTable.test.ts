@@ -131,6 +131,41 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('lists memories by ids for one agent without lifecycle status filtering', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+
+      table.insert({ id: 'active', agentId: 'a', kind: 'semantic', content: 'active' })
+      table.insert({ id: 'archived', agentId: 'a', kind: 'semantic', content: 'archived' })
+      table.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'superseded' })
+      table.insert({ id: 'other-agent', agentId: 'b', kind: 'semantic', content: 'other' })
+      table.archive('archived', 2000)
+      table.markSuperseded('superseded', 'active')
+
+      expect(table.listByIds('a', [])).toEqual([])
+
+      const rows = table.listByIds('a', [
+        'superseded',
+        'missing',
+        'archived',
+        'other-agent',
+        'active',
+        'active'
+      ])
+      const ids = rows.map((row) => row.id).sort()
+      const rowsById = new Map(rows.map((row) => [row.id, row]))
+
+      expect(ids).toEqual(['active', 'archived', 'superseded'])
+      expect(rowsById.get('archived')?.status).toBe('archived')
+      expect(rowsById.get('superseded')?.superseded_by).toBe('active')
+      expect(rowsById.has('other-agent')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
   it('detects active memories and ignores archived-only agents', () => {
     const db = new DatabaseCtor(':memory:')
     try {

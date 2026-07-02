@@ -433,5 +433,57 @@
       "minute": "m ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Memories used",
+    "status": {
+      "archived": "Forgotten"
+    },
+    "actions": {
+      "undo": "Undo",
+      "forget": "Forget",
+      "edit": "Edit"
+    },
+    "chip": {
+      "title": "Memory updated {count}",
+      "heading": "Memory updated",
+      "description": "This turn added the following memories."
+    },
+    "selection": {
+      "remember": "Remember this"
+    },
+    "turn": {
+      "title": "Memories used in this turn",
+      "empty": "No memories were injected for this turn",
+      "selected": "Selected",
+      "dropped": "Dropped",
+      "tokens": "Tokens",
+      "budget": "Budget",
+      "countOnly": "This record only has a count summary.",
+      "unavailable": "This memory is no longer available.",
+      "noSelectedDetails": "There are no memory details to show for this turn.",
+      "refreshFailed": "Refresh failed. Showing the last loaded memories.",
+      "error": "Unable to load memories for this turn."
+    },
+    "toast": {
+      "undoSuccess": "Memory was undone",
+      "undoFailed": "Could not undo memory",
+      "forgetSuccess": "Memory was forgotten",
+      "forgetFailed": "Could not forget memory",
+      "amendFailed": "Could not update memory",
+      "rememberFailed": "Could not save memory",
+      "add": {
+        "created": "Saved as a new memory",
+        "updated": "Updated an existing memory",
+        "superseded": "Merged into an updated memory",
+        "challenged": "Recorded as a memory to review",
+        "noop": "No new memory was added"
+      }
+    },
+    "errors": {
+      "actionFailed": "Action failed. Please try again.",
+      "amendRetryable": "The edit failed. The original memory was restored, so you can retry.",
+      "amendRestoreFailed": "The edit failed, and the original memory could not be restored."
+    }
   }
 }

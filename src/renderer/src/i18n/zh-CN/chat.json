@@ -433,5 +433,57 @@
       "minute": "分钟",
       "second": "秒"
     }
+  },
+  "memory": {
+    "toolbar": "本轮用到的记忆",
+    "status": {
+      "archived": "已忘掉"
+    },
+    "actions": {
+      "undo": "撤销",
+      "forget": "忘掉",
+      "edit": "修改"
+    },
+    "chip": {
+      "title": "已更新记忆 {count}",
+      "heading": "已更新记忆",
+      "description": "这轮对话新增了以下记忆。"
+    },
+    "selection": {
+      "remember": "记住这个"
+    },
+    "turn": {
+      "title": "本轮用到的记忆",
+      "empty": "本轮未注入记忆",
+      "selected": "选中",
+      "dropped": "丢弃",
+      "tokens": "Token",
+      "budget": "预算",
+      "countOnly": "这条记录只包含计数摘要。",
+      "unavailable": "这条记忆已不可用。",
+      "noSelectedDetails": "本轮没有可展示的记忆明细。",
+      "refreshFailed": "刷新失败，正在显示上次加载的记忆。",
+      "error": "无法加载本轮使用的记忆。"
+    },
+    "toast": {
+      "undoSuccess": "已撤销这条记忆",
+      "undoFailed": "撤销记忆失败",
+      "forgetSuccess": "已忘掉这条记忆",
+      "forgetFailed": "忘掉记忆失败",
+      "amendFailed": "修改记忆失败",
+      "rememberFailed": "保存记忆失败",
+      "add": {
+        "created": "已保存为新记忆",
+        "updated": "已更新已有记忆",
+        "superseded": "已合并为更新后的记忆",
+        "challenged": "已记录为待确认记忆",
+        "noop": "没有新增记忆"
+      }
+    },
+    "errors": {
+      "actionFailed": "操作失败，请稍后重试。",
+      "amendRetryable": "修改失败，原记忆已恢复。请保留输入后重试。",
+      "amendRestoreFailed": "修改失败，且原记忆未能恢复。请手动重新记住这段内容。"
+    }
   }
 }

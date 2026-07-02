@@ -433,5 +433,57 @@
       "minute": "min ",
       "second": "s"
     }
+  },
+  "memory": {
+    "toolbar": "Memorie usate",
+    "status": {
+      "archived": "Dimenticata"
+    },
+    "actions": {
+      "undo": "Annulla",
+      "forget": "Dimentica",
+      "edit": "Modifica"
+    },
+    "chip": {
+      "title": "Memoria aggiornata {count}",
+      "heading": "Memoria aggiornata",
+      "description": "Questo turno ha aggiunto le seguenti memorie."
+    },
+    "selection": {
+      "remember": "Ricorda questo"
+    },
+    "turn": {
+      "title": "Memorie usate in questo turno",
+      "empty": "Nessuna memoria è stata iniettata per questo turno",
+      "selected": "Selezionate",
+      "dropped": "Scartate",
+      "tokens": "Token",
+      "budget": "Budget",
+      "countOnly": "Questo record contiene solo un riepilogo numerico.",
+      "unavailable": "Questa memoria non è più disponibile.",
+      "noSelectedDetails": "Non ci sono dettagli di memoria da mostrare per questo turno.",
+      "refreshFailed": "Aggiornamento non riuscito. Vengono mostrate le memorie caricate più di recente.",
+      "error": "Impossibile caricare i ricordi usati in questo turno."
+    },
+    "toast": {
+      "undoSuccess": "Memoria annullata",
+      "undoFailed": "Impossibile annullare la memoria",
+      "forgetSuccess": "Memoria dimenticata",
+      "forgetFailed": "Impossibile dimenticare la memoria",
+      "amendFailed": "Impossibile aggiornare la memoria",
+      "rememberFailed": "Impossibile salvare la memoria",
+      "add": {
+        "created": "Salvata come nuova memoria",
+        "updated": "Memoria esistente aggiornata",
+        "superseded": "Unita in una memoria aggiornata",
+        "challenged": "Registrata come memoria da verificare",
+        "noop": "Nessuna nuova memoria aggiunta"
+      }
+    },
+    "errors": {
+      "actionFailed": "Azione non riuscita. Riprova.",
+      "amendRetryable": "La modifica non è riuscita. La memoria originale è stata ripristinata; riprova.",
+      "amendRestoreFailed": "La modifica non è riuscita e non è stato possibile ripristinare la memoria originale."
+    }
   }
 }
