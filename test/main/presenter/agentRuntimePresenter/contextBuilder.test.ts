@@ -363,7 +363,7 @@ describe('buildContext', () => {
     expect(result).toEqual([])
   })
 
-  it('keeps attachment-only user messages valid when text is blank', () => {
+  it('keeps attachment-only user messages valid without replaying file content', () => {
     const store = createMockMessageStore([])
     const result = buildContext(
       's1',
@@ -387,9 +387,14 @@ describe('buildContext', () => {
     expect(result).toEqual([
       {
         role: 'user',
-        content: expect.stringContaining('important attachment content')
+        content: expect.stringContaining('[Attached File 1]')
       }
     ])
+    expect(result[0].content).toEqual(expect.stringContaining('path: /tmp/notes.txt'))
+    expect(result[0].content).toEqual(
+      expect.stringContaining('content: [omitted; use read if needed]')
+    )
+    expect(result[0].content).not.toEqual(expect.stringContaining('important attachment content'))
   })
 
   it('includes single prior exchange', () => {
@@ -875,7 +880,7 @@ describe('buildContext', () => {
     ])
   })
 
-  it('includes non-image file context in user content', () => {
+  it('includes document metadata without inline file content in user content', () => {
     const store = createMockMessageStore([])
     const result = buildContext(
       's1',
@@ -902,10 +907,41 @@ describe('buildContext', () => {
         content: expect.stringContaining('[Attached File 1]')
       }
     ])
-    expect(result[0].content).toEqual(expect.stringContaining('# Title'))
+    expect(result[0].content).toEqual(expect.stringContaining('path: /tmp/README.md'))
+    expect(result[0].content).toEqual(
+      expect.stringContaining('content: [omitted; use read if needed]')
+    )
+    expect(result[0].content).not.toEqual(expect.stringContaining('# Title'))
   })
 
-  it('converts image files to image_url when vision is enabled', () => {
+  it('converts current image files to image_url when vision is enabled', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: 'Look at this',
+        files: [
+          {
+            name: 'img.png',
+            path: '/tmp/img.png',
+            mimeType: 'image/png',
+            content: 'data:image/png;base64,AAA='
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store,
+      true
+    )
+
+    const userMessage = result[0]
+    expect(Array.isArray(userMessage.content)).toBe(true)
+    expect((userMessage.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+  })
+
+  it('keeps historical image attachments as metadata when vision is enabled', () => {
     const store = createMockMessageStore([
       makeUserRecordWithFiles(1, 'Look at this', [
         {
@@ -919,8 +955,10 @@ describe('buildContext', () => {
 
     const result = buildContext('s1', 'next', '', 10000, 4096, store, true)
     const userHistory = result[0]
-    expect(Array.isArray(userHistory.content)).toBe(true)
-    expect((userHistory.content as any[]).some((part) => part.type === 'image_url')).toBe(true)
+    expect(Array.isArray(userHistory.content)).toBe(false)
+    expect(userHistory.content).toEqual(expect.stringContaining('[Attached Image 1]'))
+    expect(userHistory.content).toEqual(expect.stringContaining('path: /tmp/img.png'))
+    expect(userHistory.content).not.toEqual(expect.stringContaining('data:image/png'))
   })
 
   it('converts audio files to input_audio when audio input is enabled', () => {
@@ -974,6 +1012,37 @@ describe('buildContext', () => {
           part.text.includes('Audio file path:')
       )
     ).toBe(false)
+  })
+
+  it('keeps historical audio as input_audio when audio input is enabled', () => {
+    const store = createMockMessageStore([
+      makeUserRecordWithFiles(1, 'Please transcribe this clip', [
+        {
+          name: 'clip.wav',
+          path: '/tmp/clip.wav',
+          mimeType: 'audio/wav',
+          content: 'data:audio/wav;base64,YXVkaW8tYnl0ZXM='
+        }
+      ])
+    ])
+    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+      supportsAudioInput: true
+    })
+
+    const userHistoryParts = result[0].content as any[]
+    expect(Array.isArray(userHistoryParts)).toBe(true)
+    expect(userHistoryParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'input_audio',
+          input_audio: expect.objectContaining({
+            data: 'YXVkaW8tYnl0ZXM=',
+            media_type: 'audio/wav',
+            filename: 'clip.wav'
+          })
+        })
+      ])
+    )
   })
 
   it('falls back to text-only audio context when audio input is disabled', () => {
