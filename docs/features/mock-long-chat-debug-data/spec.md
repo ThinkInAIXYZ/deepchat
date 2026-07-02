@@ -9,6 +9,7 @@ Developers need a development-only control that creates a large realistic chat s
 - The About settings page shows a mock chat data button only in dev builds.
 - The main process refuses to create mock chat data in packaged builds.
 - Clicking the button creates one regular chat session with 100 user messages and 100 assistant messages.
+- The created session uses the built-in `deepchat` agent, not a debug-only agent id.
 - Mock content is rewritten synthetic text, but can reuse the current database's message shapes and block types as samples.
 - Assistant messages include mixed short and long markdown plus supported block varieties such as content, reasoning, search, tool call, action, image, artifact thinking, plan, and error.
 - The inserted session appears in the session list without restarting the app.
