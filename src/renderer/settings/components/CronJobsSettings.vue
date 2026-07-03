@@ -284,28 +284,6 @@
                   )
                 }}
               </Badge>
-              <Button
-                v-if="runsByJobId[job.id][0].sessionId"
-                variant="ghost"
-                size="icon"
-                class="h-7 w-7"
-                :disabled="openingRunId === runsByJobId[job.id][0].id"
-                :title="t('common.open')"
-                :aria-label="t('common.open')"
-                @click="openRunSession(runsByJobId[job.id][0].id)"
-              >
-                <Icon
-                  :icon="
-                    openingRunId === runsByJobId[job.id][0].id
-                      ? 'lucide:loader-2'
-                      : 'lucide:external-link'
-                  "
-                  :class="[
-                    'h-3.5 w-3.5',
-                    openingRunId === runsByJobId[job.id][0].id ? 'animate-spin' : ''
-                  ]"
-                />
-              </Button>
             </template>
             <span v-else class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.none') }}
@@ -364,7 +342,6 @@ const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const runsByJobId = ref<Record<string, CronJobRun[]>>({})
 const runsLoadingByJobId = ref<Record<string, boolean>>({})
-const openingRunId = ref<string | null>(null)
 const NO_AGENT_ID = '__none__'
 const CRON_REFERENCE_EXAMPLES = [
   { cronExpr: '*/5 * * * *', labelKey: 'settings.cronJobs.presets.every5Minutes' },
@@ -691,17 +668,6 @@ const runJobNow = async (id: string) => {
     handleError('Failed to run job', error)
   } finally {
     runningId.value = null
-  }
-}
-
-const openRunSession = async (runId: string) => {
-  openingRunId.value = runId
-  try {
-    await client.openRunSession(runId)
-  } catch (error) {
-    handleError('Failed to open run session', error)
-  } finally {
-    openingRunId.value = null
   }
 }
 
