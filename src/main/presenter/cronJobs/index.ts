@@ -15,6 +15,7 @@ import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobsRepository } from './repository'
+import { CronJobRunExecutor, type CronJobRunSessionStarter } from './runExecutor'
 import { CronJobRuntimeResolver } from './runtimeResolver'
 import {
   SchedulerProcessManager,
@@ -33,6 +34,7 @@ export interface CronJobsServiceDeps {
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
+  runSessionStarter?: CronJobRunSessionStarter
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
@@ -44,6 +46,7 @@ export class CronJobsService {
   private readonly schedulerManager: SchedulerProcessManager
   private readonly scheduleService: CronExpressionService
   private readonly runtimeResolver: CronJobRuntimeResolver | null
+  private runExecutor: CronJobRunExecutor | null = null
   private started = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
   private readonly resumeHandler = () => {
@@ -56,6 +59,9 @@ export class CronJobsService {
     this.runtimeResolver =
       deps.runtimeResolver ??
       (deps.configPresenter ? new CronJobRuntimeResolver(deps.configPresenter) : null)
+    if (deps.runSessionStarter) {
+      this.runExecutor = new CronJobRunExecutor(this.repository, deps.runSessionStarter)
+    }
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.sqlitePresenter.getDatabasePath(),
       dbPassword: deps.sqlitePresenter.getDatabasePassword(),
@@ -169,6 +175,11 @@ export class CronJobsService {
     const completed = this.repository.getRun(run.id) ?? run
     const schedulerStatus = await this.reconcileScheduler('manual-run')
     return { job, run: completed, schedulerStatus }
+  }
+
+  setRunSessionStarter(runSessionStarter: CronJobRunSessionStarter): void {
+    this.runExecutor?.dispose()
+    this.runExecutor = new CronJobRunExecutor(this.repository, runSessionStarter)
   }
 
   getSchedulerStatus(): CronJobsSchedulerStatus {
@@ -382,8 +393,15 @@ export class CronJobsService {
 
     try {
       await this.assertRunnable(job)
-      this.repository.markRunRunning(event.runId)
-      this.repository.markRunCompleted(event.runId)
+      if (this.runExecutor) {
+        await this.runExecutor.execute({
+          runId: event.runId,
+          job
+        })
+      } else {
+        this.repository.markRunRunning(event.runId)
+        this.repository.markRunCompleted(event.runId)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       try {
@@ -396,3 +414,4 @@ export class CronJobsService {
 }
 
 export { CronJobsRepository }
+export type { CronJobRunSessionStarter }

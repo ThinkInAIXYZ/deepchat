@@ -113,13 +113,19 @@ export interface CronSchedulePreview {
 export interface CronJobRun {
   id: string
   jobId: string
+  sessionId: string | null
+  parentContinuationSessionId: string | null
   scheduledAt: number
   queuedAt: number
   startedAt: number | null
   completedAt: number | null
   status: CronJobRunStatus
   reason: CronJobRunReason
+  outputMessageId: string | null
+  outputPreview: string | null
   error: string | null
+  claimedAt: number | null
+  claimOwner: string | null
   createdAt: number
   updatedAt: number
 }

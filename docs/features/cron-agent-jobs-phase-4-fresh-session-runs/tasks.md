@@ -2,16 +2,16 @@
 
 ## Execution Path
 
-- [ ] Add `CronJobRunExecutor`.
-- [ ] Implement transactional queued-run claiming.
-- [ ] Create fresh sessions through existing session service.
-- [ ] Send job prompt through existing chat service.
-- [ ] Persist run status, session id, output message id, preview, and errors.
-- [ ] Enforce max duration, max turns, max tool calls, and concurrency policy.
+- [x] Add `CronJobRunExecutor`.
+- [x] Implement transactional queued-run claiming.
+- [x] Create fresh detached sessions through the existing agent session presenter.
+- [x] Start the job prompt through the existing send-message path.
+- [x] Persist run status, session id, output message id, preview, and errors.
+- [ ] Enforce max duration, max turns, max tool calls, and full concurrency policy.
 
 ## Persistence And Routes
 
-- [ ] Add run claiming and output columns.
+- [x] Add run claiming and output columns.
 - [ ] Add session metadata storage for `source='cron_job'`.
 - [ ] Add run history, run detail, open session, continue, and run-again routes.
 
@@ -25,6 +25,6 @@
 
 ## Tests And Validation
 
-- [ ] Cover success, failed, cancelled, waiting-permission, and duplicate `RUN_DUE` cases.
-- [ ] Cover manual `Run Now` using the same execution path.
-- [ ] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
+- [ ] Cover completed, failed, cancelled, waiting_permission, and duplicate `RUN_DUE` cases.
+- [x] Cover manual `Run Now` using the same execution path.
+- [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.

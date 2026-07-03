@@ -127,12 +127,43 @@ export class CronJobsRepository {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markRunning(id))
   }
 
+  claimRun(id: string, claimOwner: string): CronJobRun | null {
+    const row = this.sqlitePresenter.cronJobRunsTable.claimQueued(id, claimOwner)
+    return row ? toCronJobRun(row) : null
+  }
+
+  updateRunSession(id: string, sessionId: string): CronJobRun {
+    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.updateSession(id, sessionId))
+  }
+
+  updateRunOutput(
+    id: string,
+    input: {
+      outputMessageId?: string | null
+      outputPreview?: string | null
+    }
+  ): CronJobRun {
+    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.updateOutput(id, input))
+  }
+
   markRunCompleted(id: string): CronJobRun {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markCompleted(id))
   }
 
   markRunFailed(id: string, error: string): CronJobRun {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markFailed(id, error))
+  }
+
+  markRunCancelled(id: string, error?: string | null): CronJobRun {
+    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markCancelled(id, error ?? null))
+  }
+
+  releaseRunQueued(id: string): CronJobRun {
+    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.releaseQueued(id))
+  }
+
+  countActiveRunsByJob(jobId: string, excludeRunId?: string): number {
+    return this.sqlitePresenter.cronJobRunsTable.countActiveByJob(jobId, excludeRunId)
   }
 
   listRunsByJob(jobId: string, limit?: number): CronJobRun[] {
@@ -197,13 +228,19 @@ export function toCronJobRun(row: CronJobRunRow): CronJobRun {
   return {
     id: row.id,
     jobId: row.job_id,
+    sessionId: row.session_id ?? null,
+    parentContinuationSessionId: row.parent_continuation_session_id ?? null,
     scheduledAt: row.scheduled_at,
     queuedAt: row.queued_at,
     startedAt: row.started_at,
     completedAt: row.completed_at,
     status: row.status,
     reason: row.reason,
+    outputMessageId: row.output_message_id ?? null,
+    outputPreview: row.output_preview ?? null,
     error: row.error,
+    claimedAt: row.claimed_at ?? null,
+    claimOwner: row.claim_owner ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }

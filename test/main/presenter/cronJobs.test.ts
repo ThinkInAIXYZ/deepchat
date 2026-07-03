@@ -26,6 +26,8 @@ const schedulerUtilityHostModule = repositoryModule
   ? await import('@/presenter/cronJobs/schedulerUtilityHost').catch(() => null)
   : null
 const cronExpressionServiceModule = await import('@/presenter/cronJobs/cronExpressionService')
+const internalSessionEventsModule =
+  await import('@/presenter/agentRuntimePresenter/internalSessionEvents')
 
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable
@@ -42,6 +44,8 @@ const CronJobsRepositoryCtor = CronJobsRepository!
 const CronJobsServiceCtor = CronJobsService!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
 const CronJobsSchedulerUtilityHostCtor = CronJobsSchedulerUtilityHost!
+const emitDeepChatInternalSessionUpdate =
+  internalSessionEventsModule.emitDeepChatInternalSessionUpdate
 
 let sqliteAvailable = false
 if (Database) {
@@ -425,6 +429,155 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       )
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('job-upsert')
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('manual-run')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('creates a fresh session for manual runs when the executor is wired', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const runSessionStarter = {
+        createSessionForRun: vi.fn(async ({ run }: { run: { id: string } }) => ({
+          sessionId: `session-${run.id}`
+        })),
+        startSessionRun: vi.fn(async () => ({
+          outputMessageId: 'message-1',
+          outputPreview: 'Started cron session'
+        }))
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never,
+        runSessionStarter: runSessionStarter as never
+      })
+
+      const { job } = await service.upsert({
+        name: 'Session run',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
+      })
+      const result = await service.runNow(job.id)
+
+      expect(runSessionStarter.createSessionForRun).toHaveBeenCalledTimes(1)
+      expect(runSessionStarter.startSessionRun).toHaveBeenCalledTimes(1)
+      expect(result.run).toEqual(
+        expect.objectContaining({
+          status: 'running',
+          sessionId: `session-${result.run.id}`,
+          outputMessageId: 'message-1',
+          outputPreview: 'Started cron session',
+          claimedAt: expect.any(Number),
+          claimOwner: expect.stringContaining('cron-job-runner:')
+        })
+      )
+      emitDeepChatInternalSessionUpdate({
+        sessionId: `session-${result.run.id}`,
+        kind: 'blocks',
+        messageId: 'message-1',
+        previewMarkdown: 'Finished cron session',
+        responseMarkdown: 'Finished cron session',
+        waitingInteraction: null,
+        updatedAt: Date.now()
+      })
+      emitDeepChatInternalSessionUpdate({
+        sessionId: `session-${result.run.id}`,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: Date.now()
+      })
+      expect(new CronJobsRepositoryCtor(sqlitePresenter as never).getRun(result.run.id)).toEqual(
+        expect.objectContaining({
+          status: 'completed',
+          sessionId: `session-${result.run.id}`,
+          outputMessageId: 'message-1',
+          outputPreview: 'Finished cron session'
+        })
+      )
+    } finally {
+      db.close()
+    }
+  })
+
+  it('does not start duplicate sessions for the same queued run', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const runSessionStarter = {
+        createSessionForRun: vi.fn(async ({ run }: { run: { id: string } }) => ({
+          sessionId: `session-${run.id}`
+        })),
+        startSessionRun: vi.fn(async () => ({}))
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never,
+        runSessionStarter: runSessionStarter as never
+      })
+
+      const { job } = await service.upsert({
+        name: 'Deduped run',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
+      })
+      const run = new CronJobsRepositoryCtor(sqlitePresenter as never).queueRun({
+        jobId: job.id,
+        scheduledAt: Date.now(),
+        reason: 'scheduled'
+      })
+      const event = {
+        jobId: job.id,
+        runId: run.id,
+        scheduledAt: run.scheduledAt,
+        reason: run.reason
+      }
+
+      await (
+        service as never as { processDueRun: (value: typeof event) => Promise<void> }
+      ).processDueRun(event)
+      await (
+        service as never as { processDueRun: (value: typeof event) => Promise<void> }
+      ).processDueRun(event)
+
+      expect(runSessionStarter.createSessionForRun).toHaveBeenCalledTimes(1)
+      expect(runSessionStarter.startSessionRun).toHaveBeenCalledTimes(1)
+      expect(sqlitePresenter.cronJobRunsTable.get(run.id)).toEqual(
+        expect.objectContaining({
+          status: 'running',
+          session_id: `session-${run.id}`
+        })
+      )
+      emitDeepChatInternalSessionUpdate({
+        sessionId: `session-${run.id}`,
+        kind: 'status',
+        status: 'idle',
+        updatedAt: Date.now()
+      })
+      expect(sqlitePresenter.cronJobRunsTable.get(run.id)).toEqual(
+        expect.objectContaining({
+          status: 'completed',
+          session_id: `session-${run.id}`
+        })
+      )
     } finally {
       db.close()
     }

@@ -802,6 +802,58 @@ export function createMainKernelRouteRuntime(deps: {
     }
   })
 
+  deps.cronJobs.setRunSessionStarter({
+    async createSessionForRun({ job }) {
+      if (!job.agentId) {
+        throw new Error('Cron job requires an enabled agent.')
+      }
+      const agentType = await deps.configPresenter.getAgentType(job.agentId)
+      const snapshotConfig = job.agentSnapshot?.config as
+        | {
+            defaultModelPreset?: { providerId?: string; modelId?: string } | null
+            permissionMode?: 'default' | 'auto_approve' | 'full_access'
+            disabledAgentTools?: string[]
+            subagentEnabled?: boolean
+            systemPrompt?: string
+          }
+        | null
+        | undefined
+      const modelPreset =
+        agentType === 'deepchat' && job.modelPolicy === 'pin_current'
+          ? snapshotConfig?.defaultModelPreset
+          : null
+      const systemPrompt = job.taskSystemInstruction?.trim() || snapshotConfig?.systemPrompt
+
+      const session = await deps.agentSessionPresenter.createDetachedSession({
+        agentId: job.agentId,
+        title: job.name,
+        ...(agentType === 'acp' ? { providerId: 'acp', modelId: job.agentId } : {}),
+        ...(modelPreset?.providerId ? { providerId: modelPreset.providerId } : {}),
+        ...(modelPreset?.modelId ? { modelId: modelPreset.modelId } : {}),
+        ...(job.permissionPolicy === 'snapshot' && snapshotConfig?.permissionMode
+          ? { permissionMode: snapshotConfig.permissionMode }
+          : {}),
+        ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
+          ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
+          : {}),
+        ...(snapshotConfig?.subagentEnabled !== undefined
+          ? { subagentEnabled: snapshotConfig.subagentEnabled }
+          : {}),
+        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {})
+      })
+      return { sessionId: session.id }
+    },
+    async startSessionRun({ job, sessionId }) {
+      if (!job.taskPrompt.trim()) {
+        throw new Error('Cron job task prompt is empty.')
+      }
+      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt)
+      return {
+        outputMessageId: result.messageId ?? null
+      }
+    }
+  })
+
   return {
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter,

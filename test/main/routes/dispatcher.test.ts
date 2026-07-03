@@ -1187,13 +1187,19 @@ function createRuntime() {
   const cronRun = {
     id: 'run-1',
     jobId: 'cron-1',
+    sessionId: 'session-1',
+    parentContinuationSessionId: null,
     scheduledAt: 3,
     queuedAt: 3,
     startedAt: 4,
     completedAt: 5,
     status: 'completed' as const,
     reason: 'manual' as const,
+    outputMessageId: null,
+    outputPreview: null,
     error: null,
+    claimedAt: 4,
+    claimOwner: 'owner-1',
     createdAt: 3,
     updatedAt: 5
   }
@@ -1217,7 +1223,8 @@ function createRuntime() {
     reconcileScheduler: vi.fn(async () => cronStatus),
     restartScheduler: vi.fn(async () => cronStatus),
     validateSchedule: vi.fn(() => ({ valid: true, error: null, nextRunAt: 10 })),
-    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null }))
+    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
+    setRunSessionStarter: vi.fn()
   }
 
   setDeepchatEventWindowPresenter(windowPresenter)

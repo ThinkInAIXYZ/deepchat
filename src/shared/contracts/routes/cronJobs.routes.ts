@@ -70,13 +70,19 @@ export const cronJobSchema = z.object({
 export const cronJobRunSchema = z.object({
   id: z.string().min(1),
   jobId: z.string().min(1),
+  sessionId: z.string().min(1).nullable(),
+  parentContinuationSessionId: z.string().min(1).nullable(),
   scheduledAt: timestampMsSchema,
   queuedAt: timestampMsSchema,
   startedAt: timestampMsSchema.nullable(),
   completedAt: timestampMsSchema.nullable(),
   status: cronJobRunStatusSchema,
   reason: cronJobRunReasonSchema,
+  outputMessageId: z.string().min(1).nullable(),
+  outputPreview: z.string().nullable(),
   error: z.string().nullable(),
+  claimedAt: timestampMsSchema.nullable(),
+  claimOwner: z.string().min(1).nullable(),
   createdAt: timestampMsSchema,
   updatedAt: timestampMsSchema
 })

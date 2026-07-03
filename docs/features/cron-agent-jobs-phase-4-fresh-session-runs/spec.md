@@ -31,7 +31,7 @@ type CronJobRun = {
   status:
     | 'queued'
     | 'running'
-    | 'success'
+    | 'completed'
     | 'failed'
     | 'cancelled'
     | 'waiting_permission'
@@ -64,7 +64,7 @@ or side table rather than overloading `subagent_meta_json`.
 - `cron_job_runs.session_id` is set as soon as session creation succeeds.
 - The session contains the job prompt, assistant response, and tool calls.
 - Multiple runs of the same job create multiple sessions.
-- Run status transitions are persisted: `queued -> running -> success|failed|waiting_permission`.
+- Run status transitions are persisted: `queued -> running -> completed|failed|waiting_permission`.
 - A failed run keeps `sessionId` if session creation already happened.
 - Duplicate `RUN_DUE` events for the same run do not start duplicate sessions.
 - Manual `Run Now` follows the same queued-run execution path.
@@ -76,7 +76,7 @@ or side table rather than overloading `subagent_meta_json`.
 +---------------------------------------------------------+
 | Job Run                                                 |
 | Daily Issue Triage                                      |
-| Run: 2026-07-03 09:00 | success | 2m 14s                |
+| Run: 2026-07-03 09:00 | completed | 2m 14s                |
 | Session: #cron-run-8f31                                 |
 |                                                         |
 | Result                                                  |

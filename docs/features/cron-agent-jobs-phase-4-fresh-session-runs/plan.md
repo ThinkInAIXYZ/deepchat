@@ -14,11 +14,11 @@ Add `CronJobRunExecutor` in main:
 3. Enforce concurrency policy:
    - `skip`: fail or cancel the new run if another run is active for the same job.
    - `queue`: leave queued until the active run completes.
-4. Create a fresh session through `SessionService.createSession()`.
+4. Create a fresh detached session through the existing agent session presenter.
 5. Store `sessionId` on the run.
-6. Send the job prompt through `ChatService.sendMessage()`.
-7. Capture final assistant message id and preview.
-8. Mark run success, failed, cancelled, or waiting permission.
+6. Start the job prompt through the existing `sendMessage` path.
+7. Capture assistant message id and preview from session updates.
+8. Mark run completed or failed when the session reaches a terminal runtime state.
 9. Advance `next_run_at`.
 
 ## Data Model Changes
@@ -26,6 +26,7 @@ Add `CronJobRunExecutor` in main:
 Extend `cron_job_runs`:
 
 ```sql
+ALTER TABLE cron_job_runs ADD COLUMN session_id TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN output_message_id TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN output_preview TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN parent_continuation_session_id TEXT;
@@ -75,7 +76,7 @@ Add run history and run detail:
 ```text
 +---------------------------------------------------------+
 | Runs                                                    |
-| success  Daily Issue Triage  2026-07-03 09:00  2m 14s  |
+| completed  Daily Issue Triage  2026-07-03 09:00  2m 14s  |
 | failed   Daily Issue Triage  2026-07-02 09:00  error    |
 | queued   Weekly Release      2026-07-03 18:00  pending  |
 +---------------------------------------------------------+
@@ -87,7 +88,7 @@ Detail view:
 +---------------------------------------------------------+
 | Cron Run                                                |
 | Job: Daily Issue Triage                                 |
-| Status: success | Duration: 2m 14s                      |
+| Status: completed | Duration: 2m 14s                      |
 | Session: Open                                           |
 |                                                         |
 | Output                                                  |
@@ -104,8 +105,8 @@ Detail view:
 
 ## Test Strategy
 
-- Executor tests for queued claim, duplicate run protection, success, failure, and permission wait.
-- Integration-style tests with mocked `SessionService` and `ChatService`.
+- Executor tests for queued claim, duplicate run protection, completed, failure, and permission wait.
+- Integration-style tests with a mocked agent session presenter port.
 - Repository tests for run history pagination and metadata persistence.
 - Renderer tests for history list and run detail actions.
 
