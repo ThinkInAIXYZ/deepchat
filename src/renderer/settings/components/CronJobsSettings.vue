@@ -119,17 +119,6 @@
               </div>
               <div class="min-w-0 space-y-1.5">
                 <Label class="text-xs text-muted-foreground">
-                  {{ t('settings.cronJobs.fields.cronExpr') }}
-                </Label>
-                <Input
-                  :model-value="job.cronExpr"
-                  class="h-8! font-mono text-xs"
-                  @update:model-value="(value) => updateJobField(job.id, 'cronExpr', String(value))"
-                  @blur="commitJob(job.id)"
-                />
-              </div>
-              <div class="min-w-0 space-y-1.5">
-                <Label class="text-xs text-muted-foreground">
                   {{ t('settings.cronJobs.fields.timezone') }}
                 </Label>
                 <Select
@@ -183,12 +172,29 @@
             </div>
           </div>
 
-          <div class="mt-3 lg:pl-11">
-            <CronExpressionEditor
-              :model-value="job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR"
-              :locale="cronEditorLocale"
-              @update:model-value="(value) => updateCronExpression(job.id, String(value))"
+          <div class="mt-3 space-y-1.5 lg:pl-11">
+            <Label class="text-xs text-muted-foreground">
+              {{ t('settings.cronJobs.fields.cronExpr') }}
+            </Label>
+            <Input
+              :model-value="job.cronExpr"
+              class="h-8! max-w-xl font-mono text-xs"
+              @update:model-value="(value) => updateJobField(job.id, 'cronExpr', String(value))"
+              @blur="commitJob(job.id)"
             />
+            <div class="flex flex-wrap gap-1.5">
+              <Badge
+                v-for="example in CRON_REFERENCE_EXAMPLES"
+                :key="example.cronExpr"
+                variant="outline"
+                class="gap-1.5 px-1.5 py-0.5 font-normal"
+              >
+                <code class="font-mono text-[11px]">{{ example.cronExpr }}</code>
+                <span class="text-[11px] text-muted-foreground">
+                  {{ t(example.labelKey) }}
+                </span>
+              </Badge>
+            </div>
           </div>
 
           <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:pl-11">
@@ -289,7 +295,6 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
-import CronExpressionEditor from './CronExpressionEditor.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
@@ -300,7 +305,7 @@ import {
 } from '@shared/cronJobs'
 import type { Agent } from '@shared/types/agent-interface'
 
-const { t, locale: currentLocale } = useI18n()
+const { t } = useI18n()
 const { toast } = useToast()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
@@ -315,22 +320,12 @@ const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const NO_AGENT_ID = '__none__'
-const CRON_EDITOR_LOCALES = new Set([
-  'da',
-  'de',
-  'en',
-  'es',
-  'fr',
-  'he',
-  'hi',
-  'it',
-  'ja',
-  'ko',
-  'pt',
-  'ru',
-  'uk',
-  'zh'
-])
+const CRON_REFERENCE_EXAMPLES = [
+  { cronExpr: '*/5 * * * *', labelKey: 'settings.cronJobs.presets.every5Minutes' },
+  { cronExpr: '0 * * * *', labelKey: 'settings.cronJobs.presets.hourly' },
+  { cronExpr: '0 9 * * *', labelKey: 'settings.cronJobs.presets.daily' },
+  { cronExpr: '0 9 * * 1-5', labelKey: 'settings.cronJobs.presets.weekdays' }
+] as const
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 const enabledAgents = computed(() =>
@@ -338,14 +333,6 @@ const enabledAgents = computed(() =>
     .filter((agent) => agent.enabled)
     .sort((left, right) => left.name.localeCompare(right.name))
 )
-const cronEditorLocale = computed(() => {
-  const requested = String(currentLocale.value || 'en').toLowerCase()
-  if (requested.startsWith('zh')) {
-    return 'zh'
-  }
-  const language = requested.split('-')[0] || 'en'
-  return CRON_EDITOR_LOCALES.has(language) ? language : 'en'
-})
 
 const schedulerBadgeVariant = computed(() => {
   switch (schedulerStatus.value?.state) {
@@ -492,11 +479,6 @@ const updateAgentSelection = (id: string, agentId: string) => {
 
 const updateTimezone = (id: string, timezone: string) => {
   updateJobField(id, 'timezone', timezone)
-  void commitJob(id)
-}
-
-const updateCronExpression = (id: string, cronExpr: string) => {
-  updateJobField(id, 'cronExpr', cronExpr)
   void commitJob(id)
 }
 

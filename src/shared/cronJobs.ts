@@ -1,4 +1,4 @@
-export const CRON_JOBS_DEFAULT_CRON_EXPR = '0 9 * * *'
+export const CRON_JOBS_DEFAULT_CRON_EXPR = '* * * * *'
 export const CRON_JOBS_DEFAULT_TIMEZONE = 'UTC'
 export const CRON_JOBS_DEFAULT_MISFIRE_POLICY = 'skip'
 export const CRON_JOBS_DEFAULT_RUNTIME = {
