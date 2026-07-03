@@ -1476,7 +1476,11 @@
       "taskPrompt": "Task prompt",
       "runtimePolicy": "Runtime",
       "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config"
+      "pinCurrent": "Pin current config",
+      "delivery": "Доставка",
+      "desktopNotification": "Уведомление рабочего стола",
+      "successNotification": "Уведомлять при успехе",
+      "failureNotification": "Уведомлять при ошибке"
     },
     "presets": {
       "custom": "Custom",

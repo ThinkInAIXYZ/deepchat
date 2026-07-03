@@ -1409,7 +1409,11 @@
       "taskPrompt": "Task prompt",
       "runtimePolicy": "Runtime",
       "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config"
+      "pinCurrent": "Pin current config",
+      "delivery": "Levering",
+      "desktopNotification": "Skrivebordsnotifikation",
+      "successNotification": "Giv besked ved succes",
+      "failureNotification": "Giv besked ved fejl"
     },
     "presets": {
       "custom": "Custom",

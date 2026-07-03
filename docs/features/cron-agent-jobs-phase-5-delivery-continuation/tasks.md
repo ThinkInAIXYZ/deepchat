@@ -24,8 +24,8 @@
 
 ## UI And Validation
 
-- [ ] Add delivery configuration controls.
+- [x] Add delivery configuration controls.
 - [ ] Add delivery status and logs to run detail.
-- [ ] Add i18n keys.
+- [x] Add i18n keys.
 - [ ] Cover router, remote mapping, unauthorized reply, and UI states.
 - [ ] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.

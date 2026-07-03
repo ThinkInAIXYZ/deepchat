@@ -232,6 +232,38 @@
             </div>
           </div>
 
+          <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 lg:pl-11">
+            <div class="flex items-center gap-2">
+              <Icon icon="lucide:send" class="h-4 w-4 text-muted-foreground" />
+              <span class="text-xs text-muted-foreground">
+                {{ t('settings.cronJobs.fields.delivery') }}
+              </span>
+            </div>
+            <label class="flex items-center gap-2 text-xs">
+              <Switch
+                :model-value="hasDesktopNotification(job)"
+                @update:model-value="(value) => updateDesktopNotification(job.id, value === true)"
+              />
+              <span>{{ t('settings.cronJobs.fields.desktopNotification') }}</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs">
+              <Switch
+                :model-value="isSuccessNotificationEnabled(job)"
+                :disabled="!hasDesktopNotification(job)"
+                @update:model-value="(value) => updateSuccessNotification(job.id, value === true)"
+              />
+              <span>{{ t('settings.cronJobs.fields.successNotification') }}</span>
+            </label>
+            <label class="flex items-center gap-2 text-xs">
+              <Switch
+                :model-value="job.delivery.notifyOnFailure"
+                :disabled="!hasDesktopNotification(job)"
+                @update:model-value="(value) => updateFailureNotification(job.id, value === true)"
+              />
+              <span>{{ t('settings.cronJobs.fields.failureNotification') }}</span>
+            </label>
+          </div>
+
           <div
             v-if="schedulerStatus?.lastError"
             class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
@@ -317,10 +349,12 @@ import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
+  CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_CRON_EXPR,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
+  type CronJobDelivery,
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
@@ -413,6 +447,19 @@ const sortJobs = (items: CronJob[]) =>
   items
     .slice()
     .sort((left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id))
+
+const createDefaultDelivery = (): CronJobDelivery => ({
+  targets: [],
+  createContinuableThread: CRON_JOBS_DEFAULT_DELIVERY.createContinuableThread,
+  suppressSuccessNotification: CRON_JOBS_DEFAULT_DELIVERY.suppressSuccessNotification,
+  notifyOnFailure: CRON_JOBS_DEFAULT_DELIVERY.notifyOnFailure
+})
+
+const cloneDelivery = (job: CronJob): CronJobDelivery => ({
+  ...createDefaultDelivery(),
+  ...job.delivery,
+  targets: [...job.delivery.targets]
+})
 
 const applyJob = (job: CronJob) => {
   const existingIndex = jobs.value.findIndex((entry) => entry.id === job.id)
@@ -592,6 +639,45 @@ const updateRuntimePolicy = (id: string, policy: string) => {
   void commitJob(id)
 }
 
+const hasDesktopNotification = (job: CronJob): boolean =>
+  job.delivery.targets.some((target) => target.type === 'desktop_notification')
+
+const isSuccessNotificationEnabled = (job: CronJob): boolean =>
+  !job.delivery.suppressSuccessNotification
+
+const updateDelivery = (id: string, updater: (delivery: CronJobDelivery) => CronJobDelivery) => {
+  jobs.value = jobs.value.map((job) =>
+    job.id === id ? { ...job, delivery: updater(cloneDelivery(job)) } : job
+  )
+  void commitJob(id)
+}
+
+const updateDesktopNotification = (id: string, enabled: boolean) => {
+  updateDelivery(id, (delivery) => ({
+    ...delivery,
+    targets: enabled
+      ? [
+          ...delivery.targets.filter((target) => target.type !== 'desktop_notification'),
+          { type: 'desktop_notification' as const }
+        ]
+      : delivery.targets.filter((target) => target.type !== 'desktop_notification')
+  }))
+}
+
+const updateSuccessNotification = (id: string, enabled: boolean) => {
+  updateDelivery(id, (delivery) => ({
+    ...delivery,
+    suppressSuccessNotification: !enabled
+  }))
+}
+
+const updateFailureNotification = (id: string, enabled: boolean) => {
+  updateDelivery(id, (delivery) => ({
+    ...delivery,
+    notifyOnFailure: enabled
+  }))
+}
+
 const commitJob = async (id: string) => {
   const job = jobs.value.find((entry) => entry.id === id)
   if (!job) {
@@ -615,7 +701,8 @@ const commitJob = async (id: string) => {
       modelPolicy: job.modelPolicy,
       toolPolicy: job.toolPolicy,
       permissionPolicy: job.permissionPolicy,
-      runtime: job.runtime
+      runtime: job.runtime,
+      delivery: job.delivery
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus
@@ -642,7 +729,8 @@ const addJob = async () => {
       taskOutputMode: 'final_message',
       modelPolicy: 'follow_agent',
       toolPolicy: 'follow_agent',
-      permissionPolicy: 'follow_agent'
+      permissionPolicy: 'follow_agent',
+      delivery: createDefaultDelivery()
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus

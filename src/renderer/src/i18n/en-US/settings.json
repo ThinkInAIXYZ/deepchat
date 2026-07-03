@@ -1733,7 +1733,11 @@
       "taskPrompt": "Task prompt",
       "runtimePolicy": "Runtime",
       "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config"
+      "pinCurrent": "Pin current config",
+      "delivery": "Delivery",
+      "desktopNotification": "Desktop notification",
+      "successNotification": "Notify on success",
+      "failureNotification": "Notify on failure"
     },
     "presets": {
       "custom": "Custom",

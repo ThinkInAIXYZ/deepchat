@@ -2790,7 +2790,11 @@
       "taskPrompt": "Task prompt",
       "runtimePolicy": "Runtime",
       "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config"
+      "pinCurrent": "Pin current config",
+      "delivery": "Entrega",
+      "desktopNotification": "Notificación de escritorio",
+      "successNotification": "Notificar al completarse",
+      "failureNotification": "Notificar si falla"
     },
     "presets": {
       "custom": "Custom",

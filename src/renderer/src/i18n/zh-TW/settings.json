@@ -1476,7 +1476,11 @@
       "taskPrompt": "任務內容",
       "runtimePolicy": "執行配置",
       "followAgent": "跟隨 Agent",
-      "pinCurrent": "固定目前配置"
+      "pinCurrent": "固定目前配置",
+      "delivery": "傳送",
+      "desktopNotification": "桌面通知",
+      "successNotification": "成功時通知",
+      "failureNotification": "失敗時通知"
     },
     "presets": {
       "custom": "自訂",

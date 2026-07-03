@@ -1733,7 +1733,11 @@
       "taskPrompt": "任务内容",
       "runtimePolicy": "运行配置",
       "followAgent": "跟随 Agent",
-      "pinCurrent": "固定当前配置"
+      "pinCurrent": "固定当前配置",
+      "delivery": "投递",
+      "desktopNotification": "桌面通知",
+      "successNotification": "成功时通知",
+      "failureNotification": "失败时通知"
     },
     "presets": {
       "custom": "自定义",
