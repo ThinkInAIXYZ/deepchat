@@ -453,7 +453,12 @@ const loadJobs = async () => {
 
 const refreshSchedulerStatus = async () => {
   try {
-    schedulerStatus.value = await client.getSchedulerStatus()
+    const previousNextRunAt = schedulerStatus.value?.nextRunAt ?? null
+    const nextStatus = await client.getSchedulerStatus()
+    schedulerStatus.value = nextStatus
+    if (nextStatus.nextRunAt !== previousNextRunAt) {
+      refreshVisibleJobRuns()
+    }
   } catch (error) {
     console.error('[CronJobs] Failed to refresh scheduler status:', error)
   }
@@ -511,10 +516,18 @@ const refreshJobPreview = async (job: CronJob) => {
   }
 }
 
-const refreshJobRuns = async (jobId: string) => {
-  runsLoadingByJobId.value = {
-    ...runsLoadingByJobId.value,
-    [jobId]: true
+const refreshVisibleJobRuns = () => {
+  for (const job of jobs.value) {
+    void refreshJobRuns(job.id, true)
+  }
+}
+
+const refreshJobRuns = async (jobId: string, silent = false) => {
+  if (!silent) {
+    runsLoadingByJobId.value = {
+      ...runsLoadingByJobId.value,
+      [jobId]: true
+    }
   }
   try {
     const runs = await client.listRuns(jobId, 1)
@@ -529,9 +542,11 @@ const refreshJobRuns = async (jobId: string) => {
       [jobId]: []
     }
   } finally {
-    runsLoadingByJobId.value = {
-      ...runsLoadingByJobId.value,
-      [jobId]: false
+    if (!silent) {
+      runsLoadingByJobId.value = {
+        ...runsLoadingByJobId.value,
+        [jobId]: false
+      }
     }
   }
 }

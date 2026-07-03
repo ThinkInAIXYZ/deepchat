@@ -519,6 +519,71 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
+  it('creates a fresh session for scheduled due runs when the executor is wired', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const runSessionStarter = {
+        createSessionForRun: vi.fn(async ({ run }: { run: { id: string } }) => ({
+          sessionId: `session-${run.id}`
+        })),
+        startSessionRun: vi.fn(async () => ({
+          outputMessageId: 'message-1',
+          outputPreview: 'Started scheduled session'
+        }))
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never,
+        runSessionStarter: runSessionStarter as never
+      })
+
+      const { job } = await service.upsert({
+        name: 'Scheduled session run',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
+      })
+      const run = new CronJobsRepositoryCtor(sqlitePresenter as never).queueRun({
+        jobId: job.id,
+        scheduledAt: Date.now(),
+        reason: 'scheduled'
+      })
+      const event = {
+        jobId: job.id,
+        runId: run.id,
+        scheduledAt: run.scheduledAt,
+        reason: run.reason
+      }
+
+      await (
+        service as never as { processDueRun: (value: typeof event) => Promise<void> }
+      ).processDueRun(event)
+
+      expect(runSessionStarter.createSessionForRun).toHaveBeenCalledTimes(1)
+      expect(runSessionStarter.startSessionRun).toHaveBeenCalledTimes(1)
+      expect(new CronJobsRepositoryCtor(sqlitePresenter as never).getRun(run.id)).toEqual(
+        expect.objectContaining({
+          status: 'running',
+          reason: 'scheduled',
+          sessionId: `session-${run.id}`,
+          outputMessageId: 'message-1',
+          outputPreview: 'Started scheduled session'
+        })
+      )
+    } finally {
+      db.close()
+    }
+  })
+
   it('does not start duplicate sessions for the same queued run', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {
