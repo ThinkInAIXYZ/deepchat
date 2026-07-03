@@ -1131,11 +1131,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "چسباندن URL بازگشت",
+    "openaiCodexCallbackTitle": "تکمیل احراز هویت",
+    "openaiCodexCallbackDescription": "پس از پایان کار مرورگر، به DeepChat برگردید. اگر DeepChat به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
+    "openaiCodexCallbackPlaceholder": "URL کامل بازگشت را بچسبانید",
+    "openaiCodexCompleteAuthentication": "تکمیل احراز هویت"
   },
   "knowledgeBase": {
     "title": "تنظیمات پایگاه دانش",
@@ -1454,15 +1454,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "احراز هویت لازم است",
+    "authenticate": "احراز هویت",
+    "authFailed": "احراز هویت ناموفق بود",
+    "authCallbackTitle": "تکمیل احراز هویت",
+    "authCallbackDescription": "پس از پایان کار مرورگر، به DeepChat برگردید. اگر DeepChat به‌روزرسانی نشد، URL کامل بازگشت را اینجا بچسبانید.",
+    "authCallbackPlaceholder": "URL کامل بازگشت را بچسبانید",
+    "completeAuthentication": "تکمیل احراز هویت",
+    "saveSuccess": "پیکربندی ذخیره شد",
+    "saveFailed": "ذخیره پیکربندی ناموفق بود"
   },
   "scheduledTasks": {
     "title": "کارهای زمان‌بندی‌شده",

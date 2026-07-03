@@ -1388,11 +1388,11 @@
         "advanced": "Zaawansowane"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Wklej adres URL wywołania zwrotnego",
+    "openaiCodexCallbackTitle": "Zakończ uwierzytelnianie",
+    "openaiCodexCallbackDescription": "Po zakończeniu w przeglądarce wróć do DeepChat. Jeśli DeepChat się nie zaktualizuje, wklej tutaj pełny adres URL wywołania zwrotnego.",
+    "openaiCodexCallbackPlaceholder": "Wklej pełny adres URL wywołania zwrotnego",
+    "openaiCodexCompleteAuthentication": "Zakończ uwierzytelnianie"
   },
   "knowledgeBase": {
     "title": "Ustawienia bazy wiedzy",
@@ -1711,15 +1711,15 @@
         "custom": "Niestandardowe"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Wymagane uwierzytelnienie",
+    "authenticate": "Uwierzytelnij",
+    "authFailed": "Uwierzytelnianie nie powiodło się",
+    "authCallbackTitle": "Zakończ uwierzytelnianie",
+    "authCallbackDescription": "Po zakończeniu w przeglądarce wróć do DeepChat. Jeśli DeepChat się nie zaktualizuje, wklej tutaj pełny adres URL wywołania zwrotnego.",
+    "authCallbackPlaceholder": "Wklej pełny adres URL wywołania zwrotnego",
+    "completeAuthentication": "Zakończ uwierzytelnianie",
+    "saveSuccess": "Konfiguracja zapisana",
+    "saveFailed": "Nie udało się zapisać konfiguracji"
   },
   "about": {
     "title": "O nas",

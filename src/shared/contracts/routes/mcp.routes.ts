@@ -219,7 +219,7 @@ export const mcpCompleteServerAuthFromCallbackUrlRoute = defineRouteContract({
   name: 'mcp.completeServerAuthFromCallbackUrl',
   input: z.object({
     serverName: z.string(),
-    callbackUrl: z.string()
+    callbackUrl: z.url()
   }),
   output: z.object({
     status: McpServerAuthStatusSchema

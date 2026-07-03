@@ -66,9 +66,21 @@ function isOAuthError(error: unknown): boolean {
     return true
   }
 
-  const status = (error as { code?: unknown; status?: unknown; httpStatus?: unknown } | undefined)
-    ?.code
-  if (status === 401) {
+  const errorLike = error as
+    | {
+        code?: unknown
+        status?: unknown
+        httpStatus?: unknown
+        response?: { status?: unknown }
+      }
+    | undefined
+  const statuses = [
+    errorLike?.code,
+    errorLike?.status,
+    errorLike?.httpStatus,
+    errorLike?.response?.status
+  ]
+  if (statuses.some((status) => status === 401 || status === '401')) {
     return true
   }
 
@@ -261,14 +273,15 @@ export class McpOAuthManager {
 
     const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
     if (resolution.kind === 'not-found') {
-      this.setStatus({
+      const status: McpServerAuthStatus = {
         serverName,
         state: 'error',
         authenticated: false,
         error: 'MCP OAuth callback URL is invalid',
         storage: this.store.getStorageState()
-      })
-      return this.getStatus(serverName, config)
+      }
+      this.setStatus(status)
+      return status
     }
 
     await flow.flowPromise
@@ -302,6 +315,10 @@ export class McpOAuthManager {
   }
 
   private finishAuthenticatedFlow(flow: PendingMcpOAuthFlow): void {
+    if (this.pendingFlows.get(flow.serverName) !== flow) {
+      return
+    }
+
     this.pendingFlows.delete(flow.serverName)
     flow.callbackSession.close()
     const entry = this.store.load(flow.credentialKey)

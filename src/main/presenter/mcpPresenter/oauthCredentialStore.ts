@@ -82,7 +82,8 @@ export class McpOAuthCredentialStore {
       return
     }
 
-    const current = this.load(key)
+    const entries = this.loadAll()
+    const current = entries[key]
     if (!current) {
       return
     }
@@ -98,7 +99,8 @@ export class McpOAuthCredentialStore {
       delete next.discoveryState
     }
 
-    this.saveEntry(key, next)
+    entries[key] = next
+    this.saveAll(entries)
   }
 
   private loadAll(): McpOAuthCredentialData {

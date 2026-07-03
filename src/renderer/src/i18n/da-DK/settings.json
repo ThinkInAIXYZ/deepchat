@@ -1064,11 +1064,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Indsæt callback-URL",
+    "openaiCodexCallbackTitle": "Fuldfør godkendelse",
+    "openaiCodexCallbackDescription": "Når browseren er færdig, skal du vende tilbage til DeepChat. Hvis DeepChat ikke opdateres, skal du indsætte den fulde callback-URL her.",
+    "openaiCodexCallbackPlaceholder": "Indsæt den fulde callback-URL",
+    "openaiCodexCompleteAuthentication": "Fuldfør godkendelse"
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",
@@ -1387,15 +1387,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Godkendelse påkrævet",
+    "authenticate": "Godkend",
+    "authFailed": "Godkendelse mislykkedes",
+    "authCallbackTitle": "Fuldfør godkendelse",
+    "authCallbackDescription": "Når browseren er færdig, skal du vende tilbage til DeepChat. Hvis DeepChat ikke opdateres, skal du indsætte den fulde callback-URL her.",
+    "authCallbackPlaceholder": "Indsæt den fulde callback-URL",
+    "completeAuthentication": "Fuldfør godkendelse",
+    "saveSuccess": "Konfiguration gemt",
+    "saveFailed": "Kunne ikke gemme konfiguration"
   },
   "scheduledTasks": {
     "title": "Planlagte opgaver",

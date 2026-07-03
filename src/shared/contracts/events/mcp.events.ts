@@ -1,16 +1,15 @@
 import { z } from 'zod'
 import type {
   MCPServerConfig,
-  McpServerAuthStatus,
   McpSamplingDecision,
   McpSamplingRequestPayload
 } from '@shared/presenter'
 import { defineEventContract } from '../common'
+import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
 
 const McpSamplingRequestSchema = z.custom<McpSamplingRequestPayload>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
 const MCPServerConfigSchema = z.custom<MCPServerConfig>()
-const McpServerAuthStatusSchema = z.custom<McpServerAuthStatus>()
 
 export const mcpServerStartedEvent = defineEventContract({
   name: 'mcp.server.started',

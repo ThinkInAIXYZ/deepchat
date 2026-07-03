@@ -69,6 +69,9 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
     if (!this.interactive) {
       throw new Error('MCP OAuth authentication is required')
     }
+    if (authorizationUrl.protocol !== 'http:' && authorizationUrl.protocol !== 'https:') {
+      throw new Error('MCP OAuth authorization URL must use http or https')
+    }
 
     await shell.openExternal(authorizationUrl.toString())
   }

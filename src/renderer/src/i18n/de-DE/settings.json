@@ -1388,11 +1388,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Callback-URL einfügen",
+    "openaiCodexCallbackTitle": "Authentifizierung abschließen",
+    "openaiCodexCallbackDescription": "Kehre nach Abschluss im Browser zu DeepChat zurück. Wenn DeepChat nicht aktualisiert wird, füge hier die vollständige Callback-URL ein.",
+    "openaiCodexCallbackPlaceholder": "Vollständige Callback-URL einfügen",
+    "openaiCodexCompleteAuthentication": "Authentifizierung abschließen"
   },
   "knowledgeBase": {
     "title": "Wissensdatenbank-Einstellungen",
@@ -1711,15 +1711,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Authentifizierung erforderlich",
+    "authenticate": "Authentifizieren",
+    "authFailed": "Authentifizierung fehlgeschlagen",
+    "authCallbackTitle": "Authentifizierung abschließen",
+    "authCallbackDescription": "Kehre nach Abschluss im Browser zu DeepChat zurück. Wenn DeepChat nicht aktualisiert wird, füge hier die vollständige Callback-URL ein.",
+    "authCallbackPlaceholder": "Vollständige Callback-URL einfügen",
+    "completeAuthentication": "Authentifizierung abschließen",
+    "saveSuccess": "Konfiguration gespeichert",
+    "saveFailed": "Konfiguration konnte nicht gespeichert werden"
   },
   "about": {
     "title": "Über uns",

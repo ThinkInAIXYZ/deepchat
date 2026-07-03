@@ -248,6 +248,10 @@ const handleAuthenticateServer = async (serverName: string) => {
 }
 
 const submitAuthCallbackUrl = async () => {
+  if (isSubmittingAuthCallback.value) {
+    return
+  }
+
   const serverName = selectedServerForAuth.value
   const callbackUrl = authCallbackUrl.value.trim()
   if (!serverName || !callbackUrl) {

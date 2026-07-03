@@ -1131,11 +1131,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "הדבק כתובת URL לחזרה",
+    "openaiCodexCallbackTitle": "השלמת האימות",
+    "openaiCodexCallbackDescription": "לאחר שהדפדפן מסיים, חזור אל DeepChat. אם DeepChat לא מתעדכן, הדבק כאן את כתובת ה-URL המלאה לחזרה.",
+    "openaiCodexCallbackPlaceholder": "הדבק את כתובת ה-URL המלאה לחזרה",
+    "openaiCodexCompleteAuthentication": "השלמת האימות"
   },
   "knowledgeBase": {
     "title": "הגדרות בסיס ידע",
@@ -1454,15 +1454,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "נדרש אימות",
+    "authenticate": "אמת",
+    "authFailed": "האימות נכשל",
+    "authCallbackTitle": "השלמת האימות",
+    "authCallbackDescription": "לאחר שהדפדפן מסיים, חזור אל DeepChat. אם DeepChat לא מתעדכן, הדבק כאן את כתובת ה-URL המלאה לחזרה.",
+    "authCallbackPlaceholder": "הדבק את כתובת ה-URL המלאה לחזרה",
+    "completeAuthentication": "השלמת האימות",
+    "saveSuccess": "התצורה נשמרה",
+    "saveFailed": "שמירת התצורה נכשלה"
   },
   "scheduledTasks": {
     "title": "משימות מתוזמנות",

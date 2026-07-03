@@ -1388,11 +1388,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Incolla URL di callback",
+    "openaiCodexCallbackTitle": "Completa autenticazione",
+    "openaiCodexCallbackDescription": "Dopo il completamento nel browser, torna a DeepChat. Se DeepChat non si aggiorna, incolla qui l'URL di callback completo.",
+    "openaiCodexCallbackPlaceholder": "Incolla l'URL di callback completo",
+    "openaiCodexCompleteAuthentication": "Completa autenticazione"
   },
   "knowledgeBase": {
     "title": "Impostazioni base di conoscenza",
@@ -1711,15 +1711,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Autenticazione richiesta",
+    "authenticate": "Autentica",
+    "authFailed": "Autenticazione non riuscita",
+    "authCallbackTitle": "Completa autenticazione",
+    "authCallbackDescription": "Dopo il completamento nel browser, torna a DeepChat. Se DeepChat non si aggiorna, incolla qui l'URL di callback completo.",
+    "authCallbackPlaceholder": "Incolla l'URL di callback completo",
+    "completeAuthentication": "Completa autenticazione",
+    "saveSuccess": "Configurazione salvata",
+    "saveFailed": "Impossibile salvare la configurazione"
   },
   "about": {
     "title": "Chi siamo",

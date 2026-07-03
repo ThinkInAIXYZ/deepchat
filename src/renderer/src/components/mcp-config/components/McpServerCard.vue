@@ -116,7 +116,7 @@ const statusConfig = computed(() => {
     case 'auth-error':
       return {
         dot: 'bg-red-500',
-        text: t('settings.mcp.authRequired'),
+        text: t('settings.mcp.authFailed'),
         color: 'text-red-600 dark:text-red-400'
       }
     case 'error':

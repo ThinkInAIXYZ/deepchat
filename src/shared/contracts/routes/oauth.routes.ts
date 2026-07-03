@@ -56,7 +56,7 @@ export const oauthOpenAICodexStartBrowserLoginRoute = defineRouteContract({
 export const oauthOpenAICodexCompleteBrowserLoginFromUrlRoute = defineRouteContract({
   name: 'oauth.openaiCodex.completeBrowserLoginFromUrl',
   input: z.object({
-    callbackUrl: z.string()
+    callbackUrl: z.url()
   }),
   output: OpenAICodexStatusResultSchema
 })

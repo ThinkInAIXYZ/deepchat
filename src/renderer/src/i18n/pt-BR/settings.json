@@ -1131,11 +1131,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Colar URL de callback",
+    "openaiCodexCallbackTitle": "Concluir autenticação",
+    "openaiCodexCallbackDescription": "Depois que o navegador terminar, volte ao DeepChat. Se o DeepChat não atualizar, cole aqui a URL de callback completa.",
+    "openaiCodexCallbackPlaceholder": "Cole a URL de callback completa",
+    "openaiCodexCompleteAuthentication": "Concluir autenticação"
   },
   "knowledgeBase": {
     "title": "Configurações da Base de Conhecimento",
@@ -1454,15 +1454,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Autenticação necessária",
+    "authenticate": "Autenticar",
+    "authFailed": "Falha na autenticação",
+    "authCallbackTitle": "Concluir autenticação",
+    "authCallbackDescription": "Depois que o navegador terminar, volte ao DeepChat. Se o DeepChat não atualizar, cole aqui a URL de callback completa.",
+    "authCallbackPlaceholder": "Cole a URL de callback completa",
+    "completeAuthentication": "Concluir autenticação",
+    "saveSuccess": "Configuração salva",
+    "saveFailed": "Falha ao salvar configuração"
   },
   "scheduledTasks": {
     "title": "Tarefas agendadas",

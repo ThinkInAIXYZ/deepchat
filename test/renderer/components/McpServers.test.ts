@@ -146,11 +146,11 @@ const setup = async (options: SetupOptions = {}) => {
         ScrollArea: passthrough('ScrollArea'),
         Dialog: passthrough('Dialog'),
         DialogTrigger: passthrough('DialogTrigger'),
-        DialogContent: defineComponent({ name: 'DialogContent', template: '<div />' }),
-        DialogHeader: defineComponent({ name: 'DialogHeader', template: '<div />' }),
-        DialogTitle: defineComponent({ name: 'DialogTitle', template: '<div />' }),
-        DialogDescription: defineComponent({ name: 'DialogDescription', template: '<div />' }),
-        DialogFooter: defineComponent({ name: 'DialogFooter', template: '<div />' }),
+        DialogContent: passthrough('DialogContent'),
+        DialogHeader: passthrough('DialogHeader'),
+        DialogTitle: passthrough('DialogTitle'),
+        DialogDescription: passthrough('DialogDescription'),
+        DialogFooter: passthrough('DialogFooter'),
         McpServerCard: serverCardStub,
         McpServerForm: true,
         McpToolPanel: true,
@@ -317,5 +317,22 @@ describe('McpServers', () => {
     expect(mcpStore.startServerAuth).toHaveBeenCalledWith('running-server')
     expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledTimes(1)
     expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledWith('running-server', true)
+  })
+
+  it('ignores duplicate callback URL submissions while one is pending', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.completeServerAuthFromCallbackUrl.mockImplementation(() => new Promise(() => {}))
+
+    await wrapper.find('[data-testid="authenticate-server"]').trigger('click')
+    await flushPromises()
+
+    const authCallbackInput = wrapper.findAll('input').at(-1)
+    expect(authCallbackInput).toBeTruthy()
+
+    await authCallbackInput!.setValue('http://localhost:3333/callback?code=code&state=state')
+    await authCallbackInput!.trigger('keydown.enter')
+    await authCallbackInput!.trigger('keydown.enter')
+
+    expect(mcpStore.completeServerAuthFromCallbackUrl).toHaveBeenCalledTimes(1)
   })
 })

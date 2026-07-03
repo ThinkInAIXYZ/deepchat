@@ -1388,11 +1388,11 @@
         "advanced": "Advanced"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Tampal URL panggil balik",
+    "openaiCodexCallbackTitle": "Lengkapkan pengesahan",
+    "openaiCodexCallbackDescription": "Selepas pelayar selesai, kembali ke DeepChat. Jika DeepChat tidak dikemas kini, tampal URL panggil balik penuh di sini.",
+    "openaiCodexCallbackPlaceholder": "Tampal URL panggil balik penuh",
+    "openaiCodexCompleteAuthentication": "Lengkapkan pengesahan"
   },
   "knowledgeBase": {
     "title": "Tetapan asas pengetahuan",
@@ -1711,15 +1711,15 @@
         "custom": "Custom"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Pengesahan diperlukan",
+    "authenticate": "Sahkan",
+    "authFailed": "Pengesahan gagal",
+    "authCallbackTitle": "Lengkapkan pengesahan",
+    "authCallbackDescription": "Selepas pelayar selesai, kembali ke DeepChat. Jika DeepChat tidak dikemas kini, tampal URL panggil balik penuh di sini.",
+    "authCallbackPlaceholder": "Tampal URL panggil balik penuh",
+    "completeAuthentication": "Lengkapkan pengesahan",
+    "saveSuccess": "Konfigurasi disimpan",
+    "saveFailed": "Gagal menyimpan konfigurasi"
   },
   "about": {
     "title": "tentang Kami",

@@ -285,6 +285,10 @@ const startBrowserLogin = () =>
   runAuthAction('browser', () => oauthClient.startOpenAICodexBrowserLogin())
 
 const completeBrowserLoginFromUrl = () => {
+  if (busyAction.value === 'callback') {
+    return
+  }
+
   const url = callbackUrl.value.trim()
   if (!url) {
     return

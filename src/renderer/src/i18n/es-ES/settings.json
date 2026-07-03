@@ -1388,11 +1388,11 @@
         "advanced": "Avanzado"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Pegar URL de callback",
+    "openaiCodexCallbackTitle": "Completar autenticación",
+    "openaiCodexCallbackDescription": "Cuando termine el navegador, vuelve a DeepChat. Si DeepChat no se actualiza, pega aquí la URL completa de callback.",
+    "openaiCodexCallbackPlaceholder": "Pega la URL completa de callback",
+    "openaiCodexCompleteAuthentication": "Completar autenticación"
   },
   "knowledgeBase": {
     "title": "Configuración de la base de conocimientos",
@@ -1711,15 +1711,15 @@
         "custom": "personalizado"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Autenticación requerida",
+    "authenticate": "Autenticar",
+    "authFailed": "Error de autenticación",
+    "authCallbackTitle": "Completar autenticación",
+    "authCallbackDescription": "Cuando termine el navegador, vuelve a DeepChat. Si DeepChat no se actualiza, pega aquí la URL completa de callback.",
+    "authCallbackPlaceholder": "Pega la URL completa de callback",
+    "completeAuthentication": "Completar autenticación",
+    "saveSuccess": "Configuración guardada",
+    "saveFailed": "No se pudo guardar la configuración"
   },
   "about": {
     "title": "Sobre nosotros",

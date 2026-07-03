@@ -1388,11 +1388,11 @@
         "advanced": "Nâng cao"
       }
     },
-    "openaiCodexPasteCallback": "Paste callback URL",
-    "openaiCodexCallbackTitle": "Complete authentication",
-    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
-    "openaiCodexCompleteAuthentication": "Complete authentication"
+    "openaiCodexPasteCallback": "Dán URL callback",
+    "openaiCodexCallbackTitle": "Hoàn tất xác thực",
+    "openaiCodexCallbackDescription": "Sau khi trình duyệt hoàn tất, hãy quay lại DeepChat. Nếu DeepChat không cập nhật, hãy dán URL callback đầy đủ vào đây.",
+    "openaiCodexCallbackPlaceholder": "Dán URL callback đầy đủ",
+    "openaiCodexCompleteAuthentication": "Hoàn tất xác thực"
   },
   "knowledgeBase": {
     "title": "Cài đặt cơ sở kiến thức",
@@ -1711,15 +1711,15 @@
         "custom": "tùy chỉnh"
       }
     },
-    "authRequired": "Authentication required",
-    "authenticate": "Authenticate",
-    "authFailed": "Authentication failed",
-    "authCallbackTitle": "Complete authentication",
-    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
-    "authCallbackPlaceholder": "Paste the full callback URL",
-    "completeAuthentication": "Complete authentication",
-    "saveSuccess": "Configuration saved",
-    "saveFailed": "Failed to save configuration"
+    "authRequired": "Cần xác thực",
+    "authenticate": "Xác thực",
+    "authFailed": "Xác thực thất bại",
+    "authCallbackTitle": "Hoàn tất xác thực",
+    "authCallbackDescription": "Sau khi trình duyệt hoàn tất, hãy quay lại DeepChat. Nếu DeepChat không cập nhật, hãy dán URL callback đầy đủ vào đây.",
+    "authCallbackPlaceholder": "Dán URL callback đầy đủ",
+    "completeAuthentication": "Hoàn tất xác thực",
+    "saveSuccess": "Đã lưu cấu hình",
+    "saveFailed": "Lưu cấu hình thất bại"
   },
   "about": {
     "title": "Về chúng tôi",

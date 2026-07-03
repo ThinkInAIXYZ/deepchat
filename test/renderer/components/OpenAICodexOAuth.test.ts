@@ -22,6 +22,34 @@ const iconStub = defineComponent({
   template: '<i />'
 })
 
+const passthrough = (name: string) =>
+  defineComponent({
+    name,
+    inheritAttrs: false,
+    template: '<div v-bind="$attrs"><slot /></div>'
+  })
+
+const inputStub = defineComponent({
+  name: 'Input',
+  props: {
+    modelValue: {
+      type: String,
+      default: ''
+    }
+  },
+  emits: ['update:modelValue'],
+  setup(_, { emit }) {
+    const onInput = (event: Event) => {
+      emit('update:modelValue', (event.target as HTMLInputElement).value)
+    }
+
+    return {
+      onInput
+    }
+  },
+  template: '<input :value="modelValue" @input="onInput" />'
+})
+
 const signedOutStatus: OpenAICodexAuthStatus = {
   state: 'signed-out',
   authenticated: false,
@@ -34,6 +62,12 @@ const authenticatedStatus: OpenAICodexAuthStatus = {
   storage: 'safeStorage',
   accountId: 'acct...1234',
   accountLabel: 'user@example.com'
+}
+
+const pendingBrowserStatus: OpenAICodexAuthStatus = {
+  state: 'pending-browser',
+  authenticated: false,
+  storage: 'safeStorage'
 }
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
@@ -54,6 +88,7 @@ describe('OpenAICodexOAuth', () => {
     const oauthClient = {
       getOpenAICodexStatus: vi.fn().mockResolvedValue(initialStatus),
       startOpenAICodexBrowserLogin: vi.fn().mockResolvedValue(authenticatedStatus),
+      completeOpenAICodexBrowserLoginFromUrl: vi.fn().mockResolvedValue(authenticatedStatus),
       cancelOpenAICodexLogin: vi.fn().mockResolvedValue(signedOutStatus),
       logoutOpenAICodex: vi.fn().mockResolvedValue(signedOutStatus),
       onOpenAICodexStatusChanged: vi.fn(() => vi.fn())
@@ -78,6 +113,16 @@ describe('OpenAICodexOAuth', () => {
     }))
     vi.doMock('@shadcn/components/ui/label', () => ({
       Label: labelStub
+    }))
+    vi.doMock('@shadcn/components/ui/dialog', () => ({
+      Dialog: passthrough('Dialog'),
+      DialogContent: passthrough('DialogContent'),
+      DialogDescription: passthrough('DialogDescription'),
+      DialogHeader: passthrough('DialogHeader'),
+      DialogTitle: passthrough('DialogTitle')
+    }))
+    vi.doMock('@shadcn/components/ui/input', () => ({
+      Input: inputStub
     }))
     vi.doMock('@iconify/vue', () => ({
       Icon: iconStub
@@ -126,5 +171,20 @@ describe('OpenAICodexOAuth', () => {
 
     expect(oauthClient.logoutOpenAICodex).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('settings.provider.openaiCodexNotConnected')
+  })
+
+  it('ignores duplicate callback URL submissions while one is pending', async () => {
+    const { wrapper, oauthClient } = await setup(pendingBrowserStatus)
+    oauthClient.completeOpenAICodexBrowserLoginFromUrl.mockImplementation(
+      () => new Promise(() => {})
+    )
+
+    await wrapper
+      .find('input')
+      .setValue('http://localhost:1455/auth/callback?code=code&state=state')
+    await wrapper.find('input').trigger('keydown.enter')
+    await wrapper.find('input').trigger('keydown.enter')
+
+    expect(oauthClient.completeOpenAICodexBrowserLoginFromUrl).toHaveBeenCalledTimes(1)
   })
 })
