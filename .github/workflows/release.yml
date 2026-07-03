@@ -246,6 +246,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Verify OpenDAL native package for Linux
+        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
+
       - name: Install and verify DuckDB VSS for Linux
         run: |
           pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
@@ -269,6 +272,9 @@ jobs:
           EXTENSION_PATH="dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
           test -f "$EXTENSION_PATH"
           pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
+
+      - name: Verify packaged OpenDAL native package for Linux
+        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/linux-unpacked/resources
 
       - name: Verify bundled plugins
         shell: bash

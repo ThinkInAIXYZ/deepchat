@@ -72,6 +72,31 @@ function getParcelWatcherBinaryPackages(platform, arch) {
   }
 }
 
+function getOpendalNativePackages(platform, arch) {
+  const archName = getArchName(arch)
+
+  if (platform === 'darwin' && archName === 'universal') {
+    return ['@opendal/lib-darwin-x64', '@opendal/lib-darwin-arm64']
+  }
+
+  switch (`${platform}:${archName}`) {
+    case 'darwin:x64':
+      return ['@opendal/lib-darwin-x64']
+    case 'darwin:arm64':
+      return ['@opendal/lib-darwin-arm64']
+    case 'win32:x64':
+      return ['@opendal/lib-win32-x64-msvc']
+    case 'win32:arm64':
+      return ['@opendal/lib-win32-arm64-msvc']
+    case 'linux:x64':
+      return ['@opendal/lib-linux-x64-gnu']
+    case 'linux:arm64':
+      return ['@opendal/lib-linux-arm64-gnu']
+    default:
+      return []
+  }
+}
+
 async function pathExists(filePath) {
   try {
     await fs.access(filePath)
@@ -176,6 +201,34 @@ async function copyParcelWatcherNativePackages(context) {
   }
 }
 
+async function copyOpendalNativePackages(context) {
+  const { arch, electronPlatformName, packager } = context
+  const packageNames = getOpendalNativePackages(electronPlatformName, arch)
+
+  if (packageNames.length === 0) {
+    return
+  }
+
+  const nodeModulesDir = path.join(getResourcesDir(context), 'app.asar.unpacked', 'node_modules')
+  const opendalDir = path.join(nodeModulesDir, 'opendal')
+
+  if (!(await pathExists(opendalDir))) {
+    throw new Error(
+      `Missing unpacked opendal at ${opendalDir}. Check electron-builder asarUnpack configuration.`
+    )
+  }
+
+  const projectDir = packager?.projectDir ?? process.cwd()
+
+  for (const packageName of packageNames) {
+    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
+
+    await fs.mkdir(path.dirname(destinationDir), { recursive: true })
+    await fs.cp(sourceDir, destinationDir, { recursive: true, force: true, dereference: true })
+  }
+}
+
 function isLinux(targets) {
   const re = /AppImage|snap|deb|rpm|freebsd|pacman/i
   return !!targets.find((target) => re.test(target.name))
@@ -220,6 +273,7 @@ async function afterPack(context) {
 
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
+  await copyOpendalNativePackages(context)
   await encodeMacVssExtension(context)
 
   if (isLinux(targets)) {

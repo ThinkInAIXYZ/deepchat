@@ -13,13 +13,15 @@ const readElectronBuilderConfig = async () => {
 }
 
 describe('electron-builder config', () => {
-  it('unpacks FFF native dependencies for packaged app loading and signing', async () => {
+  it('unpacks native dependencies for packaged app loading and signing', async () => {
     const config = await readElectronBuilderConfig()
 
     expect(config.asarUnpack).toEqual(
       expect.arrayContaining([
         '**/node_modules/@ff-labs/fff-node/**/*',
         '**/node_modules/@ff-labs/fff-bin-*/**/*',
+        '**/node_modules/opendal/**/*',
+        '**/node_modules/@opendal/**/*',
         '**/node_modules/ffi-rs/**/*',
         '**/node_modules/@yuuang/ffi-rs-*/**/*'
       ])
