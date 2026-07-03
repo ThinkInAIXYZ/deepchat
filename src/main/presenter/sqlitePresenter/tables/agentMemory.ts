@@ -114,6 +114,8 @@ const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
 const AGENT_MEMORY_FTS_META_VERSION = 1
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
+type SearchMatchMode = 'all' | 'any'
+type RecallKeywordTermStat = { term: string; hitCount: number; totalRows: number }
 
 const AGENT_MEMORY_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_kind
@@ -604,12 +606,18 @@ export class AgentMemoryTable extends BaseTable {
   // in full so the result is never a subset of the old LIKE behavior — gating LIKE behind the cap
   // would silently drop high-importance rows whenever FTS5 alone filled it. Each path is bounded
   // by `limit`, so the union is bounded by `2 * limit`; downstream RRF reranks and trims.
-  search(agentId: string, query: string, limit: number = 20): AgentMemoryRow[] {
+  search(
+    agentId: string,
+    query: string,
+    limit: number = 20,
+    options: { matchMode?: SearchMatchMode } = {}
+  ): AgentMemoryRow[] {
     const normalized = query.trim()
     if (!normalized) {
       return []
     }
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
+    const matchMode = options.matchMode ?? 'all'
     const ordered: AgentMemoryRow[] = []
     const seen = new Set<string>()
     const collect = (rows: AgentMemoryRow[]): void => {
@@ -620,18 +628,60 @@ export class AgentMemoryTable extends BaseTable {
       }
     }
     if (this.ftsReady) {
-      collect(this.searchFts(agentId, normalized, cappedLimit))
+      collect(this.searchFts(agentId, normalized, cappedLimit, matchMode))
     }
-    collect(this.searchLike(agentId, normalized, cappedLimit))
+    collect(this.searchLike(agentId, normalized, cappedLimit, matchMode))
     return ordered
   }
 
-  private searchFts(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
+  getRecallKeywordTermStats(agentId: string, terms: string[]): RecallKeywordTermStat[] {
+    const normalizedTerms = [...new Set(terms.map((term) => term.trim().toLowerCase()))].filter(
+      Boolean
+    )
+    if (!normalizedTerms.length) return []
+    const hitColumns = normalizedTerms
+      .map(
+        (_term, index) =>
+          `SUM(CASE WHEN content LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END) AS hit_${index}`
+      )
+      .join(',\n               ')
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS totalRows,
+                ${hitColumns}
+       FROM agent_memory
+       WHERE agent_id = ?
+         AND superseded_by IS NULL
+         AND status != 'archived'
+         AND status != 'conflicted'
+         AND kind NOT IN ('persona', 'working')`
+      )
+      .get(...normalizedTerms.map((term) => `%${escapeLikePattern(term)}%`), agentId) as Record<
+      string,
+      number | null
+    >
+    const totalRows = Number(row.totalRows ?? 0)
+    return normalizedTerms.map((term, index) => {
+      return {
+        term,
+        hitCount: Number(row[`hit_${index}`] ?? 0),
+        totalRows
+      }
+    })
+  }
+
+  private searchFts(
+    agentId: string,
+    normalized: string,
+    limit: number,
+    matchMode: SearchMatchMode
+  ): AgentMemoryRow[] {
     const terms = tokenizeSearchQuery(normalized)
     if (!terms.length) return []
-    // Quote each token so user text cannot inject FTS5 operators; join with AND so multi-word
-    // searches match memories containing all terms rather than requiring one exact phrase.
-    const match = terms.map((term) => `"${term.replace(/"/g, '""')}"`).join(' AND ')
+    // Quote each token so user text cannot inject FTS5 operators; the caller chooses whether
+    // all terms or any term must match.
+    const operator = matchMode === 'any' ? ' OR ' : ' AND '
+    const match = terms.map((term) => `"${term.replace(/"/g, '""')}"`).join(operator)
     try {
       return this.db
         .prepare(
@@ -653,11 +703,17 @@ export class AgentMemoryTable extends BaseTable {
     }
   }
 
-  private searchLike(agentId: string, normalized: string, limit: number): AgentMemoryRow[] {
+  private searchLike(
+    agentId: string,
+    normalized: string,
+    limit: number,
+    matchMode: SearchMatchMode
+  ): AgentMemoryRow[] {
     const terms = tokenizeSearchQuery(normalized)
     if (!terms.length) return []
     const clauses = terms.map(() => "content LIKE ? ESCAPE '\\'")
     const params = terms.map((term) => `%${escapeLikePattern(term)}%`)
+    const operator = matchMode === 'any' ? ' OR ' : ' AND '
     return this.db
       .prepare(
         `SELECT * FROM agent_memory
@@ -666,7 +722,7 @@ export class AgentMemoryTable extends BaseTable {
            AND status != 'archived'
            AND status != 'conflicted'
            AND kind != 'working'
-           AND ${clauses.join(' AND ')}
+           AND (${clauses.join(operator)})
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
       )
@@ -794,6 +850,19 @@ export class AgentMemoryTable extends BaseTable {
          WHERE id = ?`
       )
       .run(accessedAt, id)
+  }
+
+  recordAccessBatch(ids: string[], accessedAt: number = Date.now()): void {
+    const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
+    if (!uniqueIds.length) return
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET last_accessed = ?, access_count = access_count + 1
+         WHERE id IN (${placeholders})`
+      )
+      .run(accessedAt, ...uniqueIds)
   }
 
   // Omitting `consolidatedAt` (COALESCE keeps the prior value) leaves the LLM consolidation marker

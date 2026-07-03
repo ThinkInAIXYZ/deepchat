@@ -169,8 +169,10 @@ export class FakeRepository implements MemoryRepositoryPort {
       .sort((a, b) => b.created_at - a.created_at)
   }
 
-  search(agentId: string, query: string, limit = 20) {
-    const q = query.toLowerCase()
+  search(agentId: string, query: string, limit = 20, options: { matchMode?: 'all' | 'any' } = {}) {
+    const terms = query.trim().toLowerCase().split(/\s+/u).filter(Boolean)
+    if (!terms.length) return []
+    const matchMode = options.matchMode ?? 'all'
     return [...this.rows.values()]
       .filter(
         (row) =>
@@ -179,9 +181,31 @@ export class FakeRepository implements MemoryRepositoryPort {
           row.status !== 'archived' &&
           row.status !== 'conflicted' &&
           row.kind !== 'working' &&
-          row.content.toLowerCase().includes(q)
+          (matchMode === 'any'
+            ? terms.some((term) => row.content.toLowerCase().includes(term))
+            : terms.every((term) => row.content.toLowerCase().includes(term)))
       )
       .slice(0, limit)
+  }
+
+  getRecallKeywordTermStats(agentId: string, terms: string[]) {
+    const normalizedTerms = [...new Set(terms.map((term) => term.trim().toLowerCase()))].filter(
+      Boolean
+    )
+    const rows = [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        !row.superseded_by &&
+        row.status !== 'archived' &&
+        row.status !== 'conflicted' &&
+        row.kind !== 'persona' &&
+        row.kind !== 'working'
+    )
+    return normalizedTerms.map((term) => ({
+      term,
+      hitCount: rows.filter((row) => row.content.toLowerCase().includes(term)).length,
+      totalRows: rows.length
+    }))
   }
 
   listPendingEmbedding(limit = 50, agentId?: string) {
@@ -272,6 +296,12 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (row) {
       row.last_accessed = accessedAt
       row.access_count += 1
+    }
+  }
+
+  recordAccessBatch(ids: string[], accessedAt = 0) {
+    for (const id of new Set(ids)) {
+      this.recordAccess(id, accessedAt)
     }
   }
 

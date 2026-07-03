@@ -133,6 +133,18 @@ describe('MemoryConfigPanel override semantics (AC-2.1~2.5)', () => {
     expect('personaEvolutionEnabled' in config).toBe(false)
   })
 
+  it('highlights degraded memory model hints when optional models are unset', async () => {
+    const { wrapper } = await setup({ memoryEnabled: true }, { memoryEnabled: true })
+
+    expect(wrapper.html()).toContain('settings.deepchatAgents.memoryEmbeddingHint')
+    expect(wrapper.html()).toContain('bg-amber-500/10')
+
+    await openAdvancedSettings(wrapper)
+
+    expect(wrapper.html()).toContain('settings.memory.config.extractionModelHint')
+    expect(wrapper.html()).toContain('bg-amber-500/10')
+  })
+
   it('writes the boolean override only after the switch is toggled', async () => {
     const { wrapper, updateDeepChatAgent } = await setup({}, { memoryEnabled: true })
 

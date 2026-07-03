@@ -648,6 +648,97 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('supports OR keyword matching only when requested', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'm1',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'redis setup'
+      })
+
+      expect(table.search('deepchat', 'please redis setup').map((row) => row.id)).toEqual([])
+      expect(
+        table
+          .search('deepchat', 'please redis setup', 20, { matchMode: 'any' })
+          .map((row) => row.id)
+      ).toEqual(['m1'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('counts recall keyword term stats over active recallable rows only', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'deepchat', kind: 'semantic', content: 'redis setup' })
+      table.insert({ id: 'm2', agentId: 'deepchat', kind: 'semantic', content: 'please notes' })
+      table.insert({ id: 'p1', agentId: 'deepchat', kind: 'persona', content: 'redis persona' })
+      table.insert({ id: 'w1', agentId: 'deepchat', kind: 'working', content: 'redis working' })
+      table.insert({
+        id: 'a1',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'redis archived',
+        status: 'archived'
+      })
+      table.insert({
+        id: 'c1',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'redis conflicted',
+        status: 'conflicted'
+      })
+      const old = table.insert({
+        id: 'old',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'redis old'
+      })
+      const fresh = table.insert({
+        id: 'fresh',
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: 'redis fresh'
+      })
+      table.markSuperseded(old.id, fresh.id)
+
+      expect(
+        table.getRecallKeywordTermStats('deepchat', ['redis', 'please', 'redis', 'missing'])
+      ).toEqual([
+        { term: 'redis', hitCount: 2, totalRows: 3 },
+        { term: 'please', hitCount: 1, totalRows: 3 },
+        { term: 'missing', hitCount: 0, totalRows: 3 }
+      ])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('updates access counters in batch', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'deepchat', kind: 'semantic', content: 'a' })
+      table.insert({ id: 'm2', agentId: 'deepchat', kind: 'semantic', content: 'b' })
+
+      table.recordAccessBatch(['m1', 'm2', 'm1'], 1234)
+
+      expect(table.getById('m1')?.access_count).toBe(1)
+      expect(table.getById('m2')?.access_count).toBe(1)
+      expect(table.getById('m1')?.last_accessed).toBe(1234)
+      expect(table.getById('m2')?.last_accessed).toBe(1234)
+    } finally {
+      db.close()
+    }
+  })
+
   it('clears all memories for an agent', () => {
     const db = new DatabaseCtor(':memory:')
     try {

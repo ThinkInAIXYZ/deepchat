@@ -1597,6 +1597,268 @@ describe('MemoryPresenter management', () => {
     expect(querySpy).toHaveBeenCalledTimes(1)
   })
 
+  it('agent-facing recall keywordizes long English messages for FTS-only recall', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis setup',
+      status: 'fts_only'
+    })
+
+    const recalled = await presenter.recall('a', 'Could you please explain the redis setup again?')
+
+    expect(recalled.map((item) => item.id)).toEqual(['m1'])
+  })
+
+  it('agent-facing recall filters high-frequency generic terms by corpus stats', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis setup',
+      status: 'fts_only'
+    })
+    repo.insert({
+      id: 'm2',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'please review the dashboard notes',
+      status: 'fts_only'
+    })
+    repo.insert({
+      id: 'm3',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'please summarize the release notes',
+      status: 'fts_only'
+    })
+    repo.insert({
+      id: 'm4',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'please update the checklist',
+      status: 'fts_only'
+    })
+
+    const recalled = await presenter.recall('a', 'please redis setup')
+
+    expect(recalled.map((item) => item.id)).toEqual(['m1'])
+  })
+
+  it('agent-facing recall keeps a single domain term even when it is frequent', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    for (const id of ['m1', 'm2', 'm3', 'm4']) {
+      repo.insert({
+        id,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `${id} redis note`,
+        status: 'fts_only'
+      })
+    }
+
+    const recalled = await presenter.recall('a', 'redis')
+
+    expect(recalled.map((item) => item.id).sort()).toEqual(['m1', 'm2', 'm3', 'm4'])
+  })
+
+  it('agent-facing recall skips keyword search when no candidate hits but still tries vector recall', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    )
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+    const querySpy = vi.spyOn(store, 'query')
+
+    await presenter.recall('a', 'zzzz qqqq')
+
+    expect(getEmbeddings).toHaveBeenCalledWith('p', 'm', ['zzzz qqqq'])
+    expect(querySpy).toHaveBeenCalled()
+  })
+
+  it('agent-facing recall keywordizes CJK messages instead of requiring an entire sentence match', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: '用户偏好简洁的中文回答问题',
+      status: 'fts_only'
+    })
+
+    const recalled = await presenter.recall('a', '请继续用中文回答这个问题，谢谢')
+
+    expect(recalled.map((item) => item.id)).toEqual(['m1'])
+  })
+
+  it('warm recall soft-times out query embedding and keeps vector readiness for later turns', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      const store = new FakeVectorStore()
+      let blockQueryEmbedding = false
+      const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+        if (blockQueryEmbedding && texts[0] !== 'memory warmup') {
+          return new Promise<number[][]>(() => undefined)
+        }
+        return Promise.resolve(texts.map((text) => textToVector(text)))
+      })
+      const createVectorStore = vi.fn(async () => store)
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings,
+        getDimensions: embeddingDimensions,
+        createVectorStore,
+        resetVectorStore: async () => undefined
+      })
+      const [memoryId] = presenter.writeMemoriesSync(
+        [{ kind: 'semantic', content: 'redis setup' }],
+        {
+          agentId: 'a'
+        }
+      )
+      await presenter.processPendingEmbeddings('a')
+      expect(
+        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
+          'a'
+        )
+      ).toBe(true)
+
+      blockQueryEmbedding = true
+      const clearReadySpy = vi.spyOn(
+        presenter as unknown as { clearVectorStoreReady: (agentId: string) => void },
+        'clearVectorStoreReady'
+      )
+      const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
+      const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+      const recall = presenter.recall('a', 'Could you explain the redis setup again?')
+
+      await vi.advanceTimersByTimeAsync(801)
+      const recalled = await recall
+
+      expect(recalled.map((item) => item.id)).toEqual([memoryId])
+      expect(clearReadySpy).not.toHaveBeenCalled()
+      expect(backfillSpy).not.toHaveBeenCalled()
+      expect(reindexSpy).not.toHaveBeenCalled()
+      expect(
+        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
+          'a'
+        )
+      ).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips duplicate query embeddings while a timed-out request is still in flight', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      const store = new FakeVectorStore()
+      let blockQueryEmbedding = false
+      let queryEmbeddingCalls = 0
+      const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+        if (blockQueryEmbedding && texts[0] !== 'memory warmup') {
+          queryEmbeddingCalls += 1
+          return new Promise<number[][]>(() => undefined)
+        }
+        return Promise.resolve(texts.map((text) => textToVector(text)))
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings,
+        getDimensions: embeddingDimensions,
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined
+      })
+      const [memoryId] = presenter.writeMemoriesSync(
+        [{ kind: 'semantic', content: 'redis setup' }],
+        { agentId: 'a' }
+      )
+      await presenter.processPendingEmbeddings('a')
+
+      blockQueryEmbedding = true
+      const first = presenter.recall('a', 'redis setup')
+      await vi.advanceTimersByTimeAsync(801)
+      expect((await first).map((item) => item.id)).toEqual([memoryId])
+      expect(queryEmbeddingCalls).toBe(1)
+
+      const second = await presenter.recall('a', 'redis setup')
+
+      expect(second.map((item) => item.id)).toEqual([memoryId])
+      expect(queryEmbeddingCalls).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('replaces stale query embedding in-flight entries without late-settle deletion', async () => {
+    vi.useFakeTimers()
+    try {
+      const repo = new FakeRepository()
+      const store = new FakeVectorStore()
+      let blockQueryEmbedding = false
+      let queryEmbeddingCalls = 0
+      const pendingQueryEmbeddings: Array<(vectors: number[][]) => void> = []
+      const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+        if (blockQueryEmbedding && texts[0] !== 'memory warmup') {
+          queryEmbeddingCalls += 1
+          return new Promise<number[][]>((resolve) => pendingQueryEmbeddings.push(resolve))
+        }
+        return Promise.resolve(texts.map((text) => textToVector(text)))
+      })
+      const presenter = new MemoryPresenter({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings,
+        getDimensions: embeddingDimensions,
+        createVectorStore: async () => store,
+        resetVectorStore: async () => undefined
+      })
+      const [memoryId] = presenter.writeMemoriesSync(
+        [{ kind: 'semantic', content: 'redis setup' }],
+        { agentId: 'a' }
+      )
+      await presenter.processPendingEmbeddings('a')
+
+      blockQueryEmbedding = true
+      const first = presenter.recall('a', 'redis setup')
+      await vi.advanceTimersByTimeAsync(801)
+      expect((await first).map((item) => item.id)).toEqual([memoryId])
+      expect(queryEmbeddingCalls).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(30_001)
+      const second = presenter.recall('a', 'redis setup')
+      await vi.advanceTimersByTimeAsync(801)
+      expect((await second).map((item) => item.id)).toEqual([memoryId])
+      expect(queryEmbeddingCalls).toBe(2)
+
+      pendingQueryEmbeddings[0]?.([textToVector('redis setup')])
+      await flushMicrotasks()
+      const third = presenter.recall('a', 'redis setup')
+      await vi.advanceTimersByTimeAsync(801)
+      expect((await third).map((item) => item.id)).toEqual([memoryId])
+      expect(queryEmbeddingCalls).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('cools down repeated getDimensions failures while keeping cold recall on FTS', async () => {
     const repo = new FakeRepository()
     const getDimensions = vi.fn(async () => {
@@ -4980,7 +5242,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
 
     // A recall starts and parks inside getEmbeddings.
     blockRecall = true
-    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const recordSpy = vi.spyOn(repo, 'recordAccessBatch')
     const recall = presenter.recall('a', 'redis')
     await new Promise((r) => setTimeout(r, 0))
 
@@ -5130,7 +5392,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
 
     blockCreate = true
     const getByIdSpy = vi.spyOn(repo, 'getById')
-    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const recordSpy = vi.spyOn(repo, 'recordAccessBatch')
     const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
     const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
     const closeSpy = vi.spyOn(store, 'close')
@@ -5139,7 +5401,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const results = await recall
     expect(results.some((item) => item.id === 'm1')).toBe(true)
     expect(getByIdSpy).not.toHaveBeenCalled()
-    expect(recordSpy).toHaveBeenCalledWith('m1', expect.any(Number))
+    expect(recordSpy).toHaveBeenCalledWith(['m1'], expect.any(Number))
 
     let disposed = false
     const disposePromise = presenter.dispose().then(() => {
@@ -5202,7 +5464,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
 
     blockQuery = true
     const getByIdSpy = vi.spyOn(repo, 'getById')
-    const recordSpy = vi.spyOn(repo, 'recordAccess')
+    const recordSpy = vi.spyOn(repo, 'recordAccessBatch')
     const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
     const recall = presenter.recall('a', 'redis')
     await new Promise((r) => setTimeout(r, 0)) // park inside store.query

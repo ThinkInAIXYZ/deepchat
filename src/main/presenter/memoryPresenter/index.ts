@@ -38,6 +38,11 @@ import {
   fuse,
   resolveRetrieval
 } from './scoring'
+import {
+  buildRecallKeywordQuery,
+  extractRecallKeywordCandidates,
+  selectRecallKeywordTerms
+} from './recallKeyword'
 import { deriveLifecycle, type DeriveLifecycleOptions } from './lifecycle'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from './lifecycleConstants'
 import { ADD_DECISION, buildDecisionPrompt, parseDecision, type MemoryDecision } from './decision'
@@ -128,6 +133,31 @@ const MEMORY_HEALTH_TOP_ACCESSED_LIMIT = 5
 const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
 const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
 const MEMORY_CREATED_IDS_EVENT_LIMIT = 50
+const RECALL_QUERY_EMBEDDING_TIMEOUT_MS = 800
+const RECALL_QUERY_EMBEDDING_STALE_MS = 30 * 1000
+
+type SoftTimeoutResult<T> = { timedOut: true } | { timedOut: false; value: T }
+type QueryEmbeddingInFlight = {
+  startedAt: number
+  promise: Promise<number[][]>
+}
+
+async function withSoftTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<SoftTimeoutResult<T>> {
+  let timeoutId: NodeJS.Timeout | undefined
+  const guarded = promise.then((value) => ({ timedOut: false, value }) as SoftTimeoutResult<T>)
+  guarded.catch(() => undefined)
+  const timeout = new Promise<SoftTimeoutResult<T>>((resolve) => {
+    timeoutId = setTimeout(() => resolve({ timedOut: true }), timeoutMs)
+  })
+  try {
+    return await Promise.race([guarded, timeout])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
 
 function embeddingFingerprint(providerId: string, modelId: string): string {
   return `${providerId}:${modelId}`
@@ -282,6 +312,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly vectorStoreDimensionFailures = new Map<string, number>()
   private readonly vectorStoreLocks = new Map<string, Promise<unknown>>()
   private readonly embeddingWarmups = new Map<string, Promise<void>>()
+  private readonly queryEmbeddingInFlight = new Map<string, QueryEmbeddingInFlight>()
   // Serializes an agent's embedding drains. Distinct from vectorStoreLocks on purpose: this one
   // spans the network embedding call, the file lock must not.
   private readonly embeddingDrains = new Map<string, Promise<unknown>>()
@@ -1713,13 +1744,53 @@ export class MemoryPresenter implements MemoryRuntimePort {
   // embedding config, when the query has no vector hits, or while a reindex is rebuilding vectors.
   async recall(agentId: string, query: string, now = Date.now()): Promise<MemoryRecallItem[]> {
     if (!this.canReadAgentMemory(agentId)) return []
-    return this.retrieve(agentId, query, now, true)
+    return this.retrieve(agentId, query, now, true, {
+      keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+      keywordMatchMode: 'any'
+    })
   }
 
-  // Read-only search for the management surface: the same hybrid retrieval as recall, but it never
-  // records access, so browsing memories does not inflate access_count or skew archive-eligibility
-  // fairness. Re-queries the authoritative row for each hit and pairs it with its score; limit caps
-  // the result count only (it cannot widen the agent's configured topK).
+  private buildAgentFacingRecallKeywordQuery(agentId: string, query: string): string {
+    const candidates = extractRecallKeywordCandidates(query)
+    if (!candidates.length) return ''
+    const stats = this.deps.repository.getRecallKeywordTermStats(
+      agentId,
+      candidates.map((candidate) => candidate.term)
+    )
+    return buildRecallKeywordQuery(selectRecallKeywordTerms(candidates, stats))
+  }
+
+  private startQueryEmbedding(
+    agentId: string,
+    embedding: { providerId: string; modelId: string },
+    query: string
+  ): Promise<number[][]> | null {
+    const key = `${agentId}::${embeddingFingerprint(embedding.providerId, embedding.modelId)}`
+    const now = Date.now()
+    const existing = this.queryEmbeddingInFlight.get(key)
+    // This is a tracked rate gate, not a provider-level hard concurrency cap: stale replacement
+    // does not abort the older provider request, it only lets a later turn try again.
+    if (existing && now - existing.startedAt < RECALL_QUERY_EMBEDDING_STALE_MS) return null
+    if (existing) {
+      logger.warn(`[Memory] stale query embedding replaced for ${agentId}`)
+    }
+
+    const promise = this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [query])
+    const entry: QueryEmbeddingInFlight = { startedAt: now, promise }
+    this.queryEmbeddingInFlight.set(key, entry)
+    promise
+      .finally(() => {
+        if (this.queryEmbeddingInFlight.get(key) === entry) this.queryEmbeddingInFlight.delete(key)
+      })
+      .catch(() => undefined)
+    return promise
+  }
+
+  // Read-only search for the management surface: it shares the hybrid retrieval core, but keeps the
+  // raw all-term keyword query and never records access, so browsing memories does not inflate
+  // access_count or skew archive-eligibility fairness. Re-queries the authoritative row for each hit
+  // and pairs it with its score; limit caps the result count only (it cannot widen the agent's
+  // configured topK).
   async searchMemories(
     agentId: string,
     query: string,
@@ -1799,7 +1870,11 @@ export class MemoryPresenter implements MemoryRuntimePort {
     query: string,
     now: number,
     recordAccessHits: boolean,
-    trace: boolean = false
+    options: {
+      trace?: boolean
+      keywordQuery?: string
+      keywordMatchMode?: 'all' | 'any'
+    } = {}
   ): Promise<MemoryRecallItem[]> {
     // The read path is gated on disposed too: after teardown begins it must neither reopen a vector
     // store nor record access on a database that is closing.
@@ -1808,15 +1883,20 @@ export class MemoryPresenter implements MemoryRuntimePort {
     const { topK, rrfK, similarityThreshold, weights } = resolveRetrieval(config?.memoryRetrieval)
     const normalizedQuery = query.trim()
     if (!normalizedQuery) return []
+    const normalizedKeywordQuery = (options.keywordQuery ?? normalizedQuery).trim()
 
     const candidateLimit = topK * 2
 
     // Keyword path covers any status that still has content (embedded | fts_only | error). persona
     // is excluded (the self-model is injected separately, never recalled) and working (an internal
     // open-session cache row that must never feed back into recall).
-    const ftsRows = this.deps.repository
-      .search(agentId, normalizedQuery, candidateLimit)
-      .filter((row) => row.kind !== 'persona' && row.kind !== 'working')
+    const ftsRows = normalizedKeywordQuery
+      ? this.deps.repository
+          .search(agentId, normalizedKeywordQuery, candidateLimit, {
+            matchMode: options.keywordMatchMode ?? 'all'
+          })
+          .filter((row) => row.kind !== 'persona' && row.kind !== 'working')
+      : []
 
     // Vector path (embedded rows only).
     const vecMatches: { row: AgentMemoryRow; similarity: number }[] = []
@@ -1828,71 +1908,90 @@ export class MemoryPresenter implements MemoryRuntimePort {
         this.warmEmbeddingConnection(agentId, currentEmbedding)
       } else {
         try {
-          const vectors = await this.deps.getEmbeddings(embedding.providerId, embedding.modelId, [
+          const queryEmbedding = this.startQueryEmbedding(
+            agentId,
+            currentEmbedding,
             normalizedQuery
-          ])
-          // Teardown may have started during the embedding await: bail before opening the store so a
-          // late recall cannot reopen a sidecar the dispose close-loop has already passed.
-          if (!this.canReadAgentMemory(agentId)) return []
-          const vector = vectors[0]
-          if (vector?.length) {
-            const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-            if (this.hasStaleEmbeddings(agentId, vector.length, fingerprint)) {
-              this.clearVectorStoreReady(agentId)
-              // The embedding model or dimension changed: rebuild vectors in the background and
-              // answer from FTS this turn instead of querying a store with stale dimensions. Skipped
-              // during teardown so no background write outlives the database connection.
-              if (this.canReadAgentMemory(agentId)) {
-                void this.reindexEmbeddings(agentId).catch((error) => {
-                  logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
-                })
-              }
+          )
+          if (!queryEmbedding) {
+            logger.warn(
+              `[Memory] query embedding already in flight for ${agentId}; vector recall skipped this turn`
+            )
+          } else {
+            const vectorsResult = await withSoftTimeout(
+              queryEmbedding,
+              RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+            )
+            if (vectorsResult.timedOut) {
+              logger.warn(
+                `[Memory] query embedding timed out for ${agentId}; vector recall skipped this turn`
+              )
             } else {
-              const store = await this.getVectorStore(agentId, currentEmbedding, vector.length)
-              // Teardown may have begun while the store opened: bail before querying or reading rows.
-              // dispose awaits the per-agent open lock, so the store this call cached is closed there.
+              const vectors = vectorsResult.value
+              // Teardown may have started during the embedding await: bail before opening the store so a
+              // late recall cannot reopen a sidecar the dispose close-loop has already passed.
               if (!this.canReadAgentMemory(agentId)) return []
-              if (store.isUsable()) {
-                this.markVectorStoreReady(agentId, currentEmbedding, vector.length)
-                const matches = await store.query(vector, { topK: candidateLimit })
-                // ...and again after the query await, before any repository.getById on a closing DB.
-                if (!this.canReadAgentMemory(agentId)) return []
-                for (const match of matches) {
-                  const similarity = distanceToSimilarity(match.distance)
-                  if (similarity < similarityThreshold) continue
-                  const row = this.deps.repository.getById(match.memoryId)
-                  // Skip persona even if an old/anomalous vector for it sits in the store: the
-                  // self-model is injected separately, never recalled as a normal memory. working
-                  // rows are never embedded, but skip them defensively too. Archived rows keep their
-                  // vector but must stay out of recall until restored.
-                  if (
-                    !row ||
-                    row.superseded_by ||
-                    row.kind === 'persona' ||
-                    row.kind === 'working' ||
-                    row.status === 'archived' ||
-                    row.status === 'conflicted'
-                  )
-                    continue
-                  vecMatches.push({ row, similarity })
+              const vector = vectors[0]
+              if (vector?.length) {
+                const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+                if (this.hasStaleEmbeddings(agentId, vector.length, fingerprint)) {
+                  this.clearVectorStoreReady(agentId)
+                  // The embedding model or dimension changed: rebuild vectors in the background and
+                  // answer from FTS this turn instead of querying a store with stale dimensions. Skipped
+                  // during teardown so no background write outlives the database connection.
+                  if (this.canReadAgentMemory(agentId)) {
+                    void this.reindexEmbeddings(agentId).catch((error) => {
+                      logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
+                    })
+                  }
+                } else {
+                  const store = await this.getVectorStore(agentId, currentEmbedding, vector.length)
+                  // Teardown may have begun while the store opened: bail before querying or reading rows.
+                  // dispose awaits the per-agent open lock, so the store this call cached is closed there.
+                  if (!this.canReadAgentMemory(agentId)) return []
+                  if (store.isUsable()) {
+                    this.markVectorStoreReady(agentId, currentEmbedding, vector.length)
+                    const matches = await store.query(vector, { topK: candidateLimit })
+                    // ...and again after the query await, before any repository.getById on a closing DB.
+                    if (!this.canReadAgentMemory(agentId)) return []
+                    for (const match of matches) {
+                      const similarity = distanceToSimilarity(match.distance)
+                      if (similarity < similarityThreshold) continue
+                      const row = this.deps.repository.getById(match.memoryId)
+                      // Skip persona even if an old/anomalous vector for it sits in the store: the
+                      // self-model is injected separately, never recalled as a normal memory. working
+                      // rows are never embedded, but skip them defensively too. Archived rows keep their
+                      // vector but must stay out of recall until restored.
+                      if (
+                        !row ||
+                        row.superseded_by ||
+                        row.kind === 'persona' ||
+                        row.kind === 'working' ||
+                        row.status === 'archived' ||
+                        row.status === 'conflicted'
+                      )
+                        continue
+                      vecMatches.push({ row, similarity })
+                    }
+                    // The service embedded the query and the store is healthy: opportunistically embed
+                    // rows deferred as fts_only (config added later) and re-drain any an earlier run left
+                    // pending. Background, coalesced, and skipped while a reindex owns the requeue.
+                    if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
+                      void this.backfillEmbeddings(agentId).catch((error) => {
+                        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
+                      })
+                    }
+                  } else if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
+                    this.clearVectorStoreReady(agentId)
+                    // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
+                    // were no embedded rows to flag it as stale). Rebuild it under the current identity so
+                    // the corpus stops failing closed; force the reset even if there is nothing to
+                    // re-queue, since the unusable file itself is what blocks recovery.
+                    void this.reindexEmbeddings(agentId, true).catch((error) => {
+                      logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                    })
+                  }
                 }
-                // The service embedded the query and the store is healthy: opportunistically embed
-                // rows deferred as fts_only (config added later) and re-drain any an earlier run left
-                // pending. Background, coalesced, and skipped while a reindex owns the requeue.
-                if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
-                  void this.backfillEmbeddings(agentId).catch((error) => {
-                    logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
-                  })
-                }
-              } else if (this.canReadAgentMemory(agentId) && !this.reindexing.has(agentId)) {
-                this.clearVectorStoreReady(agentId)
-                // The on-disk sidecar carries a foreign/legacy identity we can never query (and there
-                // were no embedded rows to flag it as stale). Rebuild it under the current identity so
-                // the corpus stops failing closed; force the reset even if there is nothing to
-                // re-queue, since the unusable file itself is what blocks recovery.
-                void this.reindexEmbeddings(agentId, true).catch((error) => {
-                  logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
-                })
               }
             }
           }
@@ -1903,12 +2002,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
       }
     }
 
-    const results = fuse(ftsRows, vecMatches, { topK, rrfK, weights, now, trace })
+    const results = fuse(ftsRows, vecMatches, {
+      topK,
+      rrfK,
+      weights,
+      now,
+      trace: options.trace
+    })
     // Re-check after the store/query awaits: never write access counters once teardown has begun.
     if (recordAccessHits && this.canReadAgentMemory(agentId)) {
-      for (const item of results) {
-        this.deps.repository.recordAccess(item.id, now)
-      }
+      this.deps.repository.recordAccessBatch(
+        results.map((item) => item.id),
+        now
+      )
     }
     return results
   }
@@ -1925,7 +2031,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     // path so the next open is served from L1.
     if (!working) this.scheduleWorkingRefresh(agentId)
     const recalled = query.trim()
-      ? await this.retrieve(agentId, query, Date.now(), true)
+      ? await this.retrieve(agentId, query, Date.now(), true, {
+          keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+          keywordMatchMode: 'any'
+        })
       : await this.recall(agentId, query)
     if (!persona && !working && recalled.length === 0) return null
     const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
@@ -2646,6 +2755,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
     for (const key of this.vectorStoreDimensionFailures.keys()) {
       if (key.startsWith(`${agentId}::`)) this.vectorStoreDimensionFailures.delete(key)
     }
+    for (const key of this.queryEmbeddingInFlight.keys()) {
+      if (key.startsWith(`${agentId}::`)) this.queryEmbeddingInFlight.delete(key)
+    }
     this.vectorStoreReady.delete(agentId)
   }
 
@@ -2703,6 +2815,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.vectorStoreWarmups.clear()
     this.vectorStoreDimensionFailures.clear()
     this.embeddingWarmups.clear()
+    this.queryEmbeddingInFlight.clear()
     this.vectorStoreLocks.clear()
   }
 

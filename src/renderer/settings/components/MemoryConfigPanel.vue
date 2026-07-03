@@ -90,7 +90,14 @@
                   />
                 </PopoverContent>
               </Popover>
-              <p class="text-[11px] text-muted-foreground">
+              <p
+                class="text-[11px]"
+                :class="
+                  form.memoryEmbedding
+                    ? 'text-muted-foreground'
+                    : 'rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-amber-700 dark:text-amber-300'
+                "
+              >
                 {{ t('settings.deepchatAgents.memoryEmbeddingHint') }}
               </p>
             </div>
@@ -174,7 +181,14 @@
                       />
                     </PopoverContent>
                   </Popover>
-                  <p class="text-[11px] text-muted-foreground">
+                  <p
+                    class="text-[11px]"
+                    :class="
+                      form.memoryExtractionModel
+                        ? 'text-muted-foreground'
+                        : 'rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-amber-700 dark:text-amber-300'
+                    "
+                  >
                     {{ t('settings.memory.config.extractionModelHint') }}
                   </p>
                 </div>

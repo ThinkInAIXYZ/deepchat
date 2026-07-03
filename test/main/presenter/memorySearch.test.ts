@@ -29,7 +29,7 @@ describe('MemoryPresenter.searchMemories (read-only facade)', () => {
   it('never records access while recall does (browsing must not skew fairness)', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     repo.insert(seed('the user prefers redis', 'm1'))
-    const accessSpy = vi.spyOn(repo, 'recordAccess')
+    const accessSpy = vi.spyOn(repo, 'recordAccessBatch')
 
     await presenter.searchMemories('deepchat', 'redis')
     expect(accessSpy).not.toHaveBeenCalled()
@@ -37,6 +37,16 @@ describe('MemoryPresenter.searchMemories (read-only facade)', () => {
     // Positive control: the recall path is the one that bumps access_count.
     await presenter.recall('deepchat', 'redis')
     expect(accessSpy).toHaveBeenCalled()
+  })
+
+  it('keeps management search on precise all-term keyword matching', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    repo.insert(seed('redis setup', 'm1'))
+
+    expect(await presenter.searchMemories('deepchat', 'please redis setup')).toEqual([])
+    expect(
+      (await presenter.recall('deepchat', 'please redis setup')).map((item) => item.id)
+    ).toEqual(['m1'])
   })
 
   it('caps the result count to limit without widening topK', async () => {

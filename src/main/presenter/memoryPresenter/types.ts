@@ -48,7 +48,13 @@ export interface MemoryRepositoryPort {
   setPersonaState(id: string, state: AgentMemoryPersonaState, supersededBy?: string | null): void
   setAnchor(id: string, anchored: boolean): void
   listPersonaVersions(agentId: string): AgentMemoryRow[]
-  search(agentId: string, query: string, limit?: number): AgentMemoryRow[]
+  search(
+    agentId: string,
+    query: string,
+    limit?: number,
+    options?: { matchMode?: 'all' | 'any' }
+  ): AgentMemoryRow[]
+  getRecallKeywordTermStats(agentId: string, terms: string[]): RecallKeywordTermStat[]
   listPendingEmbedding(limit?: number, agentId?: string): AgentMemoryRow[]
   updateStatus(
     id: string,
@@ -75,6 +81,7 @@ export interface MemoryRepositoryPort {
   requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number
   markSuperseded(id: string, supersededBy: string | null): void
   recordAccess(id: string, accessedAt?: number): void
+  recordAccessBatch(ids: string[], accessedAt?: number): void
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
   updateContent(
     id: string,
@@ -107,6 +114,12 @@ export interface MemoryRepositoryPort {
   countByAgent(agentId: string): number
   hasActiveMemory(agentId: string): boolean
   listAgentIdsWithMemories(): string[]
+}
+
+export interface RecallKeywordTermStat {
+  term: string
+  hitCount: number
+  totalRows: number
 }
 
 export interface MemoryAuditRepositoryPort {
