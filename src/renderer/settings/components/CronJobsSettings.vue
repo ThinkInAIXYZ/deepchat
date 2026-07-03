@@ -154,12 +154,23 @@
                 <Label class="text-xs text-muted-foreground">
                   {{ t('settings.cronJobs.fields.timezone') }}
                 </Label>
-                <Input
-                  :model-value="job.timezone"
-                  class="h-8!"
-                  @update:model-value="(value) => updateJobField(job.id, 'timezone', String(value))"
-                  @blur="commitJob(job.id)"
-                />
+                <Select
+                  :model-value="job.timezone || getBrowserTimezone()"
+                  @update:model-value="(value) => updateTimezone(job.id, String(value))"
+                >
+                  <SelectTrigger class="h-8! w-full min-w-0">
+                    <SelectValue class="min-w-0 truncate" />
+                  </SelectTrigger>
+                  <SelectContent class="max-h-72">
+                    <SelectItem
+                      v-for="timezone in timezoneOptions"
+                      :key="timezone"
+                      :value="timezone"
+                    >
+                      {{ timezone }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div class="flex shrink-0 items-center gap-1 lg:pt-6">
@@ -360,6 +371,28 @@ const getBrowserTimezone = (): string => {
   }
 }
 
+const getSupportedTimezones = (): string[] => {
+  try {
+    const supportedValuesOf = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] })
+      .supportedValuesOf
+    return supportedValuesOf?.('timeZone') ?? []
+  } catch {
+    return []
+  }
+}
+
+const baseTimezoneOptions = getSupportedTimezones()
+const timezoneOptions = computed(() =>
+  Array.from(
+    new Set([
+      CRON_JOBS_DEFAULT_TIMEZONE,
+      getBrowserTimezone(),
+      ...baseTimezoneOptions,
+      ...jobs.value.map((job) => job.timezone).filter(Boolean)
+    ])
+  ).sort()
+)
+
 const formatTimestamp = (timestamp: number | null): string => {
   if (!timestamp) {
     return t('settings.cronJobs.none')
@@ -457,6 +490,11 @@ const updateAgentSelection = (id: string, agentId: string) => {
   jobs.value = jobs.value.map((job) =>
     job.id === id ? { ...job, agentId: agentId === NO_AGENT_ID ? null : agentId } : job
   )
+  void commitJob(id)
+}
+
+const updateTimezone = (id: string, timezone: string) => {
+  updateJobField(id, 'timezone', timezone)
   void commitJob(id)
 }
 
