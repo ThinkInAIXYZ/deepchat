@@ -1478,9 +1478,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "配信",
-      "desktopNotification": "デスクトップ通知",
-      "successNotification": "成功時に通知",
-      "failureNotification": "失敗時に通知"
+      "remoteDelivery": "Remote 配信",
+      "remoteChannel": "Remote チャンネル",
+      "noRemoteChannels": "先に Remote を有効化し、チャンネルをバインドしてください。"
     },
     "presets": {
       "custom": "Custom",

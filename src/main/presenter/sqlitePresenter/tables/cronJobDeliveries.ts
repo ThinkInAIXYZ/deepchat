@@ -49,7 +49,7 @@ export class CronJobDeliveriesTable extends BaseTable {
         id TEXT PRIMARY KEY,
         job_id TEXT NOT NULL,
         run_id TEXT NOT NULL,
-        target_type TEXT NOT NULL CHECK(target_type IN ('deepchat_inbox', 'desktop_notification', 'remote', 'origin_session')),
+        target_type TEXT NOT NULL CHECK(target_type IN ('remote')),
         target_json TEXT NOT NULL,
         status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
         remote_message_id TEXT,

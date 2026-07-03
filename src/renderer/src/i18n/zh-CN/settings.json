@@ -1735,9 +1735,9 @@
       "followAgent": "跟随 Agent",
       "pinCurrent": "固定当前配置",
       "delivery": "投递",
-      "desktopNotification": "桌面通知",
-      "successNotification": "成功时通知",
-      "failureNotification": "失败时通知"
+      "remoteDelivery": "Remote 投递",
+      "remoteChannel": "Remote 频道",
+      "noRemoteChannels": "先启用 Remote，并绑定频道。"
     },
     "presets": {
       "custom": "自定义",

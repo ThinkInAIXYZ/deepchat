@@ -241,27 +241,40 @@
             </div>
             <label class="flex items-center gap-2 text-xs">
               <Switch
-                :model-value="hasDesktopNotification(job)"
-                @update:model-value="(value) => updateDesktopNotification(job.id, value === true)"
+                :model-value="isRemoteDeliveryEnabled(job)"
+                :disabled="!isRemoteDeliveryEnabled(job) && remoteDeliveryOptions.length === 0"
+                @update:model-value="(value) => updateRemoteDeliveryEnabled(job.id, value === true)"
               />
-              <span>{{ t('settings.cronJobs.fields.desktopNotification') }}</span>
+              <span>{{ t('settings.cronJobs.fields.remoteDelivery') }}</span>
             </label>
-            <label class="flex items-center gap-2 text-xs">
-              <Switch
-                :model-value="isSuccessNotificationEnabled(job)"
-                :disabled="!hasDesktopNotification(job)"
-                @update:model-value="(value) => updateSuccessNotification(job.id, value === true)"
-              />
-              <span>{{ t('settings.cronJobs.fields.successNotification') }}</span>
-            </label>
-            <label class="flex items-center gap-2 text-xs">
-              <Switch
-                :model-value="job.delivery.notifyOnFailure"
-                :disabled="!hasDesktopNotification(job)"
-                @update:model-value="(value) => updateFailureNotification(job.id, value === true)"
-              />
-              <span>{{ t('settings.cronJobs.fields.failureNotification') }}</span>
-            </label>
+            <Select
+              :model-value="getRemoteDeliveryValue(job)"
+              :disabled="
+                !isRemoteDeliveryEnabled(job) ||
+                remoteDeliveryLoading ||
+                remoteDeliveryOptions.length === 0
+              "
+              @update:model-value="(value) => updateRemoteDeliveryTarget(job.id, String(value))"
+            >
+              <SelectTrigger class="h-8! w-72 max-w-full min-w-0">
+                <SelectValue
+                  class="min-w-0 truncate"
+                  :placeholder="t('settings.cronJobs.fields.remoteChannel')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in remoteDeliveryOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ getRemoteDeliveryOptionLabel(option) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <span v-if="remoteDeliveryOptions.length === 0" class="text-xs text-muted-foreground">
+              {{ t('settings.cronJobs.fields.noRemoteChannels') }}
+            </span>
           </div>
 
           <div
@@ -347,6 +360,7 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
   CRON_JOBS_DEFAULT_DELIVERY,
@@ -358,12 +372,14 @@ import {
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
+import type { RemoteBindingSummary, RemoteChannel } from '@shared/presenter'
 import type { Agent } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
+const remoteControlClient = createRemoteControlClient()
 
 const jobs = ref<CronJob[]>([])
 const agents = ref<Agent[]>([])
@@ -376,6 +392,8 @@ const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const runsByJobId = ref<Record<string, CronJobRun[]>>({})
 const runsLoadingByJobId = ref<Record<string, boolean>>({})
+const remoteDeliveryOptions = ref<RemoteDeliveryOption[]>([])
+const remoteDeliveryLoading = ref(false)
 const NO_AGENT_ID = '__none__'
 const SCHEDULER_STATUS_REFRESH_MS = 5_000
 const CRON_REFERENCE_EXAMPLES = [
@@ -385,6 +403,14 @@ const CRON_REFERENCE_EXAMPLES = [
   { cronExpr: '0 9 * * 1-5', labelKey: 'settings.cronJobs.presets.weekdays' }
 ] as const
 let schedulerStatusTimer: number | null = null
+
+type RemoteDeliveryOption = {
+  value: string
+  channel: RemoteChannel
+  titleKey: string
+  endpointKey: string
+  binding: RemoteBindingSummary
+}
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 const enabledAgents = computed(() =>
@@ -443,6 +469,13 @@ const formatTimestamp = (timestamp: number | null): string => {
   return new Date(timestamp).toLocaleString()
 }
 
+const getRemoteDeliveryOptionLabel = (option: RemoteDeliveryOption): string => {
+  const threadSuffix = option.binding.threadId ? `:${option.binding.threadId}` : ''
+  return `${t(option.titleKey)} / ${t(`settings.remote.bindingKinds.${option.binding.kind}`)} ${
+    option.binding.chatId
+  }${threadSuffix}`
+}
+
 const sortJobs = (items: CronJob[]) =>
   items
     .slice()
@@ -480,12 +513,56 @@ const handleError = (scope: string, error: unknown) => {
   })
 }
 
+const loadRemoteDeliveryOptions = async (): Promise<RemoteDeliveryOption[]> => {
+  remoteDeliveryLoading.value = true
+  try {
+    const descriptors = await remoteControlClient.listRemoteChannels()
+    const groups = await Promise.all(
+      descriptors
+        .filter((descriptor) => descriptor.implemented)
+        .map(async (descriptor) => {
+          const status = await remoteControlClient.getChannelStatus(descriptor.id)
+          if (!status.enabled) {
+            return []
+          }
+
+          const bindings = await remoteControlClient.getChannelBindings(descriptor.id)
+          return bindings.map((binding) => ({
+            value: binding.endpointKey,
+            channel: descriptor.id,
+            titleKey: descriptor.titleKey,
+            endpointKey: binding.endpointKey,
+            binding
+          }))
+        })
+    )
+
+    return groups
+      .flat()
+      .sort(
+        (left, right) =>
+          left.channel.localeCompare(right.channel) ||
+          right.binding.updatedAt - left.binding.updatedAt
+      )
+  } catch (error) {
+    console.error('[CronJobs] Failed to load remote delivery options:', error)
+    return []
+  } finally {
+    remoteDeliveryLoading.value = false
+  }
+}
+
 const loadJobs = async () => {
   isLoading.value = true
   try {
-    const [response, nextAgents] = await Promise.all([client.list(), configClient.listAgents()])
+    const [response, nextAgents, nextRemoteDeliveryOptions] = await Promise.all([
+      client.list(),
+      configClient.listAgents(),
+      loadRemoteDeliveryOptions()
+    ])
     jobs.value = sortJobs(response.jobs)
     agents.value = nextAgents
+    remoteDeliveryOptions.value = nextRemoteDeliveryOptions
     schedulerStatus.value = response.schedulerStatus
     for (const job of jobs.value) {
       void refreshJobPreview(job)
@@ -639,11 +716,12 @@ const updateRuntimePolicy = (id: string, policy: string) => {
   void commitJob(id)
 }
 
-const hasDesktopNotification = (job: CronJob): boolean =>
-  job.delivery.targets.some((target) => target.type === 'desktop_notification')
+const getRemoteDeliveryTarget = (job: CronJob) => job.delivery.targets[0] ?? null
 
-const isSuccessNotificationEnabled = (job: CronJob): boolean =>
-  !job.delivery.suppressSuccessNotification
+const isRemoteDeliveryEnabled = (job: CronJob): boolean => Boolean(getRemoteDeliveryTarget(job))
+
+const getRemoteDeliveryValue = (job: CronJob): string =>
+  getRemoteDeliveryTarget(job)?.channelId ?? ''
 
 const updateDelivery = (id: string, updater: (delivery: CronJobDelivery) => CronJobDelivery) => {
   jobs.value = jobs.value.map((job) =>
@@ -652,29 +730,32 @@ const updateDelivery = (id: string, updater: (delivery: CronJobDelivery) => Cron
   void commitJob(id)
 }
 
-const updateDesktopNotification = (id: string, enabled: boolean) => {
+const createRemoteDeliveryTarget = (option: RemoteDeliveryOption) => ({
+  type: 'remote' as const,
+  remoteId: option.channel,
+  channelId: option.endpointKey,
+  mode: 'summary' as const
+})
+
+const updateRemoteDeliveryEnabled = (id: string, enabled: boolean) => {
+  const option = remoteDeliveryOptions.value[0]
+  if (enabled && !option) {
+    return
+  }
   updateDelivery(id, (delivery) => ({
     ...delivery,
-    targets: enabled
-      ? [
-          ...delivery.targets.filter((target) => target.type !== 'desktop_notification'),
-          { type: 'desktop_notification' as const }
-        ]
-      : delivery.targets.filter((target) => target.type !== 'desktop_notification')
+    targets: enabled && option ? [createRemoteDeliveryTarget(option)] : []
   }))
 }
 
-const updateSuccessNotification = (id: string, enabled: boolean) => {
+const updateRemoteDeliveryTarget = (id: string, value: string) => {
+  const option = remoteDeliveryOptions.value.find((entry) => entry.value === value)
+  if (!option) {
+    return
+  }
   updateDelivery(id, (delivery) => ({
     ...delivery,
-    suppressSuccessNotification: !enabled
-  }))
-}
-
-const updateFailureNotification = (id: string, enabled: boolean) => {
-  updateDelivery(id, (delivery) => ({
-    ...delivery,
-    notifyOnFailure: enabled
+    targets: [createRemoteDeliveryTarget(option)]
   }))
 }
 

@@ -1478,9 +1478,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "تحویل",
-      "desktopNotification": "اعلان دسکتاپ",
-      "successNotification": "اعلان هنگام موفقیت",
-      "failureNotification": "اعلان هنگام شکست"
+      "remoteDelivery": "ارسال Remote",
+      "remoteChannel": "کانال Remote",
+      "noRemoteChannels": "ابتدا Remote را فعال و یک کانال را متصل کنید."
     },
     "presets": {
       "custom": "Custom",

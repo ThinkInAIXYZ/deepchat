@@ -11,11 +11,11 @@ import {
   type CronScheduleValidation
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
-import type { IConfigPresenter, INotificationPresenter } from '@shared/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { CronExpressionService } from './cronExpressionService'
-import { CronJobDeliveryRouter } from './deliveryRouter'
+import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 import { CronJobRunExecutor, type CronJobRunSessionStarter } from './runExecutor'
 import { CronJobRuntimeResolver } from './runtimeResolver'
@@ -33,7 +33,6 @@ type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
 export interface CronJobsServiceDeps {
   sqlitePresenter: SQLitePresenter
   configPresenter?: Pick<IConfigPresenter, 'listAgents' | 'resolveDeepChatAgentConfig'>
-  notificationPresenter?: Pick<INotificationPresenter, 'showNotification'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
@@ -64,11 +63,7 @@ export class CronJobsService {
     this.runtimeResolver =
       deps.runtimeResolver ??
       (deps.configPresenter ? new CronJobRuntimeResolver(deps.configPresenter) : null)
-    this.deliveryRouter =
-      deps.deliveryRouter ??
-      new CronJobDeliveryRouter(this.repository, {
-        notificationPresenter: deps.notificationPresenter
-      })
+    this.deliveryRouter = deps.deliveryRouter ?? new CronJobDeliveryRouter(this.repository)
     if (deps.runSessionStarter) {
       this.runExecutor = new CronJobRunExecutor(
         this.repository,
@@ -207,6 +202,10 @@ export class CronJobsService {
       runSessionStarter,
       this.deliveryRouter
     )
+  }
+
+  setRemoteDeliveryPort(remoteDeliveryPort: CronJobRemoteDeliveryPort): void {
+    this.deliveryRouter.setRemoteDeliveryPort(remoteDeliveryPort)
   }
 
   getSchedulerStatus(): CronJobsSchedulerStatus {

@@ -1411,9 +1411,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Levering",
-      "desktopNotification": "Skrivebordsnotifikation",
-      "successNotification": "Giv besked ved succes",
-      "failureNotification": "Giv besked ved fejl"
+      "remoteDelivery": "Remote-levering",
+      "remoteChannel": "Remote-kanal",
+      "noRemoteChannels": "Aktivér Remote, og bind en kanal først."
     },
     "presets": {
       "custom": "Custom",

@@ -1478,9 +1478,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Livraison",
-      "desktopNotification": "Notification de bureau",
-      "successNotification": "Notifier en cas de succès",
-      "failureNotification": "Notifier en cas d'échec"
+      "remoteDelivery": "Livraison Remote",
+      "remoteChannel": "Canal Remote",
+      "noRemoteChannels": "Activez Remote et associez d’abord un canal."
     },
     "presets": {
       "custom": "Custom",

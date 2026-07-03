@@ -1478,9 +1478,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Доставка",
-      "desktopNotification": "Уведомление рабочего стола",
-      "successNotification": "Уведомлять при успехе",
-      "failureNotification": "Уведомлять при ошибке"
+      "remoteDelivery": "Доставка Remote",
+      "remoteChannel": "Канал Remote",
+      "noRemoteChannels": "Сначала включите Remote и привяжите канал."
     },
     "presets": {
       "custom": "Custom",

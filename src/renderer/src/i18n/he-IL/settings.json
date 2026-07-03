@@ -1478,9 +1478,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "מסירה",
-      "desktopNotification": "התראת שולחן עבודה",
-      "successNotification": "התרע בהצלחה",
-      "failureNotification": "התרע בכישלון"
+      "remoteDelivery": "מסירת Remote",
+      "remoteChannel": "ערוץ Remote",
+      "noRemoteChannels": "יש להפעיל Remote ולקשר ערוץ תחילה."
     },
     "presets": {
       "custom": "Custom",

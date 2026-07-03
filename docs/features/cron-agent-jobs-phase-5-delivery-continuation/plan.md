@@ -43,11 +43,7 @@ Add `CronJobDeliveryRouter`:
 1. Load run output and job delivery config.
 2. Resolve applicable targets for success or failure.
 3. Render payload once as structured content plus channel-safe summaries.
-4. Dispatch through target adapters:
-   - DeepChat Inbox adapter.
-   - Desktop notification adapter.
-   - Origin session adapter.
-   - Remote control adapter.
+4. Dispatch through the Remote control adapter only.
 5. Persist receipt status per target.
 
 ## Remote Boundary
@@ -83,19 +79,18 @@ Add a Delivery section in the job editor and delivery logs in run detail:
 
 ```text
 +---------------------------------------------------------+
-| Delivery Logs                                           |
-| Inbox    success   2026-07-03 09:02                     |
-| Desktop  success   2026-07-03 09:02                     |
-| Feishu   failed    missing channel binding              |
+| Delivery                                                |
+| [x] Remote delivery                                     |
+| Channel [Feishu / group:oc_xxx v]                       |
 +---------------------------------------------------------+
 ```
 
-Keep delivery controls compact and use checkboxes for target enablement.
+Keep delivery controls compact. Disable Remote delivery when no enabled Remote channel has a
+binding.
 
 ## Compatibility
 
-- Jobs without `delivery_json` default to DeepChat Inbox plus failure notification only if product
-  chooses that default; otherwise default to no delivery.
+- Jobs without `delivery_json` default to no delivery.
 - Existing remote bindings are reused, not migrated.
 
 ## Test Strategy

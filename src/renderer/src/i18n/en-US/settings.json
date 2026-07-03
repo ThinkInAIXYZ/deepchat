@@ -1735,9 +1735,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Delivery",
-      "desktopNotification": "Desktop notification",
-      "successNotification": "Notify on success",
-      "failureNotification": "Notify on failure"
+      "remoteDelivery": "Remote delivery",
+      "remoteChannel": "Remote channel",
+      "noRemoteChannels": "Enable Remote and bind a channel first."
     },
     "presets": {
       "custom": "Custom",

@@ -482,8 +482,7 @@ export class Presenter implements IPresenter {
     })
     this.cronJobs = new CronJobsService({
       sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
-      configPresenter: this.configPresenter,
-      notificationPresenter: this.notificationPresenter
+      configPresenter: this.configPresenter
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
     const providerCatalogPort: ProviderCatalogPort = {
@@ -668,6 +667,7 @@ export class Presenter implements IPresenter {
       tabPresenter: this.tabPresenter
     })
     this.remoteControlPresenter = this.#remoteControlPresenter
+    this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
 
     // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {

@@ -267,7 +267,16 @@ function parseDelivery(value: string | null | undefined): CronJobDelivery {
     const parsed = value ? (JSON.parse(value) as Partial<CronJobDelivery>) : {}
     return {
       targets: Array.isArray(parsed.targets)
-        ? parsed.targets.filter((target) => target && typeof target === 'object')
+        ? parsed.targets.filter(
+            (target): target is CronJobDelivery['targets'][number] =>
+              Boolean(target) &&
+              typeof target === 'object' &&
+              (target as { type?: unknown }).type === 'remote' &&
+              typeof (target as { remoteId?: unknown }).remoteId === 'string' &&
+              typeof (target as { channelId?: unknown }).channelId === 'string' &&
+              ((target as { mode?: unknown }).mode === 'summary' ||
+                (target as { mode?: unknown }).mode === 'full')
+          )
         : [...CRON_JOBS_DEFAULT_DELIVERY.targets],
       createContinuableThread:
         parsed.createContinuableThread ?? CRON_JOBS_DEFAULT_DELIVERY.createContinuableThread,

@@ -612,8 +612,18 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         taskPrompt: 'Summarize issues',
         delivery: {
           targets: [
-            { type: 'deepchat_inbox' },
-            { type: 'remote', remoteId: 'feishu-1', channelId: 'alerts', mode: 'summary' }
+            {
+              type: 'remote',
+              remoteId: 'feishu',
+              channelId: 'feishu:alerts:root',
+              mode: 'summary'
+            },
+            {
+              type: 'remote',
+              remoteId: 'telegram',
+              channelId: 'telegram:-100:0',
+              mode: 'summary'
+            }
           ],
           createContinuableThread: true,
           suppressSuccessNotification: false,
@@ -628,7 +638,12 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const receipt = repository.recordDelivery({
         jobId: job.id,
         runId: run.id,
-        target: { type: 'remote', remoteId: 'feishu-1', channelId: 'alerts', mode: 'summary' },
+        target: {
+          type: 'remote',
+          remoteId: 'feishu',
+          channelId: 'feishu:alerts:root',
+          mode: 'summary'
+        },
         status: 'success',
         remoteMessageId: 'remote-message-1'
       })
@@ -641,13 +656,16 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
-  it('routes desktop deliveries and records unsupported targets as failed receipts', async () => {
+  it('routes remote deliveries and records failures as receipts', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {
       const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
-      const showNotification = vi.fn(async () => undefined)
+      const deliverCronJobResult = vi
+        .fn()
+        .mockResolvedValueOnce({ remoteMessageId: 'remote-message-1' })
+        .mockRejectedValueOnce(new Error('Remote channel is not running: feishu'))
       const router = new CronJobDeliveryRouterCtor(repository, {
-        notificationPresenter: { showNotification }
+        remoteDeliveryPort: { deliverCronJobResult }
       })
       const job = repository.upsertJob({
         name: 'Delivery route job',
@@ -657,7 +675,20 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         agentId: 'agent-1',
         taskPrompt: 'Summarize issues',
         delivery: {
-          targets: [{ type: 'desktop_notification' }, { type: 'deepchat_inbox' }],
+          targets: [
+            {
+              type: 'remote',
+              remoteId: 'feishu',
+              channelId: 'feishu:alerts:root',
+              mode: 'summary'
+            },
+            {
+              type: 'remote',
+              remoteId: 'feishu',
+              channelId: 'feishu:ops:root',
+              mode: 'summary'
+            }
+          ],
           createContinuableThread: true,
           suppressSuccessNotification: false,
           notifyOnFailure: true
@@ -673,15 +704,18 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
 
       await router.deliver({ job, run: completed })
 
-      expect(showNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: `cron-job:${completed.id}`,
-          title: job.name
-        })
-      )
+      expect(deliverCronJobResult).toHaveBeenCalledTimes(2)
       expect(repository.listDeliveriesByRun(completed.id)).toEqual([
-        expect.objectContaining({ targetType: 'desktop_notification', status: 'success' }),
-        expect.objectContaining({ targetType: 'deepchat_inbox', status: 'failed' })
+        expect.objectContaining({
+          targetType: 'remote',
+          status: 'success',
+          remoteMessageId: 'remote-message-1'
+        }),
+        expect.objectContaining({
+          targetType: 'remote',
+          status: 'failed',
+          error: 'Remote channel is not running: feishu'
+        })
       ])
     } finally {
       db.close()

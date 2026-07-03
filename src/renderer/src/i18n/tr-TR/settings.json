@@ -2792,9 +2792,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Teslim",
-      "desktopNotification": "Masaüstü bildirimi",
-      "successNotification": "Başarılı olunca bildir",
-      "failureNotification": "Başarısız olunca bildir"
+      "remoteDelivery": "Remote teslimi",
+      "remoteChannel": "Remote kanalı",
+      "noRemoteChannels": "Önce Remote’u etkinleştirip bir kanal bağlayın."
     },
     "presets": {
       "custom": "Custom",

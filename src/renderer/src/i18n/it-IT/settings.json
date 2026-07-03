@@ -2792,9 +2792,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Consegna",
-      "desktopNotification": "Notifica desktop",
-      "successNotification": "Notifica in caso di successo",
-      "failureNotification": "Notifica in caso di errore"
+      "remoteDelivery": "Consegna Remote",
+      "remoteChannel": "Canale Remote",
+      "noRemoteChannels": "Abilita Remote e collega prima un canale."
     },
     "presets": {
       "custom": "Custom",

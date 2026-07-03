@@ -2792,9 +2792,9 @@
       "followAgent": "Follow agent",
       "pinCurrent": "Pin current config",
       "delivery": "Penghantaran",
-      "desktopNotification": "Pemberitahuan desktop",
-      "successNotification": "Maklumkan apabila berjaya",
-      "failureNotification": "Maklumkan apabila gagal"
+      "remoteDelivery": "Penghantaran Remote",
+      "remoteChannel": "Saluran Remote",
+      "noRemoteChannels": "Dayakan Remote dan pautkan saluran dahulu."
     },
     "presets": {
       "custom": "Custom",

@@ -1478,9 +1478,9 @@
       "followAgent": "跟隨 Agent",
       "pinCurrent": "固定目前配置",
       "delivery": "傳送",
-      "desktopNotification": "桌面通知",
-      "successNotification": "成功時通知",
-      "failureNotification": "失敗時通知"
+      "remoteDelivery": "Remote 傳送",
+      "remoteChannel": "Remote 頻道",
+      "noRemoteChannels": "請先啟用 Remote，並綁定頻道。"
     },
     "presets": {
       "custom": "自訂",

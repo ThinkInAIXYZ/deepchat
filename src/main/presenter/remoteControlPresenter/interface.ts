@@ -12,6 +12,7 @@ import type {
   WeixinIlinkRemoteSettings
 } from '@shared/presenter'
 import type { AgentRuntimePresenter } from '../agentRuntimePresenter'
+import type { CronJobRemoteDeliveryPort } from '../cronJobs/deliveryRouter'
 
 export interface RemoteControlPresenterDeps {
   configPresenter: IConfigPresenter
@@ -28,7 +29,7 @@ export interface RemoteRuntimeLifecycle {
 }
 
 export interface RemoteControlPresenterLike
-  extends IRemoteControlPresenter, RemoteRuntimeLifecycle {
+  extends IRemoteControlPresenter, RemoteRuntimeLifecycle, CronJobRemoteDeliveryPort {
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
   buildFeishuSettingsSnapshot(): FeishuRemoteSettings
   buildQQBotSettingsSnapshot(): QQBotRemoteSettings

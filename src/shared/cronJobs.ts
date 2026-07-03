@@ -44,12 +44,7 @@ export type CronJobRuntimePolicy = (typeof CRON_JOB_RUNTIME_POLICIES)[number]
 export const CRON_JOB_CONCURRENCY_POLICIES = ['skip', 'queue'] as const
 export type CronJobConcurrencyPolicy = (typeof CRON_JOB_CONCURRENCY_POLICIES)[number]
 
-export const CRON_JOB_DELIVERY_TARGET_TYPES = [
-  'deepchat_inbox',
-  'desktop_notification',
-  'remote',
-  'origin_session'
-] as const
+export const CRON_JOB_DELIVERY_TARGET_TYPES = ['remote'] as const
 export type CronJobDeliveryTargetType = (typeof CRON_JOB_DELIVERY_TARGET_TYPES)[number]
 
 export const CRON_JOB_DELIVERY_STATUSES = ['success', 'failed'] as const
@@ -115,11 +110,12 @@ export interface CronJobDelivery {
   notifyOnFailure: boolean
 }
 
-export type CronJobDeliveryTarget =
-  | { type: 'deepchat_inbox' }
-  | { type: 'desktop_notification' }
-  | { type: 'remote'; remoteId: string; channelId?: string; mode: 'summary' | 'full' }
-  | { type: 'origin_session'; sessionId: string }
+export type CronJobDeliveryTarget = {
+  type: 'remote'
+  remoteId: string
+  channelId: string
+  mode: 'summary' | 'full'
+}
 
 export type CronSchedulePreset =
   | { type: 'every_n_minutes'; n: number }

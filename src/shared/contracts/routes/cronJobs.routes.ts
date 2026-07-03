@@ -46,20 +46,12 @@ export const cronJobAgentSnapshotSchema = z.object({
   config: z.unknown().nullable()
 })
 
-export const cronJobDeliveryTargetSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('deepchat_inbox') }),
-  z.object({ type: z.literal('desktop_notification') }),
-  z.object({
-    type: z.literal('remote'),
-    remoteId: z.string().min(1),
-    channelId: z.string().min(1).optional(),
-    mode: z.enum(['summary', 'full'])
-  }),
-  z.object({
-    type: z.literal('origin_session'),
-    sessionId: z.string().min(1)
-  })
-])
+export const cronJobDeliveryTargetSchema = z.object({
+  type: z.literal('remote'),
+  remoteId: z.string().min(1),
+  channelId: z.string().min(1),
+  mode: z.enum(['summary', 'full'])
+})
 
 export const cronJobDeliverySchema = z.object({
   targets: z.array(cronJobDeliveryTargetSchema),
