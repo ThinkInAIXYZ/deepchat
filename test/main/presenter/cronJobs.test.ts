@@ -755,4 +755,48 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       vi.useRealTimers()
     }
   })
+
+  it('does not surface utility exit errors after the last job is disabled', async () => {
+    class FakeHost extends EventEmitter {
+      pid = 123
+      posted: unknown[] = []
+
+      postMessage(message: unknown): void {
+        this.posted.push(message)
+      }
+
+      kill(): boolean {
+        this.emit('exit', 0)
+        return true
+      }
+    }
+
+    let snapshot = {
+      enabledJobCount: 1,
+      nextRunAt: 100 as number | null
+    }
+    const host = new FakeHost()
+    const manager = new SchedulerProcessManagerCtor({
+      dbPath: ':memory:',
+      getSnapshot: () => snapshot,
+      onRunDue: vi.fn(),
+      spawnHost: vi.fn(async () => host) as never
+    })
+
+    await manager.reconcile('enabled')
+    snapshot = {
+      enabledJobCount: 0,
+      nextRunAt: null
+    }
+    await manager.reconcile('disabled')
+    host.emit('exit', 1)
+
+    expect(manager.getStatus()).toEqual(
+      expect.objectContaining({
+        state: 'idle',
+        pid: null,
+        lastError: null
+      })
+    )
+  })
 })

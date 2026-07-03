@@ -296,15 +296,17 @@ export class SchedulerProcessManager {
 
   private handleHostExit(code: number): void {
     const message = `Cron scheduler utility exited with code ${code}.`
+    const hasEnabledJobs = this.deps.getSnapshot().enabledJobCount > 0
+    const expectedExit = this.shuttingDown || !hasEnabledJobs
     this.host = null
     this.hostReady = null
     this.updateStatus({
-      state: this.shuttingDown ? 'stopped' : 'error',
+      state: expectedExit ? (this.shuttingDown ? 'stopped' : 'idle') : 'error',
       pid: null,
-      lastError: this.shuttingDown ? null : message
+      lastError: expectedExit ? null : message
     })
 
-    if (this.shuttingDown || this.deps.getSnapshot().enabledJobCount === 0) {
+    if (expectedExit) {
       return
     }
     this.scheduleRestart()
