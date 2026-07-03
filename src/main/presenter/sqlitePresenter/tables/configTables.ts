@@ -368,9 +368,9 @@ export class ConfigTables extends BaseTable {
   }
 
   hasModelStatus(statusKey: string): boolean {
-    const row = this.db.prepare('SELECT 1 FROM model_status WHERE status_key = ?').get(statusKey) as
-      | { 1: number }
-      | undefined
+    const row = this.db
+      .prepare('SELECT 1 FROM model_status WHERE status_key = ?')
+      .get(statusKey) as { 1: number } | undefined
     return Boolean(row)
   }
 
