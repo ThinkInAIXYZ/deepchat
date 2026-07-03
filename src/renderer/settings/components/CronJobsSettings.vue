@@ -269,6 +269,51 @@
               {{ t('settings.cronJobs.none') }}
             </span>
           </div>
+
+          <div class="mt-3 space-y-2 lg:pl-11">
+            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <Icon icon="lucide:history" class="h-4 w-4" />
+              {{ t('common.history') }}
+            </div>
+            <Badge v-if="runsLoadingByJobId[job.id]" variant="outline">
+              {{ t('common.loading') }}
+            </Badge>
+            <div v-else-if="runsByJobId[job.id]?.length" class="space-y-1.5">
+              <div
+                v-for="run in runsByJobId[job.id]"
+                :key="run.id"
+                class="flex min-h-9 items-center gap-2 rounded-md border bg-background/40 px-2 py-1.5 text-xs"
+              >
+                <Badge :variant="getRunBadgeVariant(run.status)" class="shrink-0">
+                  {{ formatRunStatus(run.status) }}
+                </Badge>
+                <span class="shrink-0 text-muted-foreground">
+                  {{ formatTimestamp(run.startedAt ?? run.queuedAt) }}
+                </span>
+                <span class="min-w-0 flex-1 truncate text-muted-foreground">
+                  {{ run.outputPreview || run.error || run.id }}
+                </span>
+                <Button
+                  v-if="run.sessionId"
+                  variant="ghost"
+                  size="icon"
+                  class="h-7 w-7 shrink-0"
+                  :disabled="openingRunId === run.id"
+                  :title="t('common.open')"
+                  :aria-label="t('common.open')"
+                  @click="openRunSession(run.id)"
+                >
+                  <Icon
+                    :icon="openingRunId === run.id ? 'lucide:loader-2' : 'lucide:external-link'"
+                    :class="['h-3.5 w-3.5', openingRunId === run.id ? 'animate-spin' : '']"
+                  />
+                </Button>
+              </div>
+            </div>
+            <span v-else class="text-xs text-muted-foreground">
+              {{ t('settings.cronJobs.none') }}
+            </span>
+          </div>
         </div>
       </div>
     </template>
@@ -301,6 +346,7 @@ import {
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
+  type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
 import type { Agent } from '@shared/types/agent-interface'
@@ -319,6 +365,9 @@ const runningId = ref<string | null>(null)
 const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
+const runsByJobId = ref<Record<string, CronJobRun[]>>({})
+const runsLoadingByJobId = ref<Record<string, boolean>>({})
+const openingRunId = ref<string | null>(null)
 const NO_AGENT_ID = '__none__'
 const CRON_REFERENCE_EXAMPLES = [
   { cronExpr: '*/5 * * * *', labelKey: 'settings.cronJobs.presets.every5Minutes' },
@@ -384,6 +433,36 @@ const formatTimestamp = (timestamp: number | null): string => {
   return new Date(timestamp).toLocaleString()
 }
 
+const formatRunStatus = (status: CronJobRun['status']): string => {
+  switch (status) {
+    case 'queued':
+    case 'running':
+    case 'completed':
+    case 'cancelled':
+      return t(`chat.toolCall.subagents.status.${status}`)
+    case 'failed':
+      return t('chat.toolCall.subagents.status.error')
+    default:
+      return status
+  }
+}
+
+const getRunBadgeVariant = (
+  status: CronJobRun['status']
+): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  switch (status) {
+    case 'completed':
+      return 'default'
+    case 'failed':
+    case 'cancelled':
+      return 'destructive'
+    case 'running':
+      return 'secondary'
+    default:
+      return 'outline'
+  }
+}
+
 const sortJobs = (items: CronJob[]) =>
   items
     .slice()
@@ -417,6 +496,7 @@ const loadJobs = async () => {
     schedulerStatus.value = response.schedulerStatus
     for (const job of jobs.value) {
       void refreshJobPreview(job)
+      void refreshJobRuns(job.id)
     }
   } catch (error) {
     handleError('Failed to load jobs', error)
@@ -458,6 +538,31 @@ const refreshJobPreview = async (job: CronJob) => {
     previewLoadingByJobId.value = {
       ...previewLoadingByJobId.value,
       [job.id]: false
+    }
+  }
+}
+
+const refreshJobRuns = async (jobId: string) => {
+  runsLoadingByJobId.value = {
+    ...runsLoadingByJobId.value,
+    [jobId]: true
+  }
+  try {
+    const runs = await client.listRuns(jobId, 3)
+    runsByJobId.value = {
+      ...runsByJobId.value,
+      [jobId]: runs
+    }
+  } catch (error) {
+    console.error('[CronJobs] Failed to load runs:', error)
+    runsByJobId.value = {
+      ...runsByJobId.value,
+      [jobId]: []
+    }
+  } finally {
+    runsLoadingByJobId.value = {
+      ...runsLoadingByJobId.value,
+      [jobId]: false
     }
   }
 }
@@ -581,12 +686,18 @@ const deleteJob = async (id: string) => {
     const nextRuns = { ...previewRunsByJobId.value }
     const nextErrors = { ...previewErrorsByJobId.value }
     const nextLoading = { ...previewLoadingByJobId.value }
+    const nextJobRuns = { ...runsByJobId.value }
+    const nextRunsLoading = { ...runsLoadingByJobId.value }
     delete nextRuns[id]
     delete nextErrors[id]
     delete nextLoading[id]
+    delete nextJobRuns[id]
+    delete nextRunsLoading[id]
     previewRunsByJobId.value = nextRuns
     previewErrorsByJobId.value = nextErrors
     previewLoadingByJobId.value = nextLoading
+    runsByJobId.value = nextJobRuns
+    runsLoadingByJobId.value = nextRunsLoading
   } catch (error) {
     handleError('Failed to delete job', error)
   }
@@ -597,15 +708,33 @@ const runJobNow = async (id: string) => {
   try {
     const response = await client.runNow(id)
     applyJob(response.job)
+    runsByJobId.value = {
+      ...runsByJobId.value,
+      [id]: [
+        response.run,
+        ...(runsByJobId.value[id] ?? []).filter((run) => run.id !== response.run.id)
+      ].slice(0, 3)
+    }
     schedulerStatus.value = response.schedulerStatus
     toast({
-      title: t('settings.cronJobs.runNowSuccess'),
+      title: t('settings.cronJobs.actions.runNow'),
       description: response.job.name
     })
   } catch (error) {
     handleError('Failed to run job', error)
   } finally {
     runningId.value = null
+  }
+}
+
+const openRunSession = async (runId: string) => {
+  openingRunId.value = runId
+  try {
+    await client.openRunSession(runId)
+  } catch (error) {
+    handleError('Failed to open run session', error)
+  } finally {
+    openingRunId.value = null
   }
 }
 

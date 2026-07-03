@@ -5,6 +5,8 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
+  cronJobsListRunsRoute,
+  cronJobsOpenRunSessionRoute,
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
@@ -116,6 +118,17 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     }
   }
 
+  async function listRuns(jobId: string, limit?: number) {
+    const result = await bridge.invoke(cronJobsListRunsRoute.name, { jobId, limit })
+    return cronJobsListRunsRoute.output.parse(result).runs
+  }
+
+  async function openRunSession(runId: string) {
+    return cronJobsOpenRunSessionRoute.output.parse(
+      await bridge.invoke(cronJobsOpenRunSessionRoute.name, { runId })
+    )
+  }
+
   async function getSchedulerStatus() {
     const result = await bridge.invoke(cronJobsGetSchedulerStatusRoute.name, {})
     return parseSchedulerStatusResponse(cronJobsGetSchedulerStatusRoute.name, result)
@@ -154,6 +167,8 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     remove,
     toggle,
     runNow,
+    listRuns,
+    openRunSession,
     getSchedulerStatus,
     reconcileScheduler,
     restartScheduler,

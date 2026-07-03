@@ -177,6 +177,15 @@ export class CronJobsService {
     return { job, run: completed, schedulerStatus }
   }
 
+  listRuns(jobId: string, limit?: number): CronJobRun[] {
+    this.repository.requireJob(jobId)
+    return this.repository.listRunsByJob(jobId, limit)
+  }
+
+  getRun(id: string): CronJobRun {
+    return this.repository.requireRun(id)
+  }
+
   setRunSessionStarter(runSessionStarter: CronJobRunSessionStarter): void {
     this.runExecutor?.dispose()
     this.runExecutor = new CronJobRunExecutor(this.repository, runSessionStarter)

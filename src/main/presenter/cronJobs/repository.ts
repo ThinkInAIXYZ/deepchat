@@ -123,6 +123,14 @@ export class CronJobsRepository {
     return row ? toCronJobRun(row) : null
   }
 
+  requireRun(id: string): CronJobRun {
+    const run = this.getRun(id)
+    if (!run) {
+      throw new Error(`Unknown cron job run: ${id}`)
+    }
+    return run
+  }
+
   markRunRunning(id: string): CronJobRun {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markRunning(id))
   }

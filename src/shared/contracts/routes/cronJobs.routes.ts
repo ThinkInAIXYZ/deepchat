@@ -178,6 +178,28 @@ export const cronJobsRunNowRoute = defineRouteContract({
   })
 })
 
+export const cronJobsListRunsRoute = defineRouteContract({
+  name: 'cronJobs.listRuns',
+  input: z.object({
+    jobId: z.string().min(1),
+    limit: z.number().int().min(1).max(20).optional()
+  }),
+  output: z.object({
+    runs: z.array(cronJobRunSchema)
+  })
+})
+
+export const cronJobsOpenRunSessionRoute = defineRouteContract({
+  name: 'cronJobs.openRunSession',
+  input: z.object({
+    runId: z.string().min(1)
+  }),
+  output: z.object({
+    activated: z.literal(true),
+    sessionId: z.string().min(1)
+  })
+})
+
 export const cronJobsGetSchedulerStatusRoute = defineRouteContract({
   name: 'cronJobs.getSchedulerStatus',
   input: z.object({}),

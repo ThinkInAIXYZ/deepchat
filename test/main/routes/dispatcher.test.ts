@@ -750,6 +750,7 @@ function createRuntime() {
     }
   ]
   const windowPresenter = {
+    mainWindow: browserWindowState.windows.get(3),
     createSettingsWindow: vi.fn().mockResolvedValue(9),
     previewFile: vi.fn(),
     minimize: vi.fn((windowId: number) => {
@@ -774,6 +775,12 @@ function createRuntime() {
       const window = browserWindowState.windows.get(windowId)
       if (window) {
         window.focused = false
+      }
+    }),
+    show: vi.fn((windowId: number) => {
+      const window = browserWindowState.windows.get(windowId)
+      if (window) {
+        window.focused = true
       }
     }),
     isMainWindowFocused: vi.fn(
@@ -1219,6 +1226,8 @@ function createRuntime() {
     delete: vi.fn(async () => cronStatus),
     toggle: vi.fn(async () => ({ job: cronJob, schedulerStatus: cronStatus })),
     runNow: vi.fn(async () => ({ job: cronJob, run: cronRun, schedulerStatus: cronStatus })),
+    listRuns: vi.fn(() => [cronRun]),
+    getRun: vi.fn(() => cronRun),
     getSchedulerStatus: vi.fn(() => cronStatus),
     reconcileScheduler: vi.fn(async () => cronStatus),
     restartScheduler: vi.fn(async () => cronStatus),
@@ -1331,6 +1340,23 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const listRunsResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.listRuns',
+      {
+        jobId: 'cron-1',
+        limit: 3
+      },
+      context
+    )
+    const openRunSessionResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.openRunSession',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
     const statusResult = await dispatchDeepchatRoute(
       runtime,
       'cronJobs.getSchedulerStatus',
@@ -1396,6 +1422,13 @@ describe('dispatchDeepchatRoute', () => {
       run: expect.objectContaining({ id: 'run-1', status: 'completed' }),
       schedulerStatus: expect.objectContaining({ state: 'idle' })
     })
+    expect(listRunsResult).toEqual({
+      runs: [expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })]
+    })
+    expect(openRunSessionResult).toEqual({
+      activated: true,
+      sessionId: 'session-1'
+    })
     expect(statusResult).toEqual({
       schedulerStatus: expect.objectContaining({ state: 'idle' })
     })
@@ -1412,6 +1445,10 @@ describe('dispatchDeepchatRoute', () => {
     expect(previewResult).toEqual({ runs: [10, 20, 30], error: null })
     expect(cronJobs.toggle).toHaveBeenCalledWith('cron-1', false)
     expect(cronJobs.runNow).toHaveBeenCalledWith('cron-1')
+    expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
+    expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
+    expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
+    expect(runtime.windowPresenter.show).toHaveBeenCalledWith(3, true)
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
     expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
     expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')

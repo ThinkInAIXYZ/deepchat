@@ -71,6 +71,8 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
+  cronJobsListRunsRoute,
+  cronJobsOpenRunSessionRoute,
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
@@ -2723,6 +2725,33 @@ export async function dispatchDeepchatRoute(
       const input = cronJobsRunNowRoute.input.parse(rawInput)
       const { job, run, schedulerStatus } = await runtime.cronJobs.runNow(input.id)
       return cronJobsRunNowRoute.output.parse({ job, run, schedulerStatus })
+    }
+
+    case cronJobsListRunsRoute.name: {
+      const input = cronJobsListRunsRoute.input.parse(rawInput)
+      const runs = runtime.cronJobs.listRuns(input.jobId, input.limit)
+      return cronJobsListRunsRoute.output.parse({ runs })
+    }
+
+    case cronJobsOpenRunSessionRoute.name: {
+      const input = cronJobsOpenRunSessionRoute.input.parse(rawInput)
+      const run = runtime.cronJobs.getRun(input.runId)
+      if (!run.sessionId) {
+        throw new Error('Cron job run has no session.')
+      }
+      const targetWindow = runtime.windowPresenter.mainWindow
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        throw new Error('Main window is not available.')
+      }
+      await runtime.agentSessionPresenter.activateSession(
+        targetWindow.webContents.id,
+        run.sessionId
+      )
+      runtime.windowPresenter.show(targetWindow.id, true)
+      return cronJobsOpenRunSessionRoute.output.parse({
+        activated: true,
+        sessionId: run.sessionId
+      })
     }
 
     case cronJobsGetSchedulerStatusRoute.name: {
