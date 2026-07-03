@@ -1467,7 +1467,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
     expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
     expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
-    expect(runtime.windowPresenter.show).toHaveBeenCalledWith(3, true)
+    expect(runtime.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
     expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
     expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')
@@ -1480,6 +1480,44 @@ describe('dispatchDeepchatRoute', () => {
       timezone: 'UTC',
       count: 3
     })
+  })
+
+  it('opens Cron Job run sessions in the real main window when Settings is focused', async () => {
+    const { runtime, windowPresenter } = createRuntime()
+    const settingsWindow = browserWindowState.windows.get(7)!
+    const mainWindow = browserWindowState.windows.get(3)!
+    settingsWindow.focused = true
+    mainWindow.focused = false
+
+    Object.defineProperty(windowPresenter, 'mainWindow', {
+      configurable: true,
+      get: () => {
+        return [...browserWindowState.windows.values()].find((window) => window.focused)
+      }
+    })
+    vi.mocked(windowPresenter.focusMainWindow).mockImplementation(() => {
+      settingsWindow.focused = false
+      mainWindow.focused = true
+      return true
+    })
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.openRunSession',
+      {
+        runId: 'run-1'
+      },
+      {
+        webContentsId: settingsWindow.webContents.id,
+        windowId: settingsWindow.id
+      }
+    )
+
+    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
+    expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(
+      mainWindow.webContents.id,
+      'session-1'
+    )
   })
 
   it('wires Cron Job run sessions with source metadata', async () => {

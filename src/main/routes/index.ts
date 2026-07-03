@@ -2745,6 +2745,9 @@ export async function dispatchDeepchatRoute(
       if (!run.sessionId) {
         throw new Error('Cron job run has no session.')
       }
+      if (!runtime.windowPresenter.focusMainWindow()) {
+        throw new Error('Main window is not available.')
+      }
       const targetWindow = runtime.windowPresenter.mainWindow
       if (!targetWindow || targetWindow.isDestroyed()) {
         throw new Error('Main window is not available.')
@@ -2753,7 +2756,6 @@ export async function dispatchDeepchatRoute(
         targetWindow.webContents.id,
         run.sessionId
       )
-      runtime.windowPresenter.show(targetWindow.id, true)
       return cronJobsOpenRunSessionRoute.output.parse({
         activated: true,
         sessionId: run.sessionId
