@@ -1,4 +1,4 @@
-import type { RecallKeywordTermStat } from './types'
+import type { RecallKeywordTermStat } from '../types'
 
 export type RecallKeywordCandidateKind = 'ascii' | 'code' | 'cjk'
 

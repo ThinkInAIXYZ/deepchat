@@ -130,7 +130,7 @@ import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
 import {
   appendMemorySectionWithManifest,
   type MemoryRuntimePort
-} from '../memoryPresenter/injectionPort'
+} from '../memoryPresenter/injection'
 import type {
   InterleavedReasoningConfig,
   PendingToolInteraction,

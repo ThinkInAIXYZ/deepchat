@@ -78,8 +78,9 @@ flowchart TD
   `ConfigClient` for config).
 - `AgentRuntimePresenter` owns the *seam*: it decides when to inject and when to extract, and it owns the
   per-session extraction queue and the monotonic cursor. It does not own memory logic.
-- `MemoryPresenter` is the single kernel: write decisions, recall, scheduling, lifecycle, persona,
-  conflicts. It is the only writer of `agent_memory` / DuckDB.
+- `MemoryPresenter` is the single public memory facade. Internal services own write decisions,
+  recall, scheduling, lifecycle, persona, conflicts, embeddings, and DuckDB orchestration; external
+  callers still reach those capabilities only through the facade.
 - `DeepChatTapeService` owns the searchable tape projection (the log-as-memory read model).
 
 ---
@@ -88,13 +89,31 @@ flowchart TD
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` — write coordinator, hybrid recall, injection, two-phase embedding, self-scheduling, persona, conflicts, lifecycle/teardown |
-| Kernel | `memoryPresenter/decision.ts` | The Mem0-style decision ring prompt + tolerant parser (`ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE`) |
-| Kernel | `memoryPresenter/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
-| Kernel | `memoryPresenter/injectionPort.ts` | `sanitizeForInjection` + the token-budgeted Context Assembler + the injection manifest |
-| Kernel | `memoryPresenter/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
-| Kernel | `memoryPresenter/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
-| Kernel | `memoryPresenter/types.ts` | Ports, DTO/enum types, and the retrieval/scoring/decay tunable constants (injection-budget constants live in `injectionPort.ts`; `WORKING_BLOB_TOKEN_LIMIT` in `index.ts`) |
+| Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` facade — public method compatibility, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
+| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — deps, disposed state, validation/guard helpers, audit/events, model resolution |
+| Kernel | `memoryPresenter/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
+| Kernel | `memoryPresenter/types.ts` | Repository/vector DTOs, enum types, and the retrieval/scoring/decay tunable constants |
+| Kernel | `memoryPresenter/ports.ts` | Root-owned cross-layer ports such as `VectorStoreRetrievalPort` and `WorkingMemoryReadPort` |
+| Kernel | `memoryPresenter/injection.ts` | Lightweight public sub-entry for injection helpers/types without loading the facade composition root |
+| Services | `memoryPresenter/services/rowMutations.ts` | Shared stateful row mutation leaf helpers for insert/update/supersede/conflict/provenance/confidence primitives |
+| Services | `memoryPresenter/services/retrievalService.ts` | Hybrid recall/search/injection orchestration, keyword query, query embedding gate, soft timeout, RRF fusion, access recording |
+| Services | `memoryPresenter/services/writeCoordinator.ts` | Sync writes, extraction writes, user/tool writes, decision ring application, audit, and background trigger ports |
+| Services | `memoryPresenter/services/maintenanceService.ts` | Startup/prewarm/consolidation timers, merge/challenge/reflection/persona maintenance, decay/archive passes |
+| Services | `memoryPresenter/services/workingMemoryService.ts` | Working-memory blob read/build/refresh/delete and cold-start refresh coalescing |
+| Services | `memoryPresenter/services/reflectionService.ts` | Reflection thresholding, insight insertion, watermarks, and embedding trigger port |
+| Services | `memoryPresenter/services/personaService.ts` | Persona draft/evolution/approval/rejection/rollback/anchor flows and per-agent persona lock |
+| Services | `memoryPresenter/services/conflictService.ts` | Conflict listing/resolution and maintenance scheduling through narrow ports |
+| Services | `memoryPresenter/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
+| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: cache, identity, readiness, open/close/reset/delete, and per-agent lock contract |
+| Infra | `memoryPresenter/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
+| Infra | `memoryPresenter/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
+| Core | `memoryPresenter/core/candidates.ts` | Pure memory candidate normalization |
+| Core | `memoryPresenter/core/decision.ts` | The Mem0-style decision ring prompt + tolerant parser (`ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE`) |
+| Core | `memoryPresenter/core/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
+| Core | `memoryPresenter/core/injectionPort.ts` | `sanitizeForInjection` + the token-budgeted Context Assembler + the injection manifest |
+| Core | `memoryPresenter/core/lifecycle.ts` | Lifecycle diagnostics and archive/freshness thresholds |
+| Core | `memoryPresenter/core/recallKeyword.ts` | Pure keyword candidate extraction and selection for recall |
+| Core | `memoryPresenter/core/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
 | Shared | `shared/types/agent-memory.ts` | `AgentMemoryCategory`, `AGENT_MEMORY_CATEGORIES`, and deterministic category importance floors |
 | Storage | `sqlitePresenter/tables/agentMemory.ts` | `agent_memory` table + `agent_memory_fts` FTS5 + keyword search |
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
@@ -107,6 +126,16 @@ flowchart TD
 | Contracts | `shared/contracts/routes/memory.routes.ts` | All `memory.*` IPC routes + DTO schemas |
 | Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event + reason enum |
 | Renderer | `renderer/settings/components/Memory*.vue`, `renderer/api/MemoryClient.ts` | The settings IA (page, config tab, manage tab) |
+
+Directory boundaries enforce dependency direction and are checked by `scripts/architecture-guard.mjs`:
+`core/` must not import `context`, `services`, `infra`, `runtimeConstants`, or facade entrypoints;
+`infra/` may import `core`, root `types`, `ports`, `context`, and `runtimeConstants`, but not
+`services` or facade entrypoints; `services/` may import `core` and root runtime contracts
+(`types`, `ports`, `context`, `runtimeConstants`), but not infra concrete modules. Business calls
+between services stay facade-wired through narrow function ports. `services/rowMutations.ts` is the
+only service-layer import exception because it is a shared stateful row mutation leaf. `index.ts` is
+the only composition root that may import every internal layer; all other root files are lightweight
+entrypoints/contracts and may not import `services`, `infra`, or the facade entrypoint.
 
 ---
 

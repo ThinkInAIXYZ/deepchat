@@ -15,7 +15,7 @@ import {
   recencyScore,
   resolveRetrieval,
   retrievalScore
-} from '@/presenter/memoryPresenter/scoring'
+} from '@/presenter/memoryPresenter/core/scoring'
 import {
   FTS_SIMILARITY_BASELINE,
   type AgentMemoryRow,
@@ -594,15 +594,24 @@ describe('working-memory L1 (T5)', () => {
   })
 
   it('coalesces concurrent cold-start misses into a single refresh', async () => {
-    const { presenter } = makePresenter(enabledConfig)
-    const refreshSpy = vi.spyOn(presenter, 'refreshWorkingMemory')
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const listByAgentSpy = vi.spyOn(repo, 'listByAgent')
     // Two opens race before either refresh microtask runs; the in-flight flag collapses them to one.
     await Promise.all([
       presenter.buildInjection('deepchat', 'q'),
       presenter.buildInjection('deepchat', 'q')
     ])
-    await Promise.resolve()
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    await flushMicrotasks()
+    const workingRefreshScans = listByAgentSpy.mock.calls.filter(([agentId, options]) => {
+      const kinds = options?.kinds ?? []
+      return (
+        agentId === 'deepchat' &&
+        kinds.includes('semantic') &&
+        kinds.includes('reflection') &&
+        kinds.includes('episodic')
+      )
+    })
+    expect(workingRefreshScans).toHaveLength(1)
   })
 
   it('refreshes again after a new memory even right after an empty cold-start miss', async () => {
@@ -1261,6 +1270,8 @@ describe('MemoryPresenter management', () => {
 
   it('cleanupDeletedAgentResources clears runtime state even when vector reset fails', async () => {
     const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const createVectorStore = vi.fn(async () => store)
     const resetVectorStore = vi.fn(async () => {
       throw new Error('reset failed')
     })
@@ -1268,8 +1279,22 @@ describe('MemoryPresenter management', () => {
       repository: repo,
       resolveAgentConfig: () => enabledConfig,
       getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-      createVectorStore: async () => new FakeVectorStore(),
+      getDimensions: embeddingDimensions,
+      createVectorStore,
       resetVectorStore
+    })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis cached row',
+      status: 'embedded',
+      provenanceKey: buildMemoryProvenanceKey('a', 'semantic', 'redis cached row')
+    })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: textToVector('').length,
+      embeddingModel: 'p:m'
     })
     const internals = presenter as unknown as {
       lastConsolidationAt: Map<string, number>
@@ -1281,8 +1306,21 @@ describe('MemoryPresenter management', () => {
       reindexing: Map<string, Promise<void>>
       backfilling: Map<string, Promise<void>>
       embeddingDrains: Map<string, Promise<unknown>>
+      vectorStores: Map<string, Promise<IMemoryVectorStore>>
+      vectorStoreIdentities: Map<string, string>
+      vectorStoreReady: Map<string, string>
       vectorStoreLocks: Map<string, Promise<unknown>>
     }
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(
+      () => internals.vectorStoreReady.has('a'),
+      'vector store did not become ready'
+    )
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    expect(internals.vectorStores.has('a')).toBe(true)
+    expect(internals.vectorStoreIdentities.has('a')).toBe(true)
+    expect(internals.vectorStoreReady.has('a')).toBe(true)
+
     const timer = setTimeout(() => {}, 10000)
     if (typeof timer.unref === 'function') timer.unref()
     internals.lastConsolidationAt.set('a', 1)
@@ -1308,7 +1346,11 @@ describe('MemoryPresenter management', () => {
     expect(internals.reindexing.has('a')).toBe(false)
     expect(internals.backfilling.has('a')).toBe(false)
     expect(internals.embeddingDrains.has('a')).toBe(false)
+    expect(internals.vectorStores.has('a')).toBe(false)
+    expect(internals.vectorStoreIdentities.has('a')).toBe(false)
+    expect(internals.vectorStoreReady.has('a')).toBe(false)
     expect(internals.vectorStoreLocks.has('a')).toBe(false)
+    expect(store.closeCount).toBeGreaterThan(0)
   })
 
   it('cleanupDeletedAgentResources waits for in-flight embedding drains before clearing tracking', async () => {
@@ -1405,6 +1447,87 @@ describe('MemoryPresenter management', () => {
 
     expect(cleanupSettled).toBe(true)
     expect(internals.embeddingWarmups.size).toBe(0)
+  })
+
+  it('cleanupDeletedAgentResources waits for warmups that spawn backfill work', async () => {
+    const repo = new FakeRepository()
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis cold row',
+      status: 'fts_only',
+      provenanceKey: buildMemoryProvenanceKey('a', 'semantic', 'redis cold row')
+    })
+    let resolveDimensions: (() => void) | undefined
+    let resolveBackfill: (() => void) | undefined
+    let backfillStarted = false
+    const getDimensions = vi.fn(
+      async () =>
+        new Promise<{ data: { dimensions: number; normalized: boolean } }>((resolve) => {
+          resolveDimensions = () =>
+            resolve({ data: { dimensions: textToVector('').length, normalized: false } })
+        })
+    )
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (texts[0] === 'memory warmup') return texts.map((text) => textToVector(text))
+      backfillStarted = true
+      return await new Promise<number[][]>((resolve) => {
+        resolveBackfill = () => resolve(texts.map((text) => textToVector(text)))
+      })
+    })
+    const stores: FakeVectorStore[] = []
+    const createVectorStore = vi.fn(async () => {
+      const store = new FakeVectorStore()
+      stores.push(store)
+      return store
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getDimensions,
+      getEmbeddings,
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    const internals = presenter as unknown as {
+      vectorStoreWarmups: Map<string, Promise<void>>
+      backfilling: Map<string, Promise<void>>
+      vectorStores: Map<string, Promise<IMemoryVectorStore>>
+      vectorStoreIdentities: Map<string, string>
+      vectorStoreReady: Map<string, string>
+    }
+
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => resolveDimensions !== undefined)
+    expect(internals.vectorStoreWarmups.size).toBe(1)
+
+    let cleanupSettled = false
+    const cleanup = presenter.cleanupDeletedAgentResources('a').then(() => {
+      cleanupSettled = true
+    })
+    await Promise.resolve()
+    expect(cleanupSettled).toBe(false)
+
+    resolveDimensions?.()
+    await waitForMemoryCondition(() => backfillStarted)
+    expect(cleanupSettled).toBe(false)
+    expect(internals.backfilling.has('a')).toBe(true)
+    expect(createVectorStore).toHaveBeenCalledTimes(1)
+    expect(internals.vectorStores.has('a')).toBe(true)
+    expect(internals.vectorStoreIdentities.has('a')).toBe(true)
+    expect(internals.vectorStoreReady.has('a')).toBe(true)
+
+    resolveBackfill?.()
+    await cleanup
+
+    expect(cleanupSettled).toBe(true)
+    expect(internals.vectorStoreWarmups.size).toBe(0)
+    expect(internals.backfilling.has('a')).toBe(false)
+    expect(internals.vectorStores.has('a')).toBe(false)
+    expect(internals.vectorStoreIdentities.has('a')).toBe(false)
+    expect(internals.vectorStoreReady.has('a')).toBe(false)
+    expect(stores[0]?.closeCount).toBeGreaterThan(0)
   })
 
   it('cleanupDeletedAgentResources waits for in-flight persona evolution before clearing tracking', async () => {

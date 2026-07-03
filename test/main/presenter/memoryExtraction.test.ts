@@ -7,7 +7,7 @@ import {
   parseTriageDecision,
   personaChangeRatio,
   PERSONA_MAX_CHANGE_RATIO
-} from '@/presenter/memoryPresenter/extraction'
+} from '@/presenter/memoryPresenter/core/extraction'
 
 describe('personaChangeRatio', () => {
   it('is 0 for identical or both-empty self-models', () => {
@@ -501,7 +501,7 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
   })
 
   it('does not re-run the model when every insight is a duplicate', async () => {
-    const { buildMemoryProvenanceKey } = await import('@/presenter/memoryPresenter/scoring')
+    const { buildMemoryProvenanceKey } = await import('@/presenter/memoryPresenter/core/scoring')
     const generateText = vi.fn(async () => '["already known insight"]')
     const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
     // A reflection with this content already exists, so the model's insight dedups to nothing.

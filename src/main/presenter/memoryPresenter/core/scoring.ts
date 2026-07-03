@@ -14,8 +14,8 @@ import {
   type AgentMemoryRow,
   type FuseOptions,
   type MemoryRecallItem
-} from './types'
-import type { AgentMemoryKind } from '../sqlitePresenter/tables/agentMemory'
+} from '../types'
+import type { AgentMemoryKind } from '../../sqlitePresenter/tables/agentMemory'
 import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
 
 // Recency half-life per cognitive layer: reflections persist longest, episodic summaries next,

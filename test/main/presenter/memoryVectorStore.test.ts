@@ -11,7 +11,7 @@ vi.mock('@duckdb/node-api', () => ({
 }))
 
 import logger from '@shared/logger'
-import { MemoryVectorStore } from '@/presenter/memoryPresenter/memoryVectorStore'
+import { MemoryVectorStore } from '@/presenter/memoryPresenter/infra/memoryVectorStore'
 import type { MemoryVectorRecord } from '@/presenter/memoryPresenter/types'
 import { app } from 'electron'
 import fs from 'node:fs'

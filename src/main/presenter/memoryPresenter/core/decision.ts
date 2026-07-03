@@ -1,4 +1,4 @@
-import type { NormalizedMemoryCandidate } from './types'
+import type { NormalizedMemoryCandidate } from '../types'
 
 export type MemoryDecisionKind = 'ADD' | 'UPDATE' | 'SUPERSEDE' | 'NOOP' | 'CHALLENGE'
 

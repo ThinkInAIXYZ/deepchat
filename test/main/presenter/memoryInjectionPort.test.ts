@@ -10,7 +10,7 @@ import {
   sanitizeForInjection,
   type MemoryInjectionPayload,
   type MemoryInjectionPort
-} from '@/presenter/memoryPresenter/injectionPort'
+} from '@/presenter/memoryPresenter/core/injectionPort'
 
 async function appendMemoryInjection(
   port: MemoryInjectionPort | undefined,

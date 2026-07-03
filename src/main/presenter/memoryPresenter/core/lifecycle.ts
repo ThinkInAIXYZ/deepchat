@@ -7,13 +7,12 @@ import {
   FTS_SIMILARITY_BASELINE,
   IMPORTANCE_FLOOR_COEF,
   type AgentMemoryLifecycleRow
-} from './types'
+} from '../types'
 import { decayScore, halfLifeForKind, recencyScore, retrievalScore, clamp01 } from './scoring'
-import {
-  ARCHIVE_AGE_MS,
-  ARCHIVE_DECAY_THRESHOLD,
-  FRESH_DECAY_THRESHOLD
-} from './lifecycleConstants'
+
+export const ARCHIVE_DECAY_THRESHOLD = 0.05
+export const ARCHIVE_AGE_MS = 90 * 24 * 60 * 60 * 1000
+export const FRESH_DECAY_THRESHOLD = 0.5
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MATERIALIZED_DECAY_EPSILON = 1e-9

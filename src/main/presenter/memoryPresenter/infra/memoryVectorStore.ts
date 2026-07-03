@@ -13,7 +13,7 @@ import type {
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
   MemoryVectorRecord
-} from './types'
+} from '../types'
 
 const runtimeBasePath = path
   .join(app.getAppPath(), 'runtime')

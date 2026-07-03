@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractRecallKeywordCandidates,
   selectRecallKeywordTerms
-} from '@/presenter/memoryPresenter/recallKeyword'
+} from '@/presenter/memoryPresenter/core/recallKeyword'
 import type { RecallKeywordTermStat } from '@/presenter/memoryPresenter/types'
 
 function stats(entries: Array<[string, number, number]>): RecallKeywordTermStat[] {

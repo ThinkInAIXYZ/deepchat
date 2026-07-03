@@ -638,6 +638,7 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
 
 export class FakeVectorStore implements IMemoryVectorStore {
   vectors = new Map<string, number[]>()
+  closeCount = 0
 
   async upsert(records: MemoryVectorRecord[]) {
     for (const record of records) this.vectors.set(record.memoryId, record.embedding)
@@ -654,7 +655,9 @@ export class FakeVectorStore implements IMemoryVectorStore {
     for (const id of memoryIds) this.vectors.delete(id)
   }
 
-  async close() {}
+  async close() {
+    this.closeCount += 1
+  }
 
   isUsable() {
     return true

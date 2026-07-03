@@ -1,9 +1,9 @@
-import type { AgentMemoryKind } from '../sqlitePresenter/tables/agentMemory'
+import type { AgentMemoryKind } from '../../sqlitePresenter/tables/agentMemory'
 import type {
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
   MemoryReflectionResult
-} from './types'
+} from '../types'
 
 export interface MemoryInjectionMemory {
   id: string

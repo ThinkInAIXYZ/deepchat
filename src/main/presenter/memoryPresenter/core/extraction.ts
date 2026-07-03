@@ -1,4 +1,4 @@
-import type { MemoryCandidate } from './types'
+import type { MemoryCandidate } from '../types'
 import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@shared/types/agent-memory'
 
 const MAX_SPAN_CHARS = 12000

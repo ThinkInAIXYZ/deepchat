@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildDecisionPrompt, parseDecision } from '@/presenter/memoryPresenter/decision'
+import { buildDecisionPrompt, parseDecision } from '@/presenter/memoryPresenter/core/decision'
 
 describe('buildDecisionPrompt', () => {
   it('embeds the candidate, indexes neighbors, and declares the data untrusted', () => {

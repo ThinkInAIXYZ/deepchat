@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryPresenter } from '@/presenter/memoryPresenter'
-import { fuse } from '@/presenter/memoryPresenter/scoring'
+import { fuse } from '@/presenter/memoryPresenter/core/scoring'
 import { DEFAULT_RETRIEVAL, DEFAULT_SIMILARITY_THRESHOLD } from '@/presenter/memoryPresenter/types'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
 import { FakeRepository, FakeVectorStore } from './fakes/memoryFakes'

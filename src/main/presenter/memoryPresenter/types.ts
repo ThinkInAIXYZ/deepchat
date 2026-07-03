@@ -200,7 +200,7 @@ export type {
   MemoryInjectionPayload,
   MemoryInjectionPort,
   MemoryInjectionResult
-} from './injectionPort'
+} from './injection'
 
 export type MemoryWriteOutcome =
   | { action: 'created'; id: string }

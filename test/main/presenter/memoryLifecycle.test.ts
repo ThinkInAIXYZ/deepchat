@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { deriveLifecycle } from '@/presenter/memoryPresenter/lifecycle'
+import { deriveLifecycle } from '@/presenter/memoryPresenter/core/lifecycle'
+import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '@/presenter/memoryPresenter/core/lifecycle'
 import {
-  ARCHIVE_AGE_MS,
-  ARCHIVE_DECAY_THRESHOLD
-} from '@/presenter/memoryPresenter/lifecycleConstants'
-import { decayScore, halfLifeForKind, retrievalScore } from '@/presenter/memoryPresenter/scoring'
+  decayScore,
+  halfLifeForKind,
+  retrievalScore
+} from '@/presenter/memoryPresenter/core/scoring'
 import {
   FTS_SIMILARITY_BASELINE,
   IMPORTANCE_FLOOR_COEF,
