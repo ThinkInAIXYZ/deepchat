@@ -164,6 +164,13 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
   }
 
   async closeAllStores(): Promise<void> {
+    const agentIds = new Set([...this.vectorStoreLocks.keys(), ...this.vectorStores.keys()])
+    for (const agentId of agentIds) {
+      await this.withAgentLock(agentId, async (locked) => {
+        await locked.close()
+      }).catch(() => undefined)
+    }
+    await Promise.allSettled(this.vectorStoreLocks.values())
     for (const pending of this.vectorStores.values()) {
       const store = await pending.catch(() => null)
       if (store) await store.close().catch(() => undefined)

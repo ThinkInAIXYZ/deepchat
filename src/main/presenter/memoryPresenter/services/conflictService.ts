@@ -7,8 +7,13 @@ import {
   type MemoryDecision
 } from '../core/decision'
 import { normalizeMemoryCandidate } from '../core/candidates'
+import { buildMemoryProvenanceKey } from '../core/scoring'
 import type { AgentMemoryRow, MemoryConflictPair, MemoryConflictResolution } from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
+
+interface ConflictResolutionOptions {
+  mergedContent?: string | null
+}
 
 export class ConflictService {
   constructor(
@@ -50,16 +55,19 @@ export class ConflictService {
     challengerId: string,
     outcome: MemoryConflictResolution,
     actorType: 'scheduler' | 'user' = 'user',
-    model?: MemoryModelRef | null
+    model?: MemoryModelRef | null,
+    options: ConflictResolutionOptions = {}
   ): Promise<boolean> {
     if (this.ctx.isDisposed) return false
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return false
+    if (!this.ctx.canWriteAgentMemory(agentId)) return false
     const pair = this.listConflicts(agentId).find(
       (conflict) => conflict.challenger.id === challengerId
     )
     if (!pair) return false
-    this.applyConflictResolution(agentId, pair, outcome)
+    if (!this.ctx.canWriteAgentMemory(agentId)) return false
+    this.applyConflictResolution(agentId, pair, outcome, options)
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.writeAudit(agentId, {
       eventType: 'memory/challenge_resolved',
@@ -82,12 +90,14 @@ export class ConflictService {
   private applyConflictResolution(
     agentId: string,
     pair: MemoryConflictPair,
-    outcome: MemoryConflictResolution
+    outcome: MemoryConflictResolution,
+    options: ConflictResolutionOptions = {}
   ): void {
     const now = Date.now()
     const siblings = this.listConflictSiblings(agentId, pair.target.id, pair.challenger.id)
     switch (outcome) {
       case 'keep_challenger':
+        this.applyMergedChallengerContent(agentId, pair.challenger, options.mergedContent, now)
         this.ctx.deps.repository.setConflictWith(pair.challenger.id, null)
         this.ctx.deps.repository.updateStatus(pair.challenger.id, 'pending_embedding')
         for (const sibling of siblings) {
@@ -111,6 +121,23 @@ export class ConflictService {
         if (siblings.length === 0) this.ctx.deps.repository.markConflict(pair.target.id, null)
         return
     }
+  }
+
+  private applyMergedChallengerContent(
+    agentId: string,
+    challenger: AgentMemoryRow,
+    mergedContent: string | null | undefined,
+    now: number
+  ): void {
+    const content = mergedContent?.trim()
+    if (!content || content === challenger.content) return
+    this.ctx.deps.repository.updateContent(
+      challenger.id,
+      content,
+      buildMemoryProvenanceKey(agentId, challenger.kind, content),
+      now,
+      challenger.category
+    )
   }
 
   private listConflictSiblings(
@@ -149,7 +176,15 @@ export class ConflictService {
           : decision.decision === 'UPDATE' || decision.decision === 'SUPERSEDE'
             ? 'keep_challenger'
             : 'keep_both'
-      if (await this.resolveConflict(agentId, pair.challenger.id, outcome, 'scheduler', model)) {
+      const mergedContent =
+        decision.decision === 'UPDATE' || decision.decision === 'SUPERSEDE'
+          ? decision.mergedContent
+          : null
+      if (
+        await this.resolveConflict(agentId, pair.challenger.id, outcome, 'scheduler', model, {
+          mergedContent
+        })
+      ) {
         touched = true
       }
     }

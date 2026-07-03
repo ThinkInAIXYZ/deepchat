@@ -161,7 +161,11 @@ export class RetrievalService {
     if (embedding?.providerId && embedding?.modelId) {
       const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
       if (!this.vectorStore.isWarm(agentId, currentEmbedding)) {
-        void this.ports.warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
+        void this.ports
+          .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
+          .catch((error) => {
+            logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
+          })
         this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
       } else {
         try {

@@ -152,7 +152,9 @@ export class MaintenanceService {
             providerId: embedding.providerId,
             modelId: embedding.modelId
           }
-          void this.ports.warmVectorStore(agentId, currentEmbedding)
+          void this.ports.warmVectorStore(agentId, currentEmbedding).catch((error) => {
+            logger.warn(`[Memory] startup prewarm failed for ${agentId}: ${String(error)}`)
+          })
           this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
         }, index * STARTUP_PREWARM_STAGGER_MS)
         this.prewarmTimers.set(agentId, timer)
@@ -330,7 +332,14 @@ export class MaintenanceService {
 
     const active = this.ctx.deps.repository
       .listByAgent(agentId)
-      .filter((row) => row.kind !== 'persona')
+      .filter(
+        (row) =>
+          !row.superseded_by &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          row.status !== 'archived' &&
+          row.status !== 'conflicted'
+      )
       .sort((a, b) => a.created_at - b.created_at)
 
     let calls = 0

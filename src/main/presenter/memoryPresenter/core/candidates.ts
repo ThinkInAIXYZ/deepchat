@@ -8,6 +8,17 @@ function clampImportance(value: unknown): number {
   return Math.min(1, Math.max(0, num))
 }
 
+function deriveKind(
+  category: NormalizedMemoryCandidate['category'],
+  categoryWasProvided: boolean,
+  candidateKind: MemoryCandidate['kind']
+): NormalizedMemoryCandidate['kind'] {
+  if (category !== null) return category === 'task_outcome' ? 'episodic' : 'semantic'
+  if (categoryWasProvided) return 'semantic'
+  if (candidateKind === 'episodic' || candidateKind === 'semantic') return candidateKind
+  return 'semantic'
+}
+
 export function normalizeMemoryCandidate(
   candidate: MemoryCandidate
 ): NormalizedMemoryCandidate | null {
@@ -17,16 +28,7 @@ export function normalizeMemoryCandidate(
   const rawCategory = typeof candidate.category === 'string' ? candidate.category.trim() : ''
   const category = isAgentMemoryCategory(rawCategory) ? rawCategory : null
   const categoryWasProvided = rawCategory.length > 0
-  const kind =
-    category !== null
-      ? category === 'task_outcome'
-        ? 'episodic'
-        : 'semantic'
-      : categoryWasProvided
-        ? 'semantic'
-        : candidate.kind === 'episodic' || candidate.kind === 'semantic'
-          ? candidate.kind
-          : 'semantic'
+  const kind = deriveKind(category, categoryWasProvided, candidate.kind)
   const importance = category
     ? Math.max(clampImportance(candidate.importance), CATEGORY_IMPORTANCE_FLOOR[category])
     : clampImportance(candidate.importance)

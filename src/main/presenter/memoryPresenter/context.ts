@@ -57,7 +57,7 @@ export class MemoryRuntimeContext {
   }
 
   canContinueAgentMemoryTask(agentId: string): boolean {
-    return this.isManagedAgent(agentId) && this.isEnabled(agentId)
+    return !this.disposed && this.isManagedAgent(agentId) && this.isEnabled(agentId)
   }
 
   canUseCurrentMemoryEmbedding(agentId: string, embedding: MemoryModelRef): boolean {

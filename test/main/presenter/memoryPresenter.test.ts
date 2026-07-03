@@ -1219,6 +1219,22 @@ describe('MemoryPresenter management', () => {
     expect(store.vectors.size).toBe(0)
   })
 
+  it('clearMemories invalidates a cached working blob', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis working fact' }], {
+      agentId: 'a'
+    })
+    presenter.refreshWorkingMemory('a')
+    expect((await presenter.buildInjection('a', ''))?.working).toContain('redis working fact')
+
+    await presenter.clearMemories('a')
+
+    expect([...repo.rows.values()].some((row) => row.kind === 'working')).toBe(false)
+    expect((await presenter.buildInjection('a', ''))?.working ?? '').not.toContain(
+      'redis working fact'
+    )
+  })
+
   it('clearMemories closes the cached store, resets disk, and re-creates it next time', async () => {
     const repo = new FakeRepository()
     const stores: FakeVectorStore[] = []
@@ -2543,6 +2559,106 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     expect(repo.getById('m2')?.status).toBe('error')
   })
 
+  it('marks only rows still live at vector-write time when the store is unusable', async () => {
+    const repo = new FakeRepository()
+    let resolveStarted: (() => void) | null = null
+    let releaseEmbedding: (() => void) | null = null
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve
+    })
+    const unusableStore: IMemoryVectorStore = {
+      upsert: async () => {},
+      query: async () => [],
+      deleteByMemoryIds: async () => {},
+      close: async () => {},
+      isUsable: () => false
+    }
+    const getEmbeddings = vi.fn(
+      async (_p: string, _m: string, texts: string[]) =>
+        new Promise<number[][]>((resolve) => {
+          releaseEmbedding = () => resolve(texts.map((text) => textToVector(text)))
+          resolveStarted?.()
+        })
+    )
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      createVectorStore: async () => unusableStore,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'stale',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis stale',
+      status: 'pending_embedding'
+    })
+    repo.insert({
+      id: 'live',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis live',
+      status: 'pending_embedding'
+    })
+    const updateSpy = vi.spyOn(repo, 'updatePendingEmbeddingStatus')
+
+    const drain = presenter.processPendingEmbeddings('a')
+    await started
+    repo.updateStatus('stale', 'fts_only')
+    releaseEmbedding?.()
+    await drain
+
+    expect(repo.getById('stale')?.status).toBe('fts_only')
+    expect(repo.getById('live')?.status).toBe('error')
+    expect(updateSpy.mock.calls.some((call) => call[1] === 'stale' && call[2] === 'error')).toBe(
+      false
+    )
+  })
+
+  it('forced reindex waits for an active drain before requeueing', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const resolvers: Array<() => void> = []
+    const getEmbeddings = vi.fn(
+      async (_p: string, _m: string, texts: string[]) =>
+        new Promise<number[][]>((resolve) => {
+          resolvers.push(() => resolve(texts.map((text) => textToVector(text))))
+        })
+    )
+    const resetVectorStore = vi.fn(async () => {
+      store.vectors.clear()
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      createVectorStore: async () => store,
+      resetVectorStore
+    })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis reindex',
+      status: 'pending_embedding'
+    })
+
+    const drain = presenter.processPendingEmbeddings('a')
+    await waitForMemoryCondition(() => resolvers.length === 1)
+    const reindex = presenter.reindexEmbeddings('a', true)
+    await flushMicrotasks()
+    resolvers.shift()?.()
+    await waitForMemoryCondition(() => resolvers.length === 1)
+    resolvers.shift()?.()
+    await Promise.all([drain, reindex])
+
+    expect(resetVectorStore).toHaveBeenCalledWith('a')
+    expect(repo.getById('m1')?.status).toBe('embedded')
+    expect(store.vectors.has('m1')).toBe(true)
+    expect(getEmbeddings).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the batch pending (retryable) when the embedding service throws, then heals', async () => {
     const repo = new FakeRepository()
     const store = new FakeVectorStore()
@@ -3794,6 +3910,44 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.getById('c2')?.superseded_by).toBe('c1')
     expect(repo.getById('c2')?.conflict_with).toBeNull()
     expect(presenter.listConflicts('a')).toHaveLength(0)
+  })
+
+  it('does not resolve conflicts when the agent cannot write memory', async () => {
+    const config: DeepChatAgentConfig = {
+      memoryEnabled: true,
+      memoryEmbedding: { providerId: 'p', modelId: 'm' },
+      memoryExtractionModel: { providerId: 'cheap', modelId: 'cheap' }
+    }
+    const { presenter, repo } = makeLLMPresenter(routedLLM({}), config)
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    seedConflicted(repo, 'c1', targetId, 'user dislikes redis')
+
+    config.memoryEnabled = false
+
+    expect(await presenter.resolveConflict('a', 'c1', 'keep_challenger')).toBe(false)
+    expect(repo.getById('c1')?.status).toBe('conflicted')
+    expect(repo.getById('c1')?.conflict_with).toBe(targetId)
+    expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
+  })
+
+  it('preserves merged content when challenge resolution updates a challenger', async () => {
+    const generateText = routedLLM({
+      decision:
+        '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers valkey over redis"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    seedConflicted(repo, 'c1', targetId, 'user prefers valkey')
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(repo.getById('c1')?.content).toBe('user prefers valkey over redis')
+    expect(repo.getById('c1')?.provenance_key).toBe(
+      buildMemoryProvenanceKey('a', 'semantic', 'user prefers valkey over redis')
+    )
+    expect(repo.getById('c1')?.status).toBe('pending_embedding')
+    expect(repo.getById(targetId)?.status).toBe('archived')
   })
 
   it('does not mark the target challenged when the challenger insert races and fails', async () => {
@@ -5333,7 +5487,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     resolveEmb()
     await Promise.all([backfill, disposePromise])
     expect(disposed).toBe(true)
-    expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+    expect(repo.listByAgent('a')[0]?.status).toBe('pending_embedding')
   })
 
   it('a recall whose embedding await spans dispose records no access and reopens no store (AC-3.5)', async () => {

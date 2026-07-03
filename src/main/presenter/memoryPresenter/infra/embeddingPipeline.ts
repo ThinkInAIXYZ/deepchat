@@ -103,11 +103,14 @@ export class EmbeddingPipeline {
     try {
       const dim = vectors.find((vector) => vector?.length)?.length ?? 0
       const records: MemoryVectorRecord[] = []
+      let liveRecordsForOutcome: MemoryVectorRecord[] = []
       for (let i = 0; i < pending.length; i += 1) {
         const vector = vectors[i]
         if (dim > 0 && vector?.length === dim) {
           records.push({ memoryId: pending[i].id, embedding: vector })
-        } else {
+        } else if (
+          this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(pending[i].id))
+        ) {
           this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, pending[i].id, 'error')
         }
       }
@@ -123,6 +126,7 @@ export class EmbeddingPipeline {
             this.ctx.deps.repository.getById(record.memoryId)
           )
         )
+        liveRecordsForOutcome = live
         if (!live.length) return { written: new Set<string>(), usable: true }
         const currentEmbedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
         if (
@@ -158,7 +162,7 @@ export class EmbeddingPipeline {
         )
         return
       }
-      for (const record of records) {
+      for (const record of liveRecordsForOutcome) {
         if (outcome.written.has(record.memoryId)) {
           this.ctx.deps.repository.updatePendingEmbeddingStatus(
             agentId,
@@ -189,7 +193,10 @@ export class EmbeddingPipeline {
     } catch (error) {
       logger.error(`[Memory] vector store write failed for ${agentId}: ${String(error)}`)
       if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-      for (const row of pending) {
+      const liveRows = pending.filter((row) =>
+        this.rows.isPendingEmbeddableRow(agentId, this.ctx.deps.repository.getById(row.id))
+      )
+      for (const row of liveRows) {
         this.ctx.deps.repository.updatePendingEmbeddingStatus(agentId, row.id, 'error')
       }
     }
@@ -209,15 +216,15 @@ export class EmbeddingPipeline {
 
   private async runReindex(agentId: string, force: boolean): Promise<void> {
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
+    const inFlightDrain = this.embeddingDrains.get(agentId)
+    if (inFlightDrain) await inFlightDrain.catch(() => undefined)
+    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     const requeued = this.ctx.deps.repository.requeueForEmbedding(agentId, [
       'embedded',
       'error',
       'fts_only'
     ])
     if (!requeued && !force) return
-    const inFlightDrain = this.embeddingDrains.get(agentId)
-    if (inFlightDrain) await inFlightDrain.catch(() => undefined)
-    if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
     await this.vectorStore.withAgentLock(agentId, async (locked) => {
       if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
       await locked.close()

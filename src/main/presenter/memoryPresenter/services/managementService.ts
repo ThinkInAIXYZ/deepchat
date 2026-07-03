@@ -276,6 +276,9 @@ export class ManagementService {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return 0
     const removed = this.ctx.deps.repository.clearByAgent(agentId)
+    if (removed > 0) {
+      this.ports.syncWorkingMemoryAfterMutation(agentId)
+    }
     await this.ports.resetAgentStore(agentId).catch((error) => {
       logger.error(
         `[Memory] vector reset failed for ${agentId}; on-disk store may persist: ${String(error)}`
