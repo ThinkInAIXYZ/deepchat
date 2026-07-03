@@ -20,6 +20,24 @@ import { getDeepchatBridge } from './core'
 
 export type CronJobsUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
+const toPlainIpcValue = <T>(value: T): T => {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as T
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => toPlainIpcValue(item)) as T
+  }
+
+  const plain: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    plain[key] = toPlainIpcValue(nestedValue)
+  }
+  return plain as T
+}
+
 const parseJobResponse = (routeName: string, result: unknown) => {
   if (typeof result !== 'object' || result === null) {
     throw new Error(`[CronJobsClient] Invalid response shape from ${routeName}`)
@@ -69,7 +87,7 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
   }
 
   async function upsert(input: CronJobsUpsertInput) {
-    const result = await bridge.invoke(cronJobsUpsertRoute.name, input)
+    const result = await bridge.invoke(cronJobsUpsertRoute.name, toPlainIpcValue(input))
     return {
       job: parseJobResponse(cronJobsUpsertRoute.name, result),
       schedulerStatus: parseSchedulerStatusResponse(cronJobsUpsertRoute.name, result)

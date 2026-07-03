@@ -1,4 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { reactive } from 'vue'
 import { createCronJobsClient } from '../../../src/renderer/api/CronJobsClient'
 
 const schedulerStatus = {
@@ -59,7 +60,8 @@ const run = {
 describe('CronJobsClient', () => {
   it('invokes Cron Jobs routes and parses typed responses', async () => {
     const bridge: DeepchatBridge = {
-      invoke: vi.fn(async (routeName: string) => {
+      invoke: vi.fn(async (routeName: string, input: unknown) => {
+        structuredClone(input)
         switch (routeName) {
           case 'cronJobs.list':
             return { jobs: [job], schedulerStatus }
@@ -84,6 +86,7 @@ describe('CronJobsClient', () => {
       on: vi.fn(() => () => undefined)
     }
     const client = createCronJobsClient(bridge)
+    const runtime = reactive({ ...job.runtime })
 
     expect(await client.list()).toEqual({ jobs: [job], schedulerStatus })
     expect(
@@ -103,7 +106,7 @@ describe('CronJobsClient', () => {
         modelPolicy: 'follow_agent',
         toolPolicy: 'follow_agent',
         permissionPolicy: 'follow_agent',
-        runtime: job.runtime
+        runtime
       })
     ).toEqual({ job, schedulerStatus })
     expect(await client.toggle(job.id, false)).toEqual({ job, schedulerStatus })
