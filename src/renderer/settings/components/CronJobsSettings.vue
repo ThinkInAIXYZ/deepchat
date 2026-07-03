@@ -7,10 +7,6 @@
   >
     <template #actions>
       <Badge v-if="isSaving" variant="outline">{{ t('common.saving') }}</Badge>
-      <Button variant="outline" size="sm" :disabled="isLoading" @click="reconcileScheduler">
-        <Icon icon="lucide:refresh-cw" class="mr-1 h-4 w-4" />
-        {{ t('settings.cronJobs.actions.reconcile') }}
-      </Button>
       <Button variant="outline" size="sm" :disabled="isLoading" @click="restartScheduler">
         <Icon icon="lucide:rotate-cw" class="mr-1 h-4 w-4" />
         {{ t('settings.cronJobs.actions.restart') }}
@@ -122,18 +118,6 @@
                   @blur="commitJob(job.id)"
                 />
               </div>
-              <div class="min-w-0 space-y-1.5">
-                <Label class="text-xs text-muted-foreground">
-                  {{ t('settings.cronJobs.nextRunAt') }}
-                </Label>
-                <Input
-                  type="datetime-local"
-                  :model-value="nextRunInputValues[job.id] ?? ''"
-                  class="h-8!"
-                  @update:model-value="(value) => updateNextRunInput(job.id, String(value))"
-                  @blur="commitJob(job.id)"
-                />
-              </div>
             </div>
             <div class="flex shrink-0 items-center gap-1 lg:pt-6">
               <Switch
@@ -158,15 +142,6 @@
                 variant="ghost"
                 size="icon"
                 class="h-8 w-8"
-                :title="t('settings.cronJobs.actions.clearNextRun')"
-                @click="clearNextRun(job.id)"
-              >
-                <Icon icon="lucide:calendar-x" class="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="h-8 w-8"
                 :aria-label="t('common.delete')"
                 :title="t('common.delete')"
                 @click="deleteJob(job.id)"
@@ -181,6 +156,31 @@
             class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
           >
             {{ schedulerStatus.lastError }}
+          </div>
+          <div
+            v-if="job.scheduleError || previewErrorsByJobId[job.id]"
+            class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          >
+            {{ job.scheduleError || previewErrorsByJobId[job.id] }}
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2 lg:pl-11">
+            <Icon icon="lucide:calendar-range" class="h-4 w-4 text-muted-foreground" />
+            <Badge v-if="previewLoadingByJobId[job.id]" variant="outline">
+              {{ t('common.loading') }}
+            </Badge>
+            <template v-else-if="previewRunsByJobId[job.id]?.length">
+              <Badge
+                v-for="runAt in previewRunsByJobId[job.id]"
+                :key="runAt"
+                variant="outline"
+                class="font-normal"
+              >
+                {{ formatTimestamp(runAt) }}
+              </Badge>
+            </template>
+            <span v-else class="text-xs text-muted-foreground">
+              {{ t('settings.cronJobs.none') }}
+            </span>
           </div>
         </div>
       </div>
@@ -202,6 +202,7 @@ import { createCronJobsClient } from '@api/CronJobsClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
+  CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
   type CronJobsSchedulerStatus
@@ -213,10 +214,12 @@ const client = createCronJobsClient()
 
 const jobs = ref<CronJob[]>([])
 const schedulerStatus = ref<CronJobsSchedulerStatus | null>(null)
-const nextRunInputValues = ref<Record<string, string>>({})
 const isLoading = ref(false)
 const isSaving = ref(false)
 const runningId = ref<string | null>(null)
+const previewRunsByJobId = ref<Record<string, number[]>>({})
+const previewErrorsByJobId = ref<Record<string, string | null>>({})
+const previewLoadingByJobId = ref<Record<string, boolean>>({})
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 
@@ -241,33 +244,11 @@ const getBrowserTimezone = (): string => {
   }
 }
 
-const padTwo = (value: number): string => value.toString().padStart(2, '0')
-
-const formatDateTimeLocal = (timestamp: number): string => {
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}T${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`
-}
-
-const parseDateTimeLocal = (value: string): number | null => {
-  if (!value) {
-    return null
-  }
-  const timestamp = new Date(value).getTime()
-  return Number.isFinite(timestamp) ? timestamp : null
-}
-
 const formatTimestamp = (timestamp: number | null): string => {
   if (!timestamp) {
     return t('settings.cronJobs.none')
   }
   return new Date(timestamp).toLocaleString()
-}
-
-const refreshNextRunInputs = () => {
-  nextRunInputValues.value = jobs.value.reduce<Record<string, string>>((acc, job) => {
-    acc[job.id] = job.nextRunAt ? formatDateTimeLocal(job.nextRunAt) : ''
-    return acc
-  }, {})
 }
 
 const sortJobs = (items: CronJob[]) =>
@@ -282,7 +263,7 @@ const applyJob = (job: CronJob) => {
       ? jobs.value.map((entry) => (entry.id === job.id ? job : entry))
       : [job, ...jobs.value]
   jobs.value = sortJobs(next)
-  refreshNextRunInputs()
+  void refreshJobPreview(job)
 }
 
 const handleError = (scope: string, error: unknown) => {
@@ -300,7 +281,9 @@ const loadJobs = async () => {
     const response = await client.list()
     jobs.value = sortJobs(response.jobs)
     schedulerStatus.value = response.schedulerStatus
-    refreshNextRunInputs()
+    for (const job of jobs.value) {
+      void refreshJobPreview(job)
+    }
   } catch (error) {
     handleError('Failed to load jobs', error)
   } finally {
@@ -308,17 +291,45 @@ const loadJobs = async () => {
   }
 }
 
-const updateJobField = (id: string, field: 'name' | 'cronExpr' | 'timezone', value: string) => {
-  jobs.value = jobs.value.map((job) => (job.id === id ? { ...job, [field]: value } : job))
+const refreshJobPreview = async (job: CronJob) => {
+  previewLoadingByJobId.value = {
+    ...previewLoadingByJobId.value,
+    [job.id]: true
+  }
+  try {
+    const response = await client.previewSchedule({
+      cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
+      timezone: job.timezone || getBrowserTimezone(),
+      count: 5
+    })
+    previewRunsByJobId.value = {
+      ...previewRunsByJobId.value,
+      [job.id]: response.runs
+    }
+    previewErrorsByJobId.value = {
+      ...previewErrorsByJobId.value,
+      [job.id]: response.error
+    }
+  } catch (error) {
+    console.error('[CronJobs] Failed to preview schedule:', error)
+    previewRunsByJobId.value = {
+      ...previewRunsByJobId.value,
+      [job.id]: []
+    }
+    previewErrorsByJobId.value = {
+      ...previewErrorsByJobId.value,
+      [job.id]: error instanceof Error ? error.message : String(error)
+    }
+  } finally {
+    previewLoadingByJobId.value = {
+      ...previewLoadingByJobId.value,
+      [job.id]: false
+    }
+  }
 }
 
-const updateNextRunInput = (id: string, value: string) => {
-  nextRunInputValues.value = {
-    ...nextRunInputValues.value,
-    [id]: value
-  }
-  const nextRunAt = parseDateTimeLocal(value)
-  jobs.value = jobs.value.map((job) => (job.id === id ? { ...job, nextRunAt } : job))
+const updateJobField = (id: string, field: 'name' | 'cronExpr' | 'timezone', value: string) => {
+  jobs.value = jobs.value.map((job) => (job.id === id ? { ...job, [field]: value } : job))
 }
 
 const commitJob = async (id: string) => {
@@ -336,7 +347,8 @@ const commitJob = async (id: string) => {
       cronExpr: job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR,
       timezone: job.timezone || getBrowserTimezone(),
       agentId: job.agentId,
-      nextRunAt: job.nextRunAt
+      misfirePolicy: job.misfirePolicy,
+      maxCatchUpRuns: job.maxCatchUpRuns
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus
@@ -356,7 +368,8 @@ const addJob = async () => {
       cronExpr: CRON_JOBS_DEFAULT_CRON_EXPR,
       timezone: getBrowserTimezone(),
       agentId: null,
-      nextRunAt: null
+      misfirePolicy: CRON_JOBS_DEFAULT_MISFIRE_POLICY,
+      maxCatchUpRuns: null
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus
@@ -381,15 +394,18 @@ const deleteJob = async (id: string) => {
   try {
     schedulerStatus.value = await client.remove(id)
     jobs.value = jobs.value.filter((job) => job.id !== id)
-    refreshNextRunInputs()
+    const nextRuns = { ...previewRunsByJobId.value }
+    const nextErrors = { ...previewErrorsByJobId.value }
+    const nextLoading = { ...previewLoadingByJobId.value }
+    delete nextRuns[id]
+    delete nextErrors[id]
+    delete nextLoading[id]
+    previewRunsByJobId.value = nextRuns
+    previewErrorsByJobId.value = nextErrors
+    previewLoadingByJobId.value = nextLoading
   } catch (error) {
     handleError('Failed to delete job', error)
   }
-}
-
-const clearNextRun = async (id: string) => {
-  updateNextRunInput(id, '')
-  await commitJob(id)
 }
 
 const runJobNow = async (id: string) => {
@@ -406,14 +422,6 @@ const runJobNow = async (id: string) => {
     handleError('Failed to run job', error)
   } finally {
     runningId.value = null
-  }
-}
-
-const reconcileScheduler = async () => {
-  try {
-    schedulerStatus.value = await client.reconcileScheduler('settings')
-  } catch (error) {
-    handleError('Failed to reconcile scheduler', error)
   }
 }
 

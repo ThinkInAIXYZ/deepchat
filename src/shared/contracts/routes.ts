@@ -268,10 +268,12 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
+  cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
   cronJobsRunNowRoute,
   cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
   cronJobsUpsertRoute
 } from './routes/cronJobs.routes'
 import {
@@ -618,6 +620,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [cronJobsGetSchedulerStatusRoute.name]: cronJobsGetSchedulerStatusRoute,
   [cronJobsReconcileSchedulerRoute.name]: cronJobsReconcileSchedulerRoute,
   [cronJobsRestartSchedulerRoute.name]: cronJobsRestartSchedulerRoute,
+  [cronJobsValidateScheduleRoute.name]: cronJobsValidateScheduleRoute,
+  [cronJobsPreviewScheduleRoute.name]: cronJobsPreviewScheduleRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

@@ -1,4 +1,9 @@
-import type { CronJob, CronJobRun, CronJobRunReason } from '@shared/cronJobs'
+import {
+  CRON_JOBS_DEFAULT_MISFIRE_POLICY,
+  type CronJob,
+  type CronJobRun,
+  type CronJobRunReason
+} from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
@@ -40,7 +45,10 @@ export class CronJobsRepository {
       cronExpr: input.cronExpr,
       timezone: input.timezone,
       agentId: input.agentId,
-      nextRunAt: input.nextRunAt
+      nextRunAt: input.nextRunAt,
+      misfirePolicy: input.misfirePolicy,
+      maxCatchUpRuns: input.maxCatchUpRuns,
+      scheduleError: input.scheduleError
     })
     return toCronJob(row)
   }
@@ -58,6 +66,17 @@ export class CronJobsRepository {
 
   updateJobNextRunAt(id: string, nextRunAt: number | null): CronJob {
     return toCronJob(this.sqlitePresenter.cronJobsTable.updateNextRunAt(id, nextRunAt))
+  }
+
+  updateScheduleState(
+    id: string,
+    input: {
+      nextRunAt: number | null
+      scheduleError: string | null
+      now?: number
+    }
+  ): CronJob {
+    return toCronJob(this.sqlitePresenter.cronJobsTable.updateScheduleState(id, input))
   }
 
   getSchedulerSnapshot(): CronJobsSchedulerSnapshot {
@@ -114,6 +133,9 @@ export function toCronJob(row: CronJobRow): CronJob {
     timezone: row.timezone,
     agentId: row.agent_id,
     nextRunAt: row.next_run_at,
+    misfirePolicy: row.misfire_policy ?? CRON_JOBS_DEFAULT_MISFIRE_POLICY,
+    maxCatchUpRuns: row.max_catch_up_runs ?? null,
+    scheduleError: row.schedule_error ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }

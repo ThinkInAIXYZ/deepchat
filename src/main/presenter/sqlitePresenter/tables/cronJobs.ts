@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3-multiple-ciphers'
+import { CRON_JOBS_DEFAULT_MISFIRE_POLICY, type CronJobMisfirePolicy } from '@shared/cronJobs'
 import { BaseTable } from './baseTable'
 
 export interface CronJobRow {
@@ -10,6 +11,9 @@ export interface CronJobRow {
   timezone: string
   agent_id: string | null
   next_run_at: number | null
+  misfire_policy: CronJobMisfirePolicy
+  max_catch_up_runs: number | null
+  schedule_error: string | null
   created_at: number
   updated_at: number
 }
@@ -22,8 +26,13 @@ export interface CronJobTableUpsertInput {
   timezone: string
   agentId?: string | null
   nextRunAt?: number | null
+  misfirePolicy?: CronJobMisfirePolicy
+  maxCatchUpRuns?: number | null
+  scheduleError?: string | null
   now?: number
 }
+
+const CRON_JOBS_SCHEMA_VERSION = 38
 
 const CRON_JOBS_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled_next_run
@@ -47,6 +56,9 @@ export class CronJobsTable extends BaseTable {
         timezone TEXT NOT NULL,
         agent_id TEXT,
         next_run_at INTEGER,
+        misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once')),
+        max_catch_up_runs INTEGER,
+        schedule_error TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -56,15 +68,37 @@ export class CronJobsTable extends BaseTable {
 
   override createTable(): void {
     super.createTable()
+    this.ensurePhase2Columns()
     this.db.exec(CRON_JOBS_INDEX_SQL)
   }
 
-  getMigrationSQL(): string | null {
+  getMigrationSQL(version: number): string | null {
+    if (version === CRON_JOBS_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE cron_jobs ADD COLUMN misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once'));
+        ALTER TABLE cron_jobs ADD COLUMN max_catch_up_runs INTEGER;
+        ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT;
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 0
+    return CRON_JOBS_SCHEMA_VERSION
+  }
+
+  private ensurePhase2Columns(): void {
+    if (!this.hasColumn('misfire_policy')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once'))"
+      )
+    }
+    if (!this.hasColumn('max_catch_up_runs')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN max_catch_up_runs INTEGER')
+    }
+    if (!this.hasColumn('schedule_error')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT')
+    }
   }
 
   list(): CronJobRow[] {
@@ -88,6 +122,14 @@ export class CronJobsTable extends BaseTable {
     const createdAt = existing?.created_at ?? now
     const nextRunAt =
       input.nextRunAt === undefined ? (existing?.next_run_at ?? null) : input.nextRunAt
+    const misfirePolicy =
+      input.misfirePolicy ?? existing?.misfire_policy ?? CRON_JOBS_DEFAULT_MISFIRE_POLICY
+    const maxCatchUpRuns =
+      input.maxCatchUpRuns === undefined
+        ? (existing?.max_catch_up_runs ?? null)
+        : input.maxCatchUpRuns
+    const scheduleError =
+      input.scheduleError === undefined ? (existing?.schedule_error ?? null) : input.scheduleError
 
     this.db
       .prepare(
@@ -99,10 +141,13 @@ export class CronJobsTable extends BaseTable {
            timezone,
            agent_id,
            next_run_at,
+           misfire_policy,
+           max_catch_up_runs,
+           schedule_error,
            created_at,
            updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            enabled = excluded.enabled,
@@ -110,6 +155,9 @@ export class CronJobsTable extends BaseTable {
            timezone = excluded.timezone,
            agent_id = excluded.agent_id,
            next_run_at = excluded.next_run_at,
+           misfire_policy = excluded.misfire_policy,
+           max_catch_up_runs = excluded.max_catch_up_runs,
+           schedule_error = excluded.schedule_error,
            updated_at = excluded.updated_at`
       )
       .run(
@@ -120,6 +168,9 @@ export class CronJobsTable extends BaseTable {
         input.timezone,
         input.agentId ?? null,
         nextRunAt,
+        misfirePolicy,
+        maxCatchUpRuns,
+        scheduleError,
         createdAt,
         now
       )
@@ -154,6 +205,35 @@ export class CronJobsTable extends BaseTable {
     const result = this.db
       .prepare('UPDATE cron_jobs SET next_run_at = ?, updated_at = ? WHERE id = ?')
       .run(nextRunAt, now, id)
+    if (result.changes === 0) {
+      throw new Error(`Unknown cron job: ${id}`)
+    }
+
+    const row = this.get(id)
+    if (!row) {
+      throw new Error(`Failed to reload cron job: ${id}`)
+    }
+    return row
+  }
+
+  updateScheduleState(
+    id: string,
+    input: {
+      nextRunAt: number | null
+      scheduleError: string | null
+      now?: number
+    }
+  ): CronJobRow {
+    const now = input.now ?? Date.now()
+    const result = this.db
+      .prepare(
+        `UPDATE cron_jobs
+         SET next_run_at = ?,
+             schedule_error = ?,
+             updated_at = ?
+         WHERE id = ?`
+      )
+      .run(input.nextRunAt, input.scheduleError, now, id)
     if (result.changes === 0) {
       throw new Error(`Unknown cron job: ${id}`)
     }

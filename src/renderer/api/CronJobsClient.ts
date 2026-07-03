@@ -5,11 +5,13 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
+  cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
   cronJobsRunNowRoute,
   cronJobsSchedulerStatusSchema,
   cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
   cronJobsUpsertRoute,
   type cronJobsUpsertInputSchema
 } from '@shared/contracts/routes/cronJobs.routes'
@@ -111,6 +113,23 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     return parseSchedulerStatusResponse(cronJobsRestartSchedulerRoute.name, result)
   }
 
+  async function validateSchedule(input: { cronExpr: string; timezone: string; from?: number }) {
+    return cronJobsValidateScheduleRoute.output.parse(
+      await bridge.invoke(cronJobsValidateScheduleRoute.name, input)
+    )
+  }
+
+  async function previewSchedule(input: {
+    cronExpr: string
+    timezone: string
+    count?: number
+    from?: number
+  }) {
+    return cronJobsPreviewScheduleRoute.output.parse(
+      await bridge.invoke(cronJobsPreviewScheduleRoute.name, input)
+    )
+  }
+
   return {
     list,
     upsert,
@@ -119,7 +138,9 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     runNow,
     getSchedulerStatus,
     reconcileScheduler,
-    restartScheduler
+    restartScheduler,
+    validateSchedule,
+    previewSchedule
   }
 }
 

@@ -25,6 +25,7 @@ const schedulerManagerModule = repositoryModule
 const schedulerUtilityHostModule = repositoryModule
   ? await import('@/presenter/cronJobs/schedulerUtilityHost').catch(() => null)
   : null
+const cronExpressionServiceModule = await import('@/presenter/cronJobs/cronExpressionService')
 
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable
@@ -33,6 +34,7 @@ const CronJobsRepository = repositoryModule?.CronJobsRepository
 const CronJobsService = serviceModule?.CronJobsService
 const SchedulerProcessManager = schedulerManagerModule?.SchedulerProcessManager
 const CronJobsSchedulerUtilityHost = schedulerUtilityHostModule?.CronJobsSchedulerUtilityHost
+const CronExpressionService = cronExpressionServiceModule.CronExpressionService
 const DatabaseCtor = Database!
 const CronJobsTableCtor = CronJobsTable!
 const CronJobRunsTableCtor = CronJobRunsTable!
@@ -62,6 +64,101 @@ const describeIfSqlite =
   CronJobsSchedulerUtilityHost
     ? describe
     : describe.skip
+
+describe('CronExpressionService', () => {
+  it('previews parser-backed cron expressions from a fixed clock', () => {
+    const service = new CronExpressionService()
+    const from = Date.parse('2026-07-03T00:00:00.000Z')
+
+    expect(service.preview('*/5 * * * *', 'UTC', 5, from)).toEqual({
+      runs: [
+        Date.parse('2026-07-03T00:05:00.000Z'),
+        Date.parse('2026-07-03T00:10:00.000Z'),
+        Date.parse('2026-07-03T00:15:00.000Z'),
+        Date.parse('2026-07-03T00:20:00.000Z'),
+        Date.parse('2026-07-03T00:25:00.000Z')
+      ],
+      error: null
+    })
+
+    expect(service.preview('0 9 * * 1-5', 'UTC', 3, from).runs).toEqual([
+      Date.parse('2026-07-03T09:00:00.000Z'),
+      Date.parse('2026-07-06T09:00:00.000Z'),
+      Date.parse('2026-07-07T09:00:00.000Z')
+    ])
+  })
+
+  it('uses locked parser support for monthly last day, nth weekday, and timezones', () => {
+    const service = new CronExpressionService()
+    const from = Date.parse('2026-07-03T00:00:00.000Z')
+
+    expect(service.preview('0 0 9 L * *', 'UTC', 2, from).runs).toEqual([
+      Date.parse('2026-07-31T09:00:00.000Z'),
+      Date.parse('2026-08-31T09:00:00.000Z')
+    ])
+    expect(service.preview('0 0 9 * * 1#1', 'UTC', 2, from).runs).toEqual([
+      Date.parse('2026-07-06T09:00:00.000Z'),
+      Date.parse('2026-08-03T09:00:00.000Z')
+    ])
+    expect(
+      service.computeNextRunAt(
+        { cronExpr: '0 9 * * *', timezone: 'Asia/Tokyo' },
+        Date.parse('2026-07-02T23:59:00.000Z')
+      )
+    ).toBe(Date.parse('2026-07-03T00:00:00.000Z'))
+    expect(
+      service.preview('0 9 * * *', 'America/New_York', 3, Date.parse('2026-03-07T00:00:00.000Z'))
+        .runs
+    ).toEqual([
+      Date.parse('2026-03-07T14:00:00.000Z'),
+      Date.parse('2026-03-08T13:00:00.000Z'),
+      Date.parse('2026-03-09T13:00:00.000Z')
+    ])
+  })
+
+  it('reports invalid expressions and applies misfire policies', () => {
+    const service = new CronExpressionService()
+    const scheduledAt = Date.parse('2026-07-01T09:00:00.000Z')
+    const now = Date.parse('2026-07-03T10:00:00.000Z')
+
+    expect(service.validate('61 * * * *', 'UTC', now)).toEqual(
+      expect.objectContaining({
+        valid: false,
+        nextRunAt: null
+      })
+    )
+    expect(
+      service.reconcileDueRun(
+        { cronExpr: '0 9 * * *', timezone: 'UTC', misfirePolicy: 'skip' },
+        scheduledAt,
+        now
+      )
+    ).toEqual({
+      scheduledAts: [],
+      nextRunAt: Date.parse('2026-07-04T09:00:00.000Z'),
+      error: null
+    })
+    expect(
+      service.reconcileDueRun(
+        {
+          cronExpr: '0 9 * * *',
+          timezone: 'UTC',
+          misfirePolicy: 'run_once',
+          maxCatchUpRuns: 2
+        },
+        scheduledAt,
+        now
+      )
+    ).toEqual({
+      scheduledAts: [
+        Date.parse('2026-07-01T09:00:00.000Z'),
+        Date.parse('2026-07-02T09:00:00.000Z')
+      ],
+      nextRunAt: Date.parse('2026-07-04T09:00:00.000Z'),
+      error: null
+    })
+  })
+})
 
 const createHarness = () => {
   const db = new DatabaseCtor(':memory:')
@@ -93,6 +190,28 @@ const baseStatus = (): CronJobsSchedulerStatus => ({
 })
 
 describeIfSqlite('Cron Jobs persistence and service', () => {
+  it('normalizes legacy rows without phase 2 schedule columns', () => {
+    expect(
+      repositoryModule!.toCronJob({
+        id: 'job-1',
+        name: 'Legacy job',
+        enabled: 0,
+        cron_expr: '0 9 * * *',
+        timezone: 'UTC',
+        agent_id: null,
+        next_run_at: null,
+        created_at: 1,
+        updated_at: 1
+      } as never)
+    ).toEqual(
+      expect.objectContaining({
+        misfirePolicy: 'skip',
+        maxCatchUpRuns: null,
+        scheduleError: null
+      })
+    )
+  })
+
   it('persists jobs, snapshots enabled rows, and cascades run deletion', () => {
     const { db, sqlitePresenter } = createHarness()
     try {
@@ -167,9 +286,9 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null,
-        nextRunAt: null
+        agentId: null
       })
+      expect(job.nextRunAt).toEqual(expect.any(Number))
       const result = await service.runNow(job.id)
 
       expect(result.run).toEqual(
@@ -187,7 +306,41 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
-  it('queues each due scheduled run once and clears next_run_at in the utility host', () => {
+  it('recomputes missing next run indicators when listing jobs', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never
+      })
+      const stored = sqlitePresenter.cronJobsTable.upsert({
+        name: 'Legacy indicator',
+        enabled: false,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: null,
+        nextRunAt: null
+      })
+
+      const response = await service.list()
+
+      expect(response.jobs.find((job) => job.id === stored.id)?.nextRunAt).toEqual(
+        expect.any(Number)
+      )
+      expect(schedulerManager.reconcile).toHaveBeenCalledWith('list')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('queues each due scheduled run once and advances next_run_at in the utility host', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-cron-jobs-'))
     const dbPath = path.join(tempDir, 'agent.db')
     const db = new DatabaseCtor(dbPath)
@@ -198,13 +351,14 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const cronJobRunsTable = new CronJobRunsTableCtor(db)
       cronJobsTable.createTable()
       cronJobRunsTable.createTable()
+      const dueAt = Date.now() - 1_000
       const job = cronJobsTable.upsert({
         name: 'Due job',
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
         agentId: null,
-        nextRunAt: 1,
+        nextRunAt: dueAt,
         now: 1
       })
 
@@ -219,11 +373,11 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       expect(events.filter((event) => (event as { type?: string }).type === 'RUN_DUE')).toEqual([
         expect.objectContaining({
           jobId: job.id,
-          scheduledAt: 1,
+          scheduledAt: dueAt,
           reason: 'scheduled'
         })
       ])
-      expect(cronJobsTable.get(job.id)?.next_run_at).toBeNull()
+      expect(cronJobsTable.get(job.id)?.next_run_at).toEqual(expect.any(Number))
       expect(db.prepare('SELECT COUNT(*) AS count FROM cron_job_runs').get()).toEqual({
         count: 1
       })

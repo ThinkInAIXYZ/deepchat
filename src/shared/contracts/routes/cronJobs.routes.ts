@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
+  CRON_JOB_MISFIRE_POLICIES,
   CRON_JOB_RUN_REASONS,
   CRON_JOB_RUN_STATUSES,
   CRON_JOBS_SCHEDULER_STATES
@@ -10,6 +11,7 @@ const timestampMsSchema = z.number().int().nonnegative()
 
 export const cronJobRunStatusSchema = z.enum(CRON_JOB_RUN_STATUSES)
 export const cronJobRunReasonSchema = z.enum(CRON_JOB_RUN_REASONS)
+export const cronJobMisfirePolicySchema = z.enum(CRON_JOB_MISFIRE_POLICIES)
 export const cronJobsSchedulerStateSchema = z.enum(CRON_JOBS_SCHEDULER_STATES)
 
 export const cronJobSchema = z.object({
@@ -20,6 +22,9 @@ export const cronJobSchema = z.object({
   timezone: z.string().min(1).max(128),
   agentId: z.string().min(1).nullable(),
   nextRunAt: timestampMsSchema.nullable(),
+  misfirePolicy: cronJobMisfirePolicySchema,
+  maxCatchUpRuns: z.number().int().positive().nullable(),
+  scheduleError: z.string().nullable(),
   createdAt: timestampMsSchema,
   updatedAt: timestampMsSchema
 })
@@ -62,7 +67,10 @@ export const cronJobsUpsertInputSchema = cronJobSchema
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({
     id: z.string().min(1).optional(),
-    nextRunAt: timestampMsSchema.nullable().optional()
+    nextRunAt: timestampMsSchema.nullable().optional(),
+    misfirePolicy: cronJobMisfirePolicySchema.optional(),
+    maxCatchUpRuns: z.number().int().positive().nullable().optional(),
+    scheduleError: z.string().nullable().optional()
   })
 
 export const cronJobsUpsertRoute = defineRouteContract({
@@ -131,5 +139,33 @@ export const cronJobsRestartSchedulerRoute = defineRouteContract({
   input: z.object({}),
   output: z.object({
     schedulerStatus: cronJobsSchedulerStatusSchema
+  })
+})
+
+export const cronJobsValidateScheduleRoute = defineRouteContract({
+  name: 'cronJobs.validateSchedule',
+  input: z.object({
+    cronExpr: z.string().min(1).max(200),
+    timezone: z.string().min(1).max(128),
+    from: timestampMsSchema.optional()
+  }),
+  output: z.object({
+    valid: z.boolean(),
+    error: z.string().nullable(),
+    nextRunAt: timestampMsSchema.nullable()
+  })
+})
+
+export const cronJobsPreviewScheduleRoute = defineRouteContract({
+  name: 'cronJobs.previewSchedule',
+  input: z.object({
+    cronExpr: z.string().min(1).max(200),
+    timezone: z.string().min(1).max(128),
+    count: z.number().int().min(1).max(10).optional(),
+    from: timestampMsSchema.optional()
+  }),
+  output: z.object({
+    runs: z.array(timestampMsSchema),
+    error: z.string().nullable()
   })
 })

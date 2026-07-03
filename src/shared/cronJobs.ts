@@ -1,5 +1,6 @@
 export const CRON_JOBS_DEFAULT_CRON_EXPR = '0 9 * * *'
 export const CRON_JOBS_DEFAULT_TIMEZONE = 'UTC'
+export const CRON_JOBS_DEFAULT_MISFIRE_POLICY = 'skip'
 
 export const CRON_JOB_RUN_STATUSES = [
   'queued',
@@ -12,6 +13,9 @@ export type CronJobRunStatus = (typeof CRON_JOB_RUN_STATUSES)[number]
 
 export const CRON_JOB_RUN_REASONS = ['scheduled', 'manual'] as const
 export type CronJobRunReason = (typeof CRON_JOB_RUN_REASONS)[number]
+
+export const CRON_JOB_MISFIRE_POLICIES = ['skip', 'run_once'] as const
+export type CronJobMisfirePolicy = (typeof CRON_JOB_MISFIRE_POLICIES)[number]
 
 export const CRON_JOBS_SCHEDULER_STATES = [
   'stopped',
@@ -30,8 +34,31 @@ export interface CronJob {
   timezone: string
   agentId: string | null
   nextRunAt: number | null
+  misfirePolicy: CronJobMisfirePolicy
+  maxCatchUpRuns: number | null
+  scheduleError: string | null
   createdAt: number
   updatedAt: number
+}
+
+export type CronSchedulePreset =
+  | { type: 'every_n_minutes'; n: number }
+  | { type: 'hourly'; minute: number }
+  | { type: 'daily'; time: string }
+  | { type: 'weekdays'; time: string }
+  | { type: 'weekly'; days: number[]; time: string }
+  | { type: 'monthly'; day: number | 'last'; time: string }
+  | { type: 'custom'; cronExpr: string }
+
+export interface CronScheduleValidation {
+  valid: boolean
+  error: string | null
+  nextRunAt: number | null
+}
+
+export interface CronSchedulePreview {
+  runs: number[]
+  error: string | null
 }
 
 export interface CronJobRun {

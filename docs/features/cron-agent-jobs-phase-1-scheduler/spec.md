@@ -36,6 +36,8 @@ core.
 - App startup and OS resume trigger `RECONCILE`.
 - Utility-process crash is detected and restarted with bounded backoff while enabled jobs remain.
 - Scheduler status is available through a typed route and rendered in the Cron Jobs page.
+- The Cron Jobs page renders schedule-derived next runs as a read-only indicator, not a
+  user-editable schedule setting.
 
 ## UX Shape
 
@@ -47,7 +49,7 @@ Running state:
 | Scheduler: Running | utilityProcess | pid 18421         |
 | Enabled jobs: 2 | Next run: 2026-07-03 09:00            |
 |                                                         |
-| [New Job] [Reconcile Now] [Restart Scheduler]           |
+| [New Job] [Restart Timer]                               |
 +---------------------------------------------------------+
 ```
 

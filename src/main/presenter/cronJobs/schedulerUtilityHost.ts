@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { openSQLiteDatabase } from '../sqlitePresenter'
-import type { CronJobRunReason, SchedulerCommand, SchedulerEvent } from '@shared/cronJobs'
+import type {
+  CronJobMisfirePolicy,
+  CronJobRunReason,
+  SchedulerCommand,
+  SchedulerEvent
+} from '@shared/cronJobs'
+import { CronExpressionService } from './cronExpressionService'
 
 const SCHEDULER_HOST_ARG = '--deepchat-cron-scheduler-host'
 const HEARTBEAT_INTERVAL_MS = 5_000
@@ -20,7 +26,11 @@ type ParentPortMessageEvent = {
 
 interface DueCronJobRow {
   id: string
+  cron_expr: string
+  timezone: string
   next_run_at: number
+  misfire_policy: CronJobMisfirePolicy
+  max_catch_up_runs: number | null
 }
 
 interface SchedulerSnapshot {
@@ -77,6 +87,7 @@ export class CronJobsSchedulerUtilityHost {
   private heartbeatTimer: NodeJS.Timeout | null = null
   private scanTimer: NodeJS.Timeout | null = null
   private shuttingDown = false
+  private readonly scheduleService = new CronExpressionService()
 
   constructor(
     private readonly options: {
@@ -182,7 +193,12 @@ export class CronJobsSchedulerUtilityHost {
       const now = Date.now()
       const dueRows = db
         .prepare(
-          `SELECT id, next_run_at
+          `SELECT id,
+                  cron_expr,
+                  timezone,
+                  next_run_at,
+                  misfire_policy,
+                  max_catch_up_runs
            FROM cron_jobs
            WHERE enabled = 1
              AND next_run_at IS NOT NULL
@@ -194,27 +210,54 @@ export class CronJobsSchedulerUtilityHost {
 
       const dueEvents = db.transaction((rows: DueCronJobRow[]) =>
         rows.flatMap((row) => {
-          const run = this.queueRun(row.id, row.next_run_at, 'scheduled', true)
+          const reconciliation = this.scheduleService.reconcileDueRun(
+            {
+              cronExpr: row.cron_expr,
+              timezone: row.timezone,
+              misfirePolicy: row.misfire_policy,
+              maxCatchUpRuns: row.max_catch_up_runs
+            },
+            row.next_run_at,
+            now
+          )
+
+          if (reconciliation.error) {
+            db.prepare(
+              `UPDATE cron_jobs
+               SET next_run_at = NULL,
+                   schedule_error = ?,
+                   updated_at = ?
+               WHERE id = ?`
+            ).run(reconciliation.error, now, row.id)
+            return []
+          }
+
+          const events = reconciliation.scheduledAts.flatMap((scheduledAt) => {
+            const run = this.queueRun(row.id, scheduledAt, 'scheduled', true)
+            return run
+              ? [
+                  {
+                    type: 'RUN_DUE' as const,
+                    jobId: row.id,
+                    runId: run.runId,
+                    scheduledAt,
+                    reason: 'scheduled' as const,
+                    now: Date.now()
+                  }
+                ]
+              : []
+          })
+
           db.prepare(
             `UPDATE cron_jobs
-             SET next_run_at = NULL,
+             SET next_run_at = ?,
+                 schedule_error = NULL,
                  updated_at = ?
              WHERE id = ?
                AND next_run_at = ?`
-          ).run(now, row.id, row.next_run_at)
+          ).run(reconciliation.nextRunAt, now, row.id, row.next_run_at)
 
-          return run
-            ? [
-                {
-                  type: 'RUN_DUE' as const,
-                  jobId: row.id,
-                  runId: run.runId,
-                  scheduledAt: row.next_run_at,
-                  reason: 'scheduled' as const,
-                  now: Date.now()
-                }
-              ]
-            : []
+          return events
         })
       )(dueRows)
 

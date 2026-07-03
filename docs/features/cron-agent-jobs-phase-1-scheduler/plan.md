@@ -128,11 +128,15 @@ The first UI is intentionally operational:
 | Enabled: 2 | Next run: 2026-07-03 09:00                 |
 | Last heartbeat: 3s ago                                  |
 |                                                         |
-| [Reconcile] [Restart]                                  |
+| [Restart Timer]                                        |
 +---------------------------------------------------------+
 ```
 
 No nested cards. Use existing settings shell, shadcn controls, lucide icons, and i18n keys.
+The UI exposes one user-facing scheduler recovery action; lower-level reconcile remains an
+internal route for lifecycle hooks and diagnostics.
+Schedule-derived next runs are displayed as one read-only preview. The page must not expose manual
+date-time editing or a clear-next-run action in Phase 1.
 
 ## Compatibility
 

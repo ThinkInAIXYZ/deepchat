@@ -20,6 +20,9 @@ const job = {
   timezone: 'UTC',
   agentId: null,
   nextRunAt: null,
+  misfirePolicy: 'skip' as const,
+  maxCatchUpRuns: null,
+  scheduleError: null,
   createdAt: 1,
   updatedAt: 2
 }
@@ -55,6 +58,10 @@ describe('CronJobsClient', () => {
           case 'cronJobs.reconcileScheduler':
           case 'cronJobs.restartScheduler':
             return { schedulerStatus }
+          case 'cronJobs.validateSchedule':
+            return { valid: true, error: null, nextRunAt: 10 }
+          case 'cronJobs.previewSchedule':
+            return { runs: [10, 20, 30], error: null }
           default:
             throw new Error(`Unexpected route: ${routeName}`)
         }
@@ -71,7 +78,10 @@ describe('CronJobsClient', () => {
         cronExpr: job.cronExpr,
         timezone: job.timezone,
         agentId: null,
-        nextRunAt: null
+        nextRunAt: null,
+        misfirePolicy: 'skip',
+        maxCatchUpRuns: null,
+        scheduleError: null
       })
     ).toEqual({ job, schedulerStatus })
     expect(await client.toggle(job.id, false)).toEqual({ job, schedulerStatus })
@@ -80,6 +90,17 @@ describe('CronJobsClient', () => {
     expect(await client.getSchedulerStatus()).toEqual(schedulerStatus)
     expect(await client.reconcileScheduler('test')).toEqual(schedulerStatus)
     expect(await client.restartScheduler()).toEqual(schedulerStatus)
+    expect(await client.validateSchedule({ cronExpr: '0 9 * * *', timezone: 'UTC' })).toEqual({
+      valid: true,
+      error: null,
+      nextRunAt: 10
+    })
+    expect(
+      await client.previewSchedule({ cronExpr: '0 9 * * *', timezone: 'UTC', count: 3 })
+    ).toEqual({
+      runs: [10, 20, 30],
+      error: null
+    })
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'cronJobs.list', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'cronJobs.upsert', {
@@ -88,7 +109,10 @@ describe('CronJobsClient', () => {
       cronExpr: job.cronExpr,
       timezone: job.timezone,
       agentId: null,
-      nextRunAt: null
+      nextRunAt: null,
+      misfirePolicy: 'skip',
+      maxCatchUpRuns: null,
+      scheduleError: null
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'cronJobs.toggle', {
       id: job.id,
@@ -105,5 +129,14 @@ describe('CronJobsClient', () => {
       reason: 'test'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'cronJobs.restartScheduler', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'cronJobs.validateSchedule', {
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'cronJobs.previewSchedule', {
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC',
+      count: 3
+    })
   })
 })

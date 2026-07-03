@@ -1721,7 +1721,7 @@
       "runNow": "Run now",
       "clearNextRun": "Clear next run",
       "reconcile": "Reconcile",
-      "restart": "Restart"
+      "restart": "Restart timer"
     },
     "fields": {
       "name": "Name",

@@ -1163,6 +1163,9 @@ function createRuntime() {
     timezone: 'UTC',
     agentId: null,
     nextRunAt: null,
+    misfirePolicy: 'skip' as const,
+    maxCatchUpRuns: null,
+    scheduleError: null,
     createdAt: 1,
     updatedAt: 2
   }
@@ -1197,7 +1200,9 @@ function createRuntime() {
     runNow: vi.fn(async () => ({ job: cronJob, run: cronRun, schedulerStatus: cronStatus })),
     getSchedulerStatus: vi.fn(() => cronStatus),
     reconcileScheduler: vi.fn(async () => cronStatus),
-    restartScheduler: vi.fn(async () => cronStatus)
+    restartScheduler: vi.fn(async () => cronStatus),
+    validateSchedule: vi.fn(() => ({ valid: true, error: null, nextRunAt: 10 })),
+    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null }))
   }
 
   setDeepchatEventWindowPresenter(windowPresenter)
@@ -1268,7 +1273,10 @@ describe('dispatchDeepchatRoute', () => {
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
         agentId: null,
-        nextRunAt: null
+        nextRunAt: null,
+        misfirePolicy: 'skip',
+        maxCatchUpRuns: null,
+        scheduleError: null
       },
       context
     )
@@ -1317,6 +1325,25 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const validateResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.validateSchedule',
+      {
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC'
+      },
+      context
+    )
+    const previewResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.previewSchedule',
+      {
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        count: 3
+      },
+      context
+    )
 
     expect(listResult).toEqual({
       jobs: [expect.objectContaining({ id: 'cron-1' })],
@@ -1347,11 +1374,22 @@ describe('dispatchDeepchatRoute', () => {
     expect(deleteResult).toEqual({
       schedulerStatus: expect.objectContaining({ state: 'idle' })
     })
+    expect(validateResult).toEqual({ valid: true, error: null, nextRunAt: 10 })
+    expect(previewResult).toEqual({ runs: [10, 20, 30], error: null })
     expect(cronJobs.toggle).toHaveBeenCalledWith('cron-1', false)
     expect(cronJobs.runNow).toHaveBeenCalledWith('cron-1')
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
     expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
     expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')
+    expect(cronJobs.validateSchedule).toHaveBeenCalledWith({
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC'
+    })
+    expect(cronJobs.previewSchedule).toHaveBeenCalledWith({
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC',
+      count: 3
+    })
   })
 
   it('ensures the built-in chat workspace before startup bootstrap returns', async () => {

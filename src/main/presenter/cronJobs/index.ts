@@ -1,8 +1,15 @@
 import type { PowerMonitor } from 'electron'
-import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
+import type {
+  CronJob,
+  CronJobRun,
+  CronJobsSchedulerStatus,
+  CronSchedulePreview,
+  CronScheduleValidation
+} from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import { CronExpressionService } from './cronExpressionService'
 import { CronJobsRepository } from './repository'
 import {
   SchedulerProcessManager,
@@ -15,6 +22,7 @@ export type CronJobsUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 export interface CronJobsServiceDeps {
   sqlitePresenter: SQLitePresenter
   schedulerManager?: SchedulerProcessManager
+  scheduleService?: CronExpressionService
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
@@ -24,6 +32,7 @@ export interface CronJobsServiceDeps {
 export class CronJobsService {
   private readonly repository: CronJobsRepository
   private readonly schedulerManager: SchedulerProcessManager
+  private readonly scheduleService: CronExpressionService
   private started = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
   private readonly resumeHandler = () => {
@@ -32,6 +41,7 @@ export class CronJobsService {
 
   constructor(deps: CronJobsServiceDeps) {
     this.repository = new CronJobsRepository(deps.sqlitePresenter)
+    this.scheduleService = deps.scheduleService ?? new CronExpressionService()
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.sqlitePresenter.getDatabasePath(),
       dbPassword: deps.sqlitePresenter.getDatabasePassword(),
@@ -80,7 +90,12 @@ export class CronJobsService {
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
   }> {
-    const job = this.repository.upsertJob(input)
+    const scheduleState = this.computeScheduleState(input, Date.now())
+    const job = this.repository.upsertJob({
+      ...input,
+      nextRunAt: scheduleState.nextRunAt,
+      scheduleError: scheduleState.error
+    })
     const schedulerStatus = await this.reconcileScheduler('job-upsert')
     return { job, schedulerStatus }
   }
@@ -97,7 +112,20 @@ export class CronJobsService {
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
   }> {
-    const job = this.repository.setJobEnabled(id, enabled)
+    const existing = this.repository.requireJob(id)
+    const scheduleState = this.computeScheduleState(
+      {
+        ...existing,
+        enabled
+      },
+      Date.now()
+    )
+    const job = this.repository.upsertJob({
+      ...existing,
+      enabled,
+      nextRunAt: scheduleState.nextRunAt,
+      scheduleError: scheduleState.error
+    })
     const schedulerStatus = await this.reconcileScheduler('job-toggle')
     return { job, schedulerStatus }
   }
@@ -129,11 +157,29 @@ export class CronJobsService {
   }
 
   async reconcileScheduler(reason = 'manual'): Promise<CronJobsSchedulerStatus> {
+    this.reconcileStoredSchedules(Date.now())
     return await this.schedulerManager.reconcile(reason)
   }
 
   async restartScheduler(): Promise<CronJobsSchedulerStatus> {
     return await this.schedulerManager.restart()
+  }
+
+  validateSchedule(input: {
+    cronExpr: string
+    timezone: string
+    from?: number
+  }): CronScheduleValidation {
+    return this.scheduleService.validate(input.cronExpr, input.timezone, input.from)
+  }
+
+  previewSchedule(input: {
+    cronExpr: string
+    timezone: string
+    count?: number
+    from?: number
+  }): CronSchedulePreview {
+    return this.scheduleService.preview(input.cronExpr, input.timezone, input.count, input.from)
   }
 
   private async attachPowerMonitor(): Promise<void> {
@@ -150,6 +196,44 @@ export class CronJobsService {
       powerMonitor.on('resume', this.resumeHandler)
     } catch (error) {
       console.warn('[CronJobs] Failed to attach power monitor resume handler:', error)
+    }
+  }
+
+  private computeScheduleState(
+    input: Pick<CronJob, 'cronExpr' | 'timezone' | 'enabled'> | CronJobsUpsertInput,
+    now: number
+  ): { nextRunAt: number | null; error: string | null } {
+    const validation = this.scheduleService.validate(input.cronExpr, input.timezone, now)
+    if (!validation.valid && input.enabled) {
+      throw new Error(validation.error ?? 'Invalid cron schedule.')
+    }
+
+    return {
+      nextRunAt: validation.nextRunAt,
+      error: validation.error
+    }
+  }
+
+  private reconcileStoredSchedules(now: number): void {
+    for (const job of this.repository.listJobs()) {
+      if (job.enabled && job.nextRunAt !== null && job.scheduleError === null) {
+        continue
+      }
+      if (
+        !job.enabled &&
+        job.nextRunAt !== null &&
+        job.nextRunAt > now &&
+        job.scheduleError === null
+      ) {
+        continue
+      }
+
+      const validation = this.scheduleService.validate(job.cronExpr, job.timezone, now)
+      this.repository.updateScheduleState(job.id, {
+        nextRunAt: validation.nextRunAt,
+        scheduleError: validation.error,
+        now
+      })
     }
   }
 

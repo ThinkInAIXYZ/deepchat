@@ -64,10 +64,12 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
+  cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
   cronJobsRunNowRoute,
   cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
   cronJobsUpsertRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
@@ -2655,6 +2657,16 @@ export async function dispatchDeepchatRoute(
       cronJobsRestartSchedulerRoute.input.parse(rawInput)
       const schedulerStatus = await runtime.cronJobs.restartScheduler()
       return cronJobsRestartSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsValidateScheduleRoute.name: {
+      const input = cronJobsValidateScheduleRoute.input.parse(rawInput)
+      return cronJobsValidateScheduleRoute.output.parse(runtime.cronJobs.validateSchedule(input))
+    }
+
+    case cronJobsPreviewScheduleRoute.name: {
+      const input = cronJobsPreviewScheduleRoute.input.parse(rawInput)
+      return cronJobsPreviewScheduleRoute.output.parse(runtime.cronJobs.previewSchedule(input))
     }
 
     case startupGetBootstrapRoute.name: {

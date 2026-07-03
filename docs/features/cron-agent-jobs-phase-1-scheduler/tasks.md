@@ -19,7 +19,8 @@
 
 - [x] Register `cronJobs.*` routes in shared contracts and main route dispatcher.
 - [x] Add `CronJobsClient`.
-- [x] Add minimal Cron Jobs settings page with scheduler status, reconcile, and restart actions.
+- [x] Add minimal Cron Jobs settings page with scheduler status and one restart-timer action.
+- [x] Change per-job next run from an editable date-time field to a read-only indicator.
 - [x] Add i18n keys for all visible strings.
 
 ## Tests And Validation

@@ -1721,7 +1721,7 @@
       "runNow": "立即运行",
       "clearNextRun": "清空下次运行",
       "reconcile": "重新对账",
-      "restart": "重启调度"
+      "restart": "重启定时器"
     },
     "fields": {
       "name": "名称",
