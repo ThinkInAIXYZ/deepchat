@@ -412,6 +412,7 @@ export interface IOAuthPresenter {
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
   getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>
   startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus>
+  completeOpenAICodexBrowserLoginFromUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus>
   cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus>
   logoutOpenAICodex(): Promise<OpenAICodexAuthStatus>
 }
@@ -1638,6 +1639,23 @@ export interface MCPConfig {
   ready: boolean
 }
 
+export type McpServerAuthState =
+  | 'unsupported'
+  | 'none'
+  | 'required'
+  | 'authenticating'
+  | 'authenticated'
+  | 'error'
+
+export interface McpServerAuthStatus {
+  serverName: string
+  state: McpServerAuthState
+  authenticated: boolean
+  error?: string
+  updatedAt?: number
+  storage?: 'safeStorage' | 'file' | 'none'
+}
+
 export interface MCPToolDefinition {
   type: string
   source?: 'mcp' | 'agent'
@@ -1772,6 +1790,13 @@ export interface IMCPPresenter {
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
   getServerLastError?(serverName: string): string | undefined
+  getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus>
+  startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
+  completeMcpServerAuthFromCallbackUrl(
+    serverName: string,
+    callbackUrl: string
+  ): Promise<McpServerAuthStatus>
+  logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
   getAllToolDefinitions(
     enabledMcpTools?:
       | string[]

@@ -9,6 +9,11 @@ const mcpClientMock = vi.hoisted(() => ({
   startServer: vi.fn().mockResolvedValue(undefined),
   stopServer: vi.fn().mockResolvedValue(undefined),
   isServerRunning: vi.fn().mockResolvedValue(false),
+  getServerAuthStatus: vi.fn().mockResolvedValue({
+    serverName: 'demo',
+    state: 'none',
+    authenticated: false
+  }),
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getMcpClients: vi.fn().mockResolvedValue([]),
   getAllResources: vi.fn().mockResolvedValue([])
@@ -84,6 +89,12 @@ describe('useMcpStore toggleServer rollback', () => {
     setMcpServerEnabledMutate.mockReset()
     mcpClientMock.startServer.mockClear()
     mcpClientMock.stopServer.mockClear()
+    mcpClientMock.getServerAuthStatus.mockReset()
+    mcpClientMock.getServerAuthStatus.mockResolvedValue({
+      serverName: 'demo',
+      state: 'none',
+      authenticated: false
+    })
   })
 
   it('restores local state and persisted config when runtime sync fails', async () => {
@@ -119,6 +130,44 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(setMcpServerEnabledMutate).toHaveBeenNthCalledWith(2, ['demo', false])
     expect(mcpClientMock.startServer).not.toHaveBeenCalled()
     expect(mcpClientMock.stopServer).not.toHaveBeenCalled()
+  })
+
+  it('keeps enabled state when startup requires OAuth authentication', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: false
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    setMcpServerEnabledMutate.mockRejectedValueOnce(new Error('authorization required'))
+    mcpClientMock.getServerAuthStatus.mockResolvedValueOnce({
+      serverName: 'demo',
+      state: 'required',
+      authenticated: false
+    })
+
+    const result = await store.toggleServer('demo')
+
+    expect(result).toBe(true)
+    expect(store.config.mcpServers.demo.enabled).toBe(true)
+    expect(store.serverAuthStatuses.demo?.state).toBe('required')
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(setMcpServerEnabledMutate).toHaveBeenCalledTimes(1)
+    expect(setMcpServerEnabledMutate).toHaveBeenCalledWith(['demo', true])
   })
 
   it('hides enabled servers when MCP is globally disabled', async () => {

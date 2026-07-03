@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
@@ -55,6 +55,7 @@ const emit = defineEmits<{
 const isAddServerDialogOpen = ref(false)
 const isEditServerDialogOpen = ref(false)
 const isRemoveConfirmDialogOpen = ref(false)
+const isAuthCallbackDialogOpen = ref(false)
 const isToolPanelOpen = ref(false)
 const isPromptPanelOpen = ref(false)
 const isResourceViewerOpen = ref(false)
@@ -63,6 +64,9 @@ const selectedServerForTools = ref<string>('')
 const selectedServerForPrompts = ref<string>('')
 const selectedServerForResources = ref<string>('')
 const selectedDetailServerName = ref('')
+const selectedServerForAuth = ref('')
+const authCallbackUrl = ref('')
+const isSubmittingAuthCallback = ref(false)
 const searchQuery = ref('')
 const activeFilter = ref<'all' | 'running' | 'stopped'>('all')
 const MCP_FILTERS = ['all', 'running', 'stopped'] as const
@@ -138,6 +142,32 @@ const openAddServerDialog = () => {
   isAddServerDialogOpen.value = true
 }
 
+const closeAuthCallbackDialog = () => {
+  isAuthCallbackDialogOpen.value = false
+  selectedServerForAuth.value = ''
+  authCallbackUrl.value = ''
+}
+
+const refreshSelectedServerAuthStatus = async () => {
+  const serverName = selectedServerForAuth.value
+  if (!isAuthCallbackDialogOpen.value || !serverName) {
+    return
+  }
+
+  const status = await mcpStore.updateServerAuthStatus(serverName, true)
+  if (status?.authenticated) {
+    closeAuthCallbackDialog()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('focus', refreshSelectedServerAuthStatus)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshSelectedServerAuthStatus)
+})
+
 const handleEditServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
   const success = await mcpStore.updateServer(serverName, serverConfig)
   if (success) {
@@ -193,6 +223,52 @@ const handleToggleServer = async (serverName: string) => {
       description: t('common.error.requestFailed'),
       variant: 'destructive'
     })
+  }
+}
+
+const handleAuthenticateServer = async (serverName: string) => {
+  const status = await mcpStore.startServerAuth(serverName)
+  if (!status) {
+    toast({
+      title: t('settings.mcp.authFailed'),
+      description: t('common.error.requestFailed'),
+      variant: 'destructive'
+    })
+    return
+  }
+
+  if (status.authenticated) {
+    closeAuthCallbackDialog()
+    return
+  }
+
+  selectedServerForAuth.value = serverName
+  authCallbackUrl.value = ''
+  isAuthCallbackDialogOpen.value = true
+}
+
+const submitAuthCallbackUrl = async () => {
+  const serverName = selectedServerForAuth.value
+  const callbackUrl = authCallbackUrl.value.trim()
+  if (!serverName || !callbackUrl) {
+    return
+  }
+
+  isSubmittingAuthCallback.value = true
+  try {
+    const status = await mcpStore.completeServerAuthFromCallbackUrl(serverName, callbackUrl)
+    if (status?.authenticated) {
+      closeAuthCallbackDialog()
+      return
+    }
+
+    toast({
+      title: t('settings.mcp.authFailed'),
+      description: status?.error || t('common.error.requestFailed'),
+      variant: 'destructive'
+    })
+  } finally {
+    isSubmittingAuthCallback.value = false
   }
 }
 
@@ -328,6 +404,7 @@ defineExpose({
             @view-tools="handleViewTools(server.name)"
             @view-prompts="handleViewPrompts(server.name)"
             @view-resources="handleViewResources(server.name)"
+            @authenticate="handleAuthenticateServer(server.name)"
           />
         </div>
 
@@ -518,6 +595,41 @@ defineExpose({
           <Button variant="destructive" size="sm" class="min-w-24" @click="confirmRemoveServer">
             {{ t('common.confirm') }}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isAuthCallbackDialogOpen">
+      <DialogContent class="w-[90vw] max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle class="text-base">{{ t('settings.mcp.authCallbackTitle') }}</DialogTitle>
+          <DialogDescription class="text-sm">
+            {{ t('settings.mcp.authCallbackDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="mt-2 flex flex-col gap-3">
+          <Input
+            v-model="authCallbackUrl"
+            :placeholder="t('settings.mcp.authCallbackPlaceholder')"
+            @keydown.enter.prevent="submitAuthCallbackUrl"
+          />
+          <div class="flex justify-end gap-2">
+            <Button variant="outline" size="sm" @click="closeAuthCallbackDialog">
+              {{ t('common.cancel') }}
+            </Button>
+            <Button
+              size="sm"
+              :disabled="!authCallbackUrl.trim() || isSubmittingAuthCallback"
+              @click="submitAuthCallbackUrl"
+            >
+              <Icon
+                v-if="isSubmittingAuthCallback"
+                icon="lucide:loader-2"
+                class="size-4 animate-spin"
+              />
+              {{ t('settings.mcp.completeAuthentication') }}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

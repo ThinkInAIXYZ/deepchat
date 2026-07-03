@@ -5,6 +5,7 @@ import type {
   MCPToolDefinition,
   MCPToolResponse,
   McpClient,
+  McpServerAuthStatus,
   McpSamplingDecision,
   PromptListEntry,
   Resource,
@@ -21,6 +22,14 @@ const ResourceSchema = z.custom<Resource>()
 const MCPToolCallSchema = z.custom<MCPToolCall>()
 const MCPToolResponseSchema = z.custom<MCPToolResponse>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
+export const McpServerAuthStatusSchema: z.ZodType<McpServerAuthStatus> = z.object({
+  serverName: z.string(),
+  state: z.enum(['unsupported', 'none', 'required', 'authenticating', 'authenticated', 'error']),
+  authenticated: z.boolean(),
+  error: z.string().optional(),
+  updatedAt: z.number().optional(),
+  storage: z.enum(['safeStorage', 'file', 'none']).optional()
+})
 const NpmRegistryStatusSchema = z.custom<{
   currentRegistry: string | null
   isFromCache: boolean
@@ -183,6 +192,47 @@ export const mcpStopServerRoute = defineRouteContract({
   }),
   output: z.object({
     stopped: z.literal(true)
+  })
+})
+
+export const mcpGetServerAuthStatusRoute = defineRouteContract({
+  name: 'mcp.getServerAuthStatus',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpStartServerAuthRoute = defineRouteContract({
+  name: 'mcp.startServerAuth',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpCompleteServerAuthFromCallbackUrlRoute = defineRouteContract({
+  name: 'mcp.completeServerAuthFromCallbackUrl',
+  input: z.object({
+    serverName: z.string(),
+    callbackUrl: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
+  })
+})
+
+export const mcpLogoutServerAuthRoute = defineRouteContract({
+  name: 'mcp.logoutServerAuth',
+  input: z.object({
+    serverName: z.string()
+  }),
+  output: z.object({
+    status: McpServerAuthStatusSchema
   })
 })
 

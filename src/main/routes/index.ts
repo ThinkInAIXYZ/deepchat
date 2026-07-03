@@ -124,15 +124,18 @@ import {
   mcpCallToolRoute,
   mcpCancelSamplingRequestRoute,
   mcpClearNpmRegistryCacheRoute,
+  mcpCompleteServerAuthFromCallbackUrlRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
   mcpGetPromptRoute,
+  mcpGetServerAuthStatusRoute,
   mcpGetServersRoute,
   mcpIsServerRunningRoute,
   mcpListPromptsRoute,
   mcpListResourcesRoute,
   mcpListToolDefinitionsRoute,
+  mcpLogoutServerAuthRoute,
   mcpReadResourceRoute,
   mcpRefreshNpmRegistryRoute,
   mcpRemoveServerRoute,
@@ -146,6 +149,7 @@ import {
   mcpSetCustomNpmRegistryRoute,
   mcpSetEnabledRoute,
   mcpSetServerEnabledRoute,
+  mcpStartServerAuthRoute,
   mcpStartServerRoute,
   mcpStopServerRoute,
   mcpSubmitSamplingDecisionRoute,
@@ -162,6 +166,7 @@ import {
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
   oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
@@ -2553,6 +2558,15 @@ export async function dispatchDeepchatRoute(
       })
     }
 
+    case oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name: {
+      const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
+      return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
+        status: await runtime.oauthPresenter.completeOpenAICodexBrowserLoginFromUrl(
+          input.callbackUrl
+        )
+      })
+    }
+
     case oauthOpenAICodexCancelLoginRoute.name: {
       oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
       return oauthOpenAICodexCancelLoginRoute.output.parse({
@@ -3597,6 +3611,37 @@ export async function dispatchDeepchatRoute(
         }
       })
       return mcpStopServerRoute.output.parse({ stopped: true })
+    }
+
+    case mcpGetServerAuthStatusRoute.name: {
+      const input = mcpGetServerAuthStatusRoute.input.parse(rawInput)
+      return mcpGetServerAuthStatusRoute.output.parse({
+        status: await runtime.mcpPresenter.getMcpServerAuthStatus(input.serverName)
+      })
+    }
+
+    case mcpStartServerAuthRoute.name: {
+      const input = mcpStartServerAuthRoute.input.parse(rawInput)
+      return mcpStartServerAuthRoute.output.parse({
+        status: await runtime.mcpPresenter.startMcpServerAuth(input.serverName)
+      })
+    }
+
+    case mcpCompleteServerAuthFromCallbackUrlRoute.name: {
+      const input = mcpCompleteServerAuthFromCallbackUrlRoute.input.parse(rawInput)
+      return mcpCompleteServerAuthFromCallbackUrlRoute.output.parse({
+        status: await runtime.mcpPresenter.completeMcpServerAuthFromCallbackUrl(
+          input.serverName,
+          input.callbackUrl
+        )
+      })
+    }
+
+    case mcpLogoutServerAuthRoute.name: {
+      const input = mcpLogoutServerAuthRoute.input.parse(rawInput)
+      return mcpLogoutServerAuthRoute.output.parse({
+        status: await runtime.mcpPresenter.logoutMcpServerAuth(input.serverName)
+      })
     }
 
     case mcpGetPromptRoute.name: {

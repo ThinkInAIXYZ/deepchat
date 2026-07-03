@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { BrowserWindow, shell } from 'electron'
+import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OpenAICodexAuth } from '../../../src/main/presenter/openaiCodexAuth'
 import { OpenAICodexCredentialStore } from '../../../src/main/presenter/openaiCodexAuth/credentialStore'
@@ -26,7 +26,6 @@ describe('OpenAI Codex auth', () => {
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
-    vi.mocked(BrowserWindow).mockClear()
     vi.mocked(shell.openExternal).mockClear()
     delete process.env.DEEPCHAT_OPENAI_CODEX_DISABLED
   })
@@ -153,7 +152,7 @@ describe('OpenAI Codex auth', () => {
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 
-  it('opens browser login in an internal authorization window', async () => {
+  it('opens browser login externally and completes from a pasted callback URL', async () => {
     const store = new OpenAICodexCredentialStore(path.join(tempDir, 'browser.json'))
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -176,39 +175,22 @@ describe('OpenAI Codex auth', () => {
     const auth = new OpenAICodexAuth(store)
 
     const status = await auth.startBrowserLogin()
-    const authWindow = vi.mocked(BrowserWindow).mock.results[0]?.value
+    const authUrl = new URL(vi.mocked(shell.openExternal).mock.calls[0][0])
+    const redirectUri = authUrl.searchParams.get('redirect_uri')!
+    const state = authUrl.searchParams.get('state')!
 
     expect(status.state).toBe('pending-browser')
     expect(store.load()).toBeNull()
-    expect(BrowserWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'OpenAI Codex Authorization',
-        width: 520,
-        height: 720
-      })
-    )
-    expect(authWindow.loadURL).toHaveBeenCalledWith(
+    expect(shell.openExternal).toHaveBeenCalledWith(
       expect.stringContaining('https://auth.openai.com/oauth/authorize')
     )
-    expect(authWindow.show).toHaveBeenCalledTimes(1)
-    expect(authWindow.focus).toHaveBeenCalledTimes(1)
-    expect(shell.openExternal).not.toHaveBeenCalled()
 
-    const navigateHandler = authWindow.webContents.on.mock.calls.find(
-      ([eventName]: [string]) => eventName === 'will-navigate'
-    )?.[1]
-    const preventDefault = vi.fn()
-    navigateHandler(
-      {
-        preventDefault
-      },
-      'http://localhost:1455/auth/callback?code=browser-code&state=' +
-        encodeURIComponent(new URL(authWindow.loadURL.mock.calls[0][0]).searchParams.get('state')!)
-    )
+    const callbackUrl = new URL(redirectUri)
+    callbackUrl.searchParams.set('code', 'browser-code')
+    callbackUrl.searchParams.set('state', state)
+    await auth.completeBrowserLoginFromCallbackUrl(callbackUrl.toString())
 
     await vi.waitFor(() => expect(store.load()?.accessToken).toBe('browser-token'))
-    expect(preventDefault).toHaveBeenCalledTimes(1)
-    expect(authWindow.close).toHaveBeenCalledTimes(1)
     expect(auth.getStatus().state).toBe('authenticated')
   })
 

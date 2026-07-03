@@ -1,11 +1,17 @@
 import logger from '@shared/logger'
-import { BrowserWindow } from 'electron'
+import { shell } from 'electron'
 import { URL } from 'url'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import {
+  resolveOAuthLoopbackCallbackUrl,
+  startOAuthLoopbackCallbackSession,
+  type OAuthLoopbackCallbackSession
+} from '../oauthLoopbackCallback'
 import {
   OPENAI_CODEX_ACCESS_TOKEN_ENV,
   OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS,
   OPENAI_CODEX_AUTHORIZE_URL,
+  OPENAI_CODEX_BROWSER_TIMEOUT_MS,
   OPENAI_CODEX_CLIENT_ID,
   OPENAI_CODEX_REDIRECT_PATH,
   OPENAI_CODEX_REDIRECT_PORT,
@@ -28,6 +34,8 @@ export type OpenAICodexBackendAuth = {
 type PendingBrowserFlow = {
   state: string
   codeVerifier: string
+  redirectUri: string
+  callbackSession: OAuthLoopbackCallbackSession
   cancelled: boolean
   flowPromise?: Promise<void>
 }
@@ -106,43 +114,37 @@ export type OpenAICodexCallbackResolution =
 
 export function resolveOpenAICodexCallbackUrl(
   rawUrl: string | undefined,
-  expectedState: string
+  expectedState: string,
+  redirectUri = OPENAI_CODEX_REDIRECT_URI
 ): OpenAICodexCallbackResolution {
-  const url = new URL(rawUrl || '/', `http://localhost:${OPENAI_CODEX_REDIRECT_PORT}`)
-  if (url.pathname !== OPENAI_CODEX_REDIRECT_PATH) {
+  const callback = resolveOAuthLoopbackCallbackUrl(
+    rawUrl,
+    expectedState,
+    redirectUri,
+    'Invalid OpenAI Codex OAuth callback'
+  )
+  if (callback.kind === 'not-found') {
     return { kind: 'not-found' }
   }
 
-  const error = url.searchParams.get('error')
-  const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
-  if (error) {
+  if (callback.kind === 'failure') {
     return {
       kind: 'failure',
-      error: new Error(error),
-      message: 'Authorization failed. You can close this window.'
-    }
-  }
-
-  if (!code || state !== expectedState) {
-    return {
-      kind: 'failure',
-      error: new Error('Invalid OpenAI Codex OAuth callback'),
-      message: 'Authorization state is invalid. You can close this window.'
+      error: callback.error,
+      message: 'Authentication complete. You can return to DeepChat.'
     }
   }
 
   return {
     kind: 'success',
-    code,
-    message: 'Authorization complete. You can close this window.'
+    code: callback.code,
+    message: 'Authentication complete. You can return to DeepChat.'
   }
 }
 
 export class OpenAICodexAuth {
   private readonly store: OpenAICodexCredentialStore
   private pendingBrowserFlow: PendingBrowserFlow | null = null
-  private authWindow: BrowserWindow | null = null
   private refreshPromise: Promise<OpenAICodexTokenSet> | null = null
   private lastError: string | null = null
 
@@ -185,44 +187,76 @@ export class OpenAICodexAuth {
 
     const state = createOpenAICodexState()
     const pkce = createOpenAICodexPkcePair()
-
-    const authUrl = new URL(OPENAI_CODEX_AUTHORIZE_URL)
-    authUrl.searchParams.set('client_id', OPENAI_CODEX_CLIENT_ID)
-    authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('redirect_uri', OPENAI_CODEX_REDIRECT_URI)
-    authUrl.searchParams.set('scope', OPENAI_CODEX_SCOPE)
-    authUrl.searchParams.set('state', state)
-    authUrl.searchParams.set('code_challenge', pkce.codeChallenge)
-    authUrl.searchParams.set('code_challenge_method', 'S256')
-    authUrl.searchParams.set('codex_cli_simplified_flow', 'true')
-    authUrl.searchParams.set('id_token_add_organizations', 'true')
+    let callbackSession: OAuthLoopbackCallbackSession | null = null
 
     try {
+      const configuredRedirect = new URL(OPENAI_CODEX_REDIRECT_URI)
+      callbackSession = await startOAuthLoopbackCallbackSession({
+        expectedState: state,
+        path: configuredRedirect.pathname || OPENAI_CODEX_REDIRECT_PATH,
+        preferredPort: Number(configuredRedirect.port) || OPENAI_CODEX_REDIRECT_PORT,
+        redirectHost: configuredRedirect.hostname || 'localhost',
+        timeoutMs: OPENAI_CODEX_BROWSER_TIMEOUT_MS,
+        invalidCallbackMessage: 'Invalid OpenAI Codex OAuth callback'
+      })
+      const authUrl = new URL(OPENAI_CODEX_AUTHORIZE_URL)
+      authUrl.searchParams.set('client_id', OPENAI_CODEX_CLIENT_ID)
+      authUrl.searchParams.set('response_type', 'code')
+      authUrl.searchParams.set('redirect_uri', callbackSession.redirectUri)
+      authUrl.searchParams.set('scope', OPENAI_CODEX_SCOPE)
+      authUrl.searchParams.set('state', state)
+      authUrl.searchParams.set('code_challenge', pkce.codeChallenge)
+      authUrl.searchParams.set('code_challenge_method', 'S256')
+      authUrl.searchParams.set('codex_cli_simplified_flow', 'true')
+      authUrl.searchParams.set('id_token_add_organizations', 'true')
+
       const flow: PendingBrowserFlow = {
         state,
         codeVerifier: pkce.codeVerifier,
+        redirectUri: callbackSession.redirectUri,
+        callbackSession,
         cancelled: false
       }
       this.pendingBrowserFlow = flow
-      const authWindowPromise = this.openAuthWindow(authUrl.toString(), state)
-      flow.flowPromise = this.completeBrowserLogin(flow, authWindowPromise)
+      flow.flowPromise = this.completeBrowserLogin(flow, callbackSession.waitForCallback())
+      await shell.openExternal(authUrl.toString())
       this.publishStatusChanged()
       return this.getStatus()
     } catch (error) {
       this.lastError = sanitizeError(error)
       this.pendingBrowserFlow = null
-      this.stopAuthWindow()
+      callbackSession?.close()
       this.publishStatusChanged()
       return this.getStatus()
     }
   }
 
+  async completeBrowserLoginFromCallbackUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus> {
+    this.assertEnabled()
+    const flow = this.pendingBrowserFlow
+    if (!flow || flow.cancelled) {
+      this.lastError = 'OpenAI Codex browser login is not pending'
+      this.publishStatusChanged()
+      return this.getStatus()
+    }
+
+    const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
+    if (resolution.kind === 'not-found') {
+      this.lastError = 'OpenAI Codex callback URL is invalid'
+      this.publishStatusChanged()
+      return this.getStatus()
+    }
+
+    await flow.flowPromise
+    return this.getStatus()
+  }
+
   cancelLogin(): OpenAICodexAuthStatus {
     if (this.pendingBrowserFlow) {
       this.pendingBrowserFlow.cancelled = true
+      this.pendingBrowserFlow.callbackSession.close()
       this.pendingBrowserFlow = null
     }
-    this.stopAuthWindow()
     this.publishStatusChanged()
     return this.getStatus()
   }
@@ -319,111 +353,17 @@ export class OpenAICodexAuth {
     }
   }
 
-  private openAuthWindow(authUrl: string, expectedState: string): Promise<string> {
-    this.stopAuthWindow()
-
-    return new Promise<string>((resolve, reject) => {
-      const authWindow = new BrowserWindow({
-        width: 520,
-        height: 720,
-        show: false,
-        autoHideMenuBar: true,
-        title: 'OpenAI Codex Authorization',
-        minimizable: true,
-        maximizable: false,
-        fullscreenable: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-          webSecurity: true
-        }
-      })
-      this.authWindow = authWindow
-      let settled = false
-
-      const rejectWindow = (error: Error) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        if (this.authWindow === authWindow) {
-          this.authWindow = null
-        }
-        reject(error)
-      }
-
-      const resolveWindow = (code: string) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        resolve(code)
-      }
-
-      const handleNavigation = (url: string): boolean => {
-        const callback = resolveOpenAICodexCallbackUrl(url, expectedState)
-        if (callback.kind === 'not-found') {
-          return false
-        }
-
-        if (callback.kind === 'failure') {
-          rejectWindow(callback.error)
-          return true
-        }
-
-        resolveWindow(callback.code)
-        return true
-      }
-
-      authWindow.on('closed', () => {
-        rejectWindow(new Error('OpenAI Codex browser login window was closed'))
-      })
-
-      authWindow.webContents.on('will-redirect', (event, url) => {
-        if (handleNavigation(url)) {
-          event.preventDefault()
-        }
-      })
-
-      authWindow.webContents.on('will-navigate', (event, url) => {
-        if (handleNavigation(url)) {
-          event.preventDefault()
-        }
-      })
-
-      authWindow.webContents.on('did-navigate', (_event, url) => {
-        handleNavigation(url)
-      })
-
-      authWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (handleNavigation(url)) {
-          return { action: 'deny' }
-        }
-        void Promise.resolve(authWindow.loadURL(url)).catch((error) => {
-          rejectWindow(error instanceof Error ? error : new Error(String(error)))
-        })
-        return { action: 'deny' }
-      })
-
-      void Promise.resolve(authWindow.loadURL(authUrl)).catch((error) => {
-        rejectWindow(error instanceof Error ? error : new Error(String(error)))
-      })
-      authWindow.show()
-      authWindow.focus()
-    })
-  }
-
   private async completeBrowserLogin(
     flow: PendingBrowserFlow,
-    codePromise: Promise<string>
+    callbackPromise: Promise<{ code: string }>
   ): Promise<void> {
     try {
-      const code = await codePromise
+      const { code } = await callbackPromise
       if (flow.cancelled || this.pendingBrowserFlow !== flow) {
         return
       }
 
-      const tokens = await this.exchangeAuthorizationCode(code, flow.codeVerifier)
+      const tokens = await this.exchangeAuthorizationCode(code, flow.codeVerifier, flow.redirectUri)
       if (flow.cancelled || this.pendingBrowserFlow !== flow) {
         return
       }
@@ -431,7 +371,7 @@ export class OpenAICodexAuth {
       this.store.save(tokens)
       this.lastError = null
       this.pendingBrowserFlow = null
-      this.stopAuthWindow()
+      flow.callbackSession.close()
       this.publishStatusChanged()
     } catch (error) {
       if (flow.cancelled || this.pendingBrowserFlow !== flow) {
@@ -440,28 +380,21 @@ export class OpenAICodexAuth {
 
       this.lastError = sanitizeError(error)
       this.pendingBrowserFlow = null
-      this.stopAuthWindow()
+      flow.callbackSession.close()
       this.publishStatusChanged()
-    }
-  }
-
-  private stopAuthWindow(): void {
-    const authWindow = this.authWindow
-    this.authWindow = null
-    if (authWindow && !authWindow.isDestroyed()) {
-      authWindow.close()
     }
   }
 
   private async exchangeAuthorizationCode(
     code: string,
-    codeVerifier: string
+    codeVerifier: string,
+    redirectUri: string
   ): Promise<OpenAICodexTokenSet> {
     const payload = await this.postForm(OPENAI_CODEX_TOKEN_URL, {
       grant_type: 'authorization_code',
       client_id: OPENAI_CODEX_CLIENT_ID,
       code,
-      redirect_uri: OPENAI_CODEX_REDIRECT_URI,
+      redirect_uri: redirectUri,
       code_verifier: codeVerifier
     })
 

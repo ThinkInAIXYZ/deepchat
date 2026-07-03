@@ -27,6 +27,7 @@ import { getInMemoryServer } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { terminateProcessTree } from '@/lib/agentRuntime/processTree'
+import type { McpOAuthManager } from './mcpOAuthManager'
 import {
   PromptListEntry,
   ToolCallResult,
@@ -36,7 +37,8 @@ import {
   Resource,
   ChatMessage,
   McpSamplingRequestPayload,
-  McpSamplingDecision
+  McpSamplingDecision,
+  MCPServerConfig
 } from '@shared/presenter'
 
 const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
@@ -132,6 +134,7 @@ export class McpClient {
   private connectionTimeout: NodeJS.Timeout | null = null
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
+  private mcpOAuthManager?: McpOAuthManager
   private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   // Session management
@@ -147,12 +150,14 @@ export class McpClient {
     serverName: string,
     serverConfig: Record<string, unknown>,
     npmRegistry: string | null = null,
-    uvRegistry: string | null = null
+    uvRegistry: string | null = null,
+    mcpOAuthManager?: McpOAuthManager
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
+    this.mcpOAuthManager = mcpOAuthManager
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -227,6 +232,12 @@ export class McpClient {
         authProvider = new SimpleOAuthProvider(customHeaders.Authorization)
         delete customHeaders.Authorization // Remove from headers as it will be handled by AuthProvider
       }
+      const runtimeOAuthProvider =
+        authProvider ??
+        this.mcpOAuthManager?.createRuntimeProvider(
+          this.serverName,
+          this.serverConfig as Partial<MCPServerConfig>
+        )
 
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -420,7 +431,7 @@ export class McpClient {
         this.transport = new SSEClientTransport(new URL(this.serverConfig.baseUrl as string), {
           requestInit: { headers: customHeaders },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          authProvider: (authProvider ?? undefined) as any
+          authProvider: (runtimeOAuthProvider ?? undefined) as any
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'http') {
         this.transport = new StreamableHTTPClientTransport(
@@ -428,7 +439,7 @@ export class McpClient {
           {
             requestInit: { headers: customHeaders },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            authProvider: (authProvider ?? undefined) as any
+            authProvider: (runtimeOAuthProvider ?? undefined) as any
           }
         )
       } else {

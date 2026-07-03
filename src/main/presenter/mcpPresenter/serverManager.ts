@@ -7,6 +7,7 @@ import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { McpOAuthManager } from './mcpOAuthManager'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -20,9 +21,11 @@ export class ServerManager {
   private configPresenter: IConfigPresenter
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
+  private mcpOAuthManager?: McpOAuthManager
 
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter, mcpOAuthManager?: McpOAuthManager) {
     this.configPresenter = configPresenter
+    this.mcpOAuthManager = mcpOAuthManager
     this.loadRegistryFromCache()
   }
 
@@ -242,7 +245,8 @@ export class ServerManager {
         name,
         serverConfig as unknown as Record<string, unknown>,
         npmRegistry,
-        this.uvRegistry
+        this.uvRegistry,
+        this.mcpOAuthManager
       )
       this.clients.set(name, client)
 
@@ -255,8 +259,10 @@ export class ServerManager {
       // Remove client reference
       this.clients.delete(name)
       this.setServerLastError(name, error)
+      const authHandled =
+        this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
 
-      if (!this.isPluginOwnedServerConfig(serverConfig)) {
+      if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
         // Send global error notification only for normal MCP servers.
         this.sendMcpConnectionError(name, error)
       }

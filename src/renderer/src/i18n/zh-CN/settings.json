@@ -1387,7 +1387,12 @@
         "models": "Models",
         "advanced": "Advanced"
       }
-    }
+    },
+    "openaiCodexPasteCallback": "粘贴回调 URL",
+    "openaiCodexCallbackTitle": "完成认证",
+    "openaiCodexCallbackDescription": "浏览器完成后回到 DeepChat。如果 DeepChat 没有更新，请把完整回调 URL 粘贴到这里。",
+    "openaiCodexCallbackPlaceholder": "粘贴完整回调 URL",
+    "openaiCodexCompleteAuthentication": "完成认证"
   },
   "knowledgeBase": {
     "title": "知识库设置",
@@ -1705,7 +1710,16 @@
         "builtIn": "Built-in",
         "custom": "Custom"
       }
-    }
+    },
+    "authRequired": "需要认证",
+    "authenticate": "认证",
+    "authFailed": "认证失败",
+    "authCallbackTitle": "完成认证",
+    "authCallbackDescription": "浏览器完成后回到 DeepChat。如果 DeepChat 没有更新，请把完整回调 URL 粘贴到这里。",
+    "authCallbackPlaceholder": "粘贴完整回调 URL",
+    "completeAuthentication": "完成认证",
+    "saveSuccess": "已保存配置",
+    "saveFailed": "保存失败"
   },
   "scheduledTasks": {
     "title": "定时任务",

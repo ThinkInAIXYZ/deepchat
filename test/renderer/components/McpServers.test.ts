@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -22,9 +22,13 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  emits: ['toggle'],
-  template:
-    '<button data-testid="server-card" @click="$emit(\'toggle\')">{{ server.name }}:{{ server.enabled }}</button>'
+  emits: ['toggle', 'authenticate'],
+  template: `
+    <div>
+      <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
+      <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
+    </div>
+  `
 })
 
 type SetupOptions = {
@@ -101,6 +105,13 @@ const setup = async (options: SetupOptions = {}) => {
     updateServer: vi.fn().mockResolvedValue(true),
     removeServer: vi.fn().mockResolvedValue(true),
     toggleServer: vi.fn().mockResolvedValue(true),
+    startServerAuth: vi.fn().mockResolvedValue({
+      serverName: 'running-server',
+      state: 'authenticating',
+      authenticated: false
+    }),
+    completeServerAuthFromCallbackUrl: vi.fn(),
+    updateServerAuthStatus: vi.fn().mockResolvedValue(null),
     loadTools: vi.fn().mockResolvedValue(undefined),
     loadPrompts: vi.fn().mockResolvedValue(undefined),
     loadResources: vi.fn().mockResolvedValue(undefined)
@@ -286,5 +297,25 @@ describe('McpServers', () => {
 
     expect(wrapper.text()).toContain('settings.mcp.noServersFound')
     expect(wrapper.findAll('[data-testid="server-card"]')).toHaveLength(0)
+  })
+
+  it('refreshes auth status when returning to the callback dialog', async () => {
+    const { wrapper, mcpStore } = await setup({ withServers: true })
+    mcpStore.updateServerAuthStatus.mockResolvedValueOnce({
+      serverName: 'running-server',
+      state: 'authenticated',
+      authenticated: true
+    })
+
+    await wrapper.find('[data-testid="authenticate-server"]').trigger('click')
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(mcpStore.startServerAuth).toHaveBeenCalledWith('running-server')
+    expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledTimes(1)
+    expect(mcpStore.updateServerAuthStatus).toHaveBeenCalledWith('running-server', true)
   })
 })

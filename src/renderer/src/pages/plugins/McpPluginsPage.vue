@@ -1,5 +1,5 @@
 <template>
-  <McpSettings scope="agent" />
+  <McpSettings />
 </template>
 
 <script setup lang="ts">

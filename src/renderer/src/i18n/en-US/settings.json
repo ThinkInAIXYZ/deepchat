@@ -1387,7 +1387,12 @@
         "models": "Models",
         "advanced": "Advanced"
       }
-    }
+    },
+    "openaiCodexPasteCallback": "Paste callback URL",
+    "openaiCodexCallbackTitle": "Complete authentication",
+    "openaiCodexCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
+    "openaiCodexCallbackPlaceholder": "Paste the full callback URL",
+    "openaiCodexCompleteAuthentication": "Complete authentication"
   },
   "knowledgeBase": {
     "title": "Knowledge Base Settings",
@@ -1705,7 +1710,16 @@
         "builtIn": "Built-in",
         "custom": "Custom"
       }
-    }
+    },
+    "authRequired": "Authentication required",
+    "authenticate": "Authenticate",
+    "authFailed": "Authentication failed",
+    "authCallbackTitle": "Complete authentication",
+    "authCallbackDescription": "After the browser finishes, return to DeepChat. If DeepChat does not update, paste the full callback URL here.",
+    "authCallbackPlaceholder": "Paste the full callback URL",
+    "completeAuthentication": "Complete authentication",
+    "saveSuccess": "Configuration saved",
+    "saveFailed": "Failed to save configuration"
   },
   "scheduledTasks": {
     "title": "Scheduled Tasks",

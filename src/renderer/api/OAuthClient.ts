@@ -2,6 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { oauthOpenAICodexStatusChangedEvent } from '@shared/contracts/events'
 import {
   oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
   oauthOpenAICodexGetStatusRoute,
   oauthOpenAICodexLogoutRoute,
   oauthOpenAICodexStartBrowserLoginRoute,
@@ -34,6 +35,15 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.status
   }
 
+  async function completeOpenAICodexBrowserLoginFromUrl(
+    callbackUrl: string
+  ): Promise<OpenAICodexAuthStatus> {
+    const result = await bridge.invoke(oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name, {
+      callbackUrl
+    })
+    return result.status
+  }
+
   async function cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
     const result = await bridge.invoke(oauthOpenAICodexCancelLoginRoute.name, {})
     return result.status
@@ -57,6 +67,7 @@ export function createOAuthClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     startGitHubCopilotDeviceFlowLogin,
     getOpenAICodexStatus,
     startOpenAICodexBrowserLogin,
+    completeOpenAICodexBrowserLoginFromUrl,
     cancelOpenAICodexLogin,
     logoutOpenAICodex,
     onOpenAICodexStatusChanged

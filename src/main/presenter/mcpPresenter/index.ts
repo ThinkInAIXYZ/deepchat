@@ -12,11 +12,13 @@ import {
   Resource,
   PromptListEntry,
   McpSamplingRequestPayload,
-  McpSamplingDecision
+  McpSamplingDecision,
+  McpServerAuthStatus
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
 import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
+import { McpOAuthManager } from './mcpOAuthManager'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
@@ -58,6 +60,7 @@ const normalizeToolAccessContext = (
 export class McpPresenter implements IMCPPresenter {
   private serverManager: ServerManager
   private toolManager: ToolManager
+  private mcpOAuthManager: McpOAuthManager
   private configPresenter: IConfigPresenter
   private isInitialized: boolean = false
   // McpRouter
@@ -94,7 +97,10 @@ export class McpPresenter implements IMCPPresenter {
 
     this.configPresenter = configPresenter || presenter.configPresenter
     this.cacheImage = cacheImage
-    this.serverManager = new ServerManager(this.configPresenter)
+    this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
+      this.restartServerAfterAuthentication(serverName)
+    )
+    this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
     // init mcprouter manager
     try {
@@ -141,7 +147,10 @@ export class McpPresenter implements IMCPPresenter {
       // If no configPresenter is provided, get it from presenter
       if (!this.configPresenter.getLanguage) {
         // Recreate managers
-        this.serverManager = new ServerManager(this.configPresenter)
+        this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
+          this.restartServerAfterAuthentication(serverName)
+        )
+        this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
         this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
       }
 
@@ -236,6 +245,21 @@ export class McpPresenter implements IMCPPresenter {
       } catch (error) {
         console.error(`[MCP] Failed to stop server ${client.serverName} during shutdown:`, error)
       }
+    }
+  }
+
+  private async restartServerAfterAuthentication(serverName: string): Promise<void> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig?.enabled) {
+      return
+    }
+
+    try {
+      await this.serverManager.startServer(serverName)
+      this.emitServerStarted(serverName)
+    } catch (error) {
+      console.error(`[MCP] Failed to restart authenticated server ${serverName}:`, error)
     }
   }
 
@@ -499,6 +523,8 @@ export class McpPresenter implements IMCPPresenter {
     if (await this.isServerRunning(serverName)) {
       await this.stopServer(serverName)
     }
+    const servers = await this.configPresenter.getMcpServers()
+    this.mcpOAuthManager.logout(serverName, servers[serverName])
     await this.configPresenter.removeMcpServer(serverName)
   }
 
@@ -518,6 +544,37 @@ export class McpPresenter implements IMCPPresenter {
 
   getServerLastError(serverName: string): string | undefined {
     return this.serverManager.getServerLastError(serverName)
+  }
+
+  async getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    return this.mcpOAuthManager.getStatus(serverName, servers[serverName])
+  }
+
+  async startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig) {
+      throw new Error(`MCP server ${serverName} not found`)
+    }
+    return this.mcpOAuthManager.startAuth(serverName, serverConfig)
+  }
+
+  async completeMcpServerAuthFromCallbackUrl(
+    serverName: string,
+    callbackUrl: string
+  ): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    const serverConfig = servers[serverName]
+    if (!serverConfig) {
+      throw new Error(`MCP server ${serverName} not found`)
+    }
+    return this.mcpOAuthManager.completeAuthFromCallbackUrl(serverName, serverConfig, callbackUrl)
+  }
+
+  async logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
+    const servers = await this.configPresenter.getMcpServers()
+    return this.mcpOAuthManager.logout(serverName, servers[serverName])
   }
 
   async getAllToolDefinitions(

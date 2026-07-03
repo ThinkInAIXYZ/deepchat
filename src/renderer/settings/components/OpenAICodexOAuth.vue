@@ -63,6 +63,18 @@
 
       <Button
         v-if="isPending"
+        data-testid="codex-paste-callback-button"
+        variant="outline"
+        size="sm"
+        class="text-xs"
+        @click="isCallbackDialogOpen = true"
+      >
+        <Icon icon="lucide:clipboard-paste" class="h-4 w-4" />
+        {{ t('settings.provider.openaiCodexPasteCallback') }}
+      </Button>
+
+      <Button
+        v-if="isPending"
         data-testid="codex-cancel-login-button"
         variant="outline"
         size="sm"
@@ -89,6 +101,43 @@
     <div class="text-xs leading-5 text-muted-foreground">
       {{ t('settings.provider.openaiCodexLoginTip') }}
     </div>
+
+    <Dialog v-model:open="isCallbackDialogOpen">
+      <DialogContent class="w-[90vw] max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle class="text-base">
+            {{ t('settings.provider.openaiCodexCallbackTitle') }}
+          </DialogTitle>
+          <DialogDescription class="text-sm">
+            {{ t('settings.provider.openaiCodexCallbackDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="mt-2 flex flex-col gap-3">
+          <Input
+            v-model="callbackUrl"
+            :placeholder="t('settings.provider.openaiCodexCallbackPlaceholder')"
+            @keydown.enter.prevent="completeBrowserLoginFromUrl"
+          />
+          <div class="flex justify-end gap-2">
+            <Button variant="outline" size="sm" @click="isCallbackDialogOpen = false">
+              {{ t('common.cancel') }}
+            </Button>
+            <Button
+              size="sm"
+              :disabled="!callbackUrl.trim() || busyAction === 'callback'"
+              @click="completeBrowserLoginFromUrl"
+            >
+              <Icon
+                v-if="busyAction === 'callback'"
+                icon="lucide:loader-2"
+                class="h-4 w-4 animate-spin"
+              />
+              {{ t('settings.provider.openaiCodexCompleteAuthentication') }}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -97,6 +146,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
+import { Input } from '@shadcn/components/ui/input'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -123,7 +180,9 @@ const signedOutStatus: OpenAICodexAuthStatus = {
 const oauthClient = createOAuthClient()
 const modelCheckStore = useModelCheckStore()
 const status = ref<OpenAICodexAuthStatus>(signedOutStatus)
-const busyAction = ref<'browser' | 'cancel' | 'logout' | null>(null)
+const busyAction = ref<'browser' | 'callback' | 'cancel' | 'logout' | null>(null)
+const isCallbackDialogOpen = ref(false)
+const callbackUrl = ref('')
 let pollTimer: number | null = null
 let unsubscribeStatus: (() => void) | null = null
 
@@ -202,7 +261,7 @@ const refreshStatus = async () => {
 }
 
 const runAuthAction = async (
-  action: 'browser' | 'cancel' | 'logout',
+  action: 'browser' | 'callback' | 'cancel' | 'logout',
   runner: () => Promise<OpenAICodexAuthStatus>
 ) => {
   busyAction.value = action
@@ -224,6 +283,22 @@ const runAuthAction = async (
 
 const startBrowserLogin = () =>
   runAuthAction('browser', () => oauthClient.startOpenAICodexBrowserLogin())
+
+const completeBrowserLoginFromUrl = () => {
+  const url = callbackUrl.value.trim()
+  if (!url) {
+    return
+  }
+
+  runAuthAction('callback', async () => {
+    const nextStatus = await oauthClient.completeOpenAICodexBrowserLoginFromUrl(url)
+    if (nextStatus.authenticated) {
+      isCallbackDialogOpen.value = false
+      callbackUrl.value = ''
+    }
+    return nextStatus
+  })
+}
 
 const cancelLogin = () => runAuthAction('cancel', () => oauthClient.cancelOpenAICodexLogin())
 
