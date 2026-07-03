@@ -31,6 +31,7 @@ import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAg
 import { SettingsActivityTable } from './tables/settingsActivity'
 import { CronJobsTable } from './tables/cronJobs'
 import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -269,6 +270,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'cron_job_runs',
     createTable: (db) => new CronJobRunsTable(db)
+  },
+  {
+    name: 'cron_job_deliveries',
+    createTable: (db) => new CronJobDeliveriesTable(db)
   }
 ]
 

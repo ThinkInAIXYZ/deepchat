@@ -44,6 +44,7 @@ import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAg
 import { SettingsActivityTable } from './tables/settingsActivity'
 import { CronJobsTable } from './tables/cronJobs'
 import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
@@ -239,6 +240,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public settingsActivityTable!: SettingsActivityTable
   public cronJobsTable!: CronJobsTable
   public cronJobRunsTable!: CronJobRunsTable
+  public cronJobDeliveriesTable!: CronJobDeliveriesTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -430,6 +432,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.settingsActivityTable = new SettingsActivityTable(this.db)
     this.cronJobsTable = new CronJobsTable(this.db)
     this.cronJobRunsTable = new CronJobRunsTable(this.db)
+    this.cronJobDeliveriesTable = new CronJobDeliveriesTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -462,6 +465,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.settingsActivityTable.createTable()
     this.cronJobsTable.createTable()
     this.cronJobRunsTable.createTable()
+    this.cronJobDeliveriesTable.createTable()
   }
 
   private initVersionTable() {
@@ -509,7 +513,8 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.newSessionDisabledAgentToolsTable,
       this.settingsActivityTable,
       this.cronJobsTable,
-      this.cronJobRunsTable
+      this.cronJobRunsTable,
+      this.cronJobDeliveriesTable
     ]
   }
 

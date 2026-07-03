@@ -1,7 +1,10 @@
 import {
+  CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
   type CronJobAgentSnapshot,
+  type CronJobDelivery,
+  type CronJobDeliveryReceipt,
   type CronJobRuntimeSettings,
   type CronJob,
   type CronJobRun,
@@ -10,6 +13,7 @@ import {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
+import type { CronJobDeliveryRow } from '../sqlitePresenter/tables/cronJobDeliveries'
 import type { CronJobRow } from '../sqlitePresenter/tables/cronJobs'
 import type { CronJobRunRow } from '../sqlitePresenter/tables/cronJobRuns'
 
@@ -64,6 +68,7 @@ export class CronJobsRepository {
       permissionPolicy: input.permissionPolicy,
       runtime: input.runtime,
       agentSnapshot: input.agentSnapshot,
+      delivery: input.delivery,
       now: input.now
     })
     return toCronJob(row)
@@ -71,6 +76,7 @@ export class CronJobsRepository {
 
   deleteJob(id: string): void {
     this.sqlitePresenter.getDatabase().transaction(() => {
+      this.sqlitePresenter.cronJobDeliveriesTable.deleteByJob(id)
       this.sqlitePresenter.cronJobRunsTable.deleteByJob(id)
       this.sqlitePresenter.cronJobsTable.delete(id)
     })()
@@ -177,6 +183,29 @@ export class CronJobsRepository {
   listRunsByJob(jobId: string, limit?: number): CronJobRun[] {
     return this.sqlitePresenter.cronJobRunsTable.listByJob(jobId, limit).map(toCronJobRun)
   }
+
+  recordDelivery(input: {
+    jobId: string
+    runId: string
+    target: CronJobDeliveryReceipt['target']
+    status: CronJobDeliveryReceipt['status']
+    remoteMessageId?: string | null
+    error?: string | null
+    now?: number
+  }): CronJobDeliveryReceipt {
+    return toCronJobDeliveryReceipt(this.sqlitePresenter.cronJobDeliveriesTable.insert(input))
+  }
+
+  listDeliveriesByRun(runId: string): CronJobDeliveryReceipt[] {
+    return this.sqlitePresenter.cronJobDeliveriesTable
+      .listByRun(runId)
+      .map(toCronJobDeliveryReceipt)
+  }
+
+  findDeliveryByRemoteMessageId(remoteMessageId: string): CronJobDeliveryReceipt | null {
+    const row = this.sqlitePresenter.cronJobDeliveriesTable.findByRemoteMessageId(remoteMessageId)
+    return row ? toCronJobDeliveryReceipt(row) : null
+  }
 }
 
 export function toCronJob(row: CronJobRow): CronJob {
@@ -202,6 +231,7 @@ export function toCronJob(row: CronJobRow): CronJob {
     permissionPolicy: row.permission_policy ?? 'follow_agent',
     runtime: parseRuntime(row.runtime_json),
     agentSnapshot: parseSnapshot(row.agent_snapshot_json),
+    delivery: parseDelivery(row.delivery_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -232,6 +262,25 @@ function parseSnapshot(value: string | null | undefined): CronJobAgentSnapshot |
   }
 }
 
+function parseDelivery(value: string | null | undefined): CronJobDelivery {
+  try {
+    const parsed = value ? (JSON.parse(value) as Partial<CronJobDelivery>) : {}
+    return {
+      targets: Array.isArray(parsed.targets)
+        ? parsed.targets.filter((target) => target && typeof target === 'object')
+        : [...CRON_JOBS_DEFAULT_DELIVERY.targets],
+      createContinuableThread:
+        parsed.createContinuableThread ?? CRON_JOBS_DEFAULT_DELIVERY.createContinuableThread,
+      suppressSuccessNotification:
+        parsed.suppressSuccessNotification ??
+        CRON_JOBS_DEFAULT_DELIVERY.suppressSuccessNotification,
+      notifyOnFailure: parsed.notifyOnFailure ?? CRON_JOBS_DEFAULT_DELIVERY.notifyOnFailure
+    } as CronJobDelivery
+  } catch {
+    return { ...CRON_JOBS_DEFAULT_DELIVERY, targets: [...CRON_JOBS_DEFAULT_DELIVERY.targets] }
+  }
+}
+
 export function toCronJobRun(row: CronJobRunRow): CronJobRun {
   return {
     id: row.id,
@@ -249,6 +298,21 @@ export function toCronJobRun(row: CronJobRunRow): CronJobRun {
     error: row.error,
     claimedAt: row.claimed_at ?? null,
     claimOwner: row.claim_owner ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+export function toCronJobDeliveryReceipt(row: CronJobDeliveryRow): CronJobDeliveryReceipt {
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    runId: row.run_id,
+    targetType: row.target_type,
+    target: JSON.parse(row.target_json) as CronJobDeliveryReceipt['target'],
+    status: row.status,
+    remoteMessageId: row.remote_message_id ?? null,
+    error: row.error,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }

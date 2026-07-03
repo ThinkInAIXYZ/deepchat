@@ -2,9 +2,9 @@
 
 ## Persistence
 
-- [ ] Add `cron_job_deliveries` table and indexes.
-- [ ] Add `delivery_json` to `cron_jobs`.
-- [ ] Add delivery receipt repository methods.
+- [x] Add `cron_job_deliveries` table and indexes.
+- [x] Add `delivery_json` to `cron_jobs`.
+- [x] Add delivery receipt repository methods.
 
 ## Delivery
 

@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3-multiple-ciphers'
 import {
+  CRON_JOBS_DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_MISFIRE_POLICY,
   CRON_JOBS_DEFAULT_RUNTIME,
   type CronJobAgentSnapshot,
+  type CronJobDelivery,
   type CronJobModelPolicy,
   type CronJobMisfirePolicy,
   type CronJobOutputMode,
@@ -34,6 +36,7 @@ export interface CronJobRow {
   permission_policy: CronJobRuntimePolicy
   runtime_json: string
   agent_snapshot_json: string | null
+  delivery_json: string
   created_at: number
   updated_at: number
 }
@@ -59,10 +62,12 @@ export interface CronJobTableUpsertInput {
   permissionPolicy?: CronJobRuntimePolicy
   runtime?: CronJobRuntimeSettings
   agentSnapshot?: CronJobAgentSnapshot | null
+  delivery?: CronJobDelivery
   now?: number
 }
 
-const CRON_JOBS_SCHEMA_VERSION = 39
+const CRON_JOBS_PHASE_3_SCHEMA_VERSION = 39
+const CRON_JOBS_SCHEMA_VERSION = 40
 
 const CRON_JOBS_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled_next_run
@@ -99,6 +104,7 @@ export class CronJobsTable extends BaseTable {
         permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot')),
         runtime_json TEXT NOT NULL DEFAULT '{}',
         agent_snapshot_json TEXT,
+        delivery_json TEXT NOT NULL DEFAULT '{}',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -110,6 +116,7 @@ export class CronJobsTable extends BaseTable {
     super.createTable()
     this.ensurePhase2Columns()
     this.ensurePhase3Columns()
+    this.ensurePhase5Columns()
     this.db.exec(CRON_JOBS_INDEX_SQL)
   }
 
@@ -121,7 +128,7 @@ export class CronJobsTable extends BaseTable {
         ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT;
       `
     }
-    if (version === CRON_JOBS_SCHEMA_VERSION) {
+    if (version === CRON_JOBS_PHASE_3_SCHEMA_VERSION) {
       return `
         ALTER TABLE cron_jobs ADD COLUMN description TEXT;
         ALTER TABLE cron_jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent'));
@@ -139,6 +146,11 @@ export class CronJobsTable extends BaseTable {
             next_run_at = NULL,
             updated_at = strftime('%s','now') * 1000
         WHERE agent_id IS NULL;
+      `
+    }
+    if (version === CRON_JOBS_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE cron_jobs ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '{}';
       `
     }
     return null
@@ -216,6 +228,12 @@ export class CronJobsTable extends BaseTable {
       .run(Date.now())
   }
 
+  private ensurePhase5Columns(): void {
+    if (!this.hasColumn('delivery_json')) {
+      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '{}'")
+    }
+  }
+
   list(): CronJobRow[] {
     return this.db
       .prepare(
@@ -270,6 +288,10 @@ export class CronJobsTable extends BaseTable {
         : input.agentSnapshot
           ? JSON.stringify(input.agentSnapshot)
           : null
+    const deliveryJson =
+      input.delivery === undefined
+        ? (existing?.delivery_json ?? '{}')
+        : JSON.stringify(input.delivery ?? CRON_JOBS_DEFAULT_DELIVERY)
 
     this.db
       .prepare(
@@ -294,10 +316,11 @@ export class CronJobsTable extends BaseTable {
            permission_policy,
            runtime_json,
            agent_snapshot_json,
+           delivery_json,
            created_at,
            updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            description = excluded.description,
@@ -318,6 +341,7 @@ export class CronJobsTable extends BaseTable {
            permission_policy = excluded.permission_policy,
            runtime_json = excluded.runtime_json,
            agent_snapshot_json = excluded.agent_snapshot_json,
+           delivery_json = excluded.delivery_json,
            updated_at = excluded.updated_at`
       )
       .run(
@@ -341,6 +365,7 @@ export class CronJobsTable extends BaseTable {
         permissionPolicy,
         runtimeJson,
         agentSnapshotJson,
+        deliveryJson,
         createdAt,
         now
       )

@@ -1,14 +1,15 @@
 import type { PowerMonitor } from 'electron'
-import type {
-  CronJob,
-  CronJobAgentSnapshot,
-  CronJobRun,
-  CronJobsSchedulerStatus,
-  CronJobStatus,
-  CronSchedulePreview,
-  CronScheduleValidation
+import {
+  CRON_JOBS_DEFAULT_DELIVERY as DEFAULT_DELIVERY,
+  CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME,
+  type CronJob,
+  type CronJobAgentSnapshot,
+  type CronJobRun,
+  type CronJobsSchedulerStatus,
+  type CronJobStatus,
+  type CronSchedulePreview,
+  type CronScheduleValidation
 } from '@shared/cronJobs'
-import { CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { z } from 'zod'
@@ -260,7 +261,14 @@ export class CronJobsService {
       toolPolicy: input.toolPolicy ?? existing?.toolPolicy ?? 'follow_agent',
       permissionPolicy: input.permissionPolicy ?? existing?.permissionPolicy ?? 'follow_agent',
       runtime: input.runtime ?? existing?.runtime ?? { ...DEFAULT_RUNTIME },
-      agentSnapshot: input.agentSnapshot ?? existing?.agentSnapshot ?? null
+      agentSnapshot: input.agentSnapshot ?? existing?.agentSnapshot ?? null,
+      delivery:
+        input.delivery ??
+        existing?.delivery ??
+        ({
+          ...DEFAULT_DELIVERY,
+          targets: [...DEFAULT_DELIVERY.targets]
+        } as CronJobDraft['delivery'])
     }
   }
 

@@ -7,6 +7,12 @@ export const CRON_JOBS_DEFAULT_RUNTIME = {
   maxToolCalls: 100,
   concurrencyPolicy: 'skip'
 } as const
+export const CRON_JOBS_DEFAULT_DELIVERY = {
+  targets: [],
+  createContinuableThread: true,
+  suppressSuccessNotification: false,
+  notifyOnFailure: true
+} as const
 
 export const CRON_JOB_RUN_STATUSES = [
   'queued',
@@ -38,6 +44,17 @@ export type CronJobRuntimePolicy = (typeof CRON_JOB_RUNTIME_POLICIES)[number]
 export const CRON_JOB_CONCURRENCY_POLICIES = ['skip', 'queue'] as const
 export type CronJobConcurrencyPolicy = (typeof CRON_JOB_CONCURRENCY_POLICIES)[number]
 
+export const CRON_JOB_DELIVERY_TARGET_TYPES = [
+  'deepchat_inbox',
+  'desktop_notification',
+  'remote',
+  'origin_session'
+] as const
+export type CronJobDeliveryTargetType = (typeof CRON_JOB_DELIVERY_TARGET_TYPES)[number]
+
+export const CRON_JOB_DELIVERY_STATUSES = ['success', 'failed'] as const
+export type CronJobDeliveryStatus = (typeof CRON_JOB_DELIVERY_STATUSES)[number]
+
 export const CRON_JOBS_SCHEDULER_STATES = [
   'stopped',
   'starting',
@@ -68,6 +85,7 @@ export interface CronJob {
   permissionPolicy: CronJobRuntimePolicy
   runtime: CronJobRuntimeSettings
   agentSnapshot: CronJobAgentSnapshot | null
+  delivery: CronJobDelivery
   createdAt: number
   updatedAt: number
 }
@@ -89,6 +107,19 @@ export interface CronJobAgentSnapshot {
   }
   config: unknown | null
 }
+
+export interface CronJobDelivery {
+  targets: CronJobDeliveryTarget[]
+  createContinuableThread: boolean
+  suppressSuccessNotification: boolean
+  notifyOnFailure: boolean
+}
+
+export type CronJobDeliveryTarget =
+  | { type: 'deepchat_inbox' }
+  | { type: 'desktop_notification' }
+  | { type: 'remote'; remoteId: string; channelId?: string; mode: 'summary' | 'full' }
+  | { type: 'origin_session'; sessionId: string }
 
 export type CronSchedulePreset =
   | { type: 'every_n_minutes'; n: number }
@@ -126,6 +157,19 @@ export interface CronJobRun {
   error: string | null
   claimedAt: number | null
   claimOwner: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface CronJobDeliveryReceipt {
+  id: string
+  jobId: string
+  runId: string
+  targetType: CronJobDeliveryTargetType
+  target: CronJobDeliveryTarget
+  status: CronJobDeliveryStatus
+  remoteMessageId: string | null
+  error: string | null
   createdAt: number
   updatedAt: number
 }

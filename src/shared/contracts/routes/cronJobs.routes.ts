@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
   CRON_JOB_CONCURRENCY_POLICIES,
+  CRON_JOB_DELIVERY_STATUSES,
+  CRON_JOB_DELIVERY_TARGET_TYPES,
   CRON_JOB_MISFIRE_POLICIES,
   CRON_JOB_MODEL_POLICIES,
   CRON_JOB_OUTPUT_MODES,
@@ -22,6 +24,8 @@ export const cronJobOutputModeSchema = z.enum(CRON_JOB_OUTPUT_MODES)
 export const cronJobModelPolicySchema = z.enum(CRON_JOB_MODEL_POLICIES)
 export const cronJobRuntimePolicySchema = z.enum(CRON_JOB_RUNTIME_POLICIES)
 export const cronJobConcurrencyPolicySchema = z.enum(CRON_JOB_CONCURRENCY_POLICIES)
+export const cronJobDeliveryTargetTypeSchema = z.enum(CRON_JOB_DELIVERY_TARGET_TYPES)
+export const cronJobDeliveryStatusSchema = z.enum(CRON_JOB_DELIVERY_STATUSES)
 export const cronJobsSchedulerStateSchema = z.enum(CRON_JOBS_SCHEDULER_STATES)
 
 export const cronJobRuntimeSchema = z.object({
@@ -40,6 +44,28 @@ export const cronJobAgentSnapshotSchema = z.object({
     type: z.enum(['deepchat', 'acp'])
   }),
   config: z.unknown().nullable()
+})
+
+export const cronJobDeliveryTargetSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('deepchat_inbox') }),
+  z.object({ type: z.literal('desktop_notification') }),
+  z.object({
+    type: z.literal('remote'),
+    remoteId: z.string().min(1),
+    channelId: z.string().min(1).optional(),
+    mode: z.enum(['summary', 'full'])
+  }),
+  z.object({
+    type: z.literal('origin_session'),
+    sessionId: z.string().min(1)
+  })
+])
+
+export const cronJobDeliverySchema = z.object({
+  targets: z.array(cronJobDeliveryTargetSchema),
+  createContinuableThread: z.boolean(),
+  suppressSuccessNotification: z.boolean(),
+  notifyOnFailure: z.boolean()
 })
 
 export const cronJobSchema = z.object({
@@ -63,6 +89,7 @@ export const cronJobSchema = z.object({
   permissionPolicy: cronJobRuntimePolicySchema,
   runtime: cronJobRuntimeSchema,
   agentSnapshot: cronJobAgentSnapshotSchema.nullable(),
+  delivery: cronJobDeliverySchema,
   createdAt: timestampMsSchema,
   updatedAt: timestampMsSchema
 })
@@ -83,6 +110,19 @@ export const cronJobRunSchema = z.object({
   error: z.string().nullable(),
   claimedAt: timestampMsSchema.nullable(),
   claimOwner: z.string().min(1).nullable(),
+  createdAt: timestampMsSchema,
+  updatedAt: timestampMsSchema
+})
+
+export const cronJobDeliveryReceiptSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  runId: z.string().min(1),
+  targetType: cronJobDeliveryTargetTypeSchema,
+  target: cronJobDeliveryTargetSchema,
+  status: cronJobDeliveryStatusSchema,
+  remoteMessageId: z.string().min(1).nullable(),
+  error: z.string().nullable(),
   createdAt: timestampMsSchema,
   updatedAt: timestampMsSchema
 })
@@ -132,7 +172,8 @@ export const cronJobsUpsertInputSchema = cronJobSchema
     toolPolicy: cronJobRuntimePolicySchema.optional(),
     permissionPolicy: cronJobRuntimePolicySchema.optional(),
     runtime: cronJobRuntimeSchema.optional(),
-    agentSnapshot: cronJobAgentSnapshotSchema.nullable().optional()
+    agentSnapshot: cronJobAgentSnapshotSchema.nullable().optional(),
+    delivery: cronJobDeliverySchema.optional()
   })
 
 export const cronJobsUpsertRoute = defineRouteContract({

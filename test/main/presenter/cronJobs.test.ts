@@ -12,8 +12,11 @@ const cronJobsTableModule = sqliteModule
 const cronJobRunsTableModule = sqliteModule
   ? await import('@/presenter/sqlitePresenter/tables/cronJobRuns').catch(() => null)
   : null
+const cronJobDeliveriesTableModule = sqliteModule
+  ? await import('@/presenter/sqlitePresenter/tables/cronJobDeliveries').catch(() => null)
+  : null
 const repositoryModule =
-  sqliteModule && cronJobsTableModule && cronJobRunsTableModule
+  sqliteModule && cronJobsTableModule && cronJobRunsTableModule && cronJobDeliveriesTableModule
     ? await import('@/presenter/cronJobs/repository').catch(() => null)
     : null
 const serviceModule = repositoryModule
@@ -32,6 +35,7 @@ const internalSessionEventsModule =
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable
 const CronJobRunsTable = cronJobRunsTableModule?.CronJobRunsTable
+const CronJobDeliveriesTable = cronJobDeliveriesTableModule?.CronJobDeliveriesTable
 const CronJobsRepository = repositoryModule?.CronJobsRepository
 const CronJobsService = serviceModule?.CronJobsService
 const SchedulerProcessManager = schedulerManagerModule?.SchedulerProcessManager
@@ -40,6 +44,7 @@ const CronExpressionService = cronExpressionServiceModule.CronExpressionService
 const DatabaseCtor = Database!
 const CronJobsTableCtor = CronJobsTable!
 const CronJobRunsTableCtor = CronJobRunsTable!
+const CronJobDeliveriesTableCtor = CronJobDeliveriesTable!
 const CronJobsRepositoryCtor = CronJobsRepository!
 const CronJobsServiceCtor = CronJobsService!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
@@ -62,6 +67,7 @@ const describeIfSqlite =
   sqliteAvailable &&
   CronJobsTable &&
   CronJobRunsTable &&
+  CronJobDeliveriesTable &&
   CronJobsRepository &&
   CronJobsService &&
   SchedulerProcessManager &&
@@ -168,12 +174,15 @@ const createHarness = () => {
   const db = new DatabaseCtor(':memory:')
   const cronJobsTable = new CronJobsTableCtor(db)
   const cronJobRunsTable = new CronJobRunsTableCtor(db)
+  const cronJobDeliveriesTable = new CronJobDeliveriesTableCtor(db)
   cronJobsTable.createTable()
   cronJobRunsTable.createTable()
+  cronJobDeliveriesTable.createTable()
 
   const sqlitePresenter = {
     cronJobsTable,
     cronJobRunsTable,
+    cronJobDeliveriesTable,
     getDatabase: () => db,
     getDatabasePath: () => ':memory:',
     getDatabasePassword: () => undefined
@@ -579,6 +588,48 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           outputPreview: 'Started scheduled session'
         })
       )
+    } finally {
+      db.close()
+    }
+  })
+
+  it('persists delivery config and receipts', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const job = repository.upsertJob({
+        name: 'Delivery job',
+        enabled: false,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues',
+        delivery: {
+          targets: [
+            { type: 'deepchat_inbox' },
+            { type: 'remote', remoteId: 'feishu-1', channelId: 'alerts', mode: 'summary' }
+          ],
+          createContinuableThread: true,
+          suppressSuccessNotification: false,
+          notifyOnFailure: true
+        }
+      })
+      const run = repository.queueRun({
+        jobId: job.id,
+        scheduledAt: Date.now(),
+        reason: 'scheduled'
+      })
+      const receipt = repository.recordDelivery({
+        jobId: job.id,
+        runId: run.id,
+        target: { type: 'remote', remoteId: 'feishu-1', channelId: 'alerts', mode: 'summary' },
+        status: 'success',
+        remoteMessageId: 'remote-message-1'
+      })
+
+      expect(repository.requireJob(job.id).delivery.targets).toEqual(job.delivery.targets)
+      expect(repository.listDeliveriesByRun(run.id)).toEqual([receipt])
+      expect(repository.findDeliveryByRemoteMessageId('remote-message-1')).toEqual(receipt)
     } finally {
       db.close()
     }
