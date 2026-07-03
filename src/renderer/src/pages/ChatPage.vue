@@ -260,6 +260,7 @@ import type {
   AssistantMessageBlock,
   MessageFile,
   MessageMetadata,
+  SendMessageInput,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 import { snapshotFromAgentPlanBlock } from '@shared/types/agent-plan-block'
@@ -1889,6 +1890,27 @@ const withMessageSkills = (text: string, files: MessageFile[]) => {
   }
 }
 
+function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
+  const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
+  const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(sessionId)
+  agentPlanStore.beginTurn(sessionId)
+  return { optimisticUserMessageId, pendingAssistantPlaceholderId }
+}
+
+async function sendMessageWithOutgoingTurnFeedback(
+  sessionId: string,
+  payload: SendMessageInput,
+  feedback: ReturnType<typeof beginOutgoingTurnFeedback>
+) {
+  try {
+    await chatClient.sendMessage(sessionId, payload)
+  } catch (error) {
+    clearPendingAssistantPlaceholder(feedback.pendingAssistantPlaceholderId)
+    messageStore.removeOptimisticMessage(feedback.optimisticUserMessageId)
+    console.error('[ChatPage] send message failed:', error)
+  }
+}
+
 async function onSubmit() {
   if (isReadOnlySession.value) return
   if (isAcpWorkdirMissing.value) return
@@ -1910,20 +1932,13 @@ async function onSubmit() {
     clearComposerSkills()
     schedulePostSubmitScrollToBottom()
   } else {
-    const optimisticUserMessageId = messageStore.addOptimisticUserMessage(props.sessionId, payload)
-    const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(props.sessionId)
-    agentPlanStore.beginTurn(props.sessionId)
+    const sessionId = props.sessionId
+    const feedback = beginOutgoingTurnFeedback(sessionId, payload)
     message.value = ''
     attachedFiles.value = []
     clearComposerSkills()
     schedulePostSubmitScrollToBottom()
-    try {
-      await chatClient.sendMessage(props.sessionId, payload)
-    } catch (error) {
-      clearPendingAssistantPlaceholder(pendingAssistantPlaceholderId)
-      messageStore.removeOptimisticMessage(optimisticUserMessageId)
-      console.error('[ChatPage] send message failed:', error)
-    }
+    await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
   }
 }
 
@@ -1942,13 +1957,17 @@ async function onCommandSubmit(command: string) {
   const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
     await pendingInputStore.queueInput(props.sessionId, payload)
-  } else {
-    agentPlanStore.beginTurn(props.sessionId)
-    await chatClient.sendMessage(props.sessionId, payload)
+    attachedFiles.value = []
+    clearComposerSkills()
+    schedulePostSubmitScrollToBottom()
+    return
   }
+  const sessionId = props.sessionId
+  const feedback = beginOutgoingTurnFeedback(sessionId, payload)
   attachedFiles.value = []
   clearComposerSkills()
   schedulePostSubmitScrollToBottom()
+  await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
 }
 
 async function handleManualCompactionCommand(text: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 # Assistant Loading Placeholder Delay
 
-Status: proposed
+Status: implemented
 Date: 2026-07-01
 
 ## User Need
@@ -9,7 +9,7 @@ After the user submits a message, the conversation should immediately show the n
 a loading state. The user should not wait for pre-stream preparation or the first provider chunk
 before seeing that DeepChat accepted the turn.
 
-## Current Behavior
+## Original Behavior
 
 `ChatPage.onSubmit()` sends the payload through `chatClient.sendMessage()` and only clears the
 composer after that promise resolves. On the main-process path, `chat.sendMessage` calls
@@ -64,12 +64,18 @@ assistant placeholder for the gap between submit and the first `chat.stream.upda
 ## Acceptance Criteria
 
 - A non-queued user submit immediately adds an assistant row with the existing empty-pending spinner.
+- A non-queued command submit that sends a message follows the same immediate assistant loading
+  feedback.
+- A non-queued command submit clears composer attachments and active skill chips immediately after
+  local feedback is created, without waiting for the send route to resolve.
 - The placeholder appears after the submitted user row, not as a detached global loader.
 - The placeholder is replaced or hidden as soon as the real assistant stream row or persisted
   assistant record becomes available.
 - If sending fails before streaming starts, the placeholder is removed and no stale spinner remains.
 - Queued input while another generation is active does not create an immediate assistant row for the
   queued turn.
+- Manual compaction commands do not create a local assistant placeholder because they do not send a
+  chat turn.
 - Switching sessions clears any local placeholder for the previous session.
 - The implementation does not add a new IPC event or persist fake assistant messages.
 - Existing streaming row reuse behavior remains intact: no completion flash and no duplicate

@@ -805,6 +805,10 @@ describe('ChatPage', () => {
     expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 40)
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
     expect(input.props('files')).toEqual([
       {
         name: 'notes.md',
@@ -815,7 +819,7 @@ describe('ChatPage', () => {
   })
 
   it('shows a no-op notice when manual compaction has no eligible history', async () => {
-    const { wrapper, sessionClient, toast } = await setup({
+    const { wrapper, sessionClient, toast, messageStore } = await setup({
       activeSessionPatch: {
         providerId: 'openai',
         modelId: 'gpt-4'
@@ -838,6 +842,10 @@ describe('ChatPage', () => {
       title: 'chat.compaction.noopTitle',
       description: 'chat.compaction.noopDescription'
     })
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
   })
 
   it('does not queue or compact exact /compact while generating', async () => {
@@ -859,8 +867,30 @@ describe('ChatPage', () => {
     expect(pendingInputStore.queueInput).not.toHaveBeenCalled()
   })
 
+  it('queues command submit while generating without creating a pending assistant row', async () => {
+    const { wrapper, chatClient, pendingInputStore, messageStore } = await setup({
+      isStreaming: true
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+  })
+
   it('keeps ACP /compact submissions on the normal command path', async () => {
-    const { wrapper, chatClient, sessionClient } = await setup()
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, sessionClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
 
     input.vm.$emit('command-submit', '/compact')
@@ -871,6 +901,16 @@ describe('ChatPage', () => {
       text: '/compact',
       files: []
     })
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/compact',
+      files: []
+    })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
   })
 
   it('sends composer skills with the message and clears the composer chip', async () => {
@@ -923,6 +963,67 @@ describe('ChatPage', () => {
     await flushPromises()
   })
 
+  it('shows a pending assistant row immediately after command submit before stream starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: []
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
+  it('clears command submit attachments and skills before send resolves', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const {
+      wrapper,
+      chatClient,
+      messageStore,
+      chatInputGetPendingSkillsSnapshot,
+      chatInputClearPendingSkills
+    } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    chatInputGetPendingSkillsSnapshot.mockReturnValue(['algorithmic-art'])
+    const file = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:files', [file])
+    await flushPromises()
+    expect(input.props('files')).toEqual([file])
+
+    input.vm.$emit('command-submit', '/diagnose')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+    expect(messageStore.addOptimisticUserMessage).toHaveBeenCalledWith('s1', {
+      text: '/diagnose',
+      files: [file],
+      activeSkills: ['algorithmic-art']
+    })
+    expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
+    expect(input.props('files')).toEqual([])
+    expect(chatInputClearPendingSkills).toHaveBeenCalled()
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
   it('clears the pending assistant row when sending fails before streaming starts', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
@@ -933,6 +1034,25 @@ describe('ChatPage', () => {
       input.vm.$emit('update:modelValue', 'will fail')
       await flushPromises()
       input.vm.$emit('submit')
+      await flushPromises()
+
+      const messageList = wrapper.findComponent({ name: 'MessageList' })
+      const messages = messageList.props('messages') as Array<{ id: string }>
+      expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('clears the pending assistant row when command submit fails before streaming starts', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const { wrapper, chatClient, messageStore } = await setup()
+      chatClient.sendMessage.mockRejectedValueOnce(new Error('send failed'))
+      const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+      input.vm.$emit('command-submit', '/diagnose')
       await flushPromises()
 
       const messageList = wrapper.findComponent({ name: 'MessageList' })
