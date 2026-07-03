@@ -3,6 +3,7 @@ import type { SQLitePresenter } from '../sqlitePresenter'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
+  SessionMetadata,
   SessionPageCursor,
   SessionRecord
 } from '@shared/types/agent-interface'
@@ -52,6 +53,7 @@ export class NewSessionManager {
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
+      metadata?: SessionMetadata | null
     }
   ): string {
     const id = nanoid()
@@ -63,6 +65,9 @@ export class NewSessionManager {
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
     })
+    if (options?.metadata) {
+      this.sqlitePresenter.deepchatSessionMetadataTable.upsert(id, options.metadata)
+    }
     this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
       documentKey: `session:${id}`,
       sessionId: id,
@@ -187,6 +192,7 @@ export class NewSessionManager {
 
   delete(id: string): void {
     const affectedPaths = this.sqlitePresenter.newEnvironmentsTable.listPathsForSession(id)
+    this.sqlitePresenter.deepchatSessionMetadataTable?.delete(id)
     this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(id)
     this.sqlitePresenter.newSessionsTable.delete(id)
     for (const path of affectedPaths) {
@@ -240,6 +246,7 @@ export class NewSessionManager {
     created_at: number
     updated_at: number
   }): SessionRecord {
+    const metadata = this.sqlitePresenter.deepchatSessionMetadataTable?.get(row.id) ?? null
     return {
       id: row.id,
       agentId: row.agent_id,
@@ -252,7 +259,8 @@ export class NewSessionManager {
       subagentEnabled: row.subagent_enabled === 1,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      ...(metadata ? { metadata } : {})
     }
   }
 }

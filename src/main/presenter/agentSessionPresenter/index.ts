@@ -515,7 +515,8 @@ export class AgentSessionPresenter {
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
-      subagentEnabled
+      subagentEnabled,
+      metadata: input.metadata ?? null
     })
 
     try {
@@ -555,6 +556,7 @@ export class AgentSessionPresenter {
       subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
       status: state?.status ?? 'idle',
       providerId: state?.providerId ?? providerId,
       modelId: state?.modelId ?? modelId

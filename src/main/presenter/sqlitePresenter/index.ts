@@ -34,6 +34,7 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
@@ -240,6 +241,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
   public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
+  public deepchatSessionMetadataTable!: DeepChatSessionMetadataTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
   public agentMemoryTable!: AgentMemoryTable
@@ -430,6 +432,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
     this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
+    this.deepchatSessionMetadataTable = new DeepChatSessionMetadataTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
     this.agentMemoryTable = new AgentMemoryTable(this.db)
@@ -461,6 +464,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable.createTable()
     this.deepchatTapeEntriesTable.createTable()
     this.deepchatTapeSearchProjectionTable.createTable()
+    this.deepchatSessionMetadataTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
     this.agentMemoryTable.createTable()
@@ -508,6 +512,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatUsageStatsTable,
       this.deepchatTapeEntriesTable,
       this.deepchatTapeSearchProjectionTable,
+      this.deepchatSessionMetadataTable,
       this.legacyImportStatusTable,
       this.agentsTable,
       this.agentMemoryTable,
@@ -616,6 +621,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_tape_entries;
         DELETE FROM deepchat_tape_search_projection;
         DELETE FROM deepchat_tape_search_projection_meta;
+        DELETE FROM deepchat_session_metadata;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;

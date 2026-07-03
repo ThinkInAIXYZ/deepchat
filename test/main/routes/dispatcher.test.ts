@@ -19,6 +19,8 @@ import type {
   IYoBrowserPresenter,
   ISkillSyncPresenter
 } from '@shared/presenter'
+import type { CronJob, CronJobRun } from '@shared/cronJobs'
+import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -417,6 +419,23 @@ function createRuntime() {
   const agentSessionPresenter = {
     getActiveSessionId: vi.fn(() => null),
     getLightweightSessionsByIds: vi.fn().mockResolvedValue([]),
+    createDetachedSession: vi.fn().mockResolvedValue({
+      id: 'session-1',
+      agentId: 'deepchat',
+      title: 'New Chat',
+      projectDir: '/workspace',
+      isPinned: false,
+      isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: false,
+      subagentMeta: null,
+      createdAt: 1,
+      updatedAt: 2,
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-5.4'
+    }),
     createSession: vi.fn().mockResolvedValue({
       id: 'session-1',
       agentId: 'deepchat',
@@ -1461,6 +1480,44 @@ describe('dispatchDeepchatRoute', () => {
       timezone: 'UTC',
       count: 3
     })
+  })
+
+  it('wires Cron Job run sessions with source metadata', async () => {
+    const { cronJobs, agentSessionPresenter } = createRuntime()
+    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
+      | CronJobRunSessionStarter
+      | undefined
+
+    expect(starter).toBeDefined()
+    await starter!.createSessionForRun({
+      job: {
+        id: 'cron-1',
+        name: 'Morning job',
+        agentId: 'deepchat',
+        agentSnapshot: null,
+        modelPolicy: 'follow_agent',
+        permissionPolicy: 'follow_agent',
+        toolPolicy: 'follow_agent',
+        taskSystemInstruction: null
+      } as CronJob,
+      run: {
+        id: 'run-1',
+        scheduledAt: 123
+      } as CronJobRun
+    })
+
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'deepchat',
+        title: 'Morning job',
+        metadata: {
+          source: 'cron_job',
+          cronJobId: 'cron-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      })
+    )
   })
 
   it('reconciles Cron Jobs after agent mutation routes', async () => {

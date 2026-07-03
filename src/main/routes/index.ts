@@ -805,7 +805,7 @@ export function createMainKernelRouteRuntime(deps: {
   })
 
   deps.cronJobs.setRunSessionStarter({
-    async createSessionForRun({ job }) {
+    async createSessionForRun({ job, run }) {
       if (!job.agentId) {
         throw new Error('Cron job requires an enabled agent.')
       }
@@ -841,7 +841,13 @@ export function createMainKernelRouteRuntime(deps: {
         ...(snapshotConfig?.subagentEnabled !== undefined
           ? { subagentEnabled: snapshotConfig.subagentEnabled }
           : {}),
-        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {})
+        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
+        metadata: {
+          source: 'cron_job',
+          cronJobId: job.id,
+          cronJobRunId: run.id,
+          scheduledAt: run.scheduledAt
+        }
       })
       return { sessionId: session.id }
     },

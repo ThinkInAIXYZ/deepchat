@@ -12,7 +12,7 @@
 ## Persistence And Routes
 
 - [x] Add run claiming and output columns.
-- [ ] Add session metadata storage for `source='cron_job'`.
+- [x] Add session metadata storage for `source='cron_job'`.
 - [ ] Add run history, run detail, open session, continue, and run-again routes.
   - [x] Add run history and open-session routes.
   - [ ] Add run detail, continue, and run-again routes.
@@ -24,7 +24,7 @@
 - [ ] Add Open Session, Continue Session, and Run Again actions.
   - [x] Add Open Session action.
   - [ ] Add Continue Session and Run Again actions.
-- [ ] Add session-list source indicators for cron-job sessions where appropriate.
+- [x] Add session-list source indicators for cron-job sessions where appropriate.
 - [x] Reuse existing i18n keys.
 
 ## Tests And Validation

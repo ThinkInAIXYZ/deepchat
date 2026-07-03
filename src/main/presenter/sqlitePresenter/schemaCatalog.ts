@@ -21,6 +21,7 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
@@ -218,6 +219,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'deepchat_tape_search_fts_meta',
     createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
+  },
+  {
+    name: 'deepchat_session_metadata',
+    createTable: (db) => new DeepChatSessionMetadataTable(db)
   },
   {
     name: 'legacy_import_status',
