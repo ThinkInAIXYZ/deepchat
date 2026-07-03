@@ -2794,7 +2794,9 @@
       "delivery": "Gửi kết quả",
       "remoteDelivery": "Gửi qua Remote",
       "remoteChannel": "Kênh Remote",
-      "noRemoteChannels": "Hãy bật Remote và liên kết kênh trước."
+      "noRemoteChannels": "Hãy bật Remote và liên kết kênh trước.",
+      "deliverySuccess": "đã gửi",
+      "deliveryFailed": "gửi thất bại"
     },
     "presets": {
       "custom": "Custom",

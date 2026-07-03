@@ -1480,7 +1480,9 @@
       "delivery": "傳送",
       "remoteDelivery": "Remote 傳送",
       "remoteChannel": "Remote 頻道",
-      "noRemoteChannels": "請先啟用 Remote，並綁定頻道。"
+      "noRemoteChannels": "請先啟用 Remote，並綁定頻道。",
+      "deliverySuccess": "已傳送",
+      "deliveryFailed": "傳送失敗"
     },
     "presets": {
       "custom": "自訂",

@@ -1480,7 +1480,9 @@
       "delivery": "تحویل",
       "remoteDelivery": "ارسال Remote",
       "remoteChannel": "کانال Remote",
-      "noRemoteChannels": "ابتدا Remote را فعال و یک کانال را متصل کنید."
+      "noRemoteChannels": "ابتدا Remote را فعال و یک کانال را متصل کنید.",
+      "deliverySuccess": "ارسال شد",
+      "deliveryFailed": "ناموفق"
     },
     "presets": {
       "custom": "Custom",

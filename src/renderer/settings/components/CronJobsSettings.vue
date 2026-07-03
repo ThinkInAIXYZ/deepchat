@@ -321,11 +321,11 @@
             <Badge v-if="runsLoadingByJobId[job.id]" variant="outline">
               {{ t('common.loading') }}
             </Badge>
-            <template v-else-if="runsByJobId[job.id]?.[0]">
+            <template v-else-if="getLatestRun(job.id)">
               <Badge variant="outline" class="font-normal">
                 {{
                   formatTimestamp(
-                    runsByJobId[job.id][0].startedAt ?? runsByJobId[job.id][0].queuedAt
+                    getLatestRun(job.id)?.startedAt ?? getLatestRun(job.id)?.queuedAt ?? null
                   )
                 }}
               </Badge>
@@ -333,6 +333,25 @@
             <span v-else class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.none') }}
             </span>
+          </div>
+
+          <div
+            v-if="getLatestRunDeliveries(job.id).length > 0"
+            class="mt-2 flex flex-wrap items-center gap-2 lg:pl-11"
+          >
+            <Icon icon="lucide:send" class="h-4 w-4 text-muted-foreground" />
+            <span class="text-xs text-muted-foreground">
+              {{ t('settings.cronJobs.fields.delivery') }}
+            </span>
+            <Badge
+              v-for="receipt in getLatestRunDeliveries(job.id)"
+              :key="receipt.id"
+              :variant="receipt.status === 'failed' ? 'destructive' : 'secondary'"
+              class="font-normal"
+              :title="receipt.error ?? undefined"
+            >
+              {{ formatDeliveryReceipt(receipt) }}
+            </Badge>
           </div>
         </div>
       </div>
@@ -369,6 +388,7 @@ import {
   CRON_JOBS_DEFAULT_TIMEZONE,
   type CronJob,
   type CronJobDelivery,
+  type CronJobDeliveryReceipt,
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
@@ -392,6 +412,7 @@ const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const runsByJobId = ref<Record<string, CronJobRun[]>>({})
 const runsLoadingByJobId = ref<Record<string, boolean>>({})
+const deliveriesByRunId = ref<Record<string, CronJobDeliveryReceipt[]>>({})
 const remoteDeliveryOptions = ref<RemoteDeliveryOption[]>([])
 const remoteDeliveryLoading = ref(false)
 const NO_AGENT_ID = '__none__'
@@ -467,6 +488,21 @@ const formatTimestamp = (timestamp: number | null): string => {
     return t('settings.cronJobs.none')
   }
   return new Date(timestamp).toLocaleString()
+}
+
+const getLatestRun = (jobId: string): CronJobRun | null => runsByJobId.value[jobId]?.[0] ?? null
+
+const getLatestRunDeliveries = (jobId: string): CronJobDeliveryReceipt[] => {
+  const run = getLatestRun(jobId)
+  return run ? (deliveriesByRunId.value[run.id] ?? []) : []
+}
+
+const formatDeliveryReceipt = (receipt: CronJobDeliveryReceipt): string => {
+  const statusKey =
+    receipt.status === 'failed'
+      ? 'settings.cronJobs.fields.deliveryFailed'
+      : 'settings.cronJobs.fields.deliverySuccess'
+  return `${receipt.target.remoteId} ${t(statusKey)} ${formatTimestamp(receipt.createdAt)}`
 }
 
 const getRemoteDeliveryOptionLabel = (option: RemoteDeliveryOption): string => {
@@ -659,6 +695,9 @@ const refreshJobRuns = async (jobId: string, silent = false) => {
       ...runsByJobId.value,
       [jobId]: runs
     }
+    if (runs[0]) {
+      void refreshRunDeliveries(runs[0].id)
+    }
   } catch (error) {
     console.error('[CronJobs] Failed to load runs:', error)
     runsByJobId.value = {
@@ -671,6 +710,22 @@ const refreshJobRuns = async (jobId: string, silent = false) => {
         ...runsLoadingByJobId.value,
         [jobId]: false
       }
+    }
+  }
+}
+
+const refreshRunDeliveries = async (runId: string) => {
+  try {
+    const deliveries = await client.listDeliveries(runId)
+    deliveriesByRunId.value = {
+      ...deliveriesByRunId.value,
+      [runId]: deliveries
+    }
+  } catch (error) {
+    console.error('[CronJobs] Failed to load deliveries:', error)
+    deliveriesByRunId.value = {
+      ...deliveriesByRunId.value,
+      [runId]: []
     }
   }
 }
@@ -841,6 +896,10 @@ const deleteJob = async (id: string) => {
     const nextLoading = { ...previewLoadingByJobId.value }
     const nextJobRuns = { ...runsByJobId.value }
     const nextRunsLoading = { ...runsLoadingByJobId.value }
+    const nextDeliveries = { ...deliveriesByRunId.value }
+    for (const run of runsByJobId.value[id] ?? []) {
+      delete nextDeliveries[run.id]
+    }
     delete nextRuns[id]
     delete nextErrors[id]
     delete nextLoading[id]
@@ -851,6 +910,7 @@ const deleteJob = async (id: string) => {
     previewLoadingByJobId.value = nextLoading
     runsByJobId.value = nextJobRuns
     runsLoadingByJobId.value = nextRunsLoading
+    deliveriesByRunId.value = nextDeliveries
   } catch (error) {
     handleError('Failed to delete job', error)
   }
@@ -868,6 +928,7 @@ const runJobNow = async (id: string) => {
         ...(runsByJobId.value[id] ?? []).filter((run) => run.id !== response.run.id)
       ].slice(0, 1)
     }
+    void refreshRunDeliveries(response.run.id)
     schedulerStatus.value = response.schedulerStatus
     toast({
       title: t('settings.cronJobs.runNowSuccess'),

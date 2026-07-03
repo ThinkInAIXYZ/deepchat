@@ -1480,7 +1480,9 @@
       "delivery": "מסירה",
       "remoteDelivery": "מסירת Remote",
       "remoteChannel": "ערוץ Remote",
-      "noRemoteChannels": "יש להפעיל Remote ולקשר ערוץ תחילה."
+      "noRemoteChannels": "יש להפעיל Remote ולקשר ערוץ תחילה.",
+      "deliverySuccess": "נשלח",
+      "deliveryFailed": "נכשל"
     },
     "presets": {
       "custom": "Custom",

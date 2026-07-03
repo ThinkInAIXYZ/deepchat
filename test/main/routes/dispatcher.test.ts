@@ -1207,6 +1207,12 @@ function createRuntime() {
       concurrencyPolicy: 'skip' as const
     },
     agentSnapshot: null,
+    delivery: {
+      targets: [],
+      createContinuableThread: true,
+      suppressSuccessNotification: false,
+      notifyOnFailure: true
+    },
     createdAt: 1,
     updatedAt: 2
   }
@@ -1229,6 +1235,23 @@ function createRuntime() {
     createdAt: 3,
     updatedAt: 5
   }
+  const cronDelivery = {
+    id: 'delivery-1',
+    jobId: 'cron-1',
+    runId: 'run-1',
+    targetType: 'remote' as const,
+    target: {
+      type: 'remote' as const,
+      remoteId: 'telegram',
+      channelId: 'telegram:-100:0',
+      mode: 'summary' as const
+    },
+    status: 'success' as const,
+    remoteMessageId: null,
+    error: null,
+    createdAt: 6,
+    updatedAt: 6
+  }
   const cronStatus = {
     state: 'idle' as const,
     pid: null,
@@ -1247,6 +1270,7 @@ function createRuntime() {
     runNow: vi.fn(async () => ({ job: cronJob, run: cronRun, schedulerStatus: cronStatus })),
     listRuns: vi.fn(() => [cronRun]),
     getRun: vi.fn(() => cronRun),
+    listDeliveries: vi.fn(() => [cronDelivery]),
     getSchedulerStatus: vi.fn(() => cronStatus),
     reconcileScheduler: vi.fn(async () => cronStatus),
     restartScheduler: vi.fn(async () => cronStatus),
@@ -1376,6 +1400,14 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const listDeliveriesResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.listDeliveries',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
     const openRunSessionResult = await dispatchDeepchatRoute(
       runtime,
       'cronJobs.openRunSession',
@@ -1471,6 +1503,9 @@ describe('dispatchDeepchatRoute', () => {
     expect(getRunResult).toEqual({
       run: expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })
     })
+    expect(listDeliveriesResult).toEqual({
+      deliveries: [expect.objectContaining({ id: 'delivery-1', status: 'success' })]
+    })
     expect(openRunSessionResult).toEqual({
       activated: true,
       sessionId: 'session-1'
@@ -1502,6 +1537,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(cronJobs.runNow).toHaveBeenCalledWith('cron-1')
     expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
     expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
+    expect(cronJobs.listDeliveries).toHaveBeenCalledWith('run-1')
     expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
     expect(runtime.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')

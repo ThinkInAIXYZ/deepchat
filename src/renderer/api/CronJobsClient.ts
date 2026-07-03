@@ -6,6 +6,7 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetRunRoute,
   cronJobsGetSchedulerStatusRoute,
+  cronJobsListDeliveriesRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
   cronJobsOpenRunSessionRoute,
@@ -131,6 +132,12 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     return parseRunResponse(cronJobsGetRunRoute.name, result)
   }
 
+  async function listDeliveries(runId: string) {
+    return cronJobsListDeliveriesRoute.output.parse(
+      await bridge.invoke(cronJobsListDeliveriesRoute.name, { runId })
+    ).deliveries
+  }
+
   async function openRunSession(runId: string) {
     return cronJobsOpenRunSessionRoute.output.parse(
       await bridge.invoke(cronJobsOpenRunSessionRoute.name, { runId })
@@ -192,6 +199,7 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     runNow,
     listRuns,
     getRun,
+    listDeliveries,
     openRunSession,
     continueRun,
     runAgain,

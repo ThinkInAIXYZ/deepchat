@@ -2794,7 +2794,9 @@
       "delivery": "Zustellung",
       "remoteDelivery": "Remote-Zustellung",
       "remoteChannel": "Remote-Kanal",
-      "noRemoteChannels": "Aktivieren Sie zuerst Remote und binden Sie einen Kanal."
+      "noRemoteChannels": "Aktivieren Sie zuerst Remote und binden Sie einen Kanal.",
+      "deliverySuccess": "gesendet",
+      "deliveryFailed": "fehlgeschlagen"
     },
     "presets": {
       "custom": "Custom",

@@ -4,6 +4,7 @@ import {
   CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME,
   type CronJob,
   type CronJobAgentSnapshot,
+  type CronJobDeliveryReceipt,
   type CronJobRun,
   type CronJobsSchedulerStatus,
   type CronJobStatus,
@@ -193,6 +194,11 @@ export class CronJobsService {
 
   getRun(id: string): CronJobRun {
     return this.repository.requireRun(id)
+  }
+
+  listDeliveries(runId: string): CronJobDeliveryReceipt[] {
+    this.repository.requireRun(runId)
+    return this.repository.listDeliveriesByRun(runId)
   }
 
   setRunSessionStarter(runSessionStarter: CronJobRunSessionStarter): void {

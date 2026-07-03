@@ -1480,7 +1480,9 @@
       "delivery": "配信",
       "remoteDelivery": "Remote 配信",
       "remoteChannel": "Remote チャンネル",
-      "noRemoteChannels": "先に Remote を有効化し、チャンネルをバインドしてください。"
+      "noRemoteChannels": "先に Remote を有効化し、チャンネルをバインドしてください。",
+      "deliverySuccess": "配信済み",
+      "deliveryFailed": "配信失敗"
     },
     "presets": {
       "custom": "Custom",

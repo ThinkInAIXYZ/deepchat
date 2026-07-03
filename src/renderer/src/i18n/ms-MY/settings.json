@@ -2794,7 +2794,9 @@
       "delivery": "Penghantaran",
       "remoteDelivery": "Penghantaran Remote",
       "remoteChannel": "Saluran Remote",
-      "noRemoteChannels": "Dayakan Remote dan pautkan saluran dahulu."
+      "noRemoteChannels": "Dayakan Remote dan pautkan saluran dahulu.",
+      "deliverySuccess": "dihantar",
+      "deliveryFailed": "gagal"
     },
     "presets": {
       "custom": "Custom",

@@ -1737,7 +1737,9 @@
       "delivery": "投递",
       "remoteDelivery": "Remote 投递",
       "remoteChannel": "Remote 频道",
-      "noRemoteChannels": "先启用 Remote，并绑定频道。"
+      "noRemoteChannels": "先启用 Remote，并绑定频道。",
+      "deliverySuccess": "已投递",
+      "deliveryFailed": "投递失败"
     },
     "presets": {
       "custom": "自定义",

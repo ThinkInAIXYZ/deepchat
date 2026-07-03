@@ -39,6 +39,12 @@ const job = {
     concurrencyPolicy: 'skip' as const
   },
   agentSnapshot: null,
+  delivery: {
+    targets: [],
+    createContinuableThread: true,
+    suppressSuccessNotification: false,
+    notifyOnFailure: true
+  },
   createdAt: 1,
   updatedAt: 2
 }
@@ -63,6 +69,24 @@ const run = {
   updatedAt: 5
 }
 
+const delivery = {
+  id: 'delivery-1',
+  jobId: 'cron-1',
+  runId: 'run-1',
+  targetType: 'remote' as const,
+  target: {
+    type: 'remote' as const,
+    remoteId: 'telegram',
+    channelId: 'telegram:-100:0',
+    mode: 'summary' as const
+  },
+  status: 'success' as const,
+  remoteMessageId: null,
+  error: null,
+  createdAt: 6,
+  updatedAt: 6
+}
+
 describe('CronJobsClient', () => {
   it('invokes Cron Jobs routes and parses typed responses', async () => {
     const bridge: DeepchatBridge = {
@@ -81,6 +105,8 @@ describe('CronJobsClient', () => {
             return { runs: [run] }
           case 'cronJobs.getRun':
             return { run }
+          case 'cronJobs.listDeliveries':
+            return { deliveries: [delivery] }
           case 'cronJobs.openRunSession':
           case 'cronJobs.continueRun':
             return { activated: true, sessionId: run.sessionId }
@@ -127,6 +153,7 @@ describe('CronJobsClient', () => {
     expect(await client.runNow(job.id)).toEqual({ job, run, schedulerStatus })
     expect(await client.listRuns(job.id, 3)).toEqual([run])
     expect(await client.getRun(run.id)).toEqual(run)
+    expect(await client.listDeliveries(run.id)).toEqual([delivery])
     expect(await client.openRunSession(run.id)).toEqual({
       activated: true,
       sessionId: run.sessionId
@@ -185,28 +212,31 @@ describe('CronJobsClient', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'cronJobs.getRun', {
       runId: run.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'cronJobs.openRunSession', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'cronJobs.listDeliveries', {
       runId: run.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'cronJobs.continueRun', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'cronJobs.openRunSession', {
       runId: run.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'cronJobs.runAgain', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'cronJobs.continueRun', {
       runId: run.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'cronJobs.delete', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'cronJobs.runAgain', {
+      runId: run.id
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'cronJobs.delete', {
       id: job.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'cronJobs.getSchedulerStatus', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'cronJobs.reconcileScheduler', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'cronJobs.getSchedulerStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'cronJobs.reconcileScheduler', {
       reason: 'test'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'cronJobs.restartScheduler', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'cronJobs.validateSchedule', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'cronJobs.restartScheduler', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'cronJobs.validateSchedule', {
       cronExpr: '0 9 * * *',
       timezone: 'UTC'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'cronJobs.previewSchedule', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'cronJobs.previewSchedule', {
       cronExpr: '0 9 * * *',
       timezone: 'UTC',
       count: 3

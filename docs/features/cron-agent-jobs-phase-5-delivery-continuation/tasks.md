@@ -25,8 +25,9 @@
 ## UI And Validation
 
 - [x] Replace desktop notification delivery controls with Remote binding selection.
-- [ ] Add delivery status and logs to run detail.
+- [x] Add delivery status and logs to run detail.
 - [x] Add i18n keys.
 - [x] Cover router remote delivery receipts.
+- [x] Cover delivery list route and client.
 - [ ] Cover remote mapping and UI states.
 - [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.

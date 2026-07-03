@@ -2794,7 +2794,9 @@
       "delivery": "Teslim",
       "remoteDelivery": "Remote teslimi",
       "remoteChannel": "Remote kanalı",
-      "noRemoteChannels": "Önce Remote’u etkinleştirip bir kanal bağlayın."
+      "noRemoteChannels": "Önce Remote’u etkinleştirip bir kanal bağlayın.",
+      "deliverySuccess": "gönderildi",
+      "deliveryFailed": "başarısız"
     },
     "presets": {
       "custom": "Custom",

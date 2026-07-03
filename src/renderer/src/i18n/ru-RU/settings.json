@@ -1480,7 +1480,9 @@
       "delivery": "Доставка",
       "remoteDelivery": "Доставка Remote",
       "remoteChannel": "Канал Remote",
-      "noRemoteChannels": "Сначала включите Remote и привяжите канал."
+      "noRemoteChannels": "Сначала включите Remote и привяжите канал.",
+      "deliverySuccess": "отправлено",
+      "deliveryFailed": "сбой"
     },
     "presets": {
       "custom": "Custom",

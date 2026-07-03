@@ -2794,7 +2794,9 @@
       "delivery": "Dostarczanie",
       "remoteDelivery": "Dostarczanie Remote",
       "remoteChannel": "Kanał Remote",
-      "noRemoteChannels": "Najpierw włącz Remote i powiąż kanał."
+      "noRemoteChannels": "Najpierw włącz Remote i powiąż kanał.",
+      "deliverySuccess": "wysłano",
+      "deliveryFailed": "błąd"
     },
     "presets": {
       "custom": "Custom",

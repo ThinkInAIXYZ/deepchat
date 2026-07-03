@@ -1737,7 +1737,9 @@
       "delivery": "Delivery",
       "remoteDelivery": "Remote delivery",
       "remoteChannel": "Remote channel",
-      "noRemoteChannels": "Enable Remote and bind a channel first."
+      "noRemoteChannels": "Enable Remote and bind a channel first.",
+      "deliverySuccess": "sent",
+      "deliveryFailed": "failed"
     },
     "presets": {
       "custom": "Custom",

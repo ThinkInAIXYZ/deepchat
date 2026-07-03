@@ -232,6 +232,16 @@ export const cronJobsGetRunRoute = defineRouteContract({
   })
 })
 
+export const cronJobsListDeliveriesRoute = defineRouteContract({
+  name: 'cronJobs.listDeliveries',
+  input: z.object({
+    runId: z.string().min(1)
+  }),
+  output: z.object({
+    deliveries: z.array(cronJobDeliveryReceiptSchema)
+  })
+})
+
 export const cronJobsOpenRunSessionRoute = defineRouteContract({
   name: 'cronJobs.openRunSession',
   input: z.object({

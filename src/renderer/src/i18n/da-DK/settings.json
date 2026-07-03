@@ -1413,7 +1413,9 @@
       "delivery": "Levering",
       "remoteDelivery": "Remote-levering",
       "remoteChannel": "Remote-kanal",
-      "noRemoteChannels": "Aktivér Remote, og bind en kanal først."
+      "noRemoteChannels": "Aktivér Remote, og bind en kanal først.",
+      "deliverySuccess": "sendt",
+      "deliveryFailed": "mislykkedes"
     },
     "presets": {
       "custom": "Custom",

@@ -2794,7 +2794,9 @@
       "delivery": "Pengiriman",
       "remoteDelivery": "Pengiriman Remote",
       "remoteChannel": "Kanal Remote",
-      "noRemoteChannels": "Aktifkan Remote dan tautkan kanal terlebih dahulu."
+      "noRemoteChannels": "Aktifkan Remote dan tautkan kanal terlebih dahulu.",
+      "deliverySuccess": "terkirim",
+      "deliveryFailed": "gagal"
     },
     "presets": {
       "custom": "Custom",

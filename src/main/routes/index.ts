@@ -72,6 +72,7 @@ import {
   cronJobsDeleteRoute,
   cronJobsGetRunRoute,
   cronJobsGetSchedulerStatusRoute,
+  cronJobsListDeliveriesRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
   cronJobsOpenRunSessionRoute,
@@ -2767,6 +2768,13 @@ export async function dispatchDeepchatRoute(
     case cronJobsGetRunRoute.name: {
       const input = cronJobsGetRunRoute.input.parse(rawInput)
       return cronJobsGetRunRoute.output.parse({ run: runtime.cronJobs.getRun(input.runId) })
+    }
+
+    case cronJobsListDeliveriesRoute.name: {
+      const input = cronJobsListDeliveriesRoute.input.parse(rawInput)
+      return cronJobsListDeliveriesRoute.output.parse({
+        deliveries: runtime.cronJobs.listDeliveries(input.runId)
+      })
     }
 
     case cronJobsOpenRunSessionRoute.name: {

@@ -1480,7 +1480,9 @@
       "delivery": "Entrega",
       "remoteDelivery": "Entrega Remote",
       "remoteChannel": "Canal Remote",
-      "noRemoteChannels": "Ative o Remote e vincule um canal primeiro."
+      "noRemoteChannels": "Ative o Remote e vincule um canal primeiro.",
+      "deliverySuccess": "enviado",
+      "deliveryFailed": "falhou"
     },
     "presets": {
       "custom": "Custom",
