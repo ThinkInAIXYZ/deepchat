@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
-import Database from 'better-sqlite3-multiple-ciphers'
-import path from 'path'
+import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
@@ -49,8 +48,10 @@ import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { configureSQLiteConnection } from './connectionConfig'
+import { openSQLiteDatabase } from './databaseConnection'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
+
+export { openSQLiteDatabase } from './databaseConnection'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -74,20 +75,6 @@ function getErrorMessage(error: unknown): string {
 export function isDestructiveDatabaseError(error: unknown): boolean {
   const message = getErrorMessage(error)
   return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
-}
-
-function ensureDatabaseDirectory(dbPath: string): void {
-  const dbDir = path.dirname(dbPath)
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true })
-  }
-}
-
-export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
-  ensureDatabaseDirectory(dbPath)
-  const db = new Database(dbPath)
-  configureSQLiteConnection(db, password)
-  return db
 }
 
 export function repairSQLiteDatabaseFile(
