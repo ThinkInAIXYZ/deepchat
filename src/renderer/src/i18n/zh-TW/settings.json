@@ -1451,9 +1451,9 @@
     }
   },
   "cronJobs": {
-    "title": "Cron Jobs",
-    "description": "管理持久化的 Cron Jobs 和调度进程。",
-    "empty": "暂无 Cron Jobs。",
+    "title": "定時任務",
+    "description": "管理定時 Agent 任務與排程程序。",
+    "empty": "暫無定時任務。",
     "none": "无",
     "nextRunAt": "下次运行",
     "defaults": {
@@ -1496,7 +1496,7 @@
       "error": "错误",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "Cron Job 已完成"
+    "runNowSuccess": "定時任務已觸發"
   },
   "scheduledTasks": {
     "title": "定時任務",

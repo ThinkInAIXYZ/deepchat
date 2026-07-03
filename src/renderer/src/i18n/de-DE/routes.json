@@ -21,7 +21,7 @@
   "settings-remote": "Remote",
   "settings-plugins": "Plugins",
   "settings-overview": "Einstellungsübersicht",
-  "settings-scheduled-tasks": "Cron Jobs",
+  "settings-scheduled-tasks": "Geplante Aufgaben",
   "settings-memory": "Gedächtnis",
   "plugins": "Plugins"
 }

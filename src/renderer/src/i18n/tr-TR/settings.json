@@ -2765,9 +2765,9 @@
     }
   },
   "cronJobs": {
-    "title": "Cron Jobs",
-    "description": "Manage persisted Cron Jobs and the scheduler process.",
-    "empty": "No Cron Jobs yet.",
+    "title": "Zamanlanmış görevler",
+    "description": "Zamanlanmış ajan görevlerini ve zamanlayıcı sürecini yönetin.",
+    "empty": "Henüz zamanlanmış görev yok.",
     "none": "None",
     "nextRunAt": "Next run",
     "defaults": {
@@ -2810,7 +2810,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Cron job run completed"
+    "runNowSuccess": "Zamanlanmış görev başlatıldı"
   },
   "scheduledTasks": {
     "title": "Zamanlanmış Görevler",

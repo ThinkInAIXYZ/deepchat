@@ -22,7 +22,7 @@
     </div>
 
     <template v-else>
-      <section class="grid gap-3 rounded-lg border bg-card/30 p-4 md:grid-cols-4">
+      <section class="grid max-w-5xl gap-3 rounded-lg border bg-card/30 p-4 md:grid-cols-4">
         <div class="min-w-0">
           <div class="text-xs text-muted-foreground">{{ t('settings.cronJobs.status.state') }}</div>
           <div class="mt-1 flex items-center gap-2">
@@ -62,7 +62,7 @@
 
       <div
         v-if="jobs.length === 0"
-        class="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-card/30 px-6 py-12 text-center"
+        class="flex max-w-5xl flex-col items-center gap-3 rounded-lg border border-dashed bg-card/30 px-6 py-12 text-center"
       >
         <div
           class="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground"
@@ -76,7 +76,7 @@
         </Button>
       </div>
 
-      <div v-else class="overflow-hidden rounded-lg border bg-card/30">
+      <div v-else class="max-w-5xl overflow-hidden rounded-lg border bg-card/30">
         <div v-for="(job, index) in jobs" :key="job.id" class="border-b p-4 last:border-b-0">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-start">
             <div
@@ -270,46 +270,43 @@
             </span>
           </div>
 
-          <div class="mt-3 space-y-2 lg:pl-11">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <Icon icon="lucide:history" class="h-4 w-4" />
-              {{ t('common.history') }}
-            </div>
+          <div class="mt-3 flex flex-wrap items-center gap-2 lg:pl-11">
+            <Icon icon="lucide:history" class="h-4 w-4 text-muted-foreground" />
+            <span class="text-xs text-muted-foreground">{{ t('common.history') }}</span>
             <Badge v-if="runsLoadingByJobId[job.id]" variant="outline">
               {{ t('common.loading') }}
             </Badge>
-            <div v-else-if="runsByJobId[job.id]?.length" class="space-y-1.5">
-              <div
-                v-for="run in runsByJobId[job.id]"
-                :key="run.id"
-                class="flex min-h-9 items-center gap-2 rounded-md border bg-background/40 px-2 py-1.5 text-xs"
+            <template v-else-if="runsByJobId[job.id]?.[0]">
+              <Badge variant="outline" class="font-normal">
+                {{
+                  formatTimestamp(
+                    runsByJobId[job.id][0].startedAt ?? runsByJobId[job.id][0].queuedAt
+                  )
+                }}
+              </Badge>
+              <Button
+                v-if="runsByJobId[job.id][0].sessionId"
+                variant="ghost"
+                size="icon"
+                class="h-7 w-7"
+                :disabled="openingRunId === runsByJobId[job.id][0].id"
+                :title="t('common.open')"
+                :aria-label="t('common.open')"
+                @click="openRunSession(runsByJobId[job.id][0].id)"
               >
-                <Badge :variant="getRunBadgeVariant(run.status)" class="shrink-0">
-                  {{ formatRunStatus(run.status) }}
-                </Badge>
-                <span class="shrink-0 text-muted-foreground">
-                  {{ formatTimestamp(run.startedAt ?? run.queuedAt) }}
-                </span>
-                <span class="min-w-0 flex-1 truncate text-muted-foreground">
-                  {{ run.outputPreview || run.error || run.id }}
-                </span>
-                <Button
-                  v-if="run.sessionId"
-                  variant="ghost"
-                  size="icon"
-                  class="h-7 w-7 shrink-0"
-                  :disabled="openingRunId === run.id"
-                  :title="t('common.open')"
-                  :aria-label="t('common.open')"
-                  @click="openRunSession(run.id)"
-                >
-                  <Icon
-                    :icon="openingRunId === run.id ? 'lucide:loader-2' : 'lucide:external-link'"
-                    :class="['h-3.5 w-3.5', openingRunId === run.id ? 'animate-spin' : '']"
-                  />
-                </Button>
-              </div>
-            </div>
+                <Icon
+                  :icon="
+                    openingRunId === runsByJobId[job.id][0].id
+                      ? 'lucide:loader-2'
+                      : 'lucide:external-link'
+                  "
+                  :class="[
+                    'h-3.5 w-3.5',
+                    openingRunId === runsByJobId[job.id][0].id ? 'animate-spin' : ''
+                  ]"
+                />
+              </Button>
+            </template>
             <span v-else class="text-xs text-muted-foreground">
               {{ t('settings.cronJobs.none') }}
             </span>
@@ -433,36 +430,6 @@ const formatTimestamp = (timestamp: number | null): string => {
   return new Date(timestamp).toLocaleString()
 }
 
-const formatRunStatus = (status: CronJobRun['status']): string => {
-  switch (status) {
-    case 'queued':
-    case 'running':
-    case 'completed':
-    case 'cancelled':
-      return t(`chat.toolCall.subagents.status.${status}`)
-    case 'failed':
-      return t('chat.toolCall.subagents.status.error')
-    default:
-      return status
-  }
-}
-
-const getRunBadgeVariant = (
-  status: CronJobRun['status']
-): 'default' | 'secondary' | 'destructive' | 'outline' => {
-  switch (status) {
-    case 'completed':
-      return 'default'
-    case 'failed':
-    case 'cancelled':
-      return 'destructive'
-    case 'running':
-      return 'secondary'
-    default:
-      return 'outline'
-  }
-}
-
 const sortJobs = (items: CronJob[]) =>
   items
     .slice()
@@ -548,7 +515,7 @@ const refreshJobRuns = async (jobId: string) => {
     [jobId]: true
   }
   try {
-    const runs = await client.listRuns(jobId, 3)
+    const runs = await client.listRuns(jobId, 1)
     runsByJobId.value = {
       ...runsByJobId.value,
       [jobId]: runs
@@ -713,11 +680,11 @@ const runJobNow = async (id: string) => {
       [id]: [
         response.run,
         ...(runsByJobId.value[id] ?? []).filter((run) => run.id !== response.run.id)
-      ].slice(0, 3)
+      ].slice(0, 1)
     }
     schedulerStatus.value = response.schedulerStatus
     toast({
-      title: t('settings.cronJobs.actions.runNow'),
+      title: t('settings.cronJobs.runNowSuccess'),
       description: response.job.name
     })
   } catch (error) {

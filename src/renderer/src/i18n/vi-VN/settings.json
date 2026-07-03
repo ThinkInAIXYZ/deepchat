@@ -2765,9 +2765,9 @@
     }
   },
   "cronJobs": {
-    "title": "Cron Jobs",
-    "description": "Manage persisted Cron Jobs and the scheduler process.",
-    "empty": "No Cron Jobs yet.",
+    "title": "Tác vụ đã lên lịch",
+    "description": "Quản lý tác vụ agent đã lên lịch và tiến trình lập lịch.",
+    "empty": "Chưa có tác vụ đã lên lịch.",
     "none": "None",
     "nextRunAt": "Next run",
     "defaults": {
@@ -2810,7 +2810,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Cron job run completed"
+    "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
   },
   "scheduledTasks": {
     "title": "Tác vụ đã lên lịch",

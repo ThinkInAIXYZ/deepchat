@@ -1451,9 +1451,9 @@
     }
   },
   "cronJobs": {
-    "title": "Cron Jobs",
-    "description": "Manage persisted Cron Jobs and the scheduler process.",
-    "empty": "No Cron Jobs yet.",
+    "title": "משימות מתוזמנות",
+    "description": "נהל משימות סוכן מתוזמנות ואת תהליך התזמון.",
+    "empty": "אין עדיין משימות מתוזמנות.",
     "none": "None",
     "nextRunAt": "Next run",
     "defaults": {
@@ -1496,7 +1496,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Cron job run completed"
+    "runNowSuccess": "המשימה המתוזמנת הופעלה"
   },
   "scheduledTasks": {
     "title": "משימות מתוזמנות",

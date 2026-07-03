@@ -1451,9 +1451,9 @@
     }
   },
   "cronJobs": {
-    "title": "Cron Jobs",
-    "description": "Manage persisted Cron Jobs and the scheduler process.",
-    "empty": "No Cron Jobs yet.",
+    "title": "Запланированные задачи",
+    "description": "Управляйте запланированными задачами агентов и процессом планировщика.",
+    "empty": "Запланированных задач пока нет.",
     "none": "None",
     "nextRunAt": "Next run",
     "defaults": {
@@ -1496,7 +1496,7 @@
       "error": "Error",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
-    "runNowSuccess": "Cron job run completed"
+    "runNowSuccess": "Запланированная задача запущена"
   },
   "scheduledTasks": {
     "title": "Запланированные задачи",

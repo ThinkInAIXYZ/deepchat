@@ -21,7 +21,7 @@
   "settings-remote": "terpencil",
   "settings-plugins": "plugin",
   "settings-overview": "Ikhtisar pengaturan",
-  "settings-scheduled-tasks": "Cron Jobs",
+  "settings-scheduled-tasks": "Tugas terjadwal",
   "settings-memory": "Memori",
   "plugins": "Plugins"
 }
