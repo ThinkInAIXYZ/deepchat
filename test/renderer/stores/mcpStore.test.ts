@@ -260,4 +260,50 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(store.enabledServerCount).toBe(1)
     expect(store.config.mcpServers['cua-driver']).toBeDefined()
   })
+
+  it('sorts enabled servers before disabled servers', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        memory: {
+          command: 'memory-command',
+          args: [],
+          env: {},
+          descriptions: 'Memory',
+          icons: 'M',
+          autoApprove: [],
+          disable: false,
+          type: 'inmemory',
+          enabled: false
+        },
+        tavily: {
+          command: 'tavily-command',
+          args: [],
+          env: {},
+          descriptions: 'Tavily',
+          icons: 'T',
+          autoApprove: [],
+          disable: false,
+          type: 'stdio',
+          enabled: false
+        },
+        linear: {
+          command: 'https://mcp.linear.app/mcp',
+          args: [],
+          env: {},
+          descriptions: 'Linear',
+          icons: 'L',
+          autoApprove: [],
+          disable: false,
+          type: 'sse',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    expect(store.serverList.map((server) => server.name)).toEqual(['linear', 'memory', 'tavily'])
+  })
 })

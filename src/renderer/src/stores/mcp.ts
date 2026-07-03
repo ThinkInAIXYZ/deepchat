@@ -438,20 +438,14 @@ export const useMcpStore = defineStore('mcp', () => {
       isLoading: serverLoadingStates.value[name] || false
     }))
 
-    // 按照特定顺序排序：
-    // 1. 启用的inmemory服务
-    // 2. 其他启用的服务
-    // 3. 未启用的inmemory服务
-    // 4. 其他服务
+    // Sort enabled servers first, then keep built-in servers ahead within each state.
     return servers.sort((a, b) => {
       const aIsInmemory = a.type === 'inmemory' || a.source === 'deepchat'
       const bIsInmemory = b.type === 'inmemory' || b.source === 'deepchat'
+      const aRank = (a.enabled ? 0 : 2) + (aIsInmemory ? 0 : 1)
+      const bRank = (b.enabled ? 0 : 2) + (bIsInmemory ? 0 : 1)
 
-      // inmemory 都优先
-      if (aIsInmemory && !bIsInmemory) return -1
-      if (!aIsInmemory && bIsInmemory) return 1
-
-      return 0 // 保持原有顺序
+      return aRank - bRank
     })
   })
   const serverList = computed(() =>
