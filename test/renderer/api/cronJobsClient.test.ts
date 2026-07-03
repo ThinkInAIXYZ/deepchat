@@ -75,10 +75,14 @@ describe('CronJobsClient', () => {
           case 'cronJobs.toggle':
             return { job, schedulerStatus }
           case 'cronJobs.runNow':
+          case 'cronJobs.runAgain':
             return { job, run, schedulerStatus }
           case 'cronJobs.listRuns':
             return { runs: [run] }
+          case 'cronJobs.getRun':
+            return { run }
           case 'cronJobs.openRunSession':
+          case 'cronJobs.continueRun':
             return { activated: true, sessionId: run.sessionId }
           case 'cronJobs.delete':
           case 'cronJobs.getSchedulerStatus':
@@ -122,10 +126,16 @@ describe('CronJobsClient', () => {
     expect(await client.toggle(job.id, false)).toEqual({ job, schedulerStatus })
     expect(await client.runNow(job.id)).toEqual({ job, run, schedulerStatus })
     expect(await client.listRuns(job.id, 3)).toEqual([run])
+    expect(await client.getRun(run.id)).toEqual(run)
     expect(await client.openRunSession(run.id)).toEqual({
       activated: true,
       sessionId: run.sessionId
     })
+    expect(await client.continueRun(run.id)).toEqual({
+      activated: true,
+      sessionId: run.sessionId
+    })
+    expect(await client.runAgain(run.id)).toEqual({ job, run, schedulerStatus })
     expect(await client.remove(job.id)).toEqual(schedulerStatus)
     expect(await client.getSchedulerStatus()).toEqual(schedulerStatus)
     expect(await client.reconcileScheduler('test')).toEqual(schedulerStatus)
@@ -172,22 +182,31 @@ describe('CronJobsClient', () => {
       jobId: job.id,
       limit: 3
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'cronJobs.openRunSession', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'cronJobs.getRun', {
       runId: run.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'cronJobs.delete', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(7, 'cronJobs.openRunSession', {
+      runId: run.id
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'cronJobs.continueRun', {
+      runId: run.id
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'cronJobs.runAgain', {
+      runId: run.id
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'cronJobs.delete', {
       id: job.id
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'cronJobs.getSchedulerStatus', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'cronJobs.reconcileScheduler', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'cronJobs.getSchedulerStatus', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'cronJobs.reconcileScheduler', {
       reason: 'test'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'cronJobs.restartScheduler', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'cronJobs.validateSchedule', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'cronJobs.restartScheduler', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'cronJobs.validateSchedule', {
       cronExpr: '0 9 * * *',
       timezone: 'UTC'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'cronJobs.previewSchedule', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'cronJobs.previewSchedule', {
       cronExpr: '0 9 * * *',
       timezone: 'UTC',
       count: 3

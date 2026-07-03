@@ -265,7 +265,9 @@ import {
   scheduledTasksUpsertRoute
 } from './routes/scheduledTasks.routes'
 import {
+  cronJobsContinueRunRoute,
   cronJobsDeleteRoute,
+  cronJobsGetRunRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
@@ -273,6 +275,7 @@ import {
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
+  cronJobsRunAgainRoute,
   cronJobsRunNowRoute,
   cronJobsToggleRoute,
   cronJobsValidateScheduleRoute,
@@ -620,7 +623,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [cronJobsToggleRoute.name]: cronJobsToggleRoute,
   [cronJobsRunNowRoute.name]: cronJobsRunNowRoute,
   [cronJobsListRunsRoute.name]: cronJobsListRunsRoute,
+  [cronJobsGetRunRoute.name]: cronJobsGetRunRoute,
   [cronJobsOpenRunSessionRoute.name]: cronJobsOpenRunSessionRoute,
+  [cronJobsContinueRunRoute.name]: cronJobsContinueRunRoute,
+  [cronJobsRunAgainRoute.name]: cronJobsRunAgainRoute,
   [cronJobsGetSchedulerStatusRoute.name]: cronJobsGetSchedulerStatusRoute,
   [cronJobsReconcileSchedulerRoute.name]: cronJobsReconcileSchedulerRoute,
   [cronJobsRestartSchedulerRoute.name]: cronJobsRestartSchedulerRoute,

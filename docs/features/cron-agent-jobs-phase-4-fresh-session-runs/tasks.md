@@ -13,9 +13,9 @@
 
 - [x] Add run claiming and output columns.
 - [x] Add session metadata storage for `source='cron_job'`.
-- [ ] Add run history, run detail, open session, continue, and run-again routes.
+- [x] Add run history, run detail, open session, continue, and run-again routes.
   - [x] Add run history and open-session routes.
-  - [ ] Add run detail, continue, and run-again routes.
+  - [x] Add run detail, continue, and run-again routes.
 
 ## UI
 

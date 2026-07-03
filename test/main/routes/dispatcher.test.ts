@@ -1368,9 +1368,33 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const getRunResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.getRun',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
     const openRunSessionResult = await dispatchDeepchatRoute(
       runtime,
       'cronJobs.openRunSession',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
+    const continueRunResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.continueRun',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
+    const runAgainResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.runAgain',
       {
         runId: 'run-1'
       },
@@ -1444,9 +1468,21 @@ describe('dispatchDeepchatRoute', () => {
     expect(listRunsResult).toEqual({
       runs: [expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })]
     })
+    expect(getRunResult).toEqual({
+      run: expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })
+    })
     expect(openRunSessionResult).toEqual({
       activated: true,
       sessionId: 'session-1'
+    })
+    expect(continueRunResult).toEqual({
+      activated: true,
+      sessionId: 'session-1'
+    })
+    expect(runAgainResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      run: expect.objectContaining({ id: 'run-1', status: 'completed' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
     })
     expect(statusResult).toEqual({
       schedulerStatus: expect.objectContaining({ state: 'idle' })
@@ -1467,7 +1503,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
     expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
     expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
-    expect(runtime.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
+    expect(runtime.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
     expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
     expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')

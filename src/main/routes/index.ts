@@ -68,7 +68,9 @@ import {
   configUpdateDeepChatAgentRoute,
   configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
+  cronJobsContinueRunRoute,
   cronJobsDeleteRoute,
+  cronJobsGetRunRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
@@ -76,6 +78,7 @@ import {
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
+  cronJobsRunAgainRoute,
   cronJobsRunNowRoute,
   cronJobsToggleRoute,
   cronJobsValidateScheduleRoute,
@@ -479,6 +482,28 @@ function parseSourceEntryIds(raw: string | null): number[] | null {
     return ids.length ? ids : null
   } catch {
     return null
+  }
+}
+
+async function activateCronJobRunSession(
+  runtime: MainKernelRouteRuntime,
+  runId: string
+): Promise<{ activated: true; sessionId: string }> {
+  const run = runtime.cronJobs.getRun(runId)
+  if (!run.sessionId) {
+    throw new Error('Cron job run has no session.')
+  }
+  if (!runtime.windowPresenter.focusMainWindow()) {
+    throw new Error('Main window is not available.')
+  }
+  const targetWindow = runtime.windowPresenter.mainWindow
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    throw new Error('Main window is not available.')
+  }
+  await runtime.agentSessionPresenter.activateSession(targetWindow.webContents.id, run.sessionId)
+  return {
+    activated: true,
+    sessionId: run.sessionId
   }
 }
 
@@ -2739,27 +2764,29 @@ export async function dispatchDeepchatRoute(
       return cronJobsListRunsRoute.output.parse({ runs })
     }
 
+    case cronJobsGetRunRoute.name: {
+      const input = cronJobsGetRunRoute.input.parse(rawInput)
+      return cronJobsGetRunRoute.output.parse({ run: runtime.cronJobs.getRun(input.runId) })
+    }
+
     case cronJobsOpenRunSessionRoute.name: {
       const input = cronJobsOpenRunSessionRoute.input.parse(rawInput)
-      const run = runtime.cronJobs.getRun(input.runId)
-      if (!run.sessionId) {
-        throw new Error('Cron job run has no session.')
-      }
-      if (!runtime.windowPresenter.focusMainWindow()) {
-        throw new Error('Main window is not available.')
-      }
-      const targetWindow = runtime.windowPresenter.mainWindow
-      if (!targetWindow || targetWindow.isDestroyed()) {
-        throw new Error('Main window is not available.')
-      }
-      await runtime.agentSessionPresenter.activateSession(
-        targetWindow.webContents.id,
-        run.sessionId
+      return cronJobsOpenRunSessionRoute.output.parse(
+        await activateCronJobRunSession(runtime, input.runId)
       )
-      return cronJobsOpenRunSessionRoute.output.parse({
-        activated: true,
-        sessionId: run.sessionId
-      })
+    }
+
+    case cronJobsContinueRunRoute.name: {
+      const input = cronJobsContinueRunRoute.input.parse(rawInput)
+      return cronJobsContinueRunRoute.output.parse(
+        await activateCronJobRunSession(runtime, input.runId)
+      )
+    }
+
+    case cronJobsRunAgainRoute.name: {
+      const input = cronJobsRunAgainRoute.input.parse(rawInput)
+      const run = runtime.cronJobs.getRun(input.runId)
+      return cronJobsRunAgainRoute.output.parse(await runtime.cronJobs.runNow(run.jobId))
     }
 
     case cronJobsGetSchedulerStatusRoute.name: {
