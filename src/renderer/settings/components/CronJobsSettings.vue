@@ -296,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
@@ -343,12 +343,14 @@ const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const runsByJobId = ref<Record<string, CronJobRun[]>>({})
 const runsLoadingByJobId = ref<Record<string, boolean>>({})
 const NO_AGENT_ID = '__none__'
+const SCHEDULER_STATUS_REFRESH_MS = 5_000
 const CRON_REFERENCE_EXAMPLES = [
   { cronExpr: '*/5 * * * *', labelKey: 'settings.cronJobs.presets.every5Minutes' },
   { cronExpr: '0 * * * *', labelKey: 'settings.cronJobs.presets.hourly' },
   { cronExpr: '0 9 * * *', labelKey: 'settings.cronJobs.presets.daily' },
   { cronExpr: '0 9 * * 1-5', labelKey: 'settings.cronJobs.presets.weekdays' }
 ] as const
+let schedulerStatusTimer: number | null = null
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 const enabledAgents = computed(() =>
@@ -447,6 +449,29 @@ const loadJobs = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const refreshSchedulerStatus = async () => {
+  try {
+    schedulerStatus.value = await client.getSchedulerStatus()
+  } catch (error) {
+    console.error('[CronJobs] Failed to refresh scheduler status:', error)
+  }
+}
+
+const startSchedulerStatusPolling = () => {
+  stopSchedulerStatusPolling()
+  schedulerStatusTimer = window.setInterval(() => {
+    void refreshSchedulerStatus()
+  }, SCHEDULER_STATUS_REFRESH_MS)
+}
+
+const stopSchedulerStatusPolling = () => {
+  if (!schedulerStatusTimer) {
+    return
+  }
+  window.clearInterval(schedulerStatusTimer)
+  schedulerStatusTimer = null
 }
 
 const refreshJobPreview = async (job: CronJob) => {
@@ -681,5 +706,10 @@ const restartScheduler = async () => {
 
 onMounted(() => {
   void loadJobs()
+  startSchedulerStatusPolling()
+})
+
+onBeforeUnmount(() => {
+  stopSchedulerStatusPolling()
 })
 </script>
