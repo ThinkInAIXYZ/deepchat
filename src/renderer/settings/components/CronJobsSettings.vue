@@ -98,28 +98,6 @@
               </div>
               <div class="min-w-0 space-y-1.5">
                 <Label class="text-xs text-muted-foreground">
-                  {{ t('settings.cronJobs.fields.preset') }}
-                </Label>
-                <Select
-                  :model-value="getJobPresetId(job.cronExpr)"
-                  @update:model-value="(value) => updateJobPreset(job.id, value)"
-                >
-                  <SelectTrigger class="h-8! w-full min-w-0">
-                    <SelectValue class="min-w-0 truncate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="preset in CRON_SCHEDULE_PRESETS"
-                      :key="preset.id"
-                      :value="preset.id"
-                    >
-                      {{ t(preset.labelKey) }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div class="min-w-0 space-y-1.5">
-                <Label class="text-xs text-muted-foreground">
                   {{ t('settings.cronJobs.fields.agent') }}
                 </Label>
                 <Select
@@ -203,6 +181,14 @@
                 <Icon icon="lucide:trash-2" class="h-4 w-4 text-destructive" />
               </Button>
             </div>
+          </div>
+
+          <div class="mt-3 lg:pl-11">
+            <CronExpressionEditor
+              :model-value="job.cronExpr || CRON_JOBS_DEFAULT_CRON_EXPR"
+              :locale="cronEditorLocale"
+              @update:model-value="(value) => updateCronExpression(job.id, String(value))"
+            />
           </div>
 
           <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:pl-11">
@@ -303,6 +289,7 @@ import { Textarea } from '@shadcn/components/ui/textarea'
 import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
+import CronExpressionEditor from './CronExpressionEditor.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
@@ -313,7 +300,7 @@ import {
 } from '@shared/cronJobs'
 import type { Agent } from '@shared/types/agent-interface'
 
-const { t } = useI18n()
+const { t, locale: currentLocale } = useI18n()
 const { toast } = useToast()
 const client = createCronJobsClient()
 const configClient = createConfigClient()
@@ -328,20 +315,22 @@ const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
 const NO_AGENT_ID = '__none__'
-
-const CRON_SCHEDULE_PRESETS = [
-  { id: 'custom', cronExpr: null, labelKey: 'settings.cronJobs.presets.custom' },
-  {
-    id: 'every5Minutes',
-    cronExpr: '*/5 * * * *',
-    labelKey: 'settings.cronJobs.presets.every5Minutes'
-  },
-  { id: 'hourly', cronExpr: '0 * * * *', labelKey: 'settings.cronJobs.presets.hourly' },
-  { id: 'daily', cronExpr: '0 9 * * *', labelKey: 'settings.cronJobs.presets.daily' },
-  { id: 'weekdays', cronExpr: '0 9 * * 1-5', labelKey: 'settings.cronJobs.presets.weekdays' }
-] as const
-
-type CronSchedulePresetId = (typeof CRON_SCHEDULE_PRESETS)[number]['id']
+const CRON_EDITOR_LOCALES = new Set([
+  'da',
+  'de',
+  'en',
+  'es',
+  'fr',
+  'he',
+  'hi',
+  'it',
+  'ja',
+  'ko',
+  'pt',
+  'ru',
+  'uk',
+  'zh'
+])
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 const enabledAgents = computed(() =>
@@ -349,6 +338,14 @@ const enabledAgents = computed(() =>
     .filter((agent) => agent.enabled)
     .sort((left, right) => left.name.localeCompare(right.name))
 )
+const cronEditorLocale = computed(() => {
+  const requested = String(currentLocale.value || 'en').toLowerCase()
+  if (requested.startsWith('zh')) {
+    return 'zh'
+  }
+  const language = requested.split('-')[0] || 'en'
+  return CRON_EDITOR_LOCALES.has(language) ? language : 'en'
+})
 
 const schedulerBadgeVariant = computed(() => {
   switch (schedulerStatus.value?.state) {
@@ -498,6 +495,11 @@ const updateTimezone = (id: string, timezone: string) => {
   void commitJob(id)
 }
 
+const updateCronExpression = (id: string, cronExpr: string) => {
+  updateJobField(id, 'cronExpr', cronExpr)
+  void commitJob(id)
+}
+
 const getRuntimePolicy = (job: CronJob): 'follow_agent' | 'snapshot' =>
   job.modelPolicy === 'pin_current' ||
   job.toolPolicy === 'snapshot' ||
@@ -516,18 +518,6 @@ const updateRuntimePolicy = (id: string, policy: string) => {
         }
       : job
   )
-  void commitJob(id)
-}
-
-const getJobPresetId = (cronExpr: string): CronSchedulePresetId =>
-  CRON_SCHEDULE_PRESETS.find((preset) => preset.cronExpr === cronExpr.trim())?.id ?? 'custom'
-
-const updateJobPreset = (id: string, value: unknown) => {
-  const preset = CRON_SCHEDULE_PRESETS.find((entry) => entry.id === value)
-  if (!preset?.cronExpr) {
-    return
-  }
-  updateJobField(id, 'cronExpr', preset.cronExpr)
   void commitJob(id)
 }
 
