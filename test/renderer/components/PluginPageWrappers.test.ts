@@ -9,8 +9,8 @@ describe('plugins page wrappers', () => {
     expect(skillsSource).not.toContain('AgentExtensionPolicyPanel')
   })
 
-  it('renders the original MCP settings view in agent scope', () => {
-    expect(mcpSource).toContain('<McpSettings scope="agent" />')
+  it('renders the original MCP settings view in global scope', () => {
+    expect(mcpSource).toContain('<McpSettings />')
     expect(mcpSource).toContain('settings/components/McpSettings.vue')
     expect(mcpSource).not.toContain('AgentExtensionPolicyPanel')
   })

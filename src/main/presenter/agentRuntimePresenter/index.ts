@@ -206,7 +206,6 @@ type ResumeBudgetToolCall = {
 type AgentExtensionPolicy = {
   enabledPluginIds?: string[] | null
   enabledSkillNames?: string[] | null
-  enabledMcpServerIds?: string[] | null
 }
 
 type PackageJsonManifest = {
@@ -731,6 +730,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     eventBus.on(MCP_EVENTS.SERVER_STARTED, this.handleToolRegistryChanged)
     eventBus.on(MCP_EVENTS.SERVER_STOPPED, this.handleToolRegistryChanged)
     eventBus.on(MCP_EVENTS.SERVER_STATUS_CHANGED, this.handleToolRegistryChanged)
+    eventBus.on(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleToolRegistryChanged)
     eventBus.on(MCP_EVENTS.INITIALIZED, this.handleToolRegistryChanged)
   }
 
@@ -6399,7 +6399,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
       const result = await this.toolPresenter.callTool(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
-        enabledMcpServerIds: extensionPolicy.enabledMcpServerIds ?? undefined,
         enabledPluginIds: extensionPolicy.enabledPluginIds ?? undefined,
         onProgress: (update) => {
           if (
@@ -6553,7 +6552,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
       const tools = await this.toolPresenter.getAllToolDefinitions({
         agentId,
-        enabledMcpServerIds: policy.enabledMcpServerIds ?? undefined,
         enabledPluginIds: policy.enabledPluginIds ?? undefined,
         disabledAgentTools: this.getDisabledAgentTools(sessionId),
         chatMode: 'agent',
@@ -6605,7 +6603,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
-        enabledMcpServerIds: this.normalizeNullablePolicyList(policy.enabledMcpServerIds),
         enabledPluginIds: this.normalizeNullablePolicyList(policy.enabledPluginIds),
         enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
         skillsEnabled,
@@ -6644,8 +6641,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const config = await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       return {
         enabledPluginIds: config.enabledPluginIds,
-        enabledSkillNames: config.enabledSkillNames,
-        enabledMcpServerIds: config.enabledMcpServerIds
+        enabledSkillNames: config.enabledSkillNames
       }
     } catch (error) {
       console.warn(

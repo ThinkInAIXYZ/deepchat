@@ -49,6 +49,7 @@ vi.mock('@/events', () => ({
     SERVER_STOPPED: 'mcp:server-stopped',
     CONFIG_CHANGED: 'mcp:config-changed',
     SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
+    CLIENT_LIST_UPDATED: 'mcp:client-list-updated',
     INITIALIZED: 'mcp:initialized'
   }
 }))
@@ -104,6 +105,7 @@ vi.mock('@/presenter/agentRuntimePresenter/process', () => ({
 
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { presenter } from '@/presenter'
+import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
@@ -118,6 +120,14 @@ function getPublishedPayloads(eventName: string): any[] {
 
 function expectPublished(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
+}
+
+function getEventHandler(eventName: string): () => void {
+  const handler = (eventBus.on as ReturnType<typeof vi.fn>).mock.calls.find(
+    ([name]) => name === eventName
+  )?.[1]
+  expect(handler).toEqual(expect.any(Function))
+  return handler as () => void
 }
 
 function deferred<T>() {
@@ -2397,6 +2407,33 @@ describe('AgentRuntimePresenter', () => {
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const secondCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
       expect(firstCallArgs.messages[0].content).toBe(secondCallArgs.messages[0].content)
+    })
+
+    it('invalidates cached tools when the MCP client list changes', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Before MCP update')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+
+      getEventHandler('mcp:client-list-updated')()
+      await agent.processMessage('s1', 'After MCP update')
+
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)
+    })
+
+    it('ignores historical agent MCP server allowlists for session tool discovery', async () => {
+      configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+        enabledMcpServerIds: [],
+        enabledPluginIds: ['plugin-a'],
+        enabledSkillNames: ['skill-a']
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'Hello')
+
+      const toolContext = toolPresenter.getAllToolDefinitions.mock.calls[0][0]
+      expect(toolContext).not.toHaveProperty('enabledMcpServerIds')
+      expect(toolContext.enabledPluginIds).toEqual(['plugin-a'])
     })
 
     it('invalidates cached prompt after system prompt update', async () => {
