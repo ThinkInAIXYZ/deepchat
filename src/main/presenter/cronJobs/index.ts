@@ -11,10 +11,11 @@ import {
   type CronScheduleValidation
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { IConfigPresenter, INotificationPresenter } from '@shared/presenter'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { CronExpressionService } from './cronExpressionService'
+import { CronJobDeliveryRouter } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 import { CronJobRunExecutor, type CronJobRunSessionStarter } from './runExecutor'
 import { CronJobRuntimeResolver } from './runtimeResolver'
@@ -32,9 +33,11 @@ type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
 export interface CronJobsServiceDeps {
   sqlitePresenter: SQLitePresenter
   configPresenter?: Pick<IConfigPresenter, 'listAgents' | 'resolveDeepChatAgentConfig'>
+  notificationPresenter?: Pick<INotificationPresenter, 'showNotification'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
+  deliveryRouter?: CronJobDeliveryRouter
   runSessionStarter?: CronJobRunSessionStarter
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
@@ -46,6 +49,7 @@ export class CronJobsService {
   private readonly repository: CronJobsRepository
   private readonly schedulerManager: SchedulerProcessManager
   private readonly scheduleService: CronExpressionService
+  private readonly deliveryRouter: CronJobDeliveryRouter
   private readonly runtimeResolver: CronJobRuntimeResolver | null
   private runExecutor: CronJobRunExecutor | null = null
   private started = false
@@ -60,8 +64,17 @@ export class CronJobsService {
     this.runtimeResolver =
       deps.runtimeResolver ??
       (deps.configPresenter ? new CronJobRuntimeResolver(deps.configPresenter) : null)
+    this.deliveryRouter =
+      deps.deliveryRouter ??
+      new CronJobDeliveryRouter(this.repository, {
+        notificationPresenter: deps.notificationPresenter
+      })
     if (deps.runSessionStarter) {
-      this.runExecutor = new CronJobRunExecutor(this.repository, deps.runSessionStarter)
+      this.runExecutor = new CronJobRunExecutor(
+        this.repository,
+        deps.runSessionStarter,
+        this.deliveryRouter
+      )
     }
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.sqlitePresenter.getDatabasePath(),
@@ -189,7 +202,11 @@ export class CronJobsService {
 
   setRunSessionStarter(runSessionStarter: CronJobRunSessionStarter): void {
     this.runExecutor?.dispose()
-    this.runExecutor = new CronJobRunExecutor(this.repository, runSessionStarter)
+    this.runExecutor = new CronJobRunExecutor(
+      this.repository,
+      runSessionStarter,
+      this.deliveryRouter
+    )
   }
 
   getSchedulerStatus(): CronJobsSchedulerStatus {

@@ -22,6 +22,9 @@ const repositoryModule =
 const serviceModule = repositoryModule
   ? await import('@/presenter/cronJobs').catch(() => null)
   : null
+const deliveryRouterModule = repositoryModule
+  ? await import('@/presenter/cronJobs/deliveryRouter').catch(() => null)
+  : null
 const schedulerManagerModule = repositoryModule
   ? await import('@/presenter/cronJobs/schedulerProcessManager').catch(() => null)
   : null
@@ -38,6 +41,7 @@ const CronJobRunsTable = cronJobRunsTableModule?.CronJobRunsTable
 const CronJobDeliveriesTable = cronJobDeliveriesTableModule?.CronJobDeliveriesTable
 const CronJobsRepository = repositoryModule?.CronJobsRepository
 const CronJobsService = serviceModule?.CronJobsService
+const CronJobDeliveryRouter = deliveryRouterModule?.CronJobDeliveryRouter
 const SchedulerProcessManager = schedulerManagerModule?.SchedulerProcessManager
 const CronJobsSchedulerUtilityHost = schedulerUtilityHostModule?.CronJobsSchedulerUtilityHost
 const CronExpressionService = cronExpressionServiceModule.CronExpressionService
@@ -47,6 +51,7 @@ const CronJobRunsTableCtor = CronJobRunsTable!
 const CronJobDeliveriesTableCtor = CronJobDeliveriesTable!
 const CronJobsRepositoryCtor = CronJobsRepository!
 const CronJobsServiceCtor = CronJobsService!
+const CronJobDeliveryRouterCtor = CronJobDeliveryRouter!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
 const CronJobsSchedulerUtilityHostCtor = CronJobsSchedulerUtilityHost!
 const emitDeepChatInternalSessionUpdate =
@@ -70,6 +75,7 @@ const describeIfSqlite =
   CronJobDeliveriesTable &&
   CronJobsRepository &&
   CronJobsService &&
+  CronJobDeliveryRouter &&
   SchedulerProcessManager &&
   CronJobsSchedulerUtilityHost
     ? describe
@@ -630,6 +636,53 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       expect(repository.requireJob(job.id).delivery.targets).toEqual(job.delivery.targets)
       expect(repository.listDeliveriesByRun(run.id)).toEqual([receipt])
       expect(repository.findDeliveryByRemoteMessageId('remote-message-1')).toEqual(receipt)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('routes desktop deliveries and records unsupported targets as failed receipts', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const showNotification = vi.fn(async () => undefined)
+      const router = new CronJobDeliveryRouterCtor(repository, {
+        notificationPresenter: { showNotification }
+      })
+      const job = repository.upsertJob({
+        name: 'Delivery route job',
+        enabled: false,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues',
+        delivery: {
+          targets: [{ type: 'desktop_notification' }, { type: 'deepchat_inbox' }],
+          createContinuableThread: true,
+          suppressSuccessNotification: false,
+          notifyOnFailure: true
+        }
+      })
+      const queued = repository.queueRun({
+        jobId: job.id,
+        scheduledAt: Date.now(),
+        reason: 'scheduled'
+      })
+      repository.markRunRunning(queued.id)
+      const completed = repository.markRunCompleted(queued.id)
+
+      await router.deliver({ job, run: completed })
+
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: `cron-job:${completed.id}`,
+          title: job.name
+        })
+      )
+      expect(repository.listDeliveriesByRun(completed.id)).toEqual([
+        expect.objectContaining({ targetType: 'desktop_notification', status: 'success' }),
+        expect.objectContaining({ targetType: 'deepchat_inbox', status: 'failed' })
+      ])
     } finally {
       db.close()
     }

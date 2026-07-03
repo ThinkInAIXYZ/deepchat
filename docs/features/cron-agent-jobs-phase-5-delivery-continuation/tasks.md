@@ -8,9 +8,10 @@
 
 ## Delivery
 
-- [ ] Implement `CronJobDeliveryRouter`.
+- [x] Implement `CronJobDeliveryRouter`.
 - [ ] Add DeepChat Inbox, desktop notification, origin session, and remote target adapters.
-- [ ] Persist receipt success and failure per target.
+  - [x] Add desktop notification target adapter.
+- [x] Persist receipt success and failure per target.
 - [ ] Add delivery retry route only if needed for failed receipts.
 
 ## Continuation

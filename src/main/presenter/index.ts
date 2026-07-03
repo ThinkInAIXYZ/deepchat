@@ -482,7 +482,8 @@ export class Presenter implements IPresenter {
     })
     this.cronJobs = new CronJobsService({
       sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
-      configPresenter: this.configPresenter
+      configPresenter: this.configPresenter,
+      notificationPresenter: this.notificationPresenter
     })
     const newSessionHooksBridge = new NewSessionHooksBridge(this.hooksNotifications)
     const providerCatalogPort: ProviderCatalogPort = {

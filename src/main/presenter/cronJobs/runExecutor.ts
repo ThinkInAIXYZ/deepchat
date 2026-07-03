@@ -4,6 +4,7 @@ import {
   subscribeDeepChatInternalSessionUpdates,
   type DeepChatInternalSessionUpdate
 } from '../agentRuntimePresenter/internalSessionEvents'
+import type { CronJobDeliveryRouter } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 
 export interface CronJobRunSessionStarter {
@@ -20,12 +21,13 @@ export interface CronJobRunSessionStarter {
 
 export class CronJobRunExecutor {
   private readonly claimOwner = `cron-job-runner:${process.pid}:${randomUUID()}`
-  private readonly activeSessions = new Map<string, string>()
+  private readonly activeSessions = new Map<string, { runId: string; job: CronJob }>()
   private readonly unsubscribeSessionUpdates: () => void
 
   constructor(
     private readonly repository: CronJobsRepository,
-    private readonly sessionStarter: CronJobRunSessionStarter
+    private readonly sessionStarter: CronJobRunSessionStarter,
+    private readonly deliveryRouter?: CronJobDeliveryRouter
   ) {
     this.unsubscribeSessionUpdates = subscribeDeepChatInternalSessionUpdates((update) =>
       this.handleSessionUpdate(update)
@@ -48,7 +50,12 @@ export class CronJobRunExecutor {
       if (input.job.runtime.concurrencyPolicy === 'queue') {
         return this.repository.releaseRunQueued(run.id)
       }
-      return this.repository.markRunCancelled(run.id, 'Another cron job run is already active.')
+      const cancelled = this.repository.markRunCancelled(
+        run.id,
+        'Another cron job run is already active.'
+      )
+      await this.deliverRun(input.job, cancelled)
+      return cancelled
     }
 
     let sessionId: string | null = null
@@ -56,7 +63,7 @@ export class CronJobRunExecutor {
       const result = await this.sessionStarter.createSessionForRun({ job: input.job, run })
       sessionId = result.sessionId
       this.repository.updateRunSession(run.id, result.sessionId)
-      this.activeSessions.set(result.sessionId, run.id)
+      this.activeSessions.set(result.sessionId, { runId: run.id, job: input.job })
       if (result.outputMessageId || result.outputPreview) {
         this.repository.updateRunOutput(run.id, {
           outputMessageId: result.outputMessageId ?? null,
@@ -79,21 +86,23 @@ export class CronJobRunExecutor {
       if (sessionId) {
         this.activeSessions.delete(sessionId)
       }
-      return this.repository.markRunFailed(
+      const failed = this.repository.markRunFailed(
         run.id,
         error instanceof Error ? error.message : String(error)
       )
+      await this.deliverRun(input.job, failed)
+      return failed
     }
   }
 
   private handleSessionUpdate(update: DeepChatInternalSessionUpdate): void {
-    const runId = this.activeSessions.get(update.sessionId)
-    if (!runId) {
+    const activeSession = this.activeSessions.get(update.sessionId)
+    if (!activeSession) {
       return
     }
 
     if (update.kind === 'blocks') {
-      this.captureRunOutput(runId, update)
+      this.captureRunOutput(activeSession.runId, update)
       return
     }
 
@@ -102,12 +111,12 @@ export class CronJobRunExecutor {
     }
 
     if (update.status === 'idle') {
-      this.completeRun(runId, update.sessionId)
+      this.completeRun(activeSession.runId, activeSession.job, update.sessionId)
       return
     }
 
     if (update.status === 'error') {
-      this.failRun(runId, update.sessionId)
+      this.failRun(activeSession.runId, activeSession.job, update.sessionId)
     }
   }
 
@@ -125,23 +134,33 @@ export class CronJobRunExecutor {
     })
   }
 
-  private completeRun(runId: string, sessionId: string): void {
+  private completeRun(runId: string, job: CronJob, sessionId: string): void {
     const current = this.repository.getRun(runId)
     if (!current || current.status !== 'running') {
       this.activeSessions.delete(sessionId)
       return
     }
-    this.repository.markRunCompleted(runId)
+    const completed = this.repository.markRunCompleted(runId)
     this.activeSessions.delete(sessionId)
+    void this.deliverRun(job, completed)
   }
 
-  private failRun(runId: string, sessionId: string): void {
+  private failRun(runId: string, job: CronJob, sessionId: string): void {
     const current = this.repository.getRun(runId)
     if (!current || current.status !== 'running') {
       this.activeSessions.delete(sessionId)
       return
     }
-    this.repository.markRunFailed(runId, 'Agent session entered error state.')
+    const failed = this.repository.markRunFailed(runId, 'Agent session entered error state.')
     this.activeSessions.delete(sessionId)
+    void this.deliverRun(job, failed)
+  }
+
+  private async deliverRun(job: CronJob, run: CronJobRun): Promise<void> {
+    try {
+      await this.deliveryRouter?.deliver({ job, run })
+    } catch (error) {
+      console.error('[CronJobs] Failed to deliver run result:', error)
+    }
   }
 }
