@@ -139,7 +139,7 @@ export class CronJobRunsTable extends BaseTable {
            created_at,
            updated_at
          )
-         VALUES (?, ?, NULL, NULL, ?, ?, NULL, NULL, 'queued', ?, NULL, NULL, NULL, NULL, ?, ?)`
+         VALUES (?, ?, NULL, NULL, ?, ?, NULL, NULL, 'queued', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
       )
       .run(id, input.jobId, input.scheduledAt, queuedAt, input.reason, now, now)
 

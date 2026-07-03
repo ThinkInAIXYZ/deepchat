@@ -257,6 +257,16 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         scheduledAt: nextRunAt,
         reason: 'scheduled'
       })
+      expect(run).toEqual(
+        expect.objectContaining({
+          sessionId: null,
+          parentContinuationSessionId: null,
+          outputMessageId: null,
+          outputPreview: null,
+          claimedAt: null,
+          claimOwner: null
+        })
+      )
       repository.markRunRunning(run.id)
       const completed = repository.markRunCompleted(run.id)
       expect(completed.status).toBe('completed')
