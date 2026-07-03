@@ -21,7 +21,7 @@
 - [x] Add `cronJobs.previewSchedule` and `cronJobs.validateSchedule` route contracts.
 - [x] Update `CronJobsClient`.
 - [x] Build the raw cron editor and computed next-run indicator.
-- [ ] Build preset controls that write only cron expressions.
+- [x] Build preset controls that write only cron expressions.
 - [x] Add next-runs preview, loading, empty, and parser-error states.
 - [x] Reuse existing i18n keys where no new visible copy is needed.
 

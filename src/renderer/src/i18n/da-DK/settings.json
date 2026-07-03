@@ -1402,7 +1402,15 @@
     "fields": {
       "name": "Name",
       "cronExpr": "Cron expression",
-      "timezone": "Timezone"
+      "timezone": "Timezone",
+      "preset": "Preset"
+    },
+    "presets": {
+      "custom": "Custom",
+      "every5Minutes": "Every 5 minutes",
+      "hourly": "Hourly",
+      "daily": "Daily at 09:00",
+      "weekdays": "Weekdays at 09:00"
     },
     "status": {
       "state": "State",

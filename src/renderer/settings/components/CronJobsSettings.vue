@@ -98,6 +98,28 @@
               </div>
               <div class="min-w-0 space-y-1.5">
                 <Label class="text-xs text-muted-foreground">
+                  {{ t('settings.cronJobs.fields.preset') }}
+                </Label>
+                <Select
+                  :model-value="getJobPresetId(job.cronExpr)"
+                  @update:model-value="(value) => updateJobPreset(job.id, value)"
+                >
+                  <SelectTrigger class="h-8! w-full min-w-0">
+                    <SelectValue class="min-w-0 truncate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="preset in CRON_SCHEDULE_PRESETS"
+                      :key="preset.id"
+                      :value="preset.id"
+                    >
+                      {{ t(preset.labelKey) }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="min-w-0 space-y-1.5">
+                <Label class="text-xs text-muted-foreground">
                   {{ t('settings.cronJobs.fields.cronExpr') }}
                 </Label>
                 <Input
@@ -196,6 +218,13 @@ import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { useToast } from '@/components/use-toast'
 import { createCronJobsClient } from '@api/CronJobsClient'
@@ -220,6 +249,20 @@ const runningId = ref<string | null>(null)
 const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
+
+const CRON_SCHEDULE_PRESETS = [
+  { id: 'custom', cronExpr: null, labelKey: 'settings.cronJobs.presets.custom' },
+  {
+    id: 'every5Minutes',
+    cronExpr: '*/5 * * * *',
+    labelKey: 'settings.cronJobs.presets.every5Minutes'
+  },
+  { id: 'hourly', cronExpr: '0 * * * *', labelKey: 'settings.cronJobs.presets.hourly' },
+  { id: 'daily', cronExpr: '0 9 * * *', labelKey: 'settings.cronJobs.presets.daily' },
+  { id: 'weekdays', cronExpr: '0 9 * * 1-5', labelKey: 'settings.cronJobs.presets.weekdays' }
+] as const
+
+type CronSchedulePresetId = (typeof CRON_SCHEDULE_PRESETS)[number]['id']
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
 
@@ -330,6 +373,18 @@ const refreshJobPreview = async (job: CronJob) => {
 
 const updateJobField = (id: string, field: 'name' | 'cronExpr' | 'timezone', value: string) => {
   jobs.value = jobs.value.map((job) => (job.id === id ? { ...job, [field]: value } : job))
+}
+
+const getJobPresetId = (cronExpr: string): CronSchedulePresetId =>
+  CRON_SCHEDULE_PRESETS.find((preset) => preset.cronExpr === cronExpr.trim())?.id ?? 'custom'
+
+const updateJobPreset = (id: string, value: unknown) => {
+  const preset = CRON_SCHEDULE_PRESETS.find((entry) => entry.id === value)
+  if (!preset?.cronExpr) {
+    return
+  }
+  updateJobField(id, 'cronExpr', preset.cronExpr)
+  void commitJob(id)
 }
 
 const commitJob = async (id: string) => {

@@ -1469,7 +1469,15 @@
     "fields": {
       "name": "名称",
       "cronExpr": "Cron 表达式",
-      "timezone": "时区"
+      "timezone": "时区",
+      "preset": "預設"
+    },
+    "presets": {
+      "custom": "自訂",
+      "every5Minutes": "每 5 分鐘",
+      "hourly": "每小時",
+      "daily": "每天 09:00",
+      "weekdays": "工作日 09:00"
     },
     "status": {
       "state": "状态",
