@@ -1470,7 +1470,13 @@
       "name": "名称",
       "cronExpr": "Cron 表达式",
       "timezone": "时区",
-      "preset": "預設"
+      "preset": "預設",
+      "agent": "Agent",
+      "noAgent": "未選擇",
+      "taskPrompt": "任務內容",
+      "runtimePolicy": "執行配置",
+      "followAgent": "跟隨 Agent",
+      "pinCurrent": "固定目前配置"
     },
     "presets": {
       "custom": "自訂",
@@ -1487,7 +1493,8 @@
       "starting": "启动中",
       "running": "运行中",
       "idle": "空闲",
-      "error": "错误"
+      "error": "错误",
+      "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
     "runNowSuccess": "Cron Job 已完成"
   },

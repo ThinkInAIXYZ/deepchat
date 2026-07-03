@@ -15,14 +15,29 @@ const schedulerStatus = {
 const job = {
   id: 'cron-1',
   name: 'Cron smoke',
+  description: null,
   enabled: true,
+  status: 'ready' as const,
   cronExpr: '0 9 * * *',
   timezone: 'UTC',
-  agentId: null,
+  agentId: 'agent-1',
   nextRunAt: null,
   misfirePolicy: 'skip' as const,
   maxCatchUpRuns: null,
   scheduleError: null,
+  taskPrompt: 'Summarize issues',
+  taskSystemInstruction: null,
+  taskOutputMode: 'final_message' as const,
+  modelPolicy: 'follow_agent' as const,
+  toolPolicy: 'follow_agent' as const,
+  permissionPolicy: 'follow_agent' as const,
+  runtime: {
+    maxDurationMs: 3_600_000,
+    maxTurns: 20,
+    maxToolCalls: 100,
+    concurrencyPolicy: 'skip' as const
+  },
+  agentSnapshot: null,
   createdAt: 1,
   updatedAt: 2
 }
@@ -77,11 +92,18 @@ describe('CronJobsClient', () => {
         enabled: job.enabled,
         cronExpr: job.cronExpr,
         timezone: job.timezone,
-        agentId: null,
+        agentId: job.agentId,
         nextRunAt: null,
         misfirePolicy: 'skip',
         maxCatchUpRuns: null,
-        scheduleError: null
+        scheduleError: null,
+        taskPrompt: job.taskPrompt,
+        taskSystemInstruction: null,
+        taskOutputMode: 'final_message',
+        modelPolicy: 'follow_agent',
+        toolPolicy: 'follow_agent',
+        permissionPolicy: 'follow_agent',
+        runtime: job.runtime
       })
     ).toEqual({ job, schedulerStatus })
     expect(await client.toggle(job.id, false)).toEqual({ job, schedulerStatus })
@@ -108,11 +130,18 @@ describe('CronJobsClient', () => {
       enabled: job.enabled,
       cronExpr: job.cronExpr,
       timezone: job.timezone,
-      agentId: null,
+      agentId: job.agentId,
       nextRunAt: null,
       misfirePolicy: 'skip',
       maxCatchUpRuns: null,
-      scheduleError: null
+      scheduleError: null,
+      taskPrompt: job.taskPrompt,
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      runtime: job.runtime
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'cronJobs.toggle', {
       id: job.id,

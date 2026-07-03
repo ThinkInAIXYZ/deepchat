@@ -205,9 +205,15 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       } as never)
     ).toEqual(
       expect.objectContaining({
+        status: 'invalid_agent',
         misfirePolicy: 'skip',
         maxCatchUpRuns: null,
-        scheduleError: null
+        scheduleError: null,
+        taskPrompt: '',
+        runtime: expect.objectContaining({
+          maxTurns: 20,
+          concurrencyPolicy: 'skip'
+        })
       })
     )
   })
@@ -219,28 +225,24 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const nextRunAt = 1_800_000_000_000
       const job = repository.upsertJob({
         name: 'Daily sync',
-        enabled: false,
+        enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null,
-        nextRunAt
+        agentId: 'agent-1',
+        nextRunAt,
+        taskPrompt: 'Sync reports'
       })
 
       expect(repository.listJobs()).toEqual([
         expect.objectContaining({
           id: job.id,
           name: 'Daily sync',
-          enabled: false,
+          enabled: true,
+          agentId: 'agent-1',
+          taskPrompt: 'Sync reports',
           nextRunAt
         })
       ])
-      expect(repository.getSchedulerSnapshot()).toEqual({
-        enabledJobCount: 0,
-        nextRunAt: null
-      })
-
-      const enabled = repository.setJobEnabled(job.id, true)
-      expect(enabled.enabled).toBe(true)
       expect(repository.getSchedulerSnapshot()).toEqual({
         enabledJobCount: 1,
         nextRunAt
@@ -266,6 +268,127 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
+  it('rejects enabled jobs without an agent or task prompt', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never
+      })
+
+      await expect(
+        service.upsert({
+          name: 'No agent',
+          enabled: true,
+          cronExpr: '0 9 * * *',
+          timezone: 'UTC',
+          agentId: null,
+          taskPrompt: 'Summarize issues'
+        })
+      ).rejects.toThrow('Cron job requires an enabled agent.')
+
+      await expect(
+        service.upsert({
+          name: 'No prompt',
+          enabled: true,
+          cronExpr: '0 9 * * *',
+          timezone: 'UTC',
+          agentId: 'agent-1',
+          taskPrompt: ''
+        })
+      ).rejects.toThrow('Cron job task prompt is required.')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('captures snapshots and invalidates disabled agents during reconcile', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const agents = [
+        {
+          id: 'agent-1',
+          name: 'Issue agent',
+          type: 'deepchat' as const,
+          enabled: true
+        }
+      ]
+      const configPresenter = {
+        listAgents: vi.fn(async () => agents),
+        resolveDeepChatAgentConfig: vi.fn(async () => ({ systemPrompt: 'system' }))
+      }
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never,
+        configPresenter: configPresenter as never
+      })
+
+      const follow = await service.upsert({
+        name: 'Follow job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
+      })
+
+      expect(follow.job.agentSnapshot).toBeNull()
+      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-1')
+
+      const { job } = await service.upsert({
+        name: 'Snapshot job',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues',
+        modelPolicy: 'pin_current',
+        toolPolicy: 'snapshot',
+        permissionPolicy: 'snapshot'
+      })
+
+      expect(job.agentSnapshot).toEqual(
+        expect.objectContaining({
+          agent: expect.objectContaining({
+            id: 'agent-1',
+            name: 'Issue agent',
+            type: 'deepchat'
+          }),
+          config: { systemPrompt: 'system' }
+        })
+      )
+
+      agents[0].enabled = false
+      const response = await service.list()
+
+      expect(response.jobs.find((entry) => entry.id === job.id)).toEqual(
+        expect.objectContaining({
+          enabled: false,
+          status: 'invalid_agent',
+          nextRunAt: null
+        })
+      )
+      expect(sqlitePresenter.cronJobsTable.countEnabled()).toBe(0)
+      expect(schedulerManager.reconcile).toHaveBeenCalledWith('list')
+    } finally {
+      db.close()
+    }
+  })
+
   it('queues and completes manual runs through the service without starting a real process', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {
@@ -286,7 +409,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
       })
       expect(job.nextRunAt).toEqual(expect.any(Number))
       const result = await service.runNow(job.id)
@@ -322,11 +446,12 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       })
       const stored = sqlitePresenter.cronJobsTable.upsert({
         name: 'Legacy indicator',
-        enabled: false,
+        enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null,
-        nextRunAt: null
+        agentId: 'agent-1',
+        nextRunAt: null,
+        taskPrompt: 'Summarize issues'
       })
 
       const response = await service.list()
@@ -357,8 +482,9 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null,
+        agentId: 'agent-1',
         nextRunAt: dueAt,
+        taskPrompt: 'Summarize issues',
         now: 1
       })
 

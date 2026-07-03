@@ -1,9 +1,14 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import {
+  CRON_JOB_CONCURRENCY_POLICIES,
   CRON_JOB_MISFIRE_POLICIES,
+  CRON_JOB_MODEL_POLICIES,
+  CRON_JOB_OUTPUT_MODES,
+  CRON_JOB_RUNTIME_POLICIES,
   CRON_JOB_RUN_REASONS,
   CRON_JOB_RUN_STATUSES,
+  CRON_JOB_STATUSES,
   CRON_JOBS_SCHEDULER_STATES
 } from '../../cronJobs'
 
@@ -12,12 +17,37 @@ const timestampMsSchema = z.number().int().nonnegative()
 export const cronJobRunStatusSchema = z.enum(CRON_JOB_RUN_STATUSES)
 export const cronJobRunReasonSchema = z.enum(CRON_JOB_RUN_REASONS)
 export const cronJobMisfirePolicySchema = z.enum(CRON_JOB_MISFIRE_POLICIES)
+export const cronJobStatusSchema = z.enum(CRON_JOB_STATUSES)
+export const cronJobOutputModeSchema = z.enum(CRON_JOB_OUTPUT_MODES)
+export const cronJobModelPolicySchema = z.enum(CRON_JOB_MODEL_POLICIES)
+export const cronJobRuntimePolicySchema = z.enum(CRON_JOB_RUNTIME_POLICIES)
+export const cronJobConcurrencyPolicySchema = z.enum(CRON_JOB_CONCURRENCY_POLICIES)
 export const cronJobsSchedulerStateSchema = z.enum(CRON_JOBS_SCHEDULER_STATES)
+
+export const cronJobRuntimeSchema = z.object({
+  maxDurationMs: z.number().int().positive(),
+  maxTurns: z.number().int().positive(),
+  maxToolCalls: z.number().int().positive(),
+  concurrencyPolicy: cronJobConcurrencyPolicySchema
+})
+
+export const cronJobAgentSnapshotSchema = z.object({
+  version: z.literal(1),
+  capturedAt: timestampMsSchema,
+  agent: z.object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    type: z.enum(['deepchat', 'acp'])
+  }),
+  config: z.unknown().nullable()
+})
 
 export const cronJobSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(200),
+  description: z.string().nullable(),
   enabled: z.boolean(),
+  status: cronJobStatusSchema,
   cronExpr: z.string().min(1).max(200),
   timezone: z.string().min(1).max(128),
   agentId: z.string().min(1).nullable(),
@@ -25,6 +55,14 @@ export const cronJobSchema = z.object({
   misfirePolicy: cronJobMisfirePolicySchema,
   maxCatchUpRuns: z.number().int().positive().nullable(),
   scheduleError: z.string().nullable(),
+  taskPrompt: z.string(),
+  taskSystemInstruction: z.string().nullable(),
+  taskOutputMode: cronJobOutputModeSchema,
+  modelPolicy: cronJobModelPolicySchema,
+  toolPolicy: cronJobRuntimePolicySchema,
+  permissionPolicy: cronJobRuntimePolicySchema,
+  runtime: cronJobRuntimeSchema,
+  agentSnapshot: cronJobAgentSnapshotSchema.nullable(),
   createdAt: timestampMsSchema,
   updatedAt: timestampMsSchema
 })
@@ -64,13 +102,31 @@ export const cronJobsListRoute = defineRouteContract({
 })
 
 export const cronJobsUpsertInputSchema = cronJobSchema
-  .omit({ id: true, createdAt: true, updatedAt: true })
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+    status: true,
+    nextRunAt: true,
+    scheduleError: true,
+    agentSnapshot: true
+  })
   .extend({
     id: z.string().min(1).optional(),
+    description: z.string().nullable().optional(),
+    status: cronJobStatusSchema.optional(),
     nextRunAt: timestampMsSchema.nullable().optional(),
     misfirePolicy: cronJobMisfirePolicySchema.optional(),
     maxCatchUpRuns: z.number().int().positive().nullable().optional(),
-    scheduleError: z.string().nullable().optional()
+    scheduleError: z.string().nullable().optional(),
+    taskPrompt: z.string().optional(),
+    taskSystemInstruction: z.string().nullable().optional(),
+    taskOutputMode: cronJobOutputModeSchema.optional(),
+    modelPolicy: cronJobModelPolicySchema.optional(),
+    toolPolicy: cronJobRuntimePolicySchema.optional(),
+    permissionPolicy: cronJobRuntimePolicySchema.optional(),
+    runtime: cronJobRuntimeSchema.optional(),
+    agentSnapshot: cronJobAgentSnapshotSchema.nullable().optional()
   })
 
 export const cronJobsUpsertRoute = defineRouteContract({

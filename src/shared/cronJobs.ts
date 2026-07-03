@@ -1,6 +1,12 @@
 export const CRON_JOBS_DEFAULT_CRON_EXPR = '0 9 * * *'
 export const CRON_JOBS_DEFAULT_TIMEZONE = 'UTC'
 export const CRON_JOBS_DEFAULT_MISFIRE_POLICY = 'skip'
+export const CRON_JOBS_DEFAULT_RUNTIME = {
+  maxDurationMs: 60 * 60 * 1000,
+  maxTurns: 20,
+  maxToolCalls: 100,
+  concurrencyPolicy: 'skip'
+} as const
 
 export const CRON_JOB_RUN_STATUSES = [
   'queued',
@@ -17,6 +23,21 @@ export type CronJobRunReason = (typeof CRON_JOB_RUN_REASONS)[number]
 export const CRON_JOB_MISFIRE_POLICIES = ['skip', 'run_once'] as const
 export type CronJobMisfirePolicy = (typeof CRON_JOB_MISFIRE_POLICIES)[number]
 
+export const CRON_JOB_STATUSES = ['ready', 'disabled', 'invalid_agent'] as const
+export type CronJobStatus = (typeof CRON_JOB_STATUSES)[number]
+
+export const CRON_JOB_OUTPUT_MODES = ['final_message', 'structured_json', 'artifact'] as const
+export type CronJobOutputMode = (typeof CRON_JOB_OUTPUT_MODES)[number]
+
+export const CRON_JOB_MODEL_POLICIES = ['follow_agent', 'pin_current'] as const
+export type CronJobModelPolicy = (typeof CRON_JOB_MODEL_POLICIES)[number]
+
+export const CRON_JOB_RUNTIME_POLICIES = ['follow_agent', 'snapshot'] as const
+export type CronJobRuntimePolicy = (typeof CRON_JOB_RUNTIME_POLICIES)[number]
+
+export const CRON_JOB_CONCURRENCY_POLICIES = ['skip', 'queue'] as const
+export type CronJobConcurrencyPolicy = (typeof CRON_JOB_CONCURRENCY_POLICIES)[number]
+
 export const CRON_JOBS_SCHEDULER_STATES = [
   'stopped',
   'starting',
@@ -29,7 +50,9 @@ export type CronJobsSchedulerState = (typeof CRON_JOBS_SCHEDULER_STATES)[number]
 export interface CronJob {
   id: string
   name: string
+  description: string | null
   enabled: boolean
+  status: CronJobStatus
   cronExpr: string
   timezone: string
   agentId: string | null
@@ -37,8 +60,34 @@ export interface CronJob {
   misfirePolicy: CronJobMisfirePolicy
   maxCatchUpRuns: number | null
   scheduleError: string | null
+  taskPrompt: string
+  taskSystemInstruction: string | null
+  taskOutputMode: CronJobOutputMode
+  modelPolicy: CronJobModelPolicy
+  toolPolicy: CronJobRuntimePolicy
+  permissionPolicy: CronJobRuntimePolicy
+  runtime: CronJobRuntimeSettings
+  agentSnapshot: CronJobAgentSnapshot | null
   createdAt: number
   updatedAt: number
+}
+
+export interface CronJobRuntimeSettings {
+  maxDurationMs: number
+  maxTurns: number
+  maxToolCalls: number
+  concurrencyPolicy: CronJobConcurrencyPolicy
+}
+
+export interface CronJobAgentSnapshot {
+  version: 1
+  capturedAt: number
+  agent: {
+    id: string
+    name: string
+    type: 'deepchat' | 'acp'
+  }
+  config: unknown | null
 }
 
 export type CronSchedulePreset =

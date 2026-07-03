@@ -1,16 +1,21 @@
 import type { PowerMonitor } from 'electron'
 import type {
   CronJob,
+  CronJobAgentSnapshot,
   CronJobRun,
   CronJobsSchedulerStatus,
+  CronJobStatus,
   CronSchedulePreview,
   CronScheduleValidation
 } from '@shared/cronJobs'
+import { CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
+import type { IConfigPresenter } from '@shared/presenter'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobsRepository } from './repository'
+import { CronJobRuntimeResolver } from './runtimeResolver'
 import {
   SchedulerProcessManager,
   type SchedulerProcessManagerDeps,
@@ -18,11 +23,16 @@ import {
 } from './schedulerProcessManager'
 
 export type CronJobsUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
+type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
+  id?: string
+}
 
 export interface CronJobsServiceDeps {
   sqlitePresenter: SQLitePresenter
+  configPresenter?: Pick<IConfigPresenter, 'listAgents' | 'resolveDeepChatAgentConfig'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
+  runtimeResolver?: CronJobRuntimeResolver
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
@@ -33,6 +43,7 @@ export class CronJobsService {
   private readonly repository: CronJobsRepository
   private readonly schedulerManager: SchedulerProcessManager
   private readonly scheduleService: CronExpressionService
+  private readonly runtimeResolver: CronJobRuntimeResolver | null
   private started = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
   private readonly resumeHandler = () => {
@@ -42,6 +53,9 @@ export class CronJobsService {
   constructor(deps: CronJobsServiceDeps) {
     this.repository = new CronJobsRepository(deps.sqlitePresenter)
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
+    this.runtimeResolver =
+      deps.runtimeResolver ??
+      (deps.configPresenter ? new CronJobRuntimeResolver(deps.configPresenter) : null)
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.sqlitePresenter.getDatabasePath(),
       dbPassword: deps.sqlitePresenter.getDatabasePassword(),
@@ -90,11 +104,15 @@ export class CronJobsService {
     job: CronJob
     schedulerStatus: CronJobsSchedulerStatus
   }> {
-    const scheduleState = this.computeScheduleState(input, Date.now())
+    const draft = this.buildJobDraft(input)
+    const jobState = await this.computeJobState(draft, Date.now(), true)
     const job = this.repository.upsertJob({
-      ...input,
-      nextRunAt: scheduleState.nextRunAt,
-      scheduleError: scheduleState.error
+      ...draft,
+      enabled: jobState.enabled,
+      status: jobState.status,
+      nextRunAt: jobState.nextRunAt,
+      scheduleError: jobState.scheduleError,
+      agentSnapshot: jobState.agentSnapshot
     })
     const schedulerStatus = await this.reconcileScheduler('job-upsert')
     return { job, schedulerStatus }
@@ -113,18 +131,18 @@ export class CronJobsService {
     schedulerStatus: CronJobsSchedulerStatus
   }> {
     const existing = this.repository.requireJob(id)
-    const scheduleState = this.computeScheduleState(
-      {
-        ...existing,
-        enabled
-      },
-      Date.now()
-    )
-    const job = this.repository.upsertJob({
+    const draft = this.buildJobDraft({
       ...existing,
-      enabled,
-      nextRunAt: scheduleState.nextRunAt,
-      scheduleError: scheduleState.error
+      enabled
+    })
+    const jobState = await this.computeJobState(draft, Date.now(), true)
+    const job = this.repository.upsertJob({
+      ...draft,
+      enabled: jobState.enabled,
+      status: jobState.status,
+      nextRunAt: jobState.nextRunAt,
+      scheduleError: jobState.scheduleError,
+      agentSnapshot: jobState.agentSnapshot
     })
     const schedulerStatus = await this.reconcileScheduler('job-toggle')
     return { job, schedulerStatus }
@@ -136,6 +154,7 @@ export class CronJobsService {
     schedulerStatus: CronJobsSchedulerStatus
   }> {
     const job = this.repository.requireJob(id)
+    await this.assertRunnable(job)
     const run = this.repository.queueRun({
       jobId: id,
       scheduledAt: Date.now(),
@@ -157,7 +176,7 @@ export class CronJobsService {
   }
 
   async reconcileScheduler(reason = 'manual'): Promise<CronJobsSchedulerStatus> {
-    this.reconcileStoredSchedules(Date.now())
+    await this.reconcileStoredSchedules(Date.now())
     return await this.schedulerManager.reconcile(reason)
   }
 
@@ -199,39 +218,151 @@ export class CronJobsService {
     }
   }
 
-  private computeScheduleState(
-    input: Pick<CronJob, 'cronExpr' | 'timezone' | 'enabled'> | CronJobsUpsertInput,
-    now: number
-  ): { nextRunAt: number | null; error: string | null } {
-    const validation = this.scheduleService.validate(input.cronExpr, input.timezone, now)
-    if (!validation.valid && input.enabled) {
-      throw new Error(validation.error ?? 'Invalid cron schedule.')
-    }
-
+  private buildJobDraft(input: CronJobsUpsertInput): CronJobDraft {
+    const existing = input.id ? this.repository.getJob(input.id) : null
     return {
-      nextRunAt: validation.nextRunAt,
-      error: validation.error
+      id: input.id,
+      name: input.name,
+      description: input.description ?? existing?.description ?? null,
+      enabled: input.enabled,
+      status: input.status ?? existing?.status ?? (input.enabled ? 'ready' : 'disabled'),
+      cronExpr: input.cronExpr,
+      timezone: input.timezone,
+      agentId: input.agentId,
+      nextRunAt: input.nextRunAt ?? existing?.nextRunAt ?? null,
+      misfirePolicy: input.misfirePolicy ?? existing?.misfirePolicy ?? 'skip',
+      maxCatchUpRuns: input.maxCatchUpRuns ?? existing?.maxCatchUpRuns ?? null,
+      scheduleError: input.scheduleError ?? existing?.scheduleError ?? null,
+      taskPrompt: input.taskPrompt ?? existing?.taskPrompt ?? '',
+      taskSystemInstruction: input.taskSystemInstruction ?? existing?.taskSystemInstruction ?? null,
+      taskOutputMode: input.taskOutputMode ?? existing?.taskOutputMode ?? 'final_message',
+      modelPolicy: input.modelPolicy ?? existing?.modelPolicy ?? 'follow_agent',
+      toolPolicy: input.toolPolicy ?? existing?.toolPolicy ?? 'follow_agent',
+      permissionPolicy: input.permissionPolicy ?? existing?.permissionPolicy ?? 'follow_agent',
+      runtime: input.runtime ?? existing?.runtime ?? { ...DEFAULT_RUNTIME },
+      agentSnapshot: input.agentSnapshot ?? existing?.agentSnapshot ?? null
     }
   }
 
-  private reconcileStoredSchedules(now: number): void {
-    for (const job of this.repository.listJobs()) {
-      if (job.enabled && job.nextRunAt !== null && job.scheduleError === null) {
-        continue
+  private async computeJobState(
+    input: Pick<
+      CronJob,
+      | 'enabled'
+      | 'cronExpr'
+      | 'timezone'
+      | 'agentId'
+      | 'taskPrompt'
+      | 'modelPolicy'
+      | 'toolPolicy'
+      | 'permissionPolicy'
+      | 'agentSnapshot'
+    >,
+    now: number,
+    throwOnInvalid: boolean
+  ): Promise<{
+    enabled: boolean
+    status: CronJobStatus
+    nextRunAt: number | null
+    scheduleError: string | null
+    agentSnapshot: CronJobAgentSnapshot | null
+  }> {
+    const validation = this.scheduleService.validate(input.cronExpr, input.timezone, now)
+    let status = await this.resolveAgentStatus(input)
+    let enabled = input.enabled
+    const taskPrompt = input.taskPrompt.trim()
+
+    if (!enabled && status === 'ready') {
+      status = 'disabled'
+    }
+
+    if (enabled && !taskPrompt) {
+      if (throwOnInvalid) {
+        throw new Error('Cron job task prompt is required.')
       }
+      enabled = false
+      status = 'disabled'
+    }
+
+    if (enabled && status !== 'ready') {
+      if (throwOnInvalid) {
+        throw new Error('Cron job requires an enabled agent.')
+      }
+      enabled = false
+    }
+
+    if (!validation.valid && enabled) {
+      if (throwOnInvalid) {
+        throw new Error(validation.error ?? 'Invalid cron schedule.')
+      }
+      enabled = false
+    }
+
+    return {
+      enabled,
+      status,
+      nextRunAt: enabled && status === 'ready' ? validation.nextRunAt : null,
+      scheduleError: validation.error,
+      agentSnapshot: await this.captureSnapshotIfNeeded(input)
+    }
+  }
+
+  private async resolveAgentStatus(
+    input: Pick<
+      CronJob,
+      'agentId' | 'modelPolicy' | 'toolPolicy' | 'permissionPolicy' | 'agentSnapshot'
+    >
+  ): Promise<CronJobStatus> {
+    if (!input.agentId) {
+      return 'disabled'
+    }
+    if (!this.runtimeResolver) {
+      return 'ready'
+    }
+    return (await this.runtimeResolver.resolve(input)).status
+  }
+
+  private async captureSnapshotIfNeeded(
+    input: Pick<
+      CronJob,
+      'agentId' | 'modelPolicy' | 'toolPolicy' | 'permissionPolicy' | 'agentSnapshot'
+    >
+  ): Promise<CronJobAgentSnapshot | null> {
+    const shouldCapture =
+      input.modelPolicy === 'pin_current' ||
+      input.toolPolicy === 'snapshot' ||
+      input.permissionPolicy === 'snapshot'
+    if (!shouldCapture) {
+      return null
+    }
+    return (await this.runtimeResolver?.captureSnapshot(input.agentId)) ?? input.agentSnapshot
+  }
+
+  private async assertRunnable(job: CronJob): Promise<void> {
+    const state = await this.computeJobState(job, Date.now(), true)
+    if (!state.enabled || state.status !== 'ready') {
+      throw new Error('Cron job is not runnable.')
+    }
+  }
+
+  private async reconcileStoredSchedules(now: number): Promise<void> {
+    for (const job of this.repository.listJobs()) {
+      const state = await this.computeJobState(job, now, false)
       if (
-        !job.enabled &&
-        job.nextRunAt !== null &&
-        job.nextRunAt > now &&
-        job.scheduleError === null
+        job.enabled === state.enabled &&
+        job.status === state.status &&
+        job.nextRunAt === state.nextRunAt &&
+        job.scheduleError === state.scheduleError &&
+        JSON.stringify(job.agentSnapshot) === JSON.stringify(state.agentSnapshot)
       ) {
         continue
       }
-
-      const validation = this.scheduleService.validate(job.cronExpr, job.timezone, now)
-      this.repository.updateScheduleState(job.id, {
-        nextRunAt: validation.nextRunAt,
-        scheduleError: validation.error,
+      this.repository.upsertJob({
+        ...job,
+        enabled: state.enabled,
+        status: state.status,
+        nextRunAt: state.nextRunAt,
+        scheduleError: state.scheduleError,
+        agentSnapshot: state.agentSnapshot,
         now
       })
     }
@@ -239,12 +370,18 @@ export class CronJobsService {
 
   private async processDueRun(event: SchedulerRunDueEvent): Promise<void> {
     const run = this.repository.getRun(event.runId)
+    const job = this.repository.getJob(event.jobId)
     if (!run) {
       console.warn('[CronJobs] Ignoring unknown run from scheduler:', event.runId)
       return
     }
+    if (!job) {
+      this.repository.markRunFailed(event.runId, `Unknown cron job: ${event.jobId}`)
+      return
+    }
 
     try {
+      await this.assertRunnable(job)
       this.repository.markRunRunning(event.runId)
       this.repository.markRunCompleted(event.runId)
     } catch (error) {

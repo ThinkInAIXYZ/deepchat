@@ -201,6 +201,9 @@ export class CronJobsSchedulerUtilityHost {
                   max_catch_up_runs
            FROM cron_jobs
            WHERE enabled = 1
+             AND status = 'ready'
+             AND agent_id IS NOT NULL
+             AND task_prompt != ''
              AND next_run_at IS NOT NULL
              AND next_run_at <= ?
            ORDER BY next_run_at ASC, id ASC

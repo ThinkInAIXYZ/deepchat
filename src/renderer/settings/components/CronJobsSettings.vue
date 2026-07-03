@@ -120,6 +120,27 @@
               </div>
               <div class="min-w-0 space-y-1.5">
                 <Label class="text-xs text-muted-foreground">
+                  {{ t('settings.cronJobs.fields.agent') }}
+                </Label>
+                <Select
+                  :model-value="job.agentId ?? NO_AGENT_ID"
+                  @update:model-value="(value) => updateAgentSelection(job.id, String(value))"
+                >
+                  <SelectTrigger class="h-8! w-full min-w-0">
+                    <SelectValue class="min-w-0 truncate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem :value="NO_AGENT_ID">
+                      {{ t('settings.cronJobs.fields.noAgent') }}
+                    </SelectItem>
+                    <SelectItem v-for="agent in enabledAgents" :key="agent.id" :value="agent.id">
+                      {{ agent.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="min-w-0 space-y-1.5">
+                <Label class="text-xs text-muted-foreground">
                   {{ t('settings.cronJobs.fields.cronExpr') }}
                 </Label>
                 <Input
@@ -173,11 +194,52 @@
             </div>
           </div>
 
+          <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:pl-11">
+            <div class="space-y-1.5">
+              <Label class="text-xs text-muted-foreground">
+                {{ t('settings.cronJobs.fields.taskPrompt') }}
+              </Label>
+              <Textarea
+                :model-value="job.taskPrompt"
+                class="min-h-[72px] resize-y text-sm"
+                @update:model-value="(value) => updateJobField(job.id, 'taskPrompt', String(value))"
+                @blur="commitJob(job.id)"
+              />
+            </div>
+            <div class="space-y-1.5">
+              <Label class="text-xs text-muted-foreground">
+                {{ t('settings.cronJobs.fields.runtimePolicy') }}
+              </Label>
+              <Select
+                :model-value="getRuntimePolicy(job)"
+                @update:model-value="(value) => updateRuntimePolicy(job.id, String(value))"
+              >
+                <SelectTrigger class="h-8! w-full min-w-0">
+                  <SelectValue class="min-w-0 truncate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="follow_agent">
+                    {{ t('settings.cronJobs.fields.followAgent') }}
+                  </SelectItem>
+                  <SelectItem value="snapshot">
+                    {{ t('settings.cronJobs.fields.pinCurrent') }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div
             v-if="schedulerStatus?.lastError"
             class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
           >
             {{ schedulerStatus.lastError }}
+          </div>
+          <div
+            v-if="job.status === 'invalid_agent'"
+            class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          >
+            {{ t('settings.cronJobs.status.invalidAgent') }}
           </div>
           <div
             v-if="job.scheduleError || previewErrorsByJobId[job.id]"
@@ -226,7 +288,9 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Textarea } from '@shadcn/components/ui/textarea'
 import { useToast } from '@/components/use-toast'
+import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import {
@@ -236,12 +300,15 @@ import {
   type CronJob,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
+import type { Agent } from '@shared/types/agent-interface'
 
 const { t } = useI18n()
 const { toast } = useToast()
 const client = createCronJobsClient()
+const configClient = createConfigClient()
 
 const jobs = ref<CronJob[]>([])
+const agents = ref<Agent[]>([])
 const schedulerStatus = ref<CronJobsSchedulerStatus | null>(null)
 const isLoading = ref(false)
 const isSaving = ref(false)
@@ -249,6 +316,7 @@ const runningId = ref<string | null>(null)
 const previewRunsByJobId = ref<Record<string, number[]>>({})
 const previewErrorsByJobId = ref<Record<string, string | null>>({})
 const previewLoadingByJobId = ref<Record<string, boolean>>({})
+const NO_AGENT_ID = '__none__'
 
 const CRON_SCHEDULE_PRESETS = [
   { id: 'custom', cronExpr: null, labelKey: 'settings.cronJobs.presets.custom' },
@@ -265,6 +333,11 @@ const CRON_SCHEDULE_PRESETS = [
 type CronSchedulePresetId = (typeof CRON_SCHEDULE_PRESETS)[number]['id']
 
 const enabledJobCount = computed(() => jobs.value.filter((job) => job.enabled).length)
+const enabledAgents = computed(() =>
+  agents.value
+    .filter((agent) => agent.enabled)
+    .sort((left, right) => left.name.localeCompare(right.name))
+)
 
 const schedulerBadgeVariant = computed(() => {
   switch (schedulerStatus.value?.state) {
@@ -321,8 +394,9 @@ const handleError = (scope: string, error: unknown) => {
 const loadJobs = async () => {
   isLoading.value = true
   try {
-    const response = await client.list()
+    const [response, nextAgents] = await Promise.all([client.list(), configClient.listAgents()])
     jobs.value = sortJobs(response.jobs)
+    agents.value = nextAgents
     schedulerStatus.value = response.schedulerStatus
     for (const job of jobs.value) {
       void refreshJobPreview(job)
@@ -371,8 +445,40 @@ const refreshJobPreview = async (job: CronJob) => {
   }
 }
 
-const updateJobField = (id: string, field: 'name' | 'cronExpr' | 'timezone', value: string) => {
+const updateJobField = (
+  id: string,
+  field: 'name' | 'cronExpr' | 'timezone' | 'taskPrompt',
+  value: string
+) => {
   jobs.value = jobs.value.map((job) => (job.id === id ? { ...job, [field]: value } : job))
+}
+
+const updateAgentSelection = (id: string, agentId: string) => {
+  jobs.value = jobs.value.map((job) =>
+    job.id === id ? { ...job, agentId: agentId === NO_AGENT_ID ? null : agentId } : job
+  )
+  void commitJob(id)
+}
+
+const getRuntimePolicy = (job: CronJob): 'follow_agent' | 'snapshot' =>
+  job.modelPolicy === 'pin_current' ||
+  job.toolPolicy === 'snapshot' ||
+  job.permissionPolicy === 'snapshot'
+    ? 'snapshot'
+    : 'follow_agent'
+
+const updateRuntimePolicy = (id: string, policy: string) => {
+  jobs.value = jobs.value.map((job) =>
+    job.id === id
+      ? {
+          ...job,
+          modelPolicy: policy === 'snapshot' ? 'pin_current' : 'follow_agent',
+          toolPolicy: policy === 'snapshot' ? 'snapshot' : 'follow_agent',
+          permissionPolicy: policy === 'snapshot' ? 'snapshot' : 'follow_agent'
+        }
+      : job
+  )
+  void commitJob(id)
 }
 
 const getJobPresetId = (cronExpr: string): CronSchedulePresetId =>
@@ -403,7 +509,14 @@ const commitJob = async (id: string) => {
       timezone: job.timezone || getBrowserTimezone(),
       agentId: job.agentId,
       misfirePolicy: job.misfirePolicy,
-      maxCatchUpRuns: job.maxCatchUpRuns
+      maxCatchUpRuns: job.maxCatchUpRuns,
+      taskPrompt: job.taskPrompt,
+      taskSystemInstruction: job.taskSystemInstruction,
+      taskOutputMode: job.taskOutputMode,
+      modelPolicy: job.modelPolicy,
+      toolPolicy: job.toolPolicy,
+      permissionPolicy: job.permissionPolicy,
+      runtime: job.runtime
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus
@@ -422,9 +535,15 @@ const addJob = async () => {
       enabled: false,
       cronExpr: CRON_JOBS_DEFAULT_CRON_EXPR,
       timezone: getBrowserTimezone(),
-      agentId: null,
+      agentId: enabledAgents.value[0]?.id ?? null,
       misfirePolicy: CRON_JOBS_DEFAULT_MISFIRE_POLICY,
-      maxCatchUpRuns: null
+      maxCatchUpRuns: null,
+      taskPrompt: '',
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent'
     })
     applyJob(response.job)
     schedulerStatus.value = response.schedulerStatus

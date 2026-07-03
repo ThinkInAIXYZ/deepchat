@@ -1,12 +1,24 @@
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { CRON_JOBS_DEFAULT_MISFIRE_POLICY, type CronJobMisfirePolicy } from '@shared/cronJobs'
+import {
+  CRON_JOBS_DEFAULT_MISFIRE_POLICY,
+  CRON_JOBS_DEFAULT_RUNTIME,
+  type CronJobAgentSnapshot,
+  type CronJobModelPolicy,
+  type CronJobMisfirePolicy,
+  type CronJobOutputMode,
+  type CronJobRuntimePolicy,
+  type CronJobRuntimeSettings,
+  type CronJobStatus
+} from '@shared/cronJobs'
 import { BaseTable } from './baseTable'
 
 export interface CronJobRow {
   id: string
   name: string
+  description: string | null
   enabled: number
+  status: CronJobStatus
   cron_expr: string
   timezone: string
   agent_id: string | null
@@ -14,6 +26,14 @@ export interface CronJobRow {
   misfire_policy: CronJobMisfirePolicy
   max_catch_up_runs: number | null
   schedule_error: string | null
+  task_prompt: string
+  task_system_instruction: string | null
+  task_output_mode: CronJobOutputMode
+  model_policy: CronJobModelPolicy
+  tool_policy: CronJobRuntimePolicy
+  permission_policy: CronJobRuntimePolicy
+  runtime_json: string
+  agent_snapshot_json: string | null
   created_at: number
   updated_at: number
 }
@@ -21,7 +41,9 @@ export interface CronJobRow {
 export interface CronJobTableUpsertInput {
   id?: string
   name: string
+  description?: string | null
   enabled: boolean
+  status?: CronJobStatus
   cronExpr: string
   timezone: string
   agentId?: string | null
@@ -29,10 +51,18 @@ export interface CronJobTableUpsertInput {
   misfirePolicy?: CronJobMisfirePolicy
   maxCatchUpRuns?: number | null
   scheduleError?: string | null
+  taskPrompt?: string
+  taskSystemInstruction?: string | null
+  taskOutputMode?: CronJobOutputMode
+  modelPolicy?: CronJobModelPolicy
+  toolPolicy?: CronJobRuntimePolicy
+  permissionPolicy?: CronJobRuntimePolicy
+  runtime?: CronJobRuntimeSettings
+  agentSnapshot?: CronJobAgentSnapshot | null
   now?: number
 }
 
-const CRON_JOBS_SCHEMA_VERSION = 38
+const CRON_JOBS_SCHEMA_VERSION = 39
 
 const CRON_JOBS_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled_next_run
@@ -51,7 +81,9 @@ export class CronJobsTable extends BaseTable {
       CREATE TABLE IF NOT EXISTS cron_jobs (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        description TEXT,
         enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),
+        status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent')),
         cron_expr TEXT NOT NULL,
         timezone TEXT NOT NULL,
         agent_id TEXT,
@@ -59,6 +91,14 @@ export class CronJobsTable extends BaseTable {
         misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once')),
         max_catch_up_runs INTEGER,
         schedule_error TEXT,
+        task_prompt TEXT NOT NULL DEFAULT '',
+        task_system_instruction TEXT,
+        task_output_mode TEXT NOT NULL DEFAULT 'final_message' CHECK(task_output_mode IN ('final_message', 'structured_json', 'artifact')),
+        model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current')),
+        tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot')),
+        permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot')),
+        runtime_json TEXT NOT NULL DEFAULT '{}',
+        agent_snapshot_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -69,15 +109,36 @@ export class CronJobsTable extends BaseTable {
   override createTable(): void {
     super.createTable()
     this.ensurePhase2Columns()
+    this.ensurePhase3Columns()
     this.db.exec(CRON_JOBS_INDEX_SQL)
   }
 
   getMigrationSQL(version: number): string | null {
-    if (version === CRON_JOBS_SCHEMA_VERSION) {
+    if (version === 38) {
       return `
         ALTER TABLE cron_jobs ADD COLUMN misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once'));
         ALTER TABLE cron_jobs ADD COLUMN max_catch_up_runs INTEGER;
         ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT;
+      `
+    }
+    if (version === CRON_JOBS_SCHEMA_VERSION) {
+      return `
+        ALTER TABLE cron_jobs ADD COLUMN description TEXT;
+        ALTER TABLE cron_jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent'));
+        ALTER TABLE cron_jobs ADD COLUMN task_prompt TEXT NOT NULL DEFAULT '';
+        ALTER TABLE cron_jobs ADD COLUMN task_system_instruction TEXT;
+        ALTER TABLE cron_jobs ADD COLUMN task_output_mode TEXT NOT NULL DEFAULT 'final_message' CHECK(task_output_mode IN ('final_message', 'structured_json', 'artifact'));
+        ALTER TABLE cron_jobs ADD COLUMN model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current'));
+        ALTER TABLE cron_jobs ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot'));
+        ALTER TABLE cron_jobs ADD COLUMN permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot'));
+        ALTER TABLE cron_jobs ADD COLUMN runtime_json TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE cron_jobs ADD COLUMN agent_snapshot_json TEXT;
+        UPDATE cron_jobs
+        SET enabled = 0,
+            status = 'invalid_agent',
+            next_run_at = NULL,
+            updated_at = strftime('%s','now') * 1000
+        WHERE agent_id IS NULL;
       `
     }
     return null
@@ -101,6 +162,60 @@ export class CronJobsTable extends BaseTable {
     }
   }
 
+  private ensurePhase3Columns(): void {
+    if (!this.hasColumn('description')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN description TEXT')
+    }
+    if (!this.hasColumn('status')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent'))"
+      )
+    }
+    if (!this.hasColumn('task_prompt')) {
+      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN task_prompt TEXT NOT NULL DEFAULT ''")
+    }
+    if (!this.hasColumn('task_system_instruction')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN task_system_instruction TEXT')
+    }
+    if (!this.hasColumn('task_output_mode')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN task_output_mode TEXT NOT NULL DEFAULT 'final_message' CHECK(task_output_mode IN ('final_message', 'structured_json', 'artifact'))"
+      )
+    }
+    if (!this.hasColumn('model_policy')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current'))"
+      )
+    }
+    if (!this.hasColumn('tool_policy')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot'))"
+      )
+    }
+    if (!this.hasColumn('permission_policy')) {
+      this.db.exec(
+        "ALTER TABLE cron_jobs ADD COLUMN permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot'))"
+      )
+    }
+    if (!this.hasColumn('runtime_json')) {
+      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN runtime_json TEXT NOT NULL DEFAULT '{}'")
+    }
+    if (!this.hasColumn('agent_snapshot_json')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN agent_snapshot_json TEXT')
+    }
+    this.db
+      .prepare(
+        `UPDATE cron_jobs
+         SET enabled = 0,
+             status = 'invalid_agent',
+             next_run_at = NULL,
+             updated_at = ?
+         WHERE agent_id IS NULL
+           AND status != 'invalid_agent'`
+      )
+      .run(Date.now())
+  }
+
   list(): CronJobRow[] {
     return this.db
       .prepare(
@@ -120,6 +235,9 @@ export class CronJobsTable extends BaseTable {
     const existing = input.id ? this.get(input.id) : undefined
     const id = existing?.id ?? input.id ?? randomUUID()
     const createdAt = existing?.created_at ?? now
+    const description =
+      input.description === undefined ? (existing?.description ?? null) : input.description
+    const status = input.status ?? existing?.status ?? (input.enabled ? 'ready' : 'disabled')
     const nextRunAt =
       input.nextRunAt === undefined ? (existing?.next_run_at ?? null) : input.nextRunAt
     const misfirePolicy =
@@ -130,13 +248,37 @@ export class CronJobsTable extends BaseTable {
         : input.maxCatchUpRuns
     const scheduleError =
       input.scheduleError === undefined ? (existing?.schedule_error ?? null) : input.scheduleError
+    const taskPrompt =
+      input.taskPrompt === undefined ? (existing?.task_prompt ?? '') : input.taskPrompt
+    const taskSystemInstruction =
+      input.taskSystemInstruction === undefined
+        ? (existing?.task_system_instruction ?? null)
+        : input.taskSystemInstruction
+    const taskOutputMode =
+      input.taskOutputMode ?? existing?.task_output_mode ?? ('final_message' as const)
+    const modelPolicy = input.modelPolicy ?? existing?.model_policy ?? ('follow_agent' as const)
+    const toolPolicy = input.toolPolicy ?? existing?.tool_policy ?? ('follow_agent' as const)
+    const permissionPolicy =
+      input.permissionPolicy ?? existing?.permission_policy ?? ('follow_agent' as const)
+    const runtimeJson =
+      input.runtime === undefined
+        ? (existing?.runtime_json ?? '{}')
+        : JSON.stringify(input.runtime ?? CRON_JOBS_DEFAULT_RUNTIME)
+    const agentSnapshotJson =
+      input.agentSnapshot === undefined
+        ? (existing?.agent_snapshot_json ?? null)
+        : input.agentSnapshot
+          ? JSON.stringify(input.agentSnapshot)
+          : null
 
     this.db
       .prepare(
         `INSERT INTO cron_jobs (
            id,
            name,
+           description,
            enabled,
+           status,
            cron_expr,
            timezone,
            agent_id,
@@ -144,13 +286,23 @@ export class CronJobsTable extends BaseTable {
            misfire_policy,
            max_catch_up_runs,
            schedule_error,
+           task_prompt,
+           task_system_instruction,
+           task_output_mode,
+           model_policy,
+           tool_policy,
+           permission_policy,
+           runtime_json,
+           agent_snapshot_json,
            created_at,
            updated_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
+           description = excluded.description,
            enabled = excluded.enabled,
+           status = excluded.status,
            cron_expr = excluded.cron_expr,
            timezone = excluded.timezone,
            agent_id = excluded.agent_id,
@@ -158,12 +310,22 @@ export class CronJobsTable extends BaseTable {
            misfire_policy = excluded.misfire_policy,
            max_catch_up_runs = excluded.max_catch_up_runs,
            schedule_error = excluded.schedule_error,
+           task_prompt = excluded.task_prompt,
+           task_system_instruction = excluded.task_system_instruction,
+           task_output_mode = excluded.task_output_mode,
+           model_policy = excluded.model_policy,
+           tool_policy = excluded.tool_policy,
+           permission_policy = excluded.permission_policy,
+           runtime_json = excluded.runtime_json,
+           agent_snapshot_json = excluded.agent_snapshot_json,
            updated_at = excluded.updated_at`
       )
       .run(
         id,
         input.name,
+        description,
         input.enabled ? 1 : 0,
+        status,
         input.cronExpr,
         input.timezone,
         input.agentId ?? null,
@@ -171,6 +333,14 @@ export class CronJobsTable extends BaseTable {
         misfirePolicy,
         maxCatchUpRuns,
         scheduleError,
+        taskPrompt,
+        taskSystemInstruction,
+        taskOutputMode,
+        modelPolicy,
+        toolPolicy,
+        permissionPolicy,
+        runtimeJson,
+        agentSnapshotJson,
         createdAt,
         now
       )
@@ -247,7 +417,14 @@ export class CronJobsTable extends BaseTable {
 
   countEnabled(): number {
     const row = this.db
-      .prepare('SELECT COUNT(*) AS count FROM cron_jobs WHERE enabled = 1')
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM cron_jobs
+         WHERE enabled = 1
+           AND status = 'ready'
+           AND agent_id IS NOT NULL
+           AND task_prompt != ''`
+      )
       .get() as { count: number } | undefined
     return row?.count ?? 0
   }
@@ -258,6 +435,9 @@ export class CronJobsTable extends BaseTable {
         `SELECT MIN(next_run_at) AS next_run_at
          FROM cron_jobs
          WHERE enabled = 1
+           AND status = 'ready'
+           AND agent_id IS NOT NULL
+           AND task_prompt != ''
            AND next_run_at IS NOT NULL`
       )
       .get() as { next_run_at: number | null } | undefined

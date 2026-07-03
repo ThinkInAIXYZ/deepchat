@@ -50,16 +50,23 @@ import {
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
+  configRemoveManualAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpEnabledRoute,
   configSetAcpSharedMcpSelectionsRoute,
   configSetCustomPromptsRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
   configSetKnowledgeConfigsRoute,
   configSetSystemPromptsRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
   cronJobsDeleteRoute,
   cronJobsGetSchedulerStatusRoute,
@@ -507,6 +514,30 @@ function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null 
 
 function normalizeMemoryCategory(value: unknown) {
   return isAgentMemoryCategory(value) ? value : null
+}
+
+const CRON_JOB_AGENT_CHANGE_ROUTES: ReadonlySet<string> = new Set([
+  configSetAcpEnabledRoute.name,
+  configSetAcpAgentEnabledRoute.name,
+  configUninstallAcpRegistryAgentRoute.name,
+  configUpdateManualAcpAgentRoute.name,
+  configRemoveManualAcpAgentRoute.name,
+  configUpdateDeepChatAgentRoute.name,
+  configDeleteDeepChatAgentRoute.name
+])
+
+async function reconcileCronJobsAfterAgentChange(
+  runtime: MainKernelRouteRuntime,
+  routeName: string
+): Promise<void> {
+  if (!CRON_JOB_AGENT_CHANGE_ROUTES.has(routeName)) {
+    return
+  }
+  try {
+    await runtime.cronJobs.reconcileScheduler('agent-change')
+  } catch (error) {
+    console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
+  }
 }
 
 export function toMemoryItemDto(row: AgentMemoryRow) {
@@ -1447,6 +1478,7 @@ export async function dispatchDeepchatRoute(
   const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
   if (configResult !== undefined) {
     recordConfigRouteActivity(runtime, routeName, rawInput)
+    await reconcileCronJobsAfterAgentChange(runtime, routeName)
     return configResult
   }
 

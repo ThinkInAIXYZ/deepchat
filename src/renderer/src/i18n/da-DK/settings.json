@@ -1403,7 +1403,13 @@
       "name": "Name",
       "cronExpr": "Cron expression",
       "timezone": "Timezone",
-      "preset": "Preset"
+      "preset": "Preset",
+      "agent": "Agent",
+      "noAgent": "None selected",
+      "taskPrompt": "Task prompt",
+      "runtimePolicy": "Runtime",
+      "followAgent": "Follow agent",
+      "pinCurrent": "Pin current config"
     },
     "presets": {
       "custom": "Custom",
@@ -1420,7 +1426,8 @@
       "starting": "Starting",
       "running": "Running",
       "idle": "Idle",
-      "error": "Error"
+      "error": "Error",
+      "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
     "runNowSuccess": "Cron job run completed"
   },

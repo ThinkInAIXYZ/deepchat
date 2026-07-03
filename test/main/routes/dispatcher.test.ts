@@ -1158,14 +1158,29 @@ function createRuntime() {
   const cronJob = {
     id: 'cron-1',
     name: 'Cron smoke',
+    description: null,
     enabled: true,
+    status: 'ready' as const,
     cronExpr: '0 9 * * *',
     timezone: 'UTC',
-    agentId: null,
+    agentId: 'deepchat',
     nextRunAt: null,
     misfirePolicy: 'skip' as const,
     maxCatchUpRuns: null,
     scheduleError: null,
+    taskPrompt: 'Summarize issues',
+    taskSystemInstruction: null,
+    taskOutputMode: 'final_message' as const,
+    modelPolicy: 'follow_agent' as const,
+    toolPolicy: 'follow_agent' as const,
+    permissionPolicy: 'follow_agent' as const,
+    runtime: {
+      maxDurationMs: 3_600_000,
+      maxTurns: 20,
+      maxToolCalls: 100,
+      concurrencyPolicy: 'skip' as const
+    },
+    agentSnapshot: null,
     createdAt: 1,
     updatedAt: 2
   }
@@ -1272,11 +1287,23 @@ describe('dispatchDeepchatRoute', () => {
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
-        agentId: null,
+        agentId: 'deepchat',
         nextRunAt: null,
         misfirePolicy: 'skip',
         maxCatchUpRuns: null,
-        scheduleError: null
+        scheduleError: null,
+        taskPrompt: 'Summarize issues',
+        taskSystemInstruction: null,
+        taskOutputMode: 'final_message',
+        modelPolicy: 'follow_agent',
+        toolPolicy: 'follow_agent',
+        permissionPolicy: 'follow_agent',
+        runtime: {
+          maxDurationMs: 3_600_000,
+          maxTurns: 20,
+          maxToolCalls: 100,
+          concurrencyPolicy: 'skip'
+        }
       },
       context
     )
@@ -1390,6 +1417,28 @@ describe('dispatchDeepchatRoute', () => {
       timezone: 'UTC',
       count: 3
     })
+  })
+
+  it('reconciles Cron Jobs after agent mutation routes', async () => {
+    const { runtime, cronJobs } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'config.updateDeepChatAgent',
+      {
+        agentId: 'deepchat',
+        updates: {
+          enabled: false
+        }
+      },
+      context
+    )
+
+    expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('agent-change')
   })
 
   it('ensures the built-in chat workspace before startup bootstrap returns', async () => {
