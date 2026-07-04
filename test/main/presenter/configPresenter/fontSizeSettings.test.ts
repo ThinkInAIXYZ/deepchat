@@ -93,10 +93,17 @@ describe('ConfigPresenter ACP agent notifications', () => {
     vi.clearAllMocks()
   })
 
-  it('publishes typed session refresh instead of the retired raw session list event', () => {
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {}) as ConfigPresenter
+  it('publishes typed session refresh instead of the retired raw session list event', async () => {
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: {},
+      isAttachingAgentRepository: false,
+      getAcpEnabled: vi.fn(async () => true),
+      getAcpAgents: vi.fn(async () => [])
+    }) as ConfigPresenter
 
     ;(presenter as any).notifyAcpAgentsChanged(['agent-1'])
+    await Promise.resolve()
+    await Promise.resolve()
 
     expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
     expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
@@ -112,5 +119,41 @@ describe('ConfigPresenter ACP agent notifications', () => {
       reason: 'list-refreshed'
     })
     expect(eventBus.send).not.toHaveBeenCalled()
+  })
+
+  it('defers ACP startup notification until the agent repository is attached', async () => {
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      agentRepository: null,
+      pendingAcpAgentsChanged: false,
+      isAttachingAgentRepository: false,
+      initializeUnifiedAgents: vi.fn(),
+      reconcileLegacyBuiltinAgentSelections: vi.fn(),
+      cleanupDeprecatedBuiltinAgentSelections: vi.fn(),
+      getAcpEnabled: vi.fn(async () => true),
+      getAcpAgents: vi.fn(async () => [])
+    }) as ConfigPresenter
+
+    ;(presenter as any).notifyAcpAgentsChanged()
+
+    expect(eventBus.sendToMain).not.toHaveBeenCalled()
+    expect(publishDeepchatEventMock).not.toHaveBeenCalled()
+
+    presenter.setAgentRepository({} as never)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
+    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
+      agentIds: undefined
+    })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('models.changed', {
+      reason: 'runtime-refresh',
+      providerId: 'acp',
+      version: expect.any(Number)
+    })
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('sessions.updated', {
+      sessionIds: [],
+      reason: 'list-refreshed'
+    })
   })
 })

@@ -434,6 +434,8 @@ export class ConfigPresenter implements IConfigPresenter {
   private systemPromptHelper: SystemPromptHelper
   private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
+  private pendingAcpAgentsChanged = false
+  private isAttachingAgentRepository = false
   private deepChatAgentDeleteCleanup: ((agentId: string) => Promise<void>) | null = null
   private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
@@ -607,11 +609,23 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setAgentRepository(agentRepository: AgentRepository): void {
     this.agentRepository = agentRepository
-    this.initializeUnifiedAgents()
-    // The memory-maintenance callback is wired later by Presenter, so these migration writes may
-    // intentionally no-op for maintenance arming during construction.
-    this.reconcileLegacyBuiltinAgentSelections()
-    this.cleanupDeprecatedBuiltinAgentSelections()
+    this.isAttachingAgentRepository = true
+    try {
+      this.initializeUnifiedAgents()
+      // The memory-maintenance callback is wired later by Presenter, so these migration writes may
+      // intentionally no-op for maintenance arming during construction.
+      this.reconcileLegacyBuiltinAgentSelections()
+      this.cleanupDeprecatedBuiltinAgentSelections()
+    } finally {
+      this.isAttachingAgentRepository = false
+    }
+
+    if (this.pendingAcpAgentsChanged) {
+      this.pendingAcpAgentsChanged = false
+      queueMicrotask(() => {
+        this.notifyAcpAgentsChanged()
+      })
+    }
   }
 
   setSQLitePresenter(sqlitePresenter: SQLitePresenter): void {
@@ -2826,6 +2840,14 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private notifyAcpAgentsChanged(agentIds?: string[]) {
+    if (!this.agentRepository || this.isAttachingAgentRepository) {
+      this.pendingAcpAgentsChanged = true
+      logger.info(
+        '[ACP] notifyAcpAgentsChanged: deferred until unified agent repository is attached'
+      )
+      return
+    }
+
     logger.info('[ACP] notifyAcpAgentsChanged: sending MODEL_LIST_CHANGED event for provider "acp"')
     emitModelsChanged('acp')
     emitAcpAgentsChanged(this, agentIds)
