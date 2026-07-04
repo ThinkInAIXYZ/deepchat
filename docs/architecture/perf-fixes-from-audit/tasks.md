@@ -49,10 +49,10 @@
 
 ### T5. 修复 F6 — protocol handler async + streaming
 
-- [ ] 步骤 1：`deepcdn` handler 改 async + `fs.promises`，保留全部 MIME（含 `.wasm`/`.data`）
-- [ ] 步骤 2：`imgcache` handler 改 streaming Response（`Readable.toWeb(fs.createReadStream)`）+ 单次 stat；stream 不可用 fallback 到 `await fs.promises.readFile`
-- [ ] 步骤 3：`workspace-preview` handler 改 streaming + 50MB 大小上限（超限 413）+ MIME cache；注意 `realpathSync`（workspacePreviewProtocol L47-52）不在热路径
-- [ ] 步骤 4：E2E `29/30` + 含图片预览验证；typecheck
+- [x] 步骤 1：`deepcdn` handler 改 async + `fs.promises`，保留全部 MIME（含 `.wasm`/`.data`）
+- [x] 步骤 2：`imgcache` handler 改 streaming Response（`Readable.toWeb(fs.createReadStream)`）+ 单次 stat；stream 不可用 fallback 到 `await fs.promises.readFile`
+- [x] 步骤 3：`workspace-preview` handler 改 streaming + 50MB 大小上限（超限 413）+ MIME cache；注意 `realpathSync`（workspacePreviewProtocol L47-52）不在热路径
+- [x] 步骤 4：E2E `29/30` + 含图片预览验证；typecheck
 - 详细方案：[fix-F06](fix-F06-protocol-handler-async.md)
 
 ### T6. 修复 F8 — 关闭路径可观测性 + timeout
