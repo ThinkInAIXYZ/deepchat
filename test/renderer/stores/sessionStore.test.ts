@@ -1001,6 +1001,88 @@ describe('sessionStore streaming cleanup', () => {
 })
 
 describe('sessionStore pagination', () => {
+  it('deduplicates concurrent initial fetch requests and allows a later fetch', async () => {
+    const { store, sessionClient } = await setupStore()
+    let resolveInitialFetch: (value: {
+      items: unknown[]
+      hasMore: boolean
+      nextCursor: null
+    }) => void = () => undefined
+    const initialFetchPromise = new Promise<{
+      items: unknown[]
+      hasMore: boolean
+      nextCursor: null
+    }>((resolve) => {
+      resolveInitialFetch = resolve
+    })
+
+    sessionClient.listLightweight.mockReturnValueOnce(initialFetchPromise)
+
+    const firstFetch = store.fetchSessions()
+    const secondFetch = store.fetchSessions()
+
+    expect(secondFetch).toBe(firstFetch)
+    await Promise.resolve()
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(1)
+
+    resolveInitialFetch({ items: [], hasMore: false, nextCursor: null })
+    await firstFetch
+    await secondFetch
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [],
+      hasMore: false,
+      nextCursor: null
+    })
+
+    await store.fetchSessions()
+
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not deduplicate next-page loading while an initial fetch is in flight', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
+      hasMore: true,
+      nextCursor: { updatedAt: 30, id: 'session-a' }
+    })
+    await store.fetchSessions()
+
+    let resolveInitialFetch: (value: {
+      items: unknown[]
+      hasMore: boolean
+      nextCursor: null
+    }) => void = () => undefined
+    const initialFetchPromise = new Promise<{
+      items: unknown[]
+      hasMore: boolean
+      nextCursor: null
+    }>((resolve) => {
+      resolveInitialFetch = resolve
+    })
+
+    sessionClient.listLightweight.mockReturnValueOnce(initialFetchPromise).mockResolvedValueOnce({
+      items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
+      hasMore: false,
+      nextCursor: null
+    })
+
+    const initialFetch = store.fetchSessions()
+    await Promise.resolve()
+    await store.loadNextPage()
+
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
+    expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0]).toMatchObject({
+      includeSubagents: false,
+      cursor: { updatedAt: 30, id: 'session-a' }
+    })
+
+    resolveInitialFetch({ items: [], hasMore: false, nextCursor: null })
+    await initialFetch
+  })
+
   it('excludes subagent sessions from the initial sidebar page request', async () => {
     const { store, sessionClient } = await setupStore()
 

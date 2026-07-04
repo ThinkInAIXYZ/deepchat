@@ -275,6 +275,7 @@ export const useSessionStore = defineStore('session', () => {
   let groupModeUpdateVersion = 0
   let initialPageRequestId = 0
   let nextPageRequestId = 0
+  let sessionFetchPromise: Promise<void> | null = null
 
   const sessions = ref<UISession[]>([])
   const bootstrapActiveSession = ref<UISession | null>(null)
@@ -584,11 +585,23 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function fetchSessions(): Promise<void> {
-    await loadSessionPage({
+  function fetchSessions(): Promise<void> {
+    if (sessionFetchPromise) {
+      return sessionFetchPromise
+    }
+
+    const loadPromise = loadSessionPage({
       reset: true,
       prioritizeSessionId: activeSessionId.value ?? bootstrapActiveSession.value?.id ?? null
     })
+    const currentFetchPromise = loadPromise.finally(() => {
+      if (sessionFetchPromise === currentFetchPromise) {
+        sessionFetchPromise = null
+      }
+    })
+
+    sessionFetchPromise = currentFetchPromise
+    return currentFetchPromise
   }
 
   async function loadNextPage(): Promise<void> {

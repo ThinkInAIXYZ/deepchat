@@ -31,10 +31,10 @@
 
 ### T3. 修复 F12 — sessionStore.fetchSessions in-flight 去重
 
-- [ ] 步骤 1：`session.ts` 的 `fetchSessions`（L587-592）顶部加 in-flight promise 守卫，用 `currentFetchPromise` 比对后才清理（守卫仅包 fetchSessions，不包 loadSessionPage 分页）
-- [ ] 步骤 2：明确 `reset=true` 显式刷新边界——首屏去重即可，显式 refresh 直调 `loadSessionPage({ reset: true })` 绕过守卫
-- [ ] 步骤 3：单元测试用 mock/spy 断言并发 `fetchSessions()` 只触发一次 `listLightweight` IPC
-- [ ] 步骤 4：E2E `01-launch` + `26-deepchat-agent-crud`
+- [x] 步骤 1：`session.ts` 的 `fetchSessions`（L587-592）顶部加 in-flight promise 守卫，用 `currentFetchPromise` 比对后才清理（守卫仅包 fetchSessions，不包 loadSessionPage 分页）
+- [x] 步骤 2：明确 `reset=true` 显式刷新边界——首屏去重即可，显式 refresh 直调 `loadSessionPage({ reset: true })` 绕过守卫
+- [x] 步骤 3：单元测试用 mock/spy 断言并发 `fetchSessions()` 只触发一次 `listLightweight` IPC
+- [x] 步骤 4：E2E `01-launch` + `26-deepchat-agent-crud`
 - 详细方案：[fix-F12](fix-F12-session-fetch-dedup.md)
 
 ## 第二波：中（跨 renderer 组件 / main handler）
