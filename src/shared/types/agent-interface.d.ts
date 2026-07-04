@@ -532,6 +532,8 @@ export interface UsageStatsBackfillStatus {
   finishedAt: number | null
   error: string | null
   updatedAt: number
+  processedCount?: number
+  durationMs?: number
 }
 
 export interface UsageDashboardSummary {

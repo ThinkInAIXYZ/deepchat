@@ -1,6 +1,7 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
+import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 
 export const legacyImportHook: LifecycleHook = {
   name: 'legacy-import',
@@ -13,15 +14,27 @@ export const legacyImportHook: LifecycleHook = {
     }
 
     const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
-      startLegacyImport?: () => Promise<void>
+      startLegacyImportTask?: () => Promise<void>
     }
-    if (!agentSessionPresenter.startLegacyImport) {
+    if (!agentSessionPresenter.startLegacyImportTask) {
       return
     }
 
-    // Fire and forget to avoid blocking app startup.
-    void agentSessionPresenter.startLegacyImport().catch((error) => {
-      console.error('legacyImportHook: failed to start legacy import task:', error)
-    })
+    const startupWorkloadCoordinator =
+      presenter.getStartupWorkloadCoordinator() as StartupWorkloadCoordinator
+    void startupWorkloadCoordinator
+      .scheduleTask({
+        id: 'main:legacy-import',
+        target: 'main',
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.legacyImport',
+        run: async () => {
+          await agentSessionPresenter.startLegacyImportTask?.()
+        }
+      })
+      .catch((error) => {
+        console.error('legacyImportHook: failed to start legacy import task:', error)
+      })
   }
 }

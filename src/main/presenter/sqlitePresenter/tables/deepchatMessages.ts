@@ -256,9 +256,9 @@ export class DeepChatMessagesTable extends BaseTable {
     return row.max_seq ?? 0
   }
 
-  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+  iterAssistantUsageCandidates(): IterableIterator<DeepChatMessageUsageCandidateRow> {
     return this.db
-      .prepare(
+      .prepare<[], DeepChatMessageUsageCandidateRow>(
         `SELECT
           m.id,
           m.session_id,
@@ -273,7 +273,11 @@ export class DeepChatMessagesTable extends BaseTable {
         WHERE m.role = 'assistant'
         ORDER BY m.created_at ASC`
       )
-      .all() as DeepChatMessageUsageCandidateRow[]
+      .iterate()
+  }
+
+  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+    return Array.from(this.iterAssistantUsageCandidates())
   }
 
   getLastUserMessageBeforeOrAtOrderSeq(

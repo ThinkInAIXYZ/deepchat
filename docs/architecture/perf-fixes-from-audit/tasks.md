@@ -101,10 +101,10 @@
 
 ### T11. 修复 F3 — backfill 纳入 coordinator + streaming
 
-- [ ] 步骤 1：5 个 after-start hook 的 `void startX().catch()` 改为 `startupWorkloadCoordinator.scheduleTask`（phase:background；4 个 backfill resource:io，rtkHealthCheck resource:io 因走 runtime/子进程）
-- [ ] 步骤 2：presenter 签名改造接 taskContext：`startX(taskContext)` 或 hook 适配层转调 `runX(taskContext)`
-- [ ] 步骤 3：`SELECT *` 改 `prepare().iterate()` cursor（优先）；LIMIT/OFFSET 仅兜底（大表深分页退化风险）；yield 粒度初始 50 待压测
-- [ ] 步骤 4：验证 iterate() 类型可用 + coordinator 并发上限生效；加 processed count/耗时日志
+- [x] 步骤 1：5 个 after-start hook 的 `void startX().catch()` 改为 `startupWorkloadCoordinator.scheduleTask`（phase:background；4 个 backfill resource:io，rtkHealthCheck resource:io 因走 runtime/子进程）
+- [x] 步骤 2：presenter 签名改造接 taskContext：`startX(taskContext)` 或 hook 适配层转调 `runX(taskContext)`
+- [x] 步骤 3：`SELECT *` 改 `prepare().iterate()` cursor（优先）；LIMIT/OFFSET 仅兜底（大表深分页退化风险）；yield 粒度初始 50 待压测
+- [x] 步骤 4：验证 iterate() 类型可用 + coordinator 并发上限生效；加 processed count/耗时日志
 - 详细方案：[fix-F03](fix-F03-backfill-coordinator.md)
 
 ### T12. 修复 F11 — Iconify 白名单 + provider icon 懒加载

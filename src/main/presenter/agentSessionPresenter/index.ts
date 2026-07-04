@@ -58,7 +58,11 @@ import type {
   CONVERSATION
 } from '@shared/presenter'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
+import type { StartupWorkloadTaskContext } from '../startupWorkloadCoordinator'
+import type {
+  DeepChatMessageRow,
+  DeepChatMessageUsageCandidateRow
+} from '../sqlitePresenter/tables/deepchatMessages'
 import { AgentRegistry } from './agentRegistry'
 import { NewSessionManager } from './sessionManager'
 import { NewMessageManager } from './messageManager'
@@ -1610,7 +1614,15 @@ export class AgentSessionPresenter {
     this.legacyImportService.startInBackground(false)
   }
 
+  async startLegacyImportTask(): Promise<void> {
+    await this.legacyImportService.start(false)
+  }
+
   async startUsageStatsBackfill(): Promise<void> {
+    return await this.startUsageStatsBackfillTask()
+  }
+
+  async startUsageStatsBackfillTask(taskContext?: StartupWorkloadTaskContext): Promise<void> {
     const currentStatus = this.getUsageStatsBackfillStatus()
     if (currentStatus.status === 'completed') {
       return
@@ -1624,7 +1636,7 @@ export class AgentSessionPresenter {
       return await this.usageStatsBackfillPromise
     }
 
-    this.usageStatsBackfillPromise = this.runUsageStatsBackfill().finally(() => {
+    this.usageStatsBackfillPromise = this.runUsageStatsBackfill(taskContext).finally(() => {
       this.usageStatsBackfillPromise = null
     })
 
@@ -1632,6 +1644,12 @@ export class AgentSessionPresenter {
   }
 
   async startMainlineNormalizationBackfill(): Promise<void> {
+    return await this.startMainlineNormalizationBackfillTask()
+  }
+
+  async startMainlineNormalizationBackfillTask(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const current =
       this.sqlitePresenter.configTables.getAgentSetting<{
         status?: 'running' | 'completed' | 'failed'
@@ -1646,14 +1664,22 @@ export class AgentSessionPresenter {
       return await this.mainlineNormalizationPromise
     }
 
-    this.mainlineNormalizationPromise = this.runMainlineNormalizationBackfill().finally(() => {
-      this.mainlineNormalizationPromise = null
-    })
+    this.mainlineNormalizationPromise = this.runMainlineNormalizationBackfill(taskContext).finally(
+      () => {
+        this.mainlineNormalizationPromise = null
+      }
+    )
 
     return await this.mainlineNormalizationPromise
   }
 
   async startDisabledSearchToolCleanupBackfill(): Promise<void> {
+    return await this.startDisabledSearchToolCleanupBackfillTask()
+  }
+
+  async startDisabledSearchToolCleanupBackfillTask(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const current =
       this.sqlitePresenter.configTables.getAgentSetting<{
         status?: 'running' | 'completed' | 'failed'
@@ -1668,16 +1694,20 @@ export class AgentSessionPresenter {
       return await this.disabledSearchToolCleanupPromise
     }
 
-    this.disabledSearchToolCleanupPromise = this.runDisabledSearchToolCleanupBackfill().finally(
-      () => {
-        this.disabledSearchToolCleanupPromise = null
-      }
-    )
+    this.disabledSearchToolCleanupPromise = this.runDisabledSearchToolCleanupBackfill(
+      taskContext
+    ).finally(() => {
+      this.disabledSearchToolCleanupPromise = null
+    })
 
     return await this.disabledSearchToolCleanupPromise
   }
 
   async startRtkHealthCheck(): Promise<void> {
+    await this.startRtkHealthCheckTask()
+  }
+
+  async startRtkHealthCheckTask(): Promise<void> {
     await rtkRuntimeService.startHealthCheck()
   }
 
@@ -3411,26 +3441,40 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async runMainlineNormalizationBackfill(): Promise<void> {
+  private async runMainlineNormalizationBackfill(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const startedAt = Date.now()
+    const batchSize = 50
     this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
       status: 'running',
       startedAt,
       finishedAt: null,
-      updatedAt: startedAt
+      updatedAt: startedAt,
+      processedCount: 0
     })
 
     try {
       const db = this.sqlitePresenter.getDatabase()
       const sessionRows = db
-        .prepare('SELECT * FROM new_sessions ORDER BY updated_at ASC')
-        .all() as Array<{
-        id: string
-        title: string
-        updated_at: number
-      }>
+        .prepare<[], { id: string; title: string; updated_at: number }>(
+          'SELECT id, title, updated_at FROM new_sessions ORDER BY updated_at ASC'
+        )
+        .iterate()
 
       let processedCount = 0
+      let batchCount = 0
+      const yieldForBatch = async (): Promise<void> => {
+        this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          updatedAt: Date.now(),
+          processedCount
+        })
+        await (taskContext?.yield() ?? this.yieldToEventLoop())
+      }
+
       for (const sessionRow of sessionRows) {
         const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
         const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
@@ -3454,48 +3498,62 @@ export class AgentSessionPresenter {
         })
 
         processedCount += 1
-        if (processedCount % 200 === 0) {
-          await this.yieldToEventLoop()
+        batchCount += 1
+        if (batchCount >= batchSize) {
+          batchCount = 0
+          await yieldForBatch()
         }
       }
 
       const messageRows = db
-        .prepare('SELECT * FROM deepchat_messages ORDER BY created_at ASC')
-        .all() as DeepChatMessageRow[]
+        .prepare<[], DeepChatMessageRow>(
+          `SELECT id, session_id, role, status, content, updated_at, created_at
+           FROM deepchat_messages
+           ORDER BY created_at ASC`
+        )
+        .iterate()
 
       for (const row of messageRows) {
         this.backfillNormalizedMessageRow(row)
         processedCount += 1
-        if (processedCount % 200 === 0) {
-          this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
-            status: 'running',
-            startedAt,
-            finishedAt: null,
-            updatedAt: Date.now()
-          })
-          await this.yieldToEventLoop()
+        batchCount += 1
+        if (batchCount >= batchSize) {
+          batchCount = 0
+          await yieldForBatch()
         }
       }
 
+      const finishedAt = Date.now()
+      const durationMs = finishedAt - startedAt
       this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'completed',
         startedAt,
-        finishedAt: Date.now(),
-        updatedAt: Date.now()
+        finishedAt,
+        updatedAt: finishedAt,
+        processedCount,
+        durationMs
+      })
+      logger.info('[SQLiteMainlineNormalization] Backfill completed', {
+        processedCount,
+        durationMs
       })
     } catch (error) {
+      const finishedAt = Date.now()
       this.sqlitePresenter.configTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'failed',
         startedAt,
-        finishedAt: Date.now(),
-        updatedAt: Date.now(),
-        error: error instanceof Error ? error.message : String(error)
+        finishedAt,
+        updatedAt: finishedAt,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: finishedAt - startedAt
       })
       throw error
     }
   }
 
-  private async runDisabledSearchToolCleanupBackfill(): Promise<void> {
+  private async runDisabledSearchToolCleanupBackfill(
+    taskContext?: StartupWorkloadTaskContext
+  ): Promise<void> {
     const startedAt = Date.now()
     this.sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
       status: 'running',
@@ -3506,17 +3564,18 @@ export class AgentSessionPresenter {
 
     try {
       const db = this.sqlitePresenter.getDatabase()
-      const sessionRows = db
-        .prepare('SELECT id FROM new_sessions ORDER BY updated_at ASC')
-        .all() as
-        | Array<{
-            id: string
-          }>
-        | undefined
+      const sessionRowsStatement = db.prepare<[], { id: string }>(
+        'SELECT id FROM new_sessions ORDER BY updated_at ASC'
+      )
+      const sessionRows =
+        typeof sessionRowsStatement.iterate === 'function'
+          ? sessionRowsStatement.iterate()
+          : sessionRowsStatement.all()
 
       let processedCount = 0
       let updatedCount = 0
-      for (const sessionRow of sessionRows ?? []) {
+      const batchSize = 50
+      for (const sessionRow of sessionRows) {
         const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
           sessionRow.id
         )
@@ -3530,8 +3589,8 @@ export class AgentSessionPresenter {
         }
 
         processedCount += 1
-        if (processedCount % 200 === 0) {
-          await this.yieldToEventLoop()
+        if (processedCount % batchSize === 0) {
+          await (taskContext?.yield() ?? this.yieldToEventLoop())
         }
       }
 
@@ -3671,21 +3730,24 @@ export class AgentSessionPresenter {
     }
   }
 
-  private async runUsageStatsBackfill(): Promise<void> {
+  private async runUsageStatsBackfill(taskContext?: StartupWorkloadTaskContext): Promise<void> {
     const startedAt = Date.now()
+    const batchSize = 50
     this.setUsageStatsBackfillStatus({
       status: 'running',
       startedAt,
       finishedAt: null,
       error: null,
-      updatedAt: startedAt
+      updatedAt: startedAt,
+      processedCount: 0
     })
 
     try {
       const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
-      const candidates = this.sqlitePresenter.deepchatMessagesTable.listAssistantUsageCandidates()
+      const candidates = this.iterAssistantUsageCandidates()
 
       let processedCount = 0
+      let batchCount = 0
       for (const row of candidates) {
         const metadata = parseUsageMetadata(row.metadata)
         if (metadata.messageType === 'compaction') {
@@ -3719,36 +3781,55 @@ export class AgentSessionPresenter {
 
         usageStatsTable.upsert(usageRecord)
         processedCount += 1
+        batchCount += 1
 
-        if (processedCount % 200 === 0) {
+        if (batchCount >= batchSize) {
+          batchCount = 0
           this.setUsageStatsBackfillStatus({
             status: 'running',
             startedAt,
             finishedAt: null,
             error: null,
-            updatedAt: Date.now()
+            updatedAt: Date.now(),
+            processedCount
           })
-          await this.yieldToEventLoop()
+          await (taskContext?.yield() ?? this.yieldToEventLoop())
         }
       }
 
+      const finishedAt = Date.now()
+      const durationMs = finishedAt - startedAt
       this.setUsageStatsBackfillStatus({
         status: 'completed',
         startedAt,
-        finishedAt: Date.now(),
+        finishedAt,
         error: null,
-        updatedAt: Date.now()
+        updatedAt: finishedAt,
+        processedCount,
+        durationMs
       })
+      logger.info('[UsageStatsBackfill] Backfill completed', { processedCount, durationMs })
     } catch (error) {
+      const finishedAt = Date.now()
       this.setUsageStatsBackfillStatus({
         status: 'failed',
         startedAt,
-        finishedAt: Date.now(),
+        finishedAt,
         error: error instanceof Error ? error.message : String(error),
-        updatedAt: Date.now()
+        updatedAt: finishedAt,
+        durationMs: finishedAt - startedAt
       })
       throw error
     }
+  }
+
+  private iterAssistantUsageCandidates(): Iterable<DeepChatMessageUsageCandidateRow> {
+    const table = this.sqlitePresenter.deepchatMessagesTable as {
+      iterAssistantUsageCandidates?: () => Iterable<DeepChatMessageUsageCandidateRow>
+      listAssistantUsageCandidates: () => DeepChatMessageUsageCandidateRow[]
+    }
+
+    return table.iterAssistantUsageCandidates?.() ?? table.listAssistantUsageCandidates()
   }
 
   private getUsageStatsBackfillStatus(): UsageStatsBackfillStatus {
