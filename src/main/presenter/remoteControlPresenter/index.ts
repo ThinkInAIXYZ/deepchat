@@ -1338,7 +1338,8 @@ export class RemoteControlPresenter {
       }
     }
 
-    return lines.join('\n').slice(0, REMOTE_DELIVERY_MESSAGE_LIMIT)
+    const text = lines.join('\n')
+    return input.target.remoteId === 'feishu' ? text : text.slice(0, REMOTE_DELIVERY_MESSAGE_LIMIT)
   }
 
   private registerBuiltInFactories(): void {

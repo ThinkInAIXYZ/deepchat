@@ -153,6 +153,7 @@ import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import {
+  buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   emitDeepChatInternalSessionUpdate,
@@ -7208,6 +7209,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         messageId,
         previewMarkdown: buildAssistantPreviewMarkdown(blocks),
         responseMarkdown: buildAssistantResponseMarkdown(blocks),
+        deliverySegments: buildAssistantDeliverySegments(messageId, blocks),
         waitingInteraction: extractWaitingInteraction(blocks, messageId)
       })
     } catch (error) {

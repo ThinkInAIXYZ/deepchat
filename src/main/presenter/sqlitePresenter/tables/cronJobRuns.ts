@@ -255,6 +255,19 @@ export class CronJobRunsTable extends BaseTable {
     return this.requireRun(id)
   }
 
+  markRunningFailed(error: string, completedAt = Date.now()): number {
+    return this.db
+      .prepare(
+        `UPDATE cron_job_runs
+         SET status = 'failed',
+             completed_at = ?,
+             error = ?,
+             updated_at = ?
+         WHERE status = 'running'`
+      )
+      .run(completedAt, error, completedAt).changes
+  }
+
   markCancelled(id: string, error: string | null = null, completedAt = Date.now()): CronJobRunRow {
     const result = this.db
       .prepare(

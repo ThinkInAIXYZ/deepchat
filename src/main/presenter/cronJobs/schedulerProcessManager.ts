@@ -272,6 +272,12 @@ export class SchedulerProcessManager {
         this.scheduleIdleStop()
         return
       case 'RUN_DUE':
+        console.info('[CronJobs] Scheduler reported due run:', {
+          jobId: event.jobId,
+          runId: event.runId,
+          scheduledAt: event.scheduledAt,
+          reason: event.reason
+        })
         void Promise.resolve(
           this.deps.onRunDue({
             jobId: event.jobId,

@@ -7,6 +7,31 @@ import {
 import type { CronJobDeliveryRouter } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 
+type CronRunDeliverySegment = NonNullable<DeepChatInternalSessionUpdate['deliverySegments']>[number]
+
+const formatRunDeliverySegment = (segment: CronRunDeliverySegment): string => {
+  const text = segment.text.trim()
+  if (!text) {
+    return ''
+  }
+
+  if (segment.kind === 'process') {
+    return `Process\n${text}`
+  }
+
+  if (segment.kind === 'terminal') {
+    return `Status\n${text}`
+  }
+
+  return `Answer\n${text}`
+}
+
+const getRunOutputPreview = (update: DeepChatInternalSessionUpdate): string | null => {
+  const deliveryText =
+    update.deliverySegments?.map(formatRunDeliverySegment).filter(Boolean).join('\n\n').trim() ?? ''
+  return deliveryText || update.responseMarkdown || update.previewMarkdown || null
+}
+
 export interface CronJobRunSessionStarter {
   createSessionForRun(input: { job: CronJob; run: CronJobRun }): Promise<{
     sessionId: string
@@ -40,16 +65,35 @@ export class CronJobRunExecutor {
   }
 
   async execute(input: { runId: string; job: CronJob }): Promise<CronJobRun | null> {
+    console.info('[CronJobs] Executor claiming run:', {
+      jobId: input.job.id,
+      runId: input.runId,
+      jobName: input.job.name
+    })
     const run = this.repository.claimRun(input.runId, this.claimOwner)
     if (!run) {
+      console.warn('[CronJobs] Executor could not claim run:', {
+        jobId: input.job.id,
+        runId: input.runId
+      })
       return this.repository.getRun(input.runId)
     }
 
     const activeRuns = this.repository.countActiveRunsByJob(input.job.id, run.id)
     if (activeRuns > 0) {
       if (input.job.runtime.concurrencyPolicy === 'queue') {
+        console.info('[CronJobs] Requeued run because another run is active:', {
+          jobId: input.job.id,
+          runId: run.id,
+          activeRuns
+        })
         return this.repository.releaseRunQueued(run.id)
       }
+      console.info('[CronJobs] Skipped run because another run is active:', {
+        jobId: input.job.id,
+        runId: run.id,
+        activeRuns
+      })
       const cancelled = this.repository.markRunCancelled(
         run.id,
         'Another cron job run is already active.'
@@ -59,8 +103,18 @@ export class CronJobRunExecutor {
 
     let sessionId: string | null = null
     try {
+      console.info('[CronJobs] Creating session for run:', {
+        jobId: input.job.id,
+        runId: run.id,
+        agentId: input.job.agentId
+      })
       const result = await this.sessionStarter.createSessionForRun({ job: input.job, run })
       sessionId = result.sessionId
+      console.info('[CronJobs] Created session for run:', {
+        jobId: input.job.id,
+        runId: run.id,
+        sessionId
+      })
       this.repository.updateRunSession(run.id, result.sessionId)
       this.activeSessions.set(result.sessionId, { runId: run.id, job: input.job })
       if (result.outputMessageId || result.outputPreview) {
@@ -69,10 +123,21 @@ export class CronJobRunExecutor {
           outputPreview: result.outputPreview ?? null
         })
       }
+      console.info('[CronJobs] Starting session run:', {
+        jobId: input.job.id,
+        runId: run.id,
+        sessionId: result.sessionId
+      })
       const startResult = await this.sessionStarter.startSessionRun({
         job: input.job,
         run,
         sessionId: result.sessionId
+      })
+      console.info('[CronJobs] Session run started:', {
+        jobId: input.job.id,
+        runId: run.id,
+        sessionId: result.sessionId,
+        outputMessageId: startResult?.outputMessageId ?? null
       })
       if (startResult?.outputMessageId || startResult?.outputPreview) {
         this.repository.updateRunOutput(run.id, {
@@ -85,6 +150,12 @@ export class CronJobRunExecutor {
       if (sessionId) {
         this.activeSessions.delete(sessionId)
       }
+      console.error('[CronJobs] Run execution failed:', {
+        jobId: input.job.id,
+        runId: run.id,
+        sessionId,
+        error
+      })
       const failed = this.repository.markRunFailed(
         run.id,
         error instanceof Error ? error.message : String(error)
@@ -124,12 +195,13 @@ export class CronJobRunExecutor {
     if (!current || current.status !== 'running') {
       return
     }
-    if (!update.messageId && !update.previewMarkdown) {
+    const outputPreview = getRunOutputPreview(update)
+    if (!update.messageId && !outputPreview) {
       return
     }
     this.repository.updateRunOutput(runId, {
       outputMessageId: update.messageId ?? null,
-      outputPreview: update.previewMarkdown ?? null
+      outputPreview
     })
   }
 

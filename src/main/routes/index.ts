@@ -835,6 +835,11 @@ export function createMainKernelRouteRuntime(deps: {
       if (!job.agentId) {
         throw new Error('Cron job requires an enabled agent.')
       }
+      console.info('[CronJobs] Resolving agent for session:', {
+        jobId: job.id,
+        runId: run.id,
+        agentId: job.agentId
+      })
       const agentType = await deps.configPresenter.getAgentType(job.agentId)
       const snapshotConfig = job.agentSnapshot?.config as
         | {
@@ -875,13 +880,29 @@ export function createMainKernelRouteRuntime(deps: {
           scheduledAt: run.scheduledAt
         }
       })
+      console.info('[CronJobs] Detached session created:', {
+        jobId: job.id,
+        runId: run.id,
+        sessionId: session.id,
+        agentType
+      })
       return { sessionId: session.id }
     },
     async startSessionRun({ job, sessionId }) {
       if (!job.taskPrompt.trim()) {
         throw new Error('Cron job task prompt is empty.')
       }
+      console.info('[CronJobs] Sending task prompt to session:', {
+        jobId: job.id,
+        sessionId,
+        promptLength: job.taskPrompt.length
+      })
       const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt)
+      console.info('[CronJobs] Task prompt accepted by session:', {
+        jobId: job.id,
+        sessionId,
+        outputMessageId: result.messageId ?? null
+      })
       return {
         outputMessageId: result.messageId ?? null
       }

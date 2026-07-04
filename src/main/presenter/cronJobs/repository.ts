@@ -168,6 +168,10 @@ export class CronJobsRepository {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markFailed(id, error))
   }
 
+  markRunningRunsFailed(error: string): number {
+    return this.sqlitePresenter.cronJobRunsTable.markRunningFailed(error)
+  }
+
   markRunCancelled(id: string, error?: string | null): CronJobRun {
     return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markCancelled(id, error ?? null))
   }

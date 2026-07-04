@@ -1,6 +1,7 @@
 <template>
   <SettingsPageShell
     data-testid="settings-cron-jobs-page"
+    sticky-header
     :title="t('settings.cronJobs.title')"
     :eyebrow="t('settings.controlCenter.groups.tools')"
     :description="t('settings.cronJobs.description')"
@@ -515,7 +516,7 @@ const getRemoteDeliveryOptionLabel = (option: RemoteDeliveryOption): string => {
 const sortJobs = (items: CronJob[]) =>
   items
     .slice()
-    .sort((left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id))
+    .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
 
 const createDefaultDelivery = (): CronJobDelivery => ({
   targets: [],
@@ -535,7 +536,7 @@ const applyJob = (job: CronJob) => {
   const next =
     existingIndex >= 0
       ? jobs.value.map((entry) => (entry.id === job.id ? job : entry))
-      : [job, ...jobs.value]
+      : [...jobs.value, job]
   jobs.value = sortJobs(next)
   void refreshJobPreview(job)
 }

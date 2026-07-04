@@ -92,6 +92,7 @@ export class CronJobsService {
       return
     }
     this.started = true
+    this.failStaleRunningRuns()
     void this.attachPowerMonitor()
     void this.reconcileScheduler('startup')
   }
@@ -261,6 +262,15 @@ export class CronJobsService {
     }
   }
 
+  private failStaleRunningRuns(): void {
+    const failedCount = this.repository.markRunningRunsFailed(
+      'Cron job runner stopped before completion.'
+    )
+    if (failedCount > 0) {
+      console.warn('[CronJobs] Marked stale running runs as failed:', { failedCount })
+    }
+  }
+
   private buildJobDraft(input: CronJobsUpsertInput): CronJobDraft {
     const existing = input.id ? this.repository.getJob(input.id) : null
     return {
@@ -419,6 +429,12 @@ export class CronJobsService {
   }
 
   private async processDueRun(event: SchedulerRunDueEvent): Promise<void> {
+    console.info('[CronJobs] Processing due run:', {
+      jobId: event.jobId,
+      runId: event.runId,
+      scheduledAt: event.scheduledAt,
+      reason: event.reason
+    })
     const run = this.repository.getRun(event.runId)
     const job = this.repository.getJob(event.jobId)
     if (!run) {
@@ -433,6 +449,11 @@ export class CronJobsService {
     try {
       await this.assertRunnable(job)
       if (this.runExecutor) {
+        console.info('[CronJobs] Dispatching due run to executor:', {
+          jobId: job.id,
+          runId: event.runId,
+          jobName: job.name
+        })
         await this.runExecutor.execute({
           runId: event.runId,
           job

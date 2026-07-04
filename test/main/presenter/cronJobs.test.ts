@@ -282,6 +282,121 @@ describe('CronJobRunExecutor', () => {
       executor.dispose()
     }
   })
+
+  it('captures remote delivery segments as run output', async () => {
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job: CronJob = {
+      id: 'job-1',
+      name: 'Delivery detail',
+      description: null,
+      enabled: true,
+      status: 'ready',
+      cronExpr: '* * * * *',
+      timezone: 'UTC',
+      agentId: 'agent-1',
+      nextRunAt: now,
+      misfirePolicy: 'skip',
+      maxCatchUpRuns: null,
+      scheduleError: null,
+      taskPrompt: 'Summarize issues',
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      runtime: {
+        maxDurationMs: 3_600_000,
+        maxTurns: 20,
+        maxToolCalls: 100,
+        concurrencyPolicy: 'skip'
+      },
+      agentSnapshot: null,
+      delivery: {
+        targets: [],
+        createContinuableThread: true,
+        suppressSuccessNotification: false,
+        notifyOnFailure: true
+      },
+      createdAt: now,
+      updatedAt: now
+    }
+    const runningRun: CronJobRun = {
+      id: 'run-1',
+      jobId: job.id,
+      sessionId: null,
+      parentContinuationSessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    let storedRun = runningRun
+    const repository = {
+      claimRun: vi.fn(() => runningRun),
+      getRun: vi.fn(() => storedRun),
+      countActiveRunsByJob: vi.fn(() => 0),
+      updateRunSession: vi.fn((id: string, sessionId: string) => {
+        storedRun = { ...storedRun, id, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn((id: string, output: Partial<CronJobRun>) => {
+        storedRun = { ...storedRun, id, ...output }
+        return storedRun
+      }),
+      markRunFailed: vi.fn((id: string, error: string) => {
+        storedRun = { ...storedRun, id, status: 'failed', error }
+        return storedRun
+      })
+    }
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({ sessionId: 'session-1' })),
+      startSessionRun: vi.fn(async () => ({ outputMessageId: 'message-1' }))
+    }
+    const executor = new CronJobRunExecutor(repository as never, sessionStarter as never)
+
+    try {
+      await executor.execute({ runId: runningRun.id, job })
+      emitDeepChatInternalSessionUpdate({
+        sessionId: 'session-1',
+        kind: 'blocks',
+        messageId: 'message-1',
+        previewMarkdown: 'Final answer',
+        responseMarkdown: 'Fallback answer',
+        deliverySegments: [
+          {
+            key: 'message-1:0:process',
+            kind: 'process',
+            text: 'read_file: "/tmp/a.md"',
+            sourceMessageId: 'message-1'
+          },
+          {
+            key: 'message-1:1:answer',
+            kind: 'answer',
+            text: 'Final answer',
+            sourceMessageId: 'message-1'
+          }
+        ],
+        waitingInteraction: null,
+        updatedAt: now
+      })
+
+      expect(repository.updateRunOutput).toHaveBeenLastCalledWith(runningRun.id, {
+        outputMessageId: 'message-1',
+        outputPreview: 'Process\nread_file: "/tmp/a.md"\n\nAnswer\nFinal answer'
+      })
+    } finally {
+      executor.dispose()
+    }
+  })
 })
 
 const createHarness = () => {
@@ -583,6 +698,49 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       })
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('job-upsert')
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('manual-run')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('fails stale running runs on startup', async () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        restart: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const job = repository.upsertJob({
+        name: 'Stale run',
+        enabled: false,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        taskPrompt: 'Summarize issues'
+      })
+      const run = repository.queueRun({
+        jobId: job.id,
+        scheduledAt: Date.now(),
+        reason: 'scheduled'
+      })
+      repository.markRunRunning(run.id)
+      const service = new CronJobsServiceCtor({
+        sqlitePresenter: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never
+      })
+
+      service.start()
+
+      expect(repository.getRun(run.id)).toEqual(
+        expect.objectContaining({
+          status: 'failed',
+          error: 'Cron job runner stopped before completion.'
+        })
+      )
     } finally {
       db.close()
     }
