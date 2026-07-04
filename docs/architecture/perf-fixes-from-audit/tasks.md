@@ -1,0 +1,124 @@
+# Tasks：性能审计修复实施
+
+任务按实施难度从易到难排序，每项可映射到一次提交或评审切片。`[ ]` 待办、`[~]` 进行中、`[x]` 完成。
+
+详细方案见各 `fix-<id>-*.md` 文档与 [plan.md](plan.md)。所有文档已通过逐份代码核对 review 并修订。
+
+## 不修复项（已决策，仅记录）
+
+- [x] F2 ACP registry migration —— 不修复（边际：critical:false + try/catch，仅迁移场景）
+- [x] F4 Presenter 构造同步聚合 —— 不修复（边际：结构性护栏，靠 code review 约束）
+- [x] F7 Splash window 无条件创建 —— 不修复（边际：已有 suppress 机制）
+- [x] F10 i18n 全量同步导入 —— 不修复（边际：成本受 Vite 分块影响小）
+- [x] F14 Session sidebar fingerprint/watch —— 不修复（边际：已有 rAF coalescing）
+
+## 第一波：易（纯测试 / renderer 单文件）
+
+### T1. 修复 V1 — Settings 隐藏路由 E2E 导航
+
+- [ ] 步骤 1：确认 E2E 侧可导入 `src/shared/settingsNavigation.ts` 的现有导出（`getSettingsRouteItems`/`resolveSettingsNavigationPath`，L333-389），复用其 `path` 字段，无需新增 hidden 判定 API
+- [ ] 步骤 2：`test/e2e/helpers/settings.ts` 的 `openSettingsTab` 增加 hash 导航分支——对 hidden 路由用 `window.location.hash = '#<path>'` 导航（参考 spec L159 `#/dashboard` 先例），再等 `pageTestId` 可见，而非点击侧边栏 button
+- [ ] 步骤 3：验证 `04-settings-navigation` 全矩阵从失败变通过；补跑实际含 hidden 路由的 spec（13-mcp/11-remote/16-skills 等），实跑确认
+- 详细方案：[fix-V1](fix-V1-settings-hidden-route.md)
+
+### T2. 修复 F15 — ChatStatusBar watcher 去 deep
+
+- [ ] 步骤 1：先在 `modelStore`（L893-931 `chatSelectableModelGroups` 定义处）增加 `chatSelectableModelGroupsRevision`，并确保所有影响该结果的路径都 bump revision（provider 名称/排序/启用状态、`enabledModels`、组内模型变化）
+- [ ] 步骤 2：ChatStatusBar 模型组 watcher（L2297-2310）去 `deep:true`，改监听 revision 浅层依赖
+- [ ] 步骤 3：保留 generation watcher（L2362-2375）与 ACP watcher（L2377-2395）拆分，仅做同 tick coalescing，不强制合并
+- [ ] 步骤 4：跑 `test/renderer/components/ChatStatusBar.test.ts`，覆盖「组内模型变化但数组引用不变」场景
+- 详细方案：[fix-F15](fix-F15-chatstatusbar-watchers.md)
+
+### T3. 修复 F12 — sessionStore.fetchSessions in-flight 去重
+
+- [ ] 步骤 1：`session.ts` 的 `fetchSessions`（L587-592）顶部加 in-flight promise 守卫，用 `currentFetchPromise` 比对后才清理（守卫仅包 fetchSessions，不包 loadSessionPage 分页）
+- [ ] 步骤 2：明确 `reset=true` 显式刷新边界——首屏去重即可，显式 refresh 直调 `loadSessionPage({ reset: true })` 绕过守卫
+- [ ] 步骤 3：单元测试用 mock/spy 断言并发 `fetchSessions()` 只触发一次 `listLightweight` IPC
+- [ ] 步骤 4：E2E `01-launch` + `26-deepchat-agent-crud`
+- 详细方案：[fix-F12](fix-F12-session-fetch-dedup.md)
+
+## 第二波：中（跨 renderer 组件 / main handler）
+
+### T4. 修复 F9 — Markdown workers 真正 lazy
+
+- [ ] 步骤 1：删除 `src/renderer/src/main.ts:18` 的 eager `ensureMarkdownWorkers()` 调用
+- [ ] 步骤 2：在所有直接 markstream-vue 入口（`MarkdownRenderer.vue` + `ThinkContent.vue` L30 等）的 `onMounted` 触发 `ensureMarkdownWorkers()`（幂等安全）
+- [ ] 步骤 3：实证 markstream-vue worker 未就绪时降级纯文本 fallback（查其类型/用法，不仅依赖注释）
+- [ ] 步骤 4：build 后核实 `?worker&inline` 产物形态（不是独立 chunk）；E2E `01-launch` + 含 markdown/think 渲染验证
+- 详细方案：[fix-F9](fix-F09-markdown-workers-lazy.md)
+
+### T5. 修复 F6 — protocol handler async + streaming
+
+- [ ] 步骤 1：`deepcdn` handler 改 async + `fs.promises`，保留全部 MIME（含 `.wasm`/`.data`）
+- [ ] 步骤 2：`imgcache` handler 改 streaming Response（`Readable.toWeb(fs.createReadStream)`）+ 单次 stat；stream 不可用 fallback 到 `await fs.promises.readFile`
+- [ ] 步骤 3：`workspace-preview` handler 改 streaming + 50MB 大小上限（超限 413）+ MIME cache；注意 `realpathSync`（workspacePreviewProtocol L47-52）不在热路径
+- [ ] 步骤 4：E2E `29/30` + 含图片预览验证；typecheck
+- 详细方案：[fix-F06](fix-F06-protocol-handler-async.md)
+
+### T6. 修复 F8 — 关闭路径可观测性 + timeout
+
+- [ ] 步骤 1：`Presenter.destroy()`（index.ts L954-981）各步加 `performance.now()` duration 日志（destroy 层必做，hook 执行器层可选）
+- [ ] 步骤 2：核实 `serverManager.stopServer` 无跨 server 共享状态后，`pluginPresenter`（L132）plugin-owned server stop 改受限并发
+- [ ] 步骤 3：`mcpPresenter`（L240-248）shutdown per-server timeout（`Promise.race`，10s）；stdio 超时补 `terminateProcessTree` 强杀，非 stdio warning+continue
+- [ ] 步骤 4：验证超时后无 zombie 进程；E2E `01-launch`（含关闭）
+- 详细方案：[fix-F08](fix-F08-shutdown-observability.md)
+
+### T7. 修复 F13 — message store 排序 + cache
+
+- [ ] 步骤 1：新 id 二分插入前先检测 `messageIds` 是否按 orderSeq 有序，有序才二分，否则 fallback 全量 sort（optimistic/streaming 用 length+1 生成 orderSeq 不等价历史序列）
+- [ ] 步骤 2：`parsedMessageCache` 加 LRU 上限 1024（按 session 清理已存在）
+- [ ] 步骤 3：`assistantBlockPayloadEqual` 的 `JSON.stringify` 改浅层字段比较
+- [ ] 步骤 4：专项回归验证 optimistic/历史前插/streaming 与二分插入共存不破序
+- 详细方案：[fix-F13](fix-F13-message-store-sort.md)
+
+### T8. 修复 F16 — Settings provider 列表渲染
+
+- [ ] 步骤 1：`ModelIcon.vue` iconKey 保留 `includes` 模糊语义，改预建候选 key 按长度降序遍历 + 命中缓存（不改成精确 Map.get）
+- [ ] 步骤 2：`ModelProviderSettings.vue` disabled 列表默认折叠（header + count，展开才渲染）；enabled 区暂不动
+- [ ] 步骤 3：（可选，更高风险）draggable 仅「编辑排序模式」启用
+- [ ] 步骤 4：回归拖拽排序持久化、搜索过滤下排序、展开后高亮；E2E `18-provider-readonly-route` + `04-settings-navigation`
+- 详细方案：[fix-F16](fix-F16-provider-list-render.md)
+
+## 第三波：中高（main 启动关键路径）
+
+### T9. 修复 F1 — SQLite 启动关键路径分层
+
+- [ ] 步骤 1：open/initTables/migrate/diagnose/repair 五阶段各加 `performance.now()` duration 日志（低风险先行）
+- [ ] 步骤 2：`diagnoseStartupSchema()` 只读诊断后移为 background task，通过 `DatabaseInitializer` 依赖注入 coordinator（target 取 `'main'`，来自 `StartupWorkloadTargetSchema`）；`SQLitePresenter` 仅一处 new（DatabaseInitializer L50）
+- [ ] 步骤 3：（可选，高风险）非启动必需表 createTable 延迟——因 initTables 与 getMigrationTables 强耦合，列为可选
+- [ ] 步骤 4：单元测试 `test/main` sqlite；E2E `01-launch --repeat-each=3` 无回归
+- 详细方案：[fix-F01](fix-F01-sqlite-startup-defer.md)
+
+### T10. 修复 F5 — MCP 后台启动 soft timeout
+
+- [ ] 步骤 1：扩展 `emitServerStatusChanged` 从 running/stopped 布尔态到枚举态（connecting/connected/timeout/retrying/failed）
+- [ ] 步骤 2：引入 soft timeout（初始建议 45s，待压测确定），超时后保留 client 转 retrying，保留 5min 硬兜底
+- [ ] 步骤 3：补 startup retry 与 shutdown 交互（shutdown 需处理 connecting/retrying client）
+- [ ] 步骤 4：（可选）enabled servers startServer 受限并发 2-3；E2E `01-launch` + 慢连接 shutdown 专项验证
+- 详细方案：[fix-F05](fix-F05-mcp-startup-timeout.md)
+
+## 第四波：高（高收益大改）
+
+### T11. 修复 F3 — backfill 纳入 coordinator + streaming
+
+- [ ] 步骤 1：5 个 after-start hook 的 `void startX().catch()` 改为 `startupWorkloadCoordinator.scheduleTask`（phase:background；4 个 backfill resource:io，rtkHealthCheck resource:io 因走 runtime/子进程）
+- [ ] 步骤 2：presenter 签名改造接 taskContext：`startX(taskContext)` 或 hook 适配层转调 `runX(taskContext)`
+- [ ] 步骤 3：`SELECT *` 改 `prepare().iterate()` cursor（优先）；LIMIT/OFFSET 仅兜底（大表深分页退化风险）；yield 粒度初始 50 待压测
+- [ ] 步骤 4：验证 iterate() 类型可用 + coordinator 并发上限生效；加 processed count/耗时日志
+- 详细方案：[fix-F03](fix-F03-backfill-coordinator.md)
+
+### T12. 修复 F11 — Iconify 白名单 + provider icon 懒加载
+
+- [ ] 步骤 1：脚本生成 icon 白名单（252 静态基线）+ CI 校验 + 运行时未命中采样回灌；ModelIcon provider 映射纳入同源生成
+- [ ] 步骤 2：`iconLoader.ts` 改过滤 `icons.json` 后 `addCollection`（包无单 icon 子路径）
+- [ ] 步骤 3：`ModelIcon.vue` 77 静态 import 改按 manifest `import.meta.glob` lazy
+- [ ] 步骤 4：`tokenflux-color.svg`（1,627,765 B，含 base64 内嵌）压缩目标 <200KB，达不到则异步化脱离主包
+- [ ] 步骤 5：build 前后体积测算（不预设降幅）+ 视觉回归
+- 详细方案：[fix-F11](fix-F11-icons-bundle-slim.md)
+
+## 收尾
+
+- [ ] 全量 `pnpm run typecheck && pnpm run lint && pnpm run format && pnpm run i18n`
+- [ ] E2E 基线：`01-launch --repeat-each=3` + 修复后 `04-settings-navigation` + `18-provider-readonly-route`
+- [ ] 构建体积前后对比（F9/F11）
+- [ ] 更新本 tasks.md 勾选状态
