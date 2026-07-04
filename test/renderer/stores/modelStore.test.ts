@@ -357,6 +357,90 @@ describe('modelStore.refreshProviderModels', () => {
     ])
   })
 
+  it('bumps chat selectable revision for provider metadata and in-place model changes', async () => {
+    const { store, providerStore } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true, name: 'OpenAI' },
+          { id: 'anthropic', enable: true, name: 'Anthropic' }
+        ],
+        sortedProviders: [
+          { id: 'openai', enable: true, name: 'OpenAI' },
+          { id: 'anthropic', enable: true, name: 'Anthropic' }
+        ]
+      }
+    })
+    await flushMicrotasks()
+
+    const initialRevision = store.chatSelectableModelGroupsRevision.value
+    const openaiModels = [
+      {
+        id: 'gpt-5',
+        name: 'GPT-5',
+        providerId: 'openai',
+        type: ModelType.Chat,
+        enabled: true
+      } as any
+    ]
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: openaiModels
+      }
+    ]
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(initialRevision)
+    expect(store.chatSelectableModelGroups.value).toEqual([
+      expect.objectContaining({
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      })
+    ])
+
+    const afterModelsRevision = store.chatSelectableModelGroupsRevision.value
+    store.enabledModels.value[0].models.push({
+      id: 'gpt-5-embed',
+      name: 'GPT-5 Embed',
+      providerId: 'openai',
+      type: ModelType.Embedding,
+      enabled: true
+    } as any)
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterModelsRevision)
+    expect(store.chatSelectableModelGroups.value[0].models.map((model) => model.id)).toEqual([
+      'gpt-5'
+    ])
+
+    const afterTypeRevision = store.chatSelectableModelGroupsRevision.value
+    store.enabledModels.value[0].models[1].type = ModelType.Chat
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterTypeRevision)
+    expect(store.chatSelectableModelGroups.value[0].models.map((model) => model.id)).toEqual([
+      'gpt-5',
+      'gpt-5-embed'
+    ])
+
+    const afterRenameRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders[0].name = 'OpenAI Renamed'
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterRenameRevision)
+    expect(store.chatSelectableModelGroups.value[0].providerName).toBe('OpenAI Renamed')
+
+    const afterOrderRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders = [
+      providerStore.sortedProviders[1],
+      providerStore.sortedProviders[0]
+    ]
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterOrderRevision)
+
+    const afterDisableRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders[1].enable = false
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterDisableRevision)
+    expect(store.chatSelectableModelGroups.value).toEqual([])
+  })
   it('purges deleted providers from local model state', async () => {
     const { store, providerStore } = await setupStore({
       providerStore: {

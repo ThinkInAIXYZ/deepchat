@@ -67,6 +67,7 @@ export const useModelStore = defineStore('model', () => {
   const isInitializing = ref(false)
   const initializationError = ref<Error | null>(null)
   const initializationPromise = ref<Promise<void> | null>(null)
+  const chatSelectableModelGroupsRevision = ref(0)
 
   const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
   const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
@@ -890,6 +891,33 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
 
+  watch(
+    () => ({
+      providers: providerStore.sortedProviders.map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        enable: provider.enable
+      })),
+      fallbackProviders: providerStore.providers.map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        enable: provider.enable
+      })),
+      enabledModelGroups: enabledModels.value.map((group) => ({
+        providerId: group.providerId,
+        models: group.models.map((model) => ({
+          ...model,
+          supportedEndpointTypes: [...(model.supportedEndpointTypes ?? [])],
+          selectableEndpointTypes: [...(model.selectableEndpointTypes ?? [])]
+        }))
+      }))
+    }),
+    () => {
+      chatSelectableModelGroupsRevision.value += 1
+    },
+    { immediate: true }
+  )
+
   const chatSelectableModelGroups = computed<ChatSelectableModelGroup[]>(() => {
     const orderedProviders =
       providerStore.sortedProviders?.length > 0
@@ -1485,6 +1513,7 @@ export const useModelStore = defineStore('model', () => {
     searchModels,
     findModelByIdOrName,
     chatSelectableModelGroups,
+    chatSelectableModelGroupsRevision: readonly(chatSelectableModelGroupsRevision),
     findChatSelectableModel,
     pickFirstChatSelectableModel,
     applyUserDefinedModelConfig,

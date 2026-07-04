@@ -23,10 +23,10 @@
 
 ### T2. 修复 F15 — ChatStatusBar watcher 去 deep
 
-- [ ] 步骤 1：先在 `modelStore`（L893-931 `chatSelectableModelGroups` 定义处）增加 `chatSelectableModelGroupsRevision`，并确保所有影响该结果的路径都 bump revision（provider 名称/排序/启用状态、`enabledModels`、组内模型变化）
-- [ ] 步骤 2：ChatStatusBar 模型组 watcher（L2297-2310）去 `deep:true`，改监听 revision 浅层依赖
-- [ ] 步骤 3：保留 generation watcher（L2362-2375）与 ACP watcher（L2377-2395）拆分，仅做同 tick coalescing，不强制合并
-- [ ] 步骤 4：跑 `test/renderer/components/ChatStatusBar.test.ts`，覆盖「组内模型变化但数组引用不变」场景
+- [x] 步骤 1：先在 `modelStore`（L893-931 `chatSelectableModelGroups` 定义处）增加 `chatSelectableModelGroupsRevision`，并确保所有影响该结果的路径都 bump revision（provider 名称/排序/启用状态、`enabledModels`、组内模型变化）
+- [x] 步骤 2：ChatStatusBar 模型组 watcher（L2297-2310）去 `deep:true`，改监听 revision 浅层依赖
+- [x] 步骤 3：保留 generation watcher（L2362-2375）与 ACP watcher（L2377-2395）拆分，仅做同 tick coalescing，不强制合并
+- [x] 步骤 4：跑 `test/renderer/components/ChatStatusBar.test.ts`，覆盖「组内模型变化但数组引用不变」场景
 - 详细方案：[fix-F15](fix-F15-chatstatusbar-watchers.md)
 
 ### T3. 修复 F12 — sessionStore.fetchSessions in-flight 去重

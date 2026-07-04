@@ -317,6 +317,7 @@ const setup = async (options: SetupOptions = {}) => {
       }
     }),
     enabledModels: [...baseModelGroups, ...normalizedExtraModelGroups],
+    chatSelectableModelGroupsRevision: 0,
     get chatSelectableModelGroups() {
       return getChatSelectableModelGroups()
     },
@@ -988,6 +989,33 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).displayModelText).toBe('gpt-4')
   })
 
+  it('syncs draft model selection when the shallow model group revision changes', async () => {
+    const { wrapper, modelStore, draftStore } = await setup({
+      defaultModel: { providerId: 'new-api', modelId: 'gpt-4.1' },
+      preferredModel: undefined,
+      extraModelGroups: [
+        {
+          providerId: 'new-api',
+          providerName: 'New API',
+          models: [{ id: 'text-embedding-3-large', name: 'Embedding', type: 'embedding' }]
+        }
+      ]
+    })
+
+    expect(draftStore.providerId).toBe('openai')
+    expect(draftStore.modelId).toBe('gpt-4')
+
+    draftStore.providerId = undefined
+    draftStore.modelId = undefined
+    const newApiGroup = modelStore.enabledModels.find((group) => group.providerId === 'new-api')
+    newApiGroup?.models.push({ id: 'gpt-4.1', name: 'GPT-4.1', type: 'chat' })
+    modelStore.chatSelectableModelGroupsRevision += 1
+    await flushPromises()
+
+    expect(draftStore.providerId).toBe('new-api')
+    expect(draftStore.modelId).toBe('gpt-4.1')
+    expect((wrapper.vm as any).displayModelText).toBe('gpt-4.1')
+  })
   it('shows reasoning effort controls only when model capability supports it', async () => {
     const enabled = await setup({
       hasActiveSession: true,
@@ -1883,6 +1911,21 @@ describe('ChatStatusBar model and session panels', () => {
     expect((wrapper.vm as any).displayModelText).toBe('claude-3-5-sonnet')
   })
 
+  it('coalesces generation settings syncs triggered in the same tick', async () => {
+    const { draftStore, agentSessionPresenter } = await setup({
+      hasActiveSession: false,
+      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
+      preferredModel: undefined
+    })
+    await flushPromises()
+    agentSessionPresenter.getSessionGenerationSettings.mockClear()
+
+    draftStore.providerId = 'anthropic'
+    draftStore.modelId = 'claude-3-5-sonnet'
+    await flushPromises()
+
+    expect(agentSessionPresenter.getSessionGenerationSettings).not.toHaveBeenCalled()
+  })
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()
 

@@ -1163,6 +1163,7 @@ const capabilityProviderId = ref('')
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
 let generationSyncToken = 0
+let generationSyncQueued = false
 let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
@@ -2214,7 +2215,7 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   scheduleGenerationPersist(normalizedPatch)
 }
 
-const syncGenerationSettings = async () => {
+const runSyncGenerationSettings = async () => {
   const token = ++generationSyncToken
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
@@ -2285,6 +2286,19 @@ const syncGenerationSettings = async () => {
   loadedSettingsSelection.value = { ...selection }
 }
 
+const syncGenerationSettings = () => {
+  if (generationSyncQueued) {
+    return
+  }
+
+  generationSyncQueued = true
+  void nextTick(() => {
+    generationSyncQueued = false
+    void runSyncGenerationSettings().catch((error) => {
+      console.warn('[ChatStatusBar] Failed to sync generation settings:', error)
+    })
+  })
+}
 const reloadSystemPrompts = async () => {
   try {
     systemPromptList.value = await configClient.getSystemPrompts()
@@ -2300,13 +2314,13 @@ watch(
     isAcpAgent,
     () => agentStore.selectedAgentId,
     () => modelStore.initialized,
-    () => modelStore.chatSelectableModelGroups
+    () => modelStore.chatSelectableModelGroupsRevision
   ],
   () => {
     if (hasActiveSession.value) return
     void syncDraftModelSelection()
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 )
 
 watch(
@@ -2369,7 +2383,7 @@ watch(
     () => isAcpAgent.value
   ],
   () => {
-    void syncGenerationSettings()
+    syncGenerationSettings()
   },
   { immediate: true }
 )
