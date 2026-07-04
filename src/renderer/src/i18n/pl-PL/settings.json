@@ -2768,29 +2768,29 @@
     "title": "Zaplanowane zadania",
     "description": "Zarządzaj zaplanowanymi zadaniami agentów i procesem harmonogramu.",
     "empty": "Brak zaplanowanych zadań.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "Brak",
+    "nextRunAt": "Następne uruchomienie",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "Zadanie poranne"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "Nowe zadanie",
+      "runNow": "Uruchom teraz",
+      "clearNextRun": "Wyczyść następne uruchomienie",
+      "reconcile": "Synchronizuj",
+      "restart": "Uruchom ponownie"
     },
     "fields": {
-      "name": "Name",
-      "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
+      "name": "Nazwa",
+      "cronExpr": "Wyrażenie cron",
+      "timezone": "Strefa czasowa",
+      "preset": "Szablon",
       "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
-      "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "noAgent": "Nie wybrano",
+      "taskPrompt": "Polecenie zadania",
+      "runtimePolicy": "Środowisko wykonawcze",
+      "followAgent": "Śledź agenta",
+      "pinCurrent": "Przypnij bieżącą konfigurację",
       "delivery": "Dostarczanie",
       "remoteDelivery": "Dostarczanie Remote",
       "remoteChannel": "Kanał Remote",
@@ -2799,22 +2799,22 @@
       "deliveryFailed": "błąd"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "Własny",
+      "every5Minutes": "Co 5 minut",
+      "hourly": "Co godzinę",
+      "daily": "Codziennie o 09:00",
+      "weekdays": "W dni robocze o 09:00"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
-      "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "state": "Stan",
+      "enabled": "Aktywne zadania",
+      "heartbeat": "Puls",
+      "stopped": "Zatrzymany",
+      "starting": "Uruchamianie",
+      "running": "Uruchomiony",
+      "idle": "Bezczynny",
+      "error": "Błąd",
+      "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
     },
     "runNowSuccess": "Zaplanowane zadanie uruchomione"
   },

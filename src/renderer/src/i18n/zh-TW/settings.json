@@ -1451,25 +1451,25 @@
     }
   },
   "cronJobs": {
-    "title": "定時任務",
+    "title": "排程任務",
     "description": "管理定時 Agent 任務與排程程序。",
     "empty": "暫無定時任務。",
-    "none": "无",
-    "nextRunAt": "下次运行",
+    "none": "無",
+    "nextRunAt": "下次執行",
     "defaults": {
       "name": "Morning cron job"
     },
     "actions": {
-      "newJob": "新建任务",
-      "runNow": "立即运行",
-      "clearNextRun": "清空下次运行",
-      "reconcile": "重新对账",
+      "newJob": "新建任務",
+      "runNow": "立即執行",
+      "clearNextRun": "清除下次執行",
+      "reconcile": "重新同步",
       "restart": "重啟定時器"
     },
     "fields": {
       "name": "名称",
-      "cronExpr": "Cron 表达式",
-      "timezone": "时区",
+      "cronExpr": "Cron 表達式",
+      "timezone": "時區",
       "preset": "預設",
       "agent": "Agent",
       "noAgent": "未選擇",
@@ -1492,17 +1492,17 @@
       "weekdays": "工作日 09:00"
     },
     "status": {
-      "state": "状态",
-      "enabled": "启用任务",
+      "state": "狀態",
+      "enabled": "啟用任務",
       "heartbeat": "心跳",
       "stopped": "已停止",
-      "starting": "启动中",
-      "running": "运行中",
-      "idle": "空闲",
-      "error": "错误",
+      "starting": "啟動中",
+      "running": "執行中",
+      "idle": "閒置",
+      "error": "錯誤",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "定時任務已觸發"
+    "runNowSuccess": "排程任務已觸發"
   },
   "about": {
     "title": "關於我們",

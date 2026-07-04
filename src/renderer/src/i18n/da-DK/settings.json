@@ -1387,29 +1387,29 @@
     "title": "Planlagte opgaver",
     "description": "Administrer planlagte agentopgaver og planlægningsprocessen.",
     "empty": "Ingen planlagte opgaver endnu.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "Ingen",
+    "nextRunAt": "Næste kørsel",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "Morgen-job"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "Nyt job",
+      "runNow": "Kør nu",
+      "clearNextRun": "Ryd næste kørsel",
+      "reconcile": "Synkroniser",
+      "restart": "Genstart timer"
     },
     "fields": {
-      "name": "Name",
-      "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
+      "name": "Navn",
+      "cronExpr": "Cron-udtryk",
+      "timezone": "Tidszone",
+      "preset": "Forudindstilling",
       "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
+      "noAgent": "Ingen valgt",
+      "taskPrompt": "Opgaveprompt",
       "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "followAgent": "Følg agent",
+      "pinCurrent": "Fastlås nuværende konfiguration",
       "delivery": "Levering",
       "remoteDelivery": "Remote-levering",
       "remoteChannel": "Remote-kanal",
@@ -1418,22 +1418,22 @@
       "deliveryFailed": "mislykkedes"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "Brugerdefineret",
+      "every5Minutes": "Hvert 5. minut",
+      "hourly": "Hver time",
+      "daily": "Dagligt kl. 09:00",
+      "weekdays": "Hverdage kl. 09:00"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
+      "state": "Tilstand",
+      "enabled": "Aktiverede jobs",
       "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "stopped": "Stoppet",
+      "starting": "Starter",
+      "running": "Kører",
+      "idle": "Inaktiv",
+      "error": "Fejl",
+      "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
     "runNowSuccess": "Planlagt opgave startet"
   },

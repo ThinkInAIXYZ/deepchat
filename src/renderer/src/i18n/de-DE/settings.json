@@ -2768,29 +2768,29 @@
     "title": "Geplante Aufgaben",
     "description": "Verwalte geplante Agent-Aufgaben und den Planungsprozess.",
     "empty": "Noch keine geplanten Aufgaben.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "Keine",
+    "nextRunAt": "Nächster Lauf",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "Morgendliche Cron-Aufgabe"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "Neuer Job",
+      "runNow": "Jetzt ausführen",
+      "clearNextRun": "Nächsten Lauf löschen",
+      "reconcile": "Abgleichen",
+      "restart": "Timer neustarten"
     },
     "fields": {
       "name": "Name",
-      "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
+      "cronExpr": "Cron-Ausdruck",
+      "timezone": "Zeitzone",
+      "preset": "Vorlage",
       "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
-      "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "noAgent": "Keiner ausgewählt",
+      "taskPrompt": "Aufgabenprompt",
+      "runtimePolicy": "Laufzeit",
+      "followAgent": "Agent folgen",
+      "pinCurrent": "Aktuelle Konfiguration fixieren",
       "delivery": "Zustellung",
       "remoteDelivery": "Remote-Zustellung",
       "remoteChannel": "Remote-Kanal",
@@ -2799,22 +2799,22 @@
       "deliveryFailed": "fehlgeschlagen"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "Benutzerdefiniert",
+      "every5Minutes": "Alle 5 Minuten",
+      "hourly": "Stündlich",
+      "daily": "Täglich um 09:00",
+      "weekdays": "Wochentags um 09:00"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
+      "state": "Status",
+      "enabled": "Aktivierte Jobs",
       "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "stopped": "Gestoppt",
+      "starting": "Wird gestartet",
+      "running": "Läuft",
+      "idle": "Inaktiv",
+      "error": "Fehler",
+      "invalidAgent": "Agent fehlt oder ist deaktiviert. Wählen Sie einen anderen Agent."
     },
     "runNowSuccess": "Geplante Aufgabe gestartet"
   },

@@ -2768,29 +2768,29 @@
     "title": "Tác vụ đã lên lịch",
     "description": "Quản lý tác vụ agent đã lên lịch và tiến trình lập lịch.",
     "empty": "Chưa có tác vụ đã lên lịch.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "Không có",
+    "nextRunAt": "Lần chạy tiếp",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "Tác vụ buổi sáng"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "Tác vụ mới",
+      "runNow": "Chạy ngay",
+      "clearNextRun": "Xóa lần chạy tiếp",
+      "reconcile": "Đồng bộ lại",
+      "restart": "Khởi động lại bộ đếm"
     },
     "fields": {
-      "name": "Name",
+      "name": "Tên",
       "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
+      "timezone": "múi giờ",
+      "preset": "Mẫu có sẵn",
       "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
-      "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "noAgent": "Chưa chọn",
+      "taskPrompt": "Nội dung tác vụ",
+      "runtimePolicy": "Thời gian chạy",
+      "followAgent": "Theo agent",
+      "pinCurrent": "Ghim cấu hình hiện tại",
       "delivery": "Gửi kết quả",
       "remoteDelivery": "Gửi qua Remote",
       "remoteChannel": "Kênh Remote",
@@ -2799,22 +2799,22 @@
       "deliveryFailed": "gửi thất bại"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "Tùy chỉnh",
+      "every5Minutes": "Mỗi 5 phút",
+      "hourly": "Mỗi giờ",
+      "daily": "Hàng ngày lúc 09:00",
+      "weekdays": "Các ngày trong tuần lúc 09:00"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
-      "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "state": "Trạng thái",
+      "enabled": "Tác vụ đã bật",
+      "heartbeat": "Tín hiệu hoạt động",
+      "stopped": "Đã dừng",
+      "starting": "Đang khởi động",
+      "running": "Đang chạy",
+      "idle": "Rảnh",
+      "error": "Lỗi",
+      "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
     },
     "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
   },

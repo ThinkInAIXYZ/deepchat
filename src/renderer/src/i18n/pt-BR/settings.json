@@ -1454,29 +1454,29 @@
     "title": "Tarefas agendadas",
     "description": "Gerencie tarefas de agente agendadas e o processo de agendamento.",
     "empty": "Ainda não há tarefas agendadas.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "Nenhum",
+    "nextRunAt": "Próxima execução",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "Tarefa matinal"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "Nova tarefa",
+      "runNow": "Executar agora",
+      "clearNextRun": "Limpar próxima execução",
+      "reconcile": "Reconciliar",
+      "restart": "Reiniciar temporizador"
     },
     "fields": {
-      "name": "Name",
-      "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
-      "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
-      "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "name": "Nome",
+      "cronExpr": "Expressão cron",
+      "timezone": "Fuso horário",
+      "preset": "Predefinição",
+      "agent": "Agente",
+      "noAgent": "Nenhum selecionado",
+      "taskPrompt": "Prompt da tarefa",
+      "runtimePolicy": "Tempo de execução",
+      "followAgent": "Seguir agente",
+      "pinCurrent": "Fixar configuração atual",
       "delivery": "Entrega",
       "remoteDelivery": "Entrega Remote",
       "remoteChannel": "Canal Remote",
@@ -1485,22 +1485,22 @@
       "deliveryFailed": "falhou"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "Personalizado",
+      "every5Minutes": "A cada 5 minutos",
+      "hourly": "A cada hora",
+      "daily": "Diariamente às 09:00",
+      "weekdays": "Dias úteis às 09:00"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
-      "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "state": "Estado",
+      "enabled": "Tarefas ativas",
+      "heartbeat": "Pulsação",
+      "stopped": "Parado",
+      "starting": "Iniciando",
+      "running": "Em execução",
+      "idle": "Ocioso",
+      "error": "Erro",
+      "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
     },
     "runNowSuccess": "Tarefa agendada iniciada"
   },

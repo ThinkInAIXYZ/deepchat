@@ -1720,7 +1720,7 @@
       "newJob": "新建任务",
       "runNow": "立即运行",
       "clearNextRun": "清空下次运行",
-      "reconcile": "重新对账",
+      "reconcile": "重新同步",
       "restart": "重启定时器"
     },
     "fields": {
@@ -1732,7 +1732,7 @@
       "noAgent": "未选择",
       "taskPrompt": "任务内容",
       "runtimePolicy": "运行配置",
-      "followAgent": "跟随 Agent",
+      "followAgent": "使用 Agent 配置",
       "pinCurrent": "固定当前配置",
       "delivery": "投递",
       "remoteDelivery": "Remote 投递",

@@ -1454,29 +1454,29 @@
     "title": "예약 작업",
     "description": "예약된 에이전트 작업과 스케줄러 프로세스를 관리합니다.",
     "empty": "아직 예약 작업이 없습니다.",
-    "none": "None",
-    "nextRunAt": "Next run",
+    "none": "없음",
+    "nextRunAt": "다음 실행",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "아침 예약 작업"
     },
     "actions": {
-      "newJob": "New job",
-      "runNow": "Run now",
-      "clearNextRun": "Clear next run",
-      "reconcile": "Reconcile",
-      "restart": "Restart"
+      "newJob": "새 작업",
+      "runNow": "지금 실행",
+      "clearNextRun": "다음 실행 취소",
+      "reconcile": "재조정",
+      "restart": "타이머 재시작"
     },
     "fields": {
-      "name": "Name",
-      "cronExpr": "Cron expression",
-      "timezone": "Timezone",
-      "preset": "Preset",
-      "agent": "Agent",
-      "noAgent": "None selected",
-      "taskPrompt": "Task prompt",
-      "runtimePolicy": "Runtime",
-      "followAgent": "Follow agent",
-      "pinCurrent": "Pin current config",
+      "name": "이름",
+      "cronExpr": "Cron 표현식",
+      "timezone": "시간대",
+      "preset": "프리셋",
+      "agent": "에이전트",
+      "noAgent": "선택 안 됨",
+      "taskPrompt": "작업 프롬프트",
+      "runtimePolicy": "런타임",
+      "followAgent": "에이전트 설정 따르기",
+      "pinCurrent": "현재 설정 고정",
       "delivery": "전달",
       "remoteDelivery": "Remote 전달",
       "remoteChannel": "Remote 채널",
@@ -1485,22 +1485,22 @@
       "deliveryFailed": "전달 실패"
     },
     "presets": {
-      "custom": "Custom",
-      "every5Minutes": "Every 5 minutes",
-      "hourly": "Hourly",
-      "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "custom": "사용자 지정",
+      "every5Minutes": "5분마다",
+      "hourly": "매시간",
+      "daily": "매일 오전 9시",
+      "weekdays": "평일 오전 9시"
     },
     "status": {
-      "state": "State",
-      "enabled": "Enabled jobs",
-      "heartbeat": "Heartbeat",
-      "stopped": "Stopped",
-      "starting": "Starting",
-      "running": "Running",
-      "idle": "Idle",
-      "error": "Error",
-      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+      "state": "상태",
+      "enabled": "활성화된 작업",
+      "heartbeat": "하트비트",
+      "stopped": "중지됨",
+      "starting": "시작 중",
+      "running": "실행 중",
+      "idle": "대기 중",
+      "error": "오류",
+      "invalidAgent": "에이전트가 없거나 비활성화되었습니다. 다른 에이전트를 선택하세요."
     },
     "runNowSuccess": "예약 작업이 시작되었습니다"
   },
