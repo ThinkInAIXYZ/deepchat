@@ -963,6 +963,53 @@ describe('ChatPage', () => {
     await flushPromises()
   })
 
+  it('hides the pending assistant row when a real assistant message materializes before streaming starts', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'assistant arrives first')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const pendingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(pendingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
+      true
+    )
+
+    const realAssistantMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'hello',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]),
+      id: 'm2',
+      orderSeq: 2
+    }
+    messageStore.messages.push(realAssistantMessage)
+    messageStore.messageIds.push(realAssistantMessage.id)
+    messageStore.messageCache.set(realAssistantMessage.id, realAssistantMessage)
+    await flushPromises()
+
+    const materializedMessages = messageList.props('messages') as Array<{
+      id: string
+      role: string
+    }>
+    expect(
+      materializedMessages.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(false)
+    expect(materializedMessages.some((message) => message.id === 'm2')).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
   it('shows a pending assistant row immediately after command submit before stream starts', async () => {
     const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
     const { wrapper, chatClient, messageStore } = await setup()
