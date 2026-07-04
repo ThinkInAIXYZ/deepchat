@@ -16,9 +16,9 @@
 
 ### T1. 修复 V1 — Settings 隐藏路由 E2E 导航
 
-- [ ] 步骤 1：确认 E2E 侧可导入 `src/shared/settingsNavigation.ts` 的现有导出（`getSettingsRouteItems`/`resolveSettingsNavigationPath`，L333-389），复用其 `path` 字段，无需新增 hidden 判定 API
-- [ ] 步骤 2：`test/e2e/helpers/settings.ts` 的 `openSettingsTab` 增加 hash 导航分支——对 hidden 路由用 `window.location.hash = '#<path>'` 导航（参考 spec L159 `#/dashboard` 先例），再等 `pageTestId` 可见，而非点击侧边栏 button
-- [ ] 步骤 3：验证 `04-settings-navigation` 全矩阵从失败变通过；补跑实际含 hidden 路由的 spec（13-mcp/11-remote/16-skills 等），实跑确认
+- [x] 步骤 1：确认 E2E 侧可导入 `src/shared/settingsNavigation.ts` 的现有导出（`getSettingsRouteItems`/`resolveSettingsNavigationPath`，L333-389），复用其 `path` 字段，无需新增 hidden 判定 API
+- [x] 步骤 2：`test/e2e/helpers/settings.ts` 的 `openSettingsTab` 增加 hash 导航分支——对 hidden 路由用 `window.location.hash = '#<path>'` 导航（参考 spec L159 `#/dashboard` 先例），再等 `pageTestId` 可见，而非点击侧边栏 button
+- [x] 步骤 3：验证 `04-settings-navigation` 全矩阵从失败变通过；补跑实际含 hidden 路由的 spec（13-mcp/11-remote/16-skills 等），实跑确认
 - 详细方案：[fix-V1](fix-V1-settings-hidden-route.md)
 
 ### T2. 修复 F15 — ChatStatusBar watcher 去 deep

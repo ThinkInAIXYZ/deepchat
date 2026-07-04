@@ -1,4 +1,9 @@
 import { expect, type Page } from '@playwright/test'
+import {
+  getSettingsRouteItems,
+  resolveSettingsNavigationPath,
+  type SettingsNavigationItem
+} from '../../../src/shared/settingsNavigation'
 import type { ElectronAppInstance } from '../fixtures/electronApp'
 
 const isSettingsWindow = async (page: Page): Promise<boolean> => {
@@ -49,7 +54,36 @@ export async function openSettings(app: ElectronAppInstance): Promise<Page> {
   throw new Error('Settings window did not open.')
 }
 
-export async function openSettingsTab(settingsPage: Page, tabTestId: string): Promise<void> {
+const getRouteTabTestId = (item: SettingsNavigationItem): string => {
+  const firstStaticPathSegment = item.path
+    .split('/')
+    .find((segment) => segment && !segment.startsWith(':'))
+  return `settings-tab-${firstStaticPathSegment ?? item.routeName.replace(/^settings-/, '')}`
+}
+
+export async function openSettingsTab(
+  settingsPage: Page,
+  tabTestId: string,
+  routeName?: SettingsNavigationItem['routeName']
+): Promise<void> {
+  const routeItems = getSettingsRouteItems(process.platform, process.arch)
+  const routeItem = routeName
+    ? routeItems.find((item) => item.routeName === routeName)
+    : routeItems.find((item) => item.hiddenInSidebar && getRouteTabTestId(item) === tabTestId)
+
+  if (routeItem?.hiddenInSidebar) {
+    const path = resolveSettingsNavigationPath(
+      routeItem.routeName,
+      undefined,
+      process.platform,
+      process.arch
+    )
+    await settingsPage.evaluate((hash) => {
+      window.location.hash = hash
+    }, `#${path}`)
+    return
+  }
+
   const tab = settingsPage.getByTestId(tabTestId)
   await expect(tab).toBeVisible({ timeout: 30_000 })
   await tab.click()
