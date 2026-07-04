@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import type { CronJobsSchedulerStatus } from '@shared/cronJobs'
+import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const cronJobsTableModule = sqliteModule
@@ -32,6 +32,7 @@ const schedulerUtilityHostModule = repositoryModule
   ? await import('@/presenter/cronJobs/schedulerUtilityHost').catch(() => null)
   : null
 const cronExpressionServiceModule = await import('@/presenter/cronJobs/cronExpressionService')
+const runExecutorModule = await import('@/presenter/cronJobs/runExecutor')
 const internalSessionEventsModule =
   await import('@/presenter/agentRuntimePresenter/internalSessionEvents')
 
@@ -54,6 +55,7 @@ const CronJobsServiceCtor = CronJobsService!
 const CronJobDeliveryRouterCtor = CronJobDeliveryRouter!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
 const CronJobsSchedulerUtilityHostCtor = CronJobsSchedulerUtilityHost!
+const CronJobRunExecutor = runExecutorModule.CronJobRunExecutor
 const emitDeepChatInternalSessionUpdate =
   internalSessionEventsModule.emitDeepChatInternalSessionUpdate
 
@@ -173,6 +175,112 @@ describe('CronExpressionService', () => {
       nextRunAt: Date.parse('2026-07-04T09:00:00.000Z'),
       error: null
     })
+  })
+})
+
+describe('CronJobRunExecutor', () => {
+  it('does not deliver concurrency skip cancellations', async () => {
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job: CronJob = {
+      id: 'job-1',
+      name: 'Overlap skip',
+      description: null,
+      enabled: true,
+      status: 'ready',
+      cronExpr: '* * * * *',
+      timezone: 'UTC',
+      agentId: 'agent-1',
+      nextRunAt: now,
+      misfirePolicy: 'skip',
+      maxCatchUpRuns: null,
+      scheduleError: null,
+      taskPrompt: 'Summarize issues',
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      runtime: {
+        maxDurationMs: 3_600_000,
+        maxTurns: 20,
+        maxToolCalls: 100,
+        concurrencyPolicy: 'skip'
+      },
+      agentSnapshot: null,
+      delivery: {
+        targets: [
+          {
+            type: 'remote',
+            remoteId: 'feishu',
+            channelId: 'feishu:alerts:root',
+            mode: 'summary'
+          }
+        ],
+        createContinuableThread: true,
+        suppressSuccessNotification: false,
+        notifyOnFailure: true
+      },
+      createdAt: now,
+      updatedAt: now
+    }
+    const queuedRun: CronJobRun = {
+      id: 'run-1',
+      jobId: job.id,
+      sessionId: null,
+      parentContinuationSessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: null,
+      completedAt: null,
+      status: 'queued',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: null,
+      claimOwner: null,
+      createdAt: now,
+      updatedAt: now
+    }
+    const cancelledRun: CronJobRun = {
+      ...queuedRun,
+      status: 'cancelled',
+      error: 'Another cron job run is already active.',
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      updatedAt: now
+    }
+    const repository = {
+      claimRun: vi.fn(() => queuedRun),
+      getRun: vi.fn(() => queuedRun),
+      countActiveRunsByJob: vi.fn(() => 1),
+      releaseRunQueued: vi.fn(),
+      markRunCancelled: vi.fn(() => cancelledRun)
+    }
+    const sessionStarter = {
+      createSessionForRun: vi.fn(),
+      startSessionRun: vi.fn()
+    }
+    const deliveryRouter = {
+      deliver: vi.fn(async () => [])
+    }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never
+    )
+
+    try {
+      await expect(executor.execute({ runId: queuedRun.id, job })).resolves.toEqual(cancelledRun)
+      expect(repository.markRunCancelled).toHaveBeenCalledWith(
+        queuedRun.id,
+        'Another cron job run is already active.'
+      )
+      expect(sessionStarter.createSessionForRun).not.toHaveBeenCalled()
+      expect(deliveryRouter.deliver).not.toHaveBeenCalled()
+    } finally {
+      executor.dispose()
+    }
   })
 })
 

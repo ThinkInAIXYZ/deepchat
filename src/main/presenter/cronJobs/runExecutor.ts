@@ -54,7 +54,6 @@ export class CronJobRunExecutor {
         run.id,
         'Another cron job run is already active.'
       )
-      await this.deliverRun(input.job, cancelled)
       return cancelled
     }
 
