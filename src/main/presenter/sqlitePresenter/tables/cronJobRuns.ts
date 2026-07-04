@@ -7,7 +7,6 @@ export interface CronJobRunRow {
   id: string
   job_id: string
   session_id: string | null
-  parent_continuation_session_id: string | null
   scheduled_at: number
   queued_at: number
   started_at: number | null
@@ -53,7 +52,6 @@ export class CronJobRunsTable extends BaseTable {
         id TEXT PRIMARY KEY,
         job_id TEXT NOT NULL,
         session_id TEXT,
-        parent_continuation_session_id TEXT,
         scheduled_at INTEGER NOT NULL,
         queued_at INTEGER NOT NULL,
         started_at INTEGER,
@@ -74,7 +72,6 @@ export class CronJobRunsTable extends BaseTable {
 
   override createTable(): void {
     super.createTable()
-    this.ensurePhase4Columns()
     this.db.exec(CRON_JOB_RUNS_INDEX_SQL)
   }
 
@@ -84,27 +81,6 @@ export class CronJobRunsTable extends BaseTable {
 
   getLatestVersion(): number {
     return 0
-  }
-
-  private ensurePhase4Columns(): void {
-    if (!this.hasColumn('session_id')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN session_id TEXT')
-    }
-    if (!this.hasColumn('parent_continuation_session_id')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN parent_continuation_session_id TEXT')
-    }
-    if (!this.hasColumn('output_message_id')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN output_message_id TEXT')
-    }
-    if (!this.hasColumn('output_preview')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN output_preview TEXT')
-    }
-    if (!this.hasColumn('claimed_at')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN claimed_at INTEGER')
-    }
-    if (!this.hasColumn('claim_owner')) {
-      this.db.exec('ALTER TABLE cron_job_runs ADD COLUMN claim_owner TEXT')
-    }
   }
 
   get(id: string): CronJobRunRow | undefined {
@@ -124,7 +100,6 @@ export class CronJobRunsTable extends BaseTable {
            id,
            job_id,
            session_id,
-           parent_continuation_session_id,
            scheduled_at,
            queued_at,
            started_at,
@@ -139,7 +114,7 @@ export class CronJobRunsTable extends BaseTable {
            created_at,
            updated_at
          )
-         VALUES (?, ?, NULL, NULL, ?, ?, NULL, NULL, 'queued', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
+         VALUES (?, ?, NULL, ?, ?, NULL, NULL, 'queued', ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
       )
       .run(id, input.jobId, input.scheduledAt, queuedAt, input.reason, now, now)
 

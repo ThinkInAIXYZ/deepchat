@@ -203,7 +203,6 @@ describe('CronJobRunExecutor', () => {
       runtime: {
         maxDurationMs: 3_600_000,
         maxTurns: 20,
-        maxToolCalls: 100,
         concurrencyPolicy: 'skip'
       },
       agentSnapshot: null,
@@ -216,7 +215,6 @@ describe('CronJobRunExecutor', () => {
             mode: 'summary'
           }
         ],
-        createContinuableThread: true,
         suppressSuccessNotification: false,
         notifyOnFailure: true
       },
@@ -227,7 +225,6 @@ describe('CronJobRunExecutor', () => {
       id: 'run-1',
       jobId: job.id,
       sessionId: null,
-      parentContinuationSessionId: null,
       scheduledAt: now,
       queuedAt: now,
       startedAt: null,
@@ -307,13 +304,11 @@ describe('CronJobRunExecutor', () => {
       runtime: {
         maxDurationMs: 3_600_000,
         maxTurns: 20,
-        maxToolCalls: 100,
         concurrencyPolicy: 'skip'
       },
       agentSnapshot: null,
       delivery: {
         targets: [],
-        createContinuableThread: true,
         suppressSuccessNotification: false,
         notifyOnFailure: true
       },
@@ -324,7 +319,6 @@ describe('CronJobRunExecutor', () => {
       id: 'run-1',
       jobId: job.id,
       sessionId: null,
-      parentContinuationSessionId: null,
       scheduledAt: now,
       queuedAt: now,
       startedAt: now,
@@ -395,6 +389,113 @@ describe('CronJobRunExecutor', () => {
       })
     } finally {
       executor.dispose()
+    }
+  })
+
+  it('fails and cancels runs that exceed max duration', async () => {
+    vi.useFakeTimers()
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job: CronJob = {
+      id: 'job-1',
+      name: 'Timeout job',
+      description: null,
+      enabled: true,
+      status: 'ready',
+      cronExpr: '* * * * *',
+      timezone: 'UTC',
+      agentId: 'agent-1',
+      nextRunAt: now,
+      misfirePolicy: 'skip',
+      maxCatchUpRuns: null,
+      scheduleError: null,
+      taskPrompt: 'Summarize issues',
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      runtime: {
+        maxDurationMs: 10,
+        maxTurns: 20,
+        concurrencyPolicy: 'skip'
+      },
+      agentSnapshot: null,
+      delivery: {
+        targets: [],
+        suppressSuccessNotification: false,
+        notifyOnFailure: true
+      },
+      createdAt: now,
+      updatedAt: now
+    }
+    const runningRun: CronJobRun = {
+      id: 'run-1',
+      jobId: job.id,
+      sessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    let storedRun = runningRun
+    const repository = {
+      claimRun: vi.fn(() => runningRun),
+      getRun: vi.fn(() => storedRun),
+      countActiveRunsByJob: vi.fn(() => 0),
+      updateRunSession: vi.fn((id: string, sessionId: string) => {
+        storedRun = { ...storedRun, id, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn(),
+      markRunFailed: vi.fn((id: string, error: string) => {
+        storedRun = { ...storedRun, id, status: 'failed', error }
+        return storedRun
+      })
+    }
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({ sessionId: 'session-1' })),
+      startSessionRun: vi.fn(async () => ({})),
+      cancelSessionRun: vi.fn(async () => undefined)
+    }
+    const deliveryRouter = {
+      deliver: vi.fn(async () => [])
+    }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never
+    )
+
+    try {
+      await executor.execute({ runId: runningRun.id, job })
+      await vi.advanceTimersByTimeAsync(10)
+
+      expect(repository.markRunFailed).toHaveBeenCalledWith(
+        runningRun.id,
+        'Cron job exceeded max duration (10 ms).'
+      )
+      expect(sessionStarter.cancelSessionRun).toHaveBeenCalledWith({
+        job,
+        run: expect.objectContaining({ id: runningRun.id }),
+        sessionId: 'session-1',
+        reason: 'Cron job exceeded max duration (10 ms).'
+      })
+      expect(deliveryRouter.deliver).toHaveBeenCalledWith({
+        job,
+        run: expect.objectContaining({ id: runningRun.id, status: 'failed' })
+      })
+    } finally {
+      executor.dispose()
+      vi.useRealTimers()
     }
   })
 })
@@ -498,7 +599,6 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       expect(run).toEqual(
         expect.objectContaining({
           sessionId: null,
-          parentContinuationSessionId: null,
           outputMessageId: null,
           outputPreview: null,
           claimedAt: null,
@@ -676,7 +776,6 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
               mode: 'summary'
             }
           ],
-          createContinuableThread: true,
           suppressSuccessNotification: false,
           notifyOnFailure: true
         }
@@ -912,7 +1011,6 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
               mode: 'summary'
             }
           ],
-          createContinuableThread: true,
           suppressSuccessNotification: false,
           notifyOnFailure: true
         }
@@ -976,7 +1074,6 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
               mode: 'summary'
             }
           ],
-          createContinuableThread: true,
           suppressSuccessNotification: false,
           notifyOnFailure: true
         }

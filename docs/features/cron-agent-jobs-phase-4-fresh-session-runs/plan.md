@@ -29,7 +29,6 @@ Extend `cron_job_runs`:
 ALTER TABLE cron_job_runs ADD COLUMN session_id TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN output_message_id TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN output_preview TEXT;
-ALTER TABLE cron_job_runs ADD COLUMN parent_continuation_session_id TEXT;
 ALTER TABLE cron_job_runs ADD COLUMN claimed_at INTEGER;
 ALTER TABLE cron_job_runs ADD COLUMN claim_owner TEXT;
 ```
@@ -64,10 +63,6 @@ Add:
 
 - `cronJobs.listRuns`
 - `cronJobs.getRun`
-- `cronJobs.openRunSession`
-- `cronJobs.continueRun`
-
-`continueRun` activates the existing session and should not create a new one.
 
 ## UI Plan
 
@@ -82,33 +77,19 @@ Add run history and run detail:
 +---------------------------------------------------------+
 ```
 
-Detail view:
-
-```text
-+---------------------------------------------------------+
-| Cron Run                                                |
-| Job: Daily Issue Triage                                 |
-| Status: completed | Duration: 2m 14s                      |
-| Session: Open                                           |
-|                                                         |
-| Output                                                  |
-| 3 issues need attention...                              |
-|                                                         |
-| [Continue Session] [Run Again]                          |
-+---------------------------------------------------------+
-```
+Run history stays compact in the job editor and shows a timestamp plus status only.
 
 ## Compatibility
 
-- Legacy auto-send scheduled tasks still use their old session creator until explicitly migrated.
+- Legacy auto-send scheduled tasks are removed; Cron Jobs is the only scheduler.
 - Cron Job sessions are regular sessions with metadata, not subagent sessions.
 
 ## Test Strategy
 
-- Executor tests for queued claim, duplicate run protection, completed, failure, and permission wait.
+- Executor tests for queued claim, duplicate run protection, completed, failed, and timeout cases.
 - Integration-style tests with a mocked agent session presenter port.
 - Repository tests for run history pagination and metadata persistence.
-- Renderer tests for history list and run detail actions.
+- Renderer tests for compact history list only when behavior changes.
 
 ## Validation Commands
 

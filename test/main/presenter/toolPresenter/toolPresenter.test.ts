@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
-import { TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/presenter/toolPresenter/agentTools'
+import {
+  CronJobToolHandler,
+  TAPE_TOOL_NAMES,
+  UPDATE_PLAN_TOOL_NAME
+} from '@/presenter/toolPresenter/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 vi.mock('electron', () => ({
   app: {
@@ -63,6 +68,66 @@ const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
     consumeSettingsApproval: vi.fn().mockReturnValue(false),
     ...overrides
   }) as any
+
+const cronJobFixture = {
+  id: 'job-1',
+  name: 'Daily summary',
+  description: null,
+  enabled: true,
+  status: 'ready',
+  cronExpr: '0 9 * * *',
+  timezone: 'UTC',
+  agentId: 'deepchat',
+  nextRunAt: 10,
+  misfirePolicy: 'skip',
+  maxCatchUpRuns: null,
+  scheduleError: null,
+  taskPrompt: 'P'.repeat(800),
+  taskSystemInstruction: 'S'.repeat(800),
+  taskOutputMode: 'final_message',
+  modelPolicy: 'follow_agent',
+  toolPolicy: 'follow_agent',
+  permissionPolicy: 'follow_agent',
+  runtime: {
+    maxDurationMs: 3_600_000,
+    maxTurns: 20,
+    concurrencyPolicy: 'skip'
+  },
+  agentSnapshot: null,
+  delivery: {
+    targets: [
+      {
+        type: 'remote',
+        remoteId: 'feishu',
+        channelId: 'channel-1',
+        mode: 'summary'
+      }
+    ],
+    suppressSuccessNotification: false,
+    notifyOnFailure: true
+  },
+  createdAt: 1,
+  updatedAt: 2
+} as any
+
+const cronJobRunFixture = {
+  id: 'run-1',
+  jobId: 'job-1',
+  sessionId: 'session-1',
+  scheduledAt: 10,
+  queuedAt: 10,
+  startedAt: 11,
+  completedAt: 12,
+  status: 'completed',
+  reason: 'manual',
+  outputMessageId: 'message-1',
+  outputPreview: 'Done',
+  error: null,
+  claimedAt: 10,
+  claimOwner: 'owner',
+  createdAt: 10,
+  updatedAt: 12
+} as any
 
 describe('ToolPresenter', () => {
   it('reserves image_generate for the built-in agent tool when MCP exposes the same name', async () => {
@@ -200,7 +265,10 @@ describe('ToolPresenter', () => {
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
     }
-    const runtimePort = buildAgentToolRuntimeMock()
+    const runtimePort = buildAgentToolRuntimeMock({
+      listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
+      previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null })
+    })
 
     const toolPresenter = new ToolPresenter({
       mcpPresenter,
@@ -298,6 +366,184 @@ describe('ToolPresenter', () => {
     expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
+  })
+
+  it('exposes cronjob only when runtime ports are available and the tool is enabled', async () => {
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      } as any,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock({
+        listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
+        previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null })
+      })
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      disabledAgentTools: [],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\workspace'
+    })
+
+    expect(defs.some((tool) => tool.function.name === CRON_JOB_AGENT_TOOL_NAME)).toBe(true)
+
+    const disabledCronJobDefs = await toolPresenter.getAllToolDefinitions({
+      disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\workspace'
+    })
+
+    expect(
+      disabledCronJobDefs.some((tool) => tool.function.name === CRON_JOB_AGENT_TOOL_NAME)
+    ).toBe(false)
+  })
+
+  it('routes every cronjob action through runtime ports', async () => {
+    const runtimePort = buildAgentToolRuntimeMock({
+      listCronJobs: vi.fn().mockResolvedValue({
+        jobs: [cronJobFixture],
+        schedulerStatus: { state: 'idle' }
+      }),
+      previewCronSchedule: vi.fn().mockResolvedValue({ runs: [10, 20], error: null }),
+      listCronJobRuns: vi.fn().mockResolvedValue([cronJobRunFixture]),
+      upsertCronJob: vi.fn().mockResolvedValue(cronJobFixture),
+      toggleCronJob: vi.fn().mockResolvedValue(cronJobFixture),
+      runCronJobNow: vi.fn().mockResolvedValue(cronJobRunFixture),
+      deleteCronJob: vi.fn().mockResolvedValue(undefined)
+    })
+    const handler = new CronJobToolHandler(runtimePort)
+
+    const listResult = await handler.call({ action: 'list' })
+    expect(listResult).toMatchObject({
+      rawData: { isError: false }
+    })
+    expect(listResult.content).toContain('taskPromptPreview')
+    expect(listResult.content).toContain('targetCount')
+    expect(listResult.content).not.toContain('P'.repeat(800))
+    expect(listResult.content).not.toContain('channel-1')
+    await expect(handler.call({ action: 'show', jobId: 'job-1' })).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(
+      handler.call({
+        action: 'preview_schedule',
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        count: 2
+      })
+    ).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(
+      handler.call({ action: 'history', jobId: 'job-1', limit: 2 })
+    ).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(
+      handler.call({
+        action: 'create',
+        job: {
+          name: 'New task',
+          agentId: 'deepchat',
+          taskPrompt: 'Run report',
+          delivery: {
+            targets: [
+              {
+                type: 'remote',
+                remoteId: 'feishu',
+                channelId: 'channel-1'
+              }
+            ]
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(
+      handler.call({ action: 'update', jobId: 'job-1', patch: { name: 'Updated task' } })
+    ).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(handler.call({ action: 'pause', jobId: 'job-1' })).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(handler.call({ action: 'resume', jobId: 'job-1' })).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(handler.call({ action: 'run_now', jobId: 'job-1' })).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(handler.call({ action: 'delete', jobId: 'job-1' })).resolves.toMatchObject({
+      rawData: { isError: false }
+    })
+    await expect(handler.call({ action: 'create' })).rejects.toThrow('job is required for create.')
+
+    expect(runtimePort.previewCronSchedule).toHaveBeenCalledWith({
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC',
+      count: 2
+    })
+    expect(runtimePort.listCronJobRuns).toHaveBeenCalledWith('job-1', 2)
+    expect(runtimePort.upsertCronJob).toHaveBeenCalledTimes(2)
+    expect(runtimePort.toggleCronJob).toHaveBeenNthCalledWith(1, 'job-1', false)
+    expect(runtimePort.toggleCronJob).toHaveBeenNthCalledWith(2, 'job-1', true)
+    expect(runtimePort.runCronJobNow).toHaveBeenCalledWith('job-1')
+    expect(runtimePort.deleteCronJob).toHaveBeenCalledWith('job-1')
+  })
+
+  it('requires approval for cronjob write actions', async () => {
+    const upsertCronJob = vi.fn()
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        callTool: vi.fn()
+      } as any,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock({
+        listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
+        previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null }),
+        upsertCronJob
+      })
+    })
+
+    await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\workspace',
+      conversationId: 'conv-1'
+    })
+
+    await expect(
+      toolPresenter.preCheckToolPermission({
+        id: 'tool-1',
+        type: 'function',
+        function: {
+          name: CRON_JOB_AGENT_TOOL_NAME,
+          arguments: '{"action":"run_now","jobId":"job-1"}'
+        },
+        conversationId: 'conv-1'
+      })
+    ).resolves.toMatchObject({
+      needsPermission: true,
+      toolName: CRON_JOB_AGENT_TOOL_NAME,
+      serverName: 'scheduled',
+      permissionType: 'write'
+    })
+    expect(upsertCronJob).not.toHaveBeenCalled()
   })
 
   it('passes DeepChat agent MCP policy context to MCP presenter', async () => {

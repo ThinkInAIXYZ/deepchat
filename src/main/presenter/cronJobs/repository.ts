@@ -247,7 +247,6 @@ function parseRuntime(value: string | null | undefined): CronJobRuntimeSettings 
     return {
       maxDurationMs: parsed.maxDurationMs ?? CRON_JOBS_DEFAULT_RUNTIME.maxDurationMs,
       maxTurns: parsed.maxTurns ?? CRON_JOBS_DEFAULT_RUNTIME.maxTurns,
-      maxToolCalls: parsed.maxToolCalls ?? CRON_JOBS_DEFAULT_RUNTIME.maxToolCalls,
       concurrencyPolicy: parsed.concurrencyPolicy ?? CRON_JOBS_DEFAULT_RUNTIME.concurrencyPolicy
     }
   } catch {
@@ -282,8 +281,6 @@ function parseDelivery(value: string | null | undefined): CronJobDelivery {
                 (target as { mode?: unknown }).mode === 'full')
           )
         : [...CRON_JOBS_DEFAULT_DELIVERY.targets],
-      createContinuableThread:
-        parsed.createContinuableThread ?? CRON_JOBS_DEFAULT_DELIVERY.createContinuableThread,
       suppressSuccessNotification:
         parsed.suppressSuccessNotification ??
         CRON_JOBS_DEFAULT_DELIVERY.suppressSuccessNotification,
@@ -299,7 +296,6 @@ export function toCronJobRun(row: CronJobRunRow): CronJobRun {
     id: row.id,
     jobId: row.job_id,
     sessionId: row.session_id ?? null,
-    parentContinuationSessionId: row.parent_continuation_session_id ?? null,
     scheduledAt: row.scheduled_at,
     queuedAt: row.queued_at,
     startedAt: row.started_at,

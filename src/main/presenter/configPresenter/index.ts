@@ -27,6 +27,7 @@ import type {
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
   ModelType,
   isNewApiEndpointType,
@@ -105,11 +106,6 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
-import { normalizeScheduledTasksConfig } from '../scheduledTasks/normalize'
-import {
-  createDefaultScheduledTasksSettings,
-  type ScheduledTasksSettings
-} from '@shared/scheduledTasks'
 import {
   AcpDbStore,
   AppSettingsDbBackedStore,
@@ -152,7 +148,6 @@ interface IAppSettings {
   enableSkills?: boolean // Skills system global toggle
   skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
-  scheduledTasks?: ScheduledTasksSettings // User-defined scheduled tasks
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
@@ -215,6 +210,13 @@ const hasMemoryMaintenanceTriggerConfigUpdate = (
     Object.prototype.hasOwnProperty.call(updates, key)
   )
 }
+
+const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentConfig => ({
+  ...config,
+  disabledAgentTools: Array.isArray(config.disabledAgentTools)
+    ? [...config.disabledAgentTools]
+    : [...DEFAULT_DISABLED_AGENT_TOOLS]
+})
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
   Object.prototype.hasOwnProperty.call(provider, 'authMode') || provider.oauthToken !== undefined
@@ -474,8 +476,7 @@ export class ConfigPresenter implements IConfigPresenter {
         skillDraftSuggestionsEnabled: false,
         // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
         appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig(),
-        scheduledTasks: createDefaultScheduledTasksSettings()
+        hooksNotifications: createDefaultHooksNotificationsConfig()
       }
     })
 
@@ -946,7 +947,7 @@ export class ConfigPresenter implements IConfigPresenter {
           : null,
       systemPrompt: (this.store.get('default_system_prompt') as string | undefined) ?? '',
       permissionMode: 'full_access',
-      disabledAgentTools: [],
+      disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
       autoCompactionEnabled:
         typeof autoCompactionEnabled === 'boolean' ? autoCompactionEnabled : true,
       autoCompactionTriggerThreshold:
@@ -976,7 +977,9 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private getBuiltinDeepChatConfig(): DeepChatAgentConfig {
-    return this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    return withDeepChatAgentDefaults(
+      this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    )
   }
 
   private updateBuiltinDeepChatConfig(updates: Partial<DeepChatAgentConfig>): void {
@@ -2686,12 +2689,15 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null> {
-    return this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    const config = this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    return config ? withDeepChatAgentDefaults(config) : null
   }
 
   async resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig> {
-    return this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
-      agentId || BUILTIN_DEEPCHAT_AGENT_ID
+    return withDeepChatAgentDefaults(
+      this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
+        agentId || BUILTIN_DEEPCHAT_AGENT_ID
+      )
     )
   }
 
@@ -3423,21 +3429,6 @@ export class ConfigPresenter implements IConfigPresenter {
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
     this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
-    return normalized
-  }
-
-  getScheduledTasksConfig(): ScheduledTasksSettings {
-    const raw = this.store.get('scheduledTasks')
-    const normalized = normalizeScheduledTasksConfig(raw)
-    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      this.store.set('scheduledTasks', normalized)
-    }
-    return normalized
-  }
-
-  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings {
-    const normalized = normalizeScheduledTasksConfig(config)
-    this.store.set('scheduledTasks', normalized)
     return normalized
   }
 

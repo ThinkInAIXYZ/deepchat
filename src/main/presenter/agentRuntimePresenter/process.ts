@@ -329,6 +329,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = [...tools]
   let toolCallCount = 0
+  let providerRoundCount = 0
+  const maxProviderRounds =
+    Number.isInteger(params.maxProviderRounds) && params.maxProviderRounds! > 0
+      ? params.maxProviderRounds!
+      : Number.POSITIVE_INFINITY
   let firstProviderRoundReady = false
 
   logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
@@ -336,6 +341,20 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
   try {
     while (true) {
+      providerRoundCount += 1
+      if (providerRoundCount > maxProviderRounds) {
+        const errorMessage = `Maximum agent turns exceeded (${maxProviderRounds}).`
+        logger.info(`[ProcessStream] ${errorMessage}`)
+        finalizeError(state, io, errorMessage)
+        return {
+          status: 'error' as const,
+          terminalError: errorMessage,
+          stopReason: 'max_turns',
+          errorMessage,
+          usage: buildUsageSnapshot(state)
+        }
+      }
+
       const prevBlockCount = state.blocks.length
 
       const stream = coreStream(

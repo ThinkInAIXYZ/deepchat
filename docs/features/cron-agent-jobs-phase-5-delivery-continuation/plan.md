@@ -53,25 +53,11 @@ Add a narrow remote presenter port:
 ```ts
 type CronJobRemoteDeliveryPort = {
   deliverCronJobResult(input: RemoteCronJobDeliveryInput): Promise<RemoteCronJobDeliveryReceipt>
-  resolveCronJobContinuation(input: RemoteInboundMessage): Promise<CronJobContinuationTarget | null>
 }
 ```
 
-Remote channels decide whether their message model supports thread continuation. Cron Jobs only
-stores receipts and continuation target mapping.
-
-## Continuation Flow
-
-```text
-remote message
-  -> inbound reply/action
-  -> RemoteControlPresenter resolves remote_message_id
-  -> cron_job_deliveries -> run_id -> session_id
-  -> ChatService.sendMessage(sessionId, reply)
-  -> response delivered to same remote thread
-```
-
-DeepChat UI continuation simply activates the stored session.
+Remote delivery is notification-only. Cron Jobs stores receipts but does not create a Remote
+conversation binding and does not continue sessions from inbound replies.
 
 ## UI Plan
 
@@ -90,14 +76,12 @@ binding.
 
 ## Compatibility
 
-- Jobs without `delivery_json` default to no delivery.
 - Existing remote bindings are reused, not migrated.
+- No legacy scheduled-task delivery compatibility is kept.
 
 ## Test Strategy
 
 - Router tests for success, failure, partial failure, and multiple targets.
-- Remote port tests for mapping delivered message to run/session.
-- Authorization tests proving unauthorized remote replies do not continue sessions.
 - Renderer tests for delivery config and receipt display.
 
 ## Validation Commands

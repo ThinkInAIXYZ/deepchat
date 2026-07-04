@@ -47,7 +47,7 @@ flowchart LR
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、model/runtime 管理、ACP helper、AI SDK runtime |
 | `StartupWorkloadCoordinator` | `src/main/presenter/startupWorkloadCoordinator/` | startup/settings/floating 等目标的分阶段后台任务调度 |
 | `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink 远程控制 |
-| `ScheduledTasksService` | `src/main/presenter/scheduledTasks/` | 一次性、每日、每周任务调度和 prompt/notify action dispatch |
+| `CronJobsService` | `src/main/presenter/cronJobs/` | 定时任务持久化、cron 调度、Agent run 执行和 Remote 投递 |
 | `DatabaseSecurityPresenter` | `src/main/presenter/databaseSecurityPresenter/` | SQLCipher 启用、改密、关闭、safeStorage/manual unlock |
 | Spotlight search | `src/renderer/src/stores/ui/spotlight.ts` | 全局搜索、会话/消息跳转、设置导航和非破坏性 action |
 

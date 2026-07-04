@@ -2,26 +2,26 @@
 
 ## Tool Schema
 
-- [ ] Define zod schemas for all `cronjob` actions.
-- [ ] Define stable structured result types.
-- [ ] Add parser-backed validation for schedule preview inputs.
+- [x] Define zod schemas for all `cronjob` actions.
+- [x] Define stable structured result types.
+- [x] Add parser-backed validation for schedule preview inputs.
 
 ## Tool Handler
 
-- [ ] Implement read actions: list, show, history, and preview schedule.
-- [ ] Implement confirmation card creation for create, update, delete, pause, resume, and run now.
-- [ ] Implement confirmed write execution through Cron Jobs service methods.
-- [ ] Redact long prompt and delivery details in model-facing summaries.
+- [x] Implement read actions: list, show, history, and preview schedule.
+- [x] Use existing tool permission precheck for create, update, delete, pause, resume, and run now.
+- [x] Implement approved write execution through Cron Jobs service methods.
+- [x] Redact long prompt and delivery details in model-facing summaries.
 
 ## Registry And UI
 
-- [ ] Register `cronjob` in `AgentToolManager`.
-- [ ] Add confirmation card renderer and i18n strings.
-- [ ] Ensure the tool can be disabled through existing local tool controls.
+- [x] Register `cronjob` in `AgentToolManager`.
+- [x] Reuse existing permission UI instead of adding a cronjob-specific confirmation renderer.
+- [x] Ensure the tool is disabled by default and can be enabled through existing local tool controls.
 
 ## Tests And Validation
 
-- [ ] Cover every action.
-- [ ] Prove write previews do not mutate state before confirmation.
-- [ ] Cover denied confirmation and invalid payload errors.
-- [ ] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.
+- [x] Cover every action.
+- [x] Prove write permission precheck does not mutate state before approval.
+- [x] Cover write permission precheck and invalid payload errors.
+- [x] Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint`.

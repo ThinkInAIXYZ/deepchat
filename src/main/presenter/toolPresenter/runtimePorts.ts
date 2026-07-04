@@ -23,6 +23,16 @@ import type { ISkillPresenter } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { DeepChatInternalSessionUpdate } from '../agentRuntimePresenter/internalSessionEvents'
 import type { MemoryWriteOutcome } from '../memoryPresenter/types'
+import type {
+  CronJob,
+  CronJobRun,
+  CronJobsSchedulerStatus,
+  CronSchedulePreview
+} from '@shared/cronJobs'
+import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
+import type { z } from 'zod'
+
+export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
 export interface ConversationSessionInfo {
   sessionId: string
@@ -101,6 +111,17 @@ export interface AgentToolRuntimePort {
     query: string
   ): Promise<Array<{ id: string; kind: string; content: string }>>
   forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
+  listCronJobs?(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
+  upsertCronJob?(input: AgentToolCronJobUpsertInput): Promise<CronJob>
+  deleteCronJob?(id: string): Promise<void>
+  toggleCronJob?(id: string, enabled: boolean): Promise<CronJob>
+  runCronJobNow?(id: string): Promise<CronJobRun>
+  listCronJobRuns?(jobId: string, limit?: number): Promise<CronJobRun[]>
+  previewCronSchedule?(input: {
+    cronExpr: string
+    timezone: string
+    count?: number
+  }): Promise<CronSchedulePreview>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
   mergeSubagentTape?(
     parentSessionId: string,

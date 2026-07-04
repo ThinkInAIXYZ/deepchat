@@ -74,9 +74,8 @@ cron syntax; rely on compact labels, preview, and error messages.
 
 ## Compatibility
 
-- Legacy `ScheduledTasksService` remains unchanged.
 - New Cron Jobs never stores `kind: 'daily'` or `kind: 'weekly'`.
-- If legacy migration is attempted later, map old triggers into cron expressions at migration time.
+- No legacy scheduled-task compatibility remains.
 
 ## Test Strategy
 

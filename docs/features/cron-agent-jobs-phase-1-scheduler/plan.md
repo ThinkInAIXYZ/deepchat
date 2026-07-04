@@ -17,7 +17,7 @@ Add new code under these ownership boundaries:
 - `src/renderer/settings/components/CronJobsSettings.vue` for the status-first UI.
 - `test/main/presenter/cronJobs/` and `test/renderer/api/clients.test.ts` coverage.
 
-Keep existing `src/main/presenter/scheduledTasks/` unchanged except for future migration notes.
+Do not keep a second scheduler implementation after Cron Jobs is route-backed.
 
 ## Data Model
 
@@ -140,9 +140,8 @@ date-time editing or a clear-next-run action in Phase 1.
 
 ## Compatibility
 
-- Existing `scheduledTasks.*` routes keep working.
-- New routes use `cronJobs.*`; do not overload `scheduledTasks.*`.
-- No automatic migration in phase 1.
+- New routes use `cronJobs.*`.
+- No automatic migration from legacy scheduled tasks.
 - Documentation and UI copy must avoid promising agent execution until phase 4.
 
 ## Test Strategy

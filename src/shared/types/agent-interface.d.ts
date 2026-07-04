@@ -167,6 +167,7 @@ export interface IAgentImplementation {
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
+      maxProviderRounds?: number
     }
   ): Promise<MessageStartResult>
 

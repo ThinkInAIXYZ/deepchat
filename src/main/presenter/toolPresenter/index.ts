@@ -10,12 +10,14 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/lib/agentRuntime/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
   AGENT_TAPE_TOOL_SERVER_NAME,
   TAPE_TOOL_NAMES,
+  CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
 import type { AgentToolRuntimePort } from './runtimePorts'
@@ -107,6 +109,7 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
+  CRON_JOB_AGENT_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 
@@ -553,6 +556,7 @@ export class ToolPresenter implements IToolPresenter {
       this.buildImageGenerationPrompt(toolNames),
       this.buildProgressPrompt(toolNames),
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
+      this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
       this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
@@ -780,6 +784,18 @@ export class ToolPresenter implements IToolPresenter {
     }
 
     return lines.join('\n')
+  }
+
+  private buildCronJobPrompt(tools: MCPToolDefinition[]): string {
+    if (tools.length === 0) {
+      return ''
+    }
+
+    return [
+      '## Scheduled Task Tool',
+      `Use \`${CRON_JOB_AGENT_TOOL_NAME}\` only when the user explicitly asks to create, inspect, run, pause, resume, update, delete, or preview Scheduled tasks.`,
+      'Scheduled task deliveries are notification-only and do not continue normal Remote conversations.'
+    ].join('\n')
   }
 
   private buildSettingsPrompt(tools: MCPToolDefinition[]): string {

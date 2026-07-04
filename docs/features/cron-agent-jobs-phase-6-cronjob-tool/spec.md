@@ -13,6 +13,7 @@ Add one local agent tool named `cronjob` that manages the Cron Jobs module:
 - Write actions return confirmation cards before applying changes.
 - The tool calls the same Cron Jobs service routes used by the UI.
 - Tool results are structured and safe for model consumption.
+- The tool is visible in the tool list but disabled by default for every new DeepChat agent/session.
 
 ## Tool Input
 
@@ -71,6 +72,7 @@ type CronJobToolResult = {
 - The tool never exposes utility-process pid, DB paths, scheduler protocol, or low-level locks.
 - Tool schemas reject unknown actions and invalid payloads.
 - Tool tests cover every action.
+- Users must explicitly enable `cronjob` before agents can call it.
 
 ## Confirmation Card Shape
 
@@ -80,7 +82,7 @@ type CronJobToolResult = {
 | Name: Daily DeepChat Issue Triage                       |
 | Schedule: 0 0 9 * * * | Asia/Tokyo                      |
 | Agent: Issue Triage Agent                               |
-| Delivery: DeepChat Inbox + Feishu                       |
+| Delivery: Remote channel                                |
 | Next runs:                                              |
 | - 2026-07-03 09:00                                      |
 | - 2026-07-04 09:00                                      |
@@ -96,6 +98,7 @@ type CronJobToolResult = {
 - No direct utility-process controls.
 - No write action without confirmation.
 - No remote delivery implementation; phase 5 owns delivery.
+- No automatic enablement for existing or new agents.
 
 ## Constraints
 

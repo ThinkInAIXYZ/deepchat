@@ -1,6 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
-  cronJobsContinueRunRoute,
   cronJobRunSchema,
   cronJobSchema,
   cronJobsDeleteRoute,
@@ -9,11 +8,9 @@ import {
   cronJobsListDeliveriesRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
-  cronJobsOpenRunSessionRoute,
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
-  cronJobsRunAgainRoute,
   cronJobsRunNowRoute,
   cronJobsSchedulerStatusSchema,
   cronJobsToggleRoute,
@@ -138,27 +135,6 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     ).deliveries
   }
 
-  async function openRunSession(runId: string) {
-    return cronJobsOpenRunSessionRoute.output.parse(
-      await bridge.invoke(cronJobsOpenRunSessionRoute.name, { runId })
-    )
-  }
-
-  async function continueRun(runId: string) {
-    return cronJobsContinueRunRoute.output.parse(
-      await bridge.invoke(cronJobsContinueRunRoute.name, { runId })
-    )
-  }
-
-  async function runAgain(runId: string) {
-    const result = await bridge.invoke(cronJobsRunAgainRoute.name, { runId })
-    return {
-      job: parseJobResponse(cronJobsRunAgainRoute.name, result),
-      run: parseRunResponse(cronJobsRunAgainRoute.name, result),
-      schedulerStatus: parseSchedulerStatusResponse(cronJobsRunAgainRoute.name, result)
-    }
-  }
-
   async function getSchedulerStatus() {
     const result = await bridge.invoke(cronJobsGetSchedulerStatusRoute.name, {})
     return parseSchedulerStatusResponse(cronJobsGetSchedulerStatusRoute.name, result)
@@ -200,9 +176,6 @@ export function createCronJobsClient(bridge: DeepchatBridge = getDeepchatBridge(
     listRuns,
     getRun,
     listDeliveries,
-    openRunSession,
-    continueRun,
-    runAgain,
     getSchedulerStatus,
     reconcileScheduler,
     restartScheduler,

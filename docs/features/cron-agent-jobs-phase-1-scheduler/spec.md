@@ -20,10 +20,8 @@ The main process owns job execution. In this phase execution remains a mock acti
 
 ## Current State
 
-The existing `ScheduledTasksService` persists tasks in ConfigPresenter under `scheduledTasks`.
-It supports `once`, `daily`, and `weekly` triggers and directly dispatches `notify` or `prompt`
-actions from main-process timers. That service is a compatibility boundary, not the new Cron Jobs
-core.
+The removed legacy scheduled-task service used ConfigPresenter timers. Cron Jobs is the only
+scheduler surface going forward and stores schedules in SQLite.
 
 ## Acceptance Criteria
 
@@ -71,7 +69,7 @@ Stopped state:
 - No schedule editor beyond minimal data needed to exercise scheduler state.
 - No agent binding, permission resolution, or real session execution.
 - No delivery, remote continuation, or `cronjob` agent tool.
-- No cleanup of the legacy `ScheduledTasksService`.
+- Legacy scheduled-task cleanup is handled by `docs/issues/remove-legacy-scheduled-tasks`.
 
 ## Constraints
 

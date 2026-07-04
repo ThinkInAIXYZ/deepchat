@@ -47,7 +47,6 @@ type AgentCronJob = {
   runtime: {
     maxDurationMs: number
     maxTurns: number
-    maxToolCalls: number
     concurrencyPolicy: 'skip' | 'queue'
   }
 

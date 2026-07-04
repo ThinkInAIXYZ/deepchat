@@ -520,7 +520,6 @@ const sortJobs = (items: CronJob[]) =>
 
 const createDefaultDelivery = (): CronJobDelivery => ({
   targets: [],
-  createContinuableThread: CRON_JOBS_DEFAULT_DELIVERY.createContinuableThread,
   suppressSuccessNotification: CRON_JOBS_DEFAULT_DELIVERY.suppressSuccessNotification,
   notifyOnFailure: CRON_JOBS_DEFAULT_DELIVERY.notifyOnFailure
 })

@@ -22,7 +22,6 @@ type CronJobRun = {
   id: string
   jobId: string
   sessionId: string | null
-  parentContinuationSessionId?: string
 
   scheduledAt: number
   startedAt: number | null
@@ -68,7 +67,7 @@ or side table rather than overloading `subagent_meta_json`.
 - A failed run keeps `sessionId` if session creation already happened.
 - Duplicate `RUN_DUE` events for the same run do not start duplicate sessions.
 - Manual `Run Now` follows the same queued-run execution path.
-- Run detail UI can open the session and continue it.
+- The job editor shows compact run history by timestamp.
 
 ## UX Shape
 
@@ -83,7 +82,7 @@ or side table rather than overloading `subagent_meta_json`.
 | - 3 new issues need triage                              |
 | - 1 regression likely related to provider routing       |
 |                                                         |
-| [Open Session] [Continue] [Run Again]                   |
+| Session: created for internal run inspection             |
 +---------------------------------------------------------+
 ```
 
@@ -98,7 +97,7 @@ or side table rather than overloading `subagent_meta_json`.
 
 - Reuse `SessionService` and `ChatService`; do not create a second agent runtime path.
 - Respect agent permission behavior. Jobs must not bypass user approval flows.
-- Enforce `runtime.maxDurationMs`, `maxTurns`, `maxToolCalls`, and `concurrencyPolicy`.
+- Enforce `runtime.maxDurationMs`, `maxTurns`, and `concurrencyPolicy`.
 - Use run-level locking to prevent duplicate starts.
 
 ## Open Questions

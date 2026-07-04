@@ -15,6 +15,9 @@ Add:
 
 Register the tool in `AgentToolManager` alongside other local agent tools.
 
+Default-disable `cronjob` in new DeepChat agent/session defaults. The tool definition should still
+be discoverable in the tool picker so users can opt in explicitly.
+
 ## Action Routing
 
 Read actions:
@@ -80,8 +83,8 @@ Cards must be compact and action-oriented:
 - Confirmation tests proving write actions do not mutate before confirmation.
 - Permission tests for denied confirmation or invalid payloads.
 - Integration tests with mocked Cron Jobs service.
-- Tool registry test proving `cronjob` appears exactly once and can be disabled like other local
-  agent tools.
+- Tool registry test proving `cronjob` appears exactly once and is excluded when listed in
+  disabled agent tools.
 
 ## Validation Commands
 

@@ -68,18 +68,15 @@ import {
   configUpdateDeepChatAgentRoute,
   configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
-  cronJobsContinueRunRoute,
   cronJobsDeleteRoute,
   cronJobsGetRunRoute,
   cronJobsGetSchedulerStatusRoute,
   cronJobsListDeliveriesRoute,
   cronJobsListRoute,
   cronJobsListRunsRoute,
-  cronJobsOpenRunSessionRoute,
   cronJobsPreviewScheduleRoute,
   cronJobsReconcileSchedulerRoute,
   cronJobsRestartSchedulerRoute,
-  cronJobsRunAgainRoute,
   cronJobsRunNowRoute,
   cronJobsToggleRoute,
   cronJobsValidateScheduleRoute,
@@ -422,16 +419,8 @@ import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMem
 import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/agentMemoryAudit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
 import type { CronJobsService } from '@/presenter/cronJobs'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
-import {
-  scheduledTasksDeleteRoute,
-  scheduledTasksFireNowRoute,
-  scheduledTasksListRoute,
-  scheduledTasksToggleRoute,
-  scheduledTasksUpsertRoute
-} from '@shared/contracts/routes/scheduledTasks.routes'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
@@ -470,7 +459,6 @@ export type MainKernelRouteRuntime = {
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
-  scheduledTasks: ScheduledTasksService
   cronJobs: CronJobsService
 }
 
@@ -483,28 +471,6 @@ function parseSourceEntryIds(raw: string | null): number[] | null {
     return ids.length ? ids : null
   } catch {
     return null
-  }
-}
-
-async function activateCronJobRunSession(
-  runtime: MainKernelRouteRuntime,
-  runId: string
-): Promise<{ activated: true; sessionId: string }> {
-  const run = runtime.cronJobs.getRun(runId)
-  if (!run.sessionId) {
-    throw new Error('Cron job run has no session.')
-  }
-  if (!runtime.windowPresenter.focusMainWindow()) {
-    throw new Error('Main window is not available.')
-  }
-  const targetWindow = runtime.windowPresenter.mainWindow
-  if (!targetWindow || targetWindow.isDestroyed()) {
-    throw new Error('Main window is not available.')
-  }
-  await runtime.agentSessionPresenter.activateSession(targetWindow.webContents.id, run.sessionId)
-  return {
-    activated: true,
-    sessionId: run.sessionId
   }
 }
 
@@ -777,7 +743,6 @@ export function createMainKernelRouteRuntime(deps: {
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
-  scheduledTasks: ScheduledTasksService
   cronJobs: CronJobsService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
@@ -801,33 +766,6 @@ export function createMainKernelRouteRuntime(deps: {
     providerCatalogPort: hotPathPorts.providerCatalogPort,
     sessionPermissionPort: hotPathPorts.sessionPermissionPort,
     scheduler
-  })
-
-  // Wire scheduled tasks -> sessions for the auto-send action.
-  deps.scheduledTasks.setSessionCreator({
-    async createSessionForTask(input) {
-      const session = await sessionService.createSession(
-        {
-          agentId: input.agentId,
-          message: input.message,
-          providerId: input.providerId,
-          modelId: input.modelId,
-          ...(input.systemPrompt
-            ? { generationSettings: { systemPrompt: input.systemPrompt } }
-            : {})
-        },
-        {
-          webContentsId: deps.windowPresenter.mainWindow?.webContents?.id ?? -1,
-          windowId: deps.windowPresenter.mainWindow?.id ?? null
-        }
-      )
-      if (!session?.id) {
-        return { sessionId: null }
-      }
-
-      await chatService.sendMessage(session.id, input.message)
-      return { sessionId: session.id }
-    }
   })
 
   deps.cronJobs.setRunSessionStarter({
@@ -897,7 +835,9 @@ export function createMainKernelRouteRuntime(deps: {
         sessionId,
         promptLength: job.taskPrompt.length
       })
-      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt)
+      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt, {
+        maxProviderRounds: job.runtime.maxTurns
+      })
       console.info('[CronJobs] Task prompt accepted by session:', {
         jobId: job.id,
         sessionId,
@@ -906,6 +846,9 @@ export function createMainKernelRouteRuntime(deps: {
       return {
         outputMessageId: result.messageId ?? null
       }
+    },
+    async cancelSessionRun({ sessionId }) {
+      await deps.agentSessionPresenter.cancelGeneration(sessionId)
     }
   })
 
@@ -963,7 +906,6 @@ export function createMainKernelRouteRuntime(deps: {
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryPresenter: deps.memoryPresenter,
-    scheduledTasks: deps.scheduledTasks,
     cronJobs: deps.cronJobs
   }
 }
@@ -2720,36 +2662,6 @@ export async function dispatchDeepchatRoute(
       })
     }
 
-    case scheduledTasksListRoute.name: {
-      scheduledTasksListRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.list()
-      return scheduledTasksListRoute.output.parse({ settings })
-    }
-
-    case scheduledTasksUpsertRoute.name: {
-      const input = scheduledTasksUpsertRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.upsert(input)
-      return scheduledTasksUpsertRoute.output.parse({ task, settings })
-    }
-
-    case scheduledTasksDeleteRoute.name: {
-      const input = scheduledTasksDeleteRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.delete(input.id)
-      return scheduledTasksDeleteRoute.output.parse({ settings })
-    }
-
-    case scheduledTasksToggleRoute.name: {
-      const input = scheduledTasksToggleRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.toggle(input.id, input.enabled)
-      return scheduledTasksToggleRoute.output.parse({ task, settings })
-    }
-
-    case scheduledTasksFireNowRoute.name: {
-      const input = scheduledTasksFireNowRoute.input.parse(rawInput)
-      const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
-      return scheduledTasksFireNowRoute.output.parse({ task, settings })
-    }
-
     case cronJobsListRoute.name: {
       cronJobsListRoute.input.parse(rawInput)
       const { jobs, schedulerStatus } = await runtime.cronJobs.list()
@@ -2796,26 +2708,6 @@ export async function dispatchDeepchatRoute(
       return cronJobsListDeliveriesRoute.output.parse({
         deliveries: runtime.cronJobs.listDeliveries(input.runId)
       })
-    }
-
-    case cronJobsOpenRunSessionRoute.name: {
-      const input = cronJobsOpenRunSessionRoute.input.parse(rawInput)
-      return cronJobsOpenRunSessionRoute.output.parse(
-        await activateCronJobRunSession(runtime, input.runId)
-      )
-    }
-
-    case cronJobsContinueRunRoute.name: {
-      const input = cronJobsContinueRunRoute.input.parse(rawInput)
-      return cronJobsContinueRunRoute.output.parse(
-        await activateCronJobRunSession(runtime, input.runId)
-      )
-    }
-
-    case cronJobsRunAgainRoute.name: {
-      const input = cronJobsRunAgainRoute.input.parse(rawInput)
-      const run = runtime.cronJobs.getRun(input.runId)
-      return cronJobsRunAgainRoute.output.parse(await runtime.cronJobs.runNow(run.jobId))
     }
 
     case cronJobsGetSchedulerStatusRoute.name: {

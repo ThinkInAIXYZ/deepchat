@@ -4,12 +4,10 @@ export const CRON_JOBS_DEFAULT_MISFIRE_POLICY = 'skip'
 export const CRON_JOBS_DEFAULT_RUNTIME = {
   maxDurationMs: 60 * 60 * 1000,
   maxTurns: 20,
-  maxToolCalls: 100,
   concurrencyPolicy: 'skip'
 } as const
 export const CRON_JOBS_DEFAULT_DELIVERY = {
   targets: [],
-  createContinuableThread: true,
   suppressSuccessNotification: false,
   notifyOnFailure: true
 } as const
@@ -88,7 +86,6 @@ export interface CronJob {
 export interface CronJobRuntimeSettings {
   maxDurationMs: number
   maxTurns: number
-  maxToolCalls: number
   concurrencyPolicy: CronJobConcurrencyPolicy
 }
 
@@ -105,7 +102,6 @@ export interface CronJobAgentSnapshot {
 
 export interface CronJobDelivery {
   targets: CronJobDeliveryTarget[]
-  createContinuableThread: boolean
   suppressSuccessNotification: boolean
   notifyOnFailure: boolean
 }
@@ -141,7 +137,6 @@ export interface CronJobRun {
   id: string
   jobId: string
   sessionId: string | null
-  parentContinuationSessionId: string | null
   scheduledAt: number
   queuedAt: number
   startedAt: number | null

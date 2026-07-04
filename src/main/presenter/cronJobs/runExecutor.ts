@@ -42,11 +42,20 @@ export interface CronJobRunSessionStarter {
     outputMessageId?: string | null
     outputPreview?: string | null
   }>
+  cancelSessionRun?(input: {
+    job: CronJob
+    run: CronJobRun
+    sessionId: string
+    reason: string
+  }): Promise<void>
 }
 
 export class CronJobRunExecutor {
   private readonly claimOwner = `cron-job-runner:${process.pid}:${randomUUID()}`
-  private readonly activeSessions = new Map<string, { runId: string; job: CronJob }>()
+  private readonly activeSessions = new Map<
+    string,
+    { runId: string; job: CronJob; timeout: ReturnType<typeof setTimeout> | null }
+  >()
   private readonly unsubscribeSessionUpdates: () => void
 
   constructor(
@@ -61,6 +70,9 @@ export class CronJobRunExecutor {
 
   dispose(): void {
     this.unsubscribeSessionUpdates()
+    for (const sessionId of this.activeSessions.keys()) {
+      this.clearActiveSession(sessionId)
+    }
     this.activeSessions.clear()
   }
 
@@ -116,7 +128,11 @@ export class CronJobRunExecutor {
         sessionId
       })
       this.repository.updateRunSession(run.id, result.sessionId)
-      this.activeSessions.set(result.sessionId, { runId: run.id, job: input.job })
+      this.activeSessions.set(result.sessionId, {
+        runId: run.id,
+        job: input.job,
+        timeout: this.createRunTimeout(run.id, input.job, result.sessionId)
+      })
       if (result.outputMessageId || result.outputPreview) {
         this.repository.updateRunOutput(run.id, {
           outputMessageId: result.outputMessageId ?? null,
@@ -148,7 +164,7 @@ export class CronJobRunExecutor {
       return this.repository.getRun(run.id)
     } catch (error) {
       if (sessionId) {
-        this.activeSessions.delete(sessionId)
+        this.clearActiveSession(sessionId)
       }
       console.error('[CronJobs] Run execution failed:', {
         jobId: input.job.id,
@@ -208,23 +224,87 @@ export class CronJobRunExecutor {
   private completeRun(runId: string, job: CronJob, sessionId: string): void {
     const current = this.repository.getRun(runId)
     if (!current || current.status !== 'running') {
-      this.activeSessions.delete(sessionId)
+      this.clearActiveSession(sessionId)
       return
     }
     const completed = this.repository.markRunCompleted(runId)
-    this.activeSessions.delete(sessionId)
+    this.clearActiveSession(sessionId)
     void this.deliverRun(job, completed)
   }
 
   private failRun(runId: string, job: CronJob, sessionId: string): void {
     const current = this.repository.getRun(runId)
     if (!current || current.status !== 'running') {
-      this.activeSessions.delete(sessionId)
+      this.clearActiveSession(sessionId)
       return
     }
     const failed = this.repository.markRunFailed(runId, 'Agent session entered error state.')
-    this.activeSessions.delete(sessionId)
+    this.clearActiveSession(sessionId)
     void this.deliverRun(job, failed)
+  }
+
+  private createRunTimeout(
+    runId: string,
+    job: CronJob,
+    sessionId: string
+  ): ReturnType<typeof setTimeout> | null {
+    const maxDurationMs = job.runtime.maxDurationMs
+    if (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0) {
+      return null
+    }
+
+    return setTimeout(() => {
+      void this.failRunForTimeout(runId, job, sessionId, maxDurationMs)
+    }, maxDurationMs)
+  }
+
+  private clearActiveSession(sessionId: string): void {
+    const activeSession = this.activeSessions.get(sessionId)
+    if (activeSession?.timeout) {
+      clearTimeout(activeSession.timeout)
+    }
+    this.activeSessions.delete(sessionId)
+  }
+
+  private async failRunForTimeout(
+    runId: string,
+    job: CronJob,
+    sessionId: string,
+    maxDurationMs: number
+  ): Promise<void> {
+    const current = this.repository.getRun(runId)
+    if (!current || current.status !== 'running') {
+      this.clearActiveSession(sessionId)
+      return
+    }
+
+    const errorMessage = `Cron job exceeded max duration (${maxDurationMs} ms).`
+    console.warn('[CronJobs] Run exceeded max duration:', {
+      jobId: job.id,
+      runId,
+      sessionId,
+      maxDurationMs
+    })
+    const failed = this.repository.markRunFailed(runId, errorMessage)
+    this.clearActiveSession(sessionId)
+
+    try {
+      await this.sessionStarter.cancelSessionRun?.({
+        job,
+        run: current,
+        sessionId,
+        reason: errorMessage
+      })
+    } catch (error) {
+      console.warn('[CronJobs] Failed to cancel timed out run session:', {
+        jobId: job.id,
+        runId,
+        sessionId,
+        error
+      })
+    }
+
+    await this.deliverRun(job, failed)
   }
 
   private async deliverRun(job: CronJob, run: CronJobRun): Promise<void> {

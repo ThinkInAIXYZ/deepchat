@@ -31,7 +31,6 @@ export const cronJobsSchedulerStateSchema = z.enum(CRON_JOBS_SCHEDULER_STATES)
 export const cronJobRuntimeSchema = z.object({
   maxDurationMs: z.number().int().positive(),
   maxTurns: z.number().int().positive(),
-  maxToolCalls: z.number().int().positive(),
   concurrencyPolicy: cronJobConcurrencyPolicySchema
 })
 
@@ -55,7 +54,6 @@ export const cronJobDeliveryTargetSchema = z.object({
 
 export const cronJobDeliverySchema = z.object({
   targets: z.array(cronJobDeliveryTargetSchema),
-  createContinuableThread: z.boolean(),
   suppressSuccessNotification: z.boolean(),
   notifyOnFailure: z.boolean()
 })
@@ -90,7 +88,6 @@ export const cronJobRunSchema = z.object({
   id: z.string().min(1),
   jobId: z.string().min(1),
   sessionId: z.string().min(1).nullable(),
-  parentContinuationSessionId: z.string().min(1).nullable(),
   scheduledAt: timestampMsSchema,
   queuedAt: timestampMsSchema,
   startedAt: timestampMsSchema.nullable(),
@@ -239,40 +236,6 @@ export const cronJobsListDeliveriesRoute = defineRouteContract({
   }),
   output: z.object({
     deliveries: z.array(cronJobDeliveryReceiptSchema)
-  })
-})
-
-export const cronJobsOpenRunSessionRoute = defineRouteContract({
-  name: 'cronJobs.openRunSession',
-  input: z.object({
-    runId: z.string().min(1)
-  }),
-  output: z.object({
-    activated: z.literal(true),
-    sessionId: z.string().min(1)
-  })
-})
-
-export const cronJobsContinueRunRoute = defineRouteContract({
-  name: 'cronJobs.continueRun',
-  input: z.object({
-    runId: z.string().min(1)
-  }),
-  output: z.object({
-    activated: z.literal(true),
-    sessionId: z.string().min(1)
-  })
-})
-
-export const cronJobsRunAgainRoute = defineRouteContract({
-  name: 'cronJobs.runAgain',
-  input: z.object({
-    runId: z.string().min(1)
-  }),
-  output: z.object({
-    job: cronJobSchema,
-    run: cronJobRunSchema,
-    schedulerStatus: cronJobsSchedulerStatusSchema
   })
 })
 

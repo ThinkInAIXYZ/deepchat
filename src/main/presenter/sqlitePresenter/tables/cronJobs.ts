@@ -66,7 +66,6 @@ export interface CronJobTableUpsertInput {
   now?: number
 }
 
-const CRON_JOBS_PHASE_3_SCHEMA_VERSION = 39
 const CRON_JOBS_SCHEMA_VERSION = 40
 
 const CRON_JOBS_INDEX_SQL = `
@@ -114,124 +113,15 @@ export class CronJobsTable extends BaseTable {
 
   override createTable(): void {
     super.createTable()
-    this.ensurePhase2Columns()
-    this.ensurePhase3Columns()
-    this.ensurePhase5Columns()
     this.db.exec(CRON_JOBS_INDEX_SQL)
   }
 
-  getMigrationSQL(version: number): string | null {
-    if (version === 38) {
-      return `
-        ALTER TABLE cron_jobs ADD COLUMN misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once'));
-        ALTER TABLE cron_jobs ADD COLUMN max_catch_up_runs INTEGER;
-        ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT;
-      `
-    }
-    if (version === CRON_JOBS_PHASE_3_SCHEMA_VERSION) {
-      return `
-        ALTER TABLE cron_jobs ADD COLUMN description TEXT;
-        ALTER TABLE cron_jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent'));
-        ALTER TABLE cron_jobs ADD COLUMN task_prompt TEXT NOT NULL DEFAULT '';
-        ALTER TABLE cron_jobs ADD COLUMN task_system_instruction TEXT;
-        ALTER TABLE cron_jobs ADD COLUMN task_output_mode TEXT NOT NULL DEFAULT 'final_message' CHECK(task_output_mode IN ('final_message', 'structured_json', 'artifact'));
-        ALTER TABLE cron_jobs ADD COLUMN model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current'));
-        ALTER TABLE cron_jobs ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot'));
-        ALTER TABLE cron_jobs ADD COLUMN permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot'));
-        ALTER TABLE cron_jobs ADD COLUMN runtime_json TEXT NOT NULL DEFAULT '{}';
-        ALTER TABLE cron_jobs ADD COLUMN agent_snapshot_json TEXT;
-        UPDATE cron_jobs
-        SET enabled = 0,
-            status = 'invalid_agent',
-            next_run_at = NULL,
-            updated_at = strftime('%s','now') * 1000
-        WHERE agent_id IS NULL;
-      `
-    }
-    if (version === CRON_JOBS_SCHEMA_VERSION) {
-      return `
-        ALTER TABLE cron_jobs ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '{}';
-      `
-    }
+  getMigrationSQL(_version: number): string | null {
     return null
   }
 
   getLatestVersion(): number {
     return CRON_JOBS_SCHEMA_VERSION
-  }
-
-  private ensurePhase2Columns(): void {
-    if (!this.hasColumn('misfire_policy')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN misfire_policy TEXT NOT NULL DEFAULT 'skip' CHECK(misfire_policy IN ('skip', 'run_once'))"
-      )
-    }
-    if (!this.hasColumn('max_catch_up_runs')) {
-      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN max_catch_up_runs INTEGER')
-    }
-    if (!this.hasColumn('schedule_error')) {
-      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN schedule_error TEXT')
-    }
-  }
-
-  private ensurePhase3Columns(): void {
-    if (!this.hasColumn('description')) {
-      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN description TEXT')
-    }
-    if (!this.hasColumn('status')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled' CHECK(status IN ('ready', 'disabled', 'invalid_agent'))"
-      )
-    }
-    if (!this.hasColumn('task_prompt')) {
-      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN task_prompt TEXT NOT NULL DEFAULT ''")
-    }
-    if (!this.hasColumn('task_system_instruction')) {
-      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN task_system_instruction TEXT')
-    }
-    if (!this.hasColumn('task_output_mode')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN task_output_mode TEXT NOT NULL DEFAULT 'final_message' CHECK(task_output_mode IN ('final_message', 'structured_json', 'artifact'))"
-      )
-    }
-    if (!this.hasColumn('model_policy')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN model_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(model_policy IN ('follow_agent', 'pin_current'))"
-      )
-    }
-    if (!this.hasColumn('tool_policy')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN tool_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(tool_policy IN ('follow_agent', 'snapshot'))"
-      )
-    }
-    if (!this.hasColumn('permission_policy')) {
-      this.db.exec(
-        "ALTER TABLE cron_jobs ADD COLUMN permission_policy TEXT NOT NULL DEFAULT 'follow_agent' CHECK(permission_policy IN ('follow_agent', 'snapshot'))"
-      )
-    }
-    if (!this.hasColumn('runtime_json')) {
-      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN runtime_json TEXT NOT NULL DEFAULT '{}'")
-    }
-    if (!this.hasColumn('agent_snapshot_json')) {
-      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN agent_snapshot_json TEXT')
-    }
-    this.db
-      .prepare(
-        `UPDATE cron_jobs
-         SET enabled = 0,
-             status = 'invalid_agent',
-             next_run_at = NULL,
-             updated_at = ?
-         WHERE agent_id IS NULL
-           AND status != 'invalid_agent'`
-      )
-      .run(Date.now())
-  }
-
-  private ensurePhase5Columns(): void {
-    if (!this.hasColumn('delivery_json')) {
-      this.db.exec("ALTER TABLE cron_jobs ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '{}'")
-    }
   }
 
   list(): CronJobRow[] {

@@ -1167,20 +1167,6 @@ function createRuntime() {
     listSettingsActivity: vi.fn().mockResolvedValue([]),
     repairSchema: vi.fn().mockResolvedValue(databaseRepairReport)
   } as unknown as ISQLitePresenter
-  const scheduledTasks = {
-    setSessionCreator: vi.fn(),
-    list: vi.fn(() => ({ enabled: false, tasks: [] })),
-    upsert: vi.fn((task: unknown) => ({ task, settings: { enabled: false, tasks: [task] } })),
-    delete: vi.fn(() => ({ enabled: false, tasks: [] })),
-    toggle: vi.fn((id: string, enabled: boolean) => ({
-      task: { id, enabled },
-      settings: { enabled: false, tasks: [{ id, enabled }] }
-    })),
-    fireNow: vi.fn(async (id: string) => ({
-      task: { id },
-      settings: { enabled: false, tasks: [{ id }] }
-    }))
-  }
   const cronJob = {
     id: 'cron-1',
     name: 'Cron smoke',
@@ -1203,13 +1189,11 @@ function createRuntime() {
     runtime: {
       maxDurationMs: 3_600_000,
       maxTurns: 20,
-      maxToolCalls: 100,
       concurrencyPolicy: 'skip' as const
     },
     agentSnapshot: null,
     delivery: {
       targets: [],
-      createContinuableThread: true,
       suppressSuccessNotification: false,
       notifyOnFailure: true
     },
@@ -1220,7 +1204,6 @@ function createRuntime() {
     id: 'run-1',
     jobId: 'cron-1',
     sessionId: 'session-1',
-    parentContinuationSessionId: null,
     scheduledAt: 3,
     queuedAt: 3,
     startedAt: 4,
@@ -1303,7 +1286,6 @@ function createRuntime() {
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
-      scheduledTasks,
       cronJobs
     }),
     configPresenter,
@@ -1360,7 +1342,6 @@ describe('dispatchDeepchatRoute', () => {
         runtime: {
           maxDurationMs: 3_600_000,
           maxTurns: 20,
-          maxToolCalls: 100,
           concurrencyPolicy: 'skip'
         }
       },
@@ -1403,30 +1384,6 @@ describe('dispatchDeepchatRoute', () => {
     const listDeliveriesResult = await dispatchDeepchatRoute(
       runtime,
       'cronJobs.listDeliveries',
-      {
-        runId: 'run-1'
-      },
-      context
-    )
-    const openRunSessionResult = await dispatchDeepchatRoute(
-      runtime,
-      'cronJobs.openRunSession',
-      {
-        runId: 'run-1'
-      },
-      context
-    )
-    const continueRunResult = await dispatchDeepchatRoute(
-      runtime,
-      'cronJobs.continueRun',
-      {
-        runId: 'run-1'
-      },
-      context
-    )
-    const runAgainResult = await dispatchDeepchatRoute(
-      runtime,
-      'cronJobs.runAgain',
       {
         runId: 'run-1'
       },
@@ -1506,19 +1463,6 @@ describe('dispatchDeepchatRoute', () => {
     expect(listDeliveriesResult).toEqual({
       deliveries: [expect.objectContaining({ id: 'delivery-1', status: 'success' })]
     })
-    expect(openRunSessionResult).toEqual({
-      activated: true,
-      sessionId: 'session-1'
-    })
-    expect(continueRunResult).toEqual({
-      activated: true,
-      sessionId: 'session-1'
-    })
-    expect(runAgainResult).toEqual({
-      job: expect.objectContaining({ id: 'cron-1' }),
-      run: expect.objectContaining({ id: 'run-1', status: 'completed' }),
-      schedulerStatus: expect.objectContaining({ state: 'idle' })
-    })
     expect(statusResult).toEqual({
       schedulerStatus: expect.objectContaining({ state: 'idle' })
     })
@@ -1538,8 +1482,6 @@ describe('dispatchDeepchatRoute', () => {
     expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
     expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
     expect(cronJobs.listDeliveries).toHaveBeenCalledWith('run-1')
-    expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
-    expect(runtime.windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
     expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
     expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
     expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')
@@ -1552,44 +1494,6 @@ describe('dispatchDeepchatRoute', () => {
       timezone: 'UTC',
       count: 3
     })
-  })
-
-  it('opens Cron Job run sessions in the real main window when Settings is focused', async () => {
-    const { runtime, windowPresenter } = createRuntime()
-    const settingsWindow = browserWindowState.windows.get(7)!
-    const mainWindow = browserWindowState.windows.get(3)!
-    settingsWindow.focused = true
-    mainWindow.focused = false
-
-    Object.defineProperty(windowPresenter, 'mainWindow', {
-      configurable: true,
-      get: () => {
-        return [...browserWindowState.windows.values()].find((window) => window.focused)
-      }
-    })
-    vi.mocked(windowPresenter.focusMainWindow).mockImplementation(() => {
-      settingsWindow.focused = false
-      mainWindow.focused = true
-      return true
-    })
-
-    await dispatchDeepchatRoute(
-      runtime,
-      'cronJobs.openRunSession',
-      {
-        runId: 'run-1'
-      },
-      {
-        webContentsId: settingsWindow.webContents.id,
-        windowId: settingsWindow.id
-      }
-    )
-
-    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(1)
-    expect(runtime.agentSessionPresenter.activateSession).toHaveBeenCalledWith(
-      mainWindow.webContents.id,
-      'session-1'
-    )
   })
 
   it('wires Cron Job run sessions with source metadata', async () => {
