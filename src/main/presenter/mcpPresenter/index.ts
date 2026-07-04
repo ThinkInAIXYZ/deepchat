@@ -242,8 +242,8 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   private async shutdownRunningClients(): Promise<void> {
-    const runningClients = await this.serverManager.getRunningClients()
-    for (const client of runningClients) {
+    const activeClients = await this.serverManager.getActiveClients()
+    for (const client of activeClients) {
       await this.stopServerDuringShutdown(client)
     }
   }

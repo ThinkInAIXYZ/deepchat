@@ -2,7 +2,10 @@ import { z } from 'zod'
 import type {
   MCPServerConfig,
   McpSamplingDecision,
-  McpSamplingRequestPayload
+  McpSamplingRequestPayload,
+  McpServerLifecycleStatus,
+  McpServerStatusPhase,
+  McpServerStatusReason
 } from '@shared/presenter'
 import { defineEventContract } from '../common'
 import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
@@ -10,6 +13,9 @@ import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
 const McpSamplingRequestSchema = z.custom<McpSamplingRequestPayload>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
 const MCPServerConfigSchema = z.custom<MCPServerConfig>()
+const McpServerLifecycleStatusSchema = z.custom<McpServerLifecycleStatus>()
+const McpServerStatusPhaseSchema = z.custom<McpServerStatusPhase>()
+const McpServerStatusReasonSchema = z.custom<McpServerStatusReason>()
 
 export const mcpServerStartedEvent = defineEventContract({
   name: 'mcp.server.started',
@@ -40,7 +46,14 @@ export const mcpServerStatusChangedEvent = defineEventContract({
   name: 'mcp.server.status.changed',
   payload: z.object({
     serverName: z.string(),
+    name: z.string().optional(),
+    lifecycleStatus: McpServerLifecycleStatusSchema,
+    status: z.union([McpServerLifecycleStatusSchema, z.literal('running')]).optional(),
     isRunning: z.boolean(),
+    phase: McpServerStatusPhaseSchema.optional(),
+    attempt: z.number().int().positive().optional(),
+    reason: McpServerStatusReasonSchema.optional(),
+    message: z.string().optional(),
     version: z.number().int()
   })
 })

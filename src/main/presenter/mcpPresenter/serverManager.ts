@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
-import { McpClient } from './mcpClient'
+import { McpClient, type McpConnectResult } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { eventBus } from '@/eventbus'
@@ -219,6 +219,10 @@ export class ServerManager {
     return clients
   }
 
+  async getActiveClients(): Promise<McpClient[]> {
+    return Array.from(this.clients.values()).filter((client) => client.isActive())
+  }
+
   async startServer(name: string): Promise<void> {
     // If server is already running, no need to start again
     if (this.clients.has(name)) {
@@ -251,8 +255,11 @@ export class ServerManager {
       this.clients.set(name, client)
 
       // Connect to server, this will start the service
-      await client.connect()
-      this.clearServerLastError(name)
+      const connectResult = await client.connect({ phase: 'startup' })
+      this.handleStartupConnectResult(name, client, serverConfig, connectResult)
+      if (connectResult === 'connected') {
+        this.clearServerLastError(name)
+      }
     } catch (error) {
       console.error(`Failed to start MCP server ${name}:`, error)
 
@@ -271,6 +278,44 @@ export class ServerManager {
     } finally {
       eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
     }
+  }
+
+  private handleStartupConnectResult(
+    name: string,
+    client: McpClient,
+    serverConfig: MCPServerConfig,
+    connectResult: McpConnectResult
+  ): void {
+    if (connectResult === 'connected') {
+      return
+    }
+
+    const completion = client.getConnectionCompletion()
+    if (!completion) {
+      return
+    }
+
+    completion
+      .then(() => {
+        this.clearServerLastError(name)
+        eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+      })
+      .catch((error) => {
+        if (this.clients.get(name) !== client) {
+          return
+        }
+
+        this.clients.delete(name)
+        this.setServerLastError(name, error)
+        const authHandled =
+          this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
+
+        if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
+          this.sendMcpConnectionError(name, error)
+        }
+
+        eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+      })
   }
 
   // Handle and send MCP connection error notification

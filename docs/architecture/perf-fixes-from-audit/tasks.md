@@ -91,10 +91,10 @@
 
 ### T10. 修复 F5 — MCP 后台启动 soft timeout
 
-- [ ] 步骤 1：扩展 `emitServerStatusChanged` 从 running/stopped 布尔态到枚举态（connecting/connected/timeout/retrying/failed）
-- [ ] 步骤 2：引入 soft timeout（初始建议 45s，待压测确定），超时后保留 client 转 retrying，保留 5min 硬兜底
-- [ ] 步骤 3：补 startup retry 与 shutdown 交互（shutdown 需处理 connecting/retrying client）
-- [ ] 步骤 4：（可选）enabled servers startServer 受限并发 2-3；E2E `01-launch` + 慢连接 shutdown 专项验证
+- [x] 步骤 1：扩展 `emitServerStatusChanged` 从 running/stopped 布尔态到枚举态（connecting/connected/timeout/retrying/failed）
+- [x] 步骤 2：引入 soft timeout（初始建议 45s，待压测确定），超时后保留 client 转 retrying，保留 5min 硬兜底
+- [x] 步骤 3：补 startup retry 与 shutdown 交互（shutdown 需处理 connecting/retrying client）
+- [x] 步骤 4：（可选）enabled servers startServer 受限并发 2-3；E2E `01-launch` + 慢连接 shutdown 专项验证（并发保持待测参数，本切片不改；E2E `01-launch`/`13-mcp` 通过）
 - 详细方案：[fix-F05](fix-F05-mcp-startup-timeout.md)
 
 ## 第四波：高（高收益大改）

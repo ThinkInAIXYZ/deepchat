@@ -1,5 +1,30 @@
 // MCP related core types (simplified, strong-typed)
 
+export type McpServerLifecycleStatus =
+  | 'connecting'
+  | 'connected'
+  | 'timeout'
+  | 'retrying'
+  | 'failed'
+  | 'stopped'
+
+export type McpServerStatusPhase = 'startup' | 'manual' | 'retry' | 'shutdown'
+
+export type McpServerStatusReason = 'soft-timeout' | 'hard-timeout' | 'connect-error' | 'shutdown'
+
+export interface McpServerStatusChangedPayload {
+  serverName: string
+  name?: string
+  lifecycleStatus: McpServerLifecycleStatus
+  status?: McpServerLifecycleStatus | 'running'
+  isRunning: boolean
+  phase?: McpServerStatusPhase
+  attempt?: number
+  reason?: McpServerStatusReason
+  message?: string
+  version: number
+}
+
 export interface MCPToolDefinition {
   type: string
   source?: 'mcp' | 'agent'

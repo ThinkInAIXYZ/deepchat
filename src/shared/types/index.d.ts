@@ -17,3 +17,5 @@ export * from './chatSettings'
 export * from './plugin'
 export * from './skill'
 export * from './skillSync'
+
+export type * from './core/mcp'
