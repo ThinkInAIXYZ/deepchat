@@ -181,6 +181,36 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(serverManagerMocks.startServer).toHaveBeenCalledWith('plugin')
   })
 
+  it('does not wait for hanging enabled servers during initialization', async () => {
+    const configPresenter = createConfigPresenter(
+      true,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      startServer: serverManagerMocks.startServer,
+      testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+      getNpmRegistry: serverManagerMocks.getNpmRegistry,
+      updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
+    }
+    serverManagerMocks.startServer.mockImplementation(() => new Promise(() => {}))
+
+    const result = Promise.race([
+      presenter.initialize().then(() => 'initialized'),
+      new Promise((resolve) => setTimeout(() => resolve('blocked'), 1))
+    ])
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(result).resolves.toBe('initialized')
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith('regular')
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith('plugin')
+  })
+
   it('does not start plugin-owned servers when enabling the global MCP switch', async () => {
     const configPresenter = createConfigPresenter(
       true,

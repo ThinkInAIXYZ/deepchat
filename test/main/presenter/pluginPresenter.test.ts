@@ -1013,6 +1013,23 @@ describe('PluginPresenter', () => {
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
   })
 
+  it('does not wait for plugin MCP auto-start to finish', async () => {
+    const fixture = await createBundledFixture()
+    const presenter = await createPluginPresenter('darwin', {
+      appPath: fixture.appPath,
+      mcpEnabled: false
+    })
+    presenter.__mocks.mcpPresenter.startServer.mockImplementation(() => new Promise(() => {}))
+
+    const result = await Promise.race([
+      presenter.enablePlugin(fixture.pluginId),
+      new Promise((resolve) => setTimeout(() => resolve('blocked'), 20))
+    ])
+
+    expect(result).toEqual(expect.objectContaining({ ok: true }))
+    expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
+  })
+
   it('shuts down running plugin-owned MCP servers without removing saved config', async () => {
     const presenter = await createPluginPresenter('darwin')
     await presenter.__mocks.configPresenter.addMcpServer('regular-server', {

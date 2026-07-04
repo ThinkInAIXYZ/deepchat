@@ -526,7 +526,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
-  it('queues and completes manual runs through the service without starting a real process', async () => {
+  it('fails manual runs when the executor is not wired', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {
       const status = baseStatus()
@@ -536,9 +536,13 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         stop: vi.fn().mockResolvedValue(status),
         getStatus: vi.fn(() => status)
       }
+      const deliveryRouter = {
+        deliver: vi.fn(async () => [])
+      }
       const service = new CronJobsServiceCtor({
         sqlitePresenter: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never
+        schedulerManager: schedulerManager as never,
+        deliveryRouter: deliveryRouter as never
       })
 
       const { job } = await service.upsert({
@@ -547,7 +551,20 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
         agentId: 'agent-1',
-        taskPrompt: 'Summarize issues'
+        taskPrompt: 'Summarize issues',
+        delivery: {
+          targets: [
+            {
+              type: 'remote',
+              remoteId: 'feishu',
+              channelId: 'feishu:alerts:root',
+              mode: 'summary'
+            }
+          ],
+          createContinuableThread: true,
+          suppressSuccessNotification: false,
+          notifyOnFailure: true
+        }
       })
       expect(job.nextRunAt).toEqual(expect.any(Number))
       const result = await service.runNow(job.id)
@@ -555,11 +572,15 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       expect(result.run).toEqual(
         expect.objectContaining({
           jobId: job.id,
-          status: 'completed',
+          status: 'failed',
           reason: 'manual',
-          error: null
+          error: 'Cron job session starter is not initialized.'
         })
       )
+      expect(deliveryRouter.deliver).toHaveBeenCalledWith({
+        job: expect.objectContaining({ id: job.id }),
+        run: expect.objectContaining({ id: result.run.id, status: 'failed' })
+      })
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('job-upsert')
       expect(schedulerManager.reconcile).toHaveBeenCalledWith('manual-run')
     } finally {

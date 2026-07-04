@@ -89,6 +89,22 @@ export class McpPresenter implements IMCPPresenter {
     eventBus.sendToMain(MCP_EVENTS.INITIALIZED)
   }
 
+  private startServerInBackground(
+    serverName: string,
+    successMessage: string,
+    failureMessage: string
+  ): void {
+    void this.serverManager
+      .startServer(serverName)
+      .then(() => {
+        logger.info(successMessage)
+        this.emitServerStarted(serverName)
+      })
+      .catch((error) => {
+        console.error(failureMessage, error)
+      })
+  }
+
   constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
     logger.info('Initializing MCP Presenter')
 
@@ -167,36 +183,32 @@ export class McpPresenter implements IMCPPresenter {
 
       // Check and start deepchat-inmemory/custom-prompts-server
       const customPromptsServerName = 'deepchat-inmemory/custom-prompts-server'
+      const startingServers = new Set<string>()
       if (mcpEnabled && servers[customPromptsServerName]) {
         logger.info(`[MCP] Attempting to start custom prompts server: ${customPromptsServerName}`)
-
-        try {
-          await this.serverManager.startServer(customPromptsServerName)
-          logger.info(`[MCP] Custom prompts server ${customPromptsServerName} started successfully`)
-
-          this.emitServerStarted(customPromptsServerName)
-        } catch (error) {
-          console.error(
-            `[MCP] Failed to start custom prompts server ${customPromptsServerName}:`,
-            error
-          )
-        }
+        startingServers.add(customPromptsServerName)
+        this.startServerInBackground(
+          customPromptsServerName,
+          `[MCP] Custom prompts server ${customPromptsServerName} started successfully`,
+          `[MCP] Failed to start custom prompts server ${customPromptsServerName}:`
+        )
       }
 
       if (enabledServers.length > 0) {
         for (const serverName of enabledServers) {
           const serverConfig = servers[serverName]
-          if (serverConfig && (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))) {
+          if (
+            serverConfig &&
+            !startingServers.has(serverName) &&
+            (mcpEnabled || this.isPluginOwnedServerConfig(serverConfig))
+          ) {
             logger.info(`[MCP] Attempting to start enabled server: ${serverName}`)
-
-            try {
-              await this.serverManager.startServer(serverName)
-              logger.info(`[MCP] Enabled server ${serverName} started successfully`)
-
-              this.emitServerStarted(serverName)
-            } catch (error) {
-              console.error(`[MCP] Failed to start enabled server ${serverName}:`, error)
-            }
+            startingServers.add(serverName)
+            this.startServerInBackground(
+              serverName,
+              `[MCP] Enabled server ${serverName} started successfully`,
+              `[MCP] Failed to start enabled server ${serverName}:`
+            )
           }
         }
       }

@@ -438,16 +438,28 @@ export class CronJobsService {
           job
         })
       } else {
-        this.repository.markRunRunning(event.runId)
-        this.repository.markRunCompleted(event.runId)
+        await this.failRunAndDeliver(
+          event.runId,
+          job,
+          'Cron job session starter is not initialized.'
+        )
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       try {
-        this.repository.markRunFailed(event.runId, message)
+        await this.failRunAndDeliver(event.runId, job, message)
       } catch (markError) {
         console.error('[CronJobs] Failed to mark run as failed:', markError)
       }
+    }
+  }
+
+  private async failRunAndDeliver(runId: string, job: CronJob, message: string): Promise<void> {
+    const failed = this.repository.markRunFailed(runId, message)
+    try {
+      await this.deliveryRouter.deliver({ job, run: failed })
+    } catch (error) {
+      console.error('[CronJobs] Failed to deliver failed run:', error)
     }
   }
 }
