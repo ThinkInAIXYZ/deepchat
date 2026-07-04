@@ -132,6 +132,7 @@ export class McpClient {
   public serverConfig: Record<string, unknown>
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
+  private stdioChildProcessForShutdown?: ChildProcess
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
@@ -540,6 +541,7 @@ export class McpClient {
 
     // 关闭transport
     const transport = this.transport
+    this.stdioChildProcessForShutdown = this.getStdioChildProcess(transport)
     this.transport = null
     if (transport) {
       try {
@@ -559,19 +561,51 @@ export class McpClient {
     this.cachedResources = null
   }
 
-  private async closeTransport(transport: Transport): Promise<void> {
-    try {
-      if (transport instanceof StdioClientTransport) {
-        const child = (transport as unknown as StdioClientTransportProcessAccess)._process
-        if (child) {
-          await terminateProcessTree(child, { graceMs: 2000 })
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+  private getStdioChildProcess(
+    transport: Transport | null = this.transport
+  ): ChildProcess | undefined {
+    if (!(transport instanceof StdioClientTransport)) {
+      return undefined
+    }
+    return (transport as unknown as StdioClientTransportProcessAccess)._process
+  }
+
+  async forceTerminateStdioProcessTree(reason: string): Promise<boolean> {
+    const child = this.getStdioChildProcess() ?? this.stdioChildProcessForShutdown
+    if (!child) {
+      return false
     }
 
-    await transport.close()
+    try {
+      await terminateProcessTree(child, { graceMs: 2000 })
+      console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
+      return true
+    } catch (error) {
+      console.warn(
+        `Failed to force terminate MCP stdio process tree for ${this.serverName}:`,
+        error
+      )
+      return false
+    }
+  }
+
+  private async closeTransport(transport: Transport): Promise<void> {
+    const child = this.getStdioChildProcess(transport)
+    if (child) {
+      try {
+        await terminateProcessTree(child, { graceMs: 2000 })
+      } catch (error) {
+        console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+      }
+    }
+
+    try {
+      await transport.close()
+    } finally {
+      if (this.stdioChildProcessForShutdown === child) {
+        this.stdioChildProcessForShutdown = undefined
+      }
+    }
   }
 
   // Register notification handlers

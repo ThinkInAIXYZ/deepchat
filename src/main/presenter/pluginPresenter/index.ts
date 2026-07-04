@@ -132,6 +132,7 @@ export class PluginPresenter {
   async shutdown(): Promise<void> {
     const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
     const servers = await this.configPresenter.getMcpServers()
+    const pluginOwnedServers: Array<{ serverName: string; pluginId?: string }> = []
 
     for (const [serverName, serverConfig] of Object.entries(servers)) {
       if (!this.isPluginOwnedServerConfig(serverConfig)) {
@@ -142,25 +143,43 @@ export class PluginPresenter {
       if (ownerPluginId) {
         pluginIds.add(ownerPluginId)
       }
-
-      try {
-        if (await this.mcpPresenter.isServerRunning(serverName)) {
-          await this.mcpPresenter.stopServer(serverName)
-        }
-      } catch (error) {
-        console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {
-          pluginId: ownerPluginId,
-          serverName,
-          error
-        })
-      }
+      pluginOwnedServers.push({ serverName, pluginId: ownerPluginId })
     }
+
+    await this.stopPluginOwnedServers(pluginOwnedServers)
 
     for (const pluginId of pluginIds) {
       unregisterPluginToolPolicies(pluginId)
     }
 
     this.closeAllPluginSettingsWindows()
+  }
+
+  private async stopPluginOwnedServers(
+    servers: Array<{ serverName: string; pluginId?: string }>
+  ): Promise<void> {
+    const concurrency = 4
+    let nextIndex = 0
+
+    const stopNext = async (): Promise<void> => {
+      while (nextIndex < servers.length) {
+        const { serverName, pluginId } = servers[nextIndex++]
+        try {
+          if (await this.mcpPresenter.isServerRunning(serverName)) {
+            await this.mcpPresenter.stopServer(serverName)
+          }
+        } catch (error) {
+          console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {
+            pluginId,
+            serverName,
+            error
+          })
+        }
+      }
+    }
+
+    const workers = Array.from({ length: Math.min(concurrency, servers.length) }, () => stopNext())
+    await Promise.all(workers)
   }
 
   async listPlugins(): Promise<PluginListItem[]> {

@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { performance } from 'node:perf_hooks'
 import {
   IMCPPresenter,
   IConfigPresenter,
@@ -16,6 +17,7 @@ import {
   McpServerAuthStatus
 } from '@shared/presenter'
 import { ServerManager } from './serverManager'
+import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { McpOAuthManager } from './mcpOAuthManager'
@@ -33,6 +35,8 @@ type McpToolAccessContext = {
   agentId?: string
   conversationId?: string
 }
+
+const MCP_SHUTDOWN_SERVER_TIMEOUT_MS = 10_000
 
 const normalizeStringList = (items?: string[]): string[] | undefined => {
   if (!Array.isArray(items)) {
@@ -240,10 +244,48 @@ export class McpPresenter implements IMCPPresenter {
   private async shutdownRunningClients(): Promise<void> {
     const runningClients = await this.serverManager.getRunningClients()
     for (const client of runningClients) {
-      try {
-        await this.stopServer(client.serverName)
-      } catch (error) {
-        console.error(`[MCP] Failed to stop server ${client.serverName} during shutdown:`, error)
+      await this.stopServerDuringShutdown(client)
+    }
+  }
+
+  private async stopServerDuringShutdown(client: RuntimeMcpClient): Promise<void> {
+    const startedAt = performance.now()
+    let timeoutId: NodeJS.Timeout | null = null
+    let timedOut = false
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true
+        reject(new Error(`MCP server ${client.serverName} stop timed out`))
+      }, MCP_SHUTDOWN_SERVER_TIMEOUT_MS)
+    })
+
+    try {
+      await Promise.race([this.stopServer(client.serverName), timeoutPromise])
+      console.info(
+        `[MCP] Stopped server ${client.serverName} during shutdown durationMs=${(performance.now() - startedAt).toFixed(1)}`
+      )
+    } catch (error) {
+      if (timedOut) {
+        const forceTerminated = await client.forceTerminateStdioProcessTree(
+          `shutdown stop timed out after ${MCP_SHUTDOWN_SERVER_TIMEOUT_MS}ms`
+        )
+        console.warn('[MCP] Server stop timed out during shutdown; continuing shutdown:', {
+          serverName: client.serverName,
+          timeoutMs: MCP_SHUTDOWN_SERVER_TIMEOUT_MS,
+          durationMs: Number((performance.now() - startedAt).toFixed(1)),
+          forceTerminatedStdioProcess: forceTerminated,
+          note: forceTerminated
+            ? 'stdio process tree force termination was attempted; the underlying stop promise may still finish later'
+            : 'no stdio process tree was available to force terminate; underlying stop may still be pending'
+        })
+        return
+      }
+
+      console.error(`[MCP] Failed to stop server ${client.serverName} during shutdown:`, error)
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
       }
     }
   }

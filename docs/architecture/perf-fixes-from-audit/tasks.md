@@ -57,10 +57,10 @@
 
 ### T6. 修复 F8 — 关闭路径可观测性 + timeout
 
-- [ ] 步骤 1：`Presenter.destroy()`（index.ts L954-981）各步加 `performance.now()` duration 日志（destroy 层必做，hook 执行器层可选）
-- [ ] 步骤 2：核实 `serverManager.stopServer` 无跨 server 共享状态后，`pluginPresenter`（L132）plugin-owned server stop 改受限并发
-- [ ] 步骤 3：`mcpPresenter`（L240-248）shutdown per-server timeout（`Promise.race`，10s）；stdio 超时补 `terminateProcessTree` 强杀，非 stdio warning+continue
-- [ ] 步骤 4：验证超时后无 zombie 进程；E2E `01-launch`（含关闭）
+- [x] 步骤 1：`Presenter.destroy()`（index.ts L954-981）各步加 `performance.now()` duration 日志（destroy 层必做，hook 执行器层可选）
+- [x] 步骤 2：核实 `serverManager.stopServer` 无跨 server 共享状态后，`pluginPresenter`（L132）plugin-owned server stop 改受限并发
+- [x] 步骤 3：`mcpPresenter`（L240-248）shutdown per-server timeout（`Promise.race`，10s）；stdio 超时补 `terminateProcessTree` 强杀，非 stdio warning+continue
+- [x] 步骤 4：验证超时后无 zombie 进程；E2E `01-launch`（含关闭）（已通过关闭路径 E2E；慢 stdio zombie 分支以缓存 child + terminateProcessTree 静态路径验证）
 - 详细方案：[fix-F08](fix-F08-shutdown-observability.md)
 
 ### T7. 修复 F13 — message store 排序 + cache

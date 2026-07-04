@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
 import { ipcMain, app } from 'electron'
@@ -953,31 +954,52 @@ export class Presenter implements IPresenter {
 
   async destroy(): Promise<void> {
     try {
-      await this.pluginPresenter.shutdown()
+      await this.runDestroyStep('pluginPresenter.shutdown', () => this.pluginPresenter.shutdown())
     } catch (error) {
       console.error('PluginPresenter.shutdown failed during presenter destroy:', error)
     }
 
     try {
-      await this.mcpPresenter.shutdown()
+      await this.runDestroyStep('mcpPresenter.shutdown', () => this.mcpPresenter.shutdown())
     } catch (error) {
       console.error('McpPresenter.shutdown failed during presenter destroy:', error)
     }
 
-    await this.destroyRemoteControl()
+    await this.runDestroyStep('destroyRemoteControl', () => this.destroyRemoteControl())
     this.floatingButtonPresenter.destroy()
     this.tabPresenter.destroy()
     // Drain in-flight memory consolidation before the shared SQLite connection closes, so a pass
     // that already fired cannot write to a closed database during teardown.
-    await this.memoryPresenter.dispose()
-    this.sqlitePresenter.close()
+    await this.runDestroyStep('memoryPresenter.dispose', () => this.memoryPresenter.dispose())
+    await this.runDestroyStep('sqlitePresenter.close', () => this.sqlitePresenter.close())
     this.shortcutPresenter.destroy()
     this.syncPresenter.destroy()
     this.notificationPresenter.clearAllNotifications()
     this.knowledgePresenter.destroy()
-    await (this.workspacePresenter as WorkspacePresenter).destroy()
-    await (this.skillPresenter as SkillPresenter).destroy()
+    await this.runDestroyStep('workspacePresenter.destroy', () =>
+      (this.workspacePresenter as WorkspacePresenter).destroy()
+    )
+    await this.runDestroyStep('skillPresenter.destroy', () =>
+      (this.skillPresenter as SkillPresenter).destroy()
+    )
     ;(this.skillSyncPresenter as SkillSyncPresenter).destroy()
+  }
+
+  private async runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
+    const startedAt = performance.now()
+    logger.info(`[Presenter] destroy.${stepName} begin`)
+    try {
+      await step()
+      logger.info(
+        `[Presenter] destroy.${stepName} done durationMs=${(performance.now() - startedAt).toFixed(1)}`
+      )
+    } catch (error) {
+      logger.warn(
+        `[Presenter] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
+        error
+      )
+      throw error
+    }
   }
 
   private async destroyRemoteControl() {
