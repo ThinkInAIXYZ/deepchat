@@ -633,4 +633,233 @@ describe('messageStore', () => {
     expect(store.getAssistantMessageBlocks(updatedRecord)).not.toBe(firstBlocks)
     expect(store.getMessageMetadata(updatedRecord)).toBe(firstMetadata)
   })
+
+  it('inserts optimistic messages without resorting sorted persisted ids', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'one'), buildUserMessage('m2', 's1', 2, 'two')]
+    })
+
+    await store.loadMessages('s1')
+    const sortSpy = vi.spyOn(store.messageIds.value, 'sort')
+
+    const optimisticId = store.addOptimisticUserMessage('s1', 'optimistic')
+
+    expect(sortSpy).not.toHaveBeenCalled()
+    expect(store.messageIds.value).toEqual(['m1', 'm2', optimisticId])
+  })
+
+  it('falls back to full sort after older history creates an unsorted id window', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: { orderSeq: 3, id: 'm3' },
+      hasMore: true,
+      messages: [buildUserMessage('m3', 's1', 3, 'three'), buildUserMessage('m4', 's1', 4, 'four')]
+    })
+    sessionClient.listMessagesPage.mockResolvedValueOnce({
+      messages: [buildUserMessage('m2', 's1', 2, 'two'), buildUserMessage('m1', 's1', 1, 'one')],
+      nextCursor: null,
+      hasMore: false
+    })
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+    expect(store.messageIds.value).toEqual(['m2', 'm1', 'm3', 'm4'])
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm5',
+      messageId: 'm5',
+      updatedAt: 5,
+      blocks: [
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 5
+        }
+      ]
+    })
+
+    expect(store.messageIds.value).toEqual(['m1', 'm2', 'm3', 'm4', 'm5'])
+  })
+
+  it('binary-inserts a newly hydrated streaming id when message ids are sorted', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('m1', 's1', 1, 'one'), buildUserMessage('m3', 's1', 3, 'three')]
+    })
+
+    await store.loadMessages('s1')
+    const sortSpy = vi.spyOn(store.messageIds.value, 'sort')
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm2',
+      messageId: 'm2',
+      updatedAt: 2,
+      blocks: [
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]
+    })
+
+    expect(sortSpy).not.toHaveBeenCalled()
+    expect(store.messageIds.value).toEqual(['m1', 'm2', 'm3'])
+  })
+
+  it('evicts the least recently used parsed message entry after 1024 records', async () => {
+    const { store, sessionClient } = await setupStore()
+    const messages = Array.from({ length: 1025 }, (_, index) => ({
+      ...buildUserMessage(`m${index + 1}`, 's1', index + 1, `message-${index + 1}`),
+      role: 'assistant' as const,
+      content: `[{"type":"content","content":"message-${index + 1}","status":"success","timestamp":${index + 1}}]`
+    }))
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages
+    })
+
+    await store.loadMessages('s1')
+
+    const firstRecord = store.messageCache.value.get('m1')!
+    const firstBlocks = store.getAssistantMessageBlocks(firstRecord)
+    for (let index = 1; index < messages.length; index += 1) {
+      store.getAssistantMessageBlocks(store.messageCache.value.get(`m${index + 1}`)!)
+    }
+
+    expect(store.getAssistantMessageBlocks(firstRecord)).not.toBe(firstBlocks)
+  })
+
+  it('refreshes parsed message LRU entries on cache hits', async () => {
+    const { store, sessionClient } = await setupStore()
+    const messages = Array.from({ length: 1025 }, (_, index) => ({
+      ...buildUserMessage(`m${index + 1}`, 's1', index + 1, `message-${index + 1}`),
+      role: 'assistant' as const,
+      content: `[{"type":"content","content":"message-${index + 1}","status":"success","timestamp":${index + 1}}]`
+    }))
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages
+    })
+
+    await store.loadMessages('s1')
+
+    const firstRecord = store.messageCache.value.get('m1')!
+    const secondRecord = store.messageCache.value.get('m2')!
+    const firstBlocks = store.getAssistantMessageBlocks(firstRecord)
+    const secondBlocks = store.getAssistantMessageBlocks(secondRecord)
+    expect(store.getAssistantMessageBlocks(firstRecord)).toBe(firstBlocks)
+
+    for (let index = 2; index < messages.length; index += 1) {
+      store.getAssistantMessageBlocks(store.messageCache.value.get(`m${index + 1}`)!)
+    }
+
+    expect(store.getAssistantMessageBlocks(firstRecord)).toBe(firstBlocks)
+    expect(store.getAssistantMessageBlocks(secondRecord)).not.toBe(secondBlocks)
+  })
+
+  it('reuses stable assistant blocks when shallow payload fields are equivalent', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [
+        {
+          ...buildUserMessage('m1', 's1', 1, 'assistant'),
+          role: 'assistant' as const,
+          content:
+            '[{"type":"action","action_type":"rate_limit","status":"success","timestamp":1,"extra":{"providerId":"openai","currentQps":1}},{"type":"content","content":"done","status":"success","timestamp":2}]'
+        }
+      ]
+    })
+
+    await store.loadMessages('s1')
+    const firstBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm1',
+      messageId: 'm1',
+      updatedAt: 2,
+      blocks: [
+        {
+          type: 'action',
+          action_type: 'rate_limit',
+          status: 'success',
+          timestamp: 1,
+          extra: { providerId: 'openai', currentQps: 1 }
+        },
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]
+    })
+
+    const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
+    expect(updatedBlocks[0]).toBe(firstBlocks[0])
+  })
+
+  it('does not reuse stable assistant blocks when shallow payload fields change', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [
+        {
+          ...buildUserMessage('m1', 's1', 1, 'assistant'),
+          role: 'assistant' as const,
+          content:
+            '[{"type":"tool_call","status":"success","timestamp":1,"tool_call":{"id":"tool-1","name":"read","response":"old"}},{"type":"content","content":"done","status":"success","timestamp":2}]'
+        }
+      ]
+    })
+
+    await store.loadMessages('s1')
+    const firstBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm1',
+      messageId: 'm1',
+      updatedAt: 2,
+      blocks: [
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 1,
+          tool_call: { id: 'tool-1', name: 'read', response: 'new' }
+        },
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 2
+        }
+      ]
+    })
+
+    const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
+    expect(updatedBlocks[0]).not.toBe(firstBlocks[0])
+  })
 })

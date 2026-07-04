@@ -65,10 +65,10 @@
 
 ### T7. 修复 F13 — message store 排序 + cache
 
-- [ ] 步骤 1：新 id 二分插入前先检测 `messageIds` 是否按 orderSeq 有序，有序才二分，否则 fallback 全量 sort（optimistic/streaming 用 length+1 生成 orderSeq 不等价历史序列）
-- [ ] 步骤 2：`parsedMessageCache` 加 LRU 上限 1024（按 session 清理已存在）
-- [ ] 步骤 3：`assistantBlockPayloadEqual` 的 `JSON.stringify` 改浅层字段比较
-- [ ] 步骤 4：专项回归验证 optimistic/历史前插/streaming 与二分插入共存不破序
+- [x] 步骤 1：新 id 二分插入前先检测 `messageIds` 是否按 orderSeq 有序，有序才二分，否则 fallback 全量 sort（optimistic/streaming 用 length+1 生成 orderSeq 不等价历史序列）
+- [x] 步骤 2：`parsedMessageCache` 加 LRU 上限 1024（按 session 清理已存在）
+- [x] 步骤 3：`assistantBlockPayloadEqual` 的 `JSON.stringify` 改浅层字段比较
+- [x] 步骤 4：专项回归验证 optimistic/历史前插/streaming 与二分插入共存不破序
 - 详细方案：[fix-F13](fix-F13-message-store-sort.md)
 
 ### T8. 修复 F16 — Settings provider 列表渲染
