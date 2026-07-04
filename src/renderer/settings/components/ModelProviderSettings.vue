@@ -122,11 +122,28 @@
         </div>
 
         <div v-if="disabledProviders.length > 0" class="flex flex-col gap-2">
-          <div class="text-xs font-medium text-muted-foreground px-2">
-            {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
+          <div class="flex items-center justify-between gap-2 px-2">
+            <div class="text-xs font-medium text-muted-foreground">
+              {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
+            </div>
+            <Button
+              data-testid="disabled-providers-toggle"
+              variant="ghost"
+              size="sm"
+              class="h-6 px-2 text-xs text-muted-foreground"
+              @click="isDisabledProvidersExpanded = !isDisabledProvidersExpanded"
+            >
+              <Icon
+                :icon="isDisabledProvidersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                class="mr-1 h-3 w-3"
+              />
+              {{ t(isDisabledProvidersExpanded ? 'common.collapse' : 'common.expand') }}
+            </Button>
           </div>
           <draggable
+            v-if="isDisabledProvidersExpanded"
             v-model="disabledProviders"
+            data-testid="disabled-providers-list"
             item-key="id"
             handle=".drag-handle"
             class="space-y-2"
@@ -476,6 +493,7 @@ const handleProviderModelEnabled = async () => {
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
 const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
+const isDisabledProvidersExpanded = ref(false)
 
 const editingProviderId = ref<string | null>(null)
 const editingName = ref('')
@@ -690,6 +708,15 @@ const disabledProviders = computed({
     }
   }
 })
+
+watch(
+  () => [searchQuery.value.trim(), disabledProviders.value.length] as const,
+  ([query, disabledMatchCount]) => {
+    if (query.length > 0 && disabledMatchCount > 0) {
+      isDisabledProvidersExpanded.value = true
+    }
+  }
+)
 
 const setActiveProvider = (providerId: string) => {
   return router.push({

@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { reactive } from 'vue'
+
+const providerStore = reactive({
+  providers: [] as Array<{ id: string; apiType?: string }>
+})
 
 vi.mock('@/stores/providerStore', () => ({
-  useProviderStore: () => ({
-    providers: []
-  })
+  useProviderStore: () => providerStore
 }))
 
 vi.mock('@/stores/ui/agent', () => ({
@@ -14,6 +17,10 @@ vi.mock('@/stores/ui/agent', () => ({
 }))
 
 describe('ModelIcon', () => {
+  beforeEach(() => {
+    providerStore.providers = []
+  })
+
   it('resolves dimcode-acp to the DimCode icon', async () => {
     const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
     const dimcodeIcon = (await import('@/assets/llm-icons/dimcode.svg?url')).default
@@ -99,5 +106,44 @@ describe('ModelIcon', () => {
     expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
     expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
     expect(alibabaTokenPlan.get('img').attributes('src')).toBe(alibabaIcon)
+  })
+
+  it('keeps fuzzy matching for common model ids and provider apiType fallback', async () => {
+    const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
+    const openaiIcon = (await import('@/assets/llm-icons/openai.svg?url')).default
+    const claudeIcon = (await import('@/assets/llm-icons/claude-color.svg?url')).default
+    const geminiIcon = (await import('@/assets/llm-icons/gemini-color.svg?url')).default
+
+    const gpt = mount(ModelIcon, {
+      props: {
+        modelId: 'gpt-4o'
+      }
+    })
+    const claude = mount(ModelIcon, {
+      props: {
+        modelId: 'claude-3-5-sonnet'
+      }
+    })
+    const gemini = mount(ModelIcon, {
+      props: {
+        modelId: 'gemini-2.5-pro'
+      }
+    })
+
+    providerStore.providers = [{ id: 'custom-openai-compatible', apiType: 'openai' }]
+    const apiTypeFallback = mount(ModelIcon, {
+      props: {
+        modelId: 'custom-openai-compatible'
+      }
+    })
+
+    expect(gpt.get('img').attributes('alt')).toBe('gpt')
+    expect(gpt.get('img').attributes('src')).toBe(openaiIcon)
+    expect(claude.get('img').attributes('alt')).toBe('claude')
+    expect(claude.get('img').attributes('src')).toBe(claudeIcon)
+    expect(gemini.get('img').attributes('alt')).toBe('gemini')
+    expect(gemini.get('img').attributes('src')).toBe(geminiIcon)
+    expect(apiTypeFallback.get('img').attributes('alt')).toBe('openai')
+    expect(apiTypeFallback.get('img').attributes('src')).toBe(openaiIcon)
   })
 })

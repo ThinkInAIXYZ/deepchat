@@ -194,6 +194,30 @@ const props = withDefaults(defineProps<Props>(), {
   isDark: false
 })
 
+const ICON_CANDIDATE_KEYS = Object.keys(icons) as Array<keyof typeof icons>
+const iconMatchCache = new Map<string, keyof typeof icons>()
+const DEFAULT_ICON_KEY = 'default' satisfies keyof typeof icons
+
+const resolveIconKey = (source: string | undefined): keyof typeof icons | undefined => {
+  if (!source) {
+    return undefined
+  }
+
+  const normalizedSource = source.toLowerCase()
+  const cachedIconKey = iconMatchCache.get(normalizedSource)
+  if (cachedIconKey) {
+    return cachedIconKey
+  }
+
+  const matchedIconKey = ICON_CANDIDATE_KEYS.find((key) => normalizedSource.includes(key))
+  if (matchedIconKey) {
+    iconMatchCache.set(normalizedSource, matchedIconKey)
+    return matchedIconKey
+  }
+
+  return undefined
+}
+
 const providerStore = useProviderStore()
 const agentStore = useAgentStore()
 const iconLoadFailed = ref(false)
@@ -204,26 +228,9 @@ const provider = computed(() => {
 })
 
 const iconKey = computed(() => {
-  const modelIdLower = props.modelId.toLowerCase()
-  const iconEntries = Object.keys(icons)
-
-  // 查找匹配的图标
-  const matchedIcon = iconEntries.find((key) => {
-    return modelIdLower.includes(key)
-  })
-  if (matchedIcon) {
-    return matchedIcon
-  }
-
-  const apiType = provider.value?.apiType?.toLowerCase()
-  if (apiType) {
-    const apiMatchedIcon = iconEntries.find((key) => apiType.includes(key))
-    if (apiMatchedIcon) {
-      return apiMatchedIcon
-    }
-  }
-
-  return 'default'
+  return (
+    resolveIconKey(props.modelId) ?? resolveIconKey(provider.value?.apiType) ?? DEFAULT_ICON_KEY
+  )
 })
 
 const dynamicAgentIcon = computed(() => {

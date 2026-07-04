@@ -73,10 +73,10 @@
 
 ### T8. 修复 F16 — Settings provider 列表渲染
 
-- [ ] 步骤 1：`ModelIcon.vue` iconKey 保留 `includes` 模糊语义，改预建候选 key 按长度降序遍历 + 命中缓存（不改成精确 Map.get）
-- [ ] 步骤 2：`ModelProviderSettings.vue` disabled 列表默认折叠（header + count，展开才渲染）；enabled 区暂不动
-- [ ] 步骤 3：（可选，更高风险）draggable 仅「编辑排序模式」启用
-- [ ] 步骤 4：回归拖拽排序持久化、搜索过滤下排序、展开后高亮；E2E `18-provider-readonly-route` + `04-settings-navigation`
+- [x] 步骤 1：`ModelIcon.vue` iconKey 保留 `includes` 模糊语义，改预建候选 key + 命中缓存，并保留现有候选顺序避免图标命中回归（不改成精确 Map.get）
+- [x] 步骤 2：`ModelProviderSettings.vue` disabled 列表默认折叠（header + count，展开才渲染）；enabled 区暂不动
+- [x] 步骤 3：（可选，更高风险）draggable 仅「编辑排序模式」启用（已按文档主方案跳过，保持 enabled 区和排序协议不变）
+- [x] 步骤 4：回归拖拽排序持久化、搜索过滤下排序、展开后高亮；E2E `18-provider-readonly-route` + `04-settings-navigation`
 - 详细方案：[fix-F16](fix-F16-provider-list-render.md)
 
 ## 第三波：中高（main 启动关键路径）

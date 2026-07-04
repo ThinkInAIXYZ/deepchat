@@ -10,6 +10,19 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const inputStub = defineComponent({
+  name: 'Input',
+  props: {
+    modelValue: {
+      type: String,
+      default: ''
+    }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+})
+
 const draggableStub = defineComponent({
   name: 'draggable',
   props: {
@@ -271,7 +284,7 @@ const setup = async (options?: {
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Input: passthrough('Input'),
+        Input: inputStub,
         Button: passthrough('Button'),
         Badge: passthrough('Badge'),
         Switch: passthrough('Switch'),
@@ -403,6 +416,66 @@ describe('ModelProviderSettings', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it('keeps disabled providers collapsed until the section is expanded', async () => {
+    const { wrapper } = await setup({
+      providers: [
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          apiType: 'anthropic',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.anthropic.com',
+          enable: true
+        },
+        {
+          id: 'mistral',
+          name: 'Mistral',
+          apiType: 'mistral',
+          apiKey: '',
+          baseUrl: 'https://api.mistral.ai',
+          enable: false
+        }
+      ]
+    })
+
+    expect(wrapper.text()).toContain('settings.provider.disabled (1)')
+    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="disabled-providers-toggle"]').trigger('click')
+
+    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(true)
+  })
+
+  it('automatically expands disabled providers when search matches them', async () => {
+    const { wrapper } = await setup({
+      providers: [
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          apiType: 'anthropic',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.anthropic.com',
+          enable: true
+        },
+        {
+          id: 'mistral',
+          name: 'Mistral',
+          apiType: 'mistral',
+          apiKey: '',
+          baseUrl: 'https://api.mistral.ai',
+          enable: false
+        }
+      ]
+    })
+
+    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(false)
+
+    await wrapper.get('input').setValue('mistral')
+    await flushPromises()
+
+    expect(wrapper.find('[data-provider-id="mistral"]').exists()).toBe(true)
+  })
 
   it('auto-continues onboarding after the provider is configured', async () => {
     const { wrapper, router, completeStep } = await setup({
