@@ -41,10 +41,10 @@
 
 ### T4. 修复 F9 — Markdown workers 真正 lazy
 
-- [ ] 步骤 1：删除 `src/renderer/src/main.ts:18` 的 eager `ensureMarkdownWorkers()` 调用
-- [ ] 步骤 2：在所有直接 markstream-vue 入口（`MarkdownRenderer.vue` + `ThinkContent.vue` L30 等）的 `onMounted` 触发 `ensureMarkdownWorkers()`（幂等安全）
-- [ ] 步骤 3：实证 markstream-vue worker 未就绪时降级纯文本 fallback（查其类型/用法，不仅依赖注释）
-- [ ] 步骤 4：build 后核实 `?worker&inline` 产物形态（不是独立 chunk）；E2E `01-launch` + 含 markdown/think 渲染验证
+- [x] 步骤 1：删除 `src/renderer/src/main.ts:18` 的 eager `ensureMarkdownWorkers()` 调用
+- [x] 步骤 2：在所有直接 markstream-vue 入口（`MarkdownRenderer.vue` + `ThinkContent.vue` L30 等）的 `onMounted` 触发 `ensureMarkdownWorkers()`（幂等安全）
+- [x] 步骤 3：实证 markstream-vue worker 未就绪时降级纯文本 fallback（查其类型/用法，不仅依赖注释）
+- [x] 步骤 4：build 后核实 `?worker&inline` 产物形态（不是独立 chunk）；E2E `01-launch` + 含 markdown/think 渲染验证
 - 详细方案：[fix-F9](fix-F09-markdown-workers-lazy.md)
 
 ### T5. 修复 F6 — protocol handler async + streaming

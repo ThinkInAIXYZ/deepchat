@@ -50,8 +50,9 @@
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
-import { h, computed, watch } from 'vue'
+import { h, computed, onMounted, watch } from 'vue'
 import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
+import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
 const props = defineProps<{
   label: string
@@ -72,6 +73,12 @@ defineEmits<{
 const customId = 'thinking-content'
 const themeStore = useThemeStore()
 const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
+
+onMounted(() => {
+  ensureMarkdownWorkers().catch((error) => {
+    console.error('Failed to initialize markdown workers:', error)
+  })
+})
 
 watch(propsWatchSource, () => {}, { immediate: true })
 setCustomComponents(customId, {

@@ -23,7 +23,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NodeRenderer, {
   CodeBlockNode,
   ReferenceNode,
@@ -36,6 +36,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import LinkNode from './LinkNode.vue'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
 import type { MarkdownLinkContext } from './linkTypes'
+import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
 const props = withDefaults(
   defineProps<{
@@ -233,6 +234,12 @@ watch(
     immediate: true
   }
 )
+
+onMounted(() => {
+  ensureMarkdownWorkers().catch((error) => {
+    console.error('Failed to initialize markdown workers:', error)
+  })
+})
 
 onBeforeUnmount(() => {
   removeCustomComponents(customRendererId.value)

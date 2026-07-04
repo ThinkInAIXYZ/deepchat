@@ -9,14 +9,16 @@ const {
   hideReferenceMock,
   showReferenceMock,
   nanoidMock,
-  navigateLinkMock
+  navigateLinkMock,
+  ensureMarkdownWorkersMock
 } = vi.hoisted(() => ({
   showArtifactMock: vi.fn(),
   getSearchResultsMock: vi.fn().mockResolvedValue([]),
   hideReferenceMock: vi.fn(),
   showReferenceMock: vi.fn(),
   nanoidMock: vi.fn(),
-  navigateLinkMock: vi.fn().mockResolvedValue(true)
+  navigateLinkMock: vi.fn().mockResolvedValue(true),
+  ensureMarkdownWorkersMock: vi.fn().mockResolvedValue(undefined)
 }))
 
 const setup = async (props: Record<string, unknown> = {}) => {
@@ -51,6 +53,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
     useUiSettingsStore: () => ({
       formattedCodeFontFamily: 'monospace'
     })
+  }))
+
+  vi.doMock('@/lib/markdownWorkerLifecycle', () => ({
+    ensureMarkdownWorkers: ensureMarkdownWorkersMock
   }))
 
   vi.doMock('@api/SessionClient', () => ({
@@ -176,9 +182,17 @@ describe('MarkdownRenderer', () => {
     hideReferenceMock.mockReset()
     showReferenceMock.mockReset()
     nanoidMock.mockReset()
+    ensureMarkdownWorkersMock.mockReset()
+    ensureMarkdownWorkersMock.mockResolvedValue(undefined)
     navigateLinkMock.mockReset()
     navigateLinkMock.mockResolvedValue(true)
     nanoidMock.mockReturnValueOnce('fallback-message').mockReturnValueOnce('fallback-thread')
+  })
+
+  it('initializes markdown workers lazily when mounted', async () => {
+    await setup()
+
+    expect(ensureMarkdownWorkersMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses the provided message and thread ids for HTML preview artifacts', async () => {
