@@ -43,7 +43,12 @@ export const databaseInitHook: LifecycleHook = {
       })
 
       // Create database initializer
-      const dbInitializer = new DatabaseInitializer({ password })
+      const dbInitializer = new DatabaseInitializer({
+        password,
+        startupWorkloadCoordinator: context.startupWorkloadCoordinator,
+        startupRunId: context.startupRunId,
+        startupTarget: 'main'
+      })
 
       // Initialize database
       const database = await dbInitializer.initialize()

@@ -178,7 +178,9 @@ export class Presenter implements IPresenter {
         setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
       }
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
-    this.startupWorkloadCoordinator = new StartupWorkloadCoordinator()
+    this.startupWorkloadCoordinator =
+      (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
+      new StartupWorkloadCoordinator()
 
     // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
@@ -742,7 +744,13 @@ export class Presenter implements IPresenter {
     const providers = this.configPresenter.getProviders()
     console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
-    const mainRunId = this.startupWorkloadCoordinator.createRun('main')
+    const context = this.lifecycleManager.getLifecycleContext()
+    context.startupWorkloadCoordinator = this.startupWorkloadCoordinator
+    const mainRunId =
+      typeof context.startupRunId === 'string'
+        ? context.startupRunId
+        : this.startupWorkloadCoordinator.createRun('main')
+    context.startupRunId = mainRunId
 
     void this.startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',

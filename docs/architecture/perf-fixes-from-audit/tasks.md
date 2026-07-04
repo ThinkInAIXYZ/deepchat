@@ -83,10 +83,10 @@
 
 ### T9. 修复 F1 — SQLite 启动关键路径分层
 
-- [ ] 步骤 1：open/initTables/migrate/diagnose/repair 五阶段各加 `performance.now()` duration 日志（低风险先行）
-- [ ] 步骤 2：`diagnoseStartupSchema()` 只读诊断后移为 background task，通过 `DatabaseInitializer` 依赖注入 coordinator（target 取 `'main'`，来自 `StartupWorkloadTargetSchema`）；`SQLitePresenter` 仅一处 new（DatabaseInitializer L50）
-- [ ] 步骤 3：（可选，高风险）非启动必需表 createTable 延迟——因 initTables 与 getMigrationTables 强耦合，列为可选
-- [ ] 步骤 4：单元测试 `test/main` sqlite；E2E `01-launch --repeat-each=3` 无回归
+- [x] 步骤 1：open/initTables/migrate/diagnose/repair 五阶段各加 `performance.now()` duration 日志（低风险先行）
+- [x] 步骤 2：`diagnoseStartupSchema()` 只读诊断后移为 background task，通过 `DatabaseInitializer` 依赖注入 coordinator（target 取 `'main'`，来自 `StartupWorkloadTargetSchema`）；`SQLitePresenter` 仅一处 new（DatabaseInitializer L50）
+- [x] 步骤 3：（可选，高风险）非启动必需表 createTable 延迟——因 initTables 与 getMigrationTables 强耦合，列为可选（本切片保守跳过）
+- [x] 步骤 4：单元测试 `test/main` sqlite；E2E `01-launch --repeat-each=3` 无回归
 - 详细方案：[fix-F01](fix-F01-sqlite-startup-defer.md)
 
 ### T10. 修复 F5 — MCP 后台启动 soft timeout

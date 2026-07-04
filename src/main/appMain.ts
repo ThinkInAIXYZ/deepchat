@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 import { app, dialog } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
 import { getInstance, Presenter } from './presenter'
+import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
 import { electronApp } from '@electron-toolkit/utils'
 import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
@@ -164,6 +165,11 @@ export function startApp(): void {
 
   // Initialize lifecycle manager and register core hooks
   const lifecycleManager = new LifecycleManager()
+  const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
+  const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
+  const lifecycleContext = lifecycleManager.getLifecycleContext()
+  lifecycleContext.startupWorkloadCoordinator = startupWorkloadCoordinator
+  lifecycleContext.startupRunId = mainStartupRunId
   registerCoreHooks(lifecycleManager)
 
   function clearPresenterPermissionCaches(activePresenter?: Presenter): void {

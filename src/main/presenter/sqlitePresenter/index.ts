@@ -321,11 +321,26 @@ export class SQLitePresenter implements ISQLitePresenter {
 
   private initializeDatabase(): void {
     this.databaseFileExistedBeforeOpen = fs.existsSync(this.dbPath)
+
+    const openStart = performance.now()
     this.db = openSQLiteDatabase(this.dbPath, this.password)
     this.db.prepare('SELECT 1').get()
+    logger.info(
+      `SQLitePresenter: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`
+    )
+
+    const initTablesStart = performance.now()
     this.initTables()
     this.initVersionTable()
+    logger.info(
+      `SQLitePresenter: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
+    )
+
+    const migrateStart = performance.now()
     this.migrate()
+    logger.info(
+      `SQLitePresenter: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
+    )
   }
 
   private handleInitializationError(error: unknown): void {

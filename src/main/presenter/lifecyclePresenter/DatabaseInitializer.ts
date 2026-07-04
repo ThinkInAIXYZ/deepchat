@@ -10,6 +10,15 @@ import {
 import { getStartupSchemaCatalog } from '@/presenter/sqlitePresenter/schemaCatalog'
 import { classifySchemaError } from '@/presenter/sqlitePresenter/schemaErrorClassifier'
 import type { SchemaTableSpec } from '@/presenter/sqlitePresenter/schemaTypes'
+import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+
+type DatabaseInitializerOptions = {
+  password?: string
+  dbPath?: string
+  startupWorkloadCoordinator?: StartupWorkloadCoordinator
+  startupRunId?: string
+  startupTarget?: 'main'
+}
 
 /**
  * Database initialization interface
@@ -28,12 +37,19 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   private dbPath: string
   private password?: string
   private database?: SQLitePresenter
+  private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
+  private readonly startupRunId?: string
+  private readonly startupTarget: 'main'
+  private backgroundDiagnosisScheduled = false
 
-  constructor(options?: { password?: string; dbPath?: string }) {
+  constructor(options?: DatabaseInitializerOptions) {
     // Initialize database path
     const dbDir = path.join(app.getPath('userData'), 'app_db')
     this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
     this.password = options?.password
+    this.startupWorkloadCoordinator = options?.startupWorkloadCoordinator
+    this.startupRunId = options?.startupRunId
+    this.startupTarget = options?.startupTarget ?? 'main'
   }
 
   /**
@@ -58,6 +74,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
           // retired legacy conversation tables. Manual settings repair still uses the full catalog.
           const startupDiagnosis = await this.diagnoseStartupSchema()
           if (!startupDiagnosis) {
+            this.scheduleBackgroundSchemaDiagnosis()
             logger.info('DatabaseInitializer: Database initialization completed successfully')
             return this.database
           }
@@ -71,6 +88,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
                 )}`
               )
               this.warnManualSchemaIssues(diagnosis)
+              this.scheduleBackgroundSchemaDiagnosis()
               logger.info(
                 'DatabaseInitializer: Database initialization continued with residual startup schema issues'
               )
@@ -85,11 +103,12 @@ export class DatabaseInitializer implements IDatabaseInitializer {
             )
             this.database.close()
             this.database = undefined
-            repairSQLiteDatabaseFile(this.dbPath, this.password, { catalog })
+            this.repairStartupSchema(catalog)
             continue
           }
 
           this.warnManualSchemaIssues(diagnosis)
+          this.scheduleBackgroundSchemaDiagnosis()
 
           logger.info('DatabaseInitializer: Database initialization completed successfully')
           return this.database
@@ -111,9 +130,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
           )
           // Construction-time schema failures use the same startup catalog for the same reason:
           // keep boot-time repair scoped to tables that fresh initialization owns.
-          repairSQLiteDatabaseFile(this.dbPath, this.password, {
-            catalog: getStartupSchemaCatalog()
-          })
+          this.repairStartupSchema(getStartupSchemaCatalog())
         }
       }
     } catch (error) {
@@ -174,6 +191,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
       return null
     }
 
+    const start = performance.now()
     try {
       const catalog = getStartupSchemaCatalog()
       return {
@@ -186,7 +204,77 @@ export class DatabaseInitializer implements IDatabaseInitializer {
         error
       )
       return null
+    } finally {
+      logger.info(
+        `DatabaseInitializer: phase=diagnose duration=${(performance.now() - start).toFixed(2)}ms`
+      )
     }
+  }
+
+  private repairStartupSchema(catalog: SchemaTableSpec[]): void {
+    const start = performance.now()
+    try {
+      repairSQLiteDatabaseFile(this.dbPath, this.password, { catalog })
+    } finally {
+      logger.info(
+        `DatabaseInitializer: phase=repair duration=${(performance.now() - start).toFixed(2)}ms`
+      )
+    }
+  }
+
+  private scheduleBackgroundSchemaDiagnosis(): void {
+    if (!this.database || !this.startupWorkloadCoordinator || this.backgroundDiagnosisScheduled) {
+      return
+    }
+
+    const database = this.database
+    this.backgroundDiagnosisScheduled = true
+
+    void this.startupWorkloadCoordinator
+      .scheduleTask({
+        id: 'main:sqlite-schema-diagnosis',
+        target: this.startupTarget,
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.main.sqliteSchemaDiagnosis',
+        runId: this.startupRunId,
+        run: async () => {
+          const catalog = getStartupSchemaCatalog()
+          const start = performance.now()
+          try {
+            const diagnosis = await database.diagnoseSchema(catalog)
+            this.logSchemaDiagnosisSummary(diagnosis)
+          } catch (error) {
+            console.warn(
+              'DatabaseInitializer: Background startup schema diagnosis failed; continuing startup:',
+              error
+            )
+          } finally {
+            logger.info(
+              `DatabaseInitializer: phase=diagnose background=true duration=${(performance.now() - start).toFixed(2)}ms`
+            )
+          }
+        }
+      })
+      .catch((error) => {
+        console.warn('DatabaseInitializer: Failed to schedule background schema diagnosis:', error)
+      })
+  }
+
+  private logSchemaDiagnosisSummary(diagnosis: DatabaseSchemaDiagnosis): void {
+    logger.info(
+      `DatabaseInitializer: Background schema diagnosis summary repairable=${diagnosis.repairableIssues.length} manual=${diagnosis.manualIssues.length}`
+    )
+
+    if (diagnosis.repairableIssues.length > 0) {
+      console.warn(
+        `DatabaseInitializer: Background schema diagnosis found repairable issues: ${this.formatSchemaIssues(
+          diagnosis.repairableIssues
+        )}`
+      )
+    }
+
+    this.warnManualSchemaIssues(diagnosis)
   }
 
   private warnManualSchemaIssues(diagnosis: DatabaseSchemaDiagnosis): void {
