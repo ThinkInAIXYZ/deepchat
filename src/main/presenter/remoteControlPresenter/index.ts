@@ -49,7 +49,6 @@ import {
   normalizeTelegramSettingsInput,
   normalizeWeixinIlinkSettingsInput,
   parseDiscordEndpointKey,
-  parseQQBotEndpointKey,
   parseTelegramEndpointKey,
   parseWeixinIlinkEndpointKey,
   type DiscordRuntimeStatusSnapshot,
@@ -89,11 +88,11 @@ const WEIXIN_TRACE_LOG_ENABLED = process.env.DEEPCHAT_WEIXIN_TRACE === '1'
 const FEISHU_AUTH_SESSION_TTL_MS = 5 * 60 * 1000
 const FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 const FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
-const REMOTE_DELIVERY_MESSAGE_LIMIT = 4000
+const REMOTE_DELIVERY_DEFAULT_MESSAGE_LIMIT = 4000
+const DISCORD_REMOTE_DELIVERY_MESSAGE_LIMIT = 1900
 const REMOTE_DELIVERY_CHANNELS: readonly RemoteChannel[] = [
   'telegram',
   'feishu',
-  'qqbot',
   'discord',
   'weixin-ilink'
 ]
@@ -441,25 +440,27 @@ export class RemoteControlPresenter {
   async deliverCronJobResult(
     input: CronJobRemoteDeliveryInput
   ): Promise<{ remoteMessageId?: string | null }> {
-    const channel = this.parseRemoteDeliveryChannel(input.target.remoteId)
-    const binding = (await this.getChannelBindings(channel)).find(
-      (entry) => entry.endpointKey === input.target.channelId
-    )
-    if (!binding) {
-      throw new Error(`Remote binding is not available: ${input.target.channelId}`)
-    }
+    return this.enqueueRuntimeOperation(async () => {
+      const channel = this.parseRemoteDeliveryChannel(input.target.remoteId)
+      const binding = (await this.getChannelBindings(channel)).find(
+        (entry) => entry.endpointKey === input.target.channelId
+      )
+      if (!binding) {
+        throw new Error(`Remote binding is not available: ${input.target.channelId}`)
+      }
 
-    const adapter = this.getRemoteDeliveryAdapter(channel, input.target.channelId)
-    if (!adapter?.connected) {
-      throw new Error(`Remote channel is not running: ${channel}`)
-    }
+      const adapter = this.getRemoteDeliveryAdapter(channel, input.target.channelId)
+      if (!adapter?.connected) {
+        throw new Error(`Remote channel is not running: ${channel}`)
+      }
 
-    await adapter.sendMessage(
-      this.getRemoteDeliveryChatId(channel, input.target.channelId, binding, input.run),
-      this.buildCronJobDeliveryText(input)
-    )
+      await adapter.sendMessage(
+        this.getRemoteDeliveryChatId(channel, input.target.channelId, binding),
+        this.buildCronJobDeliveryText(input, channel)
+      )
 
-    return { remoteMessageId: null }
+      return { remoteMessageId: null }
+    })
   }
 
   async removeChannelBinding(channel: RemoteChannel, endpointKey: string): Promise<void> {
@@ -1289,19 +1290,10 @@ export class RemoteControlPresenter {
   private getRemoteDeliveryChatId(
     channel: RemoteChannel,
     endpointKey: string,
-    binding: RemoteBindingSummary,
-    run: CronJobRun
+    binding: RemoteBindingSummary
   ): string {
     if (channel === 'telegram' || channel === 'feishu') {
       return binding.threadId ? `${binding.chatId}:${binding.threadId}` : binding.chatId
-    }
-
-    if (channel === 'qqbot') {
-      const endpoint = parseQQBotEndpointKey(endpointKey)
-      if (!endpoint) {
-        throw new Error(`Invalid QQBot binding: ${endpointKey}`)
-      }
-      return `${endpoint.chatType}:${endpoint.chatId}:${run.id}`
     }
 
     if (channel === 'discord') {
@@ -1319,7 +1311,10 @@ export class RemoteControlPresenter {
     return endpoint.userId
   }
 
-  private buildCronJobDeliveryText(input: CronJobRemoteDeliveryInput): string {
+  private buildCronJobDeliveryText(
+    input: CronJobRemoteDeliveryInput,
+    channel: RemoteChannel
+  ): string {
     const body = (input.run.error || input.run.outputPreview || '').trim()
     const lines = [`Scheduled task "${input.job.name}" ${input.run.status}.`]
 
@@ -1339,7 +1334,18 @@ export class RemoteControlPresenter {
     }
 
     const text = lines.join('\n')
-    return input.target.remoteId === 'feishu' ? text : text.slice(0, REMOTE_DELIVERY_MESSAGE_LIMIT)
+    const limit = this.getRemoteDeliveryMessageLimit(channel)
+    return limit === null ? text : text.slice(0, limit)
+  }
+
+  private getRemoteDeliveryMessageLimit(channel: RemoteChannel): number | null {
+    if (channel === 'feishu') {
+      return null
+    }
+    if (channel === 'discord') {
+      return DISCORD_REMOTE_DELIVERY_MESSAGE_LIMIT
+    }
+    return REMOTE_DELIVERY_DEFAULT_MESSAGE_LIMIT
   }
 
   private registerBuiltInFactories(): void {
@@ -2717,9 +2723,12 @@ export class RemoteControlPresenter {
             : this.bindingStore.getWeixinIlinkDefaultAgentId()
   }
 
-  private enqueueRuntimeOperation(operation: () => Promise<void>): Promise<void> {
+  private enqueueRuntimeOperation<T>(operation: () => Promise<T>): Promise<T> {
     const nextOperation = this.runtimeOperation.then(operation, operation)
-    this.runtimeOperation = nextOperation.catch(() => {})
+    this.runtimeOperation = nextOperation.then(
+      () => undefined,
+      () => undefined
+    )
     return nextOperation
   }
 

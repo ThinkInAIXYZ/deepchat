@@ -1019,15 +1019,25 @@ describe('PluginPresenter', () => {
       appPath: fixture.appPath,
       mcpEnabled: false
     })
-    presenter.__mocks.mcpPresenter.startServer.mockImplementation(() => new Promise(() => {}))
+    let resolveStartServer!: () => void
+    let startServerResolved = false
+    presenter.__mocks.mcpPresenter.startServer.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStartServer = () => {
+            startServerResolved = true
+            resolve()
+          }
+        })
+    )
 
-    const result = await Promise.race([
-      presenter.enablePlugin(fixture.pluginId),
-      new Promise((resolve) => setTimeout(() => resolve('blocked'), 20))
-    ])
+    const result = await presenter.enablePlugin(fixture.pluginId)
 
     expect(result).toEqual(expect.objectContaining({ ok: true }))
     expect(presenter.__mocks.mcpPresenter.startServer).toHaveBeenCalledWith('fixture-runtime')
+    expect(startServerResolved).toBe(false)
+
+    resolveStartServer()
   })
 
   it('shuts down running plugin-owned MCP servers without removing saved config', async () => {

@@ -1457,17 +1457,17 @@
     "none": "無",
     "nextRunAt": "下次執行",
     "defaults": {
-      "name": "Morning cron job"
+      "name": "早晨定時任務"
     },
     "actions": {
-      "newJob": "新建任務",
+      "newJob": "新增任務",
       "runNow": "立即執行",
       "clearNextRun": "清除下次執行",
       "reconcile": "重新同步",
       "restart": "重啟定時器"
     },
     "fields": {
-      "name": "名称",
+      "name": "名稱",
       "cronExpr": "Cron 表達式",
       "timezone": "時區",
       "preset": "預設",

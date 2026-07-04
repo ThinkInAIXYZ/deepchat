@@ -167,7 +167,7 @@ const toUpdateInput = (
     toolPolicy: existing.toolPolicy,
     permissionPolicy: existing.permissionPolicy,
     runtime: normalizeRuntime({ ...existing.runtime, ...patch.runtime }),
-    delivery: normalizeDelivery(patch.delivery ?? existing.delivery)
+    delivery: normalizeDelivery({ ...existing.delivery, ...patch.delivery })
   }
 }
 

@@ -172,6 +172,10 @@ export class CronJobRunExecutor {
         sessionId,
         error
       })
+      const current = this.repository.getRun(run.id)
+      if (!current || current.status !== 'running') {
+        return current
+      }
       const failed = this.repository.markRunFailed(
         run.id,
         error instanceof Error ? error.message : String(error)

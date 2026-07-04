@@ -60,6 +60,12 @@
           </div>
         </div>
       </section>
+      <div
+        v-if="schedulerStatus?.lastError"
+        class="max-w-5xl rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+      >
+        {{ schedulerStatus.lastError }}
+      </div>
 
       <div
         v-if="jobs.length === 0"
@@ -278,12 +284,6 @@
             </span>
           </div>
 
-          <div
-            v-if="schedulerStatus?.lastError"
-            class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-          >
-            {{ schedulerStatus.lastError }}
-          </div>
           <div
             v-if="job.status === 'invalid_agent'"
             class="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
@@ -555,7 +555,7 @@ const loadRemoteDeliveryOptions = async (): Promise<RemoteDeliveryOption[]> => {
     const descriptors = await remoteControlClient.listRemoteChannels()
     const groups = await Promise.all(
       descriptors
-        .filter((descriptor) => descriptor.implemented)
+        .filter((descriptor) => descriptor.implemented && descriptor.id !== 'qqbot')
         .map(async (descriptor) => {
           const status = await remoteControlClient.getChannelStatus(descriptor.id)
           if (!status.enabled) {

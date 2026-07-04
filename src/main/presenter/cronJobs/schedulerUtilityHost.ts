@@ -101,44 +101,56 @@ export class CronJobsSchedulerUtilityHost {
     if (this.shuttingDown) {
       return
     }
-    this.openDatabase()
-    this.send({
-      type: 'READY',
-      pid: process.pid || null,
-      now: Date.now()
-    })
-    this.startHeartbeat()
-    this.scanDueRuns()
+    try {
+      this.openDatabase()
+      this.send({
+        type: 'READY',
+        pid: process.pid || null,
+        now: Date.now()
+      })
+      this.startHeartbeat()
+      this.scanDueRuns()
+    } catch (error) {
+      this.reportError(error)
+    }
   }
 
   reconcile(): void {
-    this.openDatabase()
-    this.scanDueRuns()
+    try {
+      this.openDatabase()
+      this.scanDueRuns()
+    } catch (error) {
+      this.reportError(error)
+    }
   }
 
   runNow(jobId: string, now = Date.now()): void {
-    this.openDatabase()
-    const db = this.requireDatabase()
-    const job = db.prepare('SELECT id FROM cron_jobs WHERE id = ?').get(jobId) as
-      | { id: string }
-      | undefined
-    if (!job) {
-      return
-    }
+    try {
+      this.openDatabase()
+      const db = this.requireDatabase()
+      const job = db.prepare('SELECT id FROM cron_jobs WHERE id = ?').get(jobId) as
+        | { id: string }
+        | undefined
+      if (!job) {
+        return
+      }
 
-    const run = this.queueRun(job.id, now, 'manual')
-    if (!run) {
-      return
+      const run = this.queueRun(job.id, now, 'manual')
+      if (!run) {
+        return
+      }
+      this.send({
+        type: 'RUN_DUE',
+        jobId: job.id,
+        runId: run.runId,
+        scheduledAt: now,
+        reason: 'manual',
+        now: Date.now()
+      })
+      this.scheduleNextScan()
+    } catch (error) {
+      this.reportError(error)
     }
-    this.send({
-      type: 'RUN_DUE',
-      jobId: job.id,
-      runId: run.runId,
-      scheduledAt: now,
-      reason: 'manual',
-      now: Date.now()
-    })
-    this.scheduleNextScan()
   }
 
   shutdown(): void {
@@ -269,13 +281,7 @@ export class CronJobsSchedulerUtilityHost {
       }
       this.sendHeartbeat()
     } catch (error) {
-      const serialized = serializeError(error)
-      this.send({
-        type: 'ERROR',
-        message: serialized.message,
-        stack: serialized.stack,
-        now: Date.now()
-      })
+      this.reportError(error)
     } finally {
       this.scheduleNextScan()
     }
@@ -370,13 +376,7 @@ export class CronJobsSchedulerUtilityHost {
         now: Date.now()
       })
     } catch (error) {
-      const serialized = serializeError(error)
-      this.send({
-        type: 'ERROR',
-        message: serialized.message,
-        stack: serialized.stack,
-        now: Date.now()
-      })
+      this.reportError(error)
     }
   }
 
@@ -402,6 +402,16 @@ export class CronJobsSchedulerUtilityHost {
 
   private send(message: SchedulerEvent): void {
     this.options.postMessage(message)
+  }
+
+  private reportError(error: unknown): void {
+    const serialized = serializeError(error)
+    this.send({
+      type: 'ERROR',
+      message: serialized.message,
+      stack: serialized.stack,
+      now: Date.now()
+    })
   }
 }
 

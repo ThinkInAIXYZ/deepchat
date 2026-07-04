@@ -392,6 +392,102 @@ describe('CronJobRunExecutor', () => {
     }
   })
 
+  it('does not overwrite terminal runs when session start fails late', async () => {
+    const now = Date.parse('2026-07-04T00:00:00.000Z')
+    const job: CronJob = {
+      id: 'job-1',
+      name: 'Late failure',
+      description: null,
+      enabled: true,
+      status: 'ready',
+      cronExpr: '* * * * *',
+      timezone: 'UTC',
+      agentId: 'agent-1',
+      nextRunAt: now,
+      misfirePolicy: 'skip',
+      maxCatchUpRuns: null,
+      scheduleError: null,
+      taskPrompt: 'Summarize issues',
+      taskSystemInstruction: null,
+      taskOutputMode: 'final_message',
+      modelPolicy: 'follow_agent',
+      toolPolicy: 'follow_agent',
+      permissionPolicy: 'follow_agent',
+      runtime: {
+        maxDurationMs: 3_600_000,
+        maxTurns: 20,
+        concurrencyPolicy: 'skip'
+      },
+      agentSnapshot: null,
+      delivery: {
+        targets: [],
+        suppressSuccessNotification: false,
+        notifyOnFailure: true
+      },
+      createdAt: now,
+      updatedAt: now
+    }
+    const runningRun: CronJobRun = {
+      id: 'run-1',
+      jobId: job.id,
+      sessionId: null,
+      scheduledAt: now,
+      queuedAt: now,
+      startedAt: now,
+      completedAt: null,
+      status: 'running',
+      reason: 'scheduled',
+      outputMessageId: null,
+      outputPreview: null,
+      error: null,
+      claimedAt: now,
+      claimOwner: 'owner-1',
+      createdAt: now,
+      updatedAt: now
+    }
+    const completedRun: CronJobRun = {
+      ...runningRun,
+      completedAt: now + 1,
+      status: 'completed',
+      updatedAt: now + 1
+    }
+    let storedRun = runningRun
+    const repository = {
+      claimRun: vi.fn(() => runningRun),
+      getRun: vi.fn(() => storedRun),
+      countActiveRunsByJob: vi.fn(() => 0),
+      updateRunSession: vi.fn((id: string, sessionId: string) => {
+        storedRun = { ...storedRun, id, sessionId }
+        return storedRun
+      }),
+      updateRunOutput: vi.fn(),
+      markRunFailed: vi.fn()
+    }
+    const sessionStarter = {
+      createSessionForRun: vi.fn(async () => ({ sessionId: 'session-1' })),
+      startSessionRun: vi.fn(async () => {
+        storedRun = completedRun
+        throw new Error('late failure')
+      })
+    }
+    const deliveryRouter = {
+      deliver: vi.fn(async () => [])
+    }
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never
+    )
+
+    try {
+      await expect(executor.execute({ runId: runningRun.id, job })).resolves.toEqual(completedRun)
+      expect(repository.markRunFailed).not.toHaveBeenCalled()
+      expect(deliveryRouter.deliver).not.toHaveBeenCalled()
+    } finally {
+      executor.dispose()
+    }
+  })
+
   it('fails and cancels runs that exceed max duration', async () => {
     vi.useFakeTimers()
     const now = Date.parse('2026-07-04T00:00:00.000Z')

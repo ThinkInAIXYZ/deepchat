@@ -2788,7 +2788,7 @@
       "agent": "Agent",
       "noAgent": "Nie wybrano",
       "taskPrompt": "Polecenie zadania",
-      "runtimePolicy": "Środowisko wykonawcze",
+      "runtimePolicy": "Zasady wykonania",
       "followAgent": "Śledź agenta",
       "pinCurrent": "Przypnij bieżącą konfigurację",
       "delivery": "Dostarczanie",
