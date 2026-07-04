@@ -205,7 +205,7 @@
               </Label>
               <Textarea
                 :model-value="job.taskPrompt"
-                class="min-h-[72px] resize-y text-sm"
+                class="max-h-[13.5rem] min-h-[72px] resize-none overflow-y-auto text-sm"
                 @update:model-value="(value) => updateJobField(job.id, 'taskPrompt', String(value))"
                 @blur="commitJob(job.id)"
               />

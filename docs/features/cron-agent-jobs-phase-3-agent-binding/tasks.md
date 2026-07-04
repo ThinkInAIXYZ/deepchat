@@ -18,6 +18,7 @@
 - [x] Update create/update/toggle validation to require a valid agent for enabled jobs.
 - [x] Add agent selector and runtime policy controls.
 - [x] Add invalid-agent list and editor states.
+- [x] Cap the task content editor at 10 rows with internal scrolling.
 - [x] Add i18n keys.
 
 ## Tests And Validation

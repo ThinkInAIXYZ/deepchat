@@ -62,6 +62,7 @@ type AgentCronJob = {
 - In snapshot mode, the job uses the captured runtime snapshot.
 - Deleting or disabling an agent moves related jobs to `invalid_agent` and prevents enqueueing.
 - The job editor clearly shows which runtime parts follow the agent and which are pinned.
+- The task content field grows only up to 10 text rows and scrolls internally beyond that.
 - Scheduler status excludes invalid jobs from enabled runnable counts.
 
 ## UX Shape
