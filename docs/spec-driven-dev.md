@@ -11,39 +11,66 @@ In practice, SDD works best when the spec is concrete enough to drive design dec
 Keep every active change in a lightweight SDD folder so reviewers can find the intent without hunting through code. Use one kebab-case folder per goal:
 
 - `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools
-- `docs/issues/<goal>/` - bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
+- `docs/issues/<goal>/` - small bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
 - `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
 
 Pure release metadata work is exempt from SDD. Version bumps, `CHANGELOG.md` updates, release branch
 management, tags, and release PR preparation should follow `docs/release-flow.md` without creating a
 release-specific SDD folder.
 
-Each active goal folder contains:
+Feature and architecture goals use the full SDD set:
 
 - `spec.md` - user stories, acceptance criteria, non-goals, constraints, open questions
 - `plan.md` - architecture decisions, event flow, data model, compatibility, test strategy
 - `tasks.md` - small, ordered tasks that map to commits/PRs
 
-If a change is tiny, keep all three files short.
+Small bug goals use one file:
 
-After implementation, delete `plan.md` and `tasks.md`. Keep `spec.md` only when it remains a
-durable contract, regression guard, platform policy, or architecture decision that helps maintain
-current code.
+- `spec.md` - issue description, impact, root cause or suspected location, fix plan, task checklist,
+  validation, and linked GitHub issue if one exists
+
+A bug is small only when the failure is narrow, the owner module is clear, and the fix does not
+introduce a new user-visible capability, data migration, public contract, or cross-module redesign.
+If it does, classify the work as feature or architecture instead.
+
+If a change is tiny, keep the artifact short.
+
+## GitHub Issue Sync
+
+For feature and small bug work, create or link a GitHub issue when local `gh` is installed and
+authenticated:
+
+- Feature work uses the `[feature]` label.
+- Bug work uses the `[bug]` label.
+- If the label is missing and `gh` has permission, create it.
+- Record the issue URL or number in the SDD artifact.
+- If `gh` is unavailable or unauthorized, continue local-only and note that no GitHub issue was
+  created.
+
+When opening a PR for linked work, include `Closes #NNN` in the PR body so GitHub closes the issue
+after merge.
 
 ## Workflow
 
-1. **Feature Specification** - Define user stories, acceptance criteria, business value, non-goals
-2. **Implementation Plan** - Architecture decisions, event flow, IPC surface, test strategy
-3. **Task Breakdown** - Small tasks that can be reviewed independently
-4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality gates
+1. **Classification** - Choose feature, small bug, or architecture.
+2. **Specification** - Write the required artifact set for that classification.
+3. **GitHub Sync** - Create or link a labeled GitHub issue for feature and small bug work when
+   local `gh` is usable.
+4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality
+   gates.
 
-Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. Keep `plan.md` and `tasks.md` active only while they are driving current work. When a goal is implemented, fold durable maintenance facts into the current project docs, keep `spec.md` only if it remains a useful contract, and delete stale goal folders that only describe removed code, abandoned implementation ideas, old branch plans, or one-off bug fixes with no reusable decision record.
+Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. For architecture work that changes or replaces a historical feature, update that feature's retained `spec.md` if it is still a maintained contract.
 
-Retention policy:
+Cleanup policy:
 
-- Feature and architecture SDD folders keep `plan.md` and `tasks.md` only while the work is active.
-- Completed feature/architecture SDD content should become current documentation in `README.md`, `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`; keep a spec-only folder when the acceptance criteria still define a useful maintained contract.
-- Bug-fix issue SDD folders older than two weeks should be removed unless their `spec.md` still describes a useful regression contract.
+- Do not perform broad SDD cleanup during ordinary feature, bug, or architecture work.
+- Use the `deepchat-sdd-cleanup` skill only when a developer explicitly asks to clean, prune, or
+  organize SDD docs.
+- Completed feature/architecture SDD content should become current documentation in `README.md`,
+  `ARCHITECTURE.md`, `FLOWS.md`, `architecture/*.md`, or `guides/*.md`; keep a spec-only folder
+  when the acceptance criteria still define a useful maintained contract.
+- Completed issue folders may be deleted when a linked GitHub issue is closed or the local code and
+  tests prove the bug no longer exists.
 - Long-term history should be recovered from git history, not accumulated under `docs/archives/`.
 
 ## Six Core Principles
@@ -105,6 +132,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] Key UX states covered (loading/empty/error)
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Business value articulated
+- [ ] GitHub issue linked or local-only reason recorded for feature and small bug work
 
 ### Planning Phase
 - [ ] Identify all involved Presenters
@@ -165,9 +193,10 @@ Compatibility note:
 
 ## Definition of Done (DoD)
 
-A feature is “done” when:
+A change is “done” when:
 
 - The acceptance criteria are met (and ideally covered by tests)
 - Lint/typecheck/tests pass locally
 - User-facing strings use i18n keys
 - Any migrations or breaking changes are documented
+- Linked GitHub issues are referenced from the PR with `Closes #NNN`
