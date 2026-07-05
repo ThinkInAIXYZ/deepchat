@@ -16,7 +16,7 @@ import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
 
 let appStarted = false
-const APP_NAME = 'DeepChat'
+const APP_NAME = 'DeepChatNew'
 
 export function startApp(): void {
   if (appStarted) {
