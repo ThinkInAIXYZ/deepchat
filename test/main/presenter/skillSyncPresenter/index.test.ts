@@ -1047,7 +1047,7 @@ describe('SkillSyncPresenter', () => {
       )
     })
 
-    it('previews adoption when SKILL.md name differs from the agent entry name', async () => {
+    it('previews adoption when SKILL.md name is not a valid target name', async () => {
       const { toolScanner } =
         await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
       const codexTool = createFolderTool()
@@ -1070,7 +1070,7 @@ describe('SkillSyncPresenter', () => {
         createDirent('native-feel-skill', { directory: true })
       ] as any)
       vi.mocked(fs.promises.readFile).mockResolvedValue(
-        '---\nname: native-feel-cross-platform-desktop\ndescription: Native desktop\n---\n# Native'
+        '---\nname: Native Feel Skill\ndescription: Native desktop\n---\n# Native'
       )
       vi.mocked(fs.promises.access).mockRejectedValue(
         Object.assign(new Error('missing'), { code: 'ENOENT' })

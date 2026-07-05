@@ -1223,7 +1223,6 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
     const description =
       typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
-    this.assertValidDeepChatSkillName(name)
     if (!description) {
       throw new Error('Skill description not found in SKILL.md frontmatter')
     }
