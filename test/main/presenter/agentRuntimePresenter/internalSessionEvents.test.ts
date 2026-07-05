@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
+  buildAssistantDeliverySegments,
   buildAssistantResponseMarkdown,
   extractWaitingInteraction,
   emitDeepChatInternalSessionUpdate,
@@ -102,5 +103,40 @@ describe('internalSessionEvents', () => {
     expect(responseMarkdown).toBe(
       ['```yaml', 'items:', '  - name: foo', '', '  - name: bar', '```'].join('\n')
     )
+  })
+
+  it('builds remote delivery segments from assistant blocks', () => {
+    const segments = buildAssistantDeliverySegments('message-1', [
+      {
+        type: 'tool_call',
+        status: 'success',
+        timestamp: 1,
+        tool_call: {
+          id: 'tool-1',
+          name: 'read_file',
+          params: '{"path":"/tmp/a.md"}'
+        },
+        extra: {
+          toolCallArgsComplete: true
+        }
+      },
+      {
+        type: 'content',
+        status: 'success',
+        timestamp: 2,
+        content: 'Final answer'
+      }
+    ])
+
+    expect(segments).toEqual([
+      expect.objectContaining({
+        kind: 'process',
+        text: expect.stringContaining('read_file')
+      }),
+      expect.objectContaining({
+        kind: 'answer',
+        text: 'Final answer'
+      })
+    ])
   })
 })

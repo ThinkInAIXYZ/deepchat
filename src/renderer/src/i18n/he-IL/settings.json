@@ -1464,65 +1464,59 @@
     "saveSuccess": "התצורה נשמרה",
     "saveFailed": "שמירת התצורה נכשלה"
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "משימות מתוזמנות",
-    "description": "הצג התראת מערכת או שלח פרומפט מוכן לסוכן בזמן שנבחר.",
-    "hint": "משימות חד-פעמיות שפוספסו כשהאפליקציה הייתה סגורה יופעלו בהפעלה הבאה; משימות חוזרות יקפצו למועד הבא.",
-    "newTask": "משימה חדשה",
-    "empty": "אין עדיין משימות",
-    "namePlaceholder": "שם המשימה",
-    "fireNow": "הפעל עכשיו",
-    "fireNowSuccess": "המשימה הופעלה",
+    "description": "נהל משימות סוכן מתוזמנות ואת תהליך התזמון.",
+    "empty": "אין עדיין משימות מתוזמנות.",
+    "none": "ללא",
+    "nextRunAt": "ההרצה הבאה",
     "defaults": {
-      "name": "משימה חדשה",
-      "title": "תזכורת",
-      "body": "הגיע הזמן"
+      "name": "משימת בוקר מתוזמנת"
     },
-    "trigger": {
-      "title": "טריגר",
-      "kind": "סוג טריגר",
-      "kindOnce": "פעם אחת",
-      "kindDaily": "יומי",
-      "kindWeekly": "שבועי",
-      "firesAt": "הפעל בשעה",
-      "dayOfWeek": "יום בשבוע",
-      "time": "שעה",
-      "description": "בחר מתי המשימה הזו תפעל."
+    "actions": {
+      "newJob": "משימה חדשה",
+      "runNow": "הרץ עכשיו",
+      "clearNextRun": "נקה הרצה הבאה",
+      "reconcile": "סנכרן מחדש",
+      "restart": "הפעל טיימר מחדש"
     },
-    "action": {
-      "title": "פעולה",
-      "kind": "סוג פעולה",
-      "kindNotify": "התראה",
-      "kindPrompt": "פרומפט צ׳אט",
-      "titleField": "כותרת",
-      "titlePlaceholder": "כותרת ההתראה",
-      "body": "גוף",
-      "message": "הודעה",
-      "agentId": "סוכן",
-      "agentIdPlaceholder": "ברירת מחדל: deepchat",
-      "modelId": "מודל",
-      "modelIdPlaceholder": "השאר ריק לברירת המחדל",
-      "systemPrompt": "פרומפט מערכת",
-      "autoSend": "שלח אוטומטית לסוכן שנבחר",
-      "description": "בחר התראה או פרומפט לסוכן."
+    "fields": {
+      "name": "שם",
+      "cronExpr": "ביטוי Cron",
+      "timezone": "אזור זמן",
+      "preset": "תבנית מוגדרת מראש",
+      "agent": "סוכן",
+      "noAgent": "לא נבחר",
+      "taskPrompt": "פרומפט משימה",
+      "runtimePolicy": "מדיניות ריצה",
+      "followAgent": "עקוב אחר הסוכן",
+      "pinCurrent": "נעץ תצורה נוכחית",
+      "delivery": "מסירה",
+      "remoteDelivery": "מסירת Remote",
+      "remoteChannel": "ערוץ Remote",
+      "noRemoteChannels": "יש להפעיל Remote ולקשר ערוץ תחילה.",
+      "deliverySuccess": "נשלח",
+      "deliveryFailed": "נכשל"
     },
-    "weekday": {
-      "sun": "א׳",
-      "mon": "ב׳",
-      "tue": "ג׳",
-      "wed": "ד׳",
-      "thu": "ה׳",
-      "fri": "ו׳",
-      "sat": "ש׳"
+    "presets": {
+      "custom": "מותאם אישית",
+      "every5Minutes": "כל 5 דקות",
+      "hourly": "כל שעה",
+      "daily": "יומי ב-09:00",
+      "weekdays": "ימי חול ב-09:00"
     },
-    "listTitle": "רשימת משימות",
-    "listDescription": "נהל לוחות זמנים, פעולות ומצב הפעלה במקום אחד.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "כל יום בשעה {time}",
-      "weekly": "{day} בשעה {time}"
-    }
+    "status": {
+      "state": "מצב",
+      "enabled": "משימות מופעלות",
+      "heartbeat": "פעימת לב",
+      "stopped": "עצור",
+      "starting": "מתחיל",
+      "running": "פועל",
+      "idle": "במנוחה",
+      "error": "שגיאה",
+      "invalidAgent": "הסוכן חסר או מושבת. בחר סוכן אחר."
+    },
+    "runNowSuccess": "המשימה המתוזמנת הופעלה"
   },
   "about": {
     "title": "אודותינו",

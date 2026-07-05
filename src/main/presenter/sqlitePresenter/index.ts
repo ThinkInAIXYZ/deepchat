@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
-import Database from 'better-sqlite3-multiple-ciphers'
-import path from 'path'
+import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
@@ -34,6 +33,7 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
@@ -42,12 +42,17 @@ import { ConfigTables } from './tables/configTables'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
 import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { configureSQLiteConnection } from './connectionConfig'
+import { openSQLiteDatabase } from './databaseConnection'
 import { LegacyChatImportService } from '../agentSessionPresenter/legacyImportService'
+
+export { openSQLiteDatabase } from './databaseConnection'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
@@ -71,20 +76,6 @@ function getErrorMessage(error: unknown): string {
 export function isDestructiveDatabaseError(error: unknown): boolean {
   const message = getErrorMessage(error)
   return DESTRUCTIVE_DATABASE_ERROR_PATTERNS.some((pattern) => pattern.test(message))
-}
-
-function ensureDatabaseDirectory(dbPath: string): void {
-  const dbDir = path.dirname(dbPath)
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true })
-  }
-}
-
-export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
-  ensureDatabaseDirectory(dbPath)
-  const db = new Database(dbPath)
-  configureSQLiteConnection(db, password)
-  return db
 }
 
 export function repairSQLiteDatabaseFile(
@@ -238,6 +229,7 @@ export class SQLitePresenter implements ISQLitePresenter {
   public deepchatUsageStatsTable!: DeepChatUsageStatsTable
   public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
   public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
+  public deepchatSessionMetadataTable!: DeepChatSessionMetadataTable
   public legacyImportStatusTable!: LegacyImportStatusTable
   public agentsTable!: AgentsTable
   public agentMemoryTable!: AgentMemoryTable
@@ -246,6 +238,9 @@ export class SQLitePresenter implements ISQLitePresenter {
   public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
   public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
   public settingsActivityTable!: SettingsActivityTable
+  public cronJobsTable!: CronJobsTable
+  public cronJobRunsTable!: CronJobRunsTable
+  public cronJobDeliveriesTable!: CronJobDeliveriesTable
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -441,6 +436,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
     this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(this.db)
     this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
+    this.deepchatSessionMetadataTable = new DeepChatSessionMetadataTable(this.db)
     this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
     this.agentsTable = new AgentsTable(this.db)
     this.agentMemoryTable = new AgentMemoryTable(this.db)
@@ -449,6 +445,9 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
     this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
     this.settingsActivityTable = new SettingsActivityTable(this.db)
+    this.cronJobsTable = new CronJobsTable(this.db)
+    this.cronJobRunsTable = new CronJobRunsTable(this.db)
+    this.cronJobDeliveriesTable = new CronJobDeliveriesTable(this.db)
 
     // Create only active tables for the new stack.
     this.acpSessionsTable.createTable()
@@ -470,6 +469,7 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.deepchatUsageStatsTable.createTable()
     this.deepchatTapeEntriesTable.createTable()
     this.deepchatTapeSearchProjectionTable.createTable()
+    this.deepchatSessionMetadataTable.createTable()
     this.legacyImportStatusTable.createTable()
     this.agentsTable.createTable()
     this.agentMemoryTable.createTable()
@@ -478,6 +478,9 @@ export class SQLitePresenter implements ISQLitePresenter {
     this.newSessionActiveSkillsTable.createTable()
     this.newSessionDisabledAgentToolsTable.createTable()
     this.settingsActivityTable.createTable()
+    this.cronJobsTable.createTable()
+    this.cronJobRunsTable.createTable()
+    this.cronJobDeliveriesTable.createTable()
   }
 
   private initVersionTable() {
@@ -515,6 +518,7 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.deepchatUsageStatsTable,
       this.deepchatTapeEntriesTable,
       this.deepchatTapeSearchProjectionTable,
+      this.deepchatSessionMetadataTable,
       this.legacyImportStatusTable,
       this.agentsTable,
       this.agentMemoryTable,
@@ -522,7 +526,10 @@ export class SQLitePresenter implements ISQLitePresenter {
       this.configTables,
       this.newSessionActiveSkillsTable,
       this.newSessionDisabledAgentToolsTable,
-      this.settingsActivityTable
+      this.settingsActivityTable,
+      this.cronJobsTable,
+      this.cronJobRunsTable,
+      this.cronJobDeliveriesTable
     ]
   }
 
@@ -621,6 +628,7 @@ export class SQLitePresenter implements ISQLitePresenter {
         DELETE FROM deepchat_tape_entries;
         DELETE FROM deepchat_tape_search_projection;
         DELETE FROM deepchat_tape_search_projection_meta;
+        DELETE FROM deepchat_session_metadata;
         DELETE FROM deepchat_sessions;
         DELETE FROM new_session_active_skills;
         DELETE FROM new_session_disabled_agent_tools;

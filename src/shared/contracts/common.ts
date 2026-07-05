@@ -221,6 +221,15 @@ export const SessionWithStateSchema = z.object({
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
+  metadata: z
+    .object({
+      source: z.literal('cron_job'),
+      cronJobId: EntityIdSchema,
+      cronJobRunId: EntityIdSchema,
+      scheduledAt: TimestampMsSchema
+    })
+    .nullable()
+    .optional(),
   status: SessionStatusSchema,
   providerId: z.string(),
   modelId: z.string()

@@ -19,6 +19,8 @@ import type {
   IYoBrowserPresenter,
   ISkillSyncPresenter
 } from '@shared/presenter'
+import type { CronJob, CronJobRun } from '@shared/cronJobs'
+import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -417,6 +419,23 @@ function createRuntime() {
   const agentSessionPresenter = {
     getActiveSessionId: vi.fn(() => null),
     getLightweightSessionsByIds: vi.fn().mockResolvedValue([]),
+    createDetachedSession: vi.fn().mockResolvedValue({
+      id: 'session-1',
+      agentId: 'deepchat',
+      title: 'New Chat',
+      projectDir: '/workspace',
+      isPinned: false,
+      isDraft: false,
+      sessionKind: 'regular',
+      parentSessionId: null,
+      subagentEnabled: false,
+      subagentMeta: null,
+      createdAt: 1,
+      updatedAt: 2,
+      status: 'idle',
+      providerId: 'openai',
+      modelId: 'gpt-5.4'
+    }),
     createSession: vi.fn().mockResolvedValue({
       id: 'session-1',
       agentId: 'deepchat',
@@ -750,6 +769,7 @@ function createRuntime() {
     }
   ]
   const windowPresenter = {
+    mainWindow: browserWindowState.windows.get(3),
     createSettingsWindow: vi.fn().mockResolvedValue(9),
     previewFile: vi.fn(),
     minimize: vi.fn((windowId: number) => {
@@ -774,6 +794,12 @@ function createRuntime() {
       const window = browserWindowState.windows.get(windowId)
       if (window) {
         window.focused = false
+      }
+    }),
+    show: vi.fn((windowId: number) => {
+      const window = browserWindowState.windows.get(windowId)
+      if (window) {
+        window.focused = true
       }
     }),
     isMainWindowFocused: vi.fn(
@@ -1141,19 +1167,99 @@ function createRuntime() {
     listSettingsActivity: vi.fn().mockResolvedValue([]),
     repairSchema: vi.fn().mockResolvedValue(databaseRepairReport)
   } as unknown as ISQLitePresenter
-  const scheduledTasks = {
-    setSessionCreator: vi.fn(),
-    list: vi.fn(() => ({ enabled: false, tasks: [] })),
-    upsert: vi.fn((task: unknown) => ({ task, settings: { enabled: false, tasks: [task] } })),
-    delete: vi.fn(() => ({ enabled: false, tasks: [] })),
-    toggle: vi.fn((id: string, enabled: boolean) => ({
-      task: { id, enabled },
-      settings: { enabled: false, tasks: [{ id, enabled }] }
-    })),
-    fireNow: vi.fn(async (id: string) => ({
-      task: { id },
-      settings: { enabled: false, tasks: [{ id }] }
-    }))
+  const cronJob = {
+    id: 'cron-1',
+    name: 'Cron smoke',
+    description: null,
+    enabled: true,
+    status: 'ready' as const,
+    cronExpr: '0 9 * * *',
+    timezone: 'UTC',
+    agentId: 'deepchat',
+    nextRunAt: null,
+    misfirePolicy: 'skip' as const,
+    maxCatchUpRuns: null,
+    scheduleError: null,
+    taskPrompt: 'Summarize issues',
+    taskSystemInstruction: null,
+    taskOutputMode: 'final_message' as const,
+    modelPolicy: 'follow_agent' as const,
+    toolPolicy: 'follow_agent' as const,
+    permissionPolicy: 'follow_agent' as const,
+    runtime: {
+      maxDurationMs: 3_600_000,
+      maxTurns: 20,
+      concurrencyPolicy: 'skip' as const
+    },
+    agentSnapshot: null,
+    delivery: {
+      targets: [],
+      suppressSuccessNotification: false,
+      notifyOnFailure: true
+    },
+    createdAt: 1,
+    updatedAt: 2
+  }
+  const cronRun = {
+    id: 'run-1',
+    jobId: 'cron-1',
+    sessionId: 'session-1',
+    scheduledAt: 3,
+    queuedAt: 3,
+    startedAt: 4,
+    completedAt: 5,
+    status: 'completed' as const,
+    reason: 'manual' as const,
+    outputMessageId: null,
+    outputPreview: null,
+    error: null,
+    claimedAt: 4,
+    claimOwner: 'owner-1',
+    createdAt: 3,
+    updatedAt: 5
+  }
+  const cronDelivery = {
+    id: 'delivery-1',
+    jobId: 'cron-1',
+    runId: 'run-1',
+    targetType: 'remote' as const,
+    target: {
+      type: 'remote' as const,
+      remoteId: 'telegram',
+      channelId: 'telegram:-100:0',
+      mode: 'summary' as const
+    },
+    status: 'success' as const,
+    remoteMessageId: null,
+    error: null,
+    createdAt: 6,
+    updatedAt: 6
+  }
+  const cronStatus = {
+    state: 'idle' as const,
+    pid: null,
+    enabledJobCount: 1,
+    nextRunAt: null,
+    lastHeartbeatAt: null,
+    lastError: null,
+    restartAttempts: 0,
+    updatedAt: 6
+  }
+  const cronJobs = {
+    list: vi.fn(async () => ({ jobs: [cronJob], schedulerStatus: cronStatus })),
+    upsert: vi.fn(async () => ({ job: cronJob, schedulerStatus: cronStatus })),
+    delete: vi.fn(async () => cronStatus),
+    toggle: vi.fn(async () => ({ job: cronJob, schedulerStatus: cronStatus })),
+    runNow: vi.fn(async () => ({ job: cronJob, run: cronRun, schedulerStatus: cronStatus })),
+    listRuns: vi.fn(() => [cronRun]),
+    getRun: vi.fn(() => cronRun),
+    listDeliveries: vi.fn(() => [cronDelivery]),
+    getSchedulerStatus: vi.fn(() => cronStatus),
+    reconcileScheduler: vi.fn(async () => cronStatus),
+    restartScheduler: vi.fn(async () => cronStatus),
+    validateSchedule: vi.fn(() => ({ valid: true, error: null, nextRunAt: 10 })),
+    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
+    setRunSessionStarter: vi.fn()
   }
 
   setDeepchatEventWindowPresenter(windowPresenter)
@@ -1180,7 +1286,7 @@ function createRuntime() {
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
-      scheduledTasks
+      cronJobs
     }),
     configPresenter,
     llmProviderPresenter,
@@ -1200,11 +1306,256 @@ function createRuntime() {
     knowledgePresenter,
     workspacePresenter,
     yoBrowserPresenter,
-    tabPresenter
+    tabPresenter,
+    cronJobs
   }
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('dispatches Cron Jobs routes through the runtime service', async () => {
+    const { runtime, cronJobs } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const listResult = await dispatchDeepchatRoute(runtime, 'cronJobs.list', {}, context)
+    const upsertResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.upsert',
+      {
+        name: 'Cron smoke',
+        enabled: true,
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        agentId: 'deepchat',
+        nextRunAt: null,
+        misfirePolicy: 'skip',
+        maxCatchUpRuns: null,
+        scheduleError: null,
+        taskPrompt: 'Summarize issues',
+        taskSystemInstruction: null,
+        taskOutputMode: 'final_message',
+        modelPolicy: 'follow_agent',
+        toolPolicy: 'follow_agent',
+        permissionPolicy: 'follow_agent',
+        runtime: {
+          maxDurationMs: 3_600_000,
+          maxTurns: 20,
+          concurrencyPolicy: 'skip'
+        }
+      },
+      context
+    )
+    const toggleResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.toggle',
+      {
+        id: 'cron-1',
+        enabled: false
+      },
+      context
+    )
+    const runNowResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.runNow',
+      {
+        id: 'cron-1'
+      },
+      context
+    )
+    const listRunsResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.listRuns',
+      {
+        jobId: 'cron-1',
+        limit: 3
+      },
+      context
+    )
+    const getRunResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.getRun',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
+    const listDeliveriesResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.listDeliveries',
+      {
+        runId: 'run-1'
+      },
+      context
+    )
+    const statusResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.getSchedulerStatus',
+      {},
+      context
+    )
+    const reconcileResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.reconcileScheduler',
+      {
+        reason: 'test'
+      },
+      context
+    )
+    const restartResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.restartScheduler',
+      {},
+      context
+    )
+    const deleteResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.delete',
+      {
+        id: 'cron-1'
+      },
+      context
+    )
+    const validateResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.validateSchedule',
+      {
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC'
+      },
+      context
+    )
+    const previewResult = await dispatchDeepchatRoute(
+      runtime,
+      'cronJobs.previewSchedule',
+      {
+        cronExpr: '0 9 * * *',
+        timezone: 'UTC',
+        count: 3
+      },
+      context
+    )
+
+    expect(listResult).toEqual({
+      jobs: [expect.objectContaining({ id: 'cron-1' })],
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(upsertResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(toggleResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(runNowResult).toEqual({
+      job: expect.objectContaining({ id: 'cron-1' }),
+      run: expect.objectContaining({ id: 'run-1', status: 'completed' }),
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(listRunsResult).toEqual({
+      runs: [expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })]
+    })
+    expect(getRunResult).toEqual({
+      run: expect.objectContaining({ id: 'run-1', sessionId: 'session-1' })
+    })
+    expect(listDeliveriesResult).toEqual({
+      deliveries: [expect.objectContaining({ id: 'delivery-1', status: 'success' })]
+    })
+    expect(statusResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(reconcileResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(restartResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(deleteResult).toEqual({
+      schedulerStatus: expect.objectContaining({ state: 'idle' })
+    })
+    expect(validateResult).toEqual({ valid: true, error: null, nextRunAt: 10 })
+    expect(previewResult).toEqual({ runs: [10, 20, 30], error: null })
+    expect(cronJobs.toggle).toHaveBeenCalledWith('cron-1', false)
+    expect(cronJobs.runNow).toHaveBeenCalledWith('cron-1')
+    expect(cronJobs.listRuns).toHaveBeenCalledWith('cron-1', 3)
+    expect(cronJobs.getRun).toHaveBeenCalledWith('run-1')
+    expect(cronJobs.listDeliveries).toHaveBeenCalledWith('run-1')
+    expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('test')
+    expect(cronJobs.restartScheduler).toHaveBeenCalledTimes(1)
+    expect(cronJobs.delete).toHaveBeenCalledWith('cron-1')
+    expect(cronJobs.validateSchedule).toHaveBeenCalledWith({
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC'
+    })
+    expect(cronJobs.previewSchedule).toHaveBeenCalledWith({
+      cronExpr: '0 9 * * *',
+      timezone: 'UTC',
+      count: 3
+    })
+  })
+
+  it('wires Cron Job run sessions with source metadata', async () => {
+    const { cronJobs, agentSessionPresenter } = createRuntime()
+    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
+      | CronJobRunSessionStarter
+      | undefined
+
+    expect(starter).toBeDefined()
+    await starter!.createSessionForRun({
+      job: {
+        id: 'cron-1',
+        name: 'Morning job',
+        agentId: 'deepchat',
+        agentSnapshot: null,
+        modelPolicy: 'follow_agent',
+        permissionPolicy: 'follow_agent',
+        toolPolicy: 'follow_agent',
+        taskSystemInstruction: null
+      } as CronJob,
+      run: {
+        id: 'run-1',
+        scheduledAt: 123
+      } as CronJobRun
+    })
+
+    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'deepchat',
+        title: 'Morning job',
+        metadata: {
+          source: 'cron_job',
+          cronJobId: 'cron-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      })
+    )
+  })
+
+  it('reconciles Cron Jobs after agent mutation routes', async () => {
+    const { runtime, cronJobs } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'config.updateDeepChatAgent',
+      {
+        agentId: 'deepchat',
+        updates: {
+          enabled: false
+        }
+      },
+      context
+    )
+
+    expect(cronJobs.reconcileScheduler).toHaveBeenCalledWith('agent-change')
+  })
+
   it('ensures the built-in chat workspace before startup bootstrap returns', async () => {
     const { runtime, settings, projectPresenter } = createRuntime()
     vi.mocked(projectPresenter.ensureDefaultWorkspace).mockImplementation(async () => {

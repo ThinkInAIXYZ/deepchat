@@ -2778,65 +2778,59 @@
       "databaseRepaired": "Zakończono naprawę bazy danych: {status}"
     }
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Zaplanowane zadania",
-    "description": "Wyświetl powiadomienie systemowe lub wyślij gotowy prompt do agenta o wybranej godzinie.",
-    "hint": "Jednorazowe zadania pominięte przy zamkniętej aplikacji uruchomią się przy następnym starcie; cykliczne przejdą do następnego terminu.",
-    "newTask": "Nowe zadanie",
-    "empty": "Brak zadań",
-    "namePlaceholder": "Nazwa zadania",
-    "fireNow": "Uruchom teraz",
-    "fireNowSuccess": "Zadanie uruchomione",
+    "description": "Zarządzaj zaplanowanymi zadaniami agentów i procesem harmonogramu.",
+    "empty": "Brak zaplanowanych zadań.",
+    "none": "Brak",
+    "nextRunAt": "Następne uruchomienie",
     "defaults": {
-      "name": "Nowe zadanie",
-      "title": "Przypomnienie",
-      "body": "Czas minął"
+      "name": "Zadanie poranne"
     },
-    "trigger": {
-      "title": "Wyzwalacz",
-      "kind": "Typ wyzwalacza",
-      "kindOnce": "Raz",
-      "kindDaily": "Codziennie",
-      "kindWeekly": "Co tydzień",
-      "firesAt": "Uruchom o",
-      "dayOfWeek": "Dzień tygodnia",
-      "time": "Godzina",
-      "description": "Wybierz, kiedy zadanie ma zostać uruchomione."
+    "actions": {
+      "newJob": "Nowe zadanie",
+      "runNow": "Uruchom teraz",
+      "clearNextRun": "Wyczyść następne uruchomienie",
+      "reconcile": "Synchronizuj",
+      "restart": "Uruchom ponownie"
     },
-    "action": {
-      "title": "Akcja",
-      "kind": "Typ akcji",
-      "kindNotify": "Powiadomienie",
-      "kindPrompt": "Prompt czatu",
-      "titleField": "Tytuł",
-      "titlePlaceholder": "Tytuł powiadomienia",
-      "body": "Treść",
-      "message": "Wiadomość",
-      "agentId": "Agent",
-      "agentIdPlaceholder": "domyślnie: deepchat",
-      "modelId": "Model",
-      "modelIdPlaceholder": "zostaw puste dla domyślnego",
-      "systemPrompt": "Prompt systemowy",
-      "autoSend": "Wyślij automatycznie do wybranego agenta",
-      "description": "Wybierz powiadomienie lub prompt agenta."
+    "fields": {
+      "name": "Nazwa",
+      "cronExpr": "Wyrażenie cron",
+      "timezone": "Strefa czasowa",
+      "preset": "Szablon",
+      "agent": "Agent",
+      "noAgent": "Nie wybrano",
+      "taskPrompt": "Polecenie zadania",
+      "runtimePolicy": "Zasady wykonania",
+      "followAgent": "Śledź agenta",
+      "pinCurrent": "Przypnij bieżącą konfigurację",
+      "delivery": "Dostarczanie",
+      "remoteDelivery": "Dostarczanie Remote",
+      "remoteChannel": "Kanał Remote",
+      "noRemoteChannels": "Najpierw włącz Remote i powiąż kanał.",
+      "deliverySuccess": "wysłano",
+      "deliveryFailed": "błąd"
     },
-    "weekday": {
-      "sun": "Nd",
-      "mon": "Pn",
-      "tue": "Wt",
-      "wed": "Śr",
-      "thu": "Cz",
-      "fri": "Pt",
-      "sat": "Sb"
+    "presets": {
+      "custom": "Własny",
+      "every5Minutes": "Co 5 minut",
+      "hourly": "Co godzinę",
+      "daily": "Codziennie o 09:00",
+      "weekdays": "W dni robocze o 09:00"
     },
-    "listTitle": "Lista zadań",
-    "listDescription": "Zarządzaj harmonogramami, akcjami i stanem włączenia w jednym miejscu.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Codziennie o {time}",
-      "weekly": "{day} o {time}"
-    }
+    "status": {
+      "state": "Stan",
+      "enabled": "Aktywne zadania",
+      "heartbeat": "Puls",
+      "stopped": "Zatrzymany",
+      "starting": "Uruchamianie",
+      "running": "Uruchomiony",
+      "idle": "Bezczynny",
+      "error": "Błąd",
+      "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
+    },
+    "runNowSuccess": "Zaplanowane zadanie uruchomione"
   },
   "memory": {
     "description": "Przeglądaj, konfiguruj i zarządzaj tym, co każdy agent zapamiętuje między sesjami. Pamięć jest odrębna dla każdego agenta.",

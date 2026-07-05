@@ -68,6 +68,7 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.deepchatUsageStatsTable = emptyTable
     presenter.deepchatTapeEntriesTable = emptyTable
     presenter.deepchatTapeSearchProjectionTable = emptyTable
+    presenter.deepchatSessionMetadataTable = emptyTable
     presenter.legacyImportStatusTable = emptyTable
     presenter.agentsTable = emptyTable
     presenter.agentMemoryTable = emptyTable
@@ -76,6 +77,9 @@ CREATE INDEX sample_value_idx ON sample(value);`
     presenter.newSessionActiveSkillsTable = emptyTable
     presenter.newSessionDisabledAgentToolsTable = emptyTable
     presenter.settingsActivityTable = emptyTable
+    presenter.cronJobsTable = emptyTable
+    presenter.cronJobRunsTable = emptyTable
+    presenter.cronJobDeliveriesTable = emptyTable
 
     presenter.migrate()
 

@@ -1614,7 +1614,13 @@ export class PluginPresenter {
     for (const serverName of serverNames) {
       try {
         if (!(await this.mcpPresenter.isServerRunning(serverName))) {
-          await this.mcpPresenter.startServer(serverName)
+          void this.mcpPresenter.startServer(serverName).catch((error) => {
+            console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
+              pluginId,
+              serverName,
+              error
+            })
+          })
         }
       } catch (error) {
         console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {

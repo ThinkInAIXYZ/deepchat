@@ -114,7 +114,7 @@ threshold):
 
 ### R1 — One plan model, persisted + rehydrated (U2, U3; D1)
 - Each plan update is persisted as a `type:'plan'` block on the assistant message (single block per
-  turn — see plan.md AD1 for the upsert identity). The live float rehydrates from the persisted plan
+  turn, upserted by the assistant message id). The live float rehydrates from the persisted plan
   on session load / reopen.
 - AC1: After reload, reopening a conversation that ran a plan shows its last plan state (inline block
   always; float overlay optional).
@@ -127,8 +127,8 @@ threshold):
   raised as an exception (the early-return catch branch)**, tool terminal error, context-window
   error, no-model-response, a non-abort uncaught exception, interrupted-session recovery, or
   `MAX_TOOL_CALLS` exhaustion — the agent runtime stamps the persisted `type:'plan'` block with a
-  terminal marker (`terminalReason: 'aborted' | 'max_steps' | 'error'`, additive — see C3 / plan.md
-  AD6) and emits a final `chat.plan.updated`. Both the live float and the reloaded inline block then
+  terminal marker (`terminalReason: 'aborted' | 'max_steps' | 'error'`, additive per C3) and emits a
+  final `chat.plan.updated`. Both the live float and the reloaded inline block then
   render the once-`in_progress` step **without a spinner** (a static interrupted indicator). Normal
   completion is covered by R7 (the model marks steps complete). **No step spins after its turn ended
   — on every error/abort path, including the abort-exception early return and after reload.**

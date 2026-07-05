@@ -2778,65 +2778,59 @@
       "databaseRepaired": "Sửa chữa cơ sở dữ liệu đã hoàn tất: {status}"
     }
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Tác vụ đã lên lịch",
-    "description": "Kích hoạt thông báo hệ thống hoặc gửi prompt đặt sẵn cho tác nhân vào thời điểm đã chọn.",
-    "hint": "Tác vụ một lần bị bỏ lỡ khi ứng dụng đóng sẽ chạy ở lần khởi động tiếp theo; tác vụ lặp lại chuyển sang khung giờ kế tiếp.",
-    "newTask": "Tác vụ mới",
-    "empty": "Chưa có tác vụ",
-    "namePlaceholder": "Tên tác vụ",
-    "fireNow": "Chạy ngay",
-    "fireNowSuccess": "Tác vụ đã chạy",
+    "description": "Quản lý tác vụ agent đã lên lịch và tiến trình lập lịch.",
+    "empty": "Chưa có tác vụ đã lên lịch.",
+    "none": "Không có",
+    "nextRunAt": "Lần chạy tiếp",
     "defaults": {
-      "name": "Tác vụ mới",
-      "title": "Nhắc nhở",
-      "body": "Đã đến giờ"
+      "name": "Tác vụ buổi sáng"
     },
-    "trigger": {
-      "title": "Kích hoạt",
-      "kind": "Loại kích hoạt",
-      "kindOnce": "Một lần",
-      "kindDaily": "Hằng ngày",
-      "kindWeekly": "Hằng tuần",
-      "firesAt": "Chạy lúc",
-      "dayOfWeek": "Ngày trong tuần",
-      "time": "Thời gian",
-      "description": "Chọn thời điểm chạy tác vụ này."
+    "actions": {
+      "newJob": "Tác vụ mới",
+      "runNow": "Chạy ngay",
+      "clearNextRun": "Xóa lần chạy tiếp",
+      "reconcile": "Đồng bộ lại",
+      "restart": "Khởi động lại bộ đếm"
     },
-    "action": {
-      "title": "Hành động",
-      "kind": "Loại hành động",
-      "kindNotify": "Thông báo",
-      "kindPrompt": "Prompt trò chuyện",
-      "titleField": "Tiêu đề",
-      "titlePlaceholder": "Tiêu đề thông báo",
-      "body": "Nội dung",
-      "message": "Tin nhắn",
-      "agentId": "Tác nhân",
-      "agentIdPlaceholder": "mặc định: deepchat",
-      "modelId": "Mô hình",
-      "modelIdPlaceholder": "để trống để dùng mặc định",
-      "systemPrompt": "Prompt hệ thống",
-      "autoSend": "Tự động gửi tới tác nhân đã chọn",
-      "description": "Chọn thông báo hoặc prompt Tác nhân."
+    "fields": {
+      "name": "Tên",
+      "cronExpr": "Cron expression",
+      "timezone": "múi giờ",
+      "preset": "Mẫu có sẵn",
+      "agent": "Agent",
+      "noAgent": "Chưa chọn",
+      "taskPrompt": "Nội dung tác vụ",
+      "runtimePolicy": "Thời gian chạy",
+      "followAgent": "Theo agent",
+      "pinCurrent": "Ghim cấu hình hiện tại",
+      "delivery": "Gửi kết quả",
+      "remoteDelivery": "Gửi qua Remote",
+      "remoteChannel": "Kênh Remote",
+      "noRemoteChannels": "Hãy bật Remote và liên kết kênh trước.",
+      "deliverySuccess": "đã gửi",
+      "deliveryFailed": "gửi thất bại"
     },
-    "weekday": {
-      "sun": "CN",
-      "mon": "T2",
-      "tue": "T3",
-      "wed": "T4",
-      "thu": "T5",
-      "fri": "T6",
-      "sat": "T7"
+    "presets": {
+      "custom": "Tùy chỉnh",
+      "every5Minutes": "Mỗi 5 phút",
+      "hourly": "Mỗi giờ",
+      "daily": "Hàng ngày lúc 09:00",
+      "weekdays": "Các ngày trong tuần lúc 09:00"
     },
-    "listTitle": "Danh sách tác vụ",
-    "listDescription": "Quản lý lịch, hành động và trạng thái bật ở một nơi.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Mỗi ngày lúc {time}",
-      "weekly": "{day} lúc {time}"
-    }
+    "status": {
+      "state": "Trạng thái",
+      "enabled": "Tác vụ đã bật",
+      "heartbeat": "Tín hiệu hoạt động",
+      "stopped": "Đã dừng",
+      "starting": "Đang khởi động",
+      "running": "Đang chạy",
+      "idle": "Rảnh",
+      "error": "Lỗi",
+      "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
+    },
+    "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
   },
   "memory": {
     "description": "Xem lại, cấu hình và quản lý những gì mỗi tác nhân ghi nhớ qua các phiên. Bộ nhớ được tách riêng theo từng tác nhân.",

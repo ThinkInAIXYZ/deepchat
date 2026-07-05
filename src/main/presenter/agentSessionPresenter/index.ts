@@ -519,7 +519,8 @@ export class AgentSessionPresenter {
     const sessionId = this.sessionManager.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
-      subagentEnabled
+      subagentEnabled,
+      metadata: input.metadata ?? null
     })
 
     try {
@@ -559,6 +560,7 @@ export class AgentSessionPresenter {
       subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
       status: state?.status ?? 'idle',
       providerId: state?.providerId ?? providerId,
       modelId: state?.modelId ?? modelId
@@ -733,7 +735,8 @@ export class AgentSessionPresenter {
 
   async sendMessage(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number }
   ): Promise<MessageStartResult> {
     let session = this.sessionManager.get(sessionId)
     if (!session) throw new Error(`Session not found: ${sessionId}`)
@@ -782,7 +785,8 @@ export class AgentSessionPresenter {
     }
 
     const result = await agent.processMessage(sessionId, normalizedInput, {
-      projectDir: session.projectDir ?? null
+      projectDir: session.projectDir ?? null,
+      maxProviderRounds: options?.maxProviderRounds
     })
     if (!hadMessages && !wasDraft) {
       void this.generateSessionTitle(sessionId, session.title, providerId, state?.modelId ?? '')

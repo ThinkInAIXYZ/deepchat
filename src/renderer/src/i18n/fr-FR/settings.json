@@ -1464,65 +1464,59 @@
     "saveSuccess": "Configuration enregistrée",
     "saveFailed": "Impossible d'enregistrer la configuration"
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Tâches planifiées",
-    "description": "Déclenchez une notification système ou envoyez une invite prédéfinie à un agent à l’heure choisie.",
-    "hint": "Les tâches ponctuelles manquées lorsque l’application était fermée s’exécutent au prochain lancement ; les tâches récurrentes passent au prochain créneau.",
-    "newTask": "Nouvelle tâche",
-    "empty": "Aucune tâche pour le moment",
-    "namePlaceholder": "Nom de la tâche",
-    "fireNow": "Exécuter maintenant",
-    "fireNowSuccess": "Tâche déclenchée",
+    "description": "Gérez les tâches agent planifiées et le processus de planification.",
+    "empty": "Aucune tâche planifiée pour le moment.",
+    "none": "Aucun",
+    "nextRunAt": "Prochaine exécution",
     "defaults": {
-      "name": "Nouvelle tâche",
-      "title": "Rappel",
-      "body": "C’est l’heure"
+      "name": "Tâche cron du matin"
     },
-    "trigger": {
-      "title": "Déclencheur",
-      "kind": "Type de déclencheur",
-      "kindOnce": "Une fois",
-      "kindDaily": "Tous les jours",
-      "kindWeekly": "Toutes les semaines",
-      "firesAt": "Déclencher à",
-      "dayOfWeek": "Jour de la semaine",
-      "time": "Heure",
-      "description": "Choisissez quand cette tâche s’exécute."
+    "actions": {
+      "newJob": "Nouvelle tâche",
+      "runNow": "Exécuter maintenant",
+      "clearNextRun": "Annuler la prochaine exécution",
+      "reconcile": "Réconcilier",
+      "restart": "Redémarrer le minuteur"
     },
-    "action": {
-      "title": "Action",
-      "kind": "Type d’action",
-      "kindNotify": "Notification",
-      "kindPrompt": "Invite de chat",
-      "titleField": "Titre",
-      "titlePlaceholder": "Titre de la notification",
-      "body": "Corps",
-      "message": "Message",
-      "agentId": "Agent",
-      "agentIdPlaceholder": "par défaut : deepchat",
-      "modelId": "Modèle",
-      "modelIdPlaceholder": "laisser vide pour la valeur par défaut",
-      "systemPrompt": "Invite système",
-      "autoSend": "Envoyer automatiquement à l’agent sélectionné",
-      "description": "Choisissez une notification ou une invite d’agent."
+    "fields": {
+      "name": "Nom",
+      "cronExpr": "Cron expression",
+      "timezone": "Fuseau horaire",
+      "preset": "Préréglage",
+      "agent": "Agent",
+      "noAgent": "Aucun sélectionné",
+      "taskPrompt": "Prompt de la tâche",
+      "runtimePolicy": "Environnement d'exécution",
+      "followAgent": "Suivre l'agent",
+      "pinCurrent": "Épingler la config actuelle",
+      "delivery": "Livraison",
+      "remoteDelivery": "Livraison Remote",
+      "remoteChannel": "Canal Remote",
+      "noRemoteChannels": "Activez Remote et associez d’abord un canal.",
+      "deliverySuccess": "envoyé",
+      "deliveryFailed": "échec"
     },
-    "weekday": {
-      "sun": "Dim",
-      "mon": "Lun",
-      "tue": "Mar",
-      "wed": "Mer",
-      "thu": "Jeu",
-      "fri": "Ven",
-      "sat": "Sam"
+    "presets": {
+      "custom": "Personnalisé",
+      "every5Minutes": "Toutes les 5 minutes",
+      "hourly": "Toutes les heures",
+      "daily": "Quotidien à 09:00",
+      "weekdays": "Jours ouvrables à 09:00"
     },
-    "listTitle": "Liste des tâches",
-    "listDescription": "Gérez les planifications, les actions et l’état d’activation au même endroit.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Tous les jours à {time}",
-      "weekly": "{day} à {time}"
-    }
+    "status": {
+      "state": "État",
+      "enabled": "Tâches activées",
+      "heartbeat": "Heartbeat",
+      "stopped": "Arrêté",
+      "starting": "Démarrage",
+      "running": "En cours",
+      "idle": "Inactif",
+      "error": "Erreur",
+      "invalidAgent": "L'agent est manquant ou désactivé. Choisissez un autre agent."
+    },
+    "runNowSuccess": "Tâche planifiée démarrée"
   },
   "about": {
     "checkUpdate": "Vérifier les mises à jour",

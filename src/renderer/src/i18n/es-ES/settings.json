@@ -2778,65 +2778,59 @@
       "databaseRepaired": "Reparación de base de datos finalizada: {status}"
     }
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Tareas programadas",
-    "description": "Dispara una notificación del sistema o envía un prompt predefinido a un agente a la hora elegida.",
-    "hint": "Las tareas únicas omitidas mientras la app estaba cerrada se ejecutan al próximo inicio; las recurrentes saltan al siguiente horario.",
-    "newTask": "Nueva tarea",
-    "empty": "Aún no hay tareas",
-    "namePlaceholder": "Nombre de la tarea",
-    "fireNow": "Ejecutar ahora",
-    "fireNowSuccess": "Tarea ejecutada",
+    "description": "Gestiona tareas de agente programadas y el proceso de planificación.",
+    "empty": "Aún no hay tareas programadas.",
+    "none": "None",
+    "nextRunAt": "Próxima ejecución",
     "defaults": {
-      "name": "Nueva tarea",
-      "title": "Recordatorio",
-      "body": "Se acabó el tiempo"
+      "name": "Morning cron job"
     },
-    "trigger": {
-      "title": "Disparador",
-      "kind": "Tipo de disparador",
-      "kindOnce": "Una vez",
-      "kindDaily": "Diario",
-      "kindWeekly": "Semanal",
-      "firesAt": "Ejecutar a las",
-      "dayOfWeek": "Día de la semana",
-      "time": "Hora",
-      "description": "Elige cuándo se ejecuta esta tarea."
+    "actions": {
+      "newJob": "Nueva tarea",
+      "runNow": "Ejecutar ahora",
+      "clearNextRun": "Limpiar próxima ejecución",
+      "reconcile": "Reconciliar",
+      "restart": "Reiniciar temporizador"
     },
-    "action": {
-      "title": "Acción",
-      "kind": "Tipo de acción",
-      "kindNotify": "Notificación",
-      "kindPrompt": "Prompt de chat",
-      "titleField": "Título",
-      "titlePlaceholder": "Título de la notificación",
-      "body": "Contenido",
-      "message": "Mensaje",
-      "agentId": "Agente",
-      "agentIdPlaceholder": "predeterminado: deepchat",
-      "modelId": "Modelo",
-      "modelIdPlaceholder": "dejar vacío para predeterminado",
-      "systemPrompt": "Prompt del sistema",
-      "autoSend": "Enviar automáticamente al agente seleccionado",
-      "description": "Elige una notificación o un prompt de agente."
+    "fields": {
+      "name": "Nombre",
+      "cronExpr": "Expresión cron",
+      "timezone": "Zona horaria",
+      "preset": "Preconfiguración",
+      "agent": "Agente",
+      "noAgent": "Ninguno seleccionado",
+      "taskPrompt": "Prompt de tarea",
+      "runtimePolicy": "Tiempo de ejecución",
+      "followAgent": "Seguir agente",
+      "pinCurrent": "Fijar configuración actual",
+      "delivery": "Entrega",
+      "remoteDelivery": "Entrega Remote",
+      "remoteChannel": "Canal Remote",
+      "noRemoteChannels": "Activa Remote y vincula primero un canal.",
+      "deliverySuccess": "enviado",
+      "deliveryFailed": "falló"
     },
-    "weekday": {
-      "sun": "Dom",
-      "mon": "Lun",
-      "tue": "Mar",
-      "wed": "Mié",
-      "thu": "Jue",
-      "fri": "Vie",
-      "sat": "Sáb"
+    "presets": {
+      "custom": "Personalizado",
+      "every5Minutes": "Cada 5 minutos",
+      "hourly": "Cada hora",
+      "daily": "Diariamente a las 09:00",
+      "weekdays": "Entre semana a las 09:00"
     },
-    "listTitle": "Lista de tareas",
-    "listDescription": "Gestiona horarios, acciones y estado de activación en un solo lugar.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Todos los días a las {time}",
-      "weekly": "{day} a las {time}"
-    }
+    "status": {
+      "state": "Estado",
+      "enabled": "Tareas habilitadas",
+      "heartbeat": "Latido",
+      "stopped": "Detenido",
+      "starting": "Iniciando",
+      "running": "En ejecución",
+      "idle": "Inactivo",
+      "error": "Error",
+      "invalidAgent": "El agente no existe o está deshabilitado. Elige otro agente."
+    },
+    "runNowSuccess": "Tarea programada iniciada"
   },
   "memory": {
     "description": "Revisa, configura y gestiona lo que cada agente recuerda entre sesiones. La memoria es independiente para cada agente.",

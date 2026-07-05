@@ -153,6 +153,7 @@ import type { ProviderCatalogPort, SessionPermissionPort, SessionUiPort } from '
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import {
+  buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   emitDeepChatInternalSessionUpdate,
@@ -1229,6 +1230,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
       pendingQueueItemSource?: ProcessPendingInputSource
+      maxProviderRounds?: number
     }
   ): Promise<MessageStartResult> {
     const state = this.runtimeState.get(sessionId)
@@ -1447,6 +1449,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         promptPreview: normalizedInput.text,
         tools,
         baseSystemPrompt,
+        maxProviderRounds: context?.maxProviderRounds,
         refreshSystemPrompt: async (activeSkillNames, refreshedTools) => {
           const refreshedBasePrompt = await this.buildSystemPromptWithSkills(
             sessionId,
@@ -3248,6 +3251,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       activeSkillNames: string[] | undefined,
       toolDefinitions: MCPToolDefinition[]
     ) => Promise<string>
+    maxProviderRounds?: number
     preStreamStartedAt?: number
     onRunRegistered?: (runId: string) => void
   }): Promise<{ runId: string; result: ProcessResult }> {
@@ -3263,6 +3267,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       interleavedReasoning: providedInterleavedReasoning,
       viewContext,
       refreshSystemPrompt,
+      maxProviderRounds,
       preStreamStartedAt,
       onRunRegistered
     } = args
@@ -3407,6 +3412,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         onConversationMessagesChange: (nextMessages) => {
           reviewConversationMessages = nextMessages
         },
+        maxProviderRounds,
         refreshTools: async (activeSkillNames) =>
           await this.loadToolDefinitionsForSession(
             sessionId,
@@ -7204,6 +7210,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         messageId,
         previewMarkdown: buildAssistantPreviewMarkdown(blocks),
         responseMarkdown: buildAssistantResponseMarkdown(blocks),
+        deliverySegments: buildAssistantDeliverySegments(messageId, blocks),
         waitingInteraction: extractWaitingInteraction(blocks, messageId)
       })
     } catch (error) {

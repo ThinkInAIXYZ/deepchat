@@ -35,6 +35,7 @@ import {
   removeDeprecatedBuiltinProviders
 } from '../../../../src/main/presenter/configPresenter'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/presenter/agentRepository'
+import { CRON_JOB_AGENT_TOOL_NAME } from '../../../../src/shared/agentTools'
 import { eventBus } from '@/eventbus'
 
 const createProvider = (id: string): LLM_PROVIDER => ({
@@ -223,6 +224,50 @@ describe('cleanupDeprecatedBuiltinAgentSelections', () => {
     ).cleanupDeprecatedBuiltinAgentSelections()
 
     expect(updateBuiltinDeepChatConfig).not.toHaveBeenCalled()
+  })
+})
+
+describe('initializeUnifiedAgents', () => {
+  it('seeds default disabled tools into existing explicit agent configs once', () => {
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [
+        { id: BUILTIN_DEEPCHAT_AGENT_ID },
+        { id: 'deepchat-custom' },
+        { id: 'deepchat-inherit' }
+      ]),
+      getDeepChatAgentConfig: vi.fn((agentId: string) =>
+        agentId === BUILTIN_DEEPCHAT_AGENT_ID
+          ? { disabledAgentTools: ['tool-a'] }
+          : agentId === 'deepchat-custom'
+            ? { disabledAgentTools: [] }
+            : {}
+      ),
+      updateDeepChatAgent: vi.fn()
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 1),
+      store: { set: vi.fn() },
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+
+    ;(
+      presenter as ConfigPresenter & {
+        initializeUnifiedAgents(): void
+      }
+    ).initializeUnifiedAgents()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { disabledAgentTools: ['tool-a', CRON_JOB_AGENT_TOOL_NAME] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat-custom', {
+      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
+    expect(presenter.syncRegistryAgentsToRepository).toHaveBeenCalledTimes(1)
   })
 })
 

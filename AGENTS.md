@@ -54,12 +54,14 @@ Follow the SDD methodology before changing code, tests, configuration, documenta
 Pure release metadata work does not require SDD. Version bumps, `CHANGELOG.md` updates, release branch management, tags, and release PR preparation should follow [docs/release-flow.md](docs/release-flow.md) without creating
 `docs/features/*release*` folders.
 
-Create one kebab-case folder per goal and keep `spec.md`, `plan.md`, and `tasks.md` together:
+Create one kebab-case folder per goal and use the artifact set that matches the work:
 
-- `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools.
-- `docs/issues/<goal>/` for bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems.
-- `docs/architecture/<goal>/` for refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design.
+- `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools; keep `spec.md`, `plan.md`, and `tasks.md`.
+- `docs/issues/<goal>/` for small bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems; keep one `spec.md` containing issue details, location/root cause, fix plan, task checklist, validation, and linked GitHub issue when available.
+- `docs/architecture/<goal>/` for refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design; keep `spec.md`, `plan.md`, and `tasks.md`, and update affected historical feature specs when they remain maintained contracts.
 
-Resolve every `[NEEDS CLARIFICATION]` item before implementation. Move completed or stale goal folders to `docs/archives/<goal>/`; delete documents that only describe removed code and have no reusable decision record.
+For feature and small bug work, create or link a GitHub issue with `[feature]` or `[bug]` when local `gh` is installed and authenticated. PR bodies for linked work must include `Closes #NNN`.
+
+Resolve every `[NEEDS CLARIFICATION]` item before implementation. Run SDD cleanup only when the developer explicitly asks for it; use the dedicated cleanup skill to remove completed issue docs, stale plan/task files, and obsolete feature or architecture docs.
 
 Core principles: specification-first, architectural consistency, minimal complexity, compatibility/migration awareness.

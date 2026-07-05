@@ -36,6 +36,7 @@ import {
   prepareToolImagePreviewPresentation
 } from './imageGenerationBlocks'
 import {
+  buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
   emitDeepChatInternalSessionUpdate,
@@ -1119,6 +1120,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     messageId: io.messageId,
     previewMarkdown: buildAssistantPreviewMarkdown(blocks),
     responseMarkdown: buildAssistantResponseMarkdown(blocks),
+    deliverySegments: buildAssistantDeliverySegments(io.messageId, blocks),
     waitingInteraction: extractWaitingInteraction(blocks, io.messageId)
   })
 }

@@ -1464,65 +1464,59 @@
     "saveSuccess": "پیکربندی ذخیره شد",
     "saveFailed": "ذخیره پیکربندی ناموفق بود"
   },
-  "scheduledTasks": {
-    "title": "کارهای زمان‌بندی‌شده",
-    "description": "در زمان انتخاب‌شده یک اعلان سیستم نمایش دهید یا یک پرامپت آماده را به یک عامل ارسال کنید.",
-    "hint": "کارهای یک‌باره‌ای که هنگام بسته بودن برنامه از دست رفته‌اند در اجرای بعدی انجام می‌شوند؛ کارهای تکرارشونده به نوبت بعدی می‌روند.",
-    "newTask": "کار جدید",
-    "empty": "هنوز کاری وجود ندارد",
-    "namePlaceholder": "نام کار",
-    "fireNow": "اکنون اجرا کن",
-    "fireNowSuccess": "کار اجرا شد",
+  "cronJobs": {
+    "title": "وظایف زمان‌بندی‌شده",
+    "description": "وظایف زمان‌بندی‌شده عامل و فرایند زمان‌بندی را مدیریت کنید.",
+    "empty": "هنوز وظیفه زمان‌بندی‌شده‌ای وجود ندارد.",
+    "none": "هیچ‌کدام",
+    "nextRunAt": "اجرای بعدی",
     "defaults": {
-      "name": "کار جدید",
-      "title": "یادآوری",
-      "body": "زمانش رسیده است"
+      "name": "وظیفه صبحگاهی"
     },
-    "trigger": {
-      "title": "محرک",
-      "kind": "نوع محرک",
-      "kindOnce": "یک‌بار",
-      "kindDaily": "روزانه",
-      "kindWeekly": "هفتگی",
-      "firesAt": "اجرا در",
-      "dayOfWeek": "روز هفته",
-      "time": "زمان",
-      "description": "زمان اجرای این کار را انتخاب کنید."
+    "actions": {
+      "newJob": "وظیفه جدید",
+      "runNow": "اجرا کن",
+      "clearNextRun": "پاک کردن اجرای بعدی",
+      "reconcile": "همگام‌سازی مجدد",
+      "restart": "راه‌اندازی مجدد زمان‌سنج"
     },
-    "action": {
-      "title": "عملیات",
-      "kind": "نوع عملیات",
-      "kindNotify": "اعلان",
-      "kindPrompt": "پرامپت گفتگو",
-      "titleField": "عنوان",
-      "titlePlaceholder": "عنوان اعلان",
-      "body": "متن",
-      "message": "پیام",
-      "agentId": "عامل",
-      "agentIdPlaceholder": "پیش‌فرض: deepchat",
-      "modelId": "مدل",
-      "modelIdPlaceholder": "برای پیش‌فرض خالی بگذارید",
-      "systemPrompt": "پرامپت سیستم",
-      "autoSend": "ارسال خودکار به عامل انتخاب‌شده",
-      "description": "یک اعلان یا پرامپت عامل را انتخاب کنید."
+    "fields": {
+      "name": "نام",
+      "cronExpr": "عبارت Cron",
+      "timezone": "منطقه زمانی",
+      "preset": "پیش‌تنظیم",
+      "agent": "عامل",
+      "noAgent": "هیچ‌کدام انتخاب نشده",
+      "taskPrompt": "دستور وظیفه",
+      "runtimePolicy": "زمان اجرا",
+      "followAgent": "پیروی از عامل",
+      "pinCurrent": "ثابت نگه‌داشتن پیکربندی فعلی",
+      "delivery": "تحویل",
+      "remoteDelivery": "ارسال Remote",
+      "remoteChannel": "کانال Remote",
+      "noRemoteChannels": "ابتدا Remote را فعال و یک کانال را متصل کنید.",
+      "deliverySuccess": "ارسال شد",
+      "deliveryFailed": "ناموفق"
     },
-    "weekday": {
-      "sun": "یکشنبه",
-      "mon": "دوشنبه",
-      "tue": "سه‌شنبه",
-      "wed": "چهارشنبه",
-      "thu": "پنجشنبه",
-      "fri": "جمعه",
-      "sat": "شنبه"
+    "presets": {
+      "custom": "سفارشی",
+      "every5Minutes": "هر ۵ دقیقه",
+      "hourly": "هر ساعت",
+      "daily": "روزانه در ساعت ۰۹:۰۰",
+      "weekdays": "روزهای هفته در ساعت ۰۹:۰۰"
     },
-    "listTitle": "فهرست کارها",
-    "listDescription": "زمان‌بندی‌ها، عملیات و وضعیت فعال بودن را در یکجا مدیریت کنید.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "هر روز ساعت {time}",
-      "weekly": "{day} ساعت {time}"
-    }
+    "status": {
+      "state": "وضعیت",
+      "enabled": "وظایف فعال",
+      "heartbeat": "ضربان",
+      "stopped": "متوقف شده",
+      "starting": "در حال شروع",
+      "running": "در حال اجرا",
+      "idle": "بیکار",
+      "error": "خطا",
+      "invalidAgent": "عامل موجود نیست یا غیرفعال است. عامل دیگری انتخاب کنید."
+    },
+    "runNowSuccess": "وظیفه زمان‌بندی‌شده شروع شد"
   },
   "about": {
     "title": "درباره ما",

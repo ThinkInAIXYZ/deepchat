@@ -11,6 +11,7 @@ import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
+  SessionMetadata,
   SessionListItem,
   SessionWithState,
   CreateSessionInput,
@@ -41,6 +42,7 @@ export interface UISession {
   parentSessionId: string | null
   subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
+  metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
 }
@@ -88,6 +90,7 @@ function mapSessionStatus(status: string): UISessionStatus {
 }
 
 function mapToUISession(session: SessionListItem | SessionWithState): UISession {
+  const metadata = session.metadata ?? null
   return {
     id: session.id,
     title: session.title,
@@ -100,6 +103,7 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     parentSessionId: session.parentSessionId ?? null,
     subagentEnabled: session.subagentEnabled,
     subagentMeta: session.subagentMeta ?? null,
+    ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   }

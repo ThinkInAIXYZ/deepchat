@@ -213,6 +213,7 @@ export interface ProcessParams {
   onFirstProviderRoundReady?: () => void
   onConversationMessagesChange?: (messages: ChatMessage[]) => void
   shouldYieldForPendingInput?: () => boolean
+  maxProviderRounds?: number
   hooks?: ProcessHooks
   io: IoParams
 }

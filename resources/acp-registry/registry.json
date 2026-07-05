@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.8.3",
+      "version": "0.9.1",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.8.3",
+          "package": "fast-agent-acp==0.9.1",
           "args": [
             "-x"
           ]
@@ -1104,7 +1104,7 @@
     {
       "id": "sigit",
       "name": "siGit Code",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "description": "Local-first coding agent. Runs entirely on your machine with optional on-device LLM inference via Onde.",
       "repository": "https://github.com/getsigit/sigit",
       "website": "https://github.com/getsigit/sigit",
@@ -1115,32 +1115,32 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-macos-arm64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-macos-arm64.tar.gz",
             "cmd": "./sigit"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-macos-amd64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-macos-amd64.tar.gz",
             "cmd": "./sigit"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-linux-arm64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-linux-arm64",
             "cmd": "./sigit-linux-arm64"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-linux-amd64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-linux-amd64",
             "cmd": "./sigit-linux-amd64"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-win-arm64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-win-arm64.exe",
             "cmd": "./sigit-win-arm64.exe"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.1/sigit-win-amd64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.3.2/sigit-win-amd64.exe",
             "cmd": "./sigit-win-amd64.exe"
           }
         },
         "npx": {
-          "package": "@smbcloud/sigit@1.3.1"
+          "package": "@smbcloud/sigit@1.3.2"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg"

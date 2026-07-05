@@ -2778,65 +2778,59 @@
       "databaseRepaired": "Perbaikan basis data selesai: {status}"
     }
   },
-  "scheduledTasks": {
-    "title": "Tugas Terjadwal",
-    "description": "Picu notifikasi sistem atau kirim prompt preset ke agen pada waktu yang dipilih.",
-    "hint": "Tugas sekali jalan yang terlewat saat aplikasi tertutup akan dijalankan saat peluncuran berikutnya; tugas berulang melompat ke slot berikutnya.",
-    "newTask": "Tugas baru",
-    "empty": "Belum ada tugas",
-    "namePlaceholder": "Nama tugas",
-    "fireNow": "Jalankan sekarang",
-    "fireNowSuccess": "Tugas dijalankan",
+  "cronJobs": {
+    "title": "Tugas terjadwal",
+    "description": "Kelola tugas agen terjadwal dan proses penjadwal.",
+    "empty": "Belum ada tugas terjadwal.",
+    "none": "Tidak ada",
+    "nextRunAt": "Eksekusi selanjutnya",
     "defaults": {
-      "name": "Tugas baru",
-      "title": "Pengingat",
-      "body": "Waktunya tiba"
+      "name": "Tugas pagi hari"
     },
-    "trigger": {
-      "title": "Pemicu",
-      "kind": "Jenis pemicu",
-      "kindOnce": "Sekali",
-      "kindDaily": "Harian",
-      "kindWeekly": "Mingguan",
-      "firesAt": "Jalankan pada",
-      "dayOfWeek": "Hari dalam minggu",
-      "time": "Waktu",
-      "description": "Pilih kapan tugas ini berjalan."
+    "actions": {
+      "newJob": "Tugas baru",
+      "runNow": "Jalankan sekarang",
+      "clearNextRun": "Hapus eksekusi selanjutnya",
+      "reconcile": "Rekonsiliasi",
+      "restart": "Mulai ulang timer"
     },
-    "action": {
-      "title": "Aksi",
-      "kind": "Jenis aksi",
-      "kindNotify": "Notifikasi",
-      "kindPrompt": "Prompt chat",
-      "titleField": "Judul",
-      "titlePlaceholder": "Judul notifikasi",
-      "body": "Isi",
-      "message": "Pesan",
-      "agentId": "Agen",
-      "agentIdPlaceholder": "default: deepchat",
-      "modelId": "Model",
-      "modelIdPlaceholder": "kosongkan untuk default",
-      "systemPrompt": "Prompt sistem",
-      "autoSend": "Kirim otomatis ke agen yang dipilih",
-      "description": "Pilih notifikasi atau prompt Agen."
+    "fields": {
+      "name": "Nama",
+      "cronExpr": "Ekspresi cron",
+      "timezone": "Zona waktu",
+      "preset": "Prasetel",
+      "agent": "Agent",
+      "noAgent": "Belum dipilih",
+      "taskPrompt": "Prompt tugas",
+      "runtimePolicy": "Kebijakan runtime",
+      "followAgent": "Ikuti agen",
+      "pinCurrent": "Sematkan konfigurasi saat ini",
+      "delivery": "Pengiriman",
+      "remoteDelivery": "Pengiriman Remote",
+      "remoteChannel": "Kanal Remote",
+      "noRemoteChannels": "Aktifkan Remote dan tautkan kanal terlebih dahulu.",
+      "deliverySuccess": "terkirim",
+      "deliveryFailed": "gagal"
     },
-    "weekday": {
-      "sun": "Min",
-      "mon": "Sen",
-      "tue": "Sel",
-      "wed": "Rab",
-      "thu": "Kam",
-      "fri": "Jum",
-      "sat": "Sab"
+    "presets": {
+      "custom": "Kustom",
+      "every5Minutes": "Setiap 5 menit",
+      "hourly": "Setiap jam",
+      "daily": "Setiap hari pukul 09:00",
+      "weekdays": "Hari kerja pukul 09:00"
     },
-    "listTitle": "Daftar tugas",
-    "listDescription": "Kelola jadwal, aksi, dan status aktif di satu tempat.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Setiap hari pukul {time}",
-      "weekly": "{day} pukul {time}"
-    }
+    "status": {
+      "state": "Status",
+      "enabled": "Tugas aktif",
+      "heartbeat": "Heartbeat",
+      "stopped": "Berhenti",
+      "starting": "Memulai",
+      "running": "Berjalan",
+      "idle": "Menganggur",
+      "error": "Error",
+      "invalidAgent": "Agen tidak tersedia atau dinonaktifkan. Pilih agen lain."
+    },
+    "runNowSuccess": "Tugas terjadwal dimulai"
   },
   "memory": {
     "description": "Tinjau, konfigurasi, dan kelola apa yang diingat setiap agen di seluruh sesi. Memori terpisah per agen.",

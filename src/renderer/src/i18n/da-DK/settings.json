@@ -1397,65 +1397,59 @@
     "saveSuccess": "Konfiguration gemt",
     "saveFailed": "Kunne ikke gemme konfiguration"
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Planlagte opgaver",
-    "description": "Vis en systemnotifikation, eller send en foruddefineret prompt til en agent på et valgt tidspunkt.",
-    "hint": "Engangsopgaver, der blev overset mens appen var lukket, køres ved næste start; gentagne opgaver springer til næste tidspunkt.",
-    "newTask": "Ny opgave",
-    "empty": "Ingen opgaver endnu",
-    "namePlaceholder": "Opgavenavn",
-    "fireNow": "Kør nu",
-    "fireNowSuccess": "Opgaven blev kørt",
+    "description": "Administrer planlagte agentopgaver og planlægningsprocessen.",
+    "empty": "Ingen planlagte opgaver endnu.",
+    "none": "Ingen",
+    "nextRunAt": "Næste kørsel",
     "defaults": {
-      "name": "Ny opgave",
-      "title": "Påmindelse",
-      "body": "Tiden er gået"
+      "name": "Morgen-job"
     },
-    "trigger": {
-      "title": "Udløser",
-      "kind": "Udløsertype",
-      "kindOnce": "Én gang",
-      "kindDaily": "Dagligt",
-      "kindWeekly": "Ugentligt",
-      "firesAt": "Kør kl.",
-      "dayOfWeek": "Ugedag",
-      "time": "Tid",
-      "description": "Vælg hvornår opgaven skal køre."
+    "actions": {
+      "newJob": "Nyt job",
+      "runNow": "Kør nu",
+      "clearNextRun": "Ryd næste kørsel",
+      "reconcile": "Synkroniser",
+      "restart": "Genstart timer"
     },
-    "action": {
-      "title": "Handling",
-      "kind": "Handlingstype",
-      "kindNotify": "Notifikation",
-      "kindPrompt": "Chatprompt",
-      "titleField": "Titel",
-      "titlePlaceholder": "Notifikationstitel",
-      "body": "Indhold",
-      "message": "Besked",
-      "agentId": "Agent",
-      "agentIdPlaceholder": "standard: deepchat",
-      "modelId": "Model",
-      "modelIdPlaceholder": "lad stå tom for standard",
-      "systemPrompt": "Systemprompt",
-      "autoSend": "Send automatisk til den valgte agent",
-      "description": "Vælg en notifikation eller en agentprompt."
+    "fields": {
+      "name": "Navn",
+      "cronExpr": "Cron-udtryk",
+      "timezone": "Tidszone",
+      "preset": "Forudindstilling",
+      "agent": "Agent",
+      "noAgent": "Ingen valgt",
+      "taskPrompt": "Opgaveprompt",
+      "runtimePolicy": "Runtime",
+      "followAgent": "Følg agent",
+      "pinCurrent": "Fastlås nuværende konfiguration",
+      "delivery": "Levering",
+      "remoteDelivery": "Remote-levering",
+      "remoteChannel": "Remote-kanal",
+      "noRemoteChannels": "Aktivér Remote, og bind en kanal først.",
+      "deliverySuccess": "sendt",
+      "deliveryFailed": "mislykkedes"
     },
-    "weekday": {
-      "sun": "Søn",
-      "mon": "Man",
-      "tue": "Tir",
-      "wed": "Ons",
-      "thu": "Tor",
-      "fri": "Fre",
-      "sat": "Lør"
+    "presets": {
+      "custom": "Brugerdefineret",
+      "every5Minutes": "Hvert 5. minut",
+      "hourly": "Hver time",
+      "daily": "Dagligt kl. 09:00",
+      "weekdays": "Hverdage kl. 09:00"
     },
-    "listTitle": "Opgaveliste",
-    "listDescription": "Administrer tidsplaner, handlinger og aktiveret status ét sted.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Hver dag kl. {time}",
-      "weekly": "{day} kl. {time}"
-    }
+    "status": {
+      "state": "Tilstand",
+      "enabled": "Aktiverede jobs",
+      "heartbeat": "Heartbeat",
+      "stopped": "Stoppet",
+      "starting": "Starter",
+      "running": "Kører",
+      "idle": "Inaktiv",
+      "error": "Fejl",
+      "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
+    },
+    "runNowSuccess": "Planlagt opgave startet"
   },
   "about": {
     "title": "Om os",

@@ -1464,65 +1464,59 @@
     "saveSuccess": "Configuração salva",
     "saveFailed": "Falha ao salvar configuração"
   },
-  "scheduledTasks": {
+  "cronJobs": {
     "title": "Tarefas agendadas",
-    "description": "Dispare uma notificação do sistema ou envie um prompt predefinido para um agente no horário escolhido.",
-    "hint": "Tarefas únicas perdidas enquanto o app estava fechado são executadas na próxima abertura; tarefas recorrentes pulam para o próximo horário.",
-    "newTask": "Nova tarefa",
-    "empty": "Nenhuma tarefa ainda",
-    "namePlaceholder": "Nome da tarefa",
-    "fireNow": "Executar agora",
-    "fireNowSuccess": "Tarefa executada",
+    "description": "Gerencie tarefas de agente agendadas e o processo de agendamento.",
+    "empty": "Ainda não há tarefas agendadas.",
+    "none": "Nenhum",
+    "nextRunAt": "Próxima execução",
     "defaults": {
-      "name": "Nova tarefa",
-      "title": "Lembrete",
-      "body": "Chegou a hora"
+      "name": "Tarefa matinal"
     },
-    "trigger": {
-      "title": "Gatilho",
-      "kind": "Tipo de gatilho",
-      "kindOnce": "Uma vez",
-      "kindDaily": "Diariamente",
-      "kindWeekly": "Semanalmente",
-      "firesAt": "Executar em",
-      "dayOfWeek": "Dia da semana",
-      "time": "Hora",
-      "description": "Escolha quando esta tarefa será executada."
+    "actions": {
+      "newJob": "Nova tarefa",
+      "runNow": "Executar agora",
+      "clearNextRun": "Limpar próxima execução",
+      "reconcile": "Reconciliar",
+      "restart": "Reiniciar temporizador"
     },
-    "action": {
-      "title": "Ação",
-      "kind": "Tipo de ação",
-      "kindNotify": "Notificação",
-      "kindPrompt": "Prompt de chat",
-      "titleField": "Título",
-      "titlePlaceholder": "Título da notificação",
-      "body": "Corpo",
-      "message": "Mensagem",
-      "agentId": "Agente",
-      "agentIdPlaceholder": "padrão: deepchat",
-      "modelId": "Modelo",
-      "modelIdPlaceholder": "deixe em branco para usar o padrão",
-      "systemPrompt": "Prompt do sistema",
-      "autoSend": "Enviar automaticamente para o agente selecionado",
-      "description": "Escolha uma notificação ou um prompt de agente."
+    "fields": {
+      "name": "Nome",
+      "cronExpr": "Expressão cron",
+      "timezone": "Fuso horário",
+      "preset": "Predefinição",
+      "agent": "Agente",
+      "noAgent": "Nenhum selecionado",
+      "taskPrompt": "Prompt da tarefa",
+      "runtimePolicy": "Tempo de execução",
+      "followAgent": "Seguir agente",
+      "pinCurrent": "Fixar configuração atual",
+      "delivery": "Entrega",
+      "remoteDelivery": "Entrega Remote",
+      "remoteChannel": "Canal Remote",
+      "noRemoteChannels": "Ative o Remote e vincule um canal primeiro.",
+      "deliverySuccess": "enviado",
+      "deliveryFailed": "falhou"
     },
-    "weekday": {
-      "sun": "Dom",
-      "mon": "Seg",
-      "tue": "Ter",
-      "wed": "Qua",
-      "thu": "Qui",
-      "fri": "Sex",
-      "sat": "Sáb"
+    "presets": {
+      "custom": "Personalizado",
+      "every5Minutes": "A cada 5 minutos",
+      "hourly": "A cada hora",
+      "daily": "Diariamente às 09:00",
+      "weekdays": "Dias úteis às 09:00"
     },
-    "listTitle": "Lista de tarefas",
-    "listDescription": "Gerencie agendas, ações e status de ativação em um só lugar.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Todos os dias às {time}",
-      "weekly": "{day} às {time}"
-    }
+    "status": {
+      "state": "Estado",
+      "enabled": "Tarefas ativas",
+      "heartbeat": "Pulsação",
+      "stopped": "Parado",
+      "starting": "Iniciando",
+      "running": "Em execução",
+      "idle": "Ocioso",
+      "error": "Erro",
+      "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
+    },
+    "runNowSuccess": "Tarefa agendada iniciada"
   },
   "about": {
     "title": "Sobre Nós",

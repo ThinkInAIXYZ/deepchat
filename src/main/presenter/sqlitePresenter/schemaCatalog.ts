@@ -21,6 +21,7 @@ import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from './tables/legacyImportStatus'
 import { AgentsTable } from './tables/agents'
 import { AgentMemoryTable } from './tables/agentMemory'
@@ -28,6 +29,9 @@ import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from './tables/settingsActivity'
+import { CronJobsTable } from './tables/cronJobs'
+import { CronJobRunsTable } from './tables/cronJobRuns'
+import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
@@ -218,6 +222,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
     createTable: (db) => new DeepChatTapeSearchProjectionTable(db)
   },
   {
+    name: 'deepchat_session_metadata',
+    createTable: (db) => new DeepChatSessionMetadataTable(db)
+  },
+  {
     name: 'legacy_import_status',
     createTable: (db) => new LegacyImportStatusTable(db)
   },
@@ -254,6 +262,18 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'settings_activity',
     createTable: (db) => new SettingsActivityTable(db)
+  },
+  {
+    name: 'cron_jobs',
+    createTable: (db) => new CronJobsTable(db)
+  },
+  {
+    name: 'cron_job_runs',
+    createTable: (db) => new CronJobRunsTable(db)
+  },
+  {
+    name: 'cron_job_deliveries',
+    createTable: (db) => new CronJobDeliveriesTable(db)
   }
 ]
 

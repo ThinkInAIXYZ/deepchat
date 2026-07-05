@@ -1047,6 +1047,50 @@ describe('SkillSyncPresenter', () => {
       )
     })
 
+    it('previews adoption when SKILL.md name is not a valid target name', async () => {
+      const { toolScanner } =
+        await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')
+      const codexTool = createFolderTool()
+      vi.mocked(toolScanner.getTool).mockReturnValue(codexTool)
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'native-feel-skill',
+            path: '/home/user/.codex/skills/native-feel-skill',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('native-feel-skill', { directory: true })
+      ] as any)
+      vi.mocked(fs.promises.readFile).mockResolvedValue(
+        '---\nname: Native Feel Skill\ndescription: Native desktop\n---\n# Native'
+      )
+      vi.mocked(fs.promises.access).mockRejectedValue(
+        Object.assign(new Error('missing'), { code: 'ENOENT' })
+      )
+
+      const preview = await presenter.previewAdoptAgentSkill({
+        agentId: 'codex',
+        skillName: 'native-feel-skill'
+      })
+
+      expect(preview).toEqual(
+        expect.objectContaining({
+          skillName: 'native-feel-skill',
+          targetName: 'native-feel-skill',
+          conflict: false,
+          warnings: []
+        })
+      )
+    })
+
     it('adopts an agent-owned skill through private temp and backup paths', async () => {
       const { toolScanner } =
         await import('../../../../src/main/presenter/skillSyncPresenter/toolScanner')

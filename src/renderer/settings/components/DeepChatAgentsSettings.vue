@@ -708,6 +708,7 @@ import { createSessionClient } from '@api/SessionClient'
 import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
 import { ModelType } from '@shared/model'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
@@ -862,7 +863,7 @@ const form = reactive<FormState>({
   permissionMode: 'full_access',
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [],
+  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
@@ -1119,7 +1120,7 @@ const emptyForm = (): FormState => ({
   permissionMode: 'full_access',
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
-  disabledAgentTools: [],
+  disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: true,
   autoCompactionTriggerThreshold: '80',
   autoCompactionRetainRecentPairs: '2',
@@ -1299,7 +1300,7 @@ const fromAgent = (agent?: Agent | null): FormState => {
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()
     ),
-    disabledAgentTools: [...(config.disabledAgentTools ?? [])],
+    disabledAgentTools: [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)],
     autoCompactionEnabled: config.autoCompactionEnabled ?? true,
     autoCompactionTriggerThreshold: numText(
       config.autoCompactionTriggerThreshold ?? AUTO_COMPACTION_TRIGGER_THRESHOLD_DEFAULT

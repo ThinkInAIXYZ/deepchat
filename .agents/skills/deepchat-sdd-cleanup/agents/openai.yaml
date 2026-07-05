@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepChat SDD Cleanup"
+  short_description: "Prune stale DeepChat SDD documentation"
+  default_prompt: "Use $deepchat-sdd-cleanup only when the developer explicitly asks to clean, prune, tidy, or organize DeepChat SDD docs."

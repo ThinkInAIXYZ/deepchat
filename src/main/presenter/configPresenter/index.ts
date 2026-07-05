@@ -27,6 +27,7 @@ import type {
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
   ModelType,
   isNewApiEndpointType,
@@ -105,11 +106,6 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../hooksNotifications/config'
-import { normalizeScheduledTasksConfig } from '../scheduledTasks/normalize'
-import {
-  createDefaultScheduledTasksSettings,
-  type ScheduledTasksSettings
-} from '@shared/scheduledTasks'
 import {
   AcpDbStore,
   AppSettingsDbBackedStore,
@@ -152,7 +148,6 @@ interface IAppSettings {
   enableSkills?: boolean // Skills system global toggle
   skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
   hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
-  scheduledTasks?: ScheduledTasksSettings // User-defined scheduled tasks
   defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
   defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
   defaultProjectPath?: string | null
@@ -177,7 +172,7 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
-const UNIFIED_AGENTS_MIGRATION_VERSION = 1
+const UNIFIED_AGENTS_MIGRATION_VERSION = 2
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
@@ -215,6 +210,23 @@ const hasMemoryMaintenanceTriggerConfigUpdate = (
     Object.prototype.hasOwnProperty.call(updates, key)
   )
 }
+
+const withDeepChatAgentDefaults = (config: DeepChatAgentConfig): DeepChatAgentConfig => ({
+  ...config,
+  disabledAgentTools: Array.isArray(config.disabledAgentTools)
+    ? [...config.disabledAgentTools]
+    : [...DEFAULT_DISABLED_AGENT_TOOLS]
+})
+
+const mergeDefaultDisabledAgentTools = (
+  disabledAgentTools: DeepChatAgentConfig['disabledAgentTools']
+): string[] =>
+  Array.from(
+    new Set([
+      ...(Array.isArray(disabledAgentTools) ? disabledAgentTools : []),
+      ...DEFAULT_DISABLED_AGENT_TOOLS
+    ])
+  )
 
 const hasLegacyAnthropicOAuthState = (provider: AnthropicLegacyProvider): boolean =>
   Object.prototype.hasOwnProperty.call(provider, 'authMode') || provider.oauthToken !== undefined
@@ -476,8 +488,7 @@ export class ConfigPresenter implements IConfigPresenter {
         skillDraftSuggestionsEnabled: false,
         // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
         appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig(),
-        scheduledTasks: createDefaultScheduledTasksSettings()
+        hooksNotifications: createDefaultHooksNotificationsConfig()
       }
     })
 
@@ -877,8 +888,9 @@ export class ConfigPresenter implements IConfigPresenter {
       config: this.buildLegacyBuiltinDeepChatConfig()
     })
 
-    const migratedVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
-    if (migratedVersion < UNIFIED_AGENTS_MIGRATION_VERSION) {
+    let migratedVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
+    let registryAgentsSynced = false
+    if (migratedVersion < 1) {
       this.acpConfHelper.getManualAgents().forEach((agent) => {
         repository.createManualAcpAgent(agent)
       })
@@ -887,11 +899,34 @@ export class ConfigPresenter implements IConfigPresenter {
         this.acpConfHelper.getRegistryStates(),
         this.acpConfHelper.getInstallStates()
       )
-      this.store.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
-      return
+      registryAgentsSynced = true
+      migratedVersion = 1
     }
 
-    this.syncRegistryAgentsToRepository()
+    if (migratedVersion < 2) {
+      for (const agent of repository.listAgents({ agentType: 'deepchat' })) {
+        const config = repository.getDeepChatAgentConfig(agent.id) ?? {}
+        if (agent.id !== BUILTIN_DEEPCHAT_AGENT_ID && !Array.isArray(config.disabledAgentTools)) {
+          continue
+        }
+
+        const disabledAgentTools = mergeDefaultDisabledAgentTools(config.disabledAgentTools)
+        if (
+          !Array.isArray(config.disabledAgentTools) ||
+          disabledAgentTools.length !== config.disabledAgentTools.length ||
+          disabledAgentTools.some((tool) => !config.disabledAgentTools?.includes(tool))
+        ) {
+          repository.updateDeepChatAgent(agent.id, {
+            config: { disabledAgentTools }
+          })
+        }
+      }
+      this.store.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
+    }
+
+    if (!registryAgentsSynced) {
+      this.syncRegistryAgentsToRepository()
+    }
   }
 
   private reconcileLegacyBuiltinAgentSelections(): void {
@@ -960,7 +995,7 @@ export class ConfigPresenter implements IConfigPresenter {
           : null,
       systemPrompt: (this.store.get('default_system_prompt') as string | undefined) ?? '',
       permissionMode: 'full_access',
-      disabledAgentTools: [],
+      disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
       autoCompactionEnabled:
         typeof autoCompactionEnabled === 'boolean' ? autoCompactionEnabled : true,
       autoCompactionTriggerThreshold:
@@ -990,7 +1025,9 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   private getBuiltinDeepChatConfig(): DeepChatAgentConfig {
-    return this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    return withDeepChatAgentDefaults(
+      this.agentRepository?.resolveDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    )
   }
 
   private updateBuiltinDeepChatConfig(updates: Partial<DeepChatAgentConfig>): void {
@@ -2700,12 +2737,15 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null> {
-    return this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    const config = this.getAgentRepositoryOrThrow().getDeepChatAgentConfig(agentId)
+    return config ? withDeepChatAgentDefaults(config) : null
   }
 
   async resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig> {
-    return this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
-      agentId || BUILTIN_DEEPCHAT_AGENT_ID
+    return withDeepChatAgentDefaults(
+      this.getAgentRepositoryOrThrow().resolveDeepChatAgentConfig(
+        agentId || BUILTIN_DEEPCHAT_AGENT_ID
+      )
     )
   }
 
@@ -3445,21 +3485,6 @@ export class ConfigPresenter implements IConfigPresenter {
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
     this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
-    return normalized
-  }
-
-  getScheduledTasksConfig(): ScheduledTasksSettings {
-    const raw = this.store.get('scheduledTasks')
-    const normalized = normalizeScheduledTasksConfig(raw)
-    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      this.store.set('scheduledTasks', normalized)
-    }
-    return normalized
-  }
-
-  setScheduledTasksConfig(config: ScheduledTasksSettings): ScheduledTasksSettings {
-    const normalized = normalizeScheduledTasksConfig(config)
-    this.store.set('scheduledTasks', normalized)
     return normalized
   }
 

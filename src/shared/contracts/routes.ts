@@ -263,12 +263,20 @@ import {
   remoteControlWaitForWeixinIlinkLoginRoute
 } from './routes/remote-control.routes'
 import {
-  scheduledTasksDeleteRoute,
-  scheduledTasksFireNowRoute,
-  scheduledTasksListRoute,
-  scheduledTasksToggleRoute,
-  scheduledTasksUpsertRoute
-} from './routes/scheduledTasks.routes'
+  cronJobsDeleteRoute,
+  cronJobsGetRunRoute,
+  cronJobsGetSchedulerStatusRoute,
+  cronJobsListDeliveriesRoute,
+  cronJobsListRoute,
+  cronJobsListRunsRoute,
+  cronJobsPreviewScheduleRoute,
+  cronJobsReconcileSchedulerRoute,
+  cronJobsRestartSchedulerRoute,
+  cronJobsRunNowRoute,
+  cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
+  cronJobsUpsertRoute
+} from './routes/cronJobs.routes'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
@@ -508,7 +516,7 @@ export * from './routes/plugins.routes'
 export * from './routes/providers.routes'
 export * from './routes/project.routes'
 export * from './routes/remote-control.routes'
-export * from './routes/scheduledTasks.routes'
+export * from './routes/cronJobs.routes'
 export * from './routes/settings.routes'
 export * from './routes/shortcut.routes'
 export * from './routes/startup.routes'
@@ -601,11 +609,19 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [remoteControlWaitForWeixinIlinkLoginRoute.name]: remoteControlWaitForWeixinIlinkLoginRoute,
   [remoteControlRemoveWeixinIlinkAccountRoute.name]: remoteControlRemoveWeixinIlinkAccountRoute,
   [remoteControlRestartWeixinIlinkAccountRoute.name]: remoteControlRestartWeixinIlinkAccountRoute,
-  [scheduledTasksListRoute.name]: scheduledTasksListRoute,
-  [scheduledTasksUpsertRoute.name]: scheduledTasksUpsertRoute,
-  [scheduledTasksDeleteRoute.name]: scheduledTasksDeleteRoute,
-  [scheduledTasksToggleRoute.name]: scheduledTasksToggleRoute,
-  [scheduledTasksFireNowRoute.name]: scheduledTasksFireNowRoute,
+  [cronJobsListRoute.name]: cronJobsListRoute,
+  [cronJobsUpsertRoute.name]: cronJobsUpsertRoute,
+  [cronJobsDeleteRoute.name]: cronJobsDeleteRoute,
+  [cronJobsToggleRoute.name]: cronJobsToggleRoute,
+  [cronJobsRunNowRoute.name]: cronJobsRunNowRoute,
+  [cronJobsListRunsRoute.name]: cronJobsListRunsRoute,
+  [cronJobsGetRunRoute.name]: cronJobsGetRunRoute,
+  [cronJobsListDeliveriesRoute.name]: cronJobsListDeliveriesRoute,
+  [cronJobsGetSchedulerStatusRoute.name]: cronJobsGetSchedulerStatusRoute,
+  [cronJobsReconcileSchedulerRoute.name]: cronJobsReconcileSchedulerRoute,
+  [cronJobsRestartSchedulerRoute.name]: cronJobsRestartSchedulerRoute,
+  [cronJobsValidateScheduleRoute.name]: cronJobsValidateScheduleRoute,
+  [cronJobsPreviewScheduleRoute.name]: cronJobsPreviewScheduleRoute,
   [pluginsListRoute.name]: pluginsListRoute,
   [pluginsGetRoute.name]: pluginsGetRoute,
   [pluginsEnableRoute.name]: pluginsEnableRoute,

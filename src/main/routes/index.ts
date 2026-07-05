@@ -50,17 +50,37 @@ import {
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
   configDeleteCustomPromptRoute,
+  configDeleteDeepChatAgentRoute,
   configDeleteSystemPromptRoute,
+  configRemoveManualAcpAgentRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
+  configSetAcpAgentEnabledRoute,
+  configSetAcpEnabledRoute,
   configSetAcpSharedMcpSelectionsRoute,
   configSetCustomPromptsRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
   configSetKnowledgeConfigsRoute,
   configSetSystemPromptsRoute,
+  configUninstallAcpRegistryAgentRoute,
   configUpdateCustomPromptRoute,
+  configUpdateDeepChatAgentRoute,
+  configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
+  cronJobsDeleteRoute,
+  cronJobsGetRunRoute,
+  cronJobsGetSchedulerStatusRoute,
+  cronJobsListDeliveriesRoute,
+  cronJobsListRoute,
+  cronJobsListRunsRoute,
+  cronJobsPreviewScheduleRoute,
+  cronJobsReconcileSchedulerRoute,
+  cronJobsRestartSchedulerRoute,
+  cronJobsRunNowRoute,
+  cronJobsToggleRoute,
+  cronJobsValidateScheduleRoute,
+  cronJobsUpsertRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
@@ -404,15 +424,8 @@ import type { AgentMemoryRow } from '@/presenter/sqlitePresenter/tables/agentMem
 import type { AgentMemoryAuditRow } from '@/presenter/sqlitePresenter/tables/agentMemoryAudit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { ScheduledTasksService } from '@/presenter/scheduledTasks'
+import type { CronJobsService } from '@/presenter/cronJobs'
 import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
-import {
-  scheduledTasksDeleteRoute,
-  scheduledTasksFireNowRoute,
-  scheduledTasksListRoute,
-  scheduledTasksToggleRoute,
-  scheduledTasksUpsertRoute
-} from '@shared/contracts/routes/scheduledTasks.routes'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
@@ -451,7 +464,7 @@ export type MainKernelRouteRuntime = {
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
-  scheduledTasks: ScheduledTasksService
+  cronJobs: CronJobsService
 }
 
 function parseSourceEntryIds(raw: string | null): number[] | null {
@@ -500,6 +513,30 @@ function normalizeMemoryPersonaState(value: unknown): MemoryPersonaState | null 
 
 function normalizeMemoryCategory(value: unknown) {
   return isAgentMemoryCategory(value) ? value : null
+}
+
+const CRON_JOB_AGENT_CHANGE_ROUTES: ReadonlySet<string> = new Set([
+  configSetAcpEnabledRoute.name,
+  configSetAcpAgentEnabledRoute.name,
+  configUninstallAcpRegistryAgentRoute.name,
+  configUpdateManualAcpAgentRoute.name,
+  configRemoveManualAcpAgentRoute.name,
+  configUpdateDeepChatAgentRoute.name,
+  configDeleteDeepChatAgentRoute.name
+])
+
+async function reconcileCronJobsAfterAgentChange(
+  runtime: MainKernelRouteRuntime,
+  routeName: string
+): Promise<void> {
+  if (!CRON_JOB_AGENT_CHANGE_ROUTES.has(routeName)) {
+    return
+  }
+  try {
+    await runtime.cronJobs.reconcileScheduler('agent-change')
+  } catch (error) {
+    console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
+  }
 }
 
 export function toMemoryItemDto(row: AgentMemoryRow) {
@@ -711,7 +748,7 @@ export function createMainKernelRouteRuntime(deps: {
   pluginPresenter: PluginPresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
-  scheduledTasks: ScheduledTasksService
+  cronJobs: CronJobsService
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
@@ -736,30 +773,87 @@ export function createMainKernelRouteRuntime(deps: {
     scheduler
   })
 
-  // Wire scheduled tasks -> sessions for the auto-send action.
-  deps.scheduledTasks.setSessionCreator({
-    async createSessionForTask(input) {
-      const session = await sessionService.createSession(
-        {
-          agentId: input.agentId,
-          message: input.message,
-          providerId: input.providerId,
-          modelId: input.modelId,
-          ...(input.systemPrompt
-            ? { generationSettings: { systemPrompt: input.systemPrompt } }
-            : {})
-        },
-        {
-          webContentsId: deps.windowPresenter.mainWindow?.webContents?.id ?? -1,
-          windowId: deps.windowPresenter.mainWindow?.id ?? null
-        }
-      )
-      if (!session?.id) {
-        return { sessionId: null }
+  deps.cronJobs.setRunSessionStarter({
+    async createSessionForRun({ job, run }) {
+      if (!job.agentId) {
+        throw new Error('Cron job requires an enabled agent.')
       }
+      console.info('[CronJobs] Resolving agent for session:', {
+        jobId: job.id,
+        runId: run.id,
+        agentId: job.agentId
+      })
+      const agentType = await deps.configPresenter.getAgentType(job.agentId)
+      const snapshotConfig = job.agentSnapshot?.config as
+        | {
+            defaultModelPreset?: { providerId?: string; modelId?: string } | null
+            permissionMode?: 'default' | 'auto_approve' | 'full_access'
+            disabledAgentTools?: string[]
+            subagentEnabled?: boolean
+            systemPrompt?: string
+          }
+        | null
+        | undefined
+      const modelPreset =
+        agentType === 'deepchat' && job.modelPolicy === 'pin_current'
+          ? snapshotConfig?.defaultModelPreset
+          : null
+      const systemPrompt = job.taskSystemInstruction?.trim() || snapshotConfig?.systemPrompt
 
-      await chatService.sendMessage(session.id, input.message)
+      const session = await deps.agentSessionPresenter.createDetachedSession({
+        agentId: job.agentId,
+        title: job.name,
+        ...(agentType === 'acp' ? { providerId: 'acp', modelId: job.agentId } : {}),
+        ...(modelPreset?.providerId ? { providerId: modelPreset.providerId } : {}),
+        ...(modelPreset?.modelId ? { modelId: modelPreset.modelId } : {}),
+        ...(job.permissionPolicy === 'snapshot' && snapshotConfig?.permissionMode
+          ? { permissionMode: snapshotConfig.permissionMode }
+          : {}),
+        ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
+          ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
+          : {}),
+        ...(snapshotConfig?.subagentEnabled !== undefined
+          ? { subagentEnabled: snapshotConfig.subagentEnabled }
+          : {}),
+        ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
+        metadata: {
+          source: 'cron_job',
+          cronJobId: job.id,
+          cronJobRunId: run.id,
+          scheduledAt: run.scheduledAt
+        }
+      })
+      console.info('[CronJobs] Detached session created:', {
+        jobId: job.id,
+        runId: run.id,
+        sessionId: session.id,
+        agentType
+      })
       return { sessionId: session.id }
+    },
+    async startSessionRun({ job, sessionId }) {
+      if (!job.taskPrompt.trim()) {
+        throw new Error('Cron job task prompt is empty.')
+      }
+      console.info('[CronJobs] Sending task prompt to session:', {
+        jobId: job.id,
+        sessionId,
+        promptLength: job.taskPrompt.length
+      })
+      const result = await deps.agentSessionPresenter.sendMessage(sessionId, job.taskPrompt, {
+        maxProviderRounds: job.runtime.maxTurns
+      })
+      console.info('[CronJobs] Task prompt accepted by session:', {
+        jobId: job.id,
+        sessionId,
+        outputMessageId: result.messageId ?? null
+      })
+      return {
+        outputMessageId: result.messageId ?? null
+      }
+    },
+    async cancelSessionRun({ sessionId }) {
+      await deps.agentSessionPresenter.cancelGeneration(sessionId)
     }
   })
 
@@ -817,7 +911,7 @@ export function createMainKernelRouteRuntime(deps: {
     pluginPresenter: deps.pluginPresenter,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryPresenter: deps.memoryPresenter,
-    scheduledTasks: deps.scheduledTasks
+    cronJobs: deps.cronJobs
   }
 }
 
@@ -1438,6 +1532,7 @@ export async function dispatchDeepchatRoute(
   const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
   if (configResult !== undefined) {
     recordConfigRouteActivity(runtime, routeName, rawInput)
+    await reconcileCronJobsAfterAgentChange(runtime, routeName)
     return configResult
   }
 
@@ -2581,34 +2676,80 @@ export async function dispatchDeepchatRoute(
       })
     }
 
-    case scheduledTasksListRoute.name: {
-      scheduledTasksListRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.list()
-      return scheduledTasksListRoute.output.parse({ settings })
+    case cronJobsListRoute.name: {
+      cronJobsListRoute.input.parse(rawInput)
+      const { jobs, schedulerStatus } = await runtime.cronJobs.list()
+      return cronJobsListRoute.output.parse({ jobs, schedulerStatus })
     }
 
-    case scheduledTasksUpsertRoute.name: {
-      const input = scheduledTasksUpsertRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.upsert(input)
-      return scheduledTasksUpsertRoute.output.parse({ task, settings })
+    case cronJobsUpsertRoute.name: {
+      const input = cronJobsUpsertRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.upsert(input)
+      return cronJobsUpsertRoute.output.parse({ job, schedulerStatus })
     }
 
-    case scheduledTasksDeleteRoute.name: {
-      const input = scheduledTasksDeleteRoute.input.parse(rawInput)
-      const settings = runtime.scheduledTasks.delete(input.id)
-      return scheduledTasksDeleteRoute.output.parse({ settings })
+    case cronJobsDeleteRoute.name: {
+      const input = cronJobsDeleteRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.delete(input.id)
+      return cronJobsDeleteRoute.output.parse({ schedulerStatus })
     }
 
-    case scheduledTasksToggleRoute.name: {
-      const input = scheduledTasksToggleRoute.input.parse(rawInput)
-      const { task, settings } = runtime.scheduledTasks.toggle(input.id, input.enabled)
-      return scheduledTasksToggleRoute.output.parse({ task, settings })
+    case cronJobsToggleRoute.name: {
+      const input = cronJobsToggleRoute.input.parse(rawInput)
+      const { job, schedulerStatus } = await runtime.cronJobs.toggle(input.id, input.enabled)
+      return cronJobsToggleRoute.output.parse({ job, schedulerStatus })
     }
 
-    case scheduledTasksFireNowRoute.name: {
-      const input = scheduledTasksFireNowRoute.input.parse(rawInput)
-      const { task, settings } = await runtime.scheduledTasks.fireNow(input.id)
-      return scheduledTasksFireNowRoute.output.parse({ task, settings })
+    case cronJobsRunNowRoute.name: {
+      const input = cronJobsRunNowRoute.input.parse(rawInput)
+      const { job, run, schedulerStatus } = await runtime.cronJobs.runNow(input.id)
+      return cronJobsRunNowRoute.output.parse({ job, run, schedulerStatus })
+    }
+
+    case cronJobsListRunsRoute.name: {
+      const input = cronJobsListRunsRoute.input.parse(rawInput)
+      const runs = runtime.cronJobs.listRuns(input.jobId, input.limit)
+      return cronJobsListRunsRoute.output.parse({ runs })
+    }
+
+    case cronJobsGetRunRoute.name: {
+      const input = cronJobsGetRunRoute.input.parse(rawInput)
+      return cronJobsGetRunRoute.output.parse({ run: runtime.cronJobs.getRun(input.runId) })
+    }
+
+    case cronJobsListDeliveriesRoute.name: {
+      const input = cronJobsListDeliveriesRoute.input.parse(rawInput)
+      return cronJobsListDeliveriesRoute.output.parse({
+        deliveries: runtime.cronJobs.listDeliveries(input.runId)
+      })
+    }
+
+    case cronJobsGetSchedulerStatusRoute.name: {
+      cronJobsGetSchedulerStatusRoute.input.parse(rawInput)
+      const schedulerStatus = runtime.cronJobs.getSchedulerStatus()
+      return cronJobsGetSchedulerStatusRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsReconcileSchedulerRoute.name: {
+      const input = cronJobsReconcileSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.reconcileScheduler(input.reason)
+      return cronJobsReconcileSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsRestartSchedulerRoute.name: {
+      cronJobsRestartSchedulerRoute.input.parse(rawInput)
+      const schedulerStatus = await runtime.cronJobs.restartScheduler()
+      return cronJobsRestartSchedulerRoute.output.parse({ schedulerStatus })
+    }
+
+    case cronJobsValidateScheduleRoute.name: {
+      const input = cronJobsValidateScheduleRoute.input.parse(rawInput)
+      return cronJobsValidateScheduleRoute.output.parse(runtime.cronJobs.validateSchedule(input))
+    }
+
+    case cronJobsPreviewScheduleRoute.name: {
+      const input = cronJobsPreviewScheduleRoute.input.parse(rawInput)
+      return cronJobsPreviewScheduleRoute.output.parse(runtime.cronJobs.previewSchedule(input))
     }
 
     case startupGetBootstrapRoute.name: {

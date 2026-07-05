@@ -186,6 +186,7 @@ import { createSessionClient } from '@api/SessionClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -915,7 +916,7 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
     defaultModelPreset: undefined,
     systemPrompt: typeof systemPrompt === 'string' ? systemPrompt : '',
     permissionMode: 'full_access',
-    disabledAgentTools: []
+    disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS]
   })
 }
 
@@ -927,7 +928,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
-  draftStore.disabledAgentTools = []
+  draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
   draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
@@ -973,7 +974,7 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.providerId = config.defaultModelPreset?.providerId
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
-  draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? [])]
+  draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
   draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
 }

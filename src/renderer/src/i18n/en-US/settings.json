@@ -1721,65 +1721,59 @@
     "saveSuccess": "Configuration saved",
     "saveFailed": "Failed to save configuration"
   },
-  "scheduledTasks": {
-    "title": "Scheduled Tasks",
-    "description": "Fire a system notification or send a preset prompt to an agent at a chosen time.",
-    "hint": "One-shot tasks missed while the app was closed fire on next launch; recurring tasks jump to the next slot.",
-    "newTask": "New task",
-    "empty": "No tasks yet",
-    "namePlaceholder": "Task name",
-    "fireNow": "Run now",
-    "fireNowSuccess": "Task fired",
+  "cronJobs": {
+    "title": "Scheduled",
+    "description": "Manage scheduled agent tasks and the scheduler process.",
+    "empty": "No scheduled tasks yet.",
+    "none": "None",
+    "nextRunAt": "Next run",
     "defaults": {
-      "name": "New task",
-      "title": "Reminder",
-      "body": "Time's up"
+      "name": "Morning cron job"
     },
-    "trigger": {
-      "title": "Trigger",
-      "kind": "Trigger kind",
-      "kindOnce": "Once",
-      "kindDaily": "Daily",
-      "kindWeekly": "Weekly",
-      "firesAt": "Fire at",
-      "dayOfWeek": "Day of week",
-      "time": "Time",
-      "description": "Choose when this task runs."
+    "actions": {
+      "newJob": "New job",
+      "runNow": "Run now",
+      "clearNextRun": "Clear next run",
+      "reconcile": "Reconcile",
+      "restart": "Restart timer"
     },
-    "action": {
-      "title": "Action",
-      "kind": "Action kind",
-      "kindNotify": "Notification",
-      "kindPrompt": "Chat prompt",
-      "titleField": "Title",
-      "titlePlaceholder": "Notification title",
-      "body": "Body",
-      "message": "Message",
-      "agentId": "Agent",
-      "agentIdPlaceholder": "default: deepchat",
-      "modelId": "Model",
-      "modelIdPlaceholder": "leave blank for default",
-      "systemPrompt": "System prompt",
-      "autoSend": "Auto-send to the selected agent",
-      "description": "Choose a notification or an Agent prompt."
+    "fields": {
+      "name": "Name",
+      "cronExpr": "Cron expression",
+      "timezone": "Timezone",
+      "preset": "Preset",
+      "agent": "Agent",
+      "noAgent": "None selected",
+      "taskPrompt": "Task prompt",
+      "runtimePolicy": "Runtime",
+      "followAgent": "Follow agent",
+      "pinCurrent": "Pin current config",
+      "delivery": "Delivery",
+      "remoteDelivery": "Remote delivery",
+      "remoteChannel": "Remote channel",
+      "noRemoteChannels": "Enable Remote and bind a channel first.",
+      "deliverySuccess": "sent",
+      "deliveryFailed": "failed"
     },
-    "weekday": {
-      "sun": "Sun",
-      "mon": "Mon",
-      "tue": "Tue",
-      "wed": "Wed",
-      "thu": "Thu",
-      "fri": "Fri",
-      "sat": "Sat"
+    "presets": {
+      "custom": "Custom",
+      "every5Minutes": "Every 5 minutes",
+      "hourly": "Hourly",
+      "daily": "Daily at 09:00",
+      "weekdays": "Weekdays at 09:00"
     },
-    "listTitle": "Task list",
-    "listDescription": "Manage schedules, actions, and enabled status in one place.",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "Every day at {time}",
-      "weekly": "{day} at {time}"
-    }
+    "status": {
+      "state": "State",
+      "enabled": "Enabled jobs",
+      "heartbeat": "Heartbeat",
+      "stopped": "Stopped",
+      "starting": "Starting",
+      "running": "Running",
+      "idle": "Idle",
+      "error": "Error",
+      "invalidAgent": "Agent is missing or disabled. Choose another agent."
+    },
+    "runNowSuccess": "Scheduled task started"
   },
   "about": {
     "title": "About Us",

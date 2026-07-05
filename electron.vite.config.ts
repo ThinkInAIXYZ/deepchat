@@ -27,7 +27,8 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts'),
-          fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts')
+          fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts'),
+          schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts')
         },
         external: ['sharp', '@duckdb/node-api'],
         output: {

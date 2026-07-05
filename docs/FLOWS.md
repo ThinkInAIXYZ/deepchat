@@ -187,24 +187,24 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant UI as Settings Scheduled Tasks
-    participant Client as ScheduledTasksClient
-    participant Service as ScheduledTasksService
-    participant Notify as NotificationPresenter
-    participant Session as Session creator
+    participant UI as Settings Scheduled
+    participant Client as CronJobsClient
+    participant Service as CronJobsService
+    participant Utility as Scheduler utility
+    participant Agent as AgentSessionPresenter
+    participant Remote as RemoteControlPresenter
 
-    UI->>Client: list/upsert/toggle/delete/fireNow
-    Client->>Service: scheduledTasks.* route
-    Service->>Service: compute next fire time
-    alt notify action
-        Service->>Notify: showNotification
-    else prompt action
-        Service->>Session: create session, optional autoSend
-    end
+    UI->>Client: list/upsert/toggle/runNow
+    Client->>Service: cronJobs.* route
+    Service->>Utility: reconcile enabled jobs
+    Utility->>Service: RUN_DUE
+    Service->>Agent: create detached session and send task prompt
+    Agent-->>Service: run status and output updates
+    Service->>Remote: optional notification-only delivery
 ```
 
-Triggers 支持 once、daily、weekly；actions 支持 notification 和 prompt。Prompt action 可指定
-agent、provider、model、system prompt，并通过 route runtime 创建会话。
+Triggers 使用 cron 表达式。每次触发创建独立 detached session；Remote 投递只发送通知，不进入普通
+Remote 会话上下文。
 
 ## 9. Remote Control
 

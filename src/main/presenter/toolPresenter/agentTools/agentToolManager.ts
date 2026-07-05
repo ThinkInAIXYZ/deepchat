@@ -41,6 +41,12 @@ import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  CRON_JOB_TOOL_SERVER_NAME,
+  CronJobToolHandler,
+  cronJobActionNeedsPermission
+} from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
@@ -140,6 +146,7 @@ export class AgentToolManager {
   private planTool: AgentPlanTool | null = null
   private tapeToolHandler: AgentTapeToolHandler | null = null
   private memoryToolHandler: AgentMemoryToolHandler | null = null
+  private cronJobToolHandler: CronJobToolHandler | null = null
   private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -310,6 +317,7 @@ export class AgentToolManager {
     this.planTool = new AgentPlanTool()
     this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
     this.memoryToolHandler = new AgentMemoryToolHandler(this.runtimePort)
+    this.cronJobToolHandler = new CronJobToolHandler(this.runtimePort)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -409,6 +417,11 @@ export class AgentToolManager {
           error
         })
       }
+    }
+
+    // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
+    if (isAgentMode && this.cronJobToolHandler?.canUse()) {
+      defs.push(this.cronJobToolHandler.getToolDefinition())
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
@@ -539,6 +552,10 @@ export class AgentToolManager {
 
     if (this.memoryToolHandler?.isMemoryTool(toolName)) {
       return await this.memoryToolHandler.call(toolName, args, conversationId)
+    }
+
+    if (this.cronJobToolHandler?.isCronJobTool(toolName)) {
+      return await this.cronJobToolHandler.call(args)
     }
 
     // Route to process tool
@@ -1972,6 +1989,17 @@ export class AgentToolManager {
     const writeTools = ['write', 'edit']
     const readTools = ['read', GLOB_TOOL_NAME, GREP_TOOL_NAME]
     const allowExternalFileAccess = options.allowExternalFileAccess === true
+
+    if (toolName === CRON_JOB_AGENT_TOOL_NAME && cronJobActionNeedsPermission(args)) {
+      return {
+        needsPermission: true,
+        toolName,
+        serverName: CRON_JOB_TOOL_SERVER_NAME,
+        permissionType: 'write',
+        description: 'Scheduled task changes require approval.',
+        conversationId
+      }
+    }
 
     if (this.isFileSystemTool(toolName)) {
       if (!this.fileSystemHandler) {

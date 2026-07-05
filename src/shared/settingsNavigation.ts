@@ -192,7 +192,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     routeName: 'settings-scheduled-tasks',
     path: '/scheduled-tasks',
     titleKey: 'routes.settings-scheduled-tasks',
-    icon: 'lucide:clock-9',
+    icon: 'lucide:calendar-clock',
     position: 5.6,
     groupKey: 'tools',
     keywords: [
@@ -201,10 +201,13 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
       'reminder',
       'timer',
       'cron',
+      'cron jobs',
+      'agent jobs',
       '定时',
       '提醒',
       '计划',
-      '定时任务'
+      '定时任务',
+      '任务调度'
     ]
   },
   {

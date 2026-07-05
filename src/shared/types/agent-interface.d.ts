@@ -167,6 +167,7 @@ export interface IAgentImplementation {
       emitRefreshBeforeStream?: boolean
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
+      maxProviderRounds?: number
     }
   ): Promise<MessageStartResult>
 
@@ -798,6 +799,7 @@ export interface SessionRecord {
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
+  metadata?: SessionMetadata | null
 }
 
 export interface SessionListItem extends SessionRecord {
@@ -902,6 +904,14 @@ export interface CreateDetachedSessionInput {
   disabledAgentTools?: string[]
   subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
+  metadata?: SessionMetadata | null
+}
+
+export type SessionMetadata = {
+  source: 'cron_job'
+  cronJobId: string
+  cronJobRunId: string
+  scheduledAt: number
 }
 
 // ---- Project Types ----

@@ -365,6 +365,42 @@ describe('processStream', () => {
     expect(toolResultMsg.content).toBe('Sunny, 72F')
   })
 
+  it('stops before exceeding max provider rounds', async () => {
+    const coreStream = vi.fn(function () {
+      return (async function* () {
+        yield {
+          type: 'tool_call_start',
+          tool_call_id: 'tc1',
+          tool_call_name: 'get_weather'
+        } as LLMCoreStreamEvent
+        yield {
+          type: 'tool_call_end',
+          tool_call_id: 'tc1',
+          tool_call_arguments_complete: '{}'
+        } as LLMCoreStreamEvent
+        yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+    const toolPresenter = createMockToolPresenter({ get_weather: 'Sunny, 72F' })
+    const params = createParams({
+      coreStream,
+      toolPresenter,
+      tools: [makeTool('get_weather')],
+      maxProviderRounds: 1
+    })
+
+    const promise = processStream(params)
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(result).toMatchObject({
+      status: 'error',
+      stopReason: 'max_turns',
+      errorMessage: 'Maximum agent turns exceeded (1).'
+    })
+    expect(coreStream).toHaveBeenCalledTimes(1)
+  })
+
   it('signals first provider round after flushing without blocking tool loop', async () => {
     const order: string[] = []
     let callCount = 0

@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { randomBytes } from 'node:crypto'
 import * as http from 'node:http'
 import logger from '@shared/logger'
+import type { CronJob, CronJobDeliveryTarget, CronJobRun } from '@shared/cronJobs'
 import type {
   ChannelSettingsMap,
   DiscordPairingSnapshot,
@@ -47,7 +48,9 @@ import {
   normalizeQQBotSettingsInput,
   normalizeTelegramSettingsInput,
   normalizeWeixinIlinkSettingsInput,
+  parseDiscordEndpointKey,
   parseTelegramEndpointKey,
+  parseWeixinIlinkEndpointKey,
   type DiscordRuntimeStatusSnapshot,
   type FeishuRuntimeStatusSnapshot,
   type QQBotRuntimeStatusSnapshot,
@@ -85,6 +88,20 @@ const WEIXIN_TRACE_LOG_ENABLED = process.env.DEEPCHAT_WEIXIN_TRACE === '1'
 const FEISHU_AUTH_SESSION_TTL_MS = 5 * 60 * 1000
 const FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 const FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
+const REMOTE_DELIVERY_DEFAULT_MESSAGE_LIMIT = 4000
+const DISCORD_REMOTE_DELIVERY_MESSAGE_LIMIT = 1900
+const REMOTE_DELIVERY_CHANNELS: readonly RemoteChannel[] = [
+  'telegram',
+  'feishu',
+  'discord',
+  'weixin-ilink'
+]
+
+type CronJobRemoteDeliveryInput = {
+  job: CronJob
+  run: CronJobRun
+  target: Extract<CronJobDeliveryTarget, { type: 'remote' }>
+}
 
 type FeishuAuthSessionState = {
   sessionKey: string
@@ -418,6 +435,32 @@ export class RemoteControlPresenter {
       .map(({ endpointKey, binding }) => buildBindingSummary(endpointKey, binding))
       .filter((binding): binding is RemoteBindingSummary => binding !== null)
       .sort((left, right) => right.updatedAt - left.updatedAt)
+  }
+
+  async deliverCronJobResult(
+    input: CronJobRemoteDeliveryInput
+  ): Promise<{ remoteMessageId?: string | null }> {
+    return this.enqueueRuntimeOperation(async () => {
+      const channel = this.parseRemoteDeliveryChannel(input.target.remoteId)
+      const binding = (await this.getChannelBindings(channel)).find(
+        (entry) => entry.endpointKey === input.target.channelId
+      )
+      if (!binding) {
+        throw new Error(`Remote binding is not available: ${input.target.channelId}`)
+      }
+
+      const adapter = this.getRemoteDeliveryAdapter(channel, input.target.channelId)
+      if (!adapter?.connected) {
+        throw new Error(`Remote channel is not running: ${channel}`)
+      }
+
+      await adapter.sendMessage(
+        this.getRemoteDeliveryChatId(channel, input.target.channelId, binding),
+        this.buildCronJobDeliveryText(input, channel)
+      )
+
+      return { remoteMessageId: null }
+    })
   }
 
   async removeChannelBinding(channel: RemoteChannel, endpointKey: string): Promise<void> {
@@ -1222,6 +1265,87 @@ export class RemoteControlPresenter {
     await this.enqueueRuntimeOperation(async () => {
       await this.rebuildWeixinIlinkAccountRuntime(accountId)
     })
+  }
+
+  private parseRemoteDeliveryChannel(remoteId: string): RemoteChannel {
+    if (REMOTE_DELIVERY_CHANNELS.includes(remoteId as RemoteChannel)) {
+      return remoteId as RemoteChannel
+    }
+
+    throw new Error(`Unsupported remote delivery channel: ${remoteId}`)
+  }
+
+  private getRemoteDeliveryAdapter(channel: RemoteChannel, endpointKey: string) {
+    if (channel === 'weixin-ilink') {
+      const endpoint = parseWeixinIlinkEndpointKey(endpointKey)
+      if (!endpoint) {
+        throw new Error(`Invalid Weixin iLink binding: ${endpointKey}`)
+      }
+      return this.channelManager.getAdapter(channel, endpoint.accountId)
+    }
+
+    return this.channelManager.getAdapter(channel, DEFAULT_CHANNEL_ID)
+  }
+
+  private getRemoteDeliveryChatId(
+    channel: RemoteChannel,
+    endpointKey: string,
+    binding: RemoteBindingSummary
+  ): string {
+    if (channel === 'telegram' || channel === 'feishu') {
+      return binding.threadId ? `${binding.chatId}:${binding.threadId}` : binding.chatId
+    }
+
+    if (channel === 'discord') {
+      const endpoint = parseDiscordEndpointKey(endpointKey)
+      if (!endpoint) {
+        throw new Error(`Invalid Discord binding: ${endpointKey}`)
+      }
+      return `${endpoint.chatType}:${endpoint.chatId}`
+    }
+
+    const endpoint = parseWeixinIlinkEndpointKey(endpointKey)
+    if (!endpoint) {
+      throw new Error(`Invalid Weixin iLink binding: ${endpointKey}`)
+    }
+    return endpoint.userId
+  }
+
+  private buildCronJobDeliveryText(
+    input: CronJobRemoteDeliveryInput,
+    channel: RemoteChannel
+  ): string {
+    const body = (input.run.error || input.run.outputPreview || '').trim()
+    const lines = [`Scheduled task "${input.job.name}" ${input.run.status}.`]
+
+    if (body) {
+      lines.push('', body)
+    }
+
+    if (input.target.mode === 'full') {
+      lines.push(
+        '',
+        `Run ID: ${input.run.id}`,
+        `Scheduled at: ${new Date(input.run.scheduledAt).toISOString()}`
+      )
+      if (input.run.sessionId) {
+        lines.push(`Session ID: ${input.run.sessionId}`)
+      }
+    }
+
+    const text = lines.join('\n')
+    const limit = this.getRemoteDeliveryMessageLimit(channel)
+    return limit === null ? text : text.slice(0, limit)
+  }
+
+  private getRemoteDeliveryMessageLimit(channel: RemoteChannel): number | null {
+    if (channel === 'feishu') {
+      return null
+    }
+    if (channel === 'discord') {
+      return DISCORD_REMOTE_DELIVERY_MESSAGE_LIMIT
+    }
+    return REMOTE_DELIVERY_DEFAULT_MESSAGE_LIMIT
   }
 
   private registerBuiltInFactories(): void {
@@ -2599,9 +2723,12 @@ export class RemoteControlPresenter {
             : this.bindingStore.getWeixinIlinkDefaultAgentId()
   }
 
-  private enqueueRuntimeOperation(operation: () => Promise<void>): Promise<void> {
+  private enqueueRuntimeOperation<T>(operation: () => Promise<T>): Promise<T> {
     const nextOperation = this.runtimeOperation.then(operation, operation)
-    this.runtimeOperation = nextOperation.catch(() => {})
+    this.runtimeOperation = nextOperation.then(
+      () => undefined,
+      () => undefined
+    )
     return nextOperation
   }
 

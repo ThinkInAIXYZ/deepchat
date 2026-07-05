@@ -1464,65 +1464,59 @@
     "saveSuccess": "設定を保存しました",
     "saveFailed": "設定の保存に失敗しました"
   },
-  "scheduledTasks": {
-    "title": "スケジュールタスク",
-    "description": "指定した時刻にシステム通知を出すか、エージェントに自動でメッセージを送信します。",
-    "hint": "アプリが起動していない間に逃したワンタイムタスクは次回起動時に補完されます。繰り返しタスクは次の時刻にスキップします。",
-    "newTask": "新しいタスク",
-    "empty": "タスクはまだありません",
-    "namePlaceholder": "タスク名",
-    "fireNow": "今すぐ実行",
-    "fireNowSuccess": "タスクを実行しました",
+  "cronJobs": {
+    "title": "スケジュール済みタスク",
+    "description": "スケジュール済みのエージェントタスクとスケジューラープロセスを管理します。",
+    "empty": "スケジュール済みタスクはまだありません。",
+    "none": "なし",
+    "nextRunAt": "次回実行",
     "defaults": {
-      "name": "新しいタスク",
-      "title": "リマインダー",
-      "body": "時間です"
+      "name": "朝の定期ジョブ"
     },
-    "trigger": {
-      "title": "トリガー",
-      "kind": "トリガーの種類",
-      "kindOnce": "一回のみ",
-      "kindDaily": "毎日",
-      "kindWeekly": "毎週",
-      "firesAt": "実行時刻",
-      "dayOfWeek": "曜日",
-      "time": "時刻",
-      "description": "このタスクを実行するタイミングを選択します。"
+    "actions": {
+      "newJob": "新規ジョブ",
+      "runNow": "今すぐ実行",
+      "clearNextRun": "次回実行をクリア",
+      "reconcile": "再調整",
+      "restart": "タイマーを再起動"
     },
-    "action": {
-      "title": "アクション",
-      "kind": "アクションの種類",
-      "kindNotify": "通知",
-      "kindPrompt": "チャットプロンプト",
-      "titleField": "タイトル",
-      "titlePlaceholder": "通知タイトル",
-      "body": "本文",
-      "message": "メッセージ",
-      "agentId": "エージェント",
-      "agentIdPlaceholder": "既定: deepchat",
-      "modelId": "モデル",
-      "modelIdPlaceholder": "空欄で既定を使用",
-      "systemPrompt": "システムプロンプト",
-      "autoSend": "選択したエージェントへ自動送信",
-      "description": "通知またはエージェントへのプロンプトを選択します。"
+    "fields": {
+      "name": "名前",
+      "cronExpr": "Cron式",
+      "timezone": "タイムゾーン",
+      "preset": "プリセット",
+      "agent": "エージェント",
+      "noAgent": "選択なし",
+      "taskPrompt": "タスクプロンプト",
+      "runtimePolicy": "ランタイム",
+      "followAgent": "エージェントに従う",
+      "pinCurrent": "現在の設定を固定",
+      "delivery": "配信",
+      "remoteDelivery": "リモート配信",
+      "remoteChannel": "リモートチャンネル",
+      "noRemoteChannels": "先にリモートを有効化し、チャンネルをバインドしてください。",
+      "deliverySuccess": "配信済み",
+      "deliveryFailed": "配信失敗"
     },
-    "weekday": {
-      "sun": "日",
-      "mon": "月",
-      "tue": "火",
-      "wed": "水",
-      "thu": "木",
-      "fri": "金",
-      "sat": "土"
+    "presets": {
+      "custom": "カスタム",
+      "every5Minutes": "5分ごと",
+      "hourly": "毎時",
+      "daily": "毎日09:00",
+      "weekdays": "平日09:00"
     },
-    "listTitle": "タスクリスト",
-    "listDescription": "スケジュール、アクション、有効状態をまとめて管理します。",
-    "summary": {
-      "task": "{trigger} · {action}",
-      "once": "{time}",
-      "daily": "毎日 {time}",
-      "weekly": "{day} {time}"
-    }
+    "status": {
+      "state": "状態",
+      "enabled": "有効なジョブ",
+      "heartbeat": "ハートビート",
+      "stopped": "停止",
+      "starting": "起動中",
+      "running": "実行中",
+      "idle": "待機中",
+      "error": "エラー",
+      "invalidAgent": "エージェントが見つからないか無効です。別のエージェントを選択してください。"
+    },
+    "runNowSuccess": "スケジュール済みタスクを開始しました"
   },
   "about": {
     "title": "私たちについて",

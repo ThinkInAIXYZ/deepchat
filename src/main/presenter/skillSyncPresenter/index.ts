@@ -819,25 +819,24 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
   async previewAdoptAgentSkill(input: AdoptAgentSkillInput): Promise<AdoptAgentSkillPreview> {
     const adoption = await this.resolveAdoptionSource(input)
-    const source = await this.readAdoptableSkill(adoption.sourcePath)
-    if (source.name !== adoption.skill.name) {
-      throw new Error(`SKILL.md name "${source.name}" does not match "${adoption.skill.name}"`)
-    }
+    await this.readAdoptableSkill(adoption.sourcePath)
 
     const skillsDir = path.resolve(await this.skillPresenter.getSkillsDir())
     const deepchatSkills = await this.skillPresenter.getUnifiedSkillCatalog()
     const deepchatNames = new Set(deepchatSkills.map((skill) => skill.name))
+    const defaultTargetName = adoption.skill.name
     const hasConflict =
-      deepchatNames.has(source.name) || (await this.pathExists(path.join(skillsDir, source.name)))
+      deepchatNames.has(defaultTargetName) ||
+      (await this.pathExists(path.join(skillsDir, defaultTargetName)))
     const targetName =
       input.targetName ??
       (hasConflict
         ? await this.generateAdoptionTargetName(
-            `${source.name}-${input.agentId}`,
+            `${defaultTargetName}-${input.agentId}`,
             skillsDir,
             deepchatNames
           )
-        : source.name)
+        : defaultTargetName)
 
     this.assertValidDeepChatSkillName(targetName)
     if (
@@ -866,7 +865,8 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         adoption.skill.name
       ),
       conflict: hasConflict,
-      warnings: targetName === source.name ? [] : [`Skill will be adopted as "${targetName}"`]
+      warnings:
+        targetName === adoption.skill.name ? [] : [`Skill will be adopted as "${targetName}"`]
     }
   }
 
@@ -1223,7 +1223,6 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     const name = typeof parsed.data.name === 'string' ? parsed.data.name.trim() : ''
     const description =
       typeof parsed.data.description === 'string' ? parsed.data.description.trim() : ''
-    this.assertValidDeepChatSkillName(name)
     if (!description) {
       throw new Error('Skill description not found in SKILL.md frontmatter')
     }

@@ -11,6 +11,7 @@ Fix renderer IPC clone errors when settings save paths receive reactive objects.
 - Adding, updating, and replacing custom prompts send structured-cloneable payloads.
 - Adding, updating, and replacing system prompts send structured-cloneable payloads.
 - Saving shortcut keys sends a structured-cloneable payload.
+- Saving Cron Jobs sends a structured-cloneable payload.
 - Existing saved values and route contracts remain unchanged.
 - Tests cover the renderer API client payloads with structured clone validation.
 
