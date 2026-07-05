@@ -7,13 +7,13 @@
 - 明确 soft timeout 后的 server/client 生命周期，以及它与 shutdown 的交互边界。
 
 ## 定位
-- `initializeMcp()` 已通过 `startupWorkloadCoordinator.scheduleTask({ id: 'main:mcp-init', phase: 'background', resource: 'io' })` 进入后台任务，因此当前问题不再是首屏被 MCP 同步阻塞，而是后台初始化长尾过长。[`src/main/presenter/index.ts#L795`](src/main/presenter/index.ts#L795)
-- `McpPresenter.initialize()` 会先串行做 npm registry 探测，再启动 custom prompts server，随后对 `enabledServers` 使用 `for...of + await` 串行 `startServer()`；单个慢连接会线性拖长总耗时。[`src/main/presenter/mcpPresenter/index.ts#L157`](src/main/presenter/mcpPresenter/index.ts#L157) [`src/main/presenter/mcpPresenter/index.ts#L195`](src/main/presenter/mcpPresenter/index.ts#L195)
-- `McpPresenter.shutdown()` 当前仍是串行遍历 running clients 并逐个 `await this.stopServer(...)`；若某个 client 正处于慢连接或慢关闭链路，shutdown 会被拖住。[`src/main/presenter/mcpPresenter/index.ts#L240`](src/main/presenter/mcpPresenter/index.ts#L240)
-- `ServerManager.startServer()` 在创建 `McpClient` 后立即 `await client.connect()`；只要 connect 抛错，就会执行 `clients.delete(name)` 并记录 last error。现状没有“soft timeout 后保留 client 持续后台连接”的语义空间。[`src/main/presenter/mcpPresenter/serverManager.ts#L222`](src/main/presenter/mcpPresenter/serverManager.ts#L222)
-- `McpClient.emitServerStatusChanged()` 当前只发送 `{ status: 'running' | 'stopped', isRunning: boolean }`，并同步发布 deepchat 事件里的 `isRunning` 布尔态。这个事件结构无法直接表达 `connecting`、`timeout`、`retrying`、`failed` 等中间态，因此本项必须扩展事件 contract，而不是“复用现有布尔态”。[`src/main/presenter/mcpPresenter/mcpClient.ts#L164`](src/main/presenter/mcpPresenter/mcpClient.ts#L164)
-- `McpClient.connect()` 目前只有单层 `Promise.race(connectPromise, timeoutPromise)`，timeout 固定 5 分钟；连接成功后发 `running`，没有 soft timeout、没有 startup retry、也没有中间状态事件。[`src/main/presenter/mcpPresenter/mcpClient.ts#L467`](src/main/presenter/mcpPresenter/mcpClient.ts#L467)
-- `McpClient` 现有恢复逻辑只覆盖“已建立会话后出现 session error”场景：`checkAndHandleSessionError()` 会 cleanup 并允许后续再连，但不是启动阶段自动 retry，更不会在 startup timeout 后继续后台重试。[`src/main/presenter/mcpPresenter/mcpClient.ts#L933`](src/main/presenter/mcpPresenter/mcpClient.ts#L933)
+- `initializeMcp()` 已通过 `startupWorkloadCoordinator.scheduleTask({ id: 'main:mcp-init', phase: 'background', resource: 'io' })` 进入后台任务，因此当前问题不再是首屏被 MCP 同步阻塞，而是后台初始化长尾过长。[`src/main/presenter/index.ts#L795`](../../../src/main/presenter/index.ts#L795)
+- `McpPresenter.initialize()` 会先串行做 npm registry 探测，再启动 custom prompts server，随后对 `enabledServers` 使用 `for...of + await` 串行 `startServer()`；单个慢连接会线性拖长总耗时。[`src/main/presenter/mcpPresenter/index.ts#L157`](../../../src/main/presenter/mcpPresenter/index.ts#L157) [`src/main/presenter/mcpPresenter/index.ts#L195`](../../../src/main/presenter/mcpPresenter/index.ts#L195)
+- `McpPresenter.shutdown()` 当前仍是串行遍历 running clients 并逐个 `await this.stopServer(...)`；若某个 client 正处于慢连接或慢关闭链路，shutdown 会被拖住。[`src/main/presenter/mcpPresenter/index.ts#L240`](../../../src/main/presenter/mcpPresenter/index.ts#L240)
+- `ServerManager.startServer()` 在创建 `McpClient` 后立即 `await client.connect()`；只要 connect 抛错，就会执行 `clients.delete(name)` 并记录 last error。现状没有“soft timeout 后保留 client 持续后台连接”的语义空间。[`src/main/presenter/mcpPresenter/serverManager.ts#L222`](../../../src/main/presenter/mcpPresenter/serverManager.ts#L222)
+- `McpClient.emitServerStatusChanged()` 当前只发送 `{ status: 'running' | 'stopped', isRunning: boolean }`，并同步发布 deepchat 事件里的 `isRunning` 布尔态。这个事件结构无法直接表达 `connecting`、`timeout`、`retrying`、`failed` 等中间态，因此本项必须扩展事件 contract，而不是“复用现有布尔态”。[`src/main/presenter/mcpPresenter/mcpClient.ts#L164`](../../../src/main/presenter/mcpPresenter/mcpClient.ts#L164)
+- `McpClient.connect()` 目前只有单层 `Promise.race(connectPromise, timeoutPromise)`，timeout 固定 5 分钟；连接成功后发 `running`，没有 soft timeout、没有 startup retry、也没有中间状态事件。[`src/main/presenter/mcpPresenter/mcpClient.ts#L467`](../../../src/main/presenter/mcpPresenter/mcpClient.ts#L467)
+- `McpClient` 现有恢复逻辑只覆盖“已建立会话后出现 session error”场景：`checkAndHandleSessionError()` 会 cleanup 并允许后续再连，但不是启动阶段自动 retry，更不会在 startup timeout 后继续后台重试。[`src/main/presenter/mcpPresenter/mcpClient.ts#L933`](../../../src/main/presenter/mcpPresenter/mcpClient.ts#L933)
 
 ### 根因
 - 现状只有 **5 分钟硬超时**，缺少“先放行初始化、慢 server 后续再处理”的 soft/hard 分层，因此单个 server 的最坏启动等待就是 5 分钟。

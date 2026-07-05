@@ -629,13 +629,12 @@ export class ConfigPresenter implements IConfigPresenter {
       this.cleanupDeprecatedBuiltinAgentSelections()
     } finally {
       this.isAttachingAgentRepository = false
-    }
-
-    if (this.pendingAcpAgentsChanged) {
-      this.pendingAcpAgentsChanged = false
-      queueMicrotask(() => {
-        this.notifyAcpAgentsChanged()
-      })
+      if (this.pendingAcpAgentsChanged) {
+        this.pendingAcpAgentsChanged = false
+        queueMicrotask(() => {
+          this.notifyAcpAgentsChanged()
+        })
+      }
     }
   }
 

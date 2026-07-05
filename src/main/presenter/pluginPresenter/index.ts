@@ -165,7 +165,7 @@ export class PluginPresenter {
       while (nextIndex < servers.length) {
         const { serverName, pluginId } = servers[nextIndex++]
         try {
-          if (await this.mcpPresenter.isServerRunning(serverName)) {
+          if (await this.isMcpServerActive(serverName)) {
             await this.mcpPresenter.stopServer(serverName)
           }
         } catch (error) {
@@ -180,6 +180,13 @@ export class PluginPresenter {
 
     const workers = Array.from({ length: Math.min(concurrency, servers.length) }, () => stopNext())
     await Promise.all(workers)
+  }
+
+  private async isMcpServerActive(serverName: string): Promise<boolean> {
+    return (
+      (await this.mcpPresenter.isServerActive?.(serverName)) ??
+      (await this.mcpPresenter.isServerRunning(serverName))
+    )
   }
 
   async listPlugins(): Promise<PluginListItem[]> {
@@ -344,7 +351,7 @@ export class PluginPresenter {
     for (const [serverName, serverConfig] of Object.entries(servers)) {
       if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
         try {
-          if (await this.mcpPresenter.isServerRunning(serverName)) {
+          if (await this.isMcpServerActive(serverName)) {
             await this.mcpPresenter.stopServer(serverName)
           }
         } catch (error) {
@@ -1613,7 +1620,7 @@ export class PluginPresenter {
 
     for (const serverName of serverNames) {
       try {
-        if (!(await this.mcpPresenter.isServerRunning(serverName))) {
+        if (!(await this.isMcpServerActive(serverName))) {
           void this.mcpPresenter.startServer(serverName).catch((error) => {
             console.warn('[PluginHost] Failed to auto-start plugin MCP server:', {
               pluginId,

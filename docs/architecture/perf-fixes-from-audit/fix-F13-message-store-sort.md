@@ -7,17 +7,17 @@
 - 将 `assistantBlockPayloadEqual()` 的热路径从多次 `JSON.stringify()` 深比较调整为更轻量、可控的比较方式。
 
 ## 定位
-- `messageIds` / `messageCache` 定义：[`src/renderer/src/stores/ui/message.ts#L48-L49`](src/renderer/src/stores/ui/message.ts#L48-L49)
-- 当前排序逻辑：[`src/renderer/src/stores/ui/message.ts#L71-L94`](src/renderer/src/stores/ui/message.ts#L71-L94)
-- `parsedMessageCache` 定义：[`src/renderer/src/stores/ui/message.ts#L55`](src/renderer/src/stores/ui/message.ts#L55)
-- `loadMessages()` 一次性重建：[`src/renderer/src/stores/ui/message.ts#L353-L364`](src/renderer/src/stores/ui/message.ts#L353-L364)
-- `parsedMessageCache` / streaming 占位清理：[`src/renderer/src/stores/ui/message.ts#L360-L363`](src/renderer/src/stores/ui/message.ts#L360-L363)、[`src/renderer/src/stores/ui/message.ts#L472-L483`](src/renderer/src/stores/ui/message.ts#L472-L483)
-- `assistantBlockPayloadEqual()` 的 `JSON.stringify()` 热路径：[`src/renderer/src/stores/ui/message.ts#L128-L175`](src/renderer/src/stores/ui/message.ts#L128-L175)
-- 历史页前插：[`src/renderer/src/stores/ui/message.ts#L396-L401`](src/renderer/src/stores/ui/message.ts#L396-L401)
-- optimistic 用户消息直接 `push`：[`src/renderer/src/stores/ui/message.ts#L433-L463`](src/renderer/src/stores/ui/message.ts#L433-L463)
-- optimistic `orderSeq = messageIds.length + 1`：[`src/renderer/src/stores/ui/message.ts#L443`](src/renderer/src/stores/ui/message.ts#L443)
-- streaming 补入新 id：[`src/renderer/src/stores/ui/message.ts#L523-L535`](src/renderer/src/stores/ui/message.ts#L523-L535)
-- streaming `orderSeq = messageIds.length + 1`：[`src/renderer/src/stores/ui/message.ts#L526`](src/renderer/src/stores/ui/message.ts#L526)
+- `messageIds` / `messageCache` 定义：[`src/renderer/src/stores/ui/message.ts#L48-L49`](../../../src/renderer/src/stores/ui/message.ts#L48-L49)
+- 当前排序逻辑：[`src/renderer/src/stores/ui/message.ts#L71-L94`](../../../src/renderer/src/stores/ui/message.ts#L71-L94)
+- `parsedMessageCache` 定义：[`src/renderer/src/stores/ui/message.ts#L55`](../../../src/renderer/src/stores/ui/message.ts#L55)
+- `loadMessages()` 一次性重建：[`src/renderer/src/stores/ui/message.ts#L353-L364`](../../../src/renderer/src/stores/ui/message.ts#L353-L364)
+- `parsedMessageCache` / streaming 占位清理：[`src/renderer/src/stores/ui/message.ts#L360-L363`](../../../src/renderer/src/stores/ui/message.ts#L360-L363)、[`src/renderer/src/stores/ui/message.ts#L472-L483`](../../../src/renderer/src/stores/ui/message.ts#L472-L483)
+- `assistantBlockPayloadEqual()` 的 `JSON.stringify()` 热路径：[`src/renderer/src/stores/ui/message.ts#L128-L175`](../../../src/renderer/src/stores/ui/message.ts#L128-L175)
+- 历史页前插：[`src/renderer/src/stores/ui/message.ts#L396-L401`](../../../src/renderer/src/stores/ui/message.ts#L396-L401)
+- optimistic 用户消息直接 `push`：[`src/renderer/src/stores/ui/message.ts#L433-L463`](../../../src/renderer/src/stores/ui/message.ts#L433-L463)
+- optimistic `orderSeq = messageIds.length + 1`：[`src/renderer/src/stores/ui/message.ts#L443`](../../../src/renderer/src/stores/ui/message.ts#L443)
+- streaming 补入新 id：[`src/renderer/src/stores/ui/message.ts#L523-L535`](../../../src/renderer/src/stores/ui/message.ts#L523-L535)
+- streaming `orderSeq = messageIds.length + 1`：[`src/renderer/src/stores/ui/message.ts#L526`](../../../src/renderer/src/stores/ui/message.ts#L526)
 
 现状结论：
 - `upsertMessageRecord()` 在“新 id”或 `orderSeq` 变化时都会执行 `sortMessageIdsByOrderSeq()`，热点在全量排序，不在 `Map.set()`。
@@ -97,7 +97,7 @@ function findInsertIndexByOrderSeq(orderSeq: number, id: string): number {
 这样把“能二分”的前提写成了代码层面的显式条件，而不是依赖隐含假设。
 
 ### 3.2 保持 `loadMessages()` 一次性重建
-[`loadMessages()`](src/renderer/src/stores/ui/message.ts#L353-L364) 现在是：
+[`loadMessages()`](../../../src/renderer/src/stores/ui/message.ts#L353-L364) 现在是：
 - 遍历 `restored.messages` 构建 `nextMessageCache`；
 - 同步构建 `nextMessageIds`；
 - 最后一次性替换 `messageCache.value` 与 `messageIds.value`。
@@ -119,7 +119,7 @@ function findInsertIndexByOrderSeq(orderSeq: number, id: string): number {
 - `loadMessages()`、`clear()`、会话切换相关重建仍保留整表清空。
 
 ### 3.4 block payload 比较降温
-[`assistantBlockPayloadEqual()`](src/renderer/src/stores/ui/message.ts#L128-L175) 当前对 `extra`、`tool_call`、`artifact`、`image_data`、`reasoning_time` 都走 `JSON.stringify()`。该逻辑应改为：
+[`assistantBlockPayloadEqual()`](../../../src/renderer/src/stores/ui/message.ts#L128-L175) 当前对 `extra`、`tool_call`、`artifact`、`image_data`、`reasoning_time` 都走 `JSON.stringify()`。该逻辑应改为：
 - 优先比较影响 UI 的稳定字段；
 - 仅在确实需要比较复杂对象且无法拆字段时，才考虑预计算 hash；
 - 不在热路径里反复序列化整个 payload。
@@ -150,7 +150,7 @@ function findInsertIndexByOrderSeq(orderSeq: number, id: string): number {
 - 基础质量检查仍应覆盖 `pnpm run format`、`pnpm run i18n`、`pnpm run lint`，必要时加 `pnpm run typecheck`。
 
 ## 风险
-- **核心风险必须明确**：[`addOptimisticUserMessage()`](src/renderer/src/stores/ui/message.ts#L443) 与 [`applyStreamingBlocksToMessage()`](src/renderer/src/stores/ui/message.ts#L526) 都用 `messageIds.value.length + 1` 生成 `orderSeq`。这个值只代表“当前内存数组长度上的尾序号”，**不等价于真实历史消息序列**。因此二分插入不能把它当作稳定的全局顺序来源；这正是“插入前先检测有序性、失败就 fallback 排序”的核心原因。
+- **核心风险必须明确**：[`addOptimisticUserMessage()`](../../../src/renderer/src/stores/ui/message.ts#L443) 与 [`applyStreamingBlocksToMessage()`](../../../src/renderer/src/stores/ui/message.ts#L526) 都用 `messageIds.value.length + 1` 生成 `orderSeq`。这个值只代表“当前内存数组长度上的尾序号”，**不等价于真实历史消息序列**。因此二分插入不能把它当作稳定的全局顺序来源；这正是“插入前先检测有序性、失败就 fallback 排序”的核心原因。
 - `loadOlderMessages()` 的前插会让数组结构发生非尾部变动；若后续逻辑偷懒假设“列表只会 append”，二分插入就会失效。
 - `upsertMessageRecord()` 即使改成二分插入，`messageIds.includes()` 仍是 O(n) 判重；但这不阻塞 F13，因为当前最大热点仍是全量排序。
 - LRU 阈值若后续实测过小，可能增加重复解析；但固定上限优先级高于无限增长，可在实测后调参。

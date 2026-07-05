@@ -13,9 +13,24 @@ import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
 const McpSamplingRequestSchema = z.custom<McpSamplingRequestPayload>()
 const McpSamplingDecisionSchema = z.custom<McpSamplingDecision>()
 const MCPServerConfigSchema = z.custom<MCPServerConfig>()
-const McpServerLifecycleStatusSchema = z.custom<McpServerLifecycleStatus>()
-const McpServerStatusPhaseSchema = z.custom<McpServerStatusPhase>()
-const McpServerStatusReasonSchema = z.custom<McpServerStatusReason>()
+const McpServerLifecycleStatusSchema = z.enum([
+  'connecting',
+  'connected',
+  'timeout',
+  'retrying',
+  'failed',
+  'stopped'
+] satisfies [McpServerLifecycleStatus, ...McpServerLifecycleStatus[]])
+const McpServerStatusPhaseSchema = z.enum(['startup', 'manual', 'retry', 'shutdown'] satisfies [
+  McpServerStatusPhase,
+  ...McpServerStatusPhase[]
+])
+const McpServerStatusReasonSchema = z.enum([
+  'soft-timeout',
+  'hard-timeout',
+  'connect-error',
+  'shutdown'
+] satisfies [McpServerStatusReason, ...McpServerStatusReason[]])
 
 export const mcpServerStartedEvent = defineEventContract({
   name: 'mcp.server.started',

@@ -90,6 +90,24 @@ const getWorkspacePreviewMimeType = (fullPath: string): string => {
   return mimeType
 }
 
+const resolvePathInsideRoot = (rootDir: string, requestPath: string): string | null => {
+  let decodedPath: string
+  try {
+    decodedPath = decodeURIComponent(requestPath.split(/[?#]/, 1)[0] ?? '')
+  } catch {
+    return null
+  }
+
+  const root = path.resolve(rootDir)
+  const relativeRequestPath = decodedPath.replace(/^[/\\]+/, '')
+  const fullPath = path.resolve(root, relativeRequestPath)
+  const relativePath = path.relative(root, fullPath)
+  if (relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))) {
+    return fullPath
+  }
+  return null
+}
+
 const createStreamingResponse = async (
   fullPath: string,
   stat: Stats,
@@ -150,11 +168,25 @@ export const protocolRegistrationHook: LifecycleHook = {
               process.resourcesPath
             ]
         const baseResourcesDir = await findDeepCdnResourcesDir(candidates)
-        const fullPath = path.join(baseResourcesDir, 'cdn', filePath)
+        const fullPath = resolvePathInsideRoot(path.join(baseResourcesDir, 'cdn'), filePath)
+        if (!fullPath) {
+          return new Response('Forbidden', {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
         const mimeType = getDeepCdnMimeType(filePath)
 
-        const fileContent = await fsp.readFile(fullPath)
-        return new Response(fileContent, {
+        const stat = await fsp.stat(fullPath)
+        if (stat.isDirectory()) {
+          console.warn(`protocolRegistrationHook: deepcdn handler: File not found: ${filePath}`)
+          return new Response(`File not found: ${filePath}`, {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+
+        return await createStreamingResponse(fullPath, stat, {
           headers: { 'Content-Type': mimeType }
         })
       } catch (error: unknown) {
@@ -180,7 +212,13 @@ export const protocolRegistrationHook: LifecycleHook = {
     protocol.handle('imgcache', async (request) => {
       const filePath = request.url.slice('imgcache://'.length)
       // Images are stored in the images subfolder of user data directory
-      const fullPath = path.join(app.getPath('userData'), 'images', filePath)
+      const fullPath = resolvePathInsideRoot(path.join(app.getPath('userData'), 'images'), filePath)
+      if (!fullPath) {
+        return new Response('Forbidden', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
 
       try {
         const stat = await fsp.stat(fullPath)

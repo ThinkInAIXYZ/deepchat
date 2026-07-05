@@ -1021,7 +1021,6 @@ export class Presenter implements IPresenter {
         `[Presenter] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
         error
       )
-      throw error
     }
   }
 

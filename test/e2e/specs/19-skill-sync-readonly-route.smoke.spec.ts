@@ -6,7 +6,7 @@ test('skills sync read-only routes and scan events work from settings @smoke', a
   await waitForAppReady(app.page)
 
   const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-skills')
+  await openSettingsTab(settingsPage, 'settings-tab-skills', 'settings-skills')
   await expect(settingsPage.getByTestId('settings-skills-page')).toBeVisible({
     timeout: 30_000
   })

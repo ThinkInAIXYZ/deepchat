@@ -54,11 +54,18 @@ export async function openSettings(app: ElectronAppInstance): Promise<Page> {
   throw new Error('Settings window did not open.')
 }
 
-const getRouteTabTestId = (item: SettingsNavigationItem): string => {
+const getRouteTabTestId = (
+  item: SettingsNavigationItem,
+  routeName?: SettingsNavigationItem['routeName']
+): string => {
   const firstStaticPathSegment = item.path
     .split('/')
     .find((segment) => segment && !segment.startsWith(':'))
-  return `settings-tab-${firstStaticPathSegment ?? item.routeName.replace(/^settings-/, '')}`
+  const tabSegment = firstStaticPathSegment ?? routeName?.replace(/^settings-/, '')
+  if (!tabSegment) {
+    throw new Error(`Route ${item.routeName} has no static tab segment`)
+  }
+  return `settings-tab-${tabSegment}`
 }
 
 export async function openSettingsTab(
@@ -69,7 +76,9 @@ export async function openSettingsTab(
   const routeItems = getSettingsRouteItems(process.platform, process.arch)
   const routeItem = routeName
     ? routeItems.find((item) => item.routeName === routeName)
-    : routeItems.find((item) => item.hiddenInSidebar && getRouteTabTestId(item) === tabTestId)
+    : routeItems.find(
+        (item) => !item.hiddenInSidebar && getRouteTabTestId(item, item.routeName) === tabTestId
+      )
 
   if (routeItem?.hiddenInSidebar) {
     const path = resolveSettingsNavigationPath(

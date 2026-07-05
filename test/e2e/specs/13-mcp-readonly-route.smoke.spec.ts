@@ -8,7 +8,7 @@ test('mcp settings read-only routes expose server and registry snapshots @smoke'
   await waitForAppReady(app.page)
 
   const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-mcp')
+  await openSettingsTab(settingsPage, 'settings-tab-mcp', 'settings-mcp')
   await expect(settingsPage.getByTestId('settings-mcp-page')).toBeVisible({ timeout: 30_000 })
 
   const snapshot = await settingsPage.evaluate(async () => {

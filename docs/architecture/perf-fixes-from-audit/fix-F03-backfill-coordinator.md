@@ -10,45 +10,45 @@
 ## 定位
 ### 2.1 5 个 hook 目前都绕过 coordinator
 以下 5 个 hook 都是 `void startX().catch(...)`，虽然有 priority，但并没有进入 coordinator 的 `scheduleTask(...)`：
-- [`legacyImportHook.ts`](src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts#L5-L26)：`priority: 20`
-- [`rtkHealthCheckHook.ts`](src/main/presenter/lifecyclePresenter/hooks/after-start/rtkHealthCheckHook.ts#L5-L25)：`priority: 20`
-- [`usageStatsBackfillHook.ts`](src/main/presenter/lifecyclePresenter/hooks/after-start/usageStatsBackfillHook.ts#L5-L25)：`priority: 21`
-- [`sqliteMainlineNormalizationHook.ts`](src/main/presenter/lifecyclePresenter/hooks/after-start/sqliteMainlineNormalizationHook.ts#L5-L29)：`priority: 22`
-- [`disabledSearchToolCleanupHook.ts`](src/main/presenter/lifecyclePresenter/hooks/after-start/disabledSearchToolCleanupHook.ts#L5-L29)：`priority: 23`
+- [`legacyImportHook.ts`](../../../src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts#L5-L26)：`priority: 20`
+- [`rtkHealthCheckHook.ts`](../../../src/main/presenter/lifecyclePresenter/hooks/after-start/rtkHealthCheckHook.ts#L5-L25)：`priority: 20`
+- [`usageStatsBackfillHook.ts`](../../../src/main/presenter/lifecyclePresenter/hooks/after-start/usageStatsBackfillHook.ts#L5-L25)：`priority: 21`
+- [`sqliteMainlineNormalizationHook.ts`](../../../src/main/presenter/lifecyclePresenter/hooks/after-start/sqliteMainlineNormalizationHook.ts#L5-L29)：`priority: 22`
+- [`disabledSearchToolCleanupHook.ts`](../../../src/main/presenter/lifecyclePresenter/hooks/after-start/disabledSearchToolCleanupHook.ts#L5-L29)：`priority: 23`
 
 而 coordinator 已提供：
-- `taskContext.yield()` / `reportProgress()` / `signal`：[`startupWorkloadCoordinator/index.ts`](src/main/presenter/startupWorkloadCoordinator/index.ts#L20-L35)
-- `cpu: 1`、`io: 2` 的并发上限：[`startupWorkloadCoordinator/index.ts`](src/main/presenter/startupWorkloadCoordinator/index.ts#L72-L75)
-- `scheduleTask(...)` 的任务排队与执行：[`startupWorkloadCoordinator/index.ts`](src/main/presenter/startupWorkloadCoordinator/index.ts#L150-L245)
+- `taskContext.yield()` / `reportProgress()` / `signal`：[`startupWorkloadCoordinator/index.ts`](../../../src/main/presenter/startupWorkloadCoordinator/index.ts#L20-L35)
+- `cpu: 1`、`io: 2` 的并发上限：[`startupWorkloadCoordinator/index.ts`](../../../src/main/presenter/startupWorkloadCoordinator/index.ts#L72-L75)
+- `scheduleTask(...)` 的任务排队与执行：[`startupWorkloadCoordinator/index.ts`](../../../src/main/presenter/startupWorkloadCoordinator/index.ts#L150-L245)
 
 ### 2.2 presenter 入口尚未接收 taskContext
 当前 `agentSessionPresenter` 的公开入口仍是不带 context 的 `startX()`：
-- [`startLegacyImport`](src/main/presenter/agentSessionPresenter/index.ts#L1609-L1611)
-- [`startUsageStatsBackfill`](src/main/presenter/agentSessionPresenter/index.ts#L1613-L1632)
-- [`startMainlineNormalizationBackfill`](src/main/presenter/agentSessionPresenter/index.ts#L1634-L1654)
-- [`startDisabledSearchToolCleanupBackfill`](src/main/presenter/agentSessionPresenter/index.ts#L1656-L1678)
-- [`startRtkHealthCheck`](src/main/presenter/agentSessionPresenter/index.ts#L1680-L1682)
+- [`startLegacyImport`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1609-L1611)
+- [`startUsageStatsBackfill`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1613-L1632)
+- [`startMainlineNormalizationBackfill`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1634-L1654)
+- [`startDisabledSearchToolCleanupBackfill`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1656-L1678)
+- [`startRtkHealthCheck`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1680-L1682)
 
 因此，文档若要求在循环中调用 `taskContext.yield()`，必须同步补上 hook → presenter 的签名改造或适配层，否则 coordinator 提供的 context 无法真正传入 backfill 实现。
 
 ### 2.3 mainline normalization / usage stats 目前仍有全量读取与粗粒度 yield
 - `runMainlineNormalizationBackfill()`：
-  - `SELECT * FROM new_sessions ORDER BY updated_at ASC` + `.all()`：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3424-L3431)
-  - `SELECT * FROM deepchat_messages ORDER BY created_at ASC` + `.all()`：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3462-L3464)
-  - 每 200 条才 `yieldToEventLoop()`：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3456-L3459), [`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3468-L3477)
+  - `SELECT * FROM new_sessions ORDER BY updated_at ASC` + `.all()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3424-L3431)
+  - `SELECT * FROM deepchat_messages ORDER BY created_at ASC` + `.all()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3462-L3464)
+  - 每 200 条才 `yieldToEventLoop()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3456-L3459), [`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3468-L3477)
 - `runUsageStatsBackfill()`：
-  - 先拿 `listAssistantUsageCandidates()` 的全量数组：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3685-L3687)
-  - 每 200 条才 `yieldToEventLoop()`：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3720-L3732)
+  - 先拿 `listAssistantUsageCandidates()` 的全量数组：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3685-L3687)
+  - 每 200 条才 `yieldToEventLoop()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3720-L3732)
 
 ### 2.4 rtk health check 的 resource 分类结论
 `rtk-health-check` 应归类为 `resource: 'io'`，不应写成待定。
 
 依据：
-- `startRtkHealthCheck()` 直接转调 `rtkRuntimeService.startHealthCheck()`：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L1680-L1682)
-- `startHealthCheck()` 进入 `runHealthCheck(...)`：[`rtkRuntimeService.ts`](src/main/lib/agentRuntime/rtkRuntimeService.ts#L285-L290)
+- `startRtkHealthCheck()` 直接转调 `rtkRuntimeService.startHealthCheck()`：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L1680-L1682)
+- `startHealthCheck()` 进入 `runHealthCheck(...)`：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L285-L290)
 - 该服务依赖 shell 环境探测、runtime 初始化、外部命令执行等 IO/子进程行为，而非纯内存计算：
-  - `getShellEnvironment` / `runCommand` / `RuntimeHelper` 注入：[`rtkRuntimeService.ts`](src/main/lib/agentRuntime/rtkRuntimeService.ts#L66-L79)
-  - `runCommandImpl(...)` 用于执行 `gain` / `rewrite` 等 runtime 命令：[`rtkRuntimeService.ts`](src/main/lib/agentRuntime/rtkRuntimeService.ts#L322-L330), [`rtkRuntimeService.ts`](src/main/lib/agentRuntime/rtkRuntimeService.ts#L413-L416)
+  - `getShellEnvironment` / `runCommand` / `RuntimeHelper` 注入：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L66-L79)
+  - `runCommandImpl(...)` 用于执行 `gain` / `rewrite` 等 runtime 命令：[`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L322-L330), [`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts#L413-L416)
 
 所以该任务与 legacy import / 其余 backfill 一样，更符合 `background + io` 调度模型。
 
@@ -65,7 +65,7 @@
 
 说明：
 - 这 5 项都以数据库、配置、runtime 探测、子进程或磁盘数据处理为主，不属于长时间纯计算型 `cpu` 任务。
-- 当前 `MAX_CONCURRENCY` 为 `io: 2`，因此纳入 coordinator 后可避免 5 个任务无上限地同时抢占资源：[`startupWorkloadCoordinator/index.ts`](src/main/presenter/startupWorkloadCoordinator/index.ts#L72-L75)
+- 当前 `MAX_CONCURRENCY` 为 `io: 2`，因此纳入 coordinator 后可避免 5 个任务无上限地同时抢占资源：[`startupWorkloadCoordinator/index.ts`](../../../src/main/presenter/startupWorkloadCoordinator/index.ts#L72-L75)
 
 ### 3.2 补齐 hook → presenter → 内部实现的 taskContext 接线
 这是本次 review 必须补充的关键步骤。
@@ -141,7 +141,7 @@ while (true) {
 ```
 
 ### 3.4 usage stats backfill 同样改为流式候选
-`runUsageStatsBackfill()` 当前先拿 `listAssistantUsageCandidates()` 全量数组，再同步遍历：[`agentSessionPresenter/index.ts`](src/main/presenter/agentSessionPresenter/index.ts#L3685-L3732)
+`runUsageStatsBackfill()` 当前先拿 `listAssistantUsageCandidates()` 全量数组，再同步遍历：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3685-L3732)
 
 应改为以下任一模式：
 - `deepchatMessagesTable.iterAssistantUsageCandidates()`：优先，迭代器/游标式接口
@@ -198,7 +198,7 @@ while (true) {
 ## 风险
 - `iterate()` 运行时可用 ≠ 类型立即可用；若 TS 声明缺失，需要补声明，否则只能先走分页兜底。
 - `LIMIT/OFFSET` 在大表深翻页时会随着 offset 增大而退化，因为 SQLite 仍需扫描并跳过前面的记录；因此分页只能作为兼容兜底，不能视作与 `iterate()` 等价的长期方案。
-- 只查必要列后，需确认 [`backfillNormalizedMessageRow`](src/main/presenter/agentSessionPresenter/index.ts#L3593-L3641) 等下游逻辑没有隐式依赖被删掉的字段。
+- 只查必要列后，需确认 [`backfillNormalizedMessageRow`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3593-L3641) 等下游逻辑没有隐式依赖被删掉的字段。
 - coordinator 调度会改变启动后这些后台任务的开始时机，需要确认不会影响任何必须“立刻完成”的初始化语义。
 - batch 调小会提升让出频率，能改善卡顿，但也可能拉长总耗时；最终值必须以压测结果为准。
 - `usageStatsBackfill` 的运行中 / 完成 / 超时语义必须保持兼容，避免因改造 iterator / 分页接口造成重复跑、漏跑或状态卡死。

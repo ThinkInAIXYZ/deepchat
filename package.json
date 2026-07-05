@@ -11,7 +11,7 @@
   },
   "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
   "scripts": {
-    "prebuild": "node scripts/fetch-provider-db.mjs && node scripts/fetch-acp-registry.mjs",
+    "prebuild": "node scripts/generate-icon-collections.mjs && node scripts/fetch-provider-db.mjs && node scripts/fetch-acp-registry.mjs",
     "preinstall": "npx only-allow pnpm",
     "test": "vitest",
     "test:main": "vitest --config vitest.config.ts test/main",
@@ -27,6 +27,7 @@
     "lint": "pnpm run lint:agent-cleanup && pnpm run lint:architecture && oxlint .",
     "lint:architecture": "node scripts/architecture-guard.mjs",
     "lint:agent-cleanup": "node scripts/agent-cleanup-guard.mjs",
+    "icons:generate": "node scripts/generate-icon-collections.mjs",
     "architecture:baseline": "node scripts/generate-architecture-baseline.mjs",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsgo --project tsconfig.app.tsgo.json",

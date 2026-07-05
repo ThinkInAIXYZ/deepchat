@@ -4,17 +4,17 @@
 在不改变现有启动调用点的前提下，消除 `App.vue` 与 `ChatTabView.vue` 对 `sessionStore.fetchSessions()` 的并发首屏请求竞态，避免重复触发 IPC `listLightweight`；同时明确去重守卫只覆盖首屏 `fetchSessions()`，不包裹 `loadSessionPage()`，以免误伤 `reset:false` 的分页加载路径。
 
 ## 定位
-- 启动主调用：[`src/renderer/src/App.vue#L525-L530`](src/renderer/src/App.vue#L525-L530)
+- 启动主调用：[`src/renderer/src/App.vue#L525-L530`](../../../src/renderer/src/App.vue#L525-L530)
   - `onMounted` 中直接调用 `void sessionStore.fetchSessions()`。
-- 启动关键 store 初始化：[`src/renderer/src/lib/storeInitializer.ts#L22-L25`](src/renderer/src/lib/storeInitializer.ts#L22-L25)
+- 启动关键 store 初始化：[`src/renderer/src/lib/storeInitializer.ts#L22-L25`](../../../src/renderer/src/lib/storeInitializer.ts#L22-L25)
   - `initAppStores()` 只并行初始化 `uiSettingsStore` 与 `providerStore`，不负责 session 首屏加载，因此不会替代 App 层调用。
-- 兜底调用：[`src/renderer/src/views/ChatTabView.vue#L112-L116`](src/renderer/src/views/ChatTabView.vue#L112-L116)
+- 兜底调用：[`src/renderer/src/views/ChatTabView.vue#L112-L116`](../../../src/renderer/src/views/ChatTabView.vue#L112-L116)
   - `finally` 中如果 `!sessionStore.hasLoadedInitialPage`，会再次 `void sessionStore.fetchSessions()`。
-- session store 现状：[`src/renderer/src/stores/ui/session.ts#L276-L288`](src/renderer/src/stores/ui/session.ts#L276-L288)、[`src/renderer/src/stores/ui/session.ts#L508-L549`](src/renderer/src/stores/ui/session.ts#L508-L549)、[`src/renderer/src/stores/ui/session.ts#L587-L592`](src/renderer/src/stores/ui/session.ts#L587-L592)
+- session store 现状：[`src/renderer/src/stores/ui/session.ts#L276-L288`](../../../src/renderer/src/stores/ui/session.ts#L276-L288)、[`src/renderer/src/stores/ui/session.ts#L508-L549`](../../../src/renderer/src/stores/ui/session.ts#L508-L549)、[`src/renderer/src/stores/ui/session.ts#L587-L592`](../../../src/renderer/src/stores/ui/session.ts#L587-L592)
   - `initialPageRequestId` 仅用于丢弃过期 `reset:true` 结果。
   - `loading` / `hasLoadedInitialPage` 仅表示状态，不阻止新的首屏请求进入。
   - `fetchSessions()` 只是薄包装，直接调用 `loadSessionPage({ reset: true, ... })`，自身没有 in-flight 守卫。
-- IPC 触发点：[`src/renderer/src/stores/ui/session.ts#L520-L527`](src/renderer/src/stores/ui/session.ts#L520-L527)
+- IPC 触发点：[`src/renderer/src/stores/ui/session.ts#L520-L527`](../../../src/renderer/src/stores/ui/session.ts#L520-L527)
   - 真正的重复成本发生在 `sessionClient.listLightweight(...)` 被并发执行。
 
 结论：当前问题是 **`fetchSessions()` 缺少首屏 in-flight 去重**，而不是 `loadSessionPage()` 的通用并发模型有问题。`loadSessionPage(reset:false)` 还承担分页职责，不能被一个全局守卫一并串行化。
@@ -65,9 +65,9 @@ async function fetchSessions(): Promise<void> {
 ```
 
 ## 步骤拆分
-1. 在 [`src/renderer/src/stores/ui/session.ts`](src/renderer/src/stores/ui/session.ts) 中新增 `sessionFetchPromise` 状态。
+1. 在 [`src/renderer/src/stores/ui/session.ts`](../../../src/renderer/src/stores/ui/session.ts) 中新增 `sessionFetchPromise` 状态。
 2. 仅改造 `fetchSessions()` 为首屏 in-flight 去重包装器，保持 `loadSessionPage()` 的 `reset:true`/`reset:false` 分支结构不变。
-3. 不调整 [`src/renderer/src/App.vue`](src/renderer/src/App.vue) 与 [`src/renderer/src/views/ChatTabView.vue`](src/renderer/src/views/ChatTabView.vue) 的现有调用点，继续采用“双调用 + store 去重”的启动策略。
+3. 不调整 [`src/renderer/src/App.vue`](../../../src/renderer/src/App.vue) 与 [`src/renderer/src/views/ChatTabView.vue`](../../../src/renderer/src/views/ChatTabView.vue) 的现有调用点，继续采用“双调用 + store 去重”的启动策略。
 4. 若后续实现显式“刷新会话列表”入口，要求该入口不要复用 `fetchSessions()` 语义，而应显式走 `loadSessionPage({ reset: true })` 或独立 refresh API。
 
 ## 验证

@@ -1,7 +1,10 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
-import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type {
+  StartupWorkloadCoordinator,
+  StartupWorkloadTaskContext
+} from '@/presenter/startupWorkloadCoordinator'
 
 export const rtkHealthCheckHook: LifecycleHook = {
   name: 'rtk-health-check',
@@ -14,7 +17,7 @@ export const rtkHealthCheckHook: LifecycleHook = {
     }
 
     const agentSessionPresenter = presenter.agentSessionPresenter as unknown as {
-      startRtkHealthCheckTask?: () => Promise<void>
+      startRtkHealthCheckTask?: (taskContext?: StartupWorkloadTaskContext) => Promise<void>
     }
     if (!agentSessionPresenter.startRtkHealthCheckTask) {
       return
@@ -29,8 +32,8 @@ export const rtkHealthCheckHook: LifecycleHook = {
         phase: 'background',
         resource: 'io',
         labelKey: 'startup.main.rtkHealthCheck',
-        run: async () => {
-          await agentSessionPresenter.startRtkHealthCheckTask?.()
+        run: async (taskContext) => {
+          await agentSessionPresenter.startRtkHealthCheckTask?.(taskContext)
         }
       })
       .catch((error) => {

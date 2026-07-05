@@ -223,15 +223,20 @@ export class ServerManager {
     return Array.from(this.clients.values()).filter((client) => client.isActive())
   }
 
-  async startServer(name: string): Promise<void> {
+  async startServer(
+    name: string,
+    options: { onBackgroundConnected?: () => void } = {}
+  ): Promise<McpConnectResult> {
     // If server is already running, no need to start again
-    if (this.clients.has(name)) {
-      if (this.isServerRunning(name)) {
+    const existingClient = this.clients.get(name)
+    if (existingClient) {
+      if (existingClient.isServerRunning()) {
         console.info(`MCP server ${name} is already running`)
+        return 'connected'
       } else {
         console.info(`MCP server ${name} is starting...`)
+        return 'soft-timeout-released'
       }
-      return
     }
 
     const servers = await this.configPresenter.getMcpServers()
@@ -241,11 +246,12 @@ export class ServerManager {
       throw new Error(`MCP server ${name} not found`)
     }
 
+    let client: McpClient | null = null
     try {
       console.info(`Starting MCP server ${name}...`)
       const npmRegistry = serverConfig.customNpmRegistry || this.npmRegistry
       // Create and save client instance, passing npm registry
-      const client = new McpClient(
+      client = new McpClient(
         name,
         serverConfig as unknown as Record<string, unknown>,
         npmRegistry,
@@ -256,11 +262,18 @@ export class ServerManager {
 
       // Connect to server, this will start the service
       const connectResult = await client.connect({ phase: 'startup' })
-      this.handleStartupConnectResult(name, client, serverConfig, connectResult)
+      this.handleStartupConnectResult(name, client, serverConfig, connectResult, options)
       if (connectResult === 'connected') {
         this.clearServerLastError(name)
       }
+      return connectResult
     } catch (error) {
+      if (client?.getLifecycleStatus?.() === 'stopped' && !client.isActive()) {
+        console.info(`MCP server ${name} startup was cancelled; ignoring stopped client`)
+        this.clients.delete(name)
+        return 'stopped'
+      }
+
       console.error(`Failed to start MCP server ${name}:`, error)
 
       // Remove client reference
@@ -284,9 +297,10 @@ export class ServerManager {
     name: string,
     client: McpClient,
     serverConfig: MCPServerConfig,
-    connectResult: McpConnectResult
+    connectResult: McpConnectResult,
+    options: { onBackgroundConnected?: () => void } = {}
   ): void {
-    if (connectResult === 'connected') {
+    if (connectResult !== 'soft-timeout-released') {
       return
     }
 
@@ -298,6 +312,7 @@ export class ServerManager {
     completion
       .then(() => {
         this.clearServerLastError(name)
+        options.onBackgroundConnected?.()
         eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
       })
       .catch((error) => {
@@ -372,6 +387,10 @@ export class ServerManager {
       return false
     }
     return client.isServerRunning()
+  }
+
+  isServerActive(name: string): boolean {
+    return this.clients.get(name)?.isActive() ?? false
   }
 
   /**

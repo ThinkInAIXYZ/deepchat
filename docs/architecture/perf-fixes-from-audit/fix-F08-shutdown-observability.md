@@ -6,14 +6,14 @@
 - 在不破坏现有状态管理语义的前提下，收敛 plugin-owned MCP server 的停服耗时。
 
 ## 定位
-- `requestShutdown()` 只是发起 `BEFORE_QUIT` 阶段并等待 `executeShutdownPhase()` 返回，本身不提供更细粒度的 destroy 观测。[`src/main/presenter/lifecyclePresenter/index.ts#L143`](src/main/presenter/lifecyclePresenter/index.ts#L143)
-- `executeHooksByPriority()` 当前按优先级分组、组内并行、组间串行执行 hook，但没有逐 hook duration 统计；它适合作为补充层，不是本次最小闭环的必做层。[`src/main/presenter/lifecyclePresenter/index.ts#L167`](src/main/presenter/lifecyclePresenter/index.ts#L167)
-- `before-quit` 拦截进入 `requestShutdown()` 后，真正重型关闭工作最终仍落在 `Presenter.destroy()` 链上，因此 destroy 层日志最关键。[`src/main/presenter/lifecyclePresenter/index.ts#L423`](src/main/presenter/lifecyclePresenter/index.ts#L423)
-- `Presenter.destroy()` 目前串行关闭 `pluginPresenter`、`mcpPresenter`、remote control、memory、sqlite、workspace、skill` 等步骤，但缺少逐步骤耗时日志。[`src/main/presenter/index.ts#L954`](src/main/presenter/index.ts#L954)
-- `PluginHost.shutdown()` 目前串行遍历 plugin-owned server 并逐个 `await this.mcpPresenter.stopServer(serverName)`。[`src/main/presenter/pluginPresenter/index.ts#L132`](src/main/presenter/pluginPresenter/index.ts#L132)
-- `McpPresenter.shutdown()` 当前通过 `shutdownPromise` 防重复进入，但内部仍是逐个 server 串行 `await this.stopServer(...)`。[`src/main/presenter/mcpPresenter/index.ts#L227`](src/main/presenter/mcpPresenter/index.ts#L227)
-- `McpClient` 只在连接阶段提供超时；关闭阶段 `disconnect()` -> `cleanupResources()` -> `closeTransport()` 没有 timeout 包装。对于 `stdio` transport，会先执行 `terminateProcessTree(child, { graceMs: 2000 })`，随后仍会 `await transport.close()`；若卡在 `transport.close()`，上层仅靠 `Promise.race()` 无法取消底层任务。[`src/main/presenter/mcpPresenter/mcpClient.ts#L467`](src/main/presenter/mcpPresenter/mcpClient.ts#L467) [`src/main/presenter/mcpPresenter/mcpClient.ts#L562`](src/main/presenter/mcpPresenter/mcpClient.ts#L562)
-- `serverManager.stopServer()` 只读取 `clients.get(name)`，调用该 client 的 `disconnect()`，然后删除对应 map 项并发事件；未见跨 server 共享的 stop 中间状态或全局串行锁。因此不同 server 的 stop 没有显式共享可变状态，具备改为并发执行的前提。[`src/main/presenter/mcpPresenter/serverManager.ts#L301`](src/main/presenter/mcpPresenter/serverManager.ts#L301)
+- `requestShutdown()` 只是发起 `BEFORE_QUIT` 阶段并等待 `executeShutdownPhase()` 返回，本身不提供更细粒度的 destroy 观测。[`src/main/presenter/lifecyclePresenter/index.ts#L143`](../../../src/main/presenter/lifecyclePresenter/index.ts#L143)
+- `executeHooksByPriority()` 当前按优先级分组、组内并行、组间串行执行 hook，但没有逐 hook duration 统计；它适合作为补充层，不是本次最小闭环的必做层。[`src/main/presenter/lifecyclePresenter/index.ts#L167`](../../../src/main/presenter/lifecyclePresenter/index.ts#L167)
+- `before-quit` 拦截进入 `requestShutdown()` 后，真正重型关闭工作最终仍落在 `Presenter.destroy()` 链上，因此 destroy 层日志最关键。[`src/main/presenter/lifecyclePresenter/index.ts#L423`](../../../src/main/presenter/lifecyclePresenter/index.ts#L423)
+- `Presenter.destroy()` 目前串行关闭 `pluginPresenter`、`mcpPresenter`、remote control、memory、sqlite、workspace、skill 等步骤，但缺少逐步骤耗时日志。[`src/main/presenter/index.ts#L954`](../../../src/main/presenter/index.ts#L954)
+- `PluginHost.shutdown()` 目前串行遍历 plugin-owned server 并逐个 `await this.mcpPresenter.stopServer(serverName)`。[`src/main/presenter/pluginPresenter/index.ts#L132`](../../../src/main/presenter/pluginPresenter/index.ts#L132)
+- `McpPresenter.shutdown()` 当前通过 `shutdownPromise` 防重复进入，但内部仍是逐个 server 串行 `await this.stopServer(...)`。[`src/main/presenter/mcpPresenter/index.ts#L227`](../../../src/main/presenter/mcpPresenter/index.ts#L227)
+- `McpClient` 只在连接阶段提供超时；关闭阶段 `disconnect()` -> `cleanupResources()` -> `closeTransport()` 没有 timeout 包装。对于 `stdio` transport，会先执行 `terminateProcessTree(child, { graceMs: 2000 })`，随后仍会 `await transport.close()`；若卡在 `transport.close()`，上层仅靠 `Promise.race()` 无法取消底层任务。[`src/main/presenter/mcpPresenter/mcpClient.ts#L467`](../../../src/main/presenter/mcpPresenter/mcpClient.ts#L467) [`src/main/presenter/mcpPresenter/mcpClient.ts#L562`](../../../src/main/presenter/mcpPresenter/mcpClient.ts#L562)
+- `serverManager.stopServer()` 只读取 `clients.get(name)`，调用该 client 的 `disconnect()`，然后删除对应 map 项并发事件；未见跨 server 共享的 stop 中间状态或全局串行锁。因此不同 server 的 stop 没有显式共享可变状态，具备改为并发执行的前提。[`src/main/presenter/mcpPresenter/serverManager.ts#L301`](../../../src/main/presenter/mcpPresenter/serverManager.ts#L301)
 
 ### 根因
 - 关闭路径存在多层串行：hook 阶段完成后仍要进入 `Presenter.destroy()` 串行执行多个子系统关闭，缺少逐步骤耗时日志时，长尾来源不可见。
@@ -35,7 +35,7 @@
   - `skillPresenter.destroy()`
 
 ### 4.2 plugin-owned stop 改为受限并发，不直接裸 `Promise.allSettled`
-- 已核对 `serverManager.stopServer()`：stop 逻辑按 server 独立处理 `clients` map 项，没有共享全局 stop 状态，因此可安全并发不同 server 的停服调用。[`src/main/presenter/mcpPresenter/serverManager.ts#L301`](src/main/presenter/mcpPresenter/serverManager.ts#L301)
+- 已核对 `serverManager.stopServer()`：stop 逻辑按 server 独立处理 `clients` map 项，没有共享全局 stop 状态，因此可安全并发不同 server 的停服调用。[`src/main/presenter/mcpPresenter/serverManager.ts#L301`](../../../src/main/presenter/mcpPresenter/serverManager.ts#L301)
 - 仍建议采用受限并发，而不是无限制 `Promise.allSettled()`：
   - 保持对资源争用更温和；
   - 避免大量 plugin-owned server 同时 stop 时集中触发 transport close / 进程终止。

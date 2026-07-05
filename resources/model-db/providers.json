@@ -81301,11 +81301,12 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": false,
+            "default": false
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": false
             }
           },
           "attachment": true,
@@ -93480,7 +93481,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 66536
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -95772,11 +95773,12 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
+            "supported": false,
+            "default": false
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": false
             }
           },
           "attachment": false,
@@ -211784,8 +211786,21 @@
           "id": "gemini-3.1-flash-image",
           "name": "gemini-3.1-flash-image",
           "display_name": "gemini-3.1-flash-image",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "limit": {
-            "context": 8192
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -211796,14 +211811,27 @@
               "supported": true
             }
           },
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "gemini-3-pro-image",
           "name": "gemini-3-pro-image",
           "display_name": "gemini-3-pro-image",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "limit": {
-            "context": 8192
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
@@ -211827,33 +211855,55 @@
               ]
             }
           },
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "gemini-2.5-flash-image",
           "name": "gemini-2.5-flash-image",
           "display_name": "gemini-2.5-flash-image",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "limit": {
-            "context": 8192
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
             "supported": false
           },
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "gpt-image-2",
           "name": "gpt-image-2",
           "display_name": "gpt-image-2",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
           "limit": {
-            "context": 8192
+            "context": 8192,
+            "output": 8192
           },
           "tool_call": false,
           "reasoning": {
             "supported": false
           },
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "elephant",
@@ -215646,12 +215696,12 @@
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false,
+            "default": false
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": false
             }
           },
           "cost": {

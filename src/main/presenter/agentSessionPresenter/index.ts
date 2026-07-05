@@ -1707,12 +1707,15 @@ export class AgentSessionPresenter {
     return await this.disabledSearchToolCleanupPromise
   }
 
-  async startRtkHealthCheck(): Promise<void> {
-    await this.startRtkHealthCheckTask()
+  async startRtkHealthCheck(taskContext?: StartupWorkloadTaskContext): Promise<void> {
+    await this.startRtkHealthCheckTask(taskContext)
   }
 
-  async startRtkHealthCheckTask(): Promise<void> {
+  async startRtkHealthCheckTask(taskContext?: StartupWorkloadTaskContext): Promise<void> {
+    taskContext?.reportProgress(0)
+    await taskContext?.yield()
     await rtkRuntimeService.startHealthCheck()
+    taskContext?.reportProgress(1)
   }
 
   async retryRtkHealthCheck(): Promise<void> {
@@ -3464,7 +3467,7 @@ export class AgentSessionPresenter {
         .prepare<[], { id: string; title: string; updated_at: number }>(
           'SELECT id, title, updated_at FROM new_sessions ORDER BY updated_at ASC'
         )
-        .iterate()
+        .all()
 
       let processedCount = 0
       let batchCount = 0
@@ -3515,7 +3518,7 @@ export class AgentSessionPresenter {
            FROM deepchat_messages
            ORDER BY created_at ASC`
         )
-        .iterate()
+        .all()
 
       for (const row of messageRows) {
         this.backfillNormalizedMessageRow(row)
@@ -3571,10 +3574,7 @@ export class AgentSessionPresenter {
       const sessionRowsStatement = db.prepare<[], { id: string }>(
         'SELECT id FROM new_sessions ORDER BY updated_at ASC'
       )
-      const sessionRows =
-        typeof sessionRowsStatement.iterate === 'function'
-          ? sessionRowsStatement.iterate()
-          : sessionRowsStatement.all()
+      const sessionRows = sessionRowsStatement.all()
 
       let processedCount = 0
       let updatedCount = 0
@@ -3748,7 +3748,7 @@ export class AgentSessionPresenter {
 
     try {
       const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
-      const candidates = this.iterAssistantUsageCandidates()
+      const candidates = Array.from(this.iterAssistantUsageCandidates())
 
       let processedCount = 0
       let batchCount = 0

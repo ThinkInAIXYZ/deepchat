@@ -13,18 +13,18 @@
 
 ### 2.1 当前代码路径
 
-- [`src/renderer/src/lib/iconLoader.ts#L41-L57`](../../../../src/renderer/src/lib/iconLoader.ts#L41-L57) 动态导入后仍整包 `addCollection(lucideIcons)`、`addCollection(vscodeIcons)`、`addCollection(lineMdThemeIcons)`。
-- [`src/renderer/src/main.ts#L46-L51`](../../../../src/renderer/src/main.ts#L46-L51) 与 [`src/renderer/settings/main.ts#L104-L109`](../../../../src/renderer/settings/main.ts#L104-L109) 都会在 app mount 后 `setTimeout(..., 0)` 预热图标。
-- [`src/renderer/src/components/icons/ModelIcon.vue#L6-L82`](../../../../src/renderer/src/components/icons/ModelIcon.vue#L6-L82) 静态导入约 77 个 provider 图标。
-- [`src/renderer/src/components/icons/ModelIcon.vue#L85-L184`](../../../../src/renderer/src/components/icons/ModelIcon.vue#L85-L184) 用常驻 `icons` map 维护 provider 映射。
-- [`src/renderer/src/components/icons/ModelIcon.vue#L206-L227`](../../../../src/renderer/src/components/icons/ModelIcon.vue#L206-L227) 通过 `Object.keys(icons).find(...includes...)` 线性扫描匹配 provider icon，其中包含 `tokenflux` 键 [`src/renderer/src/components/icons/ModelIcon.vue#L156`](../../../../src/renderer/src/components/icons/ModelIcon.vue#L156)。
+- [`src/renderer/src/lib/iconLoader.ts#L41-L57`](../../../src/renderer/src/lib/iconLoader.ts#L41-L57) 动态导入后仍整包 `addCollection(lucideIcons)`、`addCollection(vscodeIcons)`、`addCollection(lineMdThemeIcons)`。
+- [`src/renderer/src/main.ts#L46-L51`](../../../src/renderer/src/main.ts#L46-L51) 与 [`src/renderer/settings/main.ts#L104-L109`](../../../src/renderer/settings/main.ts#L104-L109) 都会在 app mount 后 `setTimeout(..., 0)` 预热图标。
+- [`src/renderer/src/components/icons/ModelIcon.vue#L6-L82`](../../../src/renderer/src/components/icons/ModelIcon.vue#L6-L82) 静态导入约 77 个 provider 图标。
+- [`src/renderer/src/components/icons/ModelIcon.vue#L85-L184`](../../../src/renderer/src/components/icons/ModelIcon.vue#L85-L184) 用常驻 `icons` map 维护 provider 映射。
+- [`src/renderer/src/components/icons/ModelIcon.vue#L206-L227`](../../../src/renderer/src/components/icons/ModelIcon.vue#L206-L227) 通过 `Object.keys(icons).find(...includes...)` 线性扫描匹配 provider icon，其中包含 `tokenflux` 键 [`src/renderer/src/components/icons/ModelIcon.vue#L156`](../../../src/renderer/src/components/icons/ModelIcon.vue#L156)。
 
 ### 2.2 Iconify 包导出事实
 
 `@iconify-json/lucide` 与 `@iconify-json/vscode-icons` 的 `package.json` 仅明确导出整包 JSON 与 info：
 
-- [`node_modules/@iconify-json/lucide/package.json#L11-L20`](../../../../node_modules/@iconify-json/lucide/package.json#L11-L20)
-- [`node_modules/@iconify-json/vscode-icons/package.json#L12-L21`](../../../../node_modules/@iconify-json/vscode-icons/package.json#L12-L21)
+- [`node_modules/@iconify-json/lucide/package.json#L11-L20`](../../../node_modules/@iconify-json/lucide/package.json#L11-L20)
+- [`node_modules/@iconify-json/vscode-icons/package.json#L12-L21`](../../../node_modules/@iconify-json/vscode-icons/package.json#L12-L21)
 
 两者都声明了：
 
@@ -67,36 +67,29 @@
 
 ## 修复方案
 
-### 3.1 Iconify：脚本生成白名单 + 过滤整包注册
+### 3.1 Iconify：脚本生成 reduced collection
 
 主方案：
 
-1. 新增脚本扫描源码中的 icon 字面量，生成 `icon-whitelist.generated.ts`（或 JSON）。
-2. 脚本同时产出校验报告，明确 252 只是静态基线来源。
-3. `iconLoader.ts` 继续从 `@iconify-json/*/icons.json` 读取整包，但在运行时注册前按白名单过滤 `icons` 字段。
-4. 保留 `preloadIcons()` 与 `ensureIconsLoaded()` 的对外语义，只缩小实际注册内容。
+1. 新增脚本扫描源码中的 icon 字面量，在构建前生成 `icon-whitelist.generated.ts` 与 `icon-collections.generated.ts`。
+2. `icon-whitelist.generated.ts` 只包含小体积白名单；`icon-collections.generated.ts` 直接包含裁剪后的 `lucide` / `vscode-icons` / `line-md` collection。
+3. `iconLoader.ts` 在启动预热路径只动态导入 generated reduced collection；禁止在该路径导入完整 `@iconify-json/*/icons.json`。
+4. 保留 `preloadIcons()` 与 `ensureIconsLoaded()` 的对外语义，只替换实际注册的数据来源。
+5. 对用户配置的动态 Lucide icon，单独保留“未命中 generated collection 时懒加载完整 Lucide”的兼容兜底，避免破坏已有自定义头像。
 
 目标形态示意：
 
 ```ts
-import lucidePack from '@iconify-json/lucide/icons.json'
-import vscodePack from '@iconify-json/vscode-icons/icons.json'
-import lineMdPack from './icons/line-md-theme.json'
-import { GENERATED_ICON_WHITELIST } from './icon-whitelist.generated'
 import { addCollection } from '@iconify/vue'
+import {
+  lineMdIconCollection,
+  lucideIconCollection,
+  vscodeIconCollection
+} from './icons/icon-collections.generated'
 
-function filterPack(pack: IconifyJSON, allow: Set<string>): IconifyJSON {
-  return {
-    ...pack,
-    icons: Object.fromEntries(
-      Object.entries(pack.icons).filter(([name]) => allow.has(`${pack.prefix}:${name}`))
-    )
-  }
-}
-
-addCollection(filterPack(lucidePack, GENERATED_ICON_WHITELIST.lucide))
-addCollection(filterPack(vscodePack, GENERATED_ICON_WHITELIST.vscodeIcons))
-addCollection(filterPack(lineMdPack, GENERATED_ICON_WHITELIST.lineMd))
+addCollection(lucideIconCollection)
+addCollection(vscodeIconCollection)
+addCollection(lineMdIconCollection)
 ```
 
 ### 3.2 Provider 图标：manifest 改为脚本生成，并纳入 CI 校验
@@ -131,7 +124,7 @@ addCollection(filterPack(lineMdPack, GENERATED_ICON_WHITELIST.lineMd))
 
 ### 3.4 tokenflux：先查构成，再定压缩/替换路径
 
-对于 [`src/renderer/src/components/icons/ModelIcon.vue#L51`](../../../../src/renderer/src/components/icons/ModelIcon.vue#L51) 引入的 `tokenflux-color.svg`：
+对于 [`src/renderer/src/components/icons/ModelIcon.vue#L51`](../../../src/renderer/src/components/icons/ModelIcon.vue#L51) 引入的 `tokenflux-color.svg`：
 
 1. 先拆解它为何达到 1,627,765 B：当前证据已显示其包含 base64 内嵌图像。
 2. 首选方案：重导出/替换为真正轻量的 SVG 或尺寸受控的 PNG/WebP。

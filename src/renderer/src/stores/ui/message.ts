@@ -69,6 +69,11 @@ export const useMessageStore = defineStore('message', () => {
 
   // --- Actions ---
 
+  function compareMessageIds(left: string, right: string): number {
+    if (left === right) return 0
+    return left < right ? -1 : 1
+  }
+
   function sortMessageIdsByOrderSeq(): void {
     messageIds.value.sort((a, b) => {
       const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
@@ -76,7 +81,7 @@ export const useMessageStore = defineStore('message', () => {
       if (aSeq !== bSeq) {
         return aSeq - bSeq
       }
-      return a.localeCompare(b)
+      return compareMessageIds(a, b)
     })
   }
 
@@ -89,7 +94,7 @@ export const useMessageStore = defineStore('message', () => {
       if (!Number.isFinite(seq)) return false
 
       if (seq! < previousSeq) return false
-      if (seq === previousSeq && previousId.localeCompare(id) > 0) return false
+      if (seq === previousSeq && compareMessageIds(previousId, id) > 0) return false
 
       previousSeq = seq!
       previousId = id
@@ -116,7 +121,7 @@ export const useMessageStore = defineStore('message', () => {
         continue
       }
 
-      if (midId.localeCompare(id) <= 0) {
+      if (compareMessageIds(midId, id) <= 0) {
         left = mid + 1
       } else {
         right = mid
@@ -128,7 +133,7 @@ export const useMessageStore = defineStore('message', () => {
 
   function upsertMessageRecord(record: ChatMessageRecord): void {
     const cachedRecord = messageCache.value.get(record.id)
-    const hasMessageId = messageIds.value.includes(record.id)
+    const hasMessageId = cachedRecord !== undefined
 
     messageCache.value.set(record.id, record)
     if (hasMessageId) {
@@ -188,14 +193,14 @@ export const useMessageStore = defineStore('message', () => {
     return nextEntry
   }
 
-  function shallowArrayEqual(previous: unknown[], next: unknown[]): boolean {
+  function structuralArrayEqual(previous: unknown[], next: unknown[]): boolean {
     if (previous.length !== next.length) return false
     return previous.every((previousValue, index) =>
-      shallowPayloadValueEqual(previousValue, next[index])
+      structuralPayloadValueEqual(previousValue, next[index])
     )
   }
 
-  function shallowRecordEqual(
+  function structuralRecordEqual(
     previous: Record<string, unknown>,
     next: Record<string, unknown>
   ): boolean {
@@ -204,17 +209,20 @@ export const useMessageStore = defineStore('message', () => {
     if (previousKeys.length !== nextKeys.length) return false
 
     return previousKeys.every(
-      (key) => Object.hasOwn(next, key) && shallowPayloadValueEqual(previous[key], next[key])
+      (key) => Object.hasOwn(next, key) && structuralPayloadValueEqual(previous[key], next[key])
     )
   }
 
-  function shallowPayloadValueEqual(previous: unknown, next: unknown): boolean {
+  function structuralPayloadValueEqual(previous: unknown, next: unknown): boolean {
     if (Object.is(previous, next)) return true
     if (!previous || !next || typeof previous !== 'object' || typeof next !== 'object') return false
     if (Array.isArray(previous) || Array.isArray(next)) {
-      return Array.isArray(previous) && Array.isArray(next) && shallowArrayEqual(previous, next)
+      return Array.isArray(previous) && Array.isArray(next) && structuralArrayEqual(previous, next)
     }
-    return shallowRecordEqual(previous as Record<string, unknown>, next as Record<string, unknown>)
+    return structuralRecordEqual(
+      previous as Record<string, unknown>,
+      next as Record<string, unknown>
+    )
   }
 
   function toolCallPayloadEqual(
@@ -234,7 +242,7 @@ export const useMessageStore = defineStore('message', () => {
       previous.server_name === next.server_name &&
       previous.server_icons === next.server_icons &&
       previous.server_description === next.server_description &&
-      shallowPayloadValueEqual(previous.imagePreviews, next.imagePreviews)
+      structuralPayloadValueEqual(previous.imagePreviews, next.imagePreviews)
     )
   }
 
@@ -281,7 +289,7 @@ export const useMessageStore = defineStore('message', () => {
     return (
       previous.content === next.content &&
       previous.action_type === next.action_type &&
-      shallowPayloadValueEqual(previous.extra, next.extra) &&
+      structuralPayloadValueEqual(previous.extra, next.extra) &&
       toolCallPayloadEqual(previous.tool_call, next.tool_call) &&
       artifactPayloadEqual(previous.artifact, next.artifact) &&
       imageDataPayloadEqual(previous.image_data, next.image_data) &&

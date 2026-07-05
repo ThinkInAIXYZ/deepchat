@@ -37,6 +37,7 @@ type McpToolAccessContext = {
 }
 
 const MCP_SHUTDOWN_SERVER_TIMEOUT_MS = 10_000
+const MCP_SHUTDOWN_CONCURRENCY = 4
 
 const normalizeStringList = (items?: string[]): string[] | undefined => {
   if (!Array.isArray(items)) {
@@ -102,10 +103,19 @@ export class McpPresenter implements IMCPPresenter {
     failureMessage: string
   ): void {
     void this.serverManager
-      .startServer(serverName)
-      .then(() => {
-        logger.info(successMessage)
-        this.emitServerStarted(serverName)
+      .startServer(serverName, {
+        onBackgroundConnected: () => {
+          logger.info(successMessage)
+          this.emitServerStarted(serverName)
+        }
+      })
+      .then((connectResult) => {
+        if (connectResult === 'connected') {
+          logger.info(successMessage)
+          this.emitServerStarted(serverName)
+        } else if (connectResult === 'soft-timeout-released') {
+          logger.info(`[MCP] Server ${serverName} startup released after soft timeout`)
+        }
       })
       .catch((error) => {
         console.error(failureMessage, error)
@@ -255,9 +265,20 @@ export class McpPresenter implements IMCPPresenter {
 
   private async shutdownRunningClients(): Promise<void> {
     const activeClients = await this.serverManager.getActiveClients()
-    for (const client of activeClients) {
-      await this.stopServerDuringShutdown(client)
+    let nextIndex = 0
+
+    const stopNext = async (): Promise<void> => {
+      while (nextIndex < activeClients.length) {
+        const client = activeClients[nextIndex++]
+        await this.stopServerDuringShutdown(client)
+      }
     }
+
+    const workers = Array.from(
+      { length: Math.min(MCP_SHUTDOWN_CONCURRENCY, activeClients.length) },
+      () => stopNext()
+    )
+    await Promise.all(workers)
   }
 
   private async stopServerDuringShutdown(client: RuntimeMcpClient): Promise<void> {
@@ -586,9 +607,17 @@ export class McpPresenter implements IMCPPresenter {
     return Promise.resolve(this.serverManager.isServerRunning(serverName))
   }
 
+  async isServerActive(serverName: string): Promise<boolean> {
+    return Promise.resolve(this.serverManager.isServerActive(serverName))
+  }
+
   async startServer(serverName: string): Promise<void> {
-    await this.serverManager.startServer(serverName)
-    this.emitServerStarted(serverName)
+    const connectResult = await this.serverManager.startServer(serverName, {
+      onBackgroundConnected: () => this.emitServerStarted(serverName)
+    })
+    if (connectResult === 'connected') {
+      this.emitServerStarted(serverName)
+    }
   }
 
   async stopServer(serverName: string): Promise<void> {

@@ -1912,19 +1912,21 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('coalesces generation settings syncs triggered in the same tick', async () => {
-    const { draftStore, agentSessionPresenter } = await setup({
-      hasActiveSession: false,
-      defaultModel: { providerId: 'openai', modelId: 'gpt-4' },
-      preferredModel: undefined
+    const { sessionStore, agentSessionPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4'
     })
     await flushPromises()
     agentSessionPresenter.getSessionGenerationSettings.mockClear()
 
-    draftStore.providerId = 'anthropic'
-    draftStore.modelId = 'claude-3-5-sonnet'
+    if (sessionStore.activeSession) {
+      sessionStore.activeSession.providerId = 'anthropic'
+      sessionStore.activeSession.modelId = 'claude-3-5-sonnet'
+    }
     await flushPromises()
 
-    expect(agentSessionPresenter.getSessionGenerationSettings).not.toHaveBeenCalled()
+    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledTimes(1)
   })
   it('debounces generation setting persistence to a single session update', async () => {
     vi.useFakeTimers()

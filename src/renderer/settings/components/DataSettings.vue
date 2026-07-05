@@ -1212,7 +1212,7 @@ const canSubmitDatabaseEncryptionDialog = computed(() => {
 })
 const databaseEncryptionDialogIcon = computed(() => {
   if (databaseEncryptionAction.value === 'enable') {
-    return 'lucide:shield-lock'
+    return 'lucide:lock-keyhole'
   }
   if (databaseEncryptionAction.value === 'change') {
     return 'lucide:key-round'

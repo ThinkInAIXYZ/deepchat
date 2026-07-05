@@ -8,7 +8,7 @@ test('remote settings read-only routes match visible channel tabs @smoke', async
   await waitForAppReady(app.page)
 
   const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-remote')
+  await openSettingsTab(settingsPage, 'settings-tab-remote', 'settings-remote')
   await expect(settingsPage.getByTestId('settings-remote-page')).toBeVisible({ timeout: 30_000 })
 
   for (const channel of expectedChannels) {

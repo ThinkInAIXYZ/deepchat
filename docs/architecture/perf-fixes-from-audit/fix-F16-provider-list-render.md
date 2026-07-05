@@ -6,11 +6,11 @@
 - 主方案仅覆盖 disabled 区折叠与 `ModelIcon` 的 `iconKey` 命中优化；enabled 区保持现状，避免把风险扩散到主列表排序交互。
 
 ## 定位
-- enabled provider 区当前始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L61](src/renderer/settings/components/ModelProviderSettings.vue#L61)。
-- disabled provider 区同样始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L124](src/renderer/settings/components/ModelProviderSettings.vue#L124)。这意味着首次进入页面时，enabled + disabled 两块都会立即挂载完整 provider 行。
-- provider 列表当前通过 `allEnabledProviders` / `allDisabledProviders` 分组，再由 `enabledProviders` / `disabledProviders` 结合搜索结果生成展示列表，相关分组逻辑位于 [src/renderer/settings/components/ModelProviderSettings.vue#L650](src/renderer/settings/components/ModelProviderSettings.vue#L650)。
-- `ModelIcon` 的 `iconKey` 仍是模糊子串匹配：先取 `Object.keys(icons)`，再执行 `modelIdLower.includes(key)`，未命中时再对 `apiType.includes(key)` 做第二轮扫描，见 [src/renderer/src/components/icons/ModelIcon.vue#L206](src/renderer/src/components/icons/ModelIcon.vue#L206)。这不是精确 `Map.get` 语义，像 `gpt-4 -> gpt`、`claude-3 -> claude` 依赖的正是 `includes`。
-- `ProviderModelList` 已在模型明细区使用 `RecycleScroller`，见 [src/renderer/settings/components/ProviderModelList.vue#L206](src/renderer/settings/components/ProviderModelList.vue#L206) 与导入位置 [src/renderer/settings/components/ProviderModelList.vue#L326](src/renderer/settings/components/ProviderModelList.vue#L326)。这说明仓库已有虚拟列表实践，但 provider 总览页当前问题更集中在“首屏无条件全量挂载 disabled 列表”，不必默认把 enabled 区或整页都改成虚拟滚动。
+- enabled provider 区当前始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L61](../../../src/renderer/settings/components/ModelProviderSettings.vue#L61)。
+- disabled provider 区同样始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L124](../../../src/renderer/settings/components/ModelProviderSettings.vue#L124)。这意味着首次进入页面时，enabled + disabled 两块都会立即挂载完整 provider 行。
+- provider 列表当前通过 `allEnabledProviders` / `allDisabledProviders` 分组，再由 `enabledProviders` / `disabledProviders` 结合搜索结果生成展示列表，相关分组逻辑位于 [src/renderer/settings/components/ModelProviderSettings.vue#L650](../../../src/renderer/settings/components/ModelProviderSettings.vue#L650)。
+- `ModelIcon` 的 `iconKey` 仍是模糊子串匹配：先取 `Object.keys(icons)`，再执行 `modelIdLower.includes(key)`，未命中时再对 `apiType.includes(key)` 做第二轮扫描，见 [src/renderer/src/components/icons/ModelIcon.vue#L206](../../../src/renderer/src/components/icons/ModelIcon.vue#L206)。这不是精确 `Map.get` 语义，像 `gpt-4 -> gpt`、`claude-3 -> claude` 依赖的正是 `includes`。
+- `ProviderModelList` 已在模型明细区使用 `RecycleScroller`，见 [src/renderer/settings/components/ProviderModelList.vue#L206](../../../src/renderer/settings/components/ProviderModelList.vue#L206) 与导入位置 [src/renderer/settings/components/ProviderModelList.vue#L326](../../../src/renderer/settings/components/ProviderModelList.vue#L326)。这说明仓库已有虚拟列表实践，但 provider 总览页当前问题更集中在“首屏无条件全量挂载 disabled 列表”，不必默认把 enabled 区或整页都改成虚拟滚动。
 
 ## 修复方案
 

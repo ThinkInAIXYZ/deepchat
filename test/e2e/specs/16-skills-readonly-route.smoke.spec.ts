@@ -8,7 +8,7 @@ test('skills settings exposes read-only skill routes through typed bridge @smoke
   await waitForAppReady(app.page)
 
   const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-skills')
+  await openSettingsTab(settingsPage, 'settings-tab-skills', 'settings-skills')
   await expect(settingsPage.getByTestId('settings-skills-page')).toBeVisible({ timeout: 30_000 })
 
   const snapshot = await settingsPage.evaluate(async () => {
