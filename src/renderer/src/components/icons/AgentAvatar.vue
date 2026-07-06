@@ -83,8 +83,12 @@ watch(
       return
     }
 
-    await ensureIconAvailable(`lucide:${iconName}`)
-    lucideIconVersion.value += 1
+    try {
+      await ensureIconAvailable(`lucide:${iconName}`)
+      lucideIconVersion.value += 1
+    } catch (error) {
+      console.warn(`[AgentAvatar] Failed to load lucide icon "${iconName}":`, error)
+    }
   },
   { immediate: true }
 )

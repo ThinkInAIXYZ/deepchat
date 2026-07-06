@@ -9,7 +9,7 @@
 - enabled provider 区当前始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L61](../../../src/renderer/settings/components/ModelProviderSettings.vue#L61)。
 - disabled provider 区同样始终渲染 `draggable` 列表，列表起点位于 [src/renderer/settings/components/ModelProviderSettings.vue#L124](../../../src/renderer/settings/components/ModelProviderSettings.vue#L124)。这意味着首次进入页面时，enabled + disabled 两块都会立即挂载完整 provider 行。
 - provider 列表当前通过 `allEnabledProviders` / `allDisabledProviders` 分组，再由 `enabledProviders` / `disabledProviders` 结合搜索结果生成展示列表，相关分组逻辑位于 [src/renderer/settings/components/ModelProviderSettings.vue#L650](../../../src/renderer/settings/components/ModelProviderSettings.vue#L650)。
-- `ModelIcon` 的 `iconKey` 仍是模糊子串匹配：先取 `Object.keys(icons)`，再执行 `modelIdLower.includes(key)`，未命中时再对 `apiType.includes(key)` 做第二轮扫描，见 [src/renderer/src/components/icons/ModelIcon.vue#L206](../../../src/renderer/src/components/icons/ModelIcon.vue#L206)。这不是精确 `Map.get` 语义，像 `gpt-4 -> gpt`、`claude-3 -> claude` 依赖的正是 `includes`。
+- `ModelIcon` 的 `iconKey` 仍是模糊子串匹配：先取 `modelIcons` 的声明顺序 key，再执行 `modelIdLower.includes(key)`，未命中时再对 `apiType.includes(key)` 做第二轮扫描。这不是精确 `Map.get` 语义，像 `gpt-4 -> gpt`、`claude-3 -> claude` 依赖的正是 `includes`。
 - `ProviderModelList` 已在模型明细区使用 `RecycleScroller`，见 [src/renderer/settings/components/ProviderModelList.vue#L206](../../../src/renderer/settings/components/ProviderModelList.vue#L206) 与导入位置 [src/renderer/settings/components/ProviderModelList.vue#L326](../../../src/renderer/settings/components/ProviderModelList.vue#L326)。这说明仓库已有虚拟列表实践，但 provider 总览页当前问题更集中在“首屏无条件全量挂载 disabled 列表”，不必默认把 enabled 区或整页都改成虚拟滚动。
 
 ## 修复方案
@@ -25,15 +25,13 @@
 ### 主方案 B：保留 `includes` 语义的 `iconKey` 优化
 - 撤回“改成精确 `Map.get(modelIdLower)`”的说法；当前代码依赖模糊匹配，不能直接换成精确键查找。
 - 可采用两类低风险优化：
-  1. 预建候选 key 数组并按长度降序遍历，继续使用 `includes`，但避免每次计算都重新 `Object.keys(icons)`；
+  1. 预建候选 key 数组并保留 `modelIcons` 声明顺序，继续使用 `includes`，但避免每次计算都重新 `Object.keys(modelIcons)`；
   2. 对 `modelId/apiType -> iconKey` 命中结果做缓存，减少重复渲染时的全量候选扫描。
-- 若同时保留“更长 key 优先”的遍历策略，可降低短 key 抢先命中的误匹配概率，但必须验证命中顺序不变。
+- 不按 key 长度重排候选；当前匹配语义是声明顺序的 first-match，优化不能改变这个优先级。
 
 示意：
 ```ts
-const ICON_CANDIDATE_KEYS = Object.keys(icons)
-  .map((key) => key.toLowerCase())
-  .sort((a, b) => b.length - a.length)
+const ICON_CANDIDATE_KEYS = Object.keys(modelIcons) as ModelIconKey[]
 
 const iconMatchCache = new Map<string, string>()
 

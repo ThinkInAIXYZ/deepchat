@@ -43,6 +43,11 @@
 建议新增两个帮助函数：
 
 ```ts
+function compareMessageIds(left: string, right: string): number {
+  if (left === right) return 0
+  return left < right ? -1 : 1
+}
+
 function isMessageIdsSortedByOrderSeq(): boolean {
   let previousSeq = Number.NEGATIVE_INFINITY
   let previousId = ''
@@ -52,7 +57,7 @@ function isMessageIdsSortedByOrderSeq(): boolean {
     if (!Number.isFinite(seq)) return false
 
     if (seq! < previousSeq) return false
-    if (seq === previousSeq && previousId.localeCompare(id) > 0) return false
+    if (seq === previousSeq && compareMessageIds(previousId, id) > 0) return false
 
     previousSeq = seq
     previousId = id
@@ -79,7 +84,7 @@ function findInsertIndexByOrderSeq(orderSeq: number, id: string): number {
       continue
     }
 
-    if (midId.localeCompare(id) <= 0) {
+    if (compareMessageIds(midId, id) <= 0) {
       left = mid + 1
     } else {
       right = mid

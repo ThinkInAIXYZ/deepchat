@@ -83,15 +83,28 @@ function createSubsetCollection(collection, iconNames) {
   const icons = {}
   const aliases = {}
 
-  for (const iconName of iconNames) {
+  const addIcon = (iconName, seen = new Set()) => {
+    if (seen.has(iconName) || icons[iconName] || aliases[iconName]) {
+      return
+    }
+    seen.add(iconName)
+
     if (collection.icons?.[iconName]) {
       icons[iconName] = collection.icons[iconName]
-      continue
+      return
     }
 
-    if (collection.aliases?.[iconName]) {
-      aliases[iconName] = collection.aliases[iconName]
+    const alias = collection.aliases?.[iconName]
+    if (alias) {
+      aliases[iconName] = alias
+      if (alias.parent) {
+        addIcon(alias.parent, seen)
+      }
     }
+  }
+
+  for (const iconName of iconNames) {
+    addIcon(iconName)
   }
 
   return {
