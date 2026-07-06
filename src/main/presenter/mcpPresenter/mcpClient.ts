@@ -38,11 +38,13 @@ import {
   ChatMessage,
   McpSamplingRequestPayload,
   McpSamplingDecision,
-  MCPServerConfig,
+  MCPServerConfig
+} from '@shared/presenter'
+import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
   McpServerStatusReason
-} from '@shared/presenter'
+} from '@shared/types/core/mcp'
 
 const ALLOWED_SAMPLING_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -70,11 +72,16 @@ export class McpConnectionHardTimeoutError extends Error {
   }
 }
 
-class McpConnectionCancelledError extends Error {
+export class McpConnectionCancelledError extends Error {
   constructor(serverName: string) {
     super(`Connection to MCP server ${serverName} was cancelled`)
     this.name = 'McpConnectionCancelledError'
   }
+}
+
+type McpConnectOptions = {
+  phase?: McpServerStatusPhase
+  waitForConnection?: boolean
 }
 
 interface ServerStatusChangedOptions {
@@ -264,13 +271,17 @@ export class McpClient {
   }
 
   // Connect to MCP server
-  async connect(options: { phase?: McpServerStatusPhase } = {}): Promise<McpConnectResult> {
+  async connect(options: McpConnectOptions = {}): Promise<McpConnectResult> {
     if (this.isConnected && this.client) {
       console.info(`MCP server ${this.serverName} is already running`)
       return 'connected'
     }
 
     if (this.connectPromise) {
+      if (options.waitForConnection) {
+        await this.connectPromise
+        return 'connected'
+      }
       return this.waitForConnectSoftTimeout(this.connectPromise, this.startupAttempt, options.phase)
     }
 
@@ -280,16 +291,32 @@ export class McpClient {
     this.connectAborted = false
     this.emitServerStatusChanged('connecting', { phase, attempt })
 
-    this.connectPromise = this.performConnect(attempt, phase)
-    this.connectPromise
+    const connectPromise = this.performConnect(attempt, phase)
+    this.connectPromise = connectPromise
+    connectPromise
       .catch(() => undefined)
       .finally(() => {
-        if (this.connectPromise) {
+        if (this.connectPromise === connectPromise) {
           this.connectPromise = null
         }
       })
 
-    return this.waitForConnectSoftTimeout(this.connectPromise, attempt, options.phase)
+    if (options.waitForConnection) {
+      await connectPromise
+      return 'connected'
+    }
+
+    return this.waitForConnectSoftTimeout(connectPromise, attempt, options.phase)
+  }
+
+  private async ensureConnectedForRequest(): Promise<void> {
+    if (!this.isConnected) {
+      await this.connect({ phase: 'manual', waitForConnection: true })
+    }
+
+    if (!this.isConnected || !this.client) {
+      throw new Error(`MCP client ${this.serverName} is not connected`)
+    }
   }
 
   private async waitForConnectSoftTimeout(
@@ -1179,9 +1206,7 @@ export class McpClient {
   // 调用 MCP 工具
   async callTool(toolName: string, args: Record<string, unknown>): Promise<ToolCallResult> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1227,9 +1252,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1274,9 +1297,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1330,9 +1351,7 @@ export class McpClient {
   // 获取指定提示
   async getPrompt(name: string, args?: Record<string, unknown>): Promise<Prompt> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1380,9 +1399,7 @@ export class McpClient {
     }
 
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
@@ -1429,9 +1446,7 @@ export class McpClient {
   // 读取资源
   async readResource(resourceUri: string): Promise<Resource> {
     try {
-      if (!this.isConnected) {
-        await this.connect()
-      }
+      await this.ensureConnectedForRequest()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)

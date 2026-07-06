@@ -31,7 +31,7 @@
 | 6 | F8 | 关闭路径缺观测/timeout | 中 | [fix-F08](fix-F08-shutdown-observability.md) | destroy 链加 duration 日志；plugin server stop 改 allSettled；MCP per-server timeout |
 | 7 | F13 | message store 排序/cache | 中 | [fix-F13](fix-F13-message-store-sort.md) | 新 id 二分插入；parsedMessageCache LRU；block payload 浅比较 |
 | 8 | F16 | Settings provider 列表渲染 | 中 | [fix-F16](fix-F16-provider-list-render.md) | disabled 列表折叠；iconKey 保留 includes 语义做候选索引优化；enabled 区暂不动 |
-| 9 | F1 | SQLite 启动关键路径 | 中高 | [fix-F01](fix-F01-sqlite-startup-defer.md) | diagnoseStartupSchema 后移 background；各阶段加 duration 日志 |
+| 9 | F1 | SQLite 启动关键路径 | 中高 | [fix-F01](fix-F01-sqlite-startup-defer.md) | 保留 repair 所需启动期诊断；移除重复观察性后台诊断；各阶段加 duration 日志 |
 | 10 | F5 | MCP 后台启动 timeout | 中高 | [fix-F05](fix-F05-mcp-startup-timeout.md) | 引入 soft timeout；per-server 启动 status；可选受限并发 |
 | 11 | F3 | backfill 争抢 + 内存峰值 | 高 | [fix-F03](fix-F03-backfill-coordinator.md) | 5 个 backfill 纳入 coordinator 限流；SELECT * 改 cursor；小 batch |
 | 12 | F11 | Iconify/provider icon 包体 | 高 | [fix-F11](fix-F11-icons-bundle-slim.md) | icon 白名单加载（252 个 vs 全量 3267）；provider icon lazy；tokenflux SVG 处理 |
@@ -97,4 +97,3 @@
 | F11 | 252 当成完整覆盖；白名单手工维护；承诺具体降幅；tokenflux 验收空 | 改基线+运行时回灌；脚本生成+CI；收紧降幅表述；给 <200KB 阈值 |
 
 修订后文档均已与当前代码行号对齐，方案可行性收敛。残留的「剩余不确定性」均为实现阶段微调项（timeout 值、LRU 容量、iterate 运行时确认、tokenflux 能否压到阈值），不阻塞方案落地，已在各文档风险节标注。
-

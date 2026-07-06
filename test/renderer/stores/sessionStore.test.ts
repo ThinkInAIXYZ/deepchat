@@ -338,6 +338,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     sessionClient,
     chatClient,
     onboardingClient,
+    tabClient,
     agentStore,
     pageRouter,
     emitSessionUpdate,
@@ -1101,6 +1102,88 @@ describe('sessionStore streaming cleanup', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
+  })
+
+  it('does not route stale activation after the window is deactivated', async () => {
+    const { store, pageRouter, emitSessionUpdate, sessionClient, tabClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-stale', agentId: 'dimcode' })]
+    let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
+      undefined
+    sessionClient.getActive.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveActiveSession = resolve
+      })
+    )
+
+    emitSessionUpdate({
+      sessionIds: ['session-stale'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-stale'
+    })
+    await Promise.resolve()
+
+    emitSessionUpdate({
+      sessionIds: [],
+      reason: 'deactivated',
+      webContentsId: 1
+    })
+
+    resolveActiveSession({
+      session: createSession({
+        id: 'session-stale',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-stale')
+    expect(tabClient.notifyRendererActivated).not.toHaveBeenCalledWith('session-stale')
+  })
+
+  it('lets the latest selected session win when hydration resolves out of order', async () => {
+    const { store, pageRouter, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-a', agentId: 'deepchat' }),
+      createSession({ id: 'session-b', agentId: 'dimcode' })
+    ]
+    let resolveSessionA: (value: { session: ReturnType<typeof createSession> }) => void = () =>
+      undefined
+    sessionClient.getActive
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSessionA = resolve
+        })
+      )
+      .mockResolvedValueOnce({
+        session: createSession({
+          id: 'session-b',
+          agentId: 'dimcode',
+          providerId: 'acp',
+          modelId: 'dimcode'
+        })
+      })
+
+    const firstSelection = store.selectSession('session-a')
+    await Promise.resolve()
+    await store.selectSession('session-b')
+
+    resolveSessionA({
+      session: createSession({
+        id: 'session-a',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+    })
+    await firstSelection
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
   })
 
   it('updates the local session status immediately from the session status event', async () => {

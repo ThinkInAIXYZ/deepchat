@@ -1010,6 +1010,55 @@ describe('ChatPage', () => {
     await flushPromises()
   })
 
+  it('keeps the pending assistant row when older assistant history is loaded', async () => {
+    const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
+    const { wrapper, chatClient, messageStore } = await setup()
+    chatClient.sendMessage.mockReturnValueOnce(deferredSend.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'wait for first token')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const pendingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
+    expect(pendingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
+      true
+    )
+
+    const olderAssistantMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'older',
+          status: 'success',
+          timestamp: 1
+        }
+      ]),
+      id: 'older-assistant',
+      orderSeq: 0,
+      createdAt: 0,
+      updatedAt: 0
+    }
+    messageStore.messages.unshift(olderAssistantMessage)
+    messageStore.messageIds.unshift(olderAssistantMessage.id)
+    messageStore.messageCache.set(olderAssistantMessage.id, olderAssistantMessage)
+    await flushPromises()
+
+    const messagesAfterHistory = messageList.props('messages') as Array<{
+      id: string
+      role: string
+    }>
+    expect(
+      messagesAfterHistory.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(true)
+    expect(messagesAfterHistory.some((message) => message.id === 'older-assistant')).toBe(true)
+
+    deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
+    await flushPromises()
+  })
+
   it('shows a pending assistant row immediately after command submit before stream starts', async () => {
     const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
     const { wrapper, chatClient, messageStore } = await setup()

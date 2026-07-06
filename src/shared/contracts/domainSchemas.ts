@@ -295,7 +295,9 @@ export const UsageStatsBackfillStatusSchema = z.object({
   startedAt: z.number().nullable(),
   finishedAt: z.number().nullable(),
   error: z.string().nullable(),
-  updatedAt: z.number()
+  updatedAt: z.number(),
+  processedCount: z.number().optional(),
+  durationMs: z.number().optional()
 })
 
 export const UsageDashboardSummarySchema = z.object({

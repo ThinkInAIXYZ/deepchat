@@ -479,6 +479,50 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Unsupported MCP capabilities', () => {
+    it('waits for background startup completion before foreground listTools calls', async () => {
+      vi.useFakeTimers()
+      let resolveConnect: () => void = () => undefined
+      const sdkClient = {
+        connect: vi.fn(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveConnect = resolve
+            })
+        ),
+        callTool: vi.fn(),
+        listTools: vi.fn().mockResolvedValue({ tools: [] }),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn()
+      }
+      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      const client = new McpClient('slow-server', {
+        type: 'stdio',
+        command: 'slow-server',
+        args: []
+      })
+
+      try {
+        const startupResult = client.connect({ phase: 'startup' })
+        await vi.advanceTimersByTimeAsync(45_000)
+        await expect(startupResult).resolves.toBe('soft-timeout-released')
+
+        const toolsResult = client.listTools()
+        await Promise.resolve()
+
+        expect(sdkClient.listTools).not.toHaveBeenCalled()
+
+        resolveConnect()
+        await expect(toolsResult).resolves.toEqual([])
+        expect(sdkClient.listTools).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('treats unknown prompts/list as an empty prompt list', async () => {
       const sdkClient = {
         connect: vi.fn().mockResolvedValue(undefined),

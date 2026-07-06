@@ -202,6 +202,23 @@ function createMockSqlitePresenter() {
     }
   }
 
+  const buildAssistantUsageCandidates = () =>
+    Array.from(messages.values())
+      .filter((row) => row.role === 'assistant' && typeof row.metadata === 'string')
+      .map((row) => {
+        const session = sessions.get(row.session_id)
+        return {
+          id: row.id,
+          session_id: row.session_id,
+          metadata: row.metadata,
+          provider_id: session?.provider_id ?? null,
+          model_id: session?.model_id ?? null,
+          created_at: row.created_at,
+          updated_at: row.updated_at
+        }
+      })
+      .sort((left, right) => left.created_at - right.created_at || left.id.localeCompare(right.id))
+
   const deepchatMessagesTable = {
     insert(input: {
       id: string
@@ -248,20 +265,20 @@ function createMockSqlitePresenter() {
       row.updated_at = Date.now()
     },
     listAssistantUsageCandidates() {
-      return Array.from(messages.values())
-        .filter((row) => row.role === 'assistant' && typeof row.metadata === 'string')
-        .map((row) => {
-          const session = sessions.get(row.session_id)
-          return {
-            id: row.id,
-            session_id: row.session_id,
-            metadata: row.metadata,
-            provider_id: session?.provider_id ?? null,
-            model_id: session?.model_id ?? null,
-            created_at: row.created_at,
-            updated_at: row.updated_at
-          }
-        })
+      return buildAssistantUsageCandidates()
+    },
+    listAssistantUsageCandidatesPage(
+      cursor: { createdAt: number; id: string } | null,
+      limit: number
+    ) {
+      return buildAssistantUsageCandidates()
+        .filter(
+          (row) =>
+            !cursor ||
+            row.created_at > cursor.createdAt ||
+            (row.created_at === cursor.createdAt && row.id > cursor.id)
+        )
+        .slice(0, limit)
     }
   }
 
@@ -444,6 +461,14 @@ describe('AgentSessionPresenter usage dashboard', () => {
 
   it('backfills current deepchat_messages and uses session provider/model fallback', async () => {
     const { presenter, sqlitePresenter, configPresenter } = createPresenter()
+    const listAllSpy = vi.spyOn(
+      sqlitePresenter.deepchatMessagesTable,
+      'listAssistantUsageCandidates'
+    )
+    const listPageSpy = vi.spyOn(
+      sqlitePresenter.deepchatMessagesTable,
+      'listAssistantUsageCandidatesPage'
+    )
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
     sqlitePresenter.deepchatMessagesTable.insert({
@@ -465,6 +490,9 @@ describe('AgentSessionPresenter usage dashboard', () => {
     })
 
     await presenter.startUsageStatsBackfill()
+
+    expect(listPageSpy).toHaveBeenCalled()
+    expect(listAllSpy).not.toHaveBeenCalled()
 
     const row = sqlitePresenter.deepchatUsageStatsTable.getByMessageId('message-1')
     expect(row).toMatchObject({

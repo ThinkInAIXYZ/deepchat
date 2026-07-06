@@ -1,12 +1,14 @@
 import { createRequire } from 'node:module'
-import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 const require = createRequire(import.meta.url)
 const execFileAsync = promisify(execFile)
+const checkMode = process.argv.includes('--check')
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const collectionsOutputPath = path.join(
   repoRoot,
@@ -28,6 +30,7 @@ const whitelistOutputPath = path.join(
 )
 
 const rendererRoots = [
+  'src/shared',
   'src/renderer/src',
   'src/renderer/settings',
   'src/renderer/browser',
@@ -148,12 +151,48 @@ function formatGeneratedCollections(collections) {
   )} as const\n`
 }
 
-async function formatGeneratedOutputs() {
+async function formatGeneratedOutputs(paths = [whitelistOutputPath, collectionsOutputPath]) {
   const oxfmtBin = path.join(repoRoot, 'node_modules', 'oxfmt', 'bin', 'oxfmt')
 
-  await execFileAsync(process.execPath, [oxfmtBin, whitelistOutputPath, collectionsOutputPath], {
+  await execFileAsync(process.execPath, [oxfmtBin, ...paths], {
     cwd: repoRoot
   })
+}
+
+async function assertGeneratedOutputsFresh(whitelistOutput, collectionsOutput) {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'deepchat-icons-'))
+  const tempWhitelistPath = path.join(tempDir, 'icon-whitelist.generated.ts')
+  const tempCollectionsPath = path.join(tempDir, 'icon-collections.generated.ts')
+
+  try {
+    await Promise.all([
+      writeFile(tempWhitelistPath, whitelistOutput),
+      writeFile(tempCollectionsPath, collectionsOutput)
+    ])
+    await formatGeneratedOutputs([tempWhitelistPath, tempCollectionsPath])
+
+    const [expectedWhitelist, expectedCollections, currentWhitelist, currentCollections] =
+      await Promise.all([
+        readFile(tempWhitelistPath, 'utf8'),
+        readFile(tempCollectionsPath, 'utf8'),
+        readFile(whitelistOutputPath, 'utf8'),
+        readFile(collectionsOutputPath, 'utf8')
+      ])
+
+    const staleFiles = []
+    if (expectedWhitelist !== currentWhitelist) {
+      staleFiles.push(path.relative(repoRoot, whitelistOutputPath))
+    }
+    if (expectedCollections !== currentCollections) {
+      staleFiles.push(path.relative(repoRoot, collectionsOutputPath))
+    }
+
+    if (staleFiles.length > 0) {
+      throw new Error(`Generated icon files are stale: ${staleFiles.join(', ')}`)
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
 }
 
 for (const sourceRoot of rendererRoots) {
@@ -192,12 +231,19 @@ const generatedCollections = {
   lineMd: createSubsetCollection(lineMdCollection, generatedWhitelist.lineMd)
 }
 
-await Promise.all([
-  writeFile(whitelistOutputPath, formatGeneratedWhitelist(generatedWhitelist)),
-  writeFile(collectionsOutputPath, formatGeneratedCollections(generatedCollections))
-])
-await formatGeneratedOutputs()
+const whitelistOutput = formatGeneratedWhitelist(generatedWhitelist)
+const collectionsOutput = formatGeneratedCollections(generatedCollections)
+
+if (checkMode) {
+  await assertGeneratedOutputsFresh(whitelistOutput, collectionsOutput)
+} else {
+  await Promise.all([
+    writeFile(whitelistOutputPath, whitelistOutput),
+    writeFile(collectionsOutputPath, collectionsOutput)
+  ])
+  await formatGeneratedOutputs()
+}
 
 console.info(
-  `Generated icon collections: lucide=${generatedWhitelist.lucide.length}, vscode-icons=${generatedWhitelist.vscodeIcons.length}, line-md=${generatedWhitelist.lineMd.length}`
+  `${checkMode ? 'Checked' : 'Generated'} icon collections: lucide=${generatedWhitelist.lucide.length}, vscode-icons=${generatedWhitelist.vscodeIcons.length}, line-md=${generatedWhitelist.lineMd.length}`
 )

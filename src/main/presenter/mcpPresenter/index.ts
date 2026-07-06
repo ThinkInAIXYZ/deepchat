@@ -281,6 +281,15 @@ export class McpPresenter implements IMCPPresenter {
     await Promise.all(workers)
   }
 
+  async stopServerDuringShutdownByName(serverName: string): Promise<void> {
+    const client = this.serverManager.getClient(serverName)
+    if (!client) {
+      return
+    }
+
+    await this.stopServerDuringShutdown(client)
+  }
+
   private async stopServerDuringShutdown(client: RuntimeMcpClient): Promise<void> {
     const startedAt = performance.now()
     let timeoutId: NodeJS.Timeout | null = null
@@ -331,8 +340,12 @@ export class McpPresenter implements IMCPPresenter {
     }
 
     try {
-      await this.serverManager.startServer(serverName)
-      this.emitServerStarted(serverName)
+      const connectResult = await this.serverManager.startServer(serverName, {
+        onBackgroundConnected: () => this.emitServerStarted(serverName)
+      })
+      if (connectResult === 'connected') {
+        this.emitServerStarted(serverName)
+      }
     } catch (error) {
       console.error(`[MCP] Failed to restart authenticated server ${serverName}:`, error)
     }
@@ -930,9 +943,9 @@ export class McpPresenter implements IMCPPresenter {
       return
     }
 
-    const runningClients = await this.serverManager.getRunningClients()
+    const activeClients = await this.serverManager.getActiveClients()
     const servers = await this.configPresenter.getMcpServers()
-    for (const client of runningClients) {
+    for (const client of activeClients) {
       if (this.isPluginOwnedServerConfig(servers[client.serverName])) {
         continue
       }

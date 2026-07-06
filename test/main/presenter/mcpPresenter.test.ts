@@ -248,13 +248,13 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       regular: { enabled: true },
       plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
     })
-    serverManagerMocks.getRunningClients.mockResolvedValue([
+    serverManagerMocks.getActiveClients.mockResolvedValue([
       { serverName: 'regular' },
       { serverName: 'plugin' }
     ])
     const presenter = new McpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
-      getRunningClients: serverManagerMocks.getRunningClients
+      getActiveClients: serverManagerMocks.getActiveClients
     }
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
@@ -263,6 +263,22 @@ describe('McpPresenter#setMcpServerEnabled', () => {
     expect(configPresenter.setMcpEnabled).toHaveBeenCalledWith(false)
     expect(stopSpy).toHaveBeenCalledTimes(1)
     expect(stopSpy).toHaveBeenCalledWith('regular')
+  })
+
+  it('stops connecting non-plugin servers when disabling the global MCP switch', async () => {
+    const configPresenter = createConfigPresenter(false, false, {
+      connecting: { enabled: true }
+    })
+    serverManagerMocks.getActiveClients.mockResolvedValue([{ serverName: 'connecting' }])
+    const presenter = new McpPresenter(configPresenter)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients
+    }
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(false)
+
+    expect(stopSpy).toHaveBeenCalledWith('connecting')
   })
 
   it('stops all running clients during shutdown and continues after stop failures', async () => {

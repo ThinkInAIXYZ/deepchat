@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
-import { McpClient, type McpConnectResult } from './mcpClient'
+import { McpClient, McpConnectionCancelledError, type McpConnectResult } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { eventBus } from '@/eventbus'
@@ -235,6 +235,14 @@ export class ServerManager {
         return 'connected'
       } else {
         console.info(`MCP server ${name} is starting...`)
+        const serverConfig = (existingClient.serverConfig ?? {}) as unknown as MCPServerConfig
+        this.handleStartupConnectResult(
+          name,
+          existingClient,
+          serverConfig,
+          'soft-timeout-released',
+          options
+        )
         return 'soft-timeout-released'
       }
     }
@@ -316,6 +324,10 @@ export class ServerManager {
         eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
       })
       .catch((error) => {
+        if (error instanceof McpConnectionCancelledError) {
+          return
+        }
+
         if (this.clients.get(name) !== client) {
           return
         }

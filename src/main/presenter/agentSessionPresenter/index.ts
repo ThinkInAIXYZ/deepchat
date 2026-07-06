@@ -3463,12 +3463,6 @@ export class AgentSessionPresenter {
 
     try {
       const db = this.sqlitePresenter.getDatabase()
-      const sessionRows = db
-        .prepare<[], { id: string; title: string; updated_at: number }>(
-          'SELECT id, title, updated_at FROM new_sessions ORDER BY updated_at ASC'
-        )
-        .all()
-
       let processedCount = 0
       let batchCount = 0
       const yieldForBatch = async (): Promise<void> => {
@@ -3482,51 +3476,100 @@ export class AgentSessionPresenter {
         await (taskContext?.yield() ?? this.yieldToEventLoop())
       }
 
-      for (const sessionRow of sessionRows) {
-        const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
-        const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
-          sessionRow.id
-        )
-        this.sqlitePresenter.newSessionActiveSkillsTable.replaceForSession(
-          sessionRow.id,
-          activeSkills
-        )
-        this.sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
-          sessionRow.id,
-          disabledAgentTools
-        )
-        this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
-          documentKey: `session:${sessionRow.id}`,
-          sessionId: sessionRow.id,
-          documentKind: 'session',
-          title: sessionRow.title,
-          content: '',
-          updatedAt: sessionRow.updated_at
-        })
+      let sessionCursor: { updatedAt: number; id: string } | null = null
+      while (true) {
+        const sessionRows = sessionCursor
+          ? db
+              .prepare<
+                [number, number, string, number],
+                { id: string; title: string; updated_at: number }
+              >(
+                `SELECT id, title, updated_at
+                 FROM new_sessions
+                 WHERE updated_at > ? OR (updated_at = ? AND id > ?)
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(sessionCursor.updatedAt, sessionCursor.updatedAt, sessionCursor.id, batchSize)
+          : db
+              .prepare<[number], { id: string; title: string; updated_at: number }>(
+                `SELECT id, title, updated_at
+                 FROM new_sessions
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(batchSize)
 
-        processedCount += 1
-        batchCount += 1
-        if (batchCount >= batchSize) {
-          batchCount = 0
-          await yieldForBatch()
+        if (sessionRows.length === 0) {
+          break
+        }
+
+        for (const sessionRow of sessionRows) {
+          const activeSkills = this.sqlitePresenter.newSessionsTable.getActiveSkills(sessionRow.id)
+          const disabledAgentTools = this.sqlitePresenter.newSessionsTable.getDisabledAgentTools(
+            sessionRow.id
+          )
+          this.sqlitePresenter.newSessionActiveSkillsTable.replaceForSession(
+            sessionRow.id,
+            activeSkills
+          )
+          this.sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
+            sessionRow.id,
+            disabledAgentTools
+          )
+          this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+            documentKey: `session:${sessionRow.id}`,
+            sessionId: sessionRow.id,
+            documentKind: 'session',
+            title: sessionRow.title,
+            content: '',
+            updatedAt: sessionRow.updated_at
+          })
+
+          sessionCursor = { updatedAt: sessionRow.updated_at, id: sessionRow.id }
+          processedCount += 1
+          batchCount += 1
+          if (batchCount >= batchSize) {
+            batchCount = 0
+            await yieldForBatch()
+          }
         }
       }
 
-      const messageRows = db
-        .prepare<[], DeepChatMessageRow>(
-          `SELECT id, session_id, role, status, content, updated_at, created_at
-           FROM deepchat_messages
-           ORDER BY created_at ASC`
-        )
-        .all()
+      let messageCursor: { createdAt: number; id: string } | null = null
+      while (true) {
+        const messageRows = messageCursor
+          ? db
+              .prepare<[number, number, string, number], DeepChatMessageRow>(
+                `SELECT id, session_id, role, status, content, updated_at, created_at
+                 FROM deepchat_messages
+                 WHERE created_at > ? OR (created_at = ? AND id > ?)
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(messageCursor.createdAt, messageCursor.createdAt, messageCursor.id, batchSize)
+          : db
+              .prepare<[number], DeepChatMessageRow>(
+                `SELECT id, session_id, role, status, content, updated_at, created_at
+                 FROM deepchat_messages
+                 ORDER BY created_at ASC, id ASC
+                 LIMIT ?`
+              )
+              .all(batchSize)
 
-      for (const row of messageRows) {
-        this.backfillNormalizedMessageRow(row)
-        processedCount += 1
-        batchCount += 1
-        if (batchCount >= batchSize) {
-          batchCount = 0
-          await yieldForBatch()
+        if (messageRows.length === 0) {
+          break
+        }
+
+        for (const row of messageRows) {
+          this.backfillNormalizedMessageRow(row)
+          messageCursor = { createdAt: row.created_at, id: row.id }
+          processedCount += 1
+          batchCount += 1
+          if (batchCount >= batchSize) {
+            batchCount = 0
+            await yieldForBatch()
+          }
         }
       }
 
@@ -3748,56 +3791,69 @@ export class AgentSessionPresenter {
 
     try {
       const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
-      const candidates = Array.from(this.iterAssistantUsageCandidates())
 
       let processedCount = 0
-      let batchCount = 0
-      for (const row of candidates) {
-        const metadata = parseUsageMetadata(row.metadata)
-        if (metadata.messageType === 'compaction') {
-          continue
-        }
-
-        const providerId = resolveUsageProviderId(metadata, row.provider_id)
-        const modelId = resolveUsageModelId(metadata, row.model_id)
-        if (!providerId || !modelId) {
-          continue
-        }
-
-        const usageRecord = buildUsageStatsRecord({
-          messageId: row.id,
-          sessionId: row.session_id,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          providerId,
-          modelId,
-          metadata: {
-            ...metadata,
-            cachedInputTokens: metadata.cachedInputTokens ?? 0,
-            cacheWriteInputTokens: metadata.cacheWriteInputTokens ?? 0
-          },
-          source: 'backfill'
+      let scannedSinceYield = 0
+      const yieldUsageStatsBackfillProgress = async (): Promise<void> => {
+        this.setUsageStatsBackfillStatus({
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          error: null,
+          updatedAt: Date.now(),
+          processedCount
         })
+        await (taskContext?.yield() ?? this.yieldToEventLoop())
+      }
 
-        if (!usageRecord) {
-          continue
+      let candidateCursor: { createdAt: number; id: string } | null = null
+      while (true) {
+        const candidates = this.listAssistantUsageCandidatePage(candidateCursor, batchSize)
+        if (candidates.length === 0) {
+          break
         }
 
-        usageStatsTable.upsert(usageRecord)
-        processedCount += 1
-        batchCount += 1
+        for (const row of candidates) {
+          candidateCursor = { createdAt: row.created_at, id: row.id }
+          scannedSinceYield += 1
 
-        if (batchCount >= batchSize) {
-          batchCount = 0
-          this.setUsageStatsBackfillStatus({
-            status: 'running',
-            startedAt,
-            finishedAt: null,
-            error: null,
-            updatedAt: Date.now(),
-            processedCount
+          const metadata = parseUsageMetadata(row.metadata)
+          if (metadata.messageType === 'compaction') {
+            continue
+          }
+
+          const providerId = resolveUsageProviderId(metadata, row.provider_id)
+          const modelId = resolveUsageModelId(metadata, row.model_id)
+          if (!providerId || !modelId) {
+            continue
+          }
+
+          const usageRecord = buildUsageStatsRecord({
+            messageId: row.id,
+            sessionId: row.session_id,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            providerId,
+            modelId,
+            metadata: {
+              ...metadata,
+              cachedInputTokens: metadata.cachedInputTokens ?? 0,
+              cacheWriteInputTokens: metadata.cacheWriteInputTokens ?? 0
+            },
+            source: 'backfill'
           })
-          await (taskContext?.yield() ?? this.yieldToEventLoop())
+
+          if (!usageRecord) {
+            continue
+          }
+
+          usageStatsTable.upsert(usageRecord)
+          processedCount += 1
+        }
+
+        if (scannedSinceYield >= batchSize) {
+          scannedSinceYield = 0
+          await yieldUsageStatsBackfillProgress()
         }
       }
 
@@ -3827,13 +3883,35 @@ export class AgentSessionPresenter {
     }
   }
 
-  private iterAssistantUsageCandidates(): Iterable<DeepChatMessageUsageCandidateRow> {
+  private listAssistantUsageCandidatePage(
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): DeepChatMessageUsageCandidateRow[] {
     const table = this.sqlitePresenter.deepchatMessagesTable as {
-      iterAssistantUsageCandidates?: () => Iterable<DeepChatMessageUsageCandidateRow>
+      listAssistantUsageCandidatesPage?: (
+        cursor: { createdAt: number; id: string } | null,
+        limit: number
+      ) => DeepChatMessageUsageCandidateRow[]
       listAssistantUsageCandidates: () => DeepChatMessageUsageCandidateRow[]
     }
 
-    return table.iterAssistantUsageCandidates?.() ?? table.listAssistantUsageCandidates()
+    if (table.listAssistantUsageCandidatesPage) {
+      return table.listAssistantUsageCandidatesPage(cursor, limit)
+    }
+
+    const candidates = [...table.listAssistantUsageCandidates()].sort(
+      (left, right) => left.created_at - right.created_at || left.id.localeCompare(right.id)
+    )
+    if (!cursor) {
+      return candidates.slice(0, limit)
+    }
+    return candidates
+      .filter(
+        (row) =>
+          row.created_at > cursor.createdAt ||
+          (row.created_at === cursor.createdAt && row.id > cursor.id)
+      )
+      .slice(0, limit)
   }
 
   private getUsageStatsBackfillStatus(): UsageStatsBackfillStatus {

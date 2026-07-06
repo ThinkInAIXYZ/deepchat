@@ -364,6 +364,8 @@ const pendingAssistantPlaceholder = ref<{
   id: string
   sessionId: string
   baselineAssistantMessageIds: Set<string>
+  baselineMessageOrderSeq: number
+  baselineCreatedAt: number
 } | null>(null)
 let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
@@ -1139,7 +1141,9 @@ const hasNewAssistantMessageAfterPendingPlaceholder = computed(() => {
 
   return messageStore.messages.some(
     (message) =>
-      message.role === 'assistant' && !pending.baselineAssistantMessageIds.has(message.id)
+      message.role === 'assistant' &&
+      !pending.baselineAssistantMessageIds.has(message.id) &&
+      isMessageAfterPendingAssistantBaseline(message, pending)
   )
 })
 
@@ -1195,13 +1199,35 @@ function onDismissPlanFloat() {
 
 function createPendingAssistantPlaceholder(sessionId: string): string {
   const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
+  const loadedMessages = messageStore.messages
   const baselineAssistantMessageIds = new Set(
-    messageStore.messages
-      .filter((message) => message.role === 'assistant')
-      .map((message) => message.id)
+    loadedMessages.filter((message) => message.role === 'assistant').map((message) => message.id)
   )
-  pendingAssistantPlaceholder.value = { id, sessionId, baselineAssistantMessageIds }
+  const baselineMessageOrderSeq = Math.max(
+    Number.NEGATIVE_INFINITY,
+    ...loadedMessages.map((message) =>
+      Number.isFinite(message.orderSeq) ? message.orderSeq : Number.NEGATIVE_INFINITY
+    )
+  )
+  pendingAssistantPlaceholder.value = {
+    id,
+    sessionId,
+    baselineAssistantMessageIds,
+    baselineMessageOrderSeq,
+    baselineCreatedAt: Date.now()
+  }
   return id
+}
+
+function isMessageAfterPendingAssistantBaseline(
+  message: ChatMessageRecord,
+  pending: NonNullable<typeof pendingAssistantPlaceholder.value>
+): boolean {
+  if (Number.isFinite(pending.baselineMessageOrderSeq) && Number.isFinite(message.orderSeq)) {
+    return message.orderSeq > pending.baselineMessageOrderSeq
+  }
+
+  return message.createdAt > pending.baselineCreatedAt
 }
 
 function clearPendingAssistantPlaceholder(id?: string): void {

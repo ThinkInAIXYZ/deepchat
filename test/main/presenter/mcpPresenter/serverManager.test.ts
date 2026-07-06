@@ -14,7 +14,14 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 const clientMocks = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
-  isServerRunning: vi.fn()
+  isServerRunning: vi.fn(),
+  getConnectionCompletion: vi.fn(),
+  McpConnectionCancelledError: class McpConnectionCancelledError extends Error {
+    constructor(serverName: string) {
+      super(`Connection to MCP server ${serverName} was cancelled`)
+      this.name = 'McpConnectionCancelledError'
+    }
+  }
 }))
 
 vi.mock('@/eventbus', () => ({
@@ -40,12 +47,17 @@ vi.mock('../../../../src/main/presenter/mcpPresenter/mcpClient', () => ({
   McpClient: vi.fn().mockImplementation(() => ({
     connect: clientMocks.connect,
     disconnect: clientMocks.disconnect,
-    isServerRunning: clientMocks.isServerRunning
-  }))
+    isServerRunning: clientMocks.isServerRunning,
+    getConnectionCompletion: clientMocks.getConnectionCompletion
+  })),
+  McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
 import { ServerManager } from '../../../../src/main/presenter/mcpPresenter/serverManager'
-import { McpClient } from '../../../../src/main/presenter/mcpPresenter/mcpClient'
+import {
+  McpClient,
+  McpConnectionCancelledError
+} from '../../../../src/main/presenter/mcpPresenter/mcpClient'
 
 describe('ServerManager plugin MCP errors', () => {
   beforeEach(() => {
@@ -53,12 +65,14 @@ describe('ServerManager plugin MCP errors', () => {
     clientMocks.connect.mockResolvedValue(undefined)
     clientMocks.disconnect.mockResolvedValue(undefined)
     clientMocks.isServerRunning.mockReturnValue(true)
+    clientMocks.getConnectionCompletion.mockReturnValue(null)
     vi.mocked(McpClient).mockImplementation(
       () =>
         ({
           connect: clientMocks.connect,
           disconnect: clientMocks.disconnect,
-          isServerRunning: clientMocks.isServerRunning
+          isServerRunning: clientMocks.isServerRunning,
+          getConnectionCompletion: clientMocks.getConnectionCompletion
         }) as never
     )
   })
@@ -110,5 +124,28 @@ describe('ServerManager plugin MCP errors', () => {
 
     expect(manager.getServerLastError('regular')).toBe('connect failed')
     expect(publishDeepchatEventMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not publish global errors when a background startup is cancelled', async () => {
+    const manager = new ServerManager(
+      createConfigPresenter({
+        regular: {
+          command: 'regular-command',
+          args: [],
+          env: {},
+          type: 'stdio'
+        }
+      }) as never
+    )
+    clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
+    clientMocks.getConnectionCompletion.mockReturnValueOnce(
+      Promise.reject(new McpConnectionCancelledError('regular'))
+    )
+
+    await expect(manager.startServer('regular')).resolves.toBe('soft-timeout-released')
+    await Promise.resolve()
+
+    expect(manager.getServerLastError('regular')).toBeUndefined()
+    expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
 })

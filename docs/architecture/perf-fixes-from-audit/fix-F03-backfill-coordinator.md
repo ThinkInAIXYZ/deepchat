@@ -1,7 +1,7 @@
-# 修复 F3：backfill 纳入 coordinator + streaming + 小 batch
+# 修复 F3：backfill 纳入 coordinator + keyset batch
 
 ## 目标
-将 5 个 after-start 后台任务统一纳入 `StartupWorkloadCoordinator` 的 `scheduleTask(...)` 调度，避免它们在首屏后以 fire-and-forget 方式无约束并发；同时把 mainline normalization / usage stats backfill 从 `.all()` 全量读改为流式迭代优先、小批次让出主线程，并补齐 `processedCount` 与耗时观测。
+将 5 个 after-start 后台任务统一纳入 `StartupWorkloadCoordinator` 的 `scheduleTask(...)` 调度，避免它们在首屏后以 fire-and-forget 方式无约束并发；同时把 mainline normalization / usage stats backfill 从 `.all()` 全量读改为 keyset 小批分页、小批次让出主线程，并补齐 `processedCount` 与耗时观测。
 
 本项目标是降低两类风险：
 - 首屏后多个后台任务同时争抢主线程 / IO，导致 UI 卡顿。
@@ -91,61 +91,39 @@ hook 在 `scheduleTask.run(context)` 中调用新入口；原 `startX()` 继续�
 
 无论选 A 还是 B，文档都要求明确：**只有把 context 真正传入 backfill 循环，`taskContext.yield()` 才能替代当前的 `yieldToEventLoop()` 并与 coordinator 协作。**
 
-### 3.3 mainline normalization：优先 `iterate()`，去掉 `.all()` 与 `SELECT *`
+### 3.3 mainline normalization：keyset 分页，去掉全表 `.all()` 与 `SELECT *`
 `runMainlineNormalizationBackfill()` 需要同时修两件事：
 1. 不再 `SELECT *`
 2. 不再 `.all()` 全表进内存
 
-优先方案：`prepare(...).iterate()`
+实现方案：按 `(updated_at, id)` / `(created_at, id)` keyset 分页，每页初始 50 条。
+
 ```ts
-const sessionStmt = db.prepare(
-  'SELECT id, title, updated_at FROM new_sessions ORDER BY updated_at ASC'
-)
-
-let processedCount = 0
-let batchCount = 0
-
-for (const sessionRow of sessionStmt.iterate() as Iterable<{
-  id: string
-  title: string
-  updated_at: number
-}>) {
-  ...
-  processedCount += 1
-  batchCount += 1
-
-  if (batchCount >= batchSize) {
-    batchCount = 0
-    await taskContext.yield()
-  }
-}
+SELECT id, title, updated_at
+FROM new_sessions
+WHERE updated_at > ? OR (updated_at = ? AND id > ?)
+ORDER BY updated_at ASC, id ASC
+LIMIT ?
 ```
 
 `deepchat_messages` 同理，只取 `backfillNormalizedMessageRow(...)` 真正需要的列：
+
 ```ts
-const messageStmt = db.prepare(
-  'SELECT id, session_id, role, status, content, updated_at, created_at FROM deepchat_messages ORDER BY created_at ASC'
-)
+SELECT id, session_id, role, status, content, updated_at, created_at
+FROM deepchat_messages
+WHERE created_at > ? OR (created_at = ? AND id > ?)
+ORDER BY created_at ASC, id ASC
+LIMIT ?
 ```
 
-分页兜底仅在 `iterate()` 不可用时使用：
-```ts
-const pageSize = batchSize
-let offset = 0
-while (true) {
-  const rows = stmt.all(pageSize, offset)
-  if (rows.length === 0) break
-  ...
-  offset += rows.length
-}
-```
+选择 keyset 分页而不是长生命周期 `iterate()`，是为了避免同一 SQLite 连接在 cursor 未关闭时继续写入 normalized tables 导致 `connection is busy`。
 
-### 3.4 usage stats backfill 同样改为流式候选
+### 3.4 usage stats backfill 同样改为分页候选
 `runUsageStatsBackfill()` 当前先拿 `listAssistantUsageCandidates()` 全量数组，再同步遍历：[`agentSessionPresenter/index.ts`](../../../src/main/presenter/agentSessionPresenter/index.ts#L3685-L3732)
 
-应改为以下任一模式：
-- `deepchatMessagesTable.iterAssistantUsageCandidates()`：优先，迭代器/游标式接口
-- `listAssistantUsageCandidatesPage(limit, offset)`：分页兜底
+应改为：
+- `deepchatMessagesTable.listAssistantUsageCandidatesPage(cursor, limit)`：优先，keyset 分页接口。
+- `listAssistantUsageCandidates()`：仅作为旧测试/旧表实现的兼容兜底，不应作为生产路径。
 
 循环中按 batch 更新运行状态并 `await taskContext.yield()`，替代当前每 200 条才 `yieldToEventLoop()` 的实现。
 

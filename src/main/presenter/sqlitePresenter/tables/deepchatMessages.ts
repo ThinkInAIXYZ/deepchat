@@ -276,6 +276,43 @@ export class DeepChatMessagesTable extends BaseTable {
       .iterate()
   }
 
+  listAssistantUsageCandidatesPage(
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): DeepChatMessageUsageCandidateRow[] {
+    const baseQuery = `SELECT
+        m.id,
+        m.session_id,
+        m.metadata,
+        m.created_at,
+        m.updated_at,
+        s.provider_id,
+        s.model_id
+      FROM deepchat_messages m
+      LEFT JOIN deepchat_sessions s
+        ON s.id = m.session_id
+      WHERE m.role = 'assistant'`
+
+    if (!cursor) {
+      return this.db
+        .prepare<[number], DeepChatMessageUsageCandidateRow>(
+          `${baseQuery}
+           ORDER BY m.created_at ASC, m.id ASC
+           LIMIT ?`
+        )
+        .all(limit)
+    }
+
+    return this.db
+      .prepare<[number, number, string, number], DeepChatMessageUsageCandidateRow>(
+        `${baseQuery}
+         AND (m.created_at > ? OR (m.created_at = ? AND m.id > ?))
+         ORDER BY m.created_at ASC, m.id ASC
+         LIMIT ?`
+      )
+      .all(cursor.createdAt, cursor.createdAt, cursor.id, limit)
+  }
+
   listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
     return Array.from(this.iterAssistantUsageCandidates())
   }

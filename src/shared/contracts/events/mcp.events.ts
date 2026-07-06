@@ -2,11 +2,13 @@ import { z } from 'zod'
 import type {
   MCPServerConfig,
   McpSamplingDecision,
-  McpSamplingRequestPayload,
+  McpSamplingRequestPayload
+} from '@shared/presenter'
+import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
   McpServerStatusReason
-} from '@shared/presenter'
+} from '@shared/types/core/mcp'
 import { defineEventContract } from '../common'
 import { McpServerAuthStatusSchema } from '../routes/mcp.routes'
 

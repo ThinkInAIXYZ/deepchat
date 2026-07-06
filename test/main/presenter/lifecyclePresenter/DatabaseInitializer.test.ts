@@ -106,6 +106,7 @@ describe('DatabaseInitializer', () => {
     expect(repairSQLiteDatabaseFile).toHaveBeenCalledWith('C:/tmp/deepchat-agent.db', undefined, {
       catalog: startupSchemaCatalog
     })
+    expect(presenterInstance.diagnoseSchema).toHaveBeenCalledTimes(1)
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledWith(startupSchemaCatalog)
     expect(result).toBe(presenterInstance)
   })
@@ -124,6 +125,7 @@ describe('DatabaseInitializer', () => {
     const result = await initializer.initialize()
 
     expect(SQLitePresenter).toHaveBeenCalledTimes(1)
+    expect(presenterInstance.diagnoseSchema).toHaveBeenCalledTimes(1)
     expect(presenterInstance.diagnoseSchema).toHaveBeenCalledWith(startupSchemaCatalog)
     expect(repairSQLiteDatabaseFile).not.toHaveBeenCalled()
     expect(result).toBe(presenterInstance)

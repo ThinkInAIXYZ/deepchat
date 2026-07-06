@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { JsonValueSchema } from '@shared/contracts/common'
-import { McpServerConfigSchema, ProjectSchema } from '@shared/contracts/domainSchemas'
+import {
+  McpServerConfigSchema,
+  ProjectSchema,
+  UsageStatsBackfillStatusSchema
+} from '@shared/contracts/domainSchemas'
 import { agentPlanItemSchema } from '@shared/types/agent-plan'
 import { questionToolSchema } from '../../../src/main/lib/agentRuntime/questionTool'
 
@@ -124,6 +128,23 @@ describe('Zod 4 migration contracts', () => {
     })
 
     expect(parsed.success).toBe(false)
+  })
+
+  it('preserves usage stats backfill progress fields across contract parsing', () => {
+    expect(
+      UsageStatsBackfillStatusSchema.parse({
+        status: 'completed',
+        startedAt: 1,
+        finishedAt: 2,
+        error: null,
+        updatedAt: 2,
+        processedCount: 123,
+        durationMs: 456
+      })
+    ).toMatchObject({
+      processedCount: 123,
+      durationMs: 456
+    })
   })
 
   it('keeps loose object schemas preserving unknown keys', () => {

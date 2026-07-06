@@ -48,6 +48,10 @@ type PluginPresenterDeps = {
   resourcesPath?: string
 }
 
+type ShutdownAwareMcpPresenter = IMCPPresenter & {
+  stopServerDuringShutdownByName?: (serverName: string) => Promise<void>
+}
+
 type ResolvedOfficialPlugin = {
   manifest: DeepChatPluginManifest
   root: string
@@ -166,7 +170,12 @@ export class PluginPresenter {
         const { serverName, pluginId } = servers[nextIndex++]
         try {
           if (await this.isMcpServerActive(serverName)) {
-            await this.mcpPresenter.stopServer(serverName)
+            const mcpPresenter = this.mcpPresenter as ShutdownAwareMcpPresenter
+            if (mcpPresenter.stopServerDuringShutdownByName) {
+              await mcpPresenter.stopServerDuringShutdownByName(serverName)
+            } else {
+              await this.mcpPresenter.stopServer(serverName)
+            }
           }
         } catch (error) {
           console.warn('[PluginHost] Failed to stop plugin-owned MCP server during shutdown:', {

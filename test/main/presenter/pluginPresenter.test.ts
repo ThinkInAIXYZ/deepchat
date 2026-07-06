@@ -69,7 +69,8 @@ const createPluginPresenter = async (
     isReady: vi.fn(() => true),
     isServerRunning: vi.fn().mockResolvedValue(false),
     startServer: vi.fn().mockResolvedValue(undefined),
-    stopServer: vi.fn().mockResolvedValue(undefined)
+    stopServer: vi.fn().mockResolvedValue(undefined),
+    stopServerDuringShutdownByName: vi.fn().mockResolvedValue(undefined)
   }
   const skillPresenter = {
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
@@ -1061,8 +1062,11 @@ describe('PluginPresenter', () => {
 
     await presenter.shutdown()
 
-    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledTimes(1)
-    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-running')
+    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledTimes(1)
+    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+      'plugin-running'
+    )
+    expect(presenter.__mocks.mcpPresenter.stopServer).not.toHaveBeenCalled()
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
     expect(await presenter.__mocks.configPresenter.getMcpServers()).toMatchObject({
       'regular-server': {
@@ -1091,15 +1095,19 @@ describe('PluginPresenter', () => {
       sourceId: 'com.deepchat.plugins.second'
     })
     presenter.__mocks.mcpPresenter.isServerRunning.mockResolvedValue(true)
-    presenter.__mocks.mcpPresenter.stopServer
+    presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName
       .mockRejectedValueOnce(new Error('first failed'))
       .mockResolvedValueOnce(undefined)
 
     await presenter.shutdown()
 
-    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledTimes(2)
-    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-first')
-    expect(presenter.__mocks.mcpPresenter.stopServer).toHaveBeenCalledWith('plugin-second')
+    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledTimes(2)
+    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+      'plugin-first'
+    )
+    expect(presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName).toHaveBeenCalledWith(
+      'plugin-second'
+    )
     expect(presenter.__mocks.configPresenter.removeMcpServer).not.toHaveBeenCalled()
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       '[PluginHost] Failed to stop plugin-owned MCP server during shutdown:',

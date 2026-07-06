@@ -16,7 +16,6 @@ import {
   WORKSPACE_PREVIEW_PROTOCOL
 } from '@/presenter/workspacePresenter/workspacePreviewProtocol'
 
-const MAX_WORKSPACE_PREVIEW_BYTES = 50 * 1024 * 1024
 const workspacePreviewMimeCache = new Map<string, string>()
 
 const getMimeTypeForPath = (filePath: string): string => {
@@ -273,17 +272,6 @@ export const protocolRegistrationHook: LifecycleHook = {
           return new Response(`File not found: ${fullPath}`, {
             status: 404,
             headers: { 'Content-Type': 'text/plain' }
-          })
-        }
-
-        if (stat.size > MAX_WORKSPACE_PREVIEW_BYTES) {
-          return new Response('Payload too large', {
-            status: 413,
-            headers: {
-              'Cache-Control': 'no-store',
-              'Content-Type': 'text/plain',
-              'X-Content-Type-Options': 'nosniff'
-            }
           })
         }
 
