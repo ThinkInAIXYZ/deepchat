@@ -3,6 +3,29 @@
 本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节不再作为仓库内
 长期文档保留；需要对照时用 `git log` / `git show` 查看历史提交。
 
+DeepChat Agent 与 ACP Agent 的当前代码路径对比见
+[deepchat-vs-acp-agents/](./deepchat-vs-acp-agents/)。
+
+## Agent 类型
+
+DeepChat 支持两种 agent 执行架构:
+
+### DeepChat Agent
+- **原生 TypeScript** agent 运行时
+- **Tape-based** 完整对话历史持久化 (受 [tape.systems](https://tape.systems/) 启发)
+- **直接 LLM 集成** 通过 LLMProviderPresenter
+- **完整调试能力** 支持重放、审计、分叉
+- **适用场景**: 需要深度集成、上下文控制、审计追溯
+
+### ACP Agent
+- **协议化** agent 系统,遵循 [ACP 官方规范](https://modelcontextprotocol.io/acp)
+- **进程隔离** 外部 agent 进程通过 JSON-RPC 通信
+- **语言无关** 任何实现 ACP 协议的 agent
+- **灵活性优先** agent 自主管理状态和工具
+- **适用场景**: 多语言支持、第三方集成、进程隔离需求
+
+**详细对比** 请参见 [deepchat-vs-acp-agents/spec.md](./deepchat-vs-acp-agents/spec.md)。
+
 ## 当前运行时所有权
 
 ```mermaid

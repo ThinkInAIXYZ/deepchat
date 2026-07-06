@@ -95,7 +95,10 @@ type PendingPermissionState = {
   context: PermissionRequestContext
   resolve: (response: schema.RequestPermissionResponse) => void
   reject: (error: Error) => void
+  timeoutId: ReturnType<typeof setTimeout>
 }
+
+const ACP_PERMISSION_TIMEOUT_MS = 60_000
 
 type AcpConnectionWithModelSelection = {
   unstable_setSessionModel?: (
@@ -1525,13 +1528,23 @@ export class AcpProvider extends BaseLLMProvider {
     const requestId = nanoid()
 
     const promise = new Promise<schema.RequestPermissionResponse>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        const state = this.removePendingPermission(requestId)
+        if (!state) {
+          return
+        }
+        console.warn(`[ACP] Permission request timed out: ${requestId}`)
+        state.resolve({ outcome: { outcome: 'cancelled' } })
+      }, ACP_PERMISSION_TIMEOUT_MS)
+
       this.pendingPermissions.set(requestId, {
         requestId,
         sessionId: params.sessionId,
         params,
         context,
         resolve,
-        reject
+        reject,
+        timeoutId
       })
     })
 
@@ -1638,12 +1651,10 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async resolvePermissionRequest(requestId: string, granted: boolean): Promise<void> {
-    const state = this.pendingPermissions.get(requestId)
+    const state = this.removePendingPermission(requestId)
     if (!state) {
       throw new Error(`Unknown ACP permission request: ${requestId}`)
     }
-
-    this.pendingPermissions.delete(requestId)
 
     const option = this.pickPermissionOption(state.params.options, granted ? 'allow' : 'deny')
     if (option) {
@@ -1656,11 +1667,20 @@ export class AcpProvider extends BaseLLMProvider {
     }
   }
 
+  private removePendingPermission(requestId: string): PendingPermissionState | undefined {
+    const state = this.pendingPermissions.get(requestId)
+    if (!state) {
+      return undefined
+    }
+    this.pendingPermissions.delete(requestId)
+    clearTimeout(state.timeoutId)
+    return state
+  }
+
   private clearPendingPermissionsForSession(sessionId: string): void {
     for (const [requestId, state] of this.pendingPermissions.entries()) {
       if (state.sessionId === sessionId) {
-        this.pendingPermissions.delete(requestId)
-        state.resolve({ outcome: { outcome: 'cancelled' } })
+        this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
       }
     }
   }
@@ -2007,9 +2027,8 @@ export class AcpProvider extends BaseLLMProvider {
       console.warn('[ACP] Cleanup: failed to shutdown process manager:', error)
     }
 
-    for (const [requestId, state] of this.pendingPermissions.entries()) {
-      state.resolve({ outcome: { outcome: 'cancelled' } })
-      this.pendingPermissions.delete(requestId)
+    for (const [requestId] of this.pendingPermissions.entries()) {
+      this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
     }
   }
 }

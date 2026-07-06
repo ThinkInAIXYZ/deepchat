@@ -6172,6 +6172,14 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     for (const [requestId, permission] of this.activeProviderPermissions.entries()) {
       if (permission.sessionId === sessionId) {
         this.activeProviderPermissions.delete(requestId)
+        void this.resolveProviderPermissionSafely(() => permission.resolve(false)).catch(
+          (error) => {
+            console.warn(
+              `[DeepChatAgent] Failed to cancel ACP permission request ${requestId}:`,
+              error
+            )
+          }
+        )
       }
     }
   }

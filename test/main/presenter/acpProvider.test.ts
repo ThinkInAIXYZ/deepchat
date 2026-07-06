@@ -559,6 +559,78 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(payload.description).toBe('components.messageBlockPermissionRequest.description.command')
   })
 
+  it('cancels pending permission requests when they time out', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.pendingPermissions = new Map()
+
+      const { requestId, promise } = provider.registerPendingPermission(
+        {
+          sessionId: 'session-1',
+          toolCall: {
+            toolCallId: 'tc-terminal',
+            title: 'Terminal',
+            kind: 'execute',
+            rawInput: { command: 'dir' }
+          },
+          options: []
+        },
+        {
+          conversationId: 'conv-1',
+          agent: { id: 'agent1', name: 'Claude Agent', command: 'claude' }
+        }
+      )
+
+      expect(provider.pendingPermissions.has(requestId)).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await expect(promise).resolves.toEqual({ outcome: { outcome: 'cancelled' } })
+      expect(provider.pendingPermissions.has(requestId)).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears pending permission timeout when resolving a request', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const provider = Object.create(AcpProvider.prototype) as any
+      provider.pendingPermissions = new Map()
+
+      const { requestId, promise } = provider.registerPendingPermission(
+        {
+          sessionId: 'session-1',
+          toolCall: {
+            toolCallId: 'tc-terminal',
+            title: 'Terminal',
+            kind: 'execute',
+            rawInput: { command: 'dir' }
+          },
+          options: [{ optionId: 'allow-1', kind: 'allow_once', name: 'Allow' }]
+        },
+        {
+          conversationId: 'conv-1',
+          agent: { id: 'agent1', name: 'Claude Agent', command: 'claude' }
+        }
+      )
+
+      await provider.resolvePermissionRequest(requestId, true)
+
+      await expect(promise).resolves.toEqual({
+        outcome: { outcome: 'selected', optionId: 'allow-1' }
+      })
+      expect(provider.pendingPermissions.has(requestId)).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('prepares ACP session without prompt and emits ready events', async () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any

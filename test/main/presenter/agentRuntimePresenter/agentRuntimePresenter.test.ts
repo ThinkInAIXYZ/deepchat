@@ -6858,6 +6858,35 @@ describe('AgentRuntimePresenter', () => {
       expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
     })
 
+    it('cancels live ACP permission resolvers when clearing a session', async () => {
+      const resolve = vi.fn().mockResolvedValue(undefined)
+      ;(agent as any).activeProviderPermissions.set('acp-req-1', {
+        requestId: 'acp-req-1',
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc1',
+        providerId: 'acp',
+        permissionType: 'command',
+        resolve
+      })
+      ;(agent as any).activeProviderPermissions.set('acp-req-2', {
+        requestId: 'acp-req-2',
+        sessionId: 's2',
+        messageId: 'm2',
+        toolCallId: 'tc2',
+        providerId: 'acp',
+        permissionType: 'command',
+        resolve: vi.fn().mockResolvedValue(undefined)
+      })
+
+      ;(agent as any).clearActiveProviderPermissionsForSession('s1')
+      await Promise.resolve()
+
+      expect(resolve).toHaveBeenCalledWith(false)
+      expect((agent as any).activeProviderPermissions.has('acp-req-1')).toBe(false)
+      expect((agent as any).activeProviderPermissions.has('acp-req-2')).toBe(true)
+    })
+
     it('falls back to direct ACP permission resolve when live resolver is missing', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
       makeAssistantRow({
