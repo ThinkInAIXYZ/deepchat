@@ -116,7 +116,7 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return []
     return this.ctx.deps.repository
       .listByAgent(agentId, { includeArchived: true })
-      .filter((row) => row.kind !== 'persona')
+      .filter((row) => !isInternalMemoryKind(row))
   }
 
   getByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {

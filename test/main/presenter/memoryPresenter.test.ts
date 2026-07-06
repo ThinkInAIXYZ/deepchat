@@ -2614,8 +2614,13 @@ describe('MemoryPresenter management', () => {
       status: 'fts_only'
     })
 
-    expect(presenter.listMemories('a').map((row) => row.id)).not.toContain('persona')
-    expect(presenter.getByIds('a', ['persona']).map((row) => row.id)).toEqual(['persona'])
+    expect(presenter.listMemories('a').map((row) => row.id)).not.toEqual(
+      expect.arrayContaining(['persona', 'working'])
+    )
+    expect(presenter.getByIds('a', ['persona', 'working']).map((row) => row.id)).toEqual([
+      'persona',
+      'working'
+    ])
     await expect(presenter.forgetMemory('a', 'persona')).resolves.toBe(false)
     await expect(presenter.archiveUserMemory('a', 'persona')).resolves.toBe(false)
     expect(presenter.restoreMemory('a', 'persona')).toBe(false)
@@ -4351,12 +4356,13 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     seedConflicted(repo, 'c1', targetId, 'user prefers valkey')
 
     await presenter.runConsolidationPass('a', now)
+    await presenter.processPendingEmbeddings('a')
 
     expect(repo.getById('c1')?.content).toBe('user prefers valkey over redis')
     expect(repo.getById('c1')?.provenance_key).toBe(
       buildMemoryProvenanceKey('a', 'semantic', 'user prefers valkey over redis')
     )
-    expect(['pending_embedding', 'embedded']).toContain(repo.getById('c1')?.status)
+    expect(repo.getById('c1')?.status).toBe('embedded')
     expect(repo.getById(targetId)?.status).toBe('archived')
   })
 
