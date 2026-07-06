@@ -83,7 +83,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
         this.embedding.warmEmbeddingConnection(agentId, embedding),
       reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
       backfillEmbeddings: (agentId) => this.backfillEmbeddings(agentId),
-      isReindexing: (agentId) => this.embedding.isReindexing(agentId)
+      isReindexing: (agentId) => this.embedding.isReindexing(agentId),
+      deletePrunableVectorsForMemoryIds: (agentId, embedding, dimensions, memoryIds) =>
+        this.vectorStore.deletePrunableVectorsForMemoryIds(
+          agentId,
+          embedding,
+          dimensions,
+          memoryIds
+        )
     })
 
     this.reflection = new ReflectionService(this.runtime, {
@@ -104,8 +111,17 @@ export class MemoryPresenter implements MemoryRuntimePort {
     })
 
     maintenanceService = new MaintenanceService(this.runtime, this.rows, {
-      retrieve: (agentId, query, now, recordAccessHits) =>
-        this.retrieval.retrieve(agentId, query, now, recordAccessHits),
+      queryNeighborsByMemoryId: (agentId, embedding, dimensions, memoryId, topK) =>
+        this.vectorStore.queryNeighborsByMemoryId(agentId, embedding, dimensions, memoryId, topK),
+      getWarmVectorStoreDimension: (agentId, embedding) =>
+        this.vectorStore.getWarmVectorStoreDimension(agentId, embedding),
+      deletePrunableVectorsForMemoryIds: (agentId, embedding, dimensions, memoryIds) =>
+        this.vectorStore.deletePrunableVectorsForMemoryIds(
+          agentId,
+          embedding,
+          dimensions,
+          memoryIds
+        ),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),

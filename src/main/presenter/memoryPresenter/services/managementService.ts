@@ -36,6 +36,10 @@ function toHealthTopAccessedItem(
   }
 }
 
+function isInternalMemoryKind(row: AgentMemoryRow): boolean {
+  return row.kind === 'persona' || row.kind === 'working'
+}
+
 export class ManagementService {
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -55,6 +59,7 @@ export class ManagementService {
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
+    if (isInternalMemoryKind(row)) return false
     this.ctx.deps.repository.updateStatus(memoryId, 'pending_embedding')
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     void this.ports.triggerEmbedding(agentId).catch((error) => {
@@ -70,6 +75,7 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
+    if (isInternalMemoryKind(row)) return false
     if (row.status === 'archived') return true
     this.ctx.deps.repository.archive(row.id, Date.now())
     if (this.ctx.isDisposed) return true
@@ -84,6 +90,7 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) return false
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
+    if (isInternalMemoryKind(row)) return false
     const alreadyArchived = row.status === 'archived'
     if (!alreadyArchived) {
       this.ctx.deps.repository.archive(row.id, Date.now())
@@ -107,7 +114,9 @@ export class ManagementService {
   listMemories(agentId: string): AgentMemoryRow[] {
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.isManagedAgent(agentId)) return []
-    return this.ctx.deps.repository.listByAgent(agentId, { includeArchived: true })
+    return this.ctx.deps.repository
+      .listByAgent(agentId, { includeArchived: true })
+      .filter((row) => row.kind !== 'persona')
   }
 
   getByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {

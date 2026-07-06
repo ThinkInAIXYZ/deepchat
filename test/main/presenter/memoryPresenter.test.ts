@@ -1903,7 +1903,7 @@ describe('MemoryPresenter management', () => {
     }
   })
 
-  it('skips duplicate query embeddings while a timed-out request is still in flight', async () => {
+  it('shares identical query embeddings while a timed-out request is still in flight', async () => {
     vi.useFakeTimers()
     try {
       const repo = new FakeRepository()
@@ -1937,13 +1937,94 @@ describe('MemoryPresenter management', () => {
       expect((await first).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
 
-      const second = await presenter.recall('a', 'redis setup')
+      const second = presenter.recall('a', 'redis setup')
+      await vi.advanceTimersByTimeAsync(801)
 
-      expect(second.map((item) => item.id)).toEqual([memoryId])
+      expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('shares identical concurrent query embeddings and returns vector hits to both callers', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    let resolveQueryEmbedding: ((vectors: number[][]) => void) | null = null
+    const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+      if (texts[0] === 'redis') {
+        return new Promise<number[][]>((resolve) => {
+          resolveQueryEmbedding = resolve
+        })
+      }
+      return Promise.resolve(texts.map((text) => textToVector(text)))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const [memoryId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    getEmbeddings.mockClear()
+
+    const first = presenter.recall('a', 'redis')
+    const second = presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => resolveQueryEmbedding !== null)
+    resolveQueryEmbedding?.([textToVector('redis')])
+
+    const [firstHits, secondHits] = await Promise.all([first, second])
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    expect(firstHits.find((item) => item.id === memoryId)?.sources?.vec).toBe(true)
+    expect(secondHits.find((item) => item.id === memoryId)?.sources?.vec).toBe(true)
+  })
+
+  it('allows two distinct query embeddings and skips only the third fresh query', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const pendingQueryEmbeddings: Array<(vectors: number[][]) => void> = []
+    let blockQueryEmbedding = false
+    let queryEmbeddingCalls = 0
+    const getEmbeddings = vi.fn((_p: string, _m: string, texts: string[]) => {
+      if (blockQueryEmbedding && texts[0] !== 'memory warmup') {
+        queryEmbeddingCalls += 1
+        return new Promise<number[][]>((resolve) => pendingQueryEmbeddings.push(resolve))
+      }
+      return Promise.resolve(texts.map((text) => textToVector(text)))
+    })
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const [memoryId] = presenter.writeMemoriesSync(
+      [{ kind: 'semantic', content: 'redis vue setup' }],
+      { agentId: 'a' }
+    )
+    await presenter.processPendingEmbeddings('a')
+
+    blockQueryEmbedding = true
+    const first = presenter.recall('a', 'redis setup')
+    const second = presenter.recall('a', 'vue setup')
+    await waitForMemoryCondition(() => pendingQueryEmbeddings.length === 2)
+    const third = await presenter.recall('a', 'setup')
+    pendingQueryEmbeddings[0]([textToVector('redis setup')])
+    pendingQueryEmbeddings[1]([textToVector('vue setup')])
+
+    const [firstHits, secondHits] = await Promise.all([first, second])
+    expect(firstHits.find((item) => item.id === memoryId)?.sources?.vec).toBe(true)
+    expect(secondHits.find((item) => item.id === memoryId)?.sources?.vec).toBe(true)
+    expect(third.find((item) => item.id === memoryId)?.sources?.vec).not.toBe(true)
+    expect(third.map((item) => item.id)).toEqual([memoryId])
+    expect(queryEmbeddingCalls).toBe(2)
   })
 
   it('replaces stale query embedding in-flight entries without late-settle deletion', async () => {
@@ -2251,6 +2332,207 @@ describe('MemoryPresenter management', () => {
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).toContain(ids[0])
   })
 
+  it('inline-prunes vector matches that SQLite rejects as dead', async () => {
+    const { presenter, repo, store } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    repo.archive(id, Date.now())
+    expect(store.vectors.has(id)).toBe(true)
+
+    await presenter.recall('a', 'redis')
+
+    await waitForMemoryCondition(() => !store.vectors.has(id), 'dead vector was not pruned')
+  })
+
+  it('does not delete restored vectors from an in-flight inline prune', async () => {
+    const { presenter, repo, store } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    repo.archive(id, Date.now())
+    const originalFilterPrunable = repo.filterPrunableVectorRefs.bind(repo)
+    const filterPrunable = vi
+      .spyOn(repo, 'filterPrunableVectorRefs')
+      .mockImplementation((agentId, ids, embeddingDim, embeddingModel) => {
+        if (ids.includes(id)) {
+          repo.updateStatus(id, 'embedded', {
+            embeddingId: id,
+            embeddingDim,
+            embeddingModel
+          })
+          store.vectors.set(id, textToVector('redis cache restored'))
+        }
+        return originalFilterPrunable(agentId, ids, embeddingDim, embeddingModel)
+      })
+    const deleteByMemoryIds = vi.spyOn(store, 'deleteByMemoryIds')
+
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => filterPrunable.mock.calls.length > 0)
+
+    expect(deleteByMemoryIds).not.toHaveBeenCalled()
+    expect(repo.getById(id)).toMatchObject({
+      status: 'embedded',
+      embedding_id: id,
+      embedding_dim: 4,
+      embedding_model: 'p:m'
+    })
+    expect(store.vectors.has(id)).toBe(true)
+  })
+
+  it('maintenance sweep deletes prunable vectors before clearing embedding refs', async () => {
+    const generateText = routedLLM({})
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(id, Date.now())
+    expect(store.vectors.has(id)).toBe(true)
+    expect(repo.getById(id)?.embedding_id).toBe(id)
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(store.vectors.has(id)).toBe(false)
+    expect(repo.getById(id)).toMatchObject({
+      status: 'archived',
+      embedding_id: null,
+      embedding_dim: null,
+      embedding_model: null
+    })
+  })
+
+  it('does not delete restored vectors when a row changes before guarded prune', async () => {
+    const generateText = routedLLM({})
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(id, Date.now())
+    const originalFilterPrunable = repo.filterPrunableVectorRefs.bind(repo)
+    const deleteByMemoryIds = vi.spyOn(store, 'deleteByMemoryIds')
+    vi.spyOn(repo, 'filterPrunableVectorRefs').mockImplementation(
+      (agentId, ids, embeddingDim, embeddingModel) => {
+        if (ids.includes(id)) {
+          repo.updateStatus(id, 'embedded', {
+            embeddingId: id,
+            embeddingDim,
+            embeddingModel
+          })
+          store.vectors.set(id, textToVector('user likes redis restored'))
+        }
+        return originalFilterPrunable(agentId, ids, embeddingDim, embeddingModel)
+      }
+    )
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(deleteByMemoryIds).not.toHaveBeenCalled()
+    expect(repo.getById(id)).toMatchObject({
+      status: 'embedded',
+      embedding_id: id,
+      embedding_dim: 4,
+      embedding_model: 'p:m'
+    })
+    expect(store.vectors.has(id)).toBe(true)
+  })
+
+  it('does not let stale-dimension refs starve current-dimension vector pruning', async () => {
+    const generateText = routedLLM({})
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const liveId = await seedEmbedded(presenter, 'live current vector')
+    repo.setAnchor(liveId, true)
+    for (let index = 0; index < 260; index += 1) {
+      const id = `old-${index}`
+      repo.insert({
+        id,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `old archived ${index}`,
+        status: 'embedded',
+        createdAt: index
+      })
+      repo.updateStatus(id, 'embedded', {
+        embeddingId: id,
+        embeddingDim: 8,
+        embeddingModel: 'p:m'
+      })
+      repo.archive(id, Date.now())
+      store.vectors.set(id, textToVector(`old archived ${index}`))
+    }
+    for (let index = 0; index < 2; index += 1) {
+      const id = `current-${index}`
+      repo.insert({
+        id,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `current archived ${index}`,
+        status: 'embedded',
+        createdAt: 1000 + index
+      })
+      repo.updateStatus(id, 'embedded', {
+        embeddingId: id,
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+      repo.archive(id, Date.now())
+      store.vectors.set(id, textToVector(`current archived ${index}`))
+    }
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(store.vectors.has('current-0')).toBe(false)
+    expect(store.vectors.has('current-1')).toBe(false)
+    expect(repo.getById('current-0')).toMatchObject({
+      embedding_id: null,
+      embedding_dim: null,
+      embedding_model: null
+    })
+    expect(repo.getById('old-0')).toMatchObject({
+      embedding_id: 'old-0',
+      embedding_dim: 8,
+      embedding_model: 'p:m'
+    })
+    expect(store.vectors.has('old-0')).toBe(true)
+    expect(repo.getById(liveId)?.status).toBe('embedded')
+  })
+
+  it('surfaces guarded prune filter failures instead of treating them as no-op deletes', async () => {
+    const generateText = routedLLM({})
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(id, Date.now())
+    vi.spyOn(repo, 'filterPrunableVectorRefs').mockImplementation(() => {
+      throw new Error('filter failed')
+    })
+
+    await expect(presenter.runConsolidationPass('a', 1_000 * DAY)).rejects.toThrow('filter failed')
+
+    expect(repo.getById(id)?.embedding_id).toBe(id)
+    expect(store.vectors.has(id)).toBe(true)
+  })
+
+  it('restores and re-embeds a memory after maintenance prunes its archived vector', async () => {
+    const generateText = routedLLM({})
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const id = await seedEmbedded(presenter, 'user likes redis')
+    repo.archive(id, Date.now())
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+    expect(store.vectors.has(id)).toBe(false)
+    expect(repo.getById(id)?.embedding_id).toBeNull()
+
+    expect(presenter.restoreMemory('a', id)).toBe(true)
+    await presenter.processPendingEmbeddings('a')
+
+    expect(repo.getById(id)).toMatchObject({
+      status: 'embedded',
+      embedding_id: id,
+      embedding_dim: 4,
+      embedding_model: 'p:m'
+    })
+    expect(store.vectors.has(id)).toBe(true)
+    expect(
+      (await presenter.recall('a', 'redis')).find((item) => item.id === id)?.sources?.vec
+    ).toBe(true)
+  })
+
   it('getByIds returns owned memories in input order without status filtering', () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     const ids = presenter.writeMemoriesSync(
@@ -2312,6 +2594,130 @@ describe('MemoryPresenter management', () => {
     expect(archiveAudits.some((audit) => audit.reason === 'already_archived')).toBe(true)
     expect(presenter.restoreMemory('a', id)).toBe(true)
     expect(repo.getById(id)?.status).toBe('pending_embedding')
+  })
+
+  it('refuses generic archive/restore/forget for persona and working rows without audit writes', async () => {
+    const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
+    repo.insert({
+      id: 'persona',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'active self model',
+      status: 'archived',
+      personaState: 'active'
+    })
+    repo.insert({
+      id: 'working',
+      agentId: 'a',
+      kind: 'working',
+      content: 'working blob',
+      status: 'fts_only'
+    })
+
+    expect(presenter.listMemories('a').map((row) => row.id)).not.toContain('persona')
+    expect(presenter.getByIds('a', ['persona']).map((row) => row.id)).toEqual(['persona'])
+    await expect(presenter.forgetMemory('a', 'persona')).resolves.toBe(false)
+    await expect(presenter.archiveUserMemory('a', 'persona')).resolves.toBe(false)
+    expect(presenter.restoreMemory('a', 'persona')).toBe(false)
+    await expect(presenter.forgetMemory('a', 'working')).resolves.toBe(false)
+
+    expect(repo.getById('persona')).toMatchObject({
+      status: 'archived',
+      persona_state: 'active'
+    })
+    expect(repo.getById('working')?.status).toBe('fts_only')
+    expect(auditRepo.listByAgent('a', { eventType: 'memory/archive' })).toHaveLength(0)
+  })
+
+  it('prunes legacy persona and working vectors before repairing their statuses', async () => {
+    const { presenter, repo, auditRepo, store } = makePresenter(enabledConfig)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'live current memory' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    repo.insert({
+      id: 'persona',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'active self model',
+      status: 'fts_only',
+      personaState: 'active'
+    })
+    repo.updateStatus('persona', 'pending_embedding', {
+      embeddingId: 'persona',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    repo.insert({
+      id: 'working',
+      agentId: 'a',
+      kind: 'working',
+      content: 'working blob',
+      status: 'embedded'
+    })
+    repo.updateStatus('working', 'embedded', {
+      embeddingId: 'working',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    await store.upsert([
+      { memoryId: 'persona', embedding: textToVector('active self model') },
+      { memoryId: 'working', embedding: textToVector('working blob') }
+    ])
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(repo.getById('persona')).toMatchObject({
+      status: 'fts_only',
+      embedding_id: null,
+      embedding_dim: null,
+      embedding_model: null
+    })
+    expect(repo.getById('working')).toMatchObject({
+      status: 'fts_only',
+      embedding_id: null,
+      embedding_dim: null,
+      embedding_model: null
+    })
+    expect(store.vectors.has('persona')).toBe(false)
+    expect(store.vectors.has('working')).toBe(false)
+    expect(presenter.getHealth('a').embeddings.pending).toBe(0)
+    expect(presenter.getStatus('a').pendingEmbedding).toBe(0)
+    expect(auditRepo.listByAgent('a', { eventType: 'memory/repair' })).toHaveLength(1)
+  })
+
+  it('keeps internal-kind embedding refs when vector prune fails', async () => {
+    const { presenter, repo, auditRepo, store } = makePresenter(enabledConfig)
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'live current memory' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+    vi.spyOn(store, 'deleteByMemoryIds').mockRejectedValue(new Error('delete failed'))
+    repo.insert({
+      id: 'persona',
+      agentId: 'a',
+      kind: 'persona',
+      content: 'active self model',
+      status: 'fts_only',
+      personaState: 'active'
+    })
+    repo.updateStatus('persona', 'pending_embedding', {
+      embeddingId: 'persona',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    await store.upsert([{ memoryId: 'persona', embedding: textToVector('active self model') }])
+
+    await presenter.runConsolidationPass('a', 1_000 * DAY)
+
+    expect(repo.getById('persona')).toMatchObject({
+      status: 'fts_only',
+      embedding_id: 'persona',
+      embedding_dim: 4,
+      embedding_model: 'p:m'
+    })
+    expect(store.vectors.has('persona')).toBe(true)
+    expect(auditRepo.listByAgent('a', { eventType: 'memory/repair' })).toHaveLength(1)
   })
 })
 
@@ -2492,6 +2898,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
           })
       ),
       query: async () => [],
+      queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
       close: async () => {},
       isUsable: () => true
@@ -2527,6 +2934,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
         throw new Error('INSERT failed')
       }),
       query: async () => [],
+      queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
       close: async () => {},
       isUsable: () => true
@@ -2569,6 +2977,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     const unusableStore: IMemoryVectorStore = {
       upsert: async () => {},
       query: async () => [],
+      queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
       close: async () => {},
       isUsable: () => false
@@ -3522,6 +3931,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     const unusable: IMemoryVectorStore = {
       upsert: async () => {},
       query: async () => [],
+      queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
       close: async () => {},
       isUsable: () => false
@@ -3946,7 +4356,7 @@ describe('MemoryPresenter decision ring (T-A1..T-A5)', () => {
     expect(repo.getById('c1')?.provenance_key).toBe(
       buildMemoryProvenanceKey('a', 'semantic', 'user prefers valkey over redis')
     )
-    expect(repo.getById('c1')?.status).toBe('pending_embedding')
+    expect(['pending_embedding', 'embedded']).toContain(repo.getById('c1')?.status)
     expect(repo.getById(targetId)?.status).toBe('archived')
   })
 
@@ -4324,13 +4734,49 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
       { memoryId: 'old', embedding: textToVector('alpha redis habit') },
       { memoryId: 'new', embedding: textToVector('beta redis habit') }
     ])
+    getEmbeddings.mockClear()
 
     await presenter.runConsolidationPass('a', now)
 
     expect(createVectorStore).toHaveBeenCalledTimes(1)
-    expect(getEmbeddings).toHaveBeenCalledWith('p', 'm', ['alpha redis habit'])
+    expect(getEmbeddings.mock.calls.map((call) => call[2])).not.toContainEqual([
+      'alpha redis habit'
+    ])
+    expect(getEmbeddings.mock.calls.map((call) => call[2])).not.toContainEqual(['beta redis habit'])
     expect(repo.listByAgent('a')).toHaveLength(1)
     expect(repo.getById('old')?.superseded_by).toBe('new')
+  })
+
+  it('bounds stored-vector consolidation scans and resumes with a compound cursor', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter, repo, store } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const queryByMemoryId = vi.spyOn(store, 'queryByMemoryId').mockResolvedValue([])
+    for (let i = 0; i < 70; i += 1) {
+      const id = `m-${String(i).padStart(2, '0')}`
+      repo.insert({
+        id,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `memory ${i}`,
+        status: 'embedded',
+        createdAt: now - 1000
+      })
+      repo.updateStatus(id, 'embedded', {
+        embeddingId: id,
+        embeddingDim: 4,
+        embeddingModel: 'p:m'
+      })
+    }
+
+    await presenter.runConsolidationPass('a', now)
+    expect(queryByMemoryId).toHaveBeenCalledTimes(64)
+    expect(decisionCalls(generateText)).toBe(0)
+
+    await presenter.runConsolidationPass('a', now + 6 * 60 * 60 * 1000 + 1)
+    expect(queryByMemoryId).toHaveBeenCalledTimes(70)
   })
 
   it('respects the cooldown: a second pass within the window does no LLM work (T-B5)', async () => {
@@ -5707,6 +6153,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
           resolveQuery = () => resolve([{ memoryId: 'm1', distance: 0.01 }])
         })
       }),
+      queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
       close: async () => {},
       isUsable: () => true

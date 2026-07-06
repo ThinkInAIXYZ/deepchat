@@ -274,6 +274,14 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     }
   }
 
+  private distanceFunction(): string {
+    return this.metric === 'ip'
+      ? 'array_negative_inner_product'
+      : this.metric === 'cosine'
+        ? 'array_cosine_distance'
+        : 'array_distance'
+  }
+
   async upsert(records: MemoryVectorRecord[]): Promise<void> {
     if (!records.length) return
     await this.connection.run('BEGIN TRANSACTION;')
@@ -299,12 +307,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     embedding: number[],
     options: MemoryVectorQueryOptions
   ): Promise<MemoryVectorMatch[]> {
-    const fn =
-      this.metric === 'ip'
-        ? 'array_negative_inner_product'
-        : this.metric === 'cosine'
-          ? 'array_cosine_distance'
-          : 'array_distance'
+    const fn = this.distanceFunction()
     const sql = `
       SELECT memory_id, ${fn}(embedding, ?) AS distance
       FROM ${this.vectorTable}
@@ -320,6 +323,22 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       memoryId: String(row.memory_id),
       distance: Number(row.distance)
     }))
+  }
+
+  async queryByMemoryId(
+    memoryId: string,
+    options: MemoryVectorQueryOptions
+  ): Promise<MemoryVectorMatch[]> {
+    const reader = await this.connection.runAndReadAll(
+      `SELECT embedding FROM ${this.vectorTable} WHERE memory_id = ? LIMIT 1;`,
+      [memoryId]
+    )
+    const source = reader.getRowObjectsJson()[0]?.embedding
+    if (!Array.isArray(source)) return []
+    const embedding = source.map(Number).filter((value) => Number.isFinite(value))
+    if (embedding.length !== source.length || embedding.length === 0) return []
+    const matches = await this.query(embedding, { topK: options.topK + 1 })
+    return matches.filter((match) => match.memoryId !== memoryId).slice(0, options.topK)
   }
 
   async deleteByMemoryIds(memoryIds: string[]): Promise<void> {

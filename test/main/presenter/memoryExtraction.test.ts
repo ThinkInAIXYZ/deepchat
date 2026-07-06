@@ -156,6 +156,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       createVectorStore: async () => ({
         upsert: async () => {},
         query: async () => [],
+        queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
         clear: async () => {},
         close: async () => {}
@@ -210,6 +211,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       createVectorStore: async () => ({
         upsert: async () => {},
         query: async () => [],
+        queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
         clear: async () => {},
         close: async () => {}
@@ -245,6 +247,7 @@ describe('MemoryPresenter.extractAndStore', () => {
       createVectorStore: async () => ({
         upsert: async () => {},
         query: async () => [],
+        queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
         clear: async () => {},
         close: async () => {}
@@ -298,6 +301,7 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
       createVectorStore: async () => ({
         upsert: async () => {},
         query: async () => [],
+        queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
         close: async () => {},
         isUsable: () => true
@@ -430,6 +434,7 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
       createVectorStore: async () => ({
         upsert: async () => {},
         query: async () => [],
+        queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
         close: async () => {},
         isUsable: () => true
@@ -548,6 +553,7 @@ function makeFakeRepo() {
         source_session: input.sourceSession ?? null,
         embedding_id: null,
         embedding_dim: null,
+        embedding_model: null,
         user_scope: null,
         last_accessed: null,
         access_count: 0,
@@ -604,6 +610,11 @@ function makeFakeRepo() {
       return n
     },
     countByAgent: (agentId: string) =>
-      [...rows.values()].filter((r) => r.agent_id === agentId).length
+      [...rows.values()].filter((r) => r.agent_id === agentId).length,
+    listConsolidationScanRows: () => [],
+    repairInternalKindStatuses: () => 0,
+    listPrunableVectorRefs: () => [],
+    filterPrunableVectorRefs: () => [],
+    clearPrunableEmbeddingRefs: () => 0
   }
 }

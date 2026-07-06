@@ -361,6 +361,12 @@ describe('memory.search route contract', () => {
     expect(
       memorySearchRoute.input.parse({ agentId: 'deepchat', query: 'redis', limit: 5 }).limit
     ).toBe(5)
+    expect(
+      memorySearchRoute.input.parse({ agentId: 'deepchat', query: 'redis', limit: 100 }).limit
+    ).toBe(100)
+    expect(
+      memorySearchRoute.input.safeParse({ agentId: 'deepchat', query: 'redis', limit: 101 }).success
+    ).toBe(false)
     expect(memorySearchRoute.input.safeParse({ agentId: 'has space', query: 'x' }).success).toBe(
       false
     )

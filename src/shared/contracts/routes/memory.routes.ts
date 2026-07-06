@@ -348,8 +348,8 @@ export const memorySearchRoute = defineRouteContract({
   input: z.object({
     agentId: AgentIdSchema,
     query: z.string(),
-    // Caps the result count only; it cannot widen the agent's configured topK.
-    limit: z.number().int().positive().max(500).optional()
+    // Search-only retrieval depth/result cap. Defaults to 50 and is clamped by the presenter to 100.
+    limit: z.number().int().positive().max(100).optional()
   }),
   output: z.object({ results: z.array(MemorySearchResultSchema) })
 })

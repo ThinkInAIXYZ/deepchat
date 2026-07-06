@@ -1229,6 +1229,275 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('search excludes persona rows before applying the SQL limit', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (let index = 0; index < 10; index += 1) {
+        table.insert({
+          id: `persona-${index}`,
+          agentId: 'a',
+          kind: 'persona',
+          content: `redis persona ${index}`,
+          status: 'fts_only',
+          createdAt: 100 + index
+        })
+      }
+      for (let index = 0; index < 2; index += 1) {
+        table.insert({
+          id: `mem-${index}`,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `redis memory ${index}`,
+          status: 'fts_only',
+          createdAt: index
+        })
+      }
+
+      const ids = table.search('a', 'redis', 2).map((row) => row.id)
+      expect(ids).toHaveLength(2)
+      expect(new Set(ids)).toEqual(new Set(['mem-0', 'mem-1']))
+    } finally {
+      db.close()
+    }
+  })
+
+  it('repairs persona and working rows back to fts_only without clearing embedding refs', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'persona', agentId: 'a', kind: 'persona', content: 'self model' })
+      table.updateStatus('persona', 'pending_embedding', {
+        embeddingId: 'persona',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.insert({ id: 'work', agentId: 'a', kind: 'working', content: 'working blob' })
+      table.updateStatus('work', 'embedded', {
+        embeddingId: 'work',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.insert({ id: 'mem', agentId: 'a', kind: 'semantic', content: 'redis memory' })
+      table.updateStatus('mem', 'pending_embedding')
+
+      expect(table.repairInternalKindStatuses('a')).toBe(2)
+      expect(table.getById('persona')).toMatchObject({
+        status: 'fts_only',
+        embedding_id: 'persona',
+        embedding_dim: 3,
+        embedding_model: 'p:m'
+      })
+      expect(table.getById('work')).toMatchObject({
+        status: 'fts_only',
+        embedding_id: 'work',
+        embedding_dim: 3,
+        embedding_model: 'p:m'
+      })
+      expect(table.getById('mem')?.status).toBe('pending_embedding')
+      expect(table.repairInternalKindStatuses('a')).toBe(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('lists prunable vector refs and clears embedding refs without changing lifecycle state', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'active',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'active',
+        createdAt: 1
+      })
+      table.updateStatus('active', 'embedded', {
+        embeddingId: 'active',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'persona',
+        agentId: 'a',
+        kind: 'persona',
+        content: 'self',
+        status: 'fts_only',
+        createdAt: 2
+      })
+      table.updateStatus('persona', 'fts_only', {
+        embeddingId: 'persona',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'work',
+        agentId: 'a',
+        kind: 'working',
+        content: 'working',
+        status: 'fts_only',
+        createdAt: 3
+      })
+      table.updateStatus('work', 'fts_only', {
+        embeddingId: 'work',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.insert({
+        id: 'archived',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'archived',
+        createdAt: 4
+      })
+      table.updateStatus('archived', 'embedded', {
+        embeddingId: 'archived',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.archive('archived')
+      table.insert({
+        id: 'superseded',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'superseded',
+        createdAt: 5
+      })
+      table.updateStatus('superseded', 'embedded', {
+        embeddingId: 'superseded',
+        embeddingDim: 3,
+        embeddingModel: 'p:m'
+      })
+      table.markSuperseded('superseded', 'active')
+
+      expect(table.listPrunableVectorRefs('a', { limit: 10 })).toEqual([
+        { id: 'persona', embeddingDim: 3, embeddingModel: 'p:m' },
+        { id: 'work', embeddingDim: 3, embeddingModel: 'p:m' },
+        { id: 'archived', embeddingDim: 3, embeddingModel: 'p:m' },
+        { id: 'superseded', embeddingDim: 3, embeddingModel: 'p:m' }
+      ])
+      expect(
+        table.filterPrunableVectorRefs('a', ['active', 'archived', 'superseded'], 3, 'p:m')
+      ).toEqual(['archived', 'superseded'])
+      expect(
+        table.clearPrunableEmbeddingRefs('a', ['active', 'archived', 'superseded'], 3, 'p:m')
+      ).toBe(2)
+      expect(table.getById('archived')).toMatchObject({
+        status: 'archived',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null
+      })
+      expect(table.getById('superseded')).toMatchObject({
+        superseded_by: 'active',
+        status: 'embedded',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null
+      })
+      expect(table.getById('active')?.embedding_id).toBe('active')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('filters prunable vector refs by embedding model before applying the limit', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (let index = 0; index < 260; index += 1) {
+        const id = `old-${index}`
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `old archived ${index}`,
+          createdAt: index
+        })
+        table.updateStatus(id, 'embedded', {
+          embeddingId: id,
+          embeddingDim: 3,
+          embeddingModel: 'old:model'
+        })
+        table.archive(id)
+      }
+      for (let index = 0; index < 2; index += 1) {
+        const id = `current-${index}`
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `current archived ${index}`,
+          createdAt: 1000 + index
+        })
+        table.updateStatus(id, 'embedded', {
+          embeddingId: id,
+          embeddingDim: 3,
+          embeddingModel: 'p:m'
+        })
+        table.archive(id)
+      }
+
+      expect(
+        table.listPrunableVectorRefs('a', { limit: 2, embeddingModel: 'p:m' }).map((ref) => ref.id)
+      ).toEqual(['current-0', 'current-1'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('filters prunable vector refs by embedding dim before applying the limit', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (let index = 0; index < 260; index += 1) {
+        const id = `old-dim-${index}`
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `old dim archived ${index}`,
+          createdAt: index
+        })
+        table.updateStatus(id, 'embedded', {
+          embeddingId: id,
+          embeddingDim: 8,
+          embeddingModel: 'p:m'
+        })
+        table.archive(id)
+      }
+      for (let index = 0; index < 2; index += 1) {
+        const id = `current-dim-${index}`
+        table.insert({
+          id,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `current dim archived ${index}`,
+          createdAt: 1000 + index
+        })
+        table.updateStatus(id, 'embedded', {
+          embeddingId: id,
+          embeddingDim: 4,
+          embeddingModel: 'p:m'
+        })
+        table.archive(id)
+      }
+
+      expect(
+        table
+          .listPrunableVectorRefs('a', { limit: 2, embeddingModel: 'p:m', embeddingDim: 4 })
+          .map((ref) => ref.id)
+      ).toEqual(['current-dim-0', 'current-dim-1'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('v32 migration backfills source_entry_ids and embedding_model on a legacy table', () => {
     const db = new DatabaseCtor(':memory:')
     try {

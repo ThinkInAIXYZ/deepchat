@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 
-import type { IMemoryVectorStore } from '../types'
+import type { IMemoryVectorStore, MemoryVectorMatch } from '../types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type { VectorStoreRetrievalPort } from '../ports'
 
@@ -38,6 +38,17 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     if (this.vectorStoreIdentities.get(agentId) !== readyIdentity) return false
     if (!this.vectorStores.has(agentId)) return false
     return readyIdentity.startsWith(`${this.warmupKey(agentId, embedding)}::`)
+  }
+
+  getWarmVectorStoreDimension(agentId: string, embedding: MemoryModelRef): number | null {
+    const readyIdentity = this.vectorStoreReady.get(agentId)
+    if (!readyIdentity) return null
+    if (this.vectorStoreIdentities.get(agentId) !== readyIdentity) return null
+    if (!this.vectorStores.has(agentId)) return null
+    const prefix = `${this.warmupKey(agentId, embedding)}::`
+    if (!readyIdentity.startsWith(prefix)) return null
+    const dimensions = Number(readyIdentity.slice(prefix.length))
+    return Number.isFinite(dimensions) && dimensions > 0 ? Math.floor(dimensions) : null
   }
 
   markReady(agentId: string, embedding: MemoryModelRef, dimensions: number): void {
@@ -156,6 +167,65 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       await store.deleteByMemoryIds(memoryIds).catch((error) => {
         logger.warn(`[Memory] vector delete failed: ${String(error)}`)
       })
+    })
+  }
+
+  async deletePrunableVectorsForMemoryIds(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    memoryIds: string[]
+  ): Promise<string[]> {
+    if (!memoryIds.length) return []
+    return this.withAgentLock(agentId, async (locked) => {
+      if (this.ctx.isDisposed) return []
+      const store = await locked.open(embedding, dimensions)
+      if (!store.isUsable()) {
+        this.clearReady(agentId)
+        return []
+      }
+      const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+      const prunableIds = this.ctx.deps.repository.filterPrunableVectorRefs(
+        agentId,
+        memoryIds,
+        dimensions,
+        fingerprint
+      )
+      if (!prunableIds.length) return []
+      try {
+        await store.deleteByMemoryIds(prunableIds)
+        return prunableIds
+      } catch (error) {
+        logger.warn(`[Memory] vector prune failed: ${String(error)}`)
+        return []
+      }
+    })
+  }
+
+  async deleteVectorsForMemoryIdsForEmbedding(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    memoryIds: string[]
+  ): Promise<string[]> {
+    return this.deletePrunableVectorsForMemoryIds(agentId, embedding, dimensions, memoryIds)
+  }
+
+  async queryNeighborsByMemoryId(
+    agentId: string,
+    embedding: MemoryModelRef,
+    dimensions: number,
+    memoryId: string,
+    topK: number
+  ): Promise<MemoryVectorMatch[]> {
+    return this.withAgentLock(agentId, async (locked) => {
+      if (this.ctx.isDisposed) return []
+      const store = await locked.open(embedding, dimensions)
+      if (!store.isUsable()) {
+        this.clearReady(agentId)
+        return []
+      }
+      return store.queryByMemoryId(memoryId, { topK })
     })
   }
 

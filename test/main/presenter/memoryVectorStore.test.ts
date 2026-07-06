@@ -25,6 +25,16 @@ interface TestStore {
   upsert(records: MemoryVectorRecord[]): Promise<void>
 }
 
+interface QueryableStore {
+  connection: { runAndReadAll: ReturnType<typeof vi.fn> }
+  vectorTable: string
+  query: ReturnType<typeof vi.fn>
+  queryByMemoryId(
+    memoryId: string,
+    options: { topK: number }
+  ): Promise<Array<{ memoryId: string; distance: number }>>
+}
+
 function makeStore(onRun: (sql: string) => void = () => {}) {
   const calls: string[] = []
   const connection = {
@@ -63,6 +73,57 @@ describe('MemoryVectorStore.upsert transaction (C4, AC-4.2)', () => {
     const { store, connection } = makeStore()
     await store.upsert([])
     expect(connection.run).not.toHaveBeenCalled()
+  })
+})
+
+describe('MemoryVectorStore.queryByMemoryId', () => {
+  it('reads the stored source vector, reuses parameterized query, and excludes itself', async () => {
+    const connection = {
+      runAndReadAll: vi.fn(async () => ({
+        getRowObjectsJson: () => [{ embedding: [0.1, 0.2] }]
+      }))
+    }
+    const store = Object.create(MemoryVectorStore.prototype) as QueryableStore
+    store.connection = connection
+    store.vectorTable = 'memory_vector'
+    store.query = vi.fn(async () => [
+      { memoryId: 'm1', distance: 0 },
+      { memoryId: 'm2', distance: 0.12 },
+      { memoryId: 'm3', distance: 0.2 }
+    ])
+
+    const matches = await store.queryByMemoryId('m1', { topK: 2 })
+
+    expect(matches).toEqual([
+      { memoryId: 'm2', distance: 0.12 },
+      { memoryId: 'm3', distance: 0.2 }
+    ])
+    expect(connection.runAndReadAll).toHaveBeenCalledWith(
+      expect.stringContaining('SELECT embedding'),
+      ['m1']
+    )
+    expect(store.query).toHaveBeenCalledWith([0.1, 0.2], { topK: 3 })
+  })
+
+  it('returns no neighbors when the source vector is missing or malformed', async () => {
+    const connection = {
+      runAndReadAll: vi.fn(async () => ({
+        getRowObjectsJson: () => []
+      }))
+    }
+    const store = Object.create(MemoryVectorStore.prototype) as QueryableStore
+    store.connection = connection
+    store.vectorTable = 'memory_vector'
+    store.query = vi.fn(async () => [])
+
+    await expect(store.queryByMemoryId('missing', { topK: 2 })).resolves.toEqual([])
+    expect(store.query).not.toHaveBeenCalled()
+
+    connection.runAndReadAll.mockResolvedValueOnce({
+      getRowObjectsJson: () => [{ embedding: ['bad'] }]
+    })
+    await expect(store.queryByMemoryId('bad', { topK: 2 })).resolves.toEqual([])
+    expect(store.query).not.toHaveBeenCalled()
   })
 })
 

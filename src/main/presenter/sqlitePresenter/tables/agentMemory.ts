@@ -692,7 +692,7 @@ export class AgentMemoryTable extends BaseTable {
              AND am.superseded_by IS NULL
              AND am.status != 'archived'
              AND am.status != 'conflicted'
-             AND am.kind != 'working'
+             AND am.kind NOT IN ('persona', 'working')
            ORDER BY bm25(agent_memory_fts)
            LIMIT ?`
         )
@@ -721,7 +721,7 @@ export class AgentMemoryTable extends BaseTable {
            AND superseded_by IS NULL
            AND status != 'archived'
            AND status != 'conflicted'
-           AND kind != 'working'
+           AND kind NOT IN ('persona', 'working')
            AND (${clauses.join(operator)})
          ORDER BY importance DESC, created_at DESC
          LIMIT ?`
@@ -1212,5 +1212,152 @@ export class AgentMemoryTable extends BaseTable {
       )
       .all() as Array<{ agent_id: string }>
     return rows.map((row) => row.agent_id)
+  }
+
+  listConsolidationScanRows(
+    agentId: string,
+    options: {
+      embeddingDim: number
+      embeddingModel: string
+      after?: { createdAt: number; id: string }
+      limit: number
+    }
+  ): AgentMemoryRow[] {
+    const cappedLimit = Math.max(0, Math.floor(options.limit))
+    if (cappedLimit === 0) return []
+    const params: Array<string | number> = [agentId, options.embeddingDim, options.embeddingModel]
+    const cursorClause = options.after ? 'AND (created_at > ? OR (created_at = ? AND id > ?))' : ''
+    if (options.after) {
+      params.push(options.after.createdAt, options.after.createdAt, options.after.id)
+    }
+    params.push(cappedLimit)
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND status = 'embedded'
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND embedding_dim = ?
+           AND embedding_model = ?
+           ${cursorClause}
+         ORDER BY created_at ASC, id ASC
+         LIMIT ?`
+      )
+      .all(...params) as AgentMemoryRow[]
+  }
+
+  repairInternalKindStatuses(agentId: string): number {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET status = 'fts_only'
+         WHERE agent_id = ?
+           AND kind IN ('persona', 'working')
+           AND status != 'fts_only'`
+      )
+      .run(agentId)
+    return result.changes
+  }
+
+  listPrunableVectorRefs(
+    agentId: string,
+    options: { limit: number; embeddingModel?: string; embeddingDim?: number }
+  ): Array<{ id: string; embeddingDim: number; embeddingModel: string }> {
+    const cappedLimit = Math.max(0, Math.floor(options.limit))
+    if (cappedLimit === 0) return []
+    const params: Array<string | number> = [agentId]
+    const embeddingModelClause = options.embeddingModel ? 'AND embedding_model = ?' : ''
+    if (options.embeddingModel) params.push(options.embeddingModel)
+    const embeddingDimClause = options.embeddingDim !== undefined ? 'AND embedding_dim = ?' : ''
+    if (options.embeddingDim !== undefined) params.push(options.embeddingDim)
+    params.push(cappedLimit)
+    const rows = this.db
+      .prepare(
+        `SELECT id,
+                embedding_dim AS embeddingDim,
+                embedding_model AS embeddingModel
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND embedding_id IS NOT NULL
+           AND embedding_dim IS NOT NULL
+           AND embedding_dim > 0
+           AND embedding_model IS NOT NULL
+           ${embeddingModelClause}
+           ${embeddingDimClause}
+           AND (
+             kind IN ('persona', 'working') OR
+             superseded_by IS NOT NULL OR
+             status = 'archived'
+           )
+         ORDER BY created_at ASC, id ASC
+         LIMIT ?`
+      )
+      .all(...params) as Array<{
+      id: string
+      embeddingDim: number
+      embeddingModel: string
+    }>
+    return rows
+  }
+
+  filterPrunableVectorRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ): string[] {
+    const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
+    if (!uniqueIds.length) return []
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    const rows = this.db
+      .prepare(
+        `SELECT id
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND id IN (${placeholders})
+           AND embedding_id IS NOT NULL
+           AND embedding_dim = ?
+           AND embedding_model = ?
+           AND (
+             kind IN ('persona', 'working') OR
+             superseded_by IS NOT NULL OR
+             status = 'archived'
+           )`
+      )
+      .all(agentId, ...uniqueIds, embeddingDim, embeddingModel) as Array<{ id: string }>
+    const liveIds = new Set(rows.map((row) => row.id))
+    return uniqueIds.filter((id) => liveIds.has(id))
+  }
+
+  clearPrunableEmbeddingRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ): number {
+    const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
+    if (!uniqueIds.length) return 0
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    const result = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND id IN (${placeholders})
+           AND embedding_id IS NOT NULL
+           AND embedding_dim = ?
+           AND embedding_model = ?
+           AND (
+             kind IN ('persona', 'working') OR
+             superseded_by IS NOT NULL OR
+             status = 'archived'
+           )`
+      )
+      .run(agentId, ...uniqueIds, embeddingDim, embeddingModel)
+    return result.changes
   }
 }

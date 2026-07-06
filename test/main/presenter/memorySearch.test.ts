@@ -13,6 +13,12 @@ function seed(content: string, id: string) {
   }
 }
 
+function seedRedisRange(repo: { insert(input: ReturnType<typeof seed>): unknown }, count: number) {
+  for (let i = 0; i < count; i += 1) {
+    repo.insert(seed(`redis memory ${String(i).padStart(2, '0')}`, `m${i}`))
+  }
+}
+
 describe('MemoryPresenter.searchMemories (read-only facade)', () => {
   it('surfaces matching rows with their retrieval score', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
@@ -49,17 +55,60 @@ describe('MemoryPresenter.searchMemories (read-only facade)', () => {
     ).toEqual(['m1'])
   })
 
-  it('caps the result count to limit without widening topK', async () => {
+  it('uses search limit as retrieval depth without changing recall topK', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
-    repo.insert(seed('redis caching notes', 'm1'))
-    repo.insert(seed('redis cluster setup', 'm2'))
-    repo.insert(seed('redis persistence tuning', 'm3'))
+    seedRedisRange(repo, 20)
 
-    const limited = await presenter.searchMemories('deepchat', 'redis', { limit: 2 })
-    expect(limited).toHaveLength(2)
+    const limited = await presenter.searchMemories('deepchat', 'redis', { limit: 8 })
+    expect(limited).toHaveLength(8)
 
-    const all = await presenter.searchMemories('deepchat', 'redis')
-    expect(all.length).toBeGreaterThanOrEqual(3)
+    const recall = await presenter.recall('deepchat', 'redis')
+    expect(recall).toHaveLength(6)
+  })
+
+  it('defaults management search depth to 50 and clamps direct callers at 100', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    seedRedisRange(repo, 120)
+
+    await expect(presenter.searchMemories('deepchat', 'redis')).resolves.toHaveLength(50)
+    await expect(
+      presenter.searchMemories('deepchat', 'redis', { limit: 500 })
+    ).resolves.toHaveLength(100)
+  })
+
+  it('does not let persona rows occupy management search result slots', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    for (let i = 0; i < 20; i += 1) {
+      repo.insert({
+        id: `persona-${i}`,
+        agentId: 'deepchat',
+        kind: 'persona',
+        content: `redis persona ${i}`,
+        status: 'fts_only'
+      })
+    }
+    seedRedisRange(repo, 3)
+
+    const hits = await presenter.searchMemories('deepchat', 'redis', { limit: 3 })
+
+    expect(hits.map((hit) => hit.row.id)).toEqual(['m0', 'm1', 'm2'])
+  })
+
+  it('does not prune vectors from the read-only management search path', async () => {
+    const { presenter, repo, store } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {
+      agentId: 'deepchat'
+    })
+    await presenter.processPendingEmbeddings('deepchat')
+    repo.archive(id, Date.now())
+    const filterPrunable = vi.spyOn(repo, 'filterPrunableVectorRefs')
+    const deleteByMemoryIds = vi.spyOn(store, 'deleteByMemoryIds')
+
+    await presenter.searchMemories('deepchat', 'redis')
+
+    expect(filterPrunable).not.toHaveBeenCalled()
+    expect(deleteByMemoryIds).not.toHaveBeenCalled()
+    expect(store.vectors.has(id)).toBe(true)
   })
 
   it('returns nothing for an empty query', async () => {

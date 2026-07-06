@@ -114,6 +114,32 @@ export interface MemoryRepositoryPort {
   countByAgent(agentId: string): number
   hasActiveMemory(agentId: string): boolean
   listAgentIdsWithMemories(): string[]
+  listConsolidationScanRows(
+    agentId: string,
+    options: {
+      embeddingDim: number
+      embeddingModel: string
+      after?: ConsolidationScanCursor
+      limit: number
+    }
+  ): AgentMemoryRow[]
+  repairInternalKindStatuses(agentId: string): number
+  listPrunableVectorRefs(
+    agentId: string,
+    options: { limit: number; embeddingModel?: string; embeddingDim?: number }
+  ): MemoryVectorRef[]
+  filterPrunableVectorRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ): string[]
+  clearPrunableEmbeddingRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ): number
 }
 
 export interface RecallKeywordTermStat {
@@ -165,10 +191,22 @@ export interface MemoryVectorQueryOptions {
   threshold?: number
 }
 
+export interface MemoryVectorRef {
+  id: string
+  embeddingDim: number
+  embeddingModel: string
+}
+
+export interface ConsolidationScanCursor {
+  createdAt: number
+  id: string
+}
+
 // Vector store port (DuckDB), isolated per agent: one database each, with independent dimensions.
 export interface IMemoryVectorStore {
   upsert(records: MemoryVectorRecord[]): Promise<void>
   query(embedding: number[], options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
+  queryByMemoryId(memoryId: string, options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
   deleteByMemoryIds(memoryIds: string[]): Promise<void>
   close(): Promise<void>
   isUsable(): boolean

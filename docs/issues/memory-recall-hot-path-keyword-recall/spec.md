@@ -19,7 +19,9 @@ Memory recall must not add unbounded first-token latency, and FTS-only recall mu
 - Recall keyword selection is corpus-aware: query terms are extracted without a static stopword list, terms with no active corpus hits are dropped, and high-frequency terms are filtered when better lower-frequency terms exist.
 - Mixed ASCII/code/CJK query term extraction preserves original query order before applying the candidate cap, so earlier CJK terms cannot be starved by later ASCII/code tokens.
 - Corpus-aware term stats are collected with one bounded aggregate query per recall, not one query per candidate term.
-- At most one tracked warm query-embedding entry per agent/model is active; later turns skip vector recall while that entry is fresh, and stale entries older than 30 seconds can be replaced without aborting old provider requests.
+- Superseded by `docs/issues/memory-audit-hardening/` F5: warm query embeddings are now tracked per
+  agent/model group and full normalized query, with identical-query sharing and at most two fresh
+  distinct entries per group. The 30-second stale replacement behavior remains.
 - `memory.search` management search keeps the existing all-term semantics.
 - Access counter updates happen in one repository call for a recalled result set.
 - Settings explain the degraded FTS-only state when memory is enabled without an embedding model and warn when extraction falls back to the chat model.
@@ -38,7 +40,9 @@ Memory recall must not add unbounded first-token latency, and FTS-only recall mu
 - Do not implement #19 query expansion or #20 reranker.
 - Do not implement #21 policy port or deduplicate `deriveRecall`.
 - Do not maintain a static recall stopword list.
-- Do not add DuckDB vacuum/orphan vector cleanup.
+- Do not add DuckDB `VACUUM`. The earlier "no orphan vector cleanup" non-goal is superseded by
+  `docs/issues/memory-audit-hardening/` F4, which adds inline and maintenance dead-vector pruning
+  without disk-space compaction.
 - Do not auto-select models or change memory defaults.
 
 ## Open Questions

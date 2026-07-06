@@ -180,6 +180,7 @@ export class FakeRepository implements MemoryRepositoryPort {
           !row.superseded_by &&
           row.status !== 'archived' &&
           row.status !== 'conflicted' &&
+          row.kind !== 'persona' &&
           row.kind !== 'working' &&
           (matchMode === 'any'
             ? terms.some((term) => row.content.toLowerCase().includes(term))
@@ -545,6 +546,113 @@ export class FakeRepository implements MemoryRepositoryPort {
       )
     ]
   }
+
+  listConsolidationScanRows(
+    agentId: string,
+    options: {
+      embeddingDim: number
+      embeddingModel: string
+      after?: { createdAt: number; id: string }
+      limit: number
+    }
+  ) {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          row.status === 'embedded' &&
+          row.superseded_by === null &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          row.embedding_dim === options.embeddingDim &&
+          row.embedding_model === options.embeddingModel &&
+          (!options.after ||
+            row.created_at > options.after.createdAt ||
+            (row.created_at === options.after.createdAt && row.id > options.after.id))
+      )
+      .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))
+      .slice(0, Math.max(0, Math.floor(options.limit)))
+  }
+
+  repairInternalKindStatuses(agentId: string) {
+    let changed = 0
+    for (const row of this.rows.values()) {
+      if (row.agent_id !== agentId || (row.kind !== 'persona' && row.kind !== 'working')) continue
+      if (row.status === 'fts_only') continue
+      row.status = 'fts_only'
+      changed += 1
+    }
+    return changed
+  }
+
+  private isPrunableVectorRow(
+    agentId: string,
+    row: AgentMemoryRow | undefined,
+    embeddingDim?: number,
+    embeddingModel?: string
+  ): row is AgentMemoryRow {
+    return (
+      !!row &&
+      row.agent_id === agentId &&
+      row.embedding_id !== null &&
+      row.embedding_dim !== null &&
+      row.embedding_dim > 0 &&
+      row.embedding_model !== null &&
+      (embeddingDim === undefined || row.embedding_dim === embeddingDim) &&
+      (embeddingModel === undefined || row.embedding_model === embeddingModel) &&
+      (row.kind === 'persona' ||
+        row.kind === 'working' ||
+        row.superseded_by !== null ||
+        row.status === 'archived')
+    )
+  }
+
+  listPrunableVectorRefs(
+    agentId: string,
+    options: { limit: number; embeddingModel?: string; embeddingDim?: number }
+  ) {
+    return [...this.rows.values()]
+      .filter((row) =>
+        this.isPrunableVectorRow(agentId, row, options.embeddingDim, options.embeddingModel)
+      )
+      .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))
+      .slice(0, Math.max(0, Math.floor(options.limit)))
+      .map((row) => ({
+        id: row.id,
+        embeddingDim: row.embedding_dim!,
+        embeddingModel: row.embedding_model!
+      }))
+  }
+
+  filterPrunableVectorRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ) {
+    const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
+    return uniqueIds.filter((id) =>
+      this.isPrunableVectorRow(agentId, this.rows.get(id), embeddingDim, embeddingModel)
+    )
+  }
+
+  clearPrunableEmbeddingRefs(
+    agentId: string,
+    ids: string[],
+    embeddingDim: number,
+    embeddingModel: string
+  ) {
+    let changed = 0
+    for (const id of new Set(ids)) {
+      const row = this.rows.get(id)
+      if (!this.isPrunableVectorRow(agentId, row, embeddingDim, embeddingModel)) continue
+      row.embedding_id = null
+      row.embedding_dim = null
+      row.embedding_model = null
+      changed += 1
+    }
+    return changed
+  }
 }
 
 export class FakeAuditRepository implements MemoryAuditRepositoryPort {
@@ -647,6 +755,16 @@ export class FakeVectorStore implements IMemoryVectorStore {
   async query(embedding: number[], options: { topK: number }): Promise<MemoryVectorMatch[]> {
     return [...this.vectors.entries()]
       .map(([memoryId, vec]) => ({ memoryId, distance: 1 - cosine(embedding, vec) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, options.topK)
+  }
+
+  async queryByMemoryId(memoryId: string, options: { topK: number }): Promise<MemoryVectorMatch[]> {
+    const embedding = this.vectors.get(memoryId)
+    if (!embedding) return []
+    return [...this.vectors.entries()]
+      .filter(([id]) => id !== memoryId)
+      .map(([id, vec]) => ({ memoryId: id, distance: 1 - cosine(embedding, vec) }))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, options.topK)
   }

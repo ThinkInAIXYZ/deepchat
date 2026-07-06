@@ -18,10 +18,17 @@ import {
   type MemoryInjectionResult
 } from '../core/injectionPort'
 import {
+  MEMORY_SEARCH_DEFAULT_LIMIT,
+  RECALL_QUERY_EMBEDDING_MAX_CONCURRENT,
   RECALL_QUERY_EMBEDDING_STALE_MS,
   RECALL_QUERY_EMBEDDING_TIMEOUT_MS
 } from '../runtimeConstants'
-import type { AgentMemoryRow, MemoryRecallItem, MemorySearchHit } from '../types'
+import {
+  MAX_TOP_K,
+  type AgentMemoryRow,
+  type MemoryRecallItem,
+  type MemorySearchHit
+} from '../types'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type { VectorStoreRetrievalPort, WorkingMemoryReadPort } from '../ports'
 
@@ -30,6 +37,26 @@ type SoftTimeoutResult<T> = { timedOut: true } | { timedOut: false; value: T }
 type QueryEmbeddingInFlight = {
   startedAt: number
   promise: Promise<number[][]>
+}
+
+function isLiveRecallVectorRow(
+  agentId: string,
+  row: AgentMemoryRow | undefined
+): row is AgentMemoryRow {
+  return (
+    !!row &&
+    row.agent_id === agentId &&
+    !row.superseded_by &&
+    row.kind !== 'persona' &&
+    row.kind !== 'working' &&
+    row.status !== 'archived' &&
+    row.status !== 'conflicted'
+  )
+}
+
+function clampRetrievalTopK(value: number): number {
+  if (!Number.isFinite(value)) return 1
+  return Math.min(MAX_TOP_K, Math.max(1, Math.floor(value)))
 }
 
 async function withSoftTimeout<T>(
@@ -50,7 +77,7 @@ async function withSoftTimeout<T>(
 }
 
 export class RetrievalService {
-  private readonly queryEmbeddingInFlight = new Map<string, QueryEmbeddingInFlight>()
+  private readonly queryEmbeddingInFlight = new Map<string, Map<string, QueryEmbeddingInFlight>>()
 
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -66,6 +93,12 @@ export class RetrievalService {
       reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
       backfillEmbeddings: (agentId: string) => Promise<void>
       isReindexing: (agentId: string) => boolean
+      deletePrunableVectorsForMemoryIds: (
+        agentId: string,
+        embedding: MemoryModelRef,
+        dimensions: number,
+        memoryIds: string[]
+      ) => Promise<string[]>
     }
   ) {}
 
@@ -94,18 +127,34 @@ export class RetrievalService {
   ): Promise<number[][]> | null {
     const key = `${agentId}::${embeddingFingerprint(embedding.providerId, embedding.modelId)}`
     const now = Date.now()
-    const existing = this.queryEmbeddingInFlight.get(key)
-    if (existing && now - existing.startedAt < RECALL_QUERY_EMBEDDING_STALE_MS) return null
-    if (existing) {
-      logger.warn(`[Memory] stale query embedding replaced for ${agentId}`)
+    let group = this.queryEmbeddingInFlight.get(key)
+    if (!group) {
+      group = new Map()
+      this.queryEmbeddingInFlight.set(key, group)
     }
+    let replacedStale = false
+    for (const [trackedQuery, entry] of group) {
+      if (now - entry.startedAt >= RECALL_QUERY_EMBEDDING_STALE_MS) {
+        group.delete(trackedQuery)
+        replacedStale = true
+      }
+    }
+    if (replacedStale) logger.warn(`[Memory] stale query embedding replaced for ${agentId}`)
+
+    const existing = group.get(query)
+    if (existing) return existing.promise
+    if (group.size >= RECALL_QUERY_EMBEDDING_MAX_CONCURRENT) return null
 
     const promise = this.ctx.deps.getEmbeddings(embedding.providerId, embedding.modelId, [query])
     const entry: QueryEmbeddingInFlight = { startedAt: now, promise }
-    this.queryEmbeddingInFlight.set(key, entry)
+    group.set(query, entry)
     promise
       .finally(() => {
-        if (this.queryEmbeddingInFlight.get(key) === entry) this.queryEmbeddingInFlight.delete(key)
+        const currentGroup = this.queryEmbeddingInFlight.get(key)
+        if (currentGroup?.get(query) === entry) {
+          currentGroup.delete(query)
+          if (currentGroup.size === 0) this.queryEmbeddingInFlight.delete(key)
+        }
       })
       .catch(() => undefined)
     return promise
@@ -117,9 +166,16 @@ export class RetrievalService {
     options: { limit?: number } = {}
   ): Promise<MemorySearchHit[]> {
     if (!this.ctx.canReadAgentMemory(agentId)) return []
-    const hits = await this.retrieve(agentId, query, Date.now(), false)
-    const limited =
-      options.limit != null ? hits.slice(0, Math.max(0, Math.floor(options.limit))) : hits
+    const limit =
+      options.limit != null
+        ? Math.min(MAX_TOP_K, Math.max(0, Math.floor(options.limit)))
+        : MEMORY_SEARCH_DEFAULT_LIMIT
+    if (limit === 0) return []
+    const hits = await this.retrieve(agentId, query, Date.now(), false, {
+      topKOverride: limit,
+      enableInlinePrune: false
+    })
+    const limited = hits.slice(0, limit)
     const results: MemorySearchHit[] = []
     for (const hit of limited) {
       const row = this.ctx.deps.repository.getById(hit.id)
@@ -138,6 +194,8 @@ export class RetrievalService {
       trace?: boolean
       keywordQuery?: string
       keywordMatchMode?: 'all' | 'any'
+      topKOverride?: number
+      enableInlinePrune?: boolean
     } = {}
   ): Promise<MemoryRecallItem[]> {
     if (!this.ctx.canReadAgentMemory(agentId)) return []
@@ -147,7 +205,9 @@ export class RetrievalService {
     if (!normalizedQuery) return []
     const normalizedKeywordQuery = (options.keywordQuery ?? normalizedQuery).trim()
 
-    const candidateLimit = topK * 2
+    const effectiveTopK =
+      options.topKOverride !== undefined ? clampRetrievalTopK(options.topKOverride) : topK
+    const candidateLimit = effectiveTopK * 2
     const ftsRows = normalizedKeywordQuery
       ? this.ctx.deps.repository
           .search(agentId, normalizedKeywordQuery, candidateLimit, {
@@ -213,20 +273,32 @@ export class RetrievalService {
                     this.vectorStore.markReady(agentId, currentEmbedding, vector.length)
                     const matches = await store.query(vector, { topK: candidateLimit })
                     if (!this.ctx.canReadAgentMemory(agentId)) return []
+                    const deadVectorIds: string[] = []
                     for (const match of matches) {
                       const similarity = distanceToSimilarity(match.distance)
                       if (similarity < similarityThreshold) continue
                       const row = this.ctx.deps.repository.getById(match.memoryId)
-                      if (
-                        !row ||
-                        row.superseded_by ||
-                        row.kind === 'persona' ||
-                        row.kind === 'working' ||
-                        row.status === 'archived' ||
-                        row.status === 'conflicted'
-                      )
+                      if (!isLiveRecallVectorRow(agentId, row)) {
+                        deadVectorIds.push(match.memoryId)
                         continue
+                      }
                       vecMatches.push({ row, similarity })
+                    }
+                    if (
+                      options.enableInlinePrune !== false &&
+                      deadVectorIds.length &&
+                      this.ctx.canReadAgentMemory(agentId)
+                    ) {
+                      void this.ports
+                        .deletePrunableVectorsForMemoryIds(
+                          agentId,
+                          currentEmbedding,
+                          vector.length,
+                          [...new Set(deadVectorIds)]
+                        )
+                        .catch((error) => {
+                          logger.warn(`[Memory] inline vector prune failed: ${String(error)}`)
+                        })
                     }
                     if (this.ctx.canReadAgentMemory(agentId) && !this.ports.isReindexing(agentId)) {
                       void this.ports.backfillEmbeddings(agentId).catch((error) => {
@@ -254,7 +326,7 @@ export class RetrievalService {
     }
 
     const results = fuse(ftsRows, vecMatches, {
-      topK,
+      topK: effectiveTopK,
       rrfK,
       weights,
       now,

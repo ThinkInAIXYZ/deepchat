@@ -352,7 +352,9 @@ the model could not understand. A `memory/extract` anchor is written only when a
 ## 8. Retrieval and scoring
 
 `retrieve()` resolves the per-agent retrieval config, fetches `topK*2` candidates from each path, fuses them,
-and trims to `topK`.
+and trims to `topK`. `searchMemories()` is the only caller allowed to pass a search-only `topKOverride`
+(default 50, route max 100); agent-facing recall and prompt injection continue to use the configured
+retrieval `topK` and still record access only for recall/injection hits.
 
 - **Keyword path.** `agent_memory_fts` (FTS5, BM25-ranked) with the tokenizer chosen at runtime — `trigram`
   for CJK/substring matching, else `unicode61`. The query is tokenized on whitespace; each term is quoted
@@ -368,6 +370,11 @@ and trims to `topK`.
   and the same row-class exclusions as the keyword path (persona, working, archived, conflicted, superseded)
   are applied to the matches. If any embedded row's identity is stale (model/dim/fingerprint mismatch), the
   turn answers **FTS-only** and a non-destructive background re-embed is queued — rows are never deleted.
+  Query embeddings are tracked per `agentId::embeddingFingerprint` group and then by full normalized query:
+  identical concurrent queries share one provider call, two distinct fresh queries may run concurrently, and
+  a third distinct query degrades that turn to FTS-only. The 800 ms soft timeout and 30 s stale replacement
+  window still apply per caller. Vector matches rejected by the SQLite liveness filter are queued for
+  fire-and-forget deletion from the current vector store so dead vectors stop occupying candidate slots.
 
 **RRF fusion (`fuse`).** Each path contributes `1/(rrfK + rank + 1)` per item, accumulated when a memory
 appears in both lists. The final order is:
@@ -439,16 +446,28 @@ value is absent, so the cooldown survives restarts. Within the cooldown only che
 no audit row). A missing-model pass is recorded `skipped` and does **not** advance the cooldown (it retries
 next trigger).
 
-**`mergeNearDuplicates` (budgeted).** Iterates active non-persona rows oldest-first, bounded by **8 LLM
-calls** and **24k input tokens** per pass (remainder deferred). For each row it picks the first neighbor with
-similarity ≥ **0.85** and runs the same decision prompt; only `UPDATE`/`SUPERSEDE` fold the pair (the
-more-recent row normally survives — unless the merged content's provenance key is already owned by a third
-row, in which case the pair folds into that owner; importance and confidence only ever rise), so a re-run
-converges.
+**`mergeNearDuplicates` (budgeted).** Scans only active `embedded` non-persona/non-working rows that match
+the current embedding fingerprint/dimension. It uses the row's stored DuckDB vector via
+`queryByMemoryId()` rather than re-embedding row content through the provider; the store method reads the
+source vector by id and reuses the existing parameterized vector query path, then filters the source id out
+of the results. The pass advances an in-memory `{ createdAt, id }` compound cursor so large same-timestamp
+windows are not skipped. Each pass is bounded by
+**64 stored-vector neighbor scans**, **8 LLM calls**, and **24k input tokens** (remainder deferred). For each
+row it picks the first current, live neighbor with similarity ≥ **0.85** and runs the same decision prompt;
+only `UPDATE`/`SUPERSEDE` fold the pair (the more-recent row normally survives — unless the merged content's
+provenance key is already owned by a third row, in which case the pair folds into that owner; importance and
+confidence only ever rise), so a re-run converges.
 
 **Non-destructive archival (`archiveStale`).** A row is soft-deleted only when **all** of: `decayScore <
-0.05`, `access_count == 0`, age `> 90 days`, still active. Anchors and persona are exempt. `restoreMemory`
-reverses it. There is no hard delete on this path.
+0.05`, `access_count == 0`, age `> 90 days`, still active. Anchors, persona, and working rows are exempt.
+`restoreMemory` reverses it for normal memories. There is no hard delete on this path. Maintenance also runs
+a cheap repair that normalizes any legacy persona/working row back to `status='fts_only'` while preserving
+embedding refs until a bounded dead-vector sweep deletes the corresponding DuckDB vectors from a successfully
+opened current sidecar. The sweep runs only when the current vector store is already warm/ready, filters refs
+by both current embedding fingerprint and current ready dimension before applying its batch limit, re-checks
+row lifecycle plus dim/model before vector delete, and clears SQLite refs only if the row is still prunable
+with the same dim/model after deletion. Old-fingerprint or old-dimension refs remain as traceable metadata
+residue; maintenance does not cold-open those sidecars or let them occupy the current cleanup batch.
 
 ---
 
@@ -539,12 +558,14 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
   full file reset (`destroyFile` + recreate), not an in-place migration.
 - **Transactional vector upsert.** `upsert` wraps delete-then-insert in `BEGIN/COMMIT` with `ROLLBACK` on
   error, so there is no "deleted-but-not-inserted" hole.
-- **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` is a soft archive: it marks the row
-  `archived`, leaves any existing vector in place, and relies on recall's status filters plus SQLite
-  re-checks to keep archived facts out of results. It only requires a managed agent, so users can forget
-  while memory is disabled. `restoreMemory` re-marks the row `pending_embedding` and re-embeds it, and remains
-  gated by `canWriteAgentMemory` (managed agent · memory enabled · not disposed). Permanent UI delete
-  (`deleteMemory`) hard-deletes the row and best-effort deletes its vector.
+- **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` is a soft archive: it marks normal
+  rows `archived` and leaves recall correctness to status filters plus SQLite re-checks while dead-vector
+  pruning removes obsolete sidecar entries over time. It only requires a managed agent, so users can forget
+  while memory is disabled. `restoreMemory` re-marks a normal archived row `pending_embedding` and re-embeds
+  it, and remains gated by `canWriteAgentMemory` (managed agent · memory enabled · not disposed). Generic
+  archive/forget/restore refuse `persona` and `working` rows; persona lifecycle is controlled by
+  persona-specific routes and working rows are kernel-owned. Permanent UI delete (`deleteMemory`) hard-deletes
+  the row and best-effort deletes its vector.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
@@ -593,8 +614,9 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 `memory.approvePersonaDraft`, `memory.rejectPersonaDraft`, `memory.setPersonaAnchor`,
 `memory.listAuditEvents`, `memory.listViewManifests`.
 
-- `memory.search` is read-only: it caps the result count but cannot widen the agent's configured `topK`, and
-  does not bump `access_count`.
+- `memory.search` is read-only: it uses a search-only depth override (default 50, route max 100) so the
+  Memory Manager can return more than the agent's recall `topK`, excludes persona/working rows at the SQL
+  search layer before applying result limits, and it does not bump `access_count`.
 - `memory.add` accepts optional `category`, runs the decision ring, and writes a `memory/add` user audit row.
 - `memory.getSourceSpan` resolves a memory's `source_entry_ids` to readable role/content via the effective
   tape view (powers the lineage UI).
@@ -699,8 +721,9 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
   nDCG).
 
 The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is loadable (force with
-`DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`); it is not wired to a CI Action. Run before merge: `pnpm run typecheck`,
-`pnpm test`, `pnpm run lint`, `pnpm run format:check`.
+`DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`); it is not wired to a CI Action. Run before merge through mise:
+`mise exec -- pnpm run typecheck`, `mise exec -- pnpm test`, `mise exec -- pnpm run lint`,
+`mise exec -- pnpm run format:check`.
 
 ---
 
@@ -716,10 +739,12 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
   category.
 - **Memory-management skill is opt-in.** The bundled skill is discoverable and has no `allowedTools`, but it
   is not auto-pinned into every conversation to avoid permanent prompt cost.
-- **DuckDB disk reclaim.** Per-memory hard delete does not shrink the file; only a whole-store reset reclaims
-  (no `VACUUM`), so the file grows between resets. Permanent `deleteMemory` removes the row's vector from the
-  cached/opened store under the per-agent lock; `forgetMemory` is a soft archive and may leave an orphan
-  vector, which is harmless because recall excludes archived rows and re-checks the authoritative SQLite row.
+- **DuckDB disk reclaim.** Per-memory hard delete and dead-vector pruning remove vector rows but do not shrink
+  the DuckDB file; only a whole-store reset reclaims disk space (no `VACUUM`), so the file can still grow
+  between resets. Archived/superseded vectors are correctness-safe because recall re-checks SQLite, but they
+  are not quality-neutral: if left in the HNSW result window they crowd out live candidates. Inline prune and
+  the warm-store-only, fingerprint+dimension-aware, lifecycle-guarded maintenance sweep remove current-sidecar
+  dead vectors over time. Management search disables inline prune so read-only search does not write DuckDB.
 - **FTS5 native dependency.** Under vitest with an unloadable native ABI, the real FTS5/trigram eval skips;
   CI needs a working native build to exercise it.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
@@ -754,6 +779,10 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `CONSOLIDATION_COOLDOWN_MS` | 6h | LLM-backed pass cooldown (restart-durable) |
 | `CONSOLIDATION_MAX_LLM_CALLS` / tokens | 8 / 24000 | `mergeNearDuplicates` budget |
 | `CONSOLIDATION_MERGE_SIMILARITY` | 0.85 | near-duplicate merge threshold |
+| `CONSOLIDATION_MAX_NEIGHBOR_SCANS` | 64 | stored-vector neighbor scans per consolidation pass |
+| `VECTOR_PRUNE_BATCH_LIMIT` | 256 | prunable archived/superseded/internal-kind vector refs per maintenance pass |
+| `RECALL_QUERY_EMBEDDING_TIMEOUT_MS` / stale / max concurrent | 800ms / 30s / 2 | foreground query-embedding soft timeout and per-agent+model cap |
+| `MEMORY_SEARCH_DEFAULT_LIMIT` | 50 | default management search depth |
 | `WORKING_BLOB_TOKEN_LIMIT` | 400 | working-memory blob size |
 | persona thresholds | ≥ 3 memories · importance ≥ 5.0 · changeRatio > 0.6 → needsReview | guarded persona evolution |
 | reflection thresholds | ≥ 3 memories · importance ≥ 5.0 · reflection importance 0.8 | offline reflection |
