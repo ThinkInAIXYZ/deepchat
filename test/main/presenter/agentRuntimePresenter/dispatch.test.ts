@@ -75,6 +75,8 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
     sessionId: 's1',
     requestId: 'req-1',
     messageId: 'm1',
+    providerId: 'acp',
+    modelId: 'dimcode',
     messageStore: {
       addSearchResult: vi.fn(),
       updateAssistantContent: vi.fn(),
@@ -3161,6 +3163,8 @@ describe('dispatch', () => {
         sessionId: 's1',
         messageId: 'm1',
         requestId: 'req-1',
+        providerId: 'acp',
+        modelId: 'dimcode',
         blocks: expect.any(Array)
       })
     })

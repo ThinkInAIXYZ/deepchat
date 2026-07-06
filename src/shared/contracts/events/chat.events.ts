@@ -14,6 +14,8 @@ export const chatStreamUpdatedEvent = defineEventContract({
     requestId: EntityIdSchema,
     sessionId: EntityIdSchema,
     messageId: EntityIdSchema,
+    providerId: z.string().optional(),
+    modelId: z.string().optional(),
     updatedAt: TimestampMsSchema,
     blocks: z.array(AssistantMessageBlockSchema)
   })

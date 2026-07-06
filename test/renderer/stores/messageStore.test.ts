@@ -110,6 +110,8 @@ describe('messageStore', () => {
       sessionId: 's1',
       requestId: 'm1',
       messageId: 'm1',
+      providerId: 'acp',
+      modelId: 'dimcode',
       updatedAt: 1,
       blocks: [
         {
@@ -125,6 +127,7 @@ describe('messageStore', () => {
     expect(store.currentStreamMessageId.value).toBe('m1')
     expect(store.messages.value).toHaveLength(1)
     expect(store.messages.value[0]?.id).toBe('m1')
+    expect(store.messages.value[0]?.metadata).toBe('{"provider":"acp","model":"dimcode"}')
   })
 
   it('loadMessages only hydrates persisted messages', async () => {

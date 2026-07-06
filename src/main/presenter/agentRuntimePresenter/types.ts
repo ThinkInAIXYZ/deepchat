@@ -57,6 +57,8 @@ export interface IoParams {
   sessionId: string
   requestId: string
   messageId: string
+  providerId: string
+  modelId: string
   messageStore: DeepChatMessageStore
   abortSignal: AbortSignal
 }

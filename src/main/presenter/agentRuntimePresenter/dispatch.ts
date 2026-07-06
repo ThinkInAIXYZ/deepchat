@@ -1109,6 +1109,8 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
+    providerId: io.providerId,
+    modelId: io.modelId,
     updatedAt: Date.now(),
     blocks: renderedBlocks
   })

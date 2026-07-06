@@ -5,7 +5,7 @@ interface BindSessionStoreIpcOptions {
   fetchSessions: () => void | Promise<void>
   refreshSessionsByIds: (sessionIds: string[]) => void | Promise<void>
   removeSessions: (sessionIds: string[]) => void
-  onActivated: (sessionId: string) => void
+  onActivated: (sessionId: string) => void | Promise<void>
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string) => void
 }
@@ -20,7 +20,7 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => 
         payload.activeSessionId &&
         payload.webContentsId === webContentsId
       ) {
-        options.onActivated(payload.activeSessionId)
+        void options.onActivated(payload.activeSessionId)
         return
       }
 

@@ -871,6 +871,56 @@ describe('sessionStore streaming cleanup', () => {
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-b')
   })
 
+  it('hydrates the selected active session before routing to chat', async () => {
+    const { store, sessionClient, pageRouter, agentStore } = await setupStore({
+      selectedAgentId: 'deepchat'
+    })
+    store.sessions.value = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({
+        id: 'session-acp',
+        title: 'ACP Session',
+        agentId: 'dimcode',
+        status: 'generating',
+        projectDir: '/tmp/acp',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+
+    await store.selectSession('session-acp')
+
+    expect(sessionClient.activate).toHaveBeenCalledWith('session-acp')
+    expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
+    expect(store.activeSession.value?.providerId).toBe('acp')
+    expect(store.activeSession.value?.modelId).toBe('dimcode')
+    expect(store.activeSession.value?.status).toBe('working')
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('dimcode')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
+    expect(pageRouter.goToChat.mock.invocationCallOrder[0]).toBeGreaterThan(
+      sessionClient.getActive.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('still routes when selected session hydration fails', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    sessionClient.getActive.mockRejectedValueOnce(new Error('restore failed'))
+
+    try {
+      await store.selectSession('session-fallback')
+
+      expect(sessionClient.activate).toHaveBeenCalledWith('session-fallback')
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[sessionStore] Failed to hydrate selected session:',
+        expect.any(Error)
+      )
+      expect(pageRouter.goToChat).toHaveBeenCalledWith('session-fallback')
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('hydrates active session and selected agent from the bootstrap shell', async () => {
     const { store, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
@@ -973,10 +1023,84 @@ describe('sessionStore streaming cleanup', () => {
       webContentsId: 1,
       activeSessionId: 'session-external'
     })
+    await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(store.activeSessionId.value).toBe('session-external')
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('agent-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
+  })
+
+  it('hydrates the activated session before routing from the activation event', async () => {
+    const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-event', agentId: 'dimcode' })]
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({
+        id: 'session-event',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+
+    emitSessionUpdate({
+      sessionIds: ['session-event'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-event'
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSession.value?.providerId).toBe('acp')
+    expect(store.activeSession.value?.modelId).toBe('dimcode')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-event')
+    expect(pageRouter.goToChat.mock.invocationCallOrder[0]).toBeGreaterThan(
+      sessionClient.getActive.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('keeps the current session summary while duplicate activation rehydrates', async () => {
+    const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
+    sessionClient.getActive.mockResolvedValueOnce({
+      session: createSession({
+        id: 'session-acp',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+    await store.selectSession('session-acp')
+    pageRouter.goToChat.mockClear()
+    let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
+      undefined
+    sessionClient.getActive.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveActiveSession = resolve
+      })
+    )
+
+    emitSessionUpdate({
+      sessionIds: ['session-acp'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-acp'
+    })
+
+    expect(store.activeSession.value?.providerId).toBe('acp')
+    expect(store.activeSession.value?.modelId).toBe('dimcode')
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+
+    resolveActiveSession({
+      session: createSession({
+        id: 'session-acp',
+        agentId: 'dimcode',
+        providerId: 'acp',
+        modelId: 'dimcode'
+      })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
   })
 
   it('updates the local session status immediately from the session status event', async () => {

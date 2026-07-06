@@ -13,7 +13,8 @@ interface BindMessageStoreIpcOptions {
   applyStreamingBlocksToMessage?: (
     messageId: string,
     sessionId: string,
-    blocks: AssistantMessageBlock[]
+    blocks: AssistantMessageBlock[],
+    metadata?: { providerId?: string; modelId?: string }
   ) => void
   isEphemeralStreamMessageId: (messageId: string) => boolean
 }
@@ -49,7 +50,10 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): () => 
         options.applyStreamingBlocksToMessage &&
         !options.isEphemeralStreamMessageId(streamMessageId)
       ) {
-        options.applyStreamingBlocksToMessage(streamMessageId, payload.sessionId, blocks)
+        options.applyStreamingBlocksToMessage(streamMessageId, payload.sessionId, blocks, {
+          providerId: payload.providerId,
+          modelId: payload.modelId
+        })
       }
     }),
     chatClient.onStreamCompleted((payload) => {

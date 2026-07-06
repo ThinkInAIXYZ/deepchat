@@ -1720,6 +1720,8 @@ describe('main kernel contracts', () => {
         requestId: 'req-1',
         sessionId: 'session-1',
         messageId: 'message-1',
+        providerId: 'acp',
+        modelId: 'dimcode',
         updatedAt: Date.now(),
         blocks: [
           {

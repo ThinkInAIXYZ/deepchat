@@ -657,18 +657,29 @@ export const useMessageStore = defineStore('message', () => {
   function applyStreamingBlocksToMessage(
     messageId: string,
     conversationId: string,
-    blocks: AssistantMessageBlock[]
+    blocks: AssistantMessageBlock[],
+    metadata?: { providerId?: string; modelId?: string }
   ): void {
     const serializedBlocks = JSON.stringify(blocks)
+    const serializedMetadata = JSON.stringify({
+      ...(metadata?.providerId ? { provider: metadata.providerId } : {}),
+      ...(metadata?.modelId ? { model: metadata.modelId } : {})
+    })
     const existing = messageCache.value.get(messageId)
     if (existing) {
       if (existing.sessionId !== conversationId) return
-      if (existing.content === serializedBlocks && existing.status === 'pending') {
+      const nextMetadata = serializedMetadata === '{}' ? existing.metadata : serializedMetadata
+      if (
+        existing.content === serializedBlocks &&
+        existing.status === 'pending' &&
+        existing.metadata === nextMetadata
+      ) {
         return
       }
       upsertMessageRecord({
         ...existing,
         content: serializedBlocks,
+        metadata: nextMetadata,
         status: 'pending',
         updatedAt: Date.now()
       })
@@ -685,7 +696,7 @@ export const useMessageStore = defineStore('message', () => {
       content: serializedBlocks,
       status: 'pending',
       isContextEdge: 0,
-      metadata: '{}',
+      metadata: serializedMetadata,
       traceCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()

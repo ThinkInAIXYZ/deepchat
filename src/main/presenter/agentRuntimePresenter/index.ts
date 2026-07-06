@@ -3875,6 +3875,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           sessionId,
           requestId: activeGeneration.runId,
           messageId,
+          providerId: state.providerId,
+          modelId: state.modelId,
           messageStore: this.messageStore,
           abortSignal: abortController.signal
         }

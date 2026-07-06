@@ -491,6 +491,17 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
+  const hydrateActiveSessionSummary = async (sessionId: string): Promise<void> => {
+    try {
+      const active = await sessionClient.getActive()
+      if (active.session?.id === sessionId) {
+        applyRestoredSession(active.session)
+      }
+    } catch (restoreError) {
+      console.warn('[sessionStore] Failed to hydrate selected session:', restoreError)
+    }
+  }
+
   const applyBootstrapShell = async (input: {
     activeSessionId: string | null
     activeSession?: SessionListItem | null
@@ -672,6 +683,7 @@ export const useSessionStore = defineStore('session', () => {
       clearActiveSessionSummary()
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
+      await hydrateActiveSessionSummary(sessionId)
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
       error.value = `Failed to select session: ${selectError}`
@@ -981,13 +993,16 @@ export const useSessionStore = defineStore('session', () => {
     fetchSessions,
     refreshSessionsByIds,
     removeSessions,
-    onActivated: (sessionId) => {
+    onActivated: async (sessionId) => {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()
       }
-      clearActiveSessionSummary()
+      if (activeSessionSummary.value?.id !== sessionId) {
+        clearActiveSessionSummary()
+      }
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
+      await hydrateActiveSessionSummary(sessionId)
       pageRouter.goToChat(sessionId)
       void tabClient.notifyRendererActivated(sessionId)
     },

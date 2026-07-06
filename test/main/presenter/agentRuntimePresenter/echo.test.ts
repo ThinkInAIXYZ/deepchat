@@ -32,6 +32,8 @@ function createIo(): IoParams {
     sessionId: 's1',
     requestId: 'req-1',
     messageId: 'm1',
+    providerId: 'acp',
+    modelId: 'dimcode',
     messageStore: {
       updateAssistantContent: vi.fn()
     } as any,
@@ -71,6 +73,8 @@ describe('echo', () => {
         requestId: 'req-1',
         sessionId: 's1',
         messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
         blocks: expect.any(Array)
       })
     )
@@ -119,6 +123,8 @@ describe('echo', () => {
         requestId: 'req-1',
         sessionId: 's1',
         messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
         blocks: expect.any(Array)
       })
     )
