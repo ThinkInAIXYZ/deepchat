@@ -55,6 +55,7 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
+                :disable-markdown-virtualization="disableMarkdownVirtualization"
               />
               <MessageBlockThink
                 v-else-if="
@@ -248,6 +249,7 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
+  disableMarkdownVirtualization?: boolean
 }>()
 
 const themeStore = useThemeStore()

@@ -87,9 +87,45 @@ const setup = async (props: Record<string, unknown> = {}) => {
       props: {
         final: {
           type: Boolean,
-          default: false
+          default: undefined
+        },
+        mode: {
+          type: String,
+          default: undefined
         },
         smoothStreaming: {
+          type: [Boolean, String],
+          default: false
+        },
+        typewriter: {
+          type: Boolean,
+          default: false
+        },
+        batchRendering: {
+          type: Boolean,
+          default: false
+        },
+        deferNodesUntilVisible: {
+          type: Boolean,
+          default: false
+        },
+        viewportPriority: {
+          type: Boolean,
+          default: false
+        },
+        nodeVirtual: {
+          type: [Boolean, String],
+          default: false
+        },
+        maxLiveNodes: {
+          type: Number,
+          default: undefined
+        },
+        liveNodeBuffer: {
+          type: Number,
+          default: undefined
+        },
+        codeBlockStream: {
           type: Boolean,
           default: false
         }
@@ -101,7 +137,16 @@ const setup = async (props: Record<string, unknown> = {}) => {
             {
               'data-testid': 'node-renderer',
               'data-final': String(props.final),
-              'data-smooth-streaming': String(props.smoothStreaming)
+              'data-mode': props.mode,
+              'data-smooth-streaming': String(props.smoothStreaming),
+              'data-typewriter': String(props.typewriter),
+              'data-batch-rendering': String(props.batchRendering),
+              'data-defer-nodes-until-visible': String(props.deferNodesUntilVisible),
+              'data-viewport-priority': String(props.viewportPriority),
+              'data-node-virtual': String(props.nodeVirtual),
+              'data-max-live-nodes': String(props.maxLiveNodes),
+              'data-live-node-buffer': String(props.liveNodeBuffer),
+              'data-code-block-stream': String(props.codeBlockStream)
             },
             [
               customComponents.code_block?.({
@@ -234,12 +279,21 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('enables smooth streaming by default', async () => {
+  it('renders static markdown as final chat content by default', async () => {
     const { wrapper } = await setup()
+    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
-    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
-      'true'
-    )
+    expect(nodeRenderer.attributes('data-mode')).toBe('chat')
+    expect(nodeRenderer.attributes('data-final')).toBe('true')
+    expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('false')
+    expect(nodeRenderer.attributes('data-typewriter')).toBe('false')
+    expect(nodeRenderer.attributes('data-batch-rendering')).toBe('true')
+    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('true')
+    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('true')
+    expect(nodeRenderer.attributes('data-node-virtual')).toBe('auto')
+    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('220')
+    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('60')
+    expect(nodeRenderer.attributes('data-code-block-stream')).toBe('false')
   })
 
   it('marks the root for scoped code block scrollbar stabilization', async () => {
@@ -248,13 +302,32 @@ describe('MarkdownRenderer', () => {
     expect(wrapper.classes()).toContain('markdown-renderer-root')
   })
 
-  it('passes explicit smooth streaming to NodeRenderer', async () => {
+  it('passes streaming options to NodeRenderer for live content', async () => {
     const { wrapper } = await setup({
+      streaming: true,
+      final: false,
       smoothStreaming: true
+    })
+    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+
+    expect(nodeRenderer.attributes('data-final')).toBe('false')
+    expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('auto')
+    expect(nodeRenderer.attributes('data-typewriter')).toBe('true')
+    expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
+    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
+    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
+    expect(nodeRenderer.attributes('data-code-block-stream')).toBe('true')
+  })
+
+  it('disables smooth streaming when requested for live content', async () => {
+    const { wrapper } = await setup({
+      streaming: true,
+      final: false,
+      smoothStreaming: false
     })
 
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
-      'true'
+      'false'
     )
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-final')).toBe('false')
   })
@@ -266,6 +339,17 @@ describe('MarkdownRenderer', () => {
 
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
     expect(nodeRenderer.attributes('data-final')).toBe('true')
+  })
+
+  it('allows callers to disable completed-node virtualization', async () => {
+    const { wrapper } = await setup({
+      virtualizeNodes: false
+    })
+    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+
+    expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
+    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
+    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
   })
 
   it('routes reference clicks through the shared markdown link navigator', async () => {

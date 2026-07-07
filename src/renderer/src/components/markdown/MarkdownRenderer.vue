@@ -4,11 +4,20 @@
   >
     <NodeRenderer
       :content="debouncedContent"
-      :final="!smoothStreaming"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
-      :smooth-streaming="smoothStreaming"
+      mode="chat"
+      :final="resolvedFinal"
+      :smooth-streaming="resolvedSmoothStreaming"
+      :typewriter="isStreaming"
+      :code-block-stream="isStreaming"
       :fade="false"
+      :batch-rendering="true"
+      :defer-nodes-until-visible="true"
+      :viewport-priority="true"
+      :node-virtual="resolvedNodeVirtual"
+      :max-live-nodes="maxLiveNodes"
+      :live-node-buffer="liveNodeBuffer"
       :codeBlockDarkTheme="codeBlockDarkTheme"
       :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
@@ -46,9 +55,15 @@ const props = withDefaults(
     threadId?: string
     linkContext?: MarkdownLinkContext
     smoothStreaming?: boolean
+    streaming?: boolean
+    final?: boolean
+    virtualizeNodes?: boolean
   }>(),
   {
-    smoothStreaming: true
+    smoothStreaming: true,
+    streaming: false,
+    final: undefined,
+    virtualizeNodes: true
   }
 )
 const themeStore = useThemeStore()
@@ -93,6 +108,23 @@ const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   wordWrap: 'on' as const
 }))
+const isStreaming = computed(
+  () => props.final === false || (props.streaming && props.final !== true)
+)
+const resolvedFinal = computed(() => props.final ?? !isStreaming.value)
+const resolvedSmoothStreaming = computed(() => {
+  if (!props.smoothStreaming || resolvedFinal.value) {
+    return false
+  }
+
+  return 'auto' as const
+})
+const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
+const resolvedNodeVirtual = computed(() =>
+  shouldVirtualizeNodes.value ? ('auto' as const) : false
+)
+const maxLiveNodes = computed(() => (shouldVirtualizeNodes.value ? 220 : 0))
+const liveNodeBuffer = computed(() => (shouldVirtualizeNodes.value ? 60 : 0))
 const { navigateLink } = useMarkdownLinkNavigation({
   linkContext: effectiveLinkContext
 })

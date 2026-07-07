@@ -44,10 +44,14 @@ vi.mock('@/components/message/MessageItemAssistant.vue', () => ({
       isReadOnly: {
         type: Boolean,
         default: false
+      },
+      disableMarkdownVirtualization: {
+        type: Boolean,
+        default: false
       }
     },
     template:
-      '<div class="assistant-item" :data-read-only="String(isReadOnly)">{{ message.id }}</div>'
+      '<div class="assistant-item" :data-read-only="String(isReadOnly)" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)">{{ message.id }}</div>'
   })
 }))
 
@@ -203,5 +207,18 @@ describe('MessageList', () => {
     expect(wrapper.find('[data-rate-limit-indicator="true"]').exists()).toBe(true)
     expect(wrapper.find('.rate-limit-block-stub').text()).toBe('rate_limit')
     expect(wrapper.findAll('.assistant-item')).toHaveLength(0)
+  })
+
+  it('passes markdown virtualization disable state to assistant rows', () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('a1', 'assistant', 1)],
+        disableMarkdownVirtualization: true
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').attributes('data-disable-markdown-virtualization')).toBe(
+      'true'
+    )
   })
 })

@@ -48,6 +48,7 @@
           :is-generating="isGenerating"
           :trace-message-ids="traceMessageIds"
           :is-read-only="isReadOnlySession"
+          :disable-markdown-virtualization="isChatSearchOpen"
           @retry="onMessageRetry"
           @delete="onMessageDelete"
           @fork="onMessageFork"
@@ -352,10 +353,6 @@ async function loadMessagesAndRehydrate(sessionId: string, count?: number) {
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
 const bottomScrollAnchor = ref<HTMLDivElement | null>(null)
-const messageListRef = ref<{
-  scrollToBottom?: () => void
-  forceUpdate?: (clear?: boolean) => void
-} | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 const pendingDeleteMessageId = ref<string | null>(null)
@@ -427,6 +424,7 @@ let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
+let clearMessageWindowMeasurements = () => {}
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
 let sessionRestoreResizeObserver: ResizeObserver | null = null
@@ -947,6 +945,7 @@ watch(
     cancelSessionRestoreTask?.()
     cancelSessionRestoreTask = null
     cancelSessionRestoreScrollSettle()
+    clearMessageWindowMeasurements()
     messageStore.clear()
     pendingInputStore.clear()
     if (id) {
@@ -1274,6 +1273,7 @@ const displayMessages = computed(() => {
 const messageWindow = useMessageWindow({
   messages: displayMessages
 })
+clearMessageWindowMeasurements = messageWindow.clearMeasurements
 
 const findFirstEntryWithBottomAtOrAfter = (
   entries: Array<{ bottom: number }>,

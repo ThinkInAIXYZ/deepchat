@@ -14,6 +14,7 @@
         :show-trace="traceMessageIdSet.has(item.id)"
         :is-capturing="isCapturing"
         :is-read-only="isReadOnly"
+        :disable-markdown-virtualization="disableMarkdownVirtualization"
         @retry="onRetry"
         @delete="onDelete"
         @fork="onFork"
@@ -64,6 +65,7 @@ const props = withDefaults(
     allMessagesForCapture?: MessageListItem[]
     beforeSpacerHeight?: number
     afterSpacerHeight?: number
+    disableMarkdownVirtualization?: boolean
   }>(),
   {
     conversationId: '',
@@ -74,7 +76,8 @@ const props = withDefaults(
     isReadOnly: false,
     allMessagesForCapture: () => [],
     beforeSpacerHeight: 0,
-    afterSpacerHeight: 0
+    afterSpacerHeight: 0,
+    disableMarkdownVirtualization: false
   }
 )
 
