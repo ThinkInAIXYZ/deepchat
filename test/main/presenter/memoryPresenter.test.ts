@@ -54,6 +54,74 @@ async function flushMicrotasks(cycles = 3): Promise<void> {
   }
 }
 
+type MemoryPresenterRuntimeTestSeams = {
+  embedding: {
+    warmEmbeddingConnection(
+      agentId: string,
+      embedding: { providerId: string; modelId: string }
+    ): void
+    getMutableRuntimeStateForTests(): {
+      embeddingWarmups: Map<string, Promise<void>>
+      vectorStoreWarmups: Map<string, Promise<void>>
+      vectorStoreDimensionFailures: Map<string, number>
+      embeddingDrains: Map<string, Promise<unknown>>
+      reindexing: Map<string, Promise<void>>
+      backfilling: Map<string, Promise<void>>
+      errorRetryAt: Map<string, number>
+      errorRetryAfterId: Map<string, string | null>
+      orphanVectorReconciles: Map<string, Promise<void>>
+      orphanVectorReconciled: Set<string>
+      orphanVectorReconcileRetryAt: Map<string, number>
+    }
+  }
+  vectorStore: {
+    clearReady(agentId: string): void
+    getMutableRuntimeStateForTests(): {
+      vectorStores: Map<string, Promise<IMemoryVectorStore>>
+      vectorStoreIdentities: Map<string, string>
+      vectorStoreReady: Map<string, string>
+      vectorStoreLocks: Map<string, Promise<unknown>>
+    }
+  }
+  maintenance: {
+    getMutableRuntimeStateForTests(): {
+      consolidationTimers: Map<string, NodeJS.Timeout>
+      lastConsolidationAt: Map<string, number>
+    }
+  }
+  reflection: {
+    getMutableRuntimeStateForTests(): { reflectionAttemptWatermark: Map<string, number> }
+  }
+  persona: {
+    getMutableRuntimeStateForTests(): {
+      personaAttemptWatermark: Map<string, number>
+      personaLocks: Map<string, Promise<unknown>>
+    }
+  }
+  workingMemory: {
+    getMutableRuntimeStateForTests(): { workingRefreshInFlight: Set<string> }
+  }
+}
+
+function memoryRuntimeForTests(presenter: MemoryPresenter) {
+  const internals = presenter as unknown as MemoryPresenterRuntimeTestSeams
+  return {
+    embeddingService: internals.embedding,
+    vectorStoreService: internals.vectorStore,
+    ...internals.embedding.getMutableRuntimeStateForTests(),
+    ...internals.vectorStore.getMutableRuntimeStateForTests(),
+    ...internals.maintenance.getMutableRuntimeStateForTests(),
+    ...internals.reflection.getMutableRuntimeStateForTests(),
+    ...internals.persona.getMutableRuntimeStateForTests(),
+    ...internals.workingMemory.getMutableRuntimeStateForTests(),
+    warmEmbeddingConnection: (
+      agentId: string,
+      embedding: { providerId: string; modelId: string }
+    ) => internals.embedding.warmEmbeddingConnection(agentId, embedding),
+    clearVectorStoreReady: (agentId: string) => internals.vectorStore.clearReady(agentId)
+  }
+}
+
 describe('memory repository fakes', () => {
   it('matches AgentMemoryTable list limit lower-clamp behavior without an upper cap', () => {
     const repo = new FakeRepository()
@@ -1369,21 +1437,7 @@ describe('MemoryPresenter management', () => {
       embeddingDim: textToVector('').length,
       embeddingModel: 'p:m'
     })
-    const internals = presenter as unknown as {
-      lastConsolidationAt: Map<string, number>
-      reflectionAttemptWatermark: Map<string, number>
-      personaAttemptWatermark: Map<string, number>
-      consolidationTimers: Map<string, NodeJS.Timeout>
-      personaLocks: Map<string, Promise<unknown>>
-      workingRefreshInFlight: Set<string>
-      reindexing: Map<string, Promise<void>>
-      backfilling: Map<string, Promise<void>>
-      embeddingDrains: Map<string, Promise<unknown>>
-      vectorStores: Map<string, Promise<IMemoryVectorStore>>
-      vectorStoreIdentities: Map<string, string>
-      vectorStoreReady: Map<string, string>
-      vectorStoreLocks: Map<string, Promise<unknown>>
-    }
+    const internals = memoryRuntimeForTests(presenter)
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(
       () => internals.vectorStoreReady.has('a'),
@@ -1448,9 +1502,7 @@ describe('MemoryPresenter management', () => {
     const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis' }], {
       agentId: 'a'
     })
-    const internals = presenter as unknown as {
-      embeddingDrains: Map<string, Promise<unknown>>
-    }
+    const internals = memoryRuntimeForTests(presenter)
 
     const drain = presenter.processPendingEmbeddings('a')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1494,13 +1546,7 @@ describe('MemoryPresenter management', () => {
       createVectorStore: async () => new FakeVectorStore(),
       resetVectorStore: async () => undefined
     })
-    const internals = presenter as unknown as {
-      warmEmbeddingConnection: (
-        agentId: string,
-        embedding: { providerId: string; modelId: string }
-      ) => void
-      embeddingWarmups: Map<string, Promise<void>>
-    }
+    const internals = memoryRuntimeForTests(presenter)
 
     internals.warmEmbeddingConnection('a', { providerId: 'p', modelId: 'm' })
     await Promise.resolve()
@@ -1563,13 +1609,7 @@ describe('MemoryPresenter management', () => {
       createVectorStore,
       resetVectorStore: async () => undefined
     })
-    const internals = presenter as unknown as {
-      vectorStoreWarmups: Map<string, Promise<void>>
-      backfilling: Map<string, Promise<void>>
-      vectorStores: Map<string, Promise<IMemoryVectorStore>>
-      vectorStoreIdentities: Map<string, string>
-      vectorStoreReady: Map<string, string>
-    }
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(() => resolveDimensions !== undefined)
@@ -1633,9 +1673,7 @@ describe('MemoryPresenter management', () => {
         createdAt: 2000 + index
       })
     }
-    const internals = presenter as unknown as {
-      personaLocks: Map<string, Promise<unknown>>
-    }
+    const internals = memoryRuntimeForTests(presenter)
 
     const persona = presenter.maybeEvolvePersona('a', { providerId: 'p', modelId: 'm' })
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1713,6 +1751,7 @@ describe('MemoryPresenter management', () => {
       embeddingDim: 4,
       embeddingModel: 'p:m'
     })
+    const internals = memoryRuntimeForTests(presenter)
 
     const first = await presenter.recall('a', 'redis')
     const second = await presenter.recall('a', 'redis')
@@ -1727,10 +1766,7 @@ describe('MemoryPresenter management', () => {
     const querySpy = vi.spyOn(store, 'query')
     resolveCreate()
     await waitForMemoryCondition(
-      () =>
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        ),
+      () => internals.vectorStoreReady.has('a'),
       'vector store did not become ready'
     )
 
@@ -1769,6 +1805,7 @@ describe('MemoryPresenter management', () => {
       embeddingDim: 4,
       embeddingModel: 'p:m'
     })
+    const internals = memoryRuntimeForTests(presenter)
 
     const cold = await presenter.searchMemories('a', 'redis')
     expect(cold.map((hit) => hit.row.id)).toEqual(['m1'])
@@ -1780,10 +1817,7 @@ describe('MemoryPresenter management', () => {
     const querySpy = vi.spyOn(store, 'query')
     resolveCreate()
     await waitForMemoryCondition(
-      () =>
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        ),
+      () => internals.vectorStoreReady.has('a'),
       'vector store did not become ready'
     )
 
@@ -1949,18 +1983,12 @@ describe('MemoryPresenter management', () => {
           agentId: 'a'
         }
       )
+      const internals = memoryRuntimeForTests(presenter)
       await presenter.processPendingEmbeddings('a')
-      expect(
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        )
-      ).toBe(true)
+      expect(internals.vectorStoreReady.has('a')).toBe(true)
 
       blockQueryEmbedding = true
-      const clearReadySpy = vi.spyOn(
-        presenter as unknown as { clearVectorStoreReady: (agentId: string) => void },
-        'clearVectorStoreReady'
-      )
+      const clearReadySpy = vi.spyOn(internals.vectorStoreService, 'clearReady')
       const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
       const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
       const recall = presenter.recall('a', 'Could you explain the redis setup again?')
@@ -1972,11 +2000,7 @@ describe('MemoryPresenter management', () => {
       expect(clearReadySpy).not.toHaveBeenCalled()
       expect(backfillSpy).not.toHaveBeenCalled()
       expect(reindexSpy).not.toHaveBeenCalled()
-      expect(
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        )
-      ).toBe(true)
+      expect(internals.vectorStoreReady.has('a')).toBe(true)
     } finally {
       vi.useRealTimers()
     }
@@ -2173,10 +2197,7 @@ describe('MemoryPresenter management', () => {
       createVectorStore,
       resetVectorStore: async () => undefined
     })
-    const internals = presenter as unknown as {
-      vectorStoreWarmups: Map<string, Promise<void>>
-      vectorStoreDimensionFailures: Map<string, number>
-    }
+    const internals = memoryRuntimeForTests(presenter)
     repo.insert({
       id: 'm1',
       agentId: 'a',
@@ -2279,6 +2300,7 @@ describe('MemoryPresenter management', () => {
       embeddingDim: 4,
       embeddingModel: 'p:m'
     })
+    const internals = memoryRuntimeForTests(presenter)
 
     const outcome = await presenter.rememberMemory(
       { kind: 'semantic', content: newContent },
@@ -2298,10 +2320,7 @@ describe('MemoryPresenter management', () => {
     expect(createVectorStore).toHaveBeenCalledTimes(1)
     resolveCreate()
     await waitForMemoryCondition(
-      () =>
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        ),
+      () => internals.vectorStoreReady.has('a'),
       'vector store did not become ready'
     )
   })
@@ -3216,22 +3235,13 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     })
     const requeueSpy = vi.spyOn(repo, 'requeueForEmbedding')
     requeueSpy.mockReturnValueOnce(0)
-    const embeddingState = (
-      presenter as unknown as {
-        embedding: {
-          getMutableRuntimeStateForTests(): {
-            errorRetryAt: Map<string, number>
-            errorRetryAfterId: Map<string, string | null>
-          }
-        }
-      }
-    ).embedding.getMutableRuntimeStateForTests()
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.processPendingEmbeddings('a')
 
     expect(requeueSpy).toHaveBeenCalledTimes(1)
-    expect(embeddingState.errorRetryAt.has('a')).toBe(true)
-    expect(embeddingState.errorRetryAfterId.get('a')).toBe('err-01')
+    expect(internals.errorRetryAt.has('a')).toBe(true)
+    expect(internals.errorRetryAfterId.get('a')).toBe('err-01')
 
     await presenter.processPendingEmbeddings('a')
 
@@ -3249,23 +3259,14 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
         status: 'error'
       })
     }
-    const embeddingState = (
-      presenter as unknown as {
-        embedding: {
-          getMutableRuntimeStateForTests(): {
-            errorRetryAt: Map<string, number>
-            errorRetryAfterId: Map<string, string | null>
-          }
-        }
-      }
-    ).embedding.getMutableRuntimeStateForTests()
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.processPendingEmbeddings('a')
     expect(repo.getById('err-49')?.status).toBe('embedded')
     expect(repo.getById('err-50')?.status).toBe('error')
-    expect(embeddingState.errorRetryAfterId.get('a')).toBe('err-49')
+    expect(internals.errorRetryAfterId.get('a')).toBe('err-49')
 
-    embeddingState.errorRetryAt.set('a', 0)
+    internals.errorRetryAt.set('a', 0)
     await presenter.processPendingEmbeddings('a')
 
     expect(repo.getById('err-50')?.status).toBe('embedded')
@@ -3297,21 +3298,13 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
       content: 'bad',
       status: 'pending_embedding'
     })
-    const embeddingState = (
-      presenter as unknown as {
-        embedding: {
-          getMutableRuntimeStateForTests(): {
-            errorRetryAt: Map<string, number>
-          }
-        }
-      }
-    ).embedding.getMutableRuntimeStateForTests()
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.processPendingEmbeddings('a')
 
     expect(repo.getById('ok')?.status).toBe('embedded')
     expect(repo.getById('bad')?.status).toBe('error')
-    expect(embeddingState.errorRetryAt.has('a')).toBe(true)
+    expect(internals.errorRetryAt.has('a')).toBe(true)
   })
 })
 
@@ -3874,36 +3867,22 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     store.vectors.set('orphan-0001', textToVector('orphan redis'))
     const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
     deleteSpy.mockRejectedValueOnce(new Error('delete failed'))
-    const embeddingState = (
-      presenter as unknown as {
-        embedding: {
-          getMutableRuntimeStateForTests(): {
-            orphanVectorReconcileRetryAt: Map<string, number>
-          }
-        }
-      }
-    ).embedding.getMutableRuntimeStateForTests()
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(() => deleteSpy.mock.calls.length === 1)
     expect(store.vectors.has('orphan-0001')).toBe(true)
-    expect(
-      (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has('a')
-    ).toBe(true)
+    expect(internals.vectorStoreReady.has('a')).toBe(true)
 
-    ;(
-      presenter as unknown as { clearVectorStoreReady(agentId: string): void }
-    ).clearVectorStoreReady('a')
+    internals.clearVectorStoreReady('a')
     await presenter.recall('a', 'redis')
     await flushMicrotasks()
     expect(deleteSpy).toHaveBeenCalledTimes(1)
 
-    for (const key of embeddingState.orphanVectorReconcileRetryAt.keys()) {
-      embeddingState.orphanVectorReconcileRetryAt.set(key, 0)
+    for (const key of internals.orphanVectorReconcileRetryAt.keys()) {
+      internals.orphanVectorReconcileRetryAt.set(key, 0)
     }
-    ;(
-      presenter as unknown as { clearVectorStoreReady(agentId: string): void }
-    ).clearVectorStoreReady('a')
+    internals.clearVectorStoreReady('a')
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(
       () => deleteSpy.mock.calls.length >= 2 && !store.vectors.has('orphan-0001'),
@@ -3920,20 +3899,11 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
           releaseList = () => resolve([])
         })
     )
-    const embeddingState = (
-      presenter as unknown as {
-        embedding: {
-          getMutableRuntimeStateForTests(): {
-            orphanVectorReconciles: Map<string, Promise<void>>
-            orphanVectorReconciled: Set<string>
-          }
-        }
-      }
-    ).embedding.getMutableRuntimeStateForTests()
+    const internals = memoryRuntimeForTests(presenter)
 
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(
-      () => embeddingState.orphanVectorReconciles.size === 1 && typeof releaseList === 'function',
+      () => internals.orphanVectorReconciles.size === 1 && typeof releaseList === 'function',
       'orphan reconcile did not enter in-flight tracking'
     )
 
@@ -3948,8 +3918,8 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
     await cleanup
 
     expect(cleanupDone).toBe(true)
-    expect(embeddingState.orphanVectorReconciles.size).toBe(0)
-    expect(embeddingState.orphanVectorReconciled.size).toBe(0)
+    expect(internals.orphanVectorReconciles.size).toBe(0)
+    expect(internals.orphanVectorReconciled.size).toBe(0)
   })
 
   it('reindexEmbeddings re-queues, rebuilds the store, and re-embeds with the new fingerprint', async () => {
@@ -4347,13 +4317,7 @@ describe('MemoryPresenter dispose lifecycle (C4, AC-4.1)', () => {
       createVectorStore: async () => new FakeVectorStore(),
       resetVectorStore: async () => undefined
     })
-    const internals = presenter as unknown as {
-      warmEmbeddingConnection: (
-        agentId: string,
-        embedding: { providerId: string; modelId: string }
-      ) => void
-      embeddingWarmups: Map<string, Promise<void>>
-    }
+    const internals = memoryRuntimeForTests(presenter)
 
     internals.warmEmbeddingConnection('a', { providerId: 'p', modelId: 'm' })
     await Promise.resolve()
@@ -6791,11 +6755,9 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     })
 
     await presenter.recall('a', 'redis')
+    const internals = memoryRuntimeForTests(presenter)
     await waitForMemoryCondition(
-      () =>
-        (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has(
-          'a'
-        ),
+      () => internals.vectorStoreReady.has('a'),
       'vector store did not become ready'
     )
 

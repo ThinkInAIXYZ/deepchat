@@ -7,7 +7,7 @@ import {
   type MemoryInjectionResult,
   type MemoryRuntimePort
 } from './injection'
-import { isSafeAgentId, type AgentMemoryRow, type IMemoryVectorStore } from './types'
+import { isSafeAgentId, type AgentMemoryRow } from './types'
 import type {
   MemoryCandidate,
   MemoryConflictPair,
@@ -165,31 +165,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
       clearConsolidationCooldown: (agentId) => this.maintenance.clearCooldown(agentId)
     })
-
-    this.retainRuntimeCompatAccessorsForTests()
-  }
-
-  // Legacy facade-oracle tests intentionally probe these private runtime accessors via casts.
-  // Keep this method until those tests move to explicit service-level test helpers.
-  private retainRuntimeCompatAccessorsForTests(): void {
-    void this.vectorStoreReady
-    void this.vectorStores
-    void this.vectorStoreIdentities
-    void this.vectorStoreLocks
-    void this.vectorStoreWarmups
-    void this.vectorStoreDimensionFailures
-    void this.embeddingWarmups
-    void this.embeddingDrains
-    void this.reindexing
-    void this.backfilling
-    void this.consolidationTimers
-    void this.lastConsolidationAt
-    void this.reflectionAttemptWatermark
-    void this.personaAttemptWatermark
-    void this.personaLocks
-    void this.workingRefreshInFlight
-    void this.warmEmbeddingConnection
-    void this.clearVectorStoreReady
   }
 
   startBackgroundMaintenance(): void {
@@ -202,81 +177,6 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   warmActiveAgents(): void {
     this.maintenance.warmActiveAgents()
-  }
-
-  private get vectorStoreReady(): Map<string, string> {
-    return this.vectorStore.getMutableRuntimeStateForTests().vectorStoreReady
-  }
-
-  private get vectorStores(): Map<string, Promise<IMemoryVectorStore>> {
-    return this.vectorStore.getMutableRuntimeStateForTests().vectorStores
-  }
-
-  private get vectorStoreIdentities(): Map<string, string> {
-    return this.vectorStore.getMutableRuntimeStateForTests().vectorStoreIdentities
-  }
-
-  private get vectorStoreLocks(): Map<string, Promise<unknown>> {
-    return this.vectorStore.getMutableRuntimeStateForTests().vectorStoreLocks
-  }
-
-  private get vectorStoreWarmups(): Map<string, Promise<void>> {
-    return this.embedding.getMutableRuntimeStateForTests().vectorStoreWarmups
-  }
-
-  private get vectorStoreDimensionFailures(): Map<string, number> {
-    return this.embedding.getMutableRuntimeStateForTests().vectorStoreDimensionFailures
-  }
-
-  private get embeddingWarmups(): Map<string, Promise<void>> {
-    return this.embedding.getMutableRuntimeStateForTests().embeddingWarmups
-  }
-
-  private get embeddingDrains(): Map<string, Promise<unknown>> {
-    return this.embedding.getMutableRuntimeStateForTests().embeddingDrains
-  }
-
-  private get reindexing(): Map<string, Promise<void>> {
-    return this.embedding.getMutableRuntimeStateForTests().reindexing
-  }
-
-  private get backfilling(): Map<string, Promise<void>> {
-    return this.embedding.getMutableRuntimeStateForTests().backfilling
-  }
-
-  private get consolidationTimers(): Map<string, NodeJS.Timeout> {
-    return this.maintenance.getMutableRuntimeStateForTests().consolidationTimers
-  }
-
-  private get lastConsolidationAt(): Map<string, number> {
-    return this.maintenance.getMutableRuntimeStateForTests().lastConsolidationAt
-  }
-
-  private get reflectionAttemptWatermark(): Map<string, number> {
-    return this.reflection.getMutableRuntimeStateForTests().reflectionAttemptWatermark
-  }
-
-  private get personaAttemptWatermark(): Map<string, number> {
-    return this.persona.getMutableRuntimeStateForTests().personaAttemptWatermark
-  }
-
-  private get personaLocks(): Map<string, Promise<unknown>> {
-    return this.persona.getMutableRuntimeStateForTests().personaLocks
-  }
-
-  private get workingRefreshInFlight(): Set<string> {
-    return this.workingMemory.getMutableRuntimeStateForTests().workingRefreshInFlight
-  }
-
-  private warmEmbeddingConnection(
-    agentId: string,
-    embedding: { providerId: string; modelId: string }
-  ): void {
-    this.embedding.warmEmbeddingConnection(agentId, embedding)
-  }
-
-  private clearVectorStoreReady(agentId: string): void {
-    this.vectorStore.clearReady(agentId)
   }
 
   isEnabled(agentId: string): boolean {
