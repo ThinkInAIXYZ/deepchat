@@ -11,9 +11,15 @@ export const PERSONA_MEMORY_LIMIT = 20
 
 export const WORKING_BLOB_TOKEN_LIMIT = 400
 export const WORKING_PROVENANCE_SEED = 'session-working-blob'
+export const WORKING_CANDIDATE_PAGE_LIMIT = 64
+export const WORKING_CANDIDATE_SCAN_LIMIT = 512
 
 export const REINDEX_BATCH_SIZE = 50
 export const REINDEX_MAX_BATCHES = 200
+export const ERROR_RETRY_COOLDOWN_MS = 10 * 60 * 1000
+export const ERROR_RETRY_BATCH_LIMIT = 50
+export const ORPHAN_RECONCILE_BATCH = 512
+export const ORPHAN_RECONCILE_RETRY_COOLDOWN_MS = 5 * 60 * 1000
 
 export const DECISION_NEIGHBOR_TOP_S = 10
 

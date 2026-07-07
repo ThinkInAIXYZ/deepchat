@@ -243,6 +243,7 @@ async function setup(
     manifestPromise?: Promise<MemoryViewManifest[]>
     auditReject?: boolean
     manifestReject?: boolean
+    reindexPromise?: Promise<{ started: boolean }>
   } = {}
 ) {
   vi.resetModules()
@@ -314,6 +315,9 @@ async function setup(
     rejectPersonaDraft: vi.fn().mockResolvedValue(overrides.reject ?? true),
     setPersonaAnchor: vi.fn().mockResolvedValue(overrides.anchor ?? true),
     resolveConflict: vi.fn().mockResolvedValue(true),
+    reindex: overrides.reindexPromise
+      ? vi.fn().mockReturnValue(overrides.reindexPromise)
+      : vi.fn().mockResolvedValue({ started: true }),
     onUpdated: vi.fn().mockImplementation((listener) => {
       updateListener = listener
       return dispose
@@ -390,8 +394,11 @@ async function setup(
     memoryClient,
     toast,
     dispose,
-    emitMemoryUpdated: (reason: MemoryUpdatedPayload['reason'] = 'extract') =>
-      updateListener?.({ agentId: 'a', reason, version: 1 })
+    emitMemoryUpdated: (
+      reason: MemoryUpdatedPayload['reason'] = 'extract',
+      agentId = 'a',
+      version = 1
+    ) => updateListener?.({ agentId, reason, version })
   }
 }
 
@@ -443,6 +450,14 @@ async function deactivateHealthTab(
   wrapper: Awaited<ReturnType<typeof setup>>['wrapper']
 ): Promise<void> {
   await clickTab(wrapper, 'memories')
+}
+
+function findReindexButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  const button = wrapper
+    .findAllComponents(ButtonStub)
+    .find((item) => item.text().includes('settings.deepchatAgents.memoryManager.health.reindex'))
+  if (!button) throw new Error('Missing reindex button')
+  return button
 }
 
 function findSelectByText(wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], text: string) {
@@ -979,6 +994,8 @@ describe('MemoryManagerDialog memory health', () => {
       })
     }))
     vi.doMock('@shadcn/components/ui/badge', () => ({ Badge: passStub('Badge') }))
+    vi.doMock('@shadcn/components/ui/button', () => ({ Button: passStub('Button') }))
+    vi.doMock('@iconify/vue', () => ({ addCollection: vi.fn(), Icon: passStub('Icon') }))
     const MemoryHealthSection = (
       await import('../../../src/renderer/settings/components/MemoryHealthSection.vue')
     ).default
@@ -996,7 +1013,7 @@ describe('MemoryManagerDialog memory health', () => {
     expect(wrapper.text()).toContain('memory/maintenance_llm')
     expect(wrapper.text()).toContain('model unavailable')
     expect(wrapper.text()).toContain('—')
-    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.text()).toContain('settings.deepchatAgents.memoryManager.health.reindex')
   })
 
   it('renders zero as a valid last accessed timestamp', async () => {
@@ -1040,6 +1057,112 @@ describe('MemoryManagerDialog memory health', () => {
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(1)
     expect(memoryClient.getArchiveCandidateLifecyclePreview).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not carry local reindex pending state across agents', async () => {
+    const reindex = deferred<{ started: boolean }>()
+    const { wrapper, memoryClient } = await setup({ reindexPromise: reindex.promise })
+
+    await activateHealthTab(wrapper)
+    await findReindexButton(wrapper).trigger('click')
+    await nextTick()
+
+    expect(memoryClient.reindex).toHaveBeenCalledWith('a')
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    await wrapper.setProps({ agentId: 'b' })
+    await flushPromises()
+    await activateHealthTab(wrapper)
+
+    expect(memoryClient.getStatus).toHaveBeenLastCalledWith('b')
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindex'
+    )
+    expect(findReindexButton(wrapper).text()).not.toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    reindex.resolve({ started: true })
+    await flushPromises()
+  })
+
+  it('settles local reindex pending from matching-agent reindex status refreshes only', async () => {
+    const reindex = deferred<{ started: boolean }>()
+    const { wrapper, memoryClient, emitMemoryUpdated } = await setup({
+      reindexPromise: reindex.promise
+    })
+
+    await activateHealthTab(wrapper)
+    await findReindexButton(wrapper).trigger('click')
+    await nextTick()
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    emitMemoryUpdated('reindex', 'b')
+    await flushPromises()
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    memoryClient.getStatus.mockResolvedValueOnce({ ...status, reindexing: true })
+    emitMemoryUpdated('reindex', 'a')
+    await flushPromises()
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    memoryClient.getStatus.mockResolvedValueOnce(status)
+    emitMemoryUpdated('reindex', 'a')
+    await flushPromises()
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindex'
+    )
+
+    reindex.resolve({ started: true })
+    await flushPromises()
+  })
+
+  it('clears local reindex pending when the request returns started=false', async () => {
+    const { wrapper, memoryClient } = await setup({
+      reindexPromise: Promise.resolve({ started: false })
+    })
+
+    await activateHealthTab(wrapper)
+    await findReindexButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.reindex).toHaveBeenCalledWith('a')
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindex'
+    )
+    expect(findReindexButton(wrapper).text()).not.toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+  })
+
+  it('clears local reindex pending after a started request refreshes to reindexing=false', async () => {
+    const reindex = deferred<{ started: boolean }>()
+    const { wrapper } = await setup({ reindexPromise: reindex.promise })
+
+    await activateHealthTab(wrapper)
+    await findReindexButton(wrapper).trigger('click')
+    await nextTick()
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
+
+    reindex.resolve({ started: true })
+    await flushPromises()
+
+    expect(findReindexButton(wrapper).text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindex'
+    )
+    expect(findReindexButton(wrapper).text()).not.toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
   })
 
   it('clears the Health badge after an inactive memory update until health is refreshed', async () => {

@@ -23,6 +23,21 @@ vi.mock('@shadcn/components/ui/badge', () => ({
   }
 }))
 
+vi.mock('@shadcn/components/ui/button', () => ({
+  Button: {
+    name: 'Button',
+    template: '<button><slot /></button>'
+  }
+}))
+
+vi.mock('@iconify/vue', () => ({
+  addCollection: vi.fn(),
+  Icon: {
+    name: 'Icon',
+    template: '<span />'
+  }
+}))
+
 interface SettingsJson {
   deepchatAgents?: {
     memoryManager?: {
@@ -150,6 +165,7 @@ function mountSection(props: {
   archiveCandidateLifecyclePreview?: MemoryArchiveCandidateLifecyclePreview | null
   archiveCandidateLifecyclePreviewLoading?: boolean
   archiveCandidateLifecyclePreviewError?: string | null
+  reindexing?: boolean
 }) {
   return mount(MemoryHealthSection, {
     props: {
@@ -158,7 +174,8 @@ function mountSection(props: {
       error: props.error ?? null,
       archiveCandidateLifecyclePreview: props.archiveCandidateLifecyclePreview,
       archiveCandidateLifecyclePreviewLoading: props.archiveCandidateLifecyclePreviewLoading,
-      archiveCandidateLifecyclePreviewError: props.archiveCandidateLifecyclePreviewError
+      archiveCandidateLifecyclePreviewError: props.archiveCandidateLifecyclePreviewError ?? null,
+      reindexing: props.reindexing ?? false
     }
   })
 }
@@ -206,7 +223,20 @@ describe('MemoryHealthSection', () => {
     expect(wrapper.text()).toContain('memory/maintenance_llm')
     expect(wrapper.text()).toContain('model unavailable')
     expect(wrapper.text()).toContain('—')
-    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.find('button').text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindex'
+    )
+  })
+
+  it('emits reindex and renders the in-progress label', async () => {
+    const ready = mountSection({ health: loadedHealth })
+    await ready.find('button').trigger('click')
+    expect(ready.emitted('reindex')).toHaveLength(1)
+
+    const running = mountSection({ health: loadedHealth, reindexing: true })
+    expect(running.find('button').text()).toContain(
+      'settings.deepchatAgents.memoryManager.health.reindexing'
+    )
   })
 
   it('renders archive candidate lifecycle preview states without memory content', () => {

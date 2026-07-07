@@ -17,6 +17,7 @@ import { buildMemoryProvenanceKey } from '../core/scoring'
 import { DECISION_NEIGHBOR_TOP_S, MEMORY_CREATED_IDS_EVENT_LIMIT } from '../runtimeConstants'
 import type { MemoryRowMutations } from './rowMutations'
 import type {
+  AgentMemoryRow,
   MemoryCandidate,
   MemoryExtractionInput,
   MemoryExtractionResult,
@@ -104,16 +105,49 @@ function userAddAuditFromOutcome(outcome: MemoryWriteOutcome): {
   }
 }
 
+function isLiveDecisionTarget(
+  agentId: string,
+  row: AgentMemoryRow | undefined
+): row is AgentMemoryRow {
+  return (
+    !!row &&
+    row.agent_id === agentId &&
+    row.superseded_by === null &&
+    row.status !== 'archived' &&
+    row.status !== 'conflicted'
+  )
+}
+
+function recallItemFromRow(row: AgentMemoryRow): MemoryRecallItem {
+  return {
+    id: row.id,
+    kind: row.kind,
+    content: row.content,
+    score: 1,
+    importance: row.importance,
+    sources: { fts: true },
+    sourceSession: row.source_session,
+    sourceEntryIds: null,
+    breakdown: {
+      similarity: 0,
+      recency: row.last_accessed ?? row.created_at,
+      importance: row.importance,
+      confidence: row.confidence ?? 0,
+      rrf: 1,
+      final: 1
+    }
+  }
+}
+
 export class WriteCoordinator {
   constructor(
     private readonly ctx: MemoryRuntimeContext,
     private readonly rows: MemoryRowMutations,
     private readonly ports: {
-      retrieve: (
+      retrieveForDecision: (
         agentId: string,
         query: string,
-        now: number,
-        recordAccessHits: boolean
+        now: number
       ) => Promise<MemoryRecallItem[]>
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
@@ -131,7 +165,14 @@ export class WriteCoordinator {
       const provenanceKey = buildMemoryProvenanceKey(options.agentId, normalized.kind, content)
       const duplicate = this.ctx.deps.repository.getByProvenanceKey(options.agentId, provenanceKey)
       if (duplicate) {
-        if (this.rows.absorbProvenanceHit(options.agentId, duplicate)) created.push(duplicate.id)
+        const hit = this.rows.handleProvenanceHit(options.agentId, duplicate, {
+          allowDecisionForSuperseded: true
+        })
+        if (hit.action === 'absorbed') created.push(duplicate.id)
+        if (hit.action === 'continue') {
+          this.reviveProvenanceOwner(options.agentId, duplicate, Date.now(), normalized.category)
+          created.push(duplicate.id)
+        }
         continue
       }
       const id = this.rows.insertMemory(
@@ -233,22 +274,35 @@ export class WriteCoordinator {
 
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)
+    let decisionHead: AgentMemoryRow | null = null
+    let supersededDuplicate: AgentMemoryRow | null = null
     if (duplicate) {
-      const touched = this.rows.absorbProvenanceHit(agentId, duplicate)
-      return touched
-        ? { action: 'updated', id: duplicate.id }
-        : { action: 'noop', reason: 'duplicate', id: duplicate.id }
+      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
+        allowDecisionForSuperseded: true
+      })
+      if (hit.action === 'absorbed') return { action: 'updated', id: duplicate.id }
+      if (hit.action === 'noop') return { action: 'noop', reason: hit.reason, id: duplicate.id }
+      supersededDuplicate = duplicate
+      const head = this.rows.supersedeHead(agentId, duplicate)
+      if (isLiveDecisionTarget(agentId, head)) decisionHead = head
     }
 
     let neighbors: MemoryRecallItem[] = []
     try {
-      const hits = await this.ports.retrieve(agentId, content, now, false)
+      const hits = await this.ports.retrieveForDecision(agentId, content, now)
       neighbors = hits.slice(0, DECISION_NEIGHBOR_TOP_S)
+      if (decisionHead && !neighbors.some((neighbor) => neighbor.id === decisionHead.id)) {
+        neighbors.unshift(recallItemFromRow(decisionHead))
+        neighbors = neighbors.slice(0, DECISION_NEIGHBOR_TOP_S)
+      }
     } catch (error) {
       logger.warn(`[Memory] decision neighbor recall failed, adding: ${String(error)}`)
     }
     if (!this.ctx.canWriteAgentMemory(agentId)) return { action: 'noop', reason: 'disposed' }
     if (!neighbors.length) {
+      if (supersededDuplicate) {
+        return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
+      }
       const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
       return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
     }
@@ -276,15 +330,19 @@ export class WriteCoordinator {
       case 'UPDATE':
         if (target) {
           const targetRow = this.ctx.deps.repository.getById(target.id)
-          if (targetRow) {
+          if (isLiveDecisionTarget(agentId, targetRow)) {
             const merged = decision.mergedContent ?? content
-            const survivorId = this.rows.applyContentUpdate(
+            const update = this.rows.applyContentUpdate(
               agentId,
               targetRow,
               merged,
               now,
               normalized.category
             )
+            if (update.action === 'suppressed') {
+              return { action: 'noop', reason: update.reason, id: update.id }
+            }
+            const survivorId = update.id
             this.rows.bumpConfidence(survivorId)
             this.ctx.deps.repository.updateStatus(survivorId, 'pending_embedding')
             return { action: 'updated', id: survivorId }
@@ -293,32 +351,33 @@ export class WriteCoordinator {
         break
       case 'SUPERSEDE':
         if (target) {
+          const targetRow = this.ctx.deps.repository.getById(target.id)
+          if (!isLiveDecisionTarget(agentId, targetRow)) break
           const merged = decision.mergedContent ?? content
           const mergedKey = buildMemoryProvenanceKey(agentId, normalized.kind, merged)
-          const newId = this.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
+          let newId: string | null = null
+          this.ctx.deps.repository.runInTransaction(() => {
+            newId = this.rows.insertMemory(agentId, normalized, merged, mergedKey, options)
+            if (newId) this.ctx.deps.repository.markSuperseded(target.id, newId)
+          })
           if (newId) {
-            this.ctx.deps.repository.markSuperseded(target.id, newId)
             return { action: 'superseded', id: newId, supersededId: target.id, created: true }
           }
           const existing = this.ctx.deps.repository.getByProvenanceKey(agentId, mergedKey)
           if (existing && existing.id !== target.id) {
-            this.rows.absorbProvenanceHit(agentId, existing)
-            if (existing.category === null && normalized.category !== null) {
-              this.ctx.deps.repository.updateContent(
-                existing.id,
-                existing.content,
-                existing.provenance_key,
-                now,
-                normalized.category
-              )
+            const hit = this.rows.handleProvenanceHit(agentId, existing, {
+              allowDecisionForSuperseded: true
+            })
+            if (hit.action === 'noop' && hit.reason !== 'duplicate') {
+              return { action: 'noop', reason: hit.reason, id: existing.id }
             }
-            this.ctx.deps.repository.markSuperseded(target.id, existing.id)
-            return {
-              action: 'superseded',
-              id: existing.id,
-              supersededId: target.id,
-              created: false
-            }
+            return this.reviveProvenanceOwner(
+              agentId,
+              existing,
+              now,
+              normalized.category,
+              target.id
+            )
           }
           return { action: 'noop', reason: 'supersede-collided', id: target.id }
         }
@@ -348,11 +407,23 @@ export class WriteCoordinator {
             this.ctx.deps.repository.updateStatus(challengerId, 'pending_embedding')
             return { action: 'created', id: challengerId }
           }
+          if (supersededDuplicate) {
+            return this.reviveProvenanceOwner(
+              agentId,
+              supersededDuplicate,
+              now,
+              normalized.category,
+              target.id
+            )
+          }
           return { action: 'noop', reason: 'challenge-insert-skipped', id: target.id }
         }
         break
     }
     const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
+    if (!id && supersededDuplicate) {
+      return this.reviveProvenanceOwner(agentId, supersededDuplicate, now, normalized.category)
+    }
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
   }
 
@@ -392,13 +463,46 @@ export class WriteCoordinator {
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)
     if (duplicate) {
-      const touched = this.rows.absorbProvenanceHit(agentId, duplicate)
-      return touched
-        ? { action: 'updated', id: duplicate.id }
-        : { action: 'noop', reason: 'duplicate', id: duplicate.id }
+      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
+        allowDecisionForSuperseded: true
+      })
+      if (hit.action === 'absorbed') return { action: 'updated', id: duplicate.id }
+      if (hit.action === 'continue') {
+        return this.reviveProvenanceOwner(agentId, duplicate, Date.now(), normalized.category)
+      }
+      return { action: 'noop', reason: hit.reason, id: duplicate.id }
     }
     const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+  }
+
+  private reviveProvenanceOwner(
+    agentId: string,
+    existing: AgentMemoryRow,
+    now: number,
+    category: AgentMemoryRow['category'],
+    foldTargetId?: string
+  ): MemoryWriteOutcome {
+    this.ctx.deps.repository.runInTransaction(() => {
+      this.rows.reviveSupersededAfterDecision(agentId, existing)
+      if (existing.category === null && category !== null) {
+        this.ctx.deps.repository.updateContent(
+          existing.id,
+          existing.content,
+          existing.provenance_key,
+          now,
+          category
+        )
+      }
+      if (foldTargetId && foldTargetId !== existing.id) {
+        this.ctx.deps.repository.markSuperseded(foldTargetId, existing.id)
+      }
+    })
+
+    if (foldTargetId && foldTargetId !== existing.id) {
+      return { action: 'superseded', id: existing.id, supersededId: foldTargetId, created: false }
+    }
+    return { action: 'updated', id: existing.id }
   }
 
   async addUserMemory(

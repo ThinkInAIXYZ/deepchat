@@ -2645,6 +2645,8 @@
         "byCategory": "カテゴリ別",
         "byStatus": "状態別",
         "pipeline": "パイプライン",
+        "reindex": "再インデックス",
+        "reindexing": "再インデックス中",
         "quality": "品質",
         "topAccessed": "アクセス上位",
         "noTopAccessed": "アクセスされたメモリーはまだありません。",

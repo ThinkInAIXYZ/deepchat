@@ -250,6 +250,8 @@
         "byCategory": "Por categoría",
         "byStatus": "Por estado",
         "pipeline": "Canalización",
+        "reindex": "Reindexar",
+        "reindexing": "Reindexando",
         "quality": "Calidad",
         "topAccessed": "Más usadas",
         "noTopAccessed": "Aún no hay memorias usadas.",

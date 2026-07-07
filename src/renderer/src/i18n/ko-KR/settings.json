@@ -2645,6 +2645,8 @@
         "byCategory": "카테고리별",
         "byStatus": "상태별",
         "pipeline": "파이프라인",
+        "reindex": "다시 색인",
+        "reindexing": "다시 색인 중",
         "quality": "품질",
         "topAccessed": "최다 사용",
         "noTopAccessed": "아직 사용된 메모리가 없습니다.",

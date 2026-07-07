@@ -250,6 +250,8 @@
         "byCategory": "Nach Kategorie",
         "byStatus": "Nach Status",
         "pipeline": "Pipeline",
+        "reindex": "Neu indizieren",
+        "reindexing": "Indizierung läuft",
         "quality": "Qualität",
         "topAccessed": "Am häufigsten genutzt",
         "noTopAccessed": "Noch keine genutzten Erinnerungen.",

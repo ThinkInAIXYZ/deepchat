@@ -331,6 +331,12 @@ export const memoryGetHealthRoute = defineRouteContract({
   output: z.object({ health: MemoryHealthSchema })
 })
 
+export const memoryReindexRoute = defineRouteContract({
+  name: 'memory.reindex',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ started: z.boolean() })
+})
+
 export const memoryGetLifecycleRoute = defineRouteContract({
   name: 'memory.getLifecycle',
   input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1) }),

@@ -67,7 +67,9 @@ export class ConflictService {
     )
     if (!pair) return false
     if (!this.ctx.canWriteAgentMemory(agentId)) return false
-    this.applyConflictResolution(agentId, pair, outcome, options)
+    this.ctx.deps.repository.runInTransaction(() => {
+      this.applyConflictResolution(agentId, pair, outcome, options)
+    })
     this.ports.syncWorkingMemoryAfterMutation(agentId)
     this.ctx.writeAudit(agentId, {
       eventType: 'memory/challenge_resolved',

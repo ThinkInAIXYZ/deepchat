@@ -2645,6 +2645,8 @@
         "byCategory": "Par catégorie",
         "byStatus": "Par statut",
         "pipeline": "Pipeline",
+        "reindex": "Réindexer",
+        "reindexing": "Réindexation en cours",
         "quality": "Qualité",
         "topAccessed": "Les plus consultées",
         "noTopAccessed": "Aucune mémoire consultée pour le moment.",

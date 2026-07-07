@@ -494,6 +494,36 @@ describe('working-memory L1 (T5)', () => {
     expect(working?.content).not.toContain('x'.repeat(2000))
   })
 
+  it('continues past the first oversized working candidate page', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const listWorkingCandidatesSpy = vi.spyOn(repo, 'listWorkingCandidates')
+    for (let index = 0; index < 64; index += 1) {
+      repo.insert({
+        id: `long-${String(index).padStart(3, '0')}`,
+        agentId: 'deepchat',
+        kind: 'semantic',
+        content: `oversized ${index} ${'x'.repeat(2000)}`,
+        importance: 1,
+        createdAt: 10_000 - index
+      })
+    }
+    repo.insert({
+      id: 'short-after-page',
+      agentId: 'deepchat',
+      kind: 'semantic',
+      content: 'short fact after long candidates',
+      importance: 0.9,
+      createdAt: 1
+    })
+
+    presenter.refreshWorkingMemory('deepchat')
+
+    const working = [...repo.rows.values()].find((row) => row.kind === 'working')
+    expect(working?.content).toContain('short fact after long candidates')
+    expect(listWorkingCandidatesSpy.mock.calls.length).toBeGreaterThan(1)
+    expect(listWorkingCandidatesSpy.mock.calls[1][2]).toMatchObject({ id: 'long-063' })
+  })
+
   it('falls back to recall when no working blob exists', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
     repo.insert({
@@ -595,22 +625,16 @@ describe('working-memory L1 (T5)', () => {
 
   it('coalesces concurrent cold-start misses into a single refresh', async () => {
     const { presenter, repo } = makePresenter(enabledConfig)
-    const listByAgentSpy = vi.spyOn(repo, 'listByAgent')
+    const listWorkingCandidatesSpy = vi.spyOn(repo, 'listWorkingCandidates')
     // Two opens race before either refresh microtask runs; the in-flight flag collapses them to one.
     await Promise.all([
       presenter.buildInjection('deepchat', 'q'),
       presenter.buildInjection('deepchat', 'q')
     ])
     await flushMicrotasks()
-    const workingRefreshScans = listByAgentSpy.mock.calls.filter(([agentId, options]) => {
-      const kinds = options?.kinds ?? []
-      return (
-        agentId === 'deepchat' &&
-        kinds.includes('semantic') &&
-        kinds.includes('reflection') &&
-        kinds.includes('episodic')
-      )
-    })
+    const workingRefreshScans = listWorkingCandidatesSpy.mock.calls.filter(
+      ([agentId]) => agentId === 'deepchat'
+    )
     expect(workingRefreshScans).toHaveLength(1)
   })
 
@@ -2173,7 +2197,7 @@ describe('MemoryPresenter management', () => {
           resolveCreate = () => resolve(store)
         })
     )
-    const newContent = 'user likes redis preference'
+    const newContent = 'postgres preference'
     const embeddingCalls: Array<{ texts: string[]; rowExists: boolean }> = []
     const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
       embeddingCalls.push({
@@ -2905,6 +2929,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
       query: async () => [],
       queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
       close: async () => {},
       isUsable: () => true
     }
@@ -2941,6 +2966,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
       query: async () => [],
       queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
       close: async () => {},
       isUsable: () => true
     }
@@ -2984,6 +3010,7 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
       query: async () => [],
       queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
       close: async () => {},
       isUsable: () => false
     }
@@ -3113,6 +3140,91 @@ describe('MemoryPresenter.processPendingEmbeddings (batch + fairness)', () => {
     expect(repo.getById('m1')?.status).toBe('embedded')
     expect(repo.getById('m2')?.status).toBe('embedded')
   })
+
+  it('does not issue an empty error requeue when there are no error rows', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const requeueSpy = vi.spyOn(repo, 'requeueForEmbedding')
+
+    await presenter.processPendingEmbeddings('a')
+
+    expect(requeueSpy).not.toHaveBeenCalled()
+  })
+
+  it('advances error retry fairly instead of starving rows after the first batch', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    for (let index = 0; index < 51; index += 1) {
+      repo.insert({
+        id: `err-${String(index).padStart(2, '0')}`,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `retry ${index}`,
+        status: 'error'
+      })
+    }
+    const embeddingState = (
+      presenter as unknown as {
+        embedding: {
+          getMutableRuntimeStateForTests(): {
+            errorRetryAt: Map<string, number>
+            errorRetryAfterId: Map<string, string | null>
+          }
+        }
+      }
+    ).embedding.getMutableRuntimeStateForTests()
+
+    await presenter.processPendingEmbeddings('a')
+    expect(repo.getById('err-49')?.status).toBe('embedded')
+    expect(repo.getById('err-50')?.status).toBe('error')
+    expect(embeddingState.errorRetryAfterId.get('a')).toBe('err-49')
+
+    embeddingState.errorRetryAt.set('a', 0)
+    await presenter.processPendingEmbeddings('a')
+
+    expect(repo.getById('err-50')?.status).toBe('embedded')
+  })
+
+  it('sets an error retry cooldown when embedding vectors have mismatched dimensions', async () => {
+    const repo = new FakeRepository()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async () => [
+        [1, 2, 3, 4],
+        [1, 2]
+      ],
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({
+      id: 'ok',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'ok',
+      status: 'pending_embedding'
+    })
+    repo.insert({
+      id: 'bad',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'bad',
+      status: 'pending_embedding'
+    })
+    const embeddingState = (
+      presenter as unknown as {
+        embedding: {
+          getMutableRuntimeStateForTests(): {
+            errorRetryAt: Map<string, number>
+          }
+        }
+      }
+    ).embedding.getMutableRuntimeStateForTests()
+
+    await presenter.processPendingEmbeddings('a')
+
+    expect(repo.getById('ok')?.status).toBe('embedded')
+    expect(repo.getById('bad')?.status).toBe('error')
+    expect(embeddingState.errorRetryAt.has('a')).toBe(true)
+  })
 })
 
 describe('MemoryPresenter change events (onMemoryChanged)', () => {
@@ -3152,6 +3264,14 @@ describe('MemoryPresenter change events (onMemoryChanged)', () => {
     onMemoryChanged.mockClear()
     await presenter.clearMemories('a') // already empty
     expect(onMemoryChanged).not.toHaveBeenCalled()
+  })
+
+  it('emits "reindex" when a manual reindex returns early with no rows', async () => {
+    const { presenter, onMemoryChanged } = makeWithSpy()
+
+    await presenter.reindexEmbeddings('a')
+
+    expect(onMemoryChanged).toHaveBeenCalledWith('a', 'reindex')
   })
 
   it('emits persona reasons through the draft / approve / rollback lifecycle', async () => {
@@ -3646,6 +3766,63 @@ describe('writeMemoriesSync insert error classification (C2, AC-2.2)', () => {
 })
 
 describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
+  it('deletes orphan vectors in bounded batches during warm reconcile', async () => {
+    const { presenter, store } = makePresenter(enabledConfig)
+    for (let index = 0; index < 601; index += 1) {
+      store.vectors.set(`orphan-${String(index).padStart(4, '0')}`, textToVector('orphan redis'))
+    }
+    const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
+
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => store.vectors.size === 0, 'orphan vectors were not deleted')
+
+    expect(deleteSpy).toHaveBeenCalledTimes(2)
+    expect(deleteSpy.mock.calls.map(([ids]) => ids.length)).toEqual([512, 89])
+    expect(deleteSpy.mock.calls.every(([ids]) => ids.length <= 512)).toBe(true)
+  })
+
+  it('keeps vector recall ready and cools down after orphan reconcile delete failure', async () => {
+    const { presenter, store } = makePresenter(enabledConfig)
+    store.vectors.set('orphan-0001', textToVector('orphan redis'))
+    const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
+    deleteSpy.mockRejectedValueOnce(new Error('delete failed'))
+    const embeddingState = (
+      presenter as unknown as {
+        embedding: {
+          getMutableRuntimeStateForTests(): {
+            orphanVectorReconcileRetryAt: Map<string, number>
+          }
+        }
+      }
+    ).embedding.getMutableRuntimeStateForTests()
+
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => deleteSpy.mock.calls.length === 1)
+    expect(store.vectors.has('orphan-0001')).toBe(true)
+    expect(
+      (presenter as unknown as { vectorStoreReady: Map<string, string> }).vectorStoreReady.has('a')
+    ).toBe(true)
+
+    ;(
+      presenter as unknown as { clearVectorStoreReady(agentId: string): void }
+    ).clearVectorStoreReady('a')
+    await presenter.recall('a', 'redis')
+    await flushMicrotasks()
+    expect(deleteSpy).toHaveBeenCalledTimes(1)
+
+    for (const key of embeddingState.orphanVectorReconcileRetryAt.keys()) {
+      embeddingState.orphanVectorReconcileRetryAt.set(key, 0)
+    }
+    ;(
+      presenter as unknown as { clearVectorStoreReady(agentId: string): void }
+    ).clearVectorStoreReady('a')
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(
+      () => deleteSpy.mock.calls.length >= 2 && !store.vectors.has('orphan-0001'),
+      'orphan reconcile did not retry after failure'
+    )
+  })
+
   it('reindexEmbeddings re-queues, rebuilds the store, and re-embeds with the new fingerprint', async () => {
     const repo = new FakeRepository()
     let config: DeepChatAgentConfig = {
@@ -3938,6 +4115,7 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
       query: async () => [],
       queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
       close: async () => {},
       isUsable: () => false
     }
@@ -5643,9 +5821,10 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(recalled.some((m) => m.id === id)).toBe(true)
   })
 
-  it('re-stating a superseded preference revives it and retires the contradicting head (AC-1.2)', async () => {
+  it('re-stating a superseded preference can revive it after a SUPERSEDE decision (AC-1.2)', async () => {
     const generateText = routedLLM({
-      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user likes redis"}'
     })
     const { presenter, repo } = makeLLMPresenter(generateText)
     const aId = await seedEmbedded(presenter, 'user likes redis')
@@ -5665,6 +5844,54 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     const recalled = await presenter.recall('a', 'redis')
     expect(recalled.some((m) => m.id === aId)).toBe(true)
     expect(recalled.some((m) => m.id === bId)).toBe(false)
+  })
+
+  it('ADD fallback revives a superseded provenance owner instead of dropping the fact', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
+      decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const ownerId = await seedEmbedded(presenter, 'user likes redis')
+    const headId = await seedEmbedded(presenter, 'user dislikes redis')
+    repo.markSuperseded(ownerId, headId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis again',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(ownerId)).toMatchObject({
+      status: 'pending_embedding',
+      superseded_by: null
+    })
+    expect(repo.getById(headId)?.superseded_by).toBe(ownerId)
+  })
+
+  it('CHALLENGE fallback revives a superseded provenance owner and retires the head', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
+      decision: '{"decision":"CHALLENGE","targetIndex":0,"mergedContent":null}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const ownerId = await seedEmbedded(presenter, 'user likes redis')
+    const headId = await seedEmbedded(presenter, 'user dislikes redis')
+    repo.markSuperseded(ownerId, headId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I like redis again',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(ownerId)?.superseded_by).toBeNull()
+    expect(repo.getById(headId)?.superseded_by).toBe(ownerId)
+    expect(repo.listByAgent('a', { statuses: ['conflicted'], includeSuperseded: true })).toEqual([])
   })
 
   it('SUPERSEDE whose merged wording collides with an archived row revives it and folds the target in (AC-1.4)', async () => {
@@ -5813,6 +6040,132 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(repo.getById(targetId)?.superseded_by).toBe(ownerId)
     expect(repo.listByAgent('a')).toHaveLength(1)
     expect(repo.listByAgent('a')[0].id).toBe(ownerId)
+  })
+
+  it('an UPDATE whose merged content collides with a superseded row revives the owner', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user enjoys redis","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers vue"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    const ownerId = await seedEmbedded(presenter, 'user prefers vue')
+    const headId = await seedEmbedded(presenter, 'user prefers react')
+    repo.markSuperseded(ownerId, headId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I enjoy redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(ownerId)).toMatchObject({
+      status: 'pending_embedding',
+      superseded_by: null
+    })
+    expect(repo.getById(headId)?.superseded_by).toBe(ownerId)
+    expect(repo.getById(targetId)?.superseded_by).toBe(ownerId)
+  })
+
+  it('an UPDATE collision with user-forgotten provenance is a true noop', async () => {
+    const generateText = routedLLM({
+      extraction: '[{"kind":"semantic","content":"user enjoys redis","importance":0.8}]',
+      decision: '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers vue"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const ownerId = await seedEmbedded(presenter, 'user prefers vue')
+    const targetId = await seedEmbedded(presenter, 'user likes redis')
+    expect(await presenter.archiveUserMemory('a', ownerId)).toBe(true)
+    const targetBefore = repo.getById(targetId)!
+    const beforeSnapshot = {
+      content: targetBefore.content,
+      provenanceKey: targetBefore.provenance_key,
+      confidence: targetBefore.confidence
+    }
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I enjoy redis',
+      model: { providerId: 'main', modelId: 'main' }
+    })
+
+    if (!result.ok) throw new Error('expected ok')
+    const targetAfter = repo.getById(targetId)!
+    expect(result.createdIds).toHaveLength(0)
+    expect(repo.getById(ownerId)?.status).toBe('archived')
+    expect(targetAfter.content).toBe(beforeSnapshot.content)
+    expect(targetAfter.provenance_key).toBe(beforeSnapshot.provenanceKey)
+    expect(targetAfter.status).toBe('embedded')
+    expect(targetAfter.confidence).toBe(beforeSnapshot.confidence)
+    expect(targetAfter.superseded_by).toBeNull()
+  })
+
+  it('restore audit offsets a prior forget so a decay-archived memory can be learned again', async () => {
+    vi.useFakeTimers()
+    try {
+      const generateText = routedLLM({
+        extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      })
+      const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+      vi.setSystemTime(1000)
+      const id = await seedEmbedded(presenter, 'user likes redis')
+      vi.setSystemTime(2000)
+      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      vi.setSystemTime(3000)
+      expect(presenter.restoreMemory('a', id)).toBe(true)
+      expect(auditRepo.hasForgetEvent('a', id)).toBe(false)
+      vi.setSystemTime(4000)
+      repo.archive(id, Date.now())
+
+      vi.setSystemTime(5000)
+      const result = await presenter.extractAndStore({
+        agentId: 'a',
+        spanText: 'User: I like redis',
+        model: { providerId: 'main', modelId: 'main' }
+      })
+
+      if (!result.ok) throw new Error('expected ok')
+      expect(result.createdIds).toHaveLength(0)
+      expect(repo.getById(id)?.status).toBe('pending_embedding')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a forget after restore remains the latest provenance tombstone', async () => {
+    vi.useFakeTimers()
+    try {
+      const generateText = routedLLM({
+        extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]'
+      })
+      const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+      vi.setSystemTime(1000)
+      const id = await seedEmbedded(presenter, 'user likes redis')
+      vi.setSystemTime(2000)
+      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      vi.setSystemTime(3000)
+      expect(presenter.restoreMemory('a', id)).toBe(true)
+      vi.setSystemTime(4000)
+      repo.archive(id, Date.now())
+      vi.setSystemTime(5000)
+      expect(await presenter.forgetMemory('a', id)).toBe(true)
+      expect(auditRepo.hasForgetEvent('a', id)).toBe(true)
+
+      vi.setSystemTime(6000)
+      const result = await presenter.extractAndStore({
+        agentId: 'a',
+        spanText: 'User: I like redis',
+        model: { providerId: 'main', modelId: 'main' }
+      })
+
+      if (!result.ok) throw new Error('expected ok')
+      expect(result.createdIds).toHaveLength(0)
+      expect(repo.getById(id)?.status).toBe('archived')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a consolidation pass interrupted by dispose writes nothing to the repository (AC-3.1)', async () => {
@@ -6161,6 +6514,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
       }),
       queryByMemoryId: async () => [],
       deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
       close: async () => {},
       isUsable: () => true
     }
@@ -6244,6 +6598,90 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     expect(ok).toBe(true) // the authoritative SQLite delete still happened
     expect(repo.getById('m1')).toBeUndefined()
     expect(deleteSpy).not.toHaveBeenCalled() // no write against the store dispose just closed
+  })
+
+  it('deletes vectors from the row snapshot embedding store even after config changes', async () => {
+    const repo = new FakeRepository()
+    const store = new FakeVectorStore()
+    const createVectorStore = vi.fn(async () => store)
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'p', modelId: 'current' }
+      }),
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:legacy'
+    })
+    store.vectors.set('m1', textToVector('redis fact'))
+    const deleteSpy = vi.spyOn(store, 'deleteByMemoryIds')
+
+    expect(await presenter.deleteMemory('a', 'm1')).toBe(true)
+
+    expect(createVectorStore).toHaveBeenCalledWith('a', { providerId: 'p', modelId: 'legacy' }, 4)
+    expect(deleteSpy).toHaveBeenCalledWith(['m1'])
+    expect(repo.getById('m1')).toBeUndefined()
+  })
+
+  it('does not fail the SQLite delete when opening the vector store fails', async () => {
+    const repo = new FakeRepository()
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => {
+        throw new Error('open failed')
+      },
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+
+    await expect(presenter.deleteMemory('a', 'm1')).resolves.toBe(true)
+    expect(repo.getById('m1')).toBeUndefined()
+  })
+
+  it('schedules a forced reindex when delete finds an unusable vector store', async () => {
+    const repo = new FakeRepository()
+    const unusableStore: IMemoryVectorStore = {
+      upsert: async () => {},
+      query: async () => [],
+      queryByMemoryId: async () => [],
+      deleteByMemoryIds: async () => {},
+      listMemoryIds: async () => [],
+      close: async () => {},
+      isUsable: () => false
+    }
+    const presenter = new MemoryPresenter({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
+      createVectorStore: async () => unusableStore,
+      resetVectorStore: async () => undefined
+    })
+    repo.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fact' })
+    repo.updateStatus('m1', 'embedded', {
+      embeddingId: 'm1',
+      embeddingDim: 4,
+      embeddingModel: 'p:m'
+    })
+    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings').mockResolvedValue()
+
+    expect(await presenter.deleteMemory('a', 'm1')).toBe(true)
+
+    expect(reindexSpy).toHaveBeenCalledWith('a', true)
+    expect(repo.getById('m1')).toBeUndefined()
   })
 
   it('dispose waits for an in-flight vector delete before closing the store (AC-3.11)', async () => {

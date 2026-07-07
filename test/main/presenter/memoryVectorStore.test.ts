@@ -35,6 +35,12 @@ interface QueryableStore {
   ): Promise<Array<{ memoryId: string; distance: number }>>
 }
 
+interface ListableStore {
+  connection: { runAndReadAll: ReturnType<typeof vi.fn> }
+  vectorTable: string
+  listMemoryIds(afterId: string | null, limit: number): Promise<string[]>
+}
+
 function makeStore(onRun: (sql: string) => void = () => {}) {
   const calls: string[] = []
   const connection = {
@@ -124,6 +130,38 @@ describe('MemoryVectorStore.queryByMemoryId', () => {
     })
     await expect(store.queryByMemoryId('bad', { topK: 2 })).resolves.toEqual([])
     expect(store.query).not.toHaveBeenCalled()
+  })
+})
+
+describe('MemoryVectorStore.listMemoryIds', () => {
+  it('uses keyset pagination and a bounded limit', async () => {
+    const connection = {
+      runAndReadAll: vi.fn(async () => ({
+        getRowObjectsJson: () => [{ memory_id: 'm2' }, { memory_id: 'm3' }]
+      }))
+    }
+    const store = Object.create(MemoryVectorStore.prototype) as ListableStore
+    store.connection = connection
+    store.vectorTable = 'memory_vector'
+
+    await expect(store.listMemoryIds('m1', 2)).resolves.toEqual(['m2', 'm3'])
+
+    expect(connection.runAndReadAll).toHaveBeenCalledWith(
+      expect.stringContaining('memory_id > ?'),
+      ['m1', 2]
+    )
+  })
+
+  it('returns early for a zero limit', async () => {
+    const connection = {
+      runAndReadAll: vi.fn()
+    }
+    const store = Object.create(MemoryVectorStore.prototype) as ListableStore
+    store.connection = connection
+    store.vectorTable = 'memory_vector'
+
+    await expect(store.listMemoryIds(null, 0)).resolves.toEqual([])
+    expect(connection.runAndReadAll).not.toHaveBeenCalled()
   })
 })
 

@@ -50,6 +50,13 @@ export interface AgentMemoryRow {
   persona_state: string | null
 }
 
+export interface AgentMemoryWorkingCandidateCursor {
+  importance: number
+  accessCount: number
+  createdAt: number
+  id: string
+}
+
 export type AgentMemoryLifecycleRow = Pick<
   AgentMemoryRow,
   | 'id'
@@ -114,6 +121,7 @@ const AGENT_MEMORY_FTS_META_KEY = 'agent_memory_fts'
 const AGENT_MEMORY_FTS_META_VERSION = 1
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
+type MathFunctionCapability = { available: boolean }
 type SearchMatchMode = 'all' | 'any'
 type RecallKeywordTermStat = { term: string; hitCount: number; totalRows: number }
 
@@ -153,6 +161,13 @@ function readAggregateNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function calculateDecayScoreForRow(row: AgentMemoryRow, now: number, halfLifeMs: number): number {
+  const anchor = row.last_accessed ?? row.created_at
+  const age = Math.max(0, now - anchor)
+  const importance = Math.min(1, Math.max(0, row.importance))
+  return Math.pow(0.5, age / (halfLifeMs * (1 + importance)))
+}
+
 function sqlLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
@@ -189,6 +204,7 @@ function readAggregateRecord<const Keys extends readonly string[]>(
 
 export class AgentMemoryTable extends BaseTable {
   private ftsCapability: FtsCapability | undefined
+  private mathFunctionCapability: MathFunctionCapability | undefined
   private ftsReady = false
 
   constructor(db: Database.Database) {
@@ -292,6 +308,19 @@ export class AgentMemoryTable extends BaseTable {
     else if (probe('unicode61')) this.ftsCapability = { available: true, tokenizer: 'unicode61' }
     else this.ftsCapability = { available: false, tokenizer: 'unicode61' }
     return this.ftsCapability
+  }
+
+  private detectMathFunctionCapability(): MathFunctionCapability {
+    if (this.mathFunctionCapability) return this.mathFunctionCapability
+    try {
+      const row = this.db.prepare('SELECT pow(2.0, 2.0) AS value').get() as
+        | { value: number }
+        | undefined
+      this.mathFunctionCapability = { available: row?.value === 4 }
+    } catch {
+      this.mathFunctionCapability = { available: false }
+    }
+    return this.mathFunctionCapability
   }
 
   private ftsTableExists(): boolean {
@@ -819,9 +848,43 @@ export class AgentMemoryTable extends BaseTable {
   // in pending_embedding forever, since listPendingEmbedding never returns those kinds. Status
   // changes do not touch content, so the FTS triggers (UPDATE OF content) never fire here.
   // Returns the number of rows changed.
-  requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number {
+  requeueForEmbedding(
+    agentId: string,
+    statuses: AgentMemoryStatus[],
+    limit?: number,
+    afterId?: string | null
+  ): number {
     if (!statuses.length) return 0
     const placeholders = statuses.map(() => '?').join(', ')
+    if (limit !== undefined) {
+      const cappedLimit = Math.max(0, Math.floor(limit))
+      if (cappedLimit === 0) return 0
+      const afterSql = afterId ? 'AND id > ?' : ''
+      const params: unknown[] = [agentId, ...statuses]
+      if (afterId) params.push(afterId)
+      params.push(cappedLimit)
+      const result = this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET status = 'pending_embedding',
+               embedding_id = NULL,
+               embedding_dim = NULL,
+               embedding_model = NULL
+           WHERE id IN (
+             SELECT id
+             FROM agent_memory
+             WHERE agent_id = ?
+               AND superseded_by IS NULL
+               AND kind NOT IN ('persona', 'working')
+               AND status IN (${placeholders})
+               ${afterSql}
+             ORDER BY id ASC
+             LIMIT ?
+           )`
+        )
+        .run(...params)
+      return result.changes
+    }
     const result = this.db
       .prepare(
         `UPDATE agent_memory
@@ -836,6 +899,36 @@ export class AgentMemoryTable extends BaseTable {
       )
       .run(agentId, ...statuses)
     return result.changes
+  }
+
+  listEmbeddingStatusIds(
+    agentId: string,
+    statuses: AgentMemoryStatus[],
+    limit: number,
+    afterId?: string | null
+  ): string[] {
+    if (!statuses.length) return []
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    const placeholders = statuses.map(() => '?').join(', ')
+    const afterSql = afterId ? 'AND id > ?' : ''
+    const params: unknown[] = [agentId, ...statuses]
+    if (afterId) params.push(afterId)
+    params.push(cappedLimit)
+    const rows = this.db
+      .prepare(
+        `SELECT id
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND status IN (${placeholders})
+           ${afterSql}
+         ORDER BY id ASC
+         LIMIT ?`
+      )
+      .all(...params) as Array<{ id: string }>
+    return rows.map((row) => row.id)
   }
 
   markSuperseded(id: string, supersededBy: string | null): void {
@@ -879,6 +972,48 @@ export class AgentMemoryTable extends BaseTable {
          WHERE id = ?`
       )
       .run(decayScore, consolidatedAt, id)
+  }
+
+  refreshDecayScoresForAgent(agentId: string, now: number, halfLifeMs: number): void {
+    if (this.detectMathFunctionCapability().available) {
+      this.db
+        .prepare(
+          `UPDATE agent_memory
+           SET decay_score = pow(
+             0.5,
+             max(0, ? - COALESCE(last_accessed, created_at)) /
+               (? * (1 + min(1.0, max(0.0, importance))))
+           )
+           WHERE agent_id = ?
+             AND kind != 'persona'
+             AND kind != 'working'
+             AND superseded_by IS NULL
+             AND status NOT IN ('archived', 'conflicted')`
+        )
+        .run(now, halfLifeMs, agentId)
+      return
+    }
+
+    const rows = this.listByAgent(agentId).filter((row) => row.kind !== 'persona')
+    this.runInTransaction(() => {
+      for (const row of rows) {
+        this.updateDecayScore(row.id, calculateDecayScoreForRow(row, now, halfLifeMs), null)
+      }
+    })
+  }
+
+  stampConsolidationForAgent(agentId: string, at: number): void {
+    this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET last_consolidated_at = ?
+         WHERE agent_id = ?
+           AND kind != 'persona'
+           AND kind != 'working'
+           AND superseded_by IS NULL
+           AND status NOT IN ('archived', 'conflicted')`
+      )
+      .run(at, agentId)
   }
 
   // Refreshes a row's content in place (UPDATE/merge decision), keeping its provenance_key in sync
@@ -1191,6 +1326,75 @@ export class AgentMemoryTable extends BaseTable {
     return row?.count ?? 0
   }
 
+  countStatusView(agentId: string): { total: number; pendingEmbedding: number } {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN status = 'pending_embedding' THEN 1 ELSE 0 END) AS pendingEmbedding
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND status != 'archived'
+           AND status != 'conflicted'
+           AND kind != 'working'`
+      )
+      .get(agentId) as { total: number; pendingEmbedding: number | null } | undefined
+    return {
+      total: row?.total ?? 0,
+      pendingEmbedding: row?.pendingEmbedding ?? 0
+    }
+  }
+
+  runInTransaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)()
+  }
+
+  listWorkingCandidates(
+    agentId: string,
+    limit: number,
+    after?: AgentMemoryWorkingCandidateCursor
+  ): AgentMemoryRow[] {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    const cursorSql = after
+      ? `AND (
+           importance < ?
+           OR (importance = ? AND access_count < ?)
+           OR (importance = ? AND access_count = ? AND created_at < ?)
+           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
+         )`
+      : ''
+    const params: unknown[] = [agentId]
+    if (after) {
+      params.push(
+        after.importance,
+        after.importance,
+        after.accessCount,
+        after.importance,
+        after.accessCount,
+        after.createdAt,
+        after.importance,
+        after.accessCount,
+        after.createdAt,
+        after.id
+      )
+    }
+    params.push(cappedLimit)
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND status != 'archived'
+           AND status != 'conflicted'
+           AND kind IN ('semantic', 'reflection', 'episodic')
+           ${cursorSql}
+         ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
+         LIMIT ?`
+      )
+      .all(...params) as AgentMemoryRow[]
+  }
+
   hasActiveMemory(agentId: string): boolean {
     const row = this.db
       .prepare(
@@ -1311,24 +1515,44 @@ export class AgentMemoryTable extends BaseTable {
     const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
     if (!uniqueIds.length) return []
     const placeholders = uniqueIds.map(() => '?').join(', ')
-    const rows = this.db
+    const existingRows = this.db
       .prepare(
-        `SELECT id
+        `SELECT id,
+                embedding_id,
+                embedding_dim,
+                embedding_model,
+                kind,
+                superseded_by,
+                status
          FROM agent_memory
          WHERE agent_id = ?
-           AND id IN (${placeholders})
-           AND embedding_id IS NOT NULL
-           AND embedding_dim = ?
-           AND embedding_model = ?
-           AND (
-             kind IN ('persona', 'working') OR
-             superseded_by IS NOT NULL OR
-             status = 'archived'
-           )`
+           AND id IN (${placeholders})`
       )
-      .all(agentId, ...uniqueIds, embeddingDim, embeddingModel) as Array<{ id: string }>
-    const liveIds = new Set(rows.map((row) => row.id))
-    return uniqueIds.filter((id) => liveIds.has(id))
+      .all(agentId, ...uniqueIds) as Array<{
+      id: string
+      embedding_id: string | null
+      embedding_dim: number | null
+      embedding_model: string | null
+      kind: AgentMemoryKind
+      superseded_by: string | null
+      status: AgentMemoryStatus
+    }>
+    const existingIds = new Set(existingRows.map((row) => row.id))
+    const prunableIds = new Set(
+      existingRows
+        .filter(
+          (row) =>
+            row.embedding_id !== null &&
+            row.embedding_dim === embeddingDim &&
+            row.embedding_model === embeddingModel &&
+            (row.kind === 'persona' ||
+              row.kind === 'working' ||
+              row.superseded_by !== null ||
+              row.status === 'archived')
+        )
+        .map((row) => row.id)
+    )
+    return uniqueIds.filter((id) => !existingIds.has(id) || prunableIds.has(id))
   }
 
   clearPrunableEmbeddingRefs(

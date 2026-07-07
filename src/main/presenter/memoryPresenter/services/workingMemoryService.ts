@@ -3,9 +3,15 @@ import { nanoid } from 'nanoid'
 
 import { buildMemoryProvenanceKey } from '../core/scoring'
 import { estimateTokens } from '../core/injectionPort'
-import { WORKING_BLOB_TOKEN_LIMIT, WORKING_PROVENANCE_SEED } from '../runtimeConstants'
+import {
+  WORKING_BLOB_TOKEN_LIMIT,
+  WORKING_CANDIDATE_PAGE_LIMIT,
+  WORKING_CANDIDATE_SCAN_LIMIT,
+  WORKING_PROVENANCE_SEED
+} from '../runtimeConstants'
 import { isUniqueConstraintError, type MemoryRuntimeContext } from '../context'
 import type { WorkingMemoryReadPort } from '../ports'
+import type { AgentMemoryWorkingCandidateCursor } from '../types'
 
 export class WorkingMemoryService implements WorkingMemoryReadPort {
   private readonly workingRefreshInFlight = new Set<string>()
@@ -86,25 +92,36 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   }
 
   buildWorkingBlob(agentId: string): string {
-    const units = this.ctx.deps.repository
-      .listByAgent(agentId, { kinds: ['semantic', 'reflection', 'episodic'] })
-      .slice()
-      .sort(
-        (a, b) =>
-          b.importance - a.importance ||
-          b.access_count - a.access_count ||
-          b.created_at - a.created_at
-      )
     const lines: string[] = []
     let tokens = 0
-    for (const unit of units) {
-      const content = unit.content.trim()
-      if (!content) continue
-      const line = `- ${content}`
-      const cost = estimateTokens(line)
-      if (tokens + cost > WORKING_BLOB_TOKEN_LIMIT) continue
-      lines.push(line)
-      tokens += cost
+    let scanned = 0
+    let cursor: AgentMemoryWorkingCandidateCursor | undefined
+    while (scanned < WORKING_CANDIDATE_SCAN_LIMIT && tokens < WORKING_BLOB_TOKEN_LIMIT) {
+      const pageLimit = Math.min(
+        WORKING_CANDIDATE_PAGE_LIMIT,
+        WORKING_CANDIDATE_SCAN_LIMIT - scanned
+      )
+      const units = this.ctx.deps.repository.listWorkingCandidates(agentId, pageLimit, cursor)
+      if (!units.length) break
+      scanned += units.length
+      for (const unit of units) {
+        const content = unit.content.trim()
+        if (!content) continue
+        const line = `- ${content}`
+        const cost = estimateTokens(line)
+        if (tokens + cost > WORKING_BLOB_TOKEN_LIMIT) continue
+        lines.push(line)
+        tokens += cost
+        if (tokens >= WORKING_BLOB_TOKEN_LIMIT) break
+      }
+      const last = units[units.length - 1]
+      cursor = {
+        importance: last.importance,
+        accessCount: last.access_count,
+        createdAt: last.created_at,
+        id: last.id
+      }
+      if (units.length < pageLimit) break
     }
     return lines.join('\n').trim()
   }

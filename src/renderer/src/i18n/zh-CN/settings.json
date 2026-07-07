@@ -247,6 +247,8 @@
         "byCategory": "按分类",
         "byStatus": "按状态",
         "pipeline": "管线",
+        "reindex": "重建索引",
+        "reindexing": "重建中",
         "quality": "质量",
         "topAccessed": "访问最多",
         "noTopAccessed": "暂无被访问过的记忆。",

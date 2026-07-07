@@ -158,8 +158,10 @@ describe('MemoryPresenter.extractAndStore', () => {
         query: async () => [],
         queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
+        listMemoryIds: async () => [],
         clear: async () => {},
-        close: async () => {}
+        close: async () => {},
+        isUsable: () => true
       })
     })
 
@@ -213,8 +215,10 @@ describe('MemoryPresenter.extractAndStore', () => {
         query: async () => [],
         queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
+        listMemoryIds: async () => [],
         clear: async () => {},
-        close: async () => {}
+        close: async () => {},
+        isUsable: () => true
       })
     })
 
@@ -249,8 +253,10 @@ describe('MemoryPresenter.extractAndStore', () => {
         query: async () => [],
         queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
+        listMemoryIds: async () => [],
         clear: async () => {},
-        close: async () => {}
+        close: async () => {},
+        isUsable: () => true
       })
     })
 
@@ -303,6 +309,7 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
         query: async () => [],
         queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
+        listMemoryIds: async () => [],
         close: async () => {},
         isUsable: () => true
       }),
@@ -436,6 +443,7 @@ describe('MemoryPresenter.maybeReflect cheap model', () => {
         query: async () => [],
         queryByMemoryId: async () => [],
         deleteByMemoryIds: async () => {},
+        listMemoryIds: async () => [],
         close: async () => {},
         isUsable: () => true
       }),
@@ -558,7 +566,14 @@ function makeFakeRepo() {
         last_accessed: null,
         access_count: 0,
         decay_score: null,
-        source_entry_ids: input.sourceEntryIds?.length ? JSON.stringify(input.sourceEntryIds) : null
+        source_entry_ids: input.sourceEntryIds?.length
+          ? JSON.stringify(input.sourceEntryIds)
+          : null,
+        confidence: null,
+        last_consolidated_at: null,
+        conflict_state: null,
+        conflict_with: input.conflictWith ?? null,
+        persona_state: input.personaState ?? null
       }
       rows.set(row.id, row)
       return row
@@ -583,10 +598,69 @@ function makeFakeRepo() {
       [...rows.values()]
         .filter((r) => r.status === 'pending_embedding' && (!agentId || r.agent_id === agentId))
         .slice(0, limit),
+    updatePendingEmbeddingStatus: (
+      agentId: string,
+      id: string,
+      status: string,
+      embedding?: {
+        embeddingId?: string | null
+        embeddingDim?: number | null
+        embeddingModel?: string | null
+      }
+    ) => {
+      const r = rows.get(id)
+      if (!r || r.agent_id !== agentId || r.status !== 'pending_embedding') return false
+      r.status = status
+      r.embedding_id = embedding?.embeddingId ?? null
+      r.embedding_dim = embedding?.embeddingDim ?? null
+      r.embedding_model = embedding?.embeddingModel ?? null
+      return true
+    },
     updateStatus: (id: string, status: string) => {
       const r = rows.get(id)
       if (r) r.status = status
     },
+    requeueForEmbedding: (
+      agentId: string,
+      statuses: string[],
+      limit?: number,
+      afterId?: string | null
+    ) => {
+      const candidates = [...rows.values()]
+        .filter(
+          (r) =>
+            r.agent_id === agentId &&
+            !r.superseded_by &&
+            statuses.includes(r.status) &&
+            (!afterId || r.id > afterId)
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .slice(0, limit === undefined ? undefined : Math.max(0, Math.floor(limit)))
+      for (const r of candidates) {
+        r.status = 'pending_embedding'
+        r.embedding_id = null
+        r.embedding_dim = null
+        r.embedding_model = null
+      }
+      return candidates.length
+    },
+    listEmbeddingStatusIds: (
+      agentId: string,
+      statuses: string[],
+      limit: number,
+      afterId?: string | null
+    ) =>
+      [...rows.values()]
+        .filter(
+          (r) =>
+            r.agent_id === agentId &&
+            !r.superseded_by &&
+            statuses.includes(r.status) &&
+            (!afterId || r.id > afterId)
+        )
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .slice(0, Math.max(0, Math.floor(limit)))
+        .map((row) => row.id),
     updateContent: (
       id: string,
       content: string,
@@ -603,6 +677,53 @@ function makeFakeRepo() {
     },
     markSuperseded: () => {},
     recordAccess: () => {},
+    recordAccessBatch: () => {},
+    setPersonaState: () => {},
+    setAnchor: () => {},
+    getDraftPersona: () => undefined,
+    setConfidence: () => {},
+    setImportance: () => {},
+    markConflict: () => {},
+    setConflictWith: () => {},
+    setLastConsolidatedAt: () => {},
+    getLastConsolidatedAt: () => null,
+    getCurrentEmbeddingDimension: () => null,
+    getHealthStats: () => ({
+      totalRows: 0,
+      byKind: { semantic: 0, episodic: 0, reflection: 0, persona: 0, working: 0 },
+      byCategory: {
+        user_preference: 0,
+        project_fact: 0,
+        task_outcome: 0,
+        heuristic: 0,
+        anti_pattern: 0,
+        uncategorized: 0
+      },
+      byStatus: {
+        pending_embedding: 0,
+        embedded: 0,
+        fts_only: 0,
+        error: 0,
+        archived: 0,
+        conflicted: 0
+      },
+      neverAccessed: 0,
+      importanceAvg: null,
+      importanceMedian: null,
+      confidenceAvg: null,
+      conflicted: 0,
+      challenged: 0
+    }),
+    hasStaleEmbeddings: () => false,
+    countStaleEmbeddings: () => 0,
+    archive: (id: string) => {
+      const r = rows.get(id)
+      if (r) r.status = 'archived'
+    },
+    listArchiveCandidates: () => [],
+    listArchiveCandidateLifecycleRows: () => [],
+    countArchiveCandidates: () => 0,
+    listTopAccessed: () => [],
     delete: (id: string) => rows.delete(id),
     clearByAgent: (agentId: string) => {
       let n = 0
@@ -611,7 +732,67 @@ function makeFakeRepo() {
     },
     countByAgent: (agentId: string) =>
       [...rows.values()].filter((r) => r.agent_id === agentId).length,
+    countStatusView: (agentId: string) => {
+      const view = [...rows.values()].filter(
+        (r) => r.agent_id === agentId && r.status !== 'archived' && r.status !== 'conflicted'
+      )
+      return {
+        total: view.length,
+        pendingEmbedding: view.filter((r) => r.status === 'pending_embedding').length
+      }
+    },
+    hasActiveMemory: () => false,
+    listAgentIdsWithMemories: () => [],
+    runInTransaction: <T>(fn: () => T): T => {
+      const snapshot = new Map([...rows.entries()].map(([id, row]) => [id, { ...row }]))
+      try {
+        return fn()
+      } catch (error) {
+        rows.clear()
+        for (const [id, row] of snapshot) rows.set(id, row)
+        throw error
+      }
+    },
+    listWorkingCandidates: (
+      agentId: string,
+      limit: number,
+      after?: { importance: number; accessCount: number; createdAt: number; id: string }
+    ) =>
+      [...rows.values()]
+        .filter((r) => {
+          if (
+            r.agent_id !== agentId ||
+            r.superseded_by !== null ||
+            r.status === 'archived' ||
+            r.status === 'conflicted' ||
+            !['semantic', 'reflection', 'episodic'].includes(r.kind)
+          ) {
+            return false
+          }
+          if (!after) return true
+          return (
+            r.importance < after.importance ||
+            (r.importance === after.importance && r.access_count < after.accessCount) ||
+            (r.importance === after.importance &&
+              r.access_count === after.accessCount &&
+              r.created_at < after.createdAt) ||
+            (r.importance === after.importance &&
+              r.access_count === after.accessCount &&
+              r.created_at === after.createdAt &&
+              r.id < after.id)
+          )
+        })
+        .sort(
+          (a, b) =>
+            b.importance - a.importance ||
+            b.access_count - a.access_count ||
+            b.created_at - a.created_at ||
+            b.id.localeCompare(a.id)
+        )
+        .slice(0, Math.max(0, Math.floor(limit))),
     listConsolidationScanRows: () => [],
+    refreshDecayScoresForAgent: () => {},
+    stampConsolidationForAgent: () => {},
     repairInternalKindStatuses: () => 0,
     listPrunableVectorRefs: () => [],
     filterPrunableVectorRefs: () => [],

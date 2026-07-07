@@ -1007,6 +1007,8 @@ describe('renderer api clients', () => {
               }
             case 'memory.archive':
               return { ok: true }
+            case 'memory.reindex':
+              return { started: true }
             case 'memory.getHealth':
               return {
                 health: {
@@ -1417,6 +1419,7 @@ describe('renderer api clients', () => {
     await memoryClient.add('agent-1', { content: 'plain note' })
     const selectedMemories = await memoryClient.getByIds('agent-1', ['mem-archived', 'mem-added'])
     const archived = await memoryClient.archive('agent-1', 'mem-added')
+    const reindex = await memoryClient.reindex('agent-1')
     const health = await memoryClient.getHealth('agent-1')
     const lifecycle = await memoryClient.getLifecycle('agent-1', 'mem-1')
     const archiveCandidatePreview =
@@ -1485,15 +1488,17 @@ describe('renderer api clients', () => {
       memoryId: 'mem-added'
     })
     expect(archived).toBe(true)
-    expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'memory.getHealth', { agentId: 'agent-1' })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'memory.reindex', { agentId: 'agent-1' })
+    expect(reindex.started).toBe(true)
+    expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'memory.getHealth', { agentId: 'agent-1' })
     expect(health.totalRows).toBe(1)
-    expect(bridge.invoke).toHaveBeenNthCalledWith(18, 'memory.getLifecycle', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(19, 'memory.getLifecycle', {
       agentId: 'agent-1',
       memoryId: 'mem-1'
     })
     expect(lifecycle?.memoryId).toBe('mem-1')
     expect(bridge.invoke).toHaveBeenNthCalledWith(
-      19,
+      20,
       'memory.getArchiveCandidateLifecyclePreview',
       {
         agentId: 'agent-1'

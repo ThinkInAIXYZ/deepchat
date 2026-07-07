@@ -831,6 +831,81 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('listWorkingCandidates pages by the stable working-blob ordering cursor', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'm1',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'first',
+        importance: 0.4,
+        createdAt: 1000
+      })
+      table.insert({
+        id: 'm2',
+        agentId: 'a',
+        kind: 'episodic',
+        content: 'second',
+        importance: 0.8,
+        createdAt: 2000
+      })
+      table.insert({
+        id: 'm3',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'third',
+        importance: 0.9,
+        createdAt: 3000
+      })
+      table.insert({
+        id: 'm4',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'fourth',
+        importance: 0.9,
+        createdAt: 4000
+      })
+      table.recordAccess('m3', 5000)
+      table.recordAccess('m4', 5000)
+      table.recordAccess('m4', 6000)
+      const archived = table.insert({
+        id: 'archived',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'archived',
+        importance: 1,
+        createdAt: 9000
+      })
+      table.archive(archived.id)
+      table.insert({ id: 'working', agentId: 'a', kind: 'working', content: 'working' })
+      const superseded = table.insert({
+        id: 'superseded',
+        agentId: 'a',
+        kind: 'semantic',
+        content: 'superseded',
+        importance: 1,
+        createdAt: 8000
+      })
+      table.markSuperseded(superseded.id, 'm4')
+
+      const firstPage = table.listWorkingCandidates('a', 2)
+      expect(firstPage.map((row) => row.id)).toEqual(['m4', 'm3'])
+      const cursorRow = firstPage[1]
+      const secondPage = table.listWorkingCandidates('a', 2, {
+        importance: cursorRow.importance,
+        accessCount: cursorRow.access_count,
+        createdAt: cursorRow.created_at,
+        id: cursorRow.id
+      })
+      expect(secondPage.map((row) => row.id)).toEqual(['m2', 'm1'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('lists archive candidate lifecycle projections without content payloads', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1213,6 +1288,29 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('requeueForEmbedding supports a bounded id cursor for fair error retry', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      for (const id of ['err-01', 'err-02', 'err-03']) {
+        table.insert({ id, agentId: 'a', kind: 'semantic', content: id, status: 'error' })
+      }
+
+      expect(table.listEmbeddingStatusIds('a', ['error'], 2, 'err-01')).toEqual([
+        'err-02',
+        'err-03'
+      ])
+      expect(table.requeueForEmbedding('a', ['error'], 1, 'err-01')).toBe(1)
+
+      expect(table.getById('err-01')?.status).toBe('error')
+      expect(table.getById('err-02')?.status).toBe('pending_embedding')
+      expect(table.getById('err-03')?.status).toBe('error')
+    } finally {
+      db.close()
+    }
+  })
+
   it('listPendingEmbedding never returns persona rows even if one is marked pending', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -1382,6 +1480,9 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(
         table.filterPrunableVectorRefs('a', ['active', 'archived', 'superseded'], 3, 'p:m')
       ).toEqual(['archived', 'superseded'])
+      expect(table.filterPrunableVectorRefs('a', ['missing-row'], 3, 'p:m')).toEqual([
+        'missing-row'
+      ])
       expect(
         table.clearPrunableEmbeddingRefs('a', ['active', 'archived', 'superseded'], 3, 'p:m')
       ).toBe(2)
@@ -1815,6 +1916,64 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       })
       expect(table.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(300)
       expect(table.getLatestCompletedEventAt('a', 'memory/reflect')).toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+
+  it('agent memory audit hasForgetEvent honors restore ordering', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'forget-1',
+        agentId: 'a',
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        inputRefs: { memoryId: 'm1' },
+        outputRefs: { memoryId: 'm1' },
+        createdAt: 100
+      })
+      expect(table.hasForgetEvent('a', 'm1')).toBe(true)
+
+      table.insert({
+        id: 'restore-1',
+        agentId: 'a',
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm1' },
+        outputRefs: { memoryId: 'm1' },
+        createdAt: 200
+      })
+      expect(table.hasForgetEvent('a', 'm1')).toBe(false)
+
+      table.insert({
+        id: 'archive-1',
+        agentId: 'a',
+        eventType: 'memory/archive',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm1' },
+        outputRefs: { memoryId: 'm1' },
+        createdAt: 300
+      })
+      expect(table.hasForgetEvent('a', 'm1')).toBe(true)
+
+      table.insert({
+        id: 'restore-failed',
+        agentId: 'a',
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'failed',
+        inputRefs: { memoryId: 'm1' },
+        outputRefs: { memoryId: 'm1' },
+        createdAt: 400
+      })
+      expect(table.hasForgetEvent('a', 'm1')).toBe(true)
+      expect(table.hasForgetEvent('a', 'other')).toBe(false)
     } finally {
       db.close()
     }

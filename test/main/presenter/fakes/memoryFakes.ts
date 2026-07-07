@@ -15,6 +15,7 @@ import type {
   AgentMemoryInsertInput,
   AgentMemoryLifecycleRow,
   AgentMemoryRow,
+  AgentMemoryWorkingCandidateCursor,
   IMemoryVectorStore,
   MemoryAuditListOptions,
   MemoryAuditRepositoryPort,
@@ -46,6 +47,7 @@ function toLifecycleRow(row: AgentMemoryRow): AgentMemoryLifecycleRow {
 // exercise the presenter without a native database.
 export class FakeRepository implements MemoryRepositoryPort {
   rows = new Map<string, AgentMemoryRow>()
+  transactionCalls = 0
 
   insert(input: AgentMemoryInsertInput): AgentMemoryRow {
     if (input.provenanceKey) {
@@ -267,9 +269,26 @@ export class FakeRepository implements MemoryRepositoryPort {
     return true
   }
 
-  requeueForEmbedding(agentId: string, statuses: AgentMemoryRow['status'][]) {
+  requeueForEmbedding(
+    agentId: string,
+    statuses: AgentMemoryRow['status'][],
+    limit?: number,
+    afterId?: string | null
+  ) {
     let changed = 0
-    for (const row of this.rows.values()) {
+    const candidates = [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          !row.superseded_by &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          statuses.includes(row.status) &&
+          (!afterId || row.id > afterId)
+      )
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .slice(0, limit === undefined ? undefined : Math.max(0, Math.floor(limit)))
+    for (const row of candidates) {
       if (
         row.agent_id !== agentId ||
         row.superseded_by ||
@@ -285,6 +304,27 @@ export class FakeRepository implements MemoryRepositoryPort {
       changed += 1
     }
     return changed
+  }
+
+  listEmbeddingStatusIds(
+    agentId: string,
+    statuses: AgentMemoryRow['status'][],
+    limit: number,
+    afterId?: string | null
+  ) {
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          !row.superseded_by &&
+          row.kind !== 'persona' &&
+          row.kind !== 'working' &&
+          statuses.includes(row.status) &&
+          (!afterId || row.id > afterId)
+      )
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .slice(0, Math.max(0, Math.floor(limit)))
+      .map((row) => row.id)
   }
 
   markSuperseded(id: string, supersededBy: string | null) {
@@ -311,6 +351,23 @@ export class FakeRepository implements MemoryRepositoryPort {
     if (row) {
       row.decay_score = decayScore
       if (consolidatedAt !== null) row.last_consolidated_at = consolidatedAt
+    }
+  }
+
+  refreshDecayScoresForAgent(agentId: string, now: number, halfLifeMs: number) {
+    for (const row of this.listByAgent(agentId)) {
+      if (row.kind === 'persona') continue
+      const anchor = row.last_accessed ?? row.created_at
+      const age = Math.max(0, now - anchor)
+      const importance = Math.min(1, Math.max(0, row.importance))
+      row.decay_score = Math.pow(0.5, age / (halfLifeMs * (1 + importance)))
+    }
+  }
+
+  stampConsolidationForAgent(agentId: string, at: number) {
+    for (const row of this.listByAgent(agentId)) {
+      if (row.kind === 'persona') continue
+      row.last_consolidated_at = at
     }
   }
 
@@ -531,6 +588,67 @@ export class FakeRepository implements MemoryRepositoryPort {
     return this.listByAgent(agentId, { includeSuperseded: true }).length
   }
 
+  countStatusView(agentId: string) {
+    const rows = [...this.rows.values()].filter(
+      (row) =>
+        row.agent_id === agentId &&
+        row.status !== 'archived' &&
+        row.status !== 'conflicted' &&
+        row.kind !== 'working'
+    )
+    return {
+      total: rows.length,
+      pendingEmbedding: rows.filter((row) => row.status === 'pending_embedding').length
+    }
+  }
+
+  runInTransaction<T>(fn: () => T): T {
+    this.transactionCalls += 1
+    const snapshot = new Map([...this.rows.entries()].map(([id, row]) => [id, { ...row }]))
+    try {
+      return fn()
+    } catch (error) {
+      this.rows = snapshot
+      throw error
+    }
+  }
+
+  listWorkingCandidates(agentId: string, limit: number, after?: AgentMemoryWorkingCandidateCursor) {
+    const isAfterCursor = (row: AgentMemoryRow): boolean => {
+      if (!after) return true
+      return (
+        row.importance < after.importance ||
+        (row.importance === after.importance && row.access_count < after.accessCount) ||
+        (row.importance === after.importance &&
+          row.access_count === after.accessCount &&
+          row.created_at < after.createdAt) ||
+        (row.importance === after.importance &&
+          row.access_count === after.accessCount &&
+          row.created_at === after.createdAt &&
+          row.id < after.id)
+      )
+    }
+
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          row.superseded_by === null &&
+          row.status !== 'archived' &&
+          row.status !== 'conflicted' &&
+          (row.kind === 'semantic' || row.kind === 'reflection' || row.kind === 'episodic') &&
+          isAfterCursor(row)
+      )
+      .sort(
+        (a, b) =>
+          b.importance - a.importance ||
+          b.access_count - a.access_count ||
+          b.created_at - a.created_at ||
+          b.id.localeCompare(a.id)
+      )
+      .slice(0, Math.max(0, Math.floor(limit)))
+  }
+
   hasActiveMemory(agentId: string) {
     return [...this.rows.values()].some(
       (row) => row.agent_id === agentId && row.status !== 'archived'
@@ -631,9 +749,10 @@ export class FakeRepository implements MemoryRepositoryPort {
     embeddingModel: string
   ) {
     const uniqueIds = [...new Set(ids.filter((id) => id.trim()))]
-    return uniqueIds.filter((id) =>
-      this.isPrunableVectorRow(agentId, this.rows.get(id), embeddingDim, embeddingModel)
-    )
+    return uniqueIds.filter((id) => {
+      const row = this.rows.get(id)
+      return !row || this.isPrunableVectorRow(agentId, row, embeddingDim, embeddingModel)
+    })
   }
 
   clearPrunableEmbeddingRefs(
@@ -714,6 +833,26 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
     return latest
   }
 
+  hasForgetEvent(agentId: string, memoryId: string): boolean {
+    const rows = this.rows
+      .filter((row) => {
+        if (row.agent_id !== agentId || row.status !== 'completed') return false
+        return (
+          (row.event_type === 'memory/forget' && row.actor_type === 'runtime') ||
+          (row.event_type === 'memory/archive' && row.actor_type === 'user') ||
+          row.event_type === 'memory/restore'
+        )
+      })
+      .sort((a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id))
+    for (const row of rows) {
+      const input = JSON.parse(row.input_refs_json) as Record<string, unknown>
+      const output = JSON.parse(row.output_refs_json) as Record<string, unknown>
+      if (input.memoryId !== memoryId && output.memoryId !== memoryId) continue
+      return row.event_type !== 'memory/restore'
+    }
+    return false
+  }
+
   getHealthAuditStats(
     agentId: string,
     scanLimit: number,
@@ -771,6 +910,13 @@ export class FakeVectorStore implements IMemoryVectorStore {
 
   async deleteByMemoryIds(memoryIds: string[]) {
     for (const id of memoryIds) this.vectors.delete(id)
+  }
+
+  async listMemoryIds(afterId: string | null, limit: number) {
+    return [...this.vectors.keys()]
+      .filter((id) => afterId === null || id > afterId)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, Math.max(0, Math.floor(limit)))
   }
 
   async close() {

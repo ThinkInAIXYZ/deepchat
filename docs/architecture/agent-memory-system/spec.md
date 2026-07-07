@@ -27,7 +27,9 @@ These hold across every module and are the system's core invariants.
 3. **Fail-open where losing data is the risk; fail-closed where writing wrong/stale data is the risk.**
    - Fail-open: triage failure → extract anyway; decision-model failure → degrade to `ADD`; neighbor
      recall failure → proceed with no neighbors; transient embedding-service failure → re-mark
-     `pending_embedding` for retry (never terminal `error`).
+     `pending_embedding` for retry; vector-write/dimension failures may mark rows `error`, but the
+     embedding drain periodically requeues a bounded batch after cooldown and the Health panel exposes a
+     per-agent reindex entry.
    - Fail-closed: a vector sidecar whose embedding identity (provider/model/dim) cannot be verified is
      disabled and recall serves FTS only — it never silently returns vectors from the wrong model.
 4. **Never hard-delete on the durable path.** Contradiction and staleness use supersede chains and
@@ -267,8 +269,8 @@ flowchart TD
   TRI -- KEEP --> EX["extraction → JSON candidates (≤8)"]
   EX --> CW["coordinateWrite per candidate"]
   CW --> DUP{provenance hit?}
-  DUP -- hit --> REV["absorbProvenanceHit<br/>(revive → updated / noop)"]
-  DUP -- miss --> NB["retrieve top-10 neighbors"]
+  DUP -- hit --> REV["handleProvenanceHit<br/>(restore / suppress / decision)"]
+  DUP -- miss --> NB["retrieveForDecision top-10 neighbors<br/>(keyword any + no inline prune)"]
   NB --> DEC{decision ring}
   DEC --> ADD[ADD]
   DEC --> UPD["UPDATE (+confidence bump)"]
@@ -318,11 +320,15 @@ unavailable to them. The cost saving comes from the triage gate avoiding the lar
 **Decision ring (`coordinateWrite`).** Each candidate:
 
 1. Trim; empty → no-op. Teardown guard → no-op.
-2. Compute the provenance key and check for an existing row. A hit calls `absorbProvenanceHit`: if it
-   revived an archived/superseded row it returns `updated`, else `noop(duplicate)`.
-3. Otherwise retrieve up to **10** neighbors and run the decision model (`buildDecisionPrompt` →
-   `parseDecision`). Any decision-model failure or out-of-range target index degrades to `ADD` so a
-   hallucinated index can never touch the wrong row.
+2. Compute the provenance key and check for an existing row. A pure scheduler-archived row is restored to
+   `pending_embedding`; a user/runtime-forgotten row is suppressed; an archived superseded conflict loser is
+   suppressed; an active duplicate returns `noop(duplicate)`. A non-archived superseded row does not revive
+   by provenance alone when a model path is available — its live chain head is fed into the decision ring.
+3. Otherwise retrieve up to **10** decision neighbors through `retrieveForDecision`, which uses the
+   agent-facing keyword query in `any` mode and disables inline vector pruning. This keeps FTS-only agents
+   capable of semantic write decisions without requiring vectors. Any decision-model failure or out-of-range
+   target index degrades to `ADD` so a hallucinated index can never touch the wrong row. `UPDATE` and
+   `SUPERSEDE` re-read the target after the model await and only land on a still-live row.
 4. Apply: `ADD` inserts with the candidate category; `UPDATE` rewrites the target content + bumps confidence
    + re-queues embedding and only absorbs the candidate category when the target category is `NULL`;
    `SUPERSEDE` inserts the merged row with the candidate category and supersedes the target; `NOOP` does
@@ -337,9 +343,11 @@ path is a pure dedupe-add).
 **Two-phase persistence.** Phase 1 is a synchronous SQLite insert as `pending_embedding`. Phase 2 is an
 asynchronous, per-agent, fair, batched embedding drain: `listPendingEmbedding` filters by `agent_id` in SQL
 (no cross-agent starvation), one batched `getEmbeddings` call, and a single transactional upsert into DuckDB
-under the per-agent lock. A transient embedding-service failure re-marks rows `pending_embedding` (self-heals,
-never terminal); a dimension mismatch marks the row `error`; a vector-store write failure after a successful
-embed is terminal `error`.
+under the per-agent lock. A transient embedding-service failure re-marks rows `pending_embedding`;
+a dimension mismatch or vector-store write failure after a successful embed marks the row `error`. The drain
+does not leave `error` rows permanently stranded: when no normal pending work exists and the cooldown has
+elapsed, it requeues up to the bounded retry batch and tries again. A manual per-agent reindex resets
+embedding state and rebuilds from SQLite.
 
 **Cursor.** `memory_cursor_order_seq` (on `deepchat_sessions`) is written `SET = MAX(existing, floor(x), 0)`,
 so a late/stale extraction can never roll it back. It advances only when `extractAndStore` returns `ok: true`
@@ -412,6 +420,9 @@ Important memories stretch their half-life, so they survive longer before becomi
 and forgetting are deliberately two different scores: a memory can rank low for recall yet still be retained.
 `category` is not a second scoring axis: it is ignored by retrieval, decay, RRF, and rerank logic. Its only
 ranking/retention effect is indirect, through the deterministic importance floor applied at write time.
+Decay refresh uses the same formula whether computed in SQL or in the JavaScript fallback. When SQLite's
+math functions are available, the maintenance pass updates `decay_score` in one statement and does not touch
+`last_consolidated_at`; otherwise it falls back to the same calculation inside one repository transaction.
 
 ---
 
@@ -468,6 +479,9 @@ by both current embedding fingerprint and current ready dimension before applyin
 row lifecycle plus dim/model before vector delete, and clears SQLite refs only if the row is still prunable
 with the same dim/model after deletion. Old-fingerprint or old-dimension refs remain as traceable metadata
 residue; maintenance does not cold-open those sidecars or let them occupy the current cleanup batch.
+Consolidation timestamps are stamped with one SQL update over the same active non-internal row class. Working
+memory refresh reads only the top ordered candidates it can use, and status counts are computed with a single
+aggregate query rather than loading all rows.
 
 ---
 
@@ -559,23 +573,31 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
 - **Transactional vector upsert.** `upsert` wraps delete-then-insert in `BEGIN/COMMIT` with `ROLLBACK` on
   error, so there is no "deleted-but-not-inserted" hole.
 - **Archive / forget / restore lifecycle.** Agent-facing `forgetMemory` is a soft archive: it marks normal
-  rows `archived` and leaves recall correctness to status filters plus SQLite re-checks while dead-vector
-  pruning removes obsolete sidecar entries over time. It only requires a managed agent, so users can forget
-  while memory is disabled. `restoreMemory` re-marks a normal archived row `pending_embedding` and re-embeds
-  it, and remains gated by `canWriteAgentMemory` (managed agent · memory enabled · not disposed). Generic
+  rows `archived`, writes a content-free `memory/forget` runtime audit event even when the row was already
+  archived, and leaves recall correctness to status filters plus SQLite re-checks while dead-vector pruning
+  removes obsolete sidecar entries over time. It only requires a managed agent, so users can forget while
+  memory is disabled. `restoreMemory` re-marks a normal archived row `pending_embedding` and re-embeds it,
+  and remains gated by `canWriteAgentMemory` (managed agent · memory enabled · not disposed). Generic
   archive/forget/restore refuse `persona` and `working` rows; persona lifecycle is controlled by
   persona-specific routes and working rows are kernel-owned. Permanent UI delete (`deleteMemory`) hard-deletes
-  the row and best-effort deletes its vector.
+  the row and best-effort deletes its vector; if the sidecar is not already open, the manager may open the
+  current embedding store inside the per-agent vector lock using the known warm/current dimension.
 - **Embedding-drain config guard.** A background embedding drain captures the embedding identity it started
   with; before writing vectors, and before a reindex reset, it re-checks the agent's current `memoryEmbedding`
   fingerprint and discards the batch if the config changed mid-flight, so a stale drain can never write
   vectors from a superseded model into a freshly reset sidecar.
-- **Provenance revival (`absorbProvenanceHit`).** When an archived/superseded fact is re-asserted, it is
-  revived and the contradicting supersede lineage is retired back into it so the revived row becomes current
-  truth (cycle- and cross-agent-guarded). `applyContentUpdate` keeps a row's `provenance_key` aligned with
-  its new content so dedup never breaks: if the new key is unowned it rewrites content + key in place; if the
-  key is already owned by a different row it folds this row into that owner instead (reviving the owner via
-  `absorbProvenanceHit`, then `markSuperseded(row, owner)`) and returns the owner's id.
+- **Provenance and revival.** Provenance hits are split into classification and execution. Pure
+  scheduler-archived rows may be restored; rows with a user archive or runtime forget audit are suppressed
+  with `suppressed-user-forget`; archived rows that are also superseded are treated as conflict losers and
+  suppressed with `suppressed-conflict-loser`; active duplicates stay no-op. Non-archived superseded hits are
+  conservative without a model path and otherwise go through the decision ring. Only a decision-backed
+  `SUPERSEDE` collision can revive that old row and retire its former head. `applyContentUpdate` keeps a
+  row's `provenance_key` aligned with its new content; if the new key is owned by a suppressed row, the
+  update keeps the original row unchanged rather than reviving the suppressed owner.
+- **Vector cleanup.** Vector deletion has three layers: direct delete opens the current sidecar when possible;
+  inline prune treats missing SQLite rows as prunable while retaining lifecycle/model/dimension guards for
+  existing rows; and warmup runs a one-shot keyset reconciliation under the vector lock to remove historical
+  orphan vectors from the current sidecar without using `LIMIT/OFFSET`.
 - **Close-safe teardown (`dispose`).** A `disposed` flag is set first so any already-fired timer's pass
   becomes a no-op; `canWriteAgentMemory` / `canReadAgentMemory` both include `!disposed` and are re-checked
   after every `await`. Dispose stops the startup maintenance timer, clears per-agent idle timers,
@@ -612,12 +634,15 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 `memory.restore`, `memory.getSourceSpan`, `memory.listConflicts`, `memory.resolveConflict`,
 `memory.listPersonaVersions`, `memory.rollbackPersona`, `memory.listPersonaDrafts`,
 `memory.approvePersonaDraft`, `memory.rejectPersonaDraft`, `memory.setPersonaAnchor`,
-`memory.listAuditEvents`, `memory.listViewManifests`.
+`memory.listAuditEvents`, `memory.listViewManifests`, `memory.reindex`.
 
 - `memory.search` is read-only: it uses a search-only depth override (default 50, route max 100) so the
   Memory Manager can return more than the agent's recall `topK`, excludes persona/working rows at the SQL
   search layer before applying result limits, and it does not bump `access_count`.
 - `memory.add` accepts optional `category`, runs the decision ring, and writes a `memory/add` user audit row.
+- `memory.reindex` is a fire-and-forget per-agent rebuild entry for managed, memory-enabled DeepChat agents.
+  It returns `{ started }`, where `started=false` means the guard rejected the request or a reindex was already
+  in flight.
 - `memory.getSourceSpan` resolves a memory's `source_entry_ids` to readable role/content via the effective
   tape view (powers the lineage UI).
 - `MemoryItemSchema` carries `category`, `sourceEntryIds`, `conflictWith`, `personaState`, `isAnchor`,
@@ -631,9 +656,9 @@ inspect `result.ok`, not `isError`. Hard infra failures throw.
 
 ### 15.4 Audit ledger (`agent_memory_audit`)
 
-Background maintenance and user writes record `memory/maintenance_llm`, `memory/reflect`, `persona/evolve`,
-`memory/challenge_resolved`, and `memory/add` — with `actorType` (writes use `scheduler` or `user`; `runtime`
-is accepted by the schema/filter but no current write path emits it), an optional `session_id`, a terminal
+Background maintenance and writes record `memory/maintenance_llm`, `memory/reflect`, `persona/evolve`,
+`memory/challenge_resolved`, `memory/add`, and runtime `memory/forget` — with `actorType`
+(`scheduler`, `user`, or `runtime`), an optional `session_id`, a terminal
 `status` (`completed`/`skipped`/`failed`), and `inputRefs`/`outputRefs` that contain only ids, action
 strings, counts, ratios, and booleans. No raw memory text or persona content is ever stored.
 
@@ -694,7 +719,7 @@ enable memory (top-level Memory page / agent toggle)
 → cursor + effective-view span + source_entry_ids lineage + admission signals
 → fallback admission (visible text + tool/backstop/substantive text) or compaction
 → triage gate → extraction raw category candidates → normalization → decision ring
-  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with revival)
+  (ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE, with live-target recheck and decision-backed revival)
 → SQLite pending_embedding → cursor advances MAX + memory/extract anchor
 → background per-agent embedding (batched · fair · transactional) → DuckDB
 → [offline] self-scheduled sleep-time pass (6h cooldown): merge + conflict adjudication
@@ -710,9 +735,10 @@ Coverage mirrors source under `test/main/**` (and `test/renderer/**` for UI), pi
 
 - Injection sanitization; per-session serial extraction lock; monotonic cursor; insert error
   classification.
-- Vector upsert transaction + identity guard (fail-closed to FTS); reindex on dimension change.
-- Decision ring (five branches + fallbacks); provenance revival; conflict closure / resolution; category
-  propagation and reflection/persona/working category guards.
+- Vector upsert transaction + identity guard (fail-closed to FTS); reindex on dimension change; bounded
+  `error` retry; orphan-vector reconciliation.
+- Decision ring (five branches + fallbacks); provenance suppression/revival matrix; live target re-check;
+  conflict closure / resolution; category propagation and reflection/persona/working category guards.
 - Dual-score forgetting / four-condition archival; offline consolidation (cooldown / budget /
   restart-durable / idle debounce); reflection recall; working blob; guarded persona (default-off / draft /
   anchor / eval gate).
@@ -742,9 +768,9 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 - **DuckDB disk reclaim.** Per-memory hard delete and dead-vector pruning remove vector rows but do not shrink
   the DuckDB file; only a whole-store reset reclaims disk space (no `VACUUM`), so the file can still grow
   between resets. Archived/superseded vectors are correctness-safe because recall re-checks SQLite, but they
-  are not quality-neutral: if left in the HNSW result window they crowd out live candidates. Inline prune and
-  the warm-store-only, fingerprint+dimension-aware, lifecycle-guarded maintenance sweep remove current-sidecar
-  dead vectors over time. Management search disables inline prune so read-only search does not write DuckDB.
+  are not quality-neutral: if left in the HNSW result window they crowd out live candidates. Direct delete,
+  inline prune, and one-shot warm-store orphan reconciliation remove current-sidecar dead vectors over time.
+  Management search disables inline prune so read-only search does not write DuckDB.
 - **FTS5 native dependency.** Under vitest with an unloadable native ABI, the real FTS5/trigram eval skips;
   CI needs a working native build to exercise it.
 - **Vector query threshold.** `MemoryVectorStore.query` does not apply a distance cutoff itself; the
@@ -781,6 +807,8 @@ The real-DB FTS5/trigram (CJK) eval runs only when native `better-sqlite3` is lo
 | `CONSOLIDATION_MERGE_SIMILARITY` | 0.85 | near-duplicate merge threshold |
 | `CONSOLIDATION_MAX_NEIGHBOR_SCANS` | 64 | stored-vector neighbor scans per consolidation pass |
 | `VECTOR_PRUNE_BATCH_LIMIT` | 256 | prunable archived/superseded/internal-kind vector refs per maintenance pass |
+| `ERROR_RETRY_COOLDOWN_MS` / batch | 10min / 50 | bounded automatic retry for rows stuck in embedding `error` |
+| `ORPHAN_RECONCILE_BATCH` | 512 | keyset page size for warm vector orphan reconciliation |
 | `RECALL_QUERY_EMBEDDING_TIMEOUT_MS` / stale / max concurrent | 800ms / 30s / 2 | foreground query-embedding soft timeout and per-agent+model cap |
 | `MEMORY_SEARCH_DEFAULT_LIMIT` | 50 | default management search depth |
 | `WORKING_BLOB_TOKEN_LIMIT` | 400 | working-memory blob size |

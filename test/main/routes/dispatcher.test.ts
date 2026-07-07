@@ -2127,6 +2127,72 @@ describe('dispatchDeepchatRoute', () => {
     expect(archiveUserMemory).toHaveBeenCalledWith('deepchat', 'm1')
   })
 
+  it('dispatches memory.reindex only when a new managed task can start', async () => {
+    const { runtime, configPresenter } = createRuntime()
+    const canReindex = vi.fn(() => true)
+    const isReindexing = vi.fn(() => false)
+    const reindexEmbeddings = vi.fn().mockResolvedValue(undefined)
+    ;(runtime as any).memoryPresenter = { canReindex, isReindexing, reindexEmbeddings }
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.reindex',
+        { agentId: 'other' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ started: false })
+    expect(canReindex).not.toHaveBeenCalled()
+    expect(reindexEmbeddings).not.toHaveBeenCalled()
+
+    canReindex.mockReturnValueOnce(false)
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.reindex',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ started: false })
+    expect(canReindex).toHaveBeenCalledWith('deepchat')
+    expect(reindexEmbeddings).not.toHaveBeenCalled()
+
+    canReindex.mockReturnValue(true)
+    isReindexing.mockReturnValueOnce(true)
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.reindex',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ started: false })
+    expect(reindexEmbeddings).toHaveBeenCalledTimes(1)
+    expect(reindexEmbeddings).toHaveBeenLastCalledWith('deepchat', true)
+
+    isReindexing.mockReturnValueOnce(false)
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.reindex',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ started: true })
+    expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
+
+    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('acp')
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.reindex',
+        { agentId: 'deepchat' },
+        { webContentsId: 42, windowId: 7 }
+      )
+    ).resolves.toEqual({ started: false })
+    expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
+  })
+
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
     const { runtime, configPresenter } = createRuntime()
     const listMemoryViewManifestAnchorsByAgent = vi.fn()

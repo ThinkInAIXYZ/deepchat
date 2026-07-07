@@ -250,6 +250,8 @@
         "byCategory": "Theo danh mục",
         "byStatus": "Theo trạng thái",
         "pipeline": "Pipeline",
+        "reindex": "Lập chỉ mục lại",
+        "reindexing": "Đang lập chỉ mục lại",
         "quality": "Chất lượng",
         "topAccessed": "Truy cập nhiều nhất",
         "noTopAccessed": "Chưa có bộ nhớ nào được truy cập.",

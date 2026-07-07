@@ -137,8 +137,8 @@ export class MemoryPresenter implements MemoryRuntimePort {
     this.maintenance = maintenanceService
 
     this.writeCoordinator = new WriteCoordinator(this.runtime, this.rows, {
-      retrieve: (agentId, query, now, recordAccessHits) =>
-        this.retrieval.retrieve(agentId, query, now, recordAccessHits),
+      retrieveForDecision: (agentId, query, now) =>
+        this.retrieval.retrieveForDecision(agentId, query, now),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
@@ -146,10 +146,14 @@ export class MemoryPresenter implements MemoryRuntimePort {
     })
 
     this.management = new ManagementService(this.runtime, {
-      deleteVectorsForMemoryIds: (agentId, memoryIds) =>
-        this.vectorStore.deleteVectorsForMemoryIds(agentId, memoryIds),
+      deleteVectorsForDeletedMemory: (agentId, memoryIds, embedding) =>
+        this.vectorStore.deleteVectorsForMemoryIdsOpening(agentId, memoryIds, {
+          embeddingModel: embedding.embeddingModel,
+          embeddingDim: embedding.embeddingDim
+        }),
       resetAgentStore: (agentId) => this.vectorStore.resetAgentStore(agentId),
       isReindexing: (agentId) => this.embedding.isReindexing(agentId),
+      reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
@@ -273,6 +277,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
     return this.runtime.isEnabled(agentId)
   }
 
+  canReindex(agentId: string): boolean {
+    return this.runtime.canContinueAgentMemoryTask(agentId)
+  }
+
   writeMemoriesSync(candidates: MemoryCandidate[], options: WriteMemoriesOptions): string[] {
     return this.writeCoordinator.writeMemoriesSync(candidates, options)
   }
@@ -283,6 +291,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   reindexEmbeddings(agentId: string, force = false): Promise<void> {
     return this.embedding.reindexEmbeddings(agentId, force)
+  }
+
+  isReindexing(agentId: string): boolean {
+    return this.embedding.isReindexing(agentId)
   }
 
   backfillEmbeddings(agentId: string): Promise<void> {

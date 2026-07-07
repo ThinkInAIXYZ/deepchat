@@ -16,6 +16,16 @@ function canCarryCategory(kind: AgentMemoryRow['kind']): boolean {
   return kind === 'episodic' || kind === 'semantic'
 }
 
+export type ProvenanceHitResult =
+  | { action: 'absorbed' }
+  | { action: 'continue' }
+  | { action: 'noop'; reason: string }
+
+export type ContentUpdateResult =
+  | { action: 'updated'; id: string }
+  | { action: 'folded'; id: string }
+  | { action: 'suppressed'; id: string; reason: string }
+
 export class MemoryRowMutations {
   constructor(private readonly ctx: MemoryRuntimeContext) {}
 
@@ -107,28 +117,42 @@ export class MemoryRowMutations {
     content: string,
     now: number,
     category?: AgentMemoryCategory | null
-  ): string {
+  ): ContentUpdateResult {
     const newKey = buildMemoryProvenanceKey(agentId, row.kind, content)
     const nextCategory = canCarryCategory(row.kind) ? (row.category ?? category ?? null) : undefined
     if (newKey !== row.provenance_key) {
       const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
       if (owner && owner.id !== row.id) {
-        this.absorbProvenanceHit(agentId, owner)
-        if (canCarryCategory(owner.kind) && owner.category === null && nextCategory != null) {
-          this.ctx.deps.repository.updateContent(
-            owner.id,
-            owner.content,
-            owner.provenance_key,
-            now,
-            nextCategory
-          )
+        const hit = this.handleProvenanceHit(agentId, owner, {
+          allowDecisionForSuperseded: true
+        })
+        if (hit.action === 'noop' && (owner.status === 'archived' || owner.superseded_by)) {
+          return {
+            action: 'suppressed',
+            id: owner.id,
+            reason: hit.reason
+          }
         }
-        this.ctx.deps.repository.markSuperseded(row.id, owner.id)
-        return owner.id
+        this.ctx.deps.repository.runInTransaction(() => {
+          if (hit.action === 'continue') {
+            this.reviveSupersededAfterDecision(agentId, owner)
+          }
+          if (canCarryCategory(owner.kind) && owner.category === null && nextCategory != null) {
+            this.ctx.deps.repository.updateContent(
+              owner.id,
+              owner.content,
+              owner.provenance_key,
+              now,
+              nextCategory
+            )
+          }
+          this.ctx.deps.repository.markSuperseded(row.id, owner.id)
+        })
+        return { action: 'folded', id: owner.id }
       }
     }
     this.ctx.deps.repository.updateContent(row.id, content, newKey, now, nextCategory)
-    return row.id
+    return { action: 'updated', id: row.id }
   }
 
   supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {
@@ -143,19 +167,53 @@ export class MemoryRowMutations {
     return current
   }
 
-  absorbProvenanceHit(agentId: string, existing: AgentMemoryRow): boolean {
+  handleProvenanceHit(
+    agentId: string,
+    existing: AgentMemoryRow,
+    options: { allowDecisionForSuperseded?: boolean } = {}
+  ): ProvenanceHitResult {
     const archived = existing.status === 'archived'
     const superseded = existing.superseded_by !== null
-    if (!archived && !superseded) return false
+    if (!archived && !superseded) return { action: 'noop', reason: 'duplicate' }
 
-    if (superseded) {
-      const head = this.supersedeHead(agentId, existing)
-      this.ctx.deps.repository.markSuperseded(existing.id, null)
-      if (head.id !== existing.id && head.superseded_by === null && head.status !== 'archived') {
-        this.ctx.deps.repository.markSuperseded(head.id, existing.id)
-      }
+    if (archived && this.ctx.deps.auditRepository?.hasForgetEvent(agentId, existing.id)) {
+      return { action: 'noop', reason: 'suppressed-user-forget' }
     }
+
+    if (archived && superseded) {
+      return { action: 'noop', reason: 'suppressed-conflict-loser' }
+    }
+
+    if (superseded && !archived && options.allowDecisionForSuperseded) {
+      return { action: 'continue' }
+    }
+
+    if (superseded && !archived) {
+      return { action: 'noop', reason: 'duplicate' }
+    }
+
+    this.ctx.deps.repository.runInTransaction(() => {
+      this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+    })
+    return { action: 'absorbed' }
+  }
+
+  reviveSupersededAfterDecision(
+    agentId: string,
+    existing: AgentMemoryRow
+  ): { retiredHeadId: string | null } {
+    if (existing.status === 'archived' || existing.superseded_by === null) {
+      return { retiredHeadId: null }
+    }
+
+    const head = this.supersedeHead(agentId, existing)
+    this.ctx.deps.repository.markSuperseded(existing.id, null)
     this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
-    return true
+
+    if (head.id !== existing.id && head.status !== 'archived' && head.superseded_by === null) {
+      this.ctx.deps.repository.markSuperseded(head.id, existing.id)
+      return { retiredHeadId: head.id }
+    }
+    return { retiredHeadId: null }
   }
 }

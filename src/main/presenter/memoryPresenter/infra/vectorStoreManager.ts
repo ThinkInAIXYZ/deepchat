@@ -16,6 +16,23 @@ interface VectorStoreRuntimeState {
   vectorStoreLocks: Map<string, Promise<unknown>>
 }
 
+export type VectorDeleteResult = 'deleted' | 'skipped' | 'unusable'
+
+export interface VectorDeleteOptions {
+  embeddingModel?: string | null
+  embeddingDim?: number | null
+}
+
+function embeddingFromFingerprint(fingerprint: string | null | undefined): MemoryModelRef | null {
+  if (!fingerprint) return null
+  const separator = fingerprint.indexOf(':')
+  if (separator <= 0 || separator === fingerprint.length - 1) return null
+  return {
+    providerId: fingerprint.slice(0, separator),
+    modelId: fingerprint.slice(separator + 1)
+  }
+}
+
 export class VectorStoreManager implements VectorStoreRetrievalPort {
   private readonly vectorStores = new Map<string, Promise<IMemoryVectorStore>>()
   private readonly vectorStoreIdentities = new Map<string, string>()
@@ -158,16 +175,66 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     })
   }
 
-  async deleteVectorsForMemoryIds(agentId: string, memoryIds: string[]): Promise<void> {
-    if (!memoryIds.length) return
-    await this.withAgentLock(agentId, async () => {
+  async deleteVectorsForMemoryIdsOpening(
+    agentId: string,
+    memoryIds: string[],
+    options: VectorDeleteOptions = {}
+  ): Promise<VectorDeleteResult> {
+    if (!memoryIds.length) return 'skipped'
+    let result: VectorDeleteResult = 'skipped'
+    await this.withAgentLock(agentId, async (locked) => {
       if (this.ctx.isDisposed) return
-      const store = await this.vectorStoreForAgent(agentId)
-      if (!store) return
-      await store.deleteByMemoryIds(memoryIds).catch((error) => {
+      let targetEmbedding = embeddingFromFingerprint(options.embeddingModel)
+      let targetDimensions =
+        typeof options.embeddingDim === 'number' &&
+        Number.isFinite(options.embeddingDim) &&
+        options.embeddingDim > 0
+          ? Math.floor(options.embeddingDim)
+          : null
+
+      if (!targetEmbedding || targetDimensions === null) {
+        const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+        if (!embedding?.providerId || !embedding?.modelId) {
+          logger.debug(`[Memory] vector delete skipped for ${agentId}: embedding is not configured`)
+          return
+        }
+        targetEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
+        const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+        targetDimensions =
+          this.getWarmVectorStoreDimension(agentId, targetEmbedding) ??
+          this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+        if (targetDimensions === null) {
+          logger.debug(`[Memory] vector delete deferred for ${agentId}: dimension is unknown`)
+          return
+        }
+      }
+
+      const targetIdentity = this.cacheKey(agentId, targetEmbedding, targetDimensions)
+      let store =
+        this.vectorStoreIdentities.get(agentId) === targetIdentity
+          ? await this.vectorStoreForAgent(agentId)
+          : null
+      if (!store) {
+        try {
+          store = await locked.open(targetEmbedding, targetDimensions)
+        } catch (error) {
+          logger.warn(`[Memory] vector delete open failed for ${agentId}: ${String(error)}`)
+          return
+        }
+      }
+      if (!store.isUsable()) {
+        this.clearReady(agentId)
+        result = 'unusable'
+        return
+      }
+      try {
+        await store.deleteByMemoryIds(memoryIds)
+        result = 'deleted'
+      } catch (error) {
         logger.warn(`[Memory] vector delete failed: ${String(error)}`)
-      })
+      }
     })
+    return result
   }
 
   async deletePrunableVectorsForMemoryIds(
@@ -200,15 +267,6 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
         return []
       }
     })
-  }
-
-  async deleteVectorsForMemoryIdsForEmbedding(
-    agentId: string,
-    embedding: MemoryModelRef,
-    dimensions: number,
-    memoryIds: string[]
-  ): Promise<string[]> {
-    return this.deletePrunableVectorsForMemoryIds(agentId, embedding, dimensions, memoryIds)
   }
 
   async queryNeighborsByMemoryId(

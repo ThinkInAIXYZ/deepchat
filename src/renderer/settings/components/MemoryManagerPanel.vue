@@ -393,6 +393,8 @@
           :archive-candidate-lifecycle-preview="archiveCandidateLifecyclePreview"
           :archive-candidate-lifecycle-preview-loading="archiveCandidateLifecyclePreviewLoading"
           :archive-candidate-lifecycle-preview-error="archiveCandidateLifecyclePreviewError"
+          :reindexing="isReindexing"
+          @reindex="handleReindex"
         />
       </TabsContent>
 
@@ -785,6 +787,7 @@ const auditEvents = ref<MemoryAuditEvent[]>([])
 const viewManifests = ref<MemoryViewManifest[]>([])
 const status = ref<MemoryStatusDto | null>(null)
 const health = ref<MemoryHealthDto | null>(null)
+const reindexPendingAgentId = ref<string | null>(null)
 const healthDirty = ref(true)
 const archiveCandidateLifecyclePreview = ref<MemoryArchiveCandidateLifecyclePreview | null>(null)
 const archiveCandidateLifecyclePreviewLoading = ref(false)
@@ -903,6 +906,16 @@ function markHealthDirty(): void {
   archiveCandidateLifecyclePreview.value = null
   archiveCandidateLifecyclePreviewError.value = null
   archiveCandidateLifecyclePreviewLoading.value = false
+}
+
+const isReindexing = computed(
+  () => reindexPendingAgentId.value === props.agentId || status.value?.reindexing === true
+)
+
+function settleReindexPending(agentId: string): void {
+  if (reindexPendingAgentId.value === agentId && status.value?.reindexing !== true) {
+    reindexPendingAgentId.value = null
+  }
 }
 
 function refreshHealthIfActive(): void {
@@ -1389,9 +1402,36 @@ async function handleRestore(memoryId: string): Promise<void> {
   }
 }
 
+async function handleReindex(): Promise<void> {
+  if (!props.agentId || isReindexing.value) return
+  const agentId = props.agentId
+  reindexPendingAgentId.value = agentId
+  try {
+    const result = await memoryClient.reindex(agentId)
+    if (props.agentId === agentId && status.value) {
+      status.value = { ...status.value, reindexing: result.started || status.value.reindexing }
+    }
+    if (!result.started && reindexPendingAgentId.value === agentId) {
+      reindexPendingAgentId.value = null
+    }
+    if (props.agentId === agentId) {
+      await Promise.all([refresh(), refreshHealth(agentId)])
+      settleReindexPending(agentId)
+    }
+  } catch (e) {
+    if (reindexPendingAgentId.value === agentId) {
+      reindexPendingAgentId.value = null
+    }
+    notifyActionFailed(e)
+  }
+}
+
 watch(
   () => props.agentId,
-  () => {
+  (agentId) => {
+    if (reindexPendingAgentId.value !== agentId) {
+      reindexPendingAgentId.value = null
+    }
     activeTab.value = 'memories'
     categoryFilter.value = 'all'
     markHealthDirty()
@@ -1412,7 +1452,14 @@ onMounted(() => {
     if (payload.agentId === props.agentId) {
       memoryUpdateVersion += 1
       markHealthDirtyFromEvent(payload.reason)
-      void refresh()
+      const refreshTask = refresh()
+      if (payload.reason === 'reindex') {
+        void refreshTask.then(() => {
+          settleReindexPending(payload.agentId)
+        })
+      } else {
+        void refreshTask
+      }
     }
   })
 })

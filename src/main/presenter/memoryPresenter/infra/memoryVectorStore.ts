@@ -350,6 +350,28 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     )
   }
 
+  async listMemoryIds(afterId: string | null, limit: number): Promise<string[]> {
+    const cappedLimit = Math.max(0, Math.floor(limit))
+    if (cappedLimit === 0) return []
+    const reader = afterId
+      ? await this.connection.runAndReadAll(
+          `SELECT memory_id
+           FROM ${this.vectorTable}
+           WHERE memory_id > ?
+           ORDER BY memory_id
+           LIMIT ?;`,
+          [afterId, cappedLimit]
+        )
+      : await this.connection.runAndReadAll(
+          `SELECT memory_id
+           FROM ${this.vectorTable}
+           ORDER BY memory_id
+           LIMIT ?;`,
+          [cappedLimit]
+        )
+    return reader.getRowObjectsJson().map((row: Record<string, unknown>) => String(row.memory_id))
+  }
+
   /**
    * Delete an agent's store files from disk without needing an open instance (e.g. after
    * restart). `force` ignores missing files; a real failure (lock/permission) is thrown so
@@ -374,7 +396,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       if (this.connection) this.connection.closeSync()
       if (this.dbInstance) this.dbInstance.closeSync()
     } catch (error) {
-      console.error('[MemoryVectorStore] close error', error)
+      logger.warn(`[MemoryVectorStore] close error: ${String(error)}`)
     }
   }
 }

@@ -40,13 +40,20 @@ function isInternalMemoryKind(row: AgentMemoryRow): boolean {
   return row.kind === 'persona' || row.kind === 'working'
 }
 
+type DeleteVectorResult = 'deleted' | 'skipped' | 'unusable'
+
 export class ManagementService {
   constructor(
     private readonly ctx: MemoryRuntimeContext,
     private readonly ports: {
-      deleteVectorsForMemoryIds: (agentId: string, memoryIds: string[]) => Promise<void>
+      deleteVectorsForDeletedMemory: (
+        agentId: string,
+        memoryIds: string[],
+        embedding: { embeddingModel: string | null; embeddingDim: number | null }
+      ) => Promise<DeleteVectorResult>
       resetAgentStore: (agentId: string) => Promise<void>
       isReindexing: (agentId: string) => boolean
+      reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
       clearConsolidationCooldown: (agentId: string) => void
@@ -60,8 +67,17 @@ export class ManagementService {
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId || row.status !== 'archived') return false
     if (isInternalMemoryKind(row)) return false
-    this.ctx.deps.repository.updateStatus(memoryId, 'pending_embedding')
-    this.ports.syncWorkingMemoryAfterMutation(agentId)
+    this.ctx.deps.repository.runInTransaction(() => {
+      this.ctx.deps.repository.updateStatus(memoryId, 'pending_embedding')
+      this.ports.syncWorkingMemoryAfterMutation(agentId)
+      this.ctx.writeAudit(agentId, {
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId },
+        outputRefs: { action: 'restored', memoryId }
+      })
+    })
     void this.ports.triggerEmbedding(agentId).catch((error) => {
       logger.warn(`[Memory] background embedding failed: ${String(error)}`)
     })
@@ -76,11 +92,24 @@ export class ManagementService {
     const row = this.ctx.deps.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return false
     if (isInternalMemoryKind(row)) return false
-    if (row.status === 'archived') return true
-    this.ctx.deps.repository.archive(row.id, Date.now())
-    if (this.ctx.isDisposed) return true
-    this.ports.syncWorkingMemoryAfterMutation(agentId)
-    this.ctx.emitChanged(agentId, 'extract')
+    const alreadyArchived = row.status === 'archived'
+    this.ctx.deps.repository.runInTransaction(() => {
+      if (!alreadyArchived) {
+        this.ctx.deps.repository.archive(row.id, Date.now())
+        this.ports.syncWorkingMemoryAfterMutation(agentId)
+      }
+      this.ctx.writeAudit(agentId, {
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        reason: alreadyArchived ? 'already_archived' : null,
+        inputRefs: { memoryId },
+        outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
+      })
+    })
+    if (!alreadyArchived) {
+      this.ctx.emitChanged(agentId, 'extract')
+    }
     return true
   }
 
@@ -92,22 +121,23 @@ export class ManagementService {
     if (!row || row.agent_id !== agentId) return false
     if (isInternalMemoryKind(row)) return false
     const alreadyArchived = row.status === 'archived'
-    if (!alreadyArchived) {
-      this.ctx.deps.repository.archive(row.id, Date.now())
-      if (!this.ctx.isDisposed) {
+    this.ctx.deps.repository.runInTransaction(() => {
+      if (!alreadyArchived) {
+        this.ctx.deps.repository.archive(row.id, Date.now())
         this.ports.syncWorkingMemoryAfterMutation(agentId)
-        this.ctx.emitChanged(agentId, 'extract')
       }
-    }
-    if (this.ctx.isDisposed) return true
-    this.ctx.writeAudit(agentId, {
-      eventType: 'memory/archive',
-      actorType: 'user',
-      status: 'completed',
-      reason: alreadyArchived ? 'already_archived' : null,
-      inputRefs: { memoryId },
-      outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
+      this.ctx.writeAudit(agentId, {
+        eventType: 'memory/archive',
+        actorType: 'user',
+        status: 'completed',
+        reason: alreadyArchived ? 'already_archived' : null,
+        inputRefs: { memoryId },
+        outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
+      })
     })
+    if (!alreadyArchived) {
+      this.ctx.emitChanged(agentId, 'extract')
+    }
     return true
   }
 
@@ -274,7 +304,15 @@ export class ManagementService {
     if (row.kind !== 'working') {
       this.ports.syncWorkingMemoryAfterMutation(agentId)
     }
-    await this.ports.deleteVectorsForMemoryIds(agentId, [memoryId])
+    const deleteResult = await this.ports.deleteVectorsForDeletedMemory(agentId, [memoryId], {
+      embeddingModel: row.embedding_model,
+      embeddingDim: row.embedding_dim
+    })
+    if (deleteResult === 'unusable' && !this.ports.isReindexing(agentId)) {
+      void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+        logger.warn(`[Memory] store rebuild after delete failed for ${agentId}: ${String(error)}`)
+      })
+    }
     if (this.ctx.isDisposed) return true
     this.ctx.emitChanged(agentId, 'delete', { memoryId })
     return true
@@ -305,10 +343,10 @@ export class ManagementService {
     if (!this.ctx.isManagedAgent(agentId)) {
       return { total: 0, pendingEmbedding: 0, hasPersona: false }
     }
-    const all = this.ctx.deps.repository.listByAgent(agentId, { includeSuperseded: true })
+    const counts = this.ctx.deps.repository.countStatusView(agentId)
     return {
-      total: all.length,
-      pendingEmbedding: all.filter((row) => row.status === 'pending_embedding').length,
+      total: counts.total,
+      pendingEmbedding: counts.pendingEmbedding,
       hasPersona: this.ctx.deps.repository.getActivePersona(agentId) !== undefined,
       reindexing: this.ports.isReindexing(agentId)
     }

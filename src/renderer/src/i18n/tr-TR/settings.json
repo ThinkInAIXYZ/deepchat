@@ -250,6 +250,8 @@
         "byCategory": "Kategoriye göre",
         "byStatus": "Duruma göre",
         "pipeline": "İş hattı",
+        "reindex": "Yeniden indeksle",
+        "reindexing": "Yeniden indeksleniyor",
         "quality": "Kalite",
         "topAccessed": "En çok erişilen",
         "noTopAccessed": "Henüz erişilmiş bellek yok.",

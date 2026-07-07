@@ -138,8 +138,29 @@
 
     <div class="grid gap-3 sm:grid-cols-2">
       <section class="rounded-lg border px-3 py-2">
-        <div class="mb-2 text-xs font-medium">
-          {{ t('settings.deepchatAgents.memoryManager.health.pipeline') }}
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <div class="text-xs font-medium">
+            {{ t('settings.deepchatAgents.memoryManager.health.pipeline') }}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="h-7 px-2 text-xs"
+            :disabled="reindexing"
+            @click="emit('reindex')"
+          >
+            <Icon
+              :icon="reindexing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
+              class="mr-1 h-3.5 w-3.5"
+              :class="reindexing ? 'animate-spin' : ''"
+            />
+            {{
+              reindexing
+                ? t('settings.deepchatAgents.memoryManager.health.reindexing')
+                : t('settings.deepchatAgents.memoryManager.health.reindex')
+            }}
+          </Button>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs">
           <MetricCell
@@ -263,7 +284,9 @@
 <script setup lang="ts">
 import { computed, defineComponent, h } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Button } from '@shadcn/components/ui/button'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
   MemoryHealthDto,
@@ -284,13 +307,19 @@ const props = withDefaults(
     archiveCandidateLifecyclePreview?: MemoryArchiveCandidateLifecyclePreview | null
     archiveCandidateLifecyclePreviewLoading?: boolean
     archiveCandidateLifecyclePreviewError?: string | null
+    reindexing?: boolean
   }>(),
   {
     archiveCandidateLifecyclePreview: null,
     archiveCandidateLifecyclePreviewLoading: false,
-    archiveCandidateLifecyclePreviewError: null
+    archiveCandidateLifecyclePreviewError: null,
+    reindexing: false
   }
 )
+
+const emit = defineEmits<{
+  reindex: []
+}>()
 
 const { t, locale } = useI18n()
 const dash = '—'

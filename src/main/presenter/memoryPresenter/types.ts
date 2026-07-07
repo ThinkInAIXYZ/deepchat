@@ -1,6 +1,7 @@
 import type {
   AgentMemoryKind,
   AgentMemoryLifecycleRow,
+  AgentMemoryWorkingCandidateCursor,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -26,6 +27,7 @@ import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
 export type {
   AgentMemoryKind,
   AgentMemoryLifecycleRow,
+  AgentMemoryWorkingCandidateCursor,
   AgentMemoryRow,
   AgentMemoryStatus,
   AgentMemoryConflictState,
@@ -78,11 +80,24 @@ export interface MemoryRepositoryPort {
   // Bulk-resets the embedding state of an agent's non-superseded rows in the given statuses back
   // to pending_embedding (one SQL UPDATE), returning how many rows changed. Used by reindex and
   // backfill so the requeue never loops per row on the caller's stack.
-  requeueForEmbedding(agentId: string, statuses: AgentMemoryStatus[]): number
+  requeueForEmbedding(
+    agentId: string,
+    statuses: AgentMemoryStatus[],
+    limit?: number,
+    afterId?: string | null
+  ): number
+  listEmbeddingStatusIds(
+    agentId: string,
+    statuses: AgentMemoryStatus[],
+    limit: number,
+    afterId?: string | null
+  ): string[]
   markSuperseded(id: string, supersededBy: string | null): void
   recordAccess(id: string, accessedAt?: number): void
   recordAccessBatch(ids: string[], accessedAt?: number): void
   updateDecayScore(id: string, decayScore: number | null, consolidatedAt?: number | null): void
+  refreshDecayScoresForAgent(agentId: string, now: number, halfLifeMs: number): void
+  stampConsolidationForAgent(agentId: string, at: number): void
   updateContent(
     id: string,
     content: string,
@@ -112,7 +127,14 @@ export interface MemoryRepositoryPort {
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
+  countStatusView(agentId: string): { total: number; pendingEmbedding: number }
   hasActiveMemory(agentId: string): boolean
+  runInTransaction<T>(fn: () => T): T
+  listWorkingCandidates(
+    agentId: string,
+    limit: number,
+    after?: AgentMemoryWorkingCandidateCursor
+  ): AgentMemoryRow[]
   listAgentIdsWithMemories(): string[]
   listConsolidationScanRows(
     agentId: string,
@@ -152,6 +174,7 @@ export interface MemoryAuditRepositoryPort {
   insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow
   listByAgent(agentId: string, options?: number | MemoryAuditListOptions): AgentMemoryAuditRow[]
   getLatestCompletedEventAt(agentId: string, eventType: string): number | null
+  hasForgetEvent(agentId: string, memoryId: string): boolean
   getHealthAuditStats(
     agentId: string,
     scanLimit: number,
@@ -208,6 +231,7 @@ export interface IMemoryVectorStore {
   query(embedding: number[], options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
   queryByMemoryId(memoryId: string, options: MemoryVectorQueryOptions): Promise<MemoryVectorMatch[]>
   deleteByMemoryIds(memoryIds: string[]): Promise<void>
+  listMemoryIds(afterId: string | null, limit: number): Promise<string[]>
   close(): Promise<void>
   isUsable(): boolean
 }

@@ -250,6 +250,8 @@
         "byCategory": "Per categoria",
         "byStatus": "Per stato",
         "pipeline": "Pipeline",
+        "reindex": "Reindicizza",
+        "reindexing": "Reindicizzazione",
         "quality": "Qualità",
         "topAccessed": "Più consultate",
         "noTopAccessed": "Nessuna memoria consultata finora.",

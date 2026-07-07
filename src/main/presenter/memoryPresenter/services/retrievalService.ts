@@ -110,6 +110,18 @@ export class RetrievalService {
     })
   }
 
+  async retrieveForDecision(
+    agentId: string,
+    query: string,
+    now: number
+  ): Promise<MemoryRecallItem[]> {
+    return this.retrieve(agentId, query, now, false, {
+      keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
+      keywordMatchMode: 'any',
+      enableInlinePrune: false
+    })
+  }
+
   private buildAgentFacingRecallKeywordQuery(agentId: string, query: string): string {
     const candidates = extractRecallKeywordCandidates(query)
     if (!candidates.length) return ''
@@ -352,7 +364,7 @@ export class RetrievalService {
           keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
           keywordMatchMode: 'any'
         })
-      : await this.recall(agentId, query)
+      : []
     if (!persona && !working && recalled.length === 0) return null
     const tokenBudget = resolveInjectionTokenBudget(config?.memoryInjectionTokenBudget)
     const payload: MemoryInjectionPayload = {

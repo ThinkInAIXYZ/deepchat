@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '../core/lifecycle'
-import { decayScore, distanceToSimilarity } from '../core/scoring'
+import { distanceToSimilarity } from '../core/scoring'
 import {
   ADD_DECISION,
   buildDecisionPrompt,
@@ -29,6 +29,7 @@ import {
   isSafeAgentId,
   type AgentMemoryRow,
   type ConsolidationScanCursor,
+  FORGET_HALF_LIFE_MS,
   type MemoryPersonaDraftResult,
   type MemoryReflectionResult
 } from '../types'
@@ -439,13 +440,21 @@ export class MaintenanceService {
         const secondaryCategory = isAgentMemoryCategory(secondary.category)
           ? secondary.category
           : null
-        const survivorId = this.rows.applyContentUpdate(
+        const update = this.rows.applyContentUpdate(
           agentId,
           primary,
           mergedContent,
           now,
           secondaryCategory
         )
+        if (update.action === 'suppressed') {
+          this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
+          this.ctx.deps.repository.setLastConsolidatedAt(neighbor.id, now)
+          merged.add(source.id)
+          merged.add(neighbor.id)
+          continue
+        }
+        const survivorId = update.id
         this.rows.bumpConfidence(survivorId)
         this.ctx.deps.repository.setImportance(survivorId, secondary.importance)
         this.ctx.deps.repository.updateStatus(survivorId, 'pending_embedding')
@@ -553,17 +562,11 @@ export class MaintenanceService {
   }
 
   private stampConsolidation(agentId: string, now: number): void {
-    for (const row of this.ctx.deps.repository.listByAgent(agentId)) {
-      if (row.kind === 'persona') continue
-      this.ctx.deps.repository.setLastConsolidatedAt(row.id, now)
-    }
+    this.ctx.deps.repository.stampConsolidationForAgent(agentId, now)
   }
 
   refreshDecayScores(agentId: string, now: number): void {
-    for (const row of this.ctx.deps.repository.listByAgent(agentId)) {
-      if (row.kind === 'persona') continue
-      this.ctx.deps.repository.updateDecayScore(row.id, decayScore(row, now), null)
-    }
+    this.ctx.deps.repository.refreshDecayScoresForAgent(agentId, now, FORGET_HALF_LIFE_MS)
   }
 
   archiveStale(agentId: string, now: number = Date.now()): number {

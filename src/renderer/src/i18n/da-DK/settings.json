@@ -2645,6 +2645,8 @@
         "byCategory": "Efter kategori",
         "byStatus": "Efter status",
         "pipeline": "Pipeline",
+        "reindex": "Genindekser",
+        "reindexing": "Genindekserer",
         "quality": "Kvalitet",
         "topAccessed": "Mest brugt",
         "noTopAccessed": "Ingen brugte minder endnu.",

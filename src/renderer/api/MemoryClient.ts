@@ -18,6 +18,7 @@ import {
   memoryListRoute,
   memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
+  memoryReindexRoute,
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
@@ -179,6 +180,10 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.ok
   }
 
+  async function reindex(agentId: string): Promise<{ started: boolean }> {
+    return bridge.invoke(memoryReindexRoute.name, { agentId })
+  }
+
   async function getSourceSpan(agentId: string, memoryId: string): Promise<MemorySourceSpan> {
     const result = await bridge.invoke(memoryGetSourceSpanRoute.name, { agentId, memoryId })
     return result.span
@@ -259,6 +264,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     archive,
     clear,
     restore,
+    reindex,
     getSourceSpan,
     listConflicts,
     resolveConflict,

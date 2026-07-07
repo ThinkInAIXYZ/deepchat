@@ -250,6 +250,8 @@
         "byCategory": "Menurut kategori",
         "byStatus": "Menurut status",
         "pipeline": "Pipeline",
+        "reindex": "Indeks ulang",
+        "reindexing": "Mengindeks ulang",
         "quality": "Kualitas",
         "topAccessed": "Paling sering diakses",
         "noTopAccessed": "Belum ada memori yang diakses.",

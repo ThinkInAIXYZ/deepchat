@@ -10,6 +10,7 @@ import {
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
   memoryListRoute,
+  memoryReindexRoute,
   memoryRestoreRoute,
   memorySearchRoute
 } from '@shared/contracts/routes'
@@ -182,6 +183,16 @@ describe('memory.restore route contract round-trip', () => {
     for (const agentId of ['../etc', 'has space', '']) {
       expect(memoryRestoreRoute.input.safeParse({ agentId, memoryId: 'm1' }).success).toBe(false)
     }
+  })
+})
+
+describe('memory.reindex route contract', () => {
+  it('round-trips the reindex request and started response', () => {
+    expect(memoryReindexRoute.input.parse({ agentId: 'deepchat-abc123' })).toEqual({
+      agentId: 'deepchat-abc123'
+    })
+    expect(memoryReindexRoute.output.parse({ started: true })).toEqual({ started: true })
+    expect(memoryReindexRoute.output.parse({ started: false })).toEqual({ started: false })
   })
 })
 

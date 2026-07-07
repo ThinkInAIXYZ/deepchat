@@ -46,6 +46,7 @@ import {
   memoryListRoute,
   memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
+  memoryReindexRoute,
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
@@ -873,6 +874,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryGetByIdsRoute.name]: memoryGetByIdsRoute,
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryGetHealthRoute.name]: memoryGetHealthRoute,
+  [memoryReindexRoute.name]: memoryReindexRoute,
   [memoryGetLifecycleRoute.name]: memoryGetLifecycleRoute,
   [memoryGetArchiveCandidateLifecyclePreviewRoute.name]:
     memoryGetArchiveCandidateLifecyclePreviewRoute,

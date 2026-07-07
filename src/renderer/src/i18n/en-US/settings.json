@@ -247,6 +247,8 @@
         "byCategory": "By category",
         "byStatus": "By status",
         "pipeline": "Pipeline",
+        "reindex": "Reindex",
+        "reindexing": "Reindexing",
         "quality": "Quality",
         "topAccessed": "Top accessed",
         "noTopAccessed": "No accessed memories yet.",

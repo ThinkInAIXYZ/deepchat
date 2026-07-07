@@ -105,6 +105,7 @@ import {
   memoryListRoute,
   memoryListViewManifestsRoute,
   memoryRejectPersonaDraftRoute,
+  memoryReindexRoute,
   memoryResolveConflictRoute,
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
@@ -2399,6 +2400,19 @@ export async function dispatchDeepchatRoute(
       return memoryGetHealthRoute.output.parse({
         health: runtime.memoryPresenter.getHealth(input.agentId)
       })
+    }
+
+    case memoryReindexRoute.name: {
+      const input = memoryReindexRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat' || !runtime.memoryPresenter.canReindex(input.agentId)) {
+        return memoryReindexRoute.output.parse({ started: false })
+      }
+      const already = runtime.memoryPresenter.isReindexing(input.agentId)
+      void runtime.memoryPresenter.reindexEmbeddings(input.agentId, true).catch((error) => {
+        console.warn(`[Memory] manual reindex failed for ${input.agentId}: ${String(error)}`)
+      })
+      return memoryReindexRoute.output.parse({ started: !already })
     }
 
     case memoryGetLifecycleRoute.name: {

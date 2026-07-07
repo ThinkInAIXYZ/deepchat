@@ -2645,6 +2645,8 @@
         "byCategory": "依分類",
         "byStatus": "依狀態",
         "pipeline": "管線",
+        "reindex": "重建索引",
+        "reindexing": "重建中",
         "quality": "品質",
         "topAccessed": "存取最多",
         "noTopAccessed": "尚無被存取過的記憶。",

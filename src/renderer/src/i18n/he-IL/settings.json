@@ -2645,6 +2645,8 @@
         "byCategory": "לפי קטגוריה",
         "byStatus": "לפי סטטוס",
         "pipeline": "צינור עיבוד",
+        "reindex": "בנה אינדקס מחדש",
+        "reindexing": "בונה אינדקס מחדש",
         "quality": "איכות",
         "topAccessed": "הכי נגישים",
         "noTopAccessed": "אין עדיין זיכרונות שנעשה בהם שימוש.",

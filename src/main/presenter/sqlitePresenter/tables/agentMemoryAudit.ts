@@ -71,6 +71,15 @@ function stringifyMetadata(value: Record<string, unknown> | undefined): string {
   return JSON.stringify(value ?? {})
 }
 
+function metadataReferencesMemoryId(metadataJson: string, memoryId: string): boolean {
+  try {
+    const metadata = JSON.parse(metadataJson) as Record<string, unknown>
+    return metadata.memoryId === memoryId
+  } catch {
+    return false
+  }
+}
+
 export class AgentMemoryAuditTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'agent_memory_audit')
@@ -222,6 +231,43 @@ export class AgentMemoryAuditTable extends BaseTable {
       )
       .get(agentId, eventType) as { at: number | null } | undefined
     return row?.at ?? null
+  }
+
+  hasForgetEvent(agentId: string, memoryId: string): boolean {
+    const rows = this.db
+      .prepare(
+        `SELECT event_type,
+                actor_type,
+                input_refs_json,
+                output_refs_json
+         FROM agent_memory_audit
+         WHERE agent_id = ?
+           AND status = 'completed'
+           AND (
+             (event_type = 'memory/forget' AND actor_type = 'runtime')
+             OR (event_type = 'memory/archive' AND actor_type = 'user')
+             OR event_type = 'memory/restore'
+           )
+         ORDER BY created_at DESC, id DESC
+         LIMIT 200`
+      )
+      .all(agentId) as Array<{
+      event_type: string
+      actor_type: AgentMemoryAuditActorType
+      input_refs_json: string
+      output_refs_json: string
+    }>
+    for (const row of rows) {
+      if (
+        !metadataReferencesMemoryId(row.input_refs_json, memoryId) &&
+        !metadataReferencesMemoryId(row.output_refs_json, memoryId)
+      ) {
+        continue
+      }
+      if (row.event_type === 'memory/restore') return false
+      return true
+    }
+    return false
   }
 
   getHealthAuditStats(
