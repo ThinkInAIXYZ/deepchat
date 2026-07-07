@@ -134,6 +134,9 @@ export class MemoryRowMutations {
           }
         }
         this.ctx.deps.repository.runInTransaction(() => {
+          if (hit.action === 'absorbed') {
+            this.ctx.deps.repository.updateStatus(owner.id, 'pending_embedding')
+          }
           if (hit.action === 'continue') {
             this.reviveSupersededAfterDecision(agentId, owner)
           }
@@ -192,9 +195,6 @@ export class MemoryRowMutations {
       return { action: 'noop', reason: 'duplicate' }
     }
 
-    this.ctx.deps.repository.runInTransaction(() => {
-      this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
-    })
     return { action: 'absorbed' }
   }
 

@@ -232,11 +232,13 @@ describe('MemoryHealthSection', () => {
     const ready = mountSection({ health: loadedHealth })
     await ready.find('button').trigger('click')
     expect(ready.emitted('reindex')).toHaveLength(1)
+    expect(ready.find('button').attributes('aria-busy')).toBeUndefined()
 
     const running = mountSection({ health: loadedHealth, reindexing: true })
-    expect(running.find('button').text()).toContain(
-      'settings.deepchatAgents.memoryManager.health.reindexing'
-    )
+    const button = running.find('button')
+    expect(button.text()).toContain('settings.deepchatAgents.memoryManager.health.reindexing')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.attributes('aria-busy')).toBe('true')
   })
 
   it('renders archive candidate lifecycle preview states without memory content', () => {

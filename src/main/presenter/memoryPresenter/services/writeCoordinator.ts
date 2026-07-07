@@ -168,7 +168,10 @@ export class WriteCoordinator {
         const hit = this.rows.handleProvenanceHit(options.agentId, duplicate, {
           allowDecisionForSuperseded: true
         })
-        if (hit.action === 'absorbed') created.push(duplicate.id)
+        if (hit.action === 'absorbed') {
+          this.absorbArchivedProvenanceOwner(duplicate)
+          created.push(duplicate.id)
+        }
         if (hit.action === 'continue') {
           this.reviveProvenanceOwner(options.agentId, duplicate, Date.now(), normalized.category)
           created.push(duplicate.id)
@@ -280,7 +283,10 @@ export class WriteCoordinator {
       const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
       })
-      if (hit.action === 'absorbed') return { action: 'updated', id: duplicate.id }
+      if (hit.action === 'absorbed') {
+        this.absorbArchivedProvenanceOwner(duplicate)
+        return { action: 'updated', id: duplicate.id }
+      }
       if (hit.action === 'noop') return { action: 'noop', reason: hit.reason, id: duplicate.id }
       supersededDuplicate = duplicate
       const head = this.rows.supersedeHead(agentId, duplicate)
@@ -408,12 +414,13 @@ export class WriteCoordinator {
             return { action: 'created', id: challengerId }
           }
           if (supersededDuplicate) {
+            const currentTarget = this.ctx.deps.repository.getById(target.id)
             return this.reviveProvenanceOwner(
               agentId,
               supersededDuplicate,
               now,
               normalized.category,
-              target.id
+              isLiveDecisionTarget(agentId, currentTarget) ? currentTarget.id : undefined
             )
           }
           return { action: 'noop', reason: 'challenge-insert-skipped', id: target.id }
@@ -466,7 +473,10 @@ export class WriteCoordinator {
       const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
         allowDecisionForSuperseded: true
       })
-      if (hit.action === 'absorbed') return { action: 'updated', id: duplicate.id }
+      if (hit.action === 'absorbed') {
+        this.absorbArchivedProvenanceOwner(duplicate)
+        return { action: 'updated', id: duplicate.id }
+      }
       if (hit.action === 'continue') {
         return this.reviveProvenanceOwner(agentId, duplicate, Date.now(), normalized.category)
       }
@@ -474,6 +484,12 @@ export class WriteCoordinator {
     }
     const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }
+  }
+
+  private absorbArchivedProvenanceOwner(existing: AgentMemoryRow): void {
+    this.ctx.deps.repository.runInTransaction(() => {
+      this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+    })
   }
 
   private reviveProvenanceOwner(
@@ -484,6 +500,9 @@ export class WriteCoordinator {
     foldTargetId?: string
   ): MemoryWriteOutcome {
     this.ctx.deps.repository.runInTransaction(() => {
+      if (existing.status === 'archived' && existing.superseded_by === null) {
+        this.ctx.deps.repository.updateStatus(existing.id, 'pending_embedding')
+      }
       this.rows.reviveSupersededAfterDecision(agentId, existing)
       if (existing.category === null && category !== null) {
         this.ctx.deps.repository.updateContent(

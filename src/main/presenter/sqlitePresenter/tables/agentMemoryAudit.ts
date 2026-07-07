@@ -248,8 +248,7 @@ export class AgentMemoryAuditTable extends BaseTable {
              OR (event_type = 'memory/archive' AND actor_type = 'user')
              OR event_type = 'memory/restore'
            )
-         ORDER BY created_at DESC, id DESC
-         LIMIT 200`
+         ORDER BY created_at DESC, id DESC`
       )
       .all(agentId) as Array<{
       event_type: string

@@ -1979,6 +1979,64 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('agent memory audit hasForgetEvent does not miss older memory refs behind newer events', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'old-forget',
+        agentId: 'a',
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-old' },
+        outputRefs: { memoryId: 'm-old' },
+        createdAt: 1
+      })
+      for (let index = 0; index < 205; index += 1) {
+        table.insert({
+          id: `newer-other-${index}`,
+          agentId: 'a',
+          eventType: 'memory/restore',
+          actorType: 'user',
+          status: 'completed',
+          inputRefs: { memoryId: `other-${index}` },
+          outputRefs: { memoryId: `other-${index}` },
+          createdAt: 1000 + index
+        })
+      }
+
+      expect(table.hasForgetEvent('a', 'm-old')).toBe(true)
+
+      table.insert({
+        id: 'new-restore',
+        agentId: 'a',
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-old' },
+        outputRefs: { memoryId: 'm-old' },
+        createdAt: 2000
+      })
+      expect(table.hasForgetEvent('a', 'm-old')).toBe(false)
+
+      table.insert({
+        id: 'new-archive',
+        agentId: 'a',
+        eventType: 'memory/archive',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-old' },
+        outputRefs: { memoryId: 'm-old' },
+        createdAt: 2001
+      })
+      expect(table.hasForgetEvent('a', 'm-old')).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
   it('agent memory audit computes bounded health status counts and recent failures', () => {
     const db = new DatabaseCtor(':memory:')
     try {

@@ -192,14 +192,19 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
           ? Math.floor(options.embeddingDim)
           : null
 
-      if (!targetEmbedding || targetDimensions === null) {
+      if (!targetEmbedding) {
         const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
         if (!embedding?.providerId || !embedding?.modelId) {
           logger.debug(`[Memory] vector delete skipped for ${agentId}: embedding is not configured`)
           return
         }
         targetEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-        const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+      }
+      if (targetDimensions === null) {
+        const fingerprint = embeddingFingerprint(
+          targetEmbedding.providerId,
+          targetEmbedding.modelId
+        )
         targetDimensions =
           this.getWarmVectorStoreDimension(agentId, targetEmbedding) ??
           this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)

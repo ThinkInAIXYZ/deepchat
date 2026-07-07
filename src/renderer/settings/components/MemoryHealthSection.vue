@@ -148,6 +148,7 @@
             size="sm"
             class="h-7 px-2 text-xs"
             :disabled="reindexing"
+            :aria-busy="reindexing || undefined"
             @click="emit('reindex')"
           >
             <Icon
