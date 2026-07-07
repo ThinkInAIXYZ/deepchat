@@ -8,4 +8,4 @@
 - [x] Add focused tests for registration, model mapping, routing, and check strategy.
 - [x] Run formatting, i18n, lint, and focused tests.
 - [x] Self-review the diff, fix findings, and repeat review until clean.
-- [ ] Open a PR targeting `dev`.
+- [x] Open a PR targeting `dev`.

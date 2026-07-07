@@ -1,5 +1,7 @@
 # OpenCode Go Provider
 
+Linked GitHub issue: #1896
+
 ## User Need
 
 DeepChat users with an OpenCode Go subscription need to configure their Go API key and use the Go model catalog from DeepChat as a built-in provider.
