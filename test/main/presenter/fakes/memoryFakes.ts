@@ -521,6 +521,7 @@ export class FakeRepository implements MemoryRepositoryPort {
         row.is_anchor === 0 &&
         row.kind !== 'persona' &&
         row.kind !== 'working' &&
+        row.access_count === 0 &&
         row.created_at < before &&
         row.decay_score !== null &&
         row.decay_score < decayBelow
@@ -553,9 +554,7 @@ export class FakeRepository implements MemoryRepositoryPort {
   }
 
   countArchiveCandidates(agentId: string, before: number, decayBelow: number) {
-    return this.listArchiveCandidates(agentId, before, decayBelow).filter(
-      (row) => row.access_count === 0
-    ).length
+    return this.listArchiveCandidates(agentId, before, decayBelow).length
   }
 
   listTopAccessed(agentId: string, limit: number) {
@@ -784,6 +783,12 @@ export class FakeAuditRepository implements MemoryAuditRepositoryPort {
       event_type: input.eventType,
       actor_type: input.actorType,
       session_id: input.sessionId ?? null,
+      memory_ref_id:
+        typeof input.outputRefs?.memoryId === 'string'
+          ? input.outputRefs.memoryId
+          : typeof input.inputRefs?.memoryId === 'string'
+            ? input.inputRefs.memoryId
+            : null,
       input_refs_json: JSON.stringify(input.inputRefs ?? {}),
       output_refs_json: JSON.stringify(input.outputRefs ?? {}),
       model_provider_id: input.modelProviderId ?? null,

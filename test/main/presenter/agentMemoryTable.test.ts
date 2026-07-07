@@ -1979,6 +1979,158 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('agent memory audit derives memory_ref_id and falls back for legacy rows', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'forget-indexed',
+        agentId: 'a',
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-indexed' },
+        outputRefs: { memoryId: 'm-indexed' },
+        createdAt: 100
+      })
+      expect(
+        db
+          .prepare('SELECT memory_ref_id FROM agent_memory_audit WHERE id = ?')
+          .get('forget-indexed')
+      ).toEqual({ memory_ref_id: 'm-indexed' })
+
+      table.insert({
+        id: 'forget-legacy',
+        agentId: 'a',
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-legacy' },
+        outputRefs: { memoryId: 'm-legacy' },
+        createdAt: 200
+      })
+      db.prepare(
+        "UPDATE agent_memory_audit SET memory_ref_id = NULL WHERE id = 'forget-legacy'"
+      ).run()
+
+      expect(table.hasForgetEvent('a', 'm-legacy')).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('agent memory audit orders indexed and legacy memory refs together', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      table.createTable()
+      table.insert({
+        id: 'indexed-restore',
+        agentId: 'a',
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-mixed' },
+        outputRefs: { memoryId: 'm-mixed' },
+        createdAt: 100
+      })
+      table.insert({
+        id: 'legacy-forget',
+        agentId: 'a',
+        eventType: 'memory/forget',
+        actorType: 'runtime',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-mixed' },
+        outputRefs: { memoryId: 'm-mixed' },
+        createdAt: 200
+      })
+      db.prepare(
+        "UPDATE agent_memory_audit SET memory_ref_id = NULL WHERE id = 'legacy-forget'"
+      ).run()
+      expect(table.hasForgetEvent('a', 'm-mixed')).toBe(true)
+
+      table.insert({
+        id: 'legacy-restore',
+        agentId: 'a',
+        eventType: 'memory/restore',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-mixed' },
+        outputRefs: { memoryId: 'm-mixed' },
+        createdAt: 300
+      })
+      db.prepare(
+        "UPDATE agent_memory_audit SET memory_ref_id = NULL WHERE id = 'legacy-restore'"
+      ).run()
+      expect(table.hasForgetEvent('a', 'm-mixed')).toBe(false)
+
+      table.insert({
+        id: 'indexed-archive',
+        agentId: 'a',
+        eventType: 'memory/archive',
+        actorType: 'user',
+        status: 'completed',
+        inputRefs: { memoryId: 'm-mixed' },
+        outputRefs: { memoryId: 'm-mixed' },
+        createdAt: 400
+      })
+      expect(table.hasForgetEvent('a', 'm-mixed')).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('agent memory audit migration tolerates malformed refs while backfilling memory_ref_id', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryAuditTableCtor(db)
+      db.exec(`
+        CREATE TABLE agent_memory_audit (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          actor_type TEXT NOT NULL,
+          session_id TEXT,
+          input_refs_json TEXT NOT NULL DEFAULT '{}',
+          output_refs_json TEXT NOT NULL DEFAULT '{}',
+          model_provider_id TEXT,
+          model_id TEXT,
+          status TEXT NOT NULL,
+          reason TEXT,
+          created_at INTEGER NOT NULL
+        );
+      `)
+      const insert = db.prepare(
+        `INSERT INTO agent_memory_audit (
+           id,
+           agent_id,
+           event_type,
+           actor_type,
+           input_refs_json,
+           output_refs_json,
+           status,
+           created_at
+         )
+         VALUES (?, 'a', 'memory/forget', 'runtime', ?, ?, 'completed', ?)`
+      )
+      insert.run('valid-input', '{"memoryId":"m-input"}', 'not-json', 100)
+      insert.run('malformed-only', 'not-json', 'also-not-json', 200)
+
+      expect(() => db.exec(table.getMigrationSQL(38) ?? '')).not.toThrow()
+      expect(
+        db.prepare('SELECT memory_ref_id FROM agent_memory_audit WHERE id = ?').get('valid-input')
+      ).toEqual({ memory_ref_id: 'm-input' })
+      expect(
+        db
+          .prepare('SELECT memory_ref_id FROM agent_memory_audit WHERE id = ?')
+          .get('malformed-only')
+      ).toEqual({ memory_ref_id: null })
+    } finally {
+      db.close()
+    }
+  })
+
   it('agent memory audit hasForgetEvent does not miss older memory refs behind newer events', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -2133,7 +2285,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       table.updateDecayScore('anchored', 0.01)
 
       const candidates = table.listArchiveCandidates('a', 5000, 0.05)
-      expect(candidates.map((r) => r.id).sort()).toEqual(['accessed', 'stale'])
+      expect(candidates.map((r) => r.id).sort()).toEqual(['stale'])
       expect(table.countArchiveCandidates('a', 5000, 0.05)).toBe(1)
     } finally {
       db.close()

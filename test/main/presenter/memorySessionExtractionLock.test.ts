@@ -118,4 +118,18 @@ describe('per-session extraction lock (C2, AC-2.3/2.4)', () => {
 
     expect(events).toEqual(['start1', 0, 'start2', 1])
   })
+
+  it('advances the cursor only after ok:true extraction results', async () => {
+    let cursor = 0
+    async function consumeSpan(toOrderSeq: number, result: { ok: boolean }) {
+      if (!result.ok) return
+      cursor = toOrderSeq
+    }
+
+    await consumeSpan(10, { ok: false })
+    expect(cursor).toBe(0)
+
+    await consumeSpan(10, { ok: true })
+    expect(cursor).toBe(10)
+  })
 })

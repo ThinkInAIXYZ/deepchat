@@ -39,6 +39,17 @@ type QueryEmbeddingInFlight = {
   promise: Promise<number[][]>
 }
 
+type CachedRecallKeywordTermStat = {
+  stat: {
+    term: string
+    hitCount: number
+    totalRows: number
+  }
+  expiresAt: number
+}
+
+const RECALL_KEYWORD_STATS_TTL_MS = 30_000
+
 function isLiveRecallVectorRow(
   agentId: string,
   row: AgentMemoryRow | undefined
@@ -78,6 +89,7 @@ async function withSoftTimeout<T>(
 
 export class RetrievalService {
   private readonly queryEmbeddingInFlight = new Map<string, Map<string, QueryEmbeddingInFlight>>()
+  private readonly keywordStatsCache = new Map<string, Map<string, CachedRecallKeywordTermStat>>()
 
   constructor(
     private readonly ctx: MemoryRuntimeContext,
@@ -125,11 +137,52 @@ export class RetrievalService {
   private buildAgentFacingRecallKeywordQuery(agentId: string, query: string): string {
     const candidates = extractRecallKeywordCandidates(query)
     if (!candidates.length) return ''
-    const stats = this.ctx.deps.repository.getRecallKeywordTermStats(
+    const stats = this.getCachedRecallKeywordTermStats(
       agentId,
       candidates.map((candidate) => candidate.term)
     )
     return buildRecallKeywordQuery(selectRecallKeywordTerms(candidates, stats))
+  }
+
+  private getCachedRecallKeywordTermStats(agentId: string, terms: string[]) {
+    const normalizedTerms = [...new Set(terms.map((term) => term.trim().toLowerCase()))].filter(
+      Boolean
+    )
+    if (!normalizedTerms.length) return []
+
+    const now = Date.now()
+    let agentCache = this.keywordStatsCache.get(agentId)
+    if (!agentCache) {
+      agentCache = new Map()
+      this.keywordStatsCache.set(agentId, agentCache)
+    }
+
+    const missing: string[] = []
+    const cached = new Map<string, CachedRecallKeywordTermStat['stat']>()
+    for (const term of normalizedTerms) {
+      const entry = agentCache.get(term)
+      if (entry && entry.expiresAt > now) {
+        cached.set(term, entry.stat)
+      } else {
+        agentCache.delete(term)
+        missing.push(term)
+      }
+    }
+
+    if (missing.length > 0) {
+      const fresh = this.ctx.deps.repository.getRecallKeywordTermStats(agentId, missing)
+      for (const stat of fresh) {
+        const normalizedTerm = stat.term.trim().toLowerCase()
+        const entry = { ...stat, term: normalizedTerm }
+        agentCache.set(normalizedTerm, {
+          stat: entry,
+          expiresAt: now + RECALL_KEYWORD_STATS_TTL_MS
+        })
+        cached.set(normalizedTerm, entry)
+      }
+    }
+
+    return normalizedTerms.map((term) => cached.get(term) ?? { term, hitCount: 0, totalRows: 0 })
   }
 
   private startQueryEmbedding(
@@ -360,7 +413,7 @@ export class RetrievalService {
     const working = this.workingMemory.readWorkingMemory(agentId)
     if (!working) this.workingMemory.scheduleWorkingRefresh(agentId)
     const recalled = query.trim()
-      ? await this.retrieve(agentId, query, Date.now(), true, {
+      ? await this.retrieve(agentId, query, Date.now(), false, {
           keywordQuery: this.buildAgentFacingRecallKeywordQuery(agentId, query),
           keywordMatchMode: 'any'
         })
@@ -396,9 +449,15 @@ export class RetrievalService {
     for (const key of this.queryEmbeddingInFlight.keys()) {
       if (key.startsWith(`${agentId}::`)) this.queryEmbeddingInFlight.delete(key)
     }
+    this.invalidateKeywordStats(agentId)
   }
 
   clearAll(): void {
     this.queryEmbeddingInFlight.clear()
+    this.keywordStatsCache.clear()
+  }
+
+  invalidateKeywordStats(agentId: string): void {
+    this.keywordStatsCache.delete(agentId)
   }
 }

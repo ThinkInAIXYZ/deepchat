@@ -19,7 +19,10 @@ export function isUniqueConstraintError(error: unknown): boolean {
 export class MemoryRuntimeContext {
   private disposed = false
 
-  constructor(readonly deps: MemoryPresenterDeps) {}
+  constructor(
+    readonly deps: MemoryPresenterDeps,
+    private readonly onAgentMemoryMutated?: (agentId: string) => void
+  ) {}
 
   get isDisposed(): boolean {
     return this.disposed
@@ -70,6 +73,7 @@ export class MemoryRuntimeContext {
   }
 
   emitChanged(agentId: string, reason: MemoryUpdateReason, context?: MemoryUpdateContext): void {
+    this.onAgentMemoryMutated?.(agentId)
     if (context) this.deps.onMemoryChanged?.(agentId, reason, context)
     else this.deps.onMemoryChanged?.(agentId, reason)
   }

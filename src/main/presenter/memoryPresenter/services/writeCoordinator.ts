@@ -165,15 +165,9 @@ export class WriteCoordinator {
       const provenanceKey = buildMemoryProvenanceKey(options.agentId, normalized.kind, content)
       const duplicate = this.ctx.deps.repository.getByProvenanceKey(options.agentId, provenanceKey)
       if (duplicate) {
-        const hit = this.rows.handleProvenanceHit(options.agentId, duplicate, {
-          allowDecisionForSuperseded: true
-        })
+        const hit = this.rows.handleProvenanceHit(options.agentId, duplicate)
         if (hit.action === 'absorbed') {
           this.absorbArchivedProvenanceOwner(duplicate)
-          created.push(duplicate.id)
-        }
-        if (hit.action === 'continue') {
-          this.reviveProvenanceOwner(options.agentId, duplicate, Date.now(), normalized.category)
           created.push(duplicate.id)
         }
         continue
@@ -191,10 +185,10 @@ export class WriteCoordinator {
   }
 
   async extractAndStore(input: MemoryExtractionInput): Promise<MemoryExtractionResult> {
-    if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
-    if (this.ctx.isDisposed) return { ok: true, createdIds: [] }
     const span = input.spanText.trim()
     if (!span) return { ok: true, createdIds: [] }
+    if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
+    if (this.ctx.isDisposed) return { ok: false }
     const model = this.ctx.resolveExtractionModel(input.agentId, input.model)
     try {
       let shouldExtract = true
@@ -208,7 +202,7 @@ export class WriteCoordinator {
       } catch (error) {
         logger.warn(`[Memory] triage skipped, extracting anyway: ${String(error)}`)
       }
-      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
+      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
       if (!shouldExtract) return { ok: true, createdIds: [] }
 
       const response = await this.ctx.deps.generateText(
@@ -216,7 +210,7 @@ export class WriteCoordinator {
         model.modelId,
         buildExtractionPrompt(span)
       )
-      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: true, createdIds: [] }
+      if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
       const parsed = parseMemoryCandidates(response)
       if (!parsed.ok) {
         logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
@@ -234,6 +228,9 @@ export class WriteCoordinator {
       let touched = false
       for (const candidate of candidates) {
         const outcome = await this.coordinateWrite(input.agentId, candidate, model, options, now)
+        // If a non-empty extraction is disabled mid-batch, keep the cursor for retry; any rows
+        // already written are picked up by the next embedding/backfill drain.
+        if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
         outcomes.push(outcome)
         createdIds.push(...createdIdsFromOutcome(outcome))
         if (outcomeTouched(outcome)) touched = true
@@ -470,17 +467,13 @@ export class WriteCoordinator {
     const provenanceKey = buildMemoryProvenanceKey(agentId, normalized.kind, content)
     const duplicate = this.ctx.deps.repository.getByProvenanceKey(agentId, provenanceKey)
     if (duplicate) {
-      const hit = this.rows.handleProvenanceHit(agentId, duplicate, {
-        allowDecisionForSuperseded: true
-      })
+      const hit = this.rows.handleProvenanceHit(agentId, duplicate)
       if (hit.action === 'absorbed') {
         this.absorbArchivedProvenanceOwner(duplicate)
         return { action: 'updated', id: duplicate.id }
       }
-      if (hit.action === 'continue') {
-        return this.reviveProvenanceOwner(agentId, duplicate, Date.now(), normalized.category)
-      }
-      return { action: 'noop', reason: hit.reason, id: duplicate.id }
+      const reason = hit.action === 'noop' ? hit.reason : 'duplicate'
+      return { action: 'noop', reason, id: duplicate.id }
     }
     const id = this.rows.insertMemory(agentId, normalized, content, provenanceKey, options)
     return id ? { action: 'created', id } : { action: 'noop', reason: 'insert-skipped' }

@@ -10,6 +10,7 @@ export interface AgentMemoryAuditRow {
   event_type: string
   actor_type: AgentMemoryAuditActorType
   session_id: string | null
+  memory_ref_id: string | null
   input_refs_json: string
   output_refs_json: string
   model_provider_id: string | null
@@ -58,17 +59,69 @@ export interface AgentMemoryHealthAuditStats {
   recentFailures: AgentMemoryHealthRecentFailureRow[]
 }
 
-const AGENT_MEMORY_AUDIT_SCHEMA_VERSION = 36
+const AGENT_MEMORY_AUDIT_SCHEMA_VERSION = 38
 
 const AGENT_MEMORY_AUDIT_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_audit_agent_created
     ON agent_memory_audit(agent_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_agent_memory_audit_agent_event
     ON agent_memory_audit(agent_id, event_type, created_at);
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_audit_agent_memory_ref
+    ON agent_memory_audit(agent_id, memory_ref_id, created_at);
+`
+
+const AGENT_MEMORY_AUDIT_OUTPUT_MEMORY_REF_SQL = `
+  CASE
+    WHEN json_valid(output_refs_json) THEN
+      CASE
+        WHEN json_type(output_refs_json, '$.memoryId') = 'text' THEN
+          NULLIF(TRIM(CAST(json_extract(output_refs_json, '$.memoryId') AS TEXT)), '')
+      END
+  END
+`
+
+const AGENT_MEMORY_AUDIT_INPUT_MEMORY_REF_SQL = `
+  CASE
+    WHEN json_valid(input_refs_json) THEN
+      CASE
+        WHEN json_type(input_refs_json, '$.memoryId') = 'text' THEN
+          NULLIF(TRIM(CAST(json_extract(input_refs_json, '$.memoryId') AS TEXT)), '')
+      END
+  END
+`
+
+const AGENT_MEMORY_AUDIT_BACKFILL_MEMORY_REF_SQL = `
+  UPDATE agent_memory_audit
+  SET memory_ref_id = COALESCE(
+    ${AGENT_MEMORY_AUDIT_OUTPUT_MEMORY_REF_SQL},
+    ${AGENT_MEMORY_AUDIT_INPUT_MEMORY_REF_SQL}
+  )
+  WHERE memory_ref_id IS NULL
+    AND status = 'completed'
+    AND (
+      (event_type = 'memory/forget' AND actor_type = 'runtime')
+      OR (event_type = 'memory/archive' AND actor_type = 'user')
+      OR event_type = 'memory/restore'
+    )
+    AND COALESCE(
+      ${AGENT_MEMORY_AUDIT_OUTPUT_MEMORY_REF_SQL},
+      ${AGENT_MEMORY_AUDIT_INPUT_MEMORY_REF_SQL}
+    ) IS NOT NULL;
 `
 
 function stringifyMetadata(value: Record<string, unknown> | undefined): string {
   return JSON.stringify(value ?? {})
+}
+
+function extractSingleMemoryRef(metadata: Record<string, unknown> | undefined): string | null {
+  const memoryId = metadata?.memoryId
+  if (typeof memoryId !== 'string') return null
+  const trimmed = memoryId.trim()
+  return trimmed || null
+}
+
+function deriveMemoryRefId(input: AgentMemoryAuditInsertInput): string | null {
+  return extractSingleMemoryRef(input.outputRefs) ?? extractSingleMemoryRef(input.inputRefs)
 }
 
 function metadataReferencesMemoryId(metadataJson: string, memoryId: string): boolean {
@@ -93,6 +146,7 @@ export class AgentMemoryAuditTable extends BaseTable {
         event_type TEXT NOT NULL,
         actor_type TEXT NOT NULL,
         session_id TEXT,
+        memory_ref_id TEXT,
         input_refs_json TEXT NOT NULL DEFAULT '{}',
         output_refs_json TEXT NOT NULL DEFAULT '{}',
         model_provider_id TEXT,
@@ -114,11 +168,22 @@ export class AgentMemoryAuditTable extends BaseTable {
     if (version === 36) {
       return this.getCreateTableSQL()
     }
+    if (version === 38) {
+      return `
+        ALTER TABLE agent_memory_audit ADD COLUMN memory_ref_id TEXT;
+        ${AGENT_MEMORY_AUDIT_BACKFILL_MEMORY_REF_SQL}
+        ${AGENT_MEMORY_AUDIT_INDEX_SQL}
+      `
+    }
     return null
   }
 
   getLatestVersion(): number {
     return AGENT_MEMORY_AUDIT_SCHEMA_VERSION
+  }
+
+  backfillMemoryRefIds(): void {
+    this.db.exec(AGENT_MEMORY_AUDIT_BACKFILL_MEMORY_REF_SQL)
   }
 
   insert(input: AgentMemoryAuditInsertInput): AgentMemoryAuditRow {
@@ -128,6 +193,7 @@ export class AgentMemoryAuditTable extends BaseTable {
       event_type: input.eventType,
       actor_type: input.actorType,
       session_id: input.sessionId ?? null,
+      memory_ref_id: deriveMemoryRefId(input),
       input_refs_json: stringifyMetadata(input.inputRefs),
       output_refs_json: stringifyMetadata(input.outputRefs),
       model_provider_id: input.modelProviderId ?? null,
@@ -145,6 +211,7 @@ export class AgentMemoryAuditTable extends BaseTable {
            event_type,
            actor_type,
            session_id,
+           memory_ref_id,
            input_refs_json,
            output_refs_json,
            model_provider_id,
@@ -153,7 +220,7 @@ export class AgentMemoryAuditTable extends BaseTable {
            reason,
            created_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -161,6 +228,7 @@ export class AgentMemoryAuditTable extends BaseTable {
         row.event_type,
         row.actor_type,
         row.session_id,
+        row.memory_ref_id,
         row.input_refs_json,
         row.output_refs_json,
         row.model_provider_id,
@@ -234,14 +302,29 @@ export class AgentMemoryAuditTable extends BaseTable {
   }
 
   hasForgetEvent(agentId: string, memoryId: string): boolean {
+    return this.hasForgetEventFromRows(this.listForgetEventRows(agentId, memoryId), memoryId)
+  }
+
+  private listForgetEventRows(
+    agentId: string,
+    memoryId: string
+  ): Array<{
+    event_type: string
+    actor_type: AgentMemoryAuditActorType
+    memory_ref_id: string | null
+    input_refs_json: string
+    output_refs_json: string
+  }> {
     const rows = this.db
       .prepare(
         `SELECT event_type,
                 actor_type,
+                memory_ref_id,
                 input_refs_json,
                 output_refs_json
          FROM agent_memory_audit
          WHERE agent_id = ?
+           AND (memory_ref_id = ? OR memory_ref_id IS NULL)
            AND status = 'completed'
            AND (
              (event_type = 'memory/forget' AND actor_type = 'runtime')
@@ -250,17 +333,32 @@ export class AgentMemoryAuditTable extends BaseTable {
            )
          ORDER BY created_at DESC, id DESC`
       )
-      .all(agentId) as Array<{
+      .all(agentId, memoryId) as Array<{
       event_type: string
       actor_type: AgentMemoryAuditActorType
+      memory_ref_id: string | null
       input_refs_json: string
       output_refs_json: string
     }>
+    return rows
+  }
+
+  private hasForgetEventFromRows(
+    rows: Array<{
+      event_type: string
+      actor_type: AgentMemoryAuditActorType
+      memory_ref_id: string | null
+      input_refs_json: string
+      output_refs_json: string
+    }>,
+    memoryId: string
+  ): boolean {
     for (const row of rows) {
-      if (
-        !metadataReferencesMemoryId(row.input_refs_json, memoryId) &&
-        !metadataReferencesMemoryId(row.output_refs_json, memoryId)
-      ) {
+      const referencesMemory =
+        row.memory_ref_id === memoryId ||
+        metadataReferencesMemoryId(row.input_refs_json, memoryId) ||
+        metadataReferencesMemoryId(row.output_refs_json, memoryId)
+      if (!referencesMemory) {
         continue
       }
       if (row.event_type === 'memory/restore') return false

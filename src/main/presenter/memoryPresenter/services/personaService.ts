@@ -12,7 +12,11 @@ import {
   sanitizeSelfModel,
   PERSONA_MAX_CHANGE_RATIO
 } from '../core/extraction'
-import type { AgentMemoryRow, MemoryPersonaDraftResult } from '../types'
+import type {
+  AgentMemoryRow,
+  MemoryMaintenancePersonaResult,
+  MemoryPersonaDraftResult
+} from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 
 export class PersonaService {
@@ -58,8 +62,23 @@ export class PersonaService {
     model: MemoryModelRef,
     sourceSession?: string | null
   ): Promise<MemoryPersonaDraftResult | null> {
+    return (await this.runMaintenancePersonaPass(agentId, model, sourceSession)).result
+  }
+
+  async runMaintenancePersonaPass(
+    agentId: string,
+    model: MemoryModelRef,
+    sourceSession?: string | null
+  ): Promise<MemoryMaintenancePersonaResult> {
+    let calls = 0
+    let failures = 0
+    const finish = (result: MemoryPersonaDraftResult | null): MemoryMaintenancePersonaResult => ({
+      result,
+      calls,
+      failures
+    })
     if (!this.ctx.canWriteAgentMemory(agentId) || !this.ctx.isPersonaEvolutionEnabled(agentId)) {
-      return null
+      return finish(null)
     }
     try {
       return await this.withPersonaLock(agentId, async () => {
@@ -67,14 +86,14 @@ export class PersonaService {
           !this.ctx.canWriteAgentMemory(agentId) ||
           !this.ctx.isPersonaEvolutionEnabled(agentId)
         ) {
-          return null
+          return finish(null)
         }
-        if (this.ctx.deps.repository.getDraftPersona(agentId)) return null
+        if (this.ctx.deps.repository.getDraftPersona(agentId)) return finish(null)
 
         const units = this.ctx.deps.repository.listByAgent(agentId, {
           kinds: ['semantic', 'reflection', 'episodic']
         })
-        if (units.length < MIN_MEMORIES_FOR_PERSONA) return null
+        if (units.length < MIN_MEMORIES_FOR_PERSONA) return finish(null)
 
         const previous = this.ctx.deps.repository.getActivePersona(agentId)
         const watermark = Math.max(
@@ -84,7 +103,7 @@ export class PersonaService {
         const recentImportance = units
           .filter((unit) => unit.created_at > watermark)
           .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
-        if (recentImportance < PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD) return null
+        if (recentImportance < PERSONA_EVOLUTION_IMPORTANCE_THRESHOLD) return finish(null)
         const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
 
         const top = units
@@ -92,35 +111,42 @@ export class PersonaService {
           .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
           .slice(0, PERSONA_MEMORY_LIMIT)
         const personaModel = this.ctx.resolveExtractionModel(agentId, model)
-        const raw = await this.ctx.deps.generateText(
-          personaModel.providerId,
-          personaModel.modelId,
-          buildReflectionPrompt(
-            previous?.content ?? null,
-            top.map((row) => row.content)
+        let raw = ''
+        try {
+          calls += 1
+          raw = await this.ctx.deps.generateText(
+            personaModel.providerId,
+            personaModel.modelId,
+            buildReflectionPrompt(
+              previous?.content ?? null,
+              top.map((row) => row.content)
+            )
           )
-        )
+        } catch (error) {
+          failures += 1
+          throw error
+        }
         if (
           !this.ctx.canWriteAgentMemory(agentId) ||
           !this.ctx.isPersonaEvolutionEnabled(agentId)
         ) {
-          return null
+          return finish(null)
         }
         const content = sanitizeSelfModel(raw)
         if (!content || content === (previous?.content?.trim() ?? '')) {
           this.personaAttemptWatermark.set(agentId, maxUnitCreatedAt)
-          return null
+          return finish(null)
         }
         const changeRatio = personaChangeRatio(previous?.content ?? null, content)
         const needsReview = previous ? changeRatio > PERSONA_MAX_CHANGE_RATIO : false
         const draftId = this.evolvePersona(agentId, content, sourceSession ?? null)
         this.personaAttemptWatermark.set(agentId, maxUnitCreatedAt)
-        if (!draftId) return null
-        return { draftId, needsReview, changeRatio }
+        if (!draftId) return finish(null)
+        return finish({ draftId, needsReview, changeRatio })
       })
     } catch (error) {
       logger.warn(`[Memory] persona evolution skipped: ${String(error)}`)
-      return null
+      return finish(null)
     }
   }
 

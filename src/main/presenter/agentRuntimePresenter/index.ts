@@ -170,6 +170,11 @@ type PendingInteractionEntry = {
   blockIndex: number
 }
 
+type MemoryInjectionAccessTurnEntry = {
+  ids: Set<string>
+  touchedAt: number
+}
+
 type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
 
 type PendingTapeViewContext = {
@@ -218,6 +223,8 @@ const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
 const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
+const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
+const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
@@ -644,6 +651,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
   private readonly memoryPort?: MemoryRuntimePort
   private readonly memoryExtractionChains = new Map<string, Promise<void>>()
   private readonly memoryExtractionEpochs = new Map<string, number>()
+  private readonly memoryInjectionAccessByTurn = new Map<string, MemoryInjectionAccessTurnEntry>()
   private readonly cacheImage?: (data: string) => Promise<string>
   private readonly skillPresenter?: Pick<
     ISkillPresenter,
@@ -928,6 +936,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     this.runtimeActivatedSkillsBySession.delete(sessionId)
     this.sessionCompactionStates.delete(sessionId)
     this.drainingPendingQueues.delete(sessionId)
+    this.clearMemoryInjectionAccessForSession(sessionId)
     this.toolPresenter?.clearConversationToolMapping?.(sessionId)
   }
 
@@ -2435,6 +2444,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const injection = await this.memoryPort.buildInjection(agentId, query)
       const assembled = appendMemorySectionWithManifest(systemPrompt, injection)
       if (assembled.manifest) {
+        this.recordMemoryInjectionAccess(agentId, sessionId, assembled.manifest.selected, messageId)
         try {
           this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor({
             sessionId,
@@ -2450,6 +2460,78 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     } catch (error) {
       logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
       return systemPrompt
+    }
+  }
+
+  private recordMemoryInjectionAccess(
+    agentId: string,
+    sessionId: string,
+    selected: Array<{ id: string }>,
+    messageId?: string | null
+  ): void {
+    if (!this.memoryPort || selected.length === 0) return
+    const selectedIds = [...new Set(selected.map((item) => item.id).filter(Boolean))]
+    if (!selectedIds.length) return
+
+    let idsToRecord = selectedIds
+    let seen: Set<string> | undefined
+    if (messageId) {
+      const now = Date.now()
+      this.pruneMemoryInjectionAccessForSession(sessionId, now)
+      const key = this.memoryInjectionAccessKey(sessionId, messageId)
+      let entry = this.memoryInjectionAccessByTurn.get(key)
+      if (!entry) {
+        entry = { ids: new Set(), touchedAt: now }
+        this.memoryInjectionAccessByTurn.set(key, entry)
+        this.pruneMemoryInjectionAccessForSession(sessionId, now)
+      } else {
+        entry.touchedAt = now
+      }
+      seen = entry.ids
+      const trackedIds = seen
+      idsToRecord = selectedIds.filter((id) => !trackedIds.has(id))
+      if (!idsToRecord.length) return
+    }
+
+    try {
+      this.memoryPort.recordInjectionAccess(agentId, idsToRecord)
+      if (seen) {
+        for (const id of idsToRecord) seen.add(id)
+      }
+    } catch (error) {
+      logger.warn(`[DeepChatAgent] memory access accounting skipped: ${String(error)}`)
+    }
+  }
+
+  private memoryInjectionAccessKey(sessionId: string, messageId: string): string {
+    return `${sessionId}\u0000${messageId}`
+  }
+
+  private clearMemoryInjectionAccessForSession(sessionId: string): void {
+    const prefix = `${sessionId}\u0000`
+    for (const key of this.memoryInjectionAccessByTurn.keys()) {
+      if (key.startsWith(prefix)) this.memoryInjectionAccessByTurn.delete(key)
+    }
+  }
+
+  private pruneMemoryInjectionAccessForSession(sessionId: string, now: number = Date.now()): void {
+    const prefix = `${sessionId}\u0000`
+    const entries: Array<{ key: string; touchedAt: number }> = []
+    for (const [key, entry] of this.memoryInjectionAccessByTurn) {
+      if (!key.startsWith(prefix)) continue
+      if (now - entry.touchedAt > MEMORY_INJECTION_ACCESS_TURN_TTL_MS) {
+        this.memoryInjectionAccessByTurn.delete(key)
+        continue
+      }
+      entries.push({ key, touchedAt: entry.touchedAt })
+    }
+    if (entries.length <= MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION) return
+    entries.sort(
+      (left, right) => left.touchedAt - right.touchedAt || left.key.localeCompare(right.key)
+    )
+    const deleteCount = entries.length - MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION
+    for (const entry of entries.slice(0, deleteCount)) {
+      this.memoryInjectionAccessByTurn.delete(entry.key)
     }
   }
 

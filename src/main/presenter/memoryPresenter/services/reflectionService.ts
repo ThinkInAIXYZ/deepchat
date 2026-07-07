@@ -9,7 +9,7 @@ import {
 } from '../runtimeConstants'
 import { buildMemoryProvenanceKey } from '../core/scoring'
 import { buildReflectionInsightsPrompt, parseReflectionInsights } from '../core/extraction'
-import type { MemoryReflectionResult } from '../types'
+import type { MemoryMaintenanceReflectionResult, MemoryReflectionResult } from '../types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 
 export class ReflectionService {
@@ -28,12 +28,27 @@ export class ReflectionService {
     model: MemoryModelRef,
     sourceSession?: string | null
   ): Promise<MemoryReflectionResult | null> {
-    if (!this.ctx.canWriteAgentMemory(agentId)) return null
+    return (await this.runMaintenanceReflectionPass(agentId, model, sourceSession)).result
+  }
+
+  async runMaintenanceReflectionPass(
+    agentId: string,
+    model: MemoryModelRef,
+    sourceSession?: string | null
+  ): Promise<MemoryMaintenanceReflectionResult> {
+    let calls = 0
+    let failures = 0
+    const finish = (result: MemoryReflectionResult | null): MemoryMaintenanceReflectionResult => ({
+      result,
+      calls,
+      failures
+    })
+    if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
     try {
       const units = this.ctx.deps.repository.listByAgent(agentId, {
         kinds: ['episodic', 'semantic']
       })
-      if (units.length < MIN_MEMORIES_FOR_REFLECTION) return null
+      if (units.length < MIN_MEMORIES_FOR_REFLECTION) return finish(null)
 
       const lastReflection = this.ctx.deps.repository.listByAgent(agentId, {
         kinds: ['reflection'],
@@ -46,7 +61,7 @@ export class ReflectionService {
       const recentImportance = units
         .filter((unit) => unit.created_at > watermark)
         .reduce((sum, unit) => sum + Math.min(1, Math.max(0, unit.importance)), 0)
-      if (recentImportance < REFLECTION_IMPORTANCE_THRESHOLD) return null
+      if (recentImportance < REFLECTION_IMPORTANCE_THRESHOLD) return finish(null)
       const maxUnitCreatedAt = units.reduce((max, unit) => Math.max(max, unit.created_at), 0)
 
       const top = units
@@ -54,12 +69,19 @@ export class ReflectionService {
         .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
         .slice(0, REFLECTION_MEMORY_LIMIT)
       const reflectionModel = this.ctx.resolveExtractionModel(agentId, model)
-      const raw = await this.ctx.deps.generateText(
-        reflectionModel.providerId,
-        reflectionModel.modelId,
-        buildReflectionInsightsPrompt(top.map((row) => row.content))
-      )
-      if (!this.ctx.canWriteAgentMemory(agentId)) return null
+      let raw = ''
+      try {
+        calls += 1
+        raw = await this.ctx.deps.generateText(
+          reflectionModel.providerId,
+          reflectionModel.modelId,
+          buildReflectionInsightsPrompt(top.map((row) => row.content))
+        )
+      } catch (error) {
+        failures += 1
+        throw error
+      }
+      if (!this.ctx.canWriteAgentMemory(agentId)) return finish(null)
       const insights = parseReflectionInsights(raw)
       const reflectionIds: string[] = []
       for (const insight of insights) {
@@ -68,7 +90,7 @@ export class ReflectionService {
       }
       if (!reflectionIds.length) {
         this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
-        return null
+        return finish(null)
       }
       this.reflectionAttemptWatermark.delete(agentId)
 
@@ -77,10 +99,10 @@ export class ReflectionService {
       void this.ports.triggerEmbedding(agentId).catch((error) => {
         logger.warn(`[Memory] background embedding failed: ${String(error)}`)
       })
-      return { reflectionIds, sourceMemoryIds: top.map((row) => row.id) }
+      return finish({ reflectionIds, sourceMemoryIds: top.map((row) => row.id) })
     } catch (error) {
       logger.warn(`[Memory] reflection skipped: ${String(error)}`)
-      return null
+      return finish(null)
     }
   }
 

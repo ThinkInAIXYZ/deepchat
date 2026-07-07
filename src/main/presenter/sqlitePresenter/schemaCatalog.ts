@@ -249,7 +249,13 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   },
   {
     name: 'agent_memory_audit',
-    createTable: (db) => new AgentMemoryAuditTable(db)
+    createTable: (db) => new AgentMemoryAuditTable(db),
+    repairableColumns: {
+      memory_ref_id: 'ALTER TABLE agent_memory_audit ADD COLUMN memory_ref_id TEXT;'
+    },
+    afterRepair: (db) => {
+      new AgentMemoryAuditTable(db).backfillMemoryRefIds()
+    }
   },
   {
     name: 'new_session_active_skills',

@@ -307,4 +307,36 @@ describe('MemoryPresenter.addUserMemory (manual user write)', () => {
     expect(repo.listByAgent('deepchat')).toHaveLength(1)
     expect(repo.listByAgent('deepchat')[0]).toMatchObject({ kind: 'semantic', category: null })
   })
+
+  it('keeps no-model superseded provenance hits as conservative noops', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const [ownerId] = presenter.writeMemoriesSync(
+      [{ kind: 'semantic', content: 'user likes redis' }],
+      {
+        agentId: 'deepchat'
+      }
+    )
+    const [headId] = presenter.writeMemoriesSync(
+      [{ kind: 'semantic', content: 'user likes postgres' }],
+      {
+        agentId: 'deepchat'
+      }
+    )
+    repo.markSuperseded(ownerId, headId)
+
+    expect(
+      presenter.writeMemoriesSync([{ kind: 'semantic', content: 'user likes redis' }], {
+        agentId: 'deepchat'
+      })
+    ).toEqual([])
+    expect(repo.getById(ownerId)?.superseded_by).toBe(headId)
+
+    await expect(
+      presenter.addUserMemory('deepchat', {
+        kind: 'semantic',
+        content: 'user likes redis'
+      })
+    ).resolves.toEqual({ action: 'noop', reason: 'duplicate', id: ownerId })
+    expect(repo.getById(ownerId)?.superseded_by).toBe(headId)
+  })
 })

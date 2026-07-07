@@ -67,7 +67,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
   private readonly management: ManagementService
 
   constructor(deps: MemoryPresenterDeps) {
-    this.runtime = new MemoryRuntimeContext(deps)
+    let retrievalService: RetrievalService | null = null
+    this.runtime = new MemoryRuntimeContext(deps, (agentId) => {
+      retrievalService?.invalidateKeywordStats(agentId)
+    })
     this.rows = new MemoryRowMutations(this.runtime)
     this.vectorStore = new VectorStoreManager(this.runtime)
     this.embedding = new EmbeddingPipeline(this.runtime, this.vectorStore, this.rows, {
@@ -92,6 +95,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
           memoryIds
         )
     })
+    retrievalService = this.retrieval
 
     this.reflection = new ReflectionService(this.runtime, {
       syncWorkingMemoryAfterMutation: (agentId) =>
@@ -128,8 +132,10 @@ export class MemoryPresenter implements MemoryRuntimePort {
       warmVectorStore: (agentId, embedding) => this.embedding.warmVectorStore(agentId, embedding),
       warmEmbeddingConnection: (agentId, embedding) =>
         this.embedding.warmEmbeddingConnection(agentId, embedding),
-      maybeReflect: (agentId, model) => this.reflection.maybeReflect(agentId, model),
-      maybeEvolvePersona: (agentId, model) => this.persona.maybeEvolvePersona(agentId, model),
+      maybeReflect: (agentId, model) =>
+        this.reflection.runMaintenanceReflectionPass(agentId, model),
+      maybeEvolvePersona: (agentId, model) =>
+        this.persona.runMaintenancePersonaPass(agentId, model),
       runChallengeResolutionPass: (agentId, model) =>
         this.conflict.runChallengeResolutionPass(agentId, model),
       runConsolidationPass: (agentId) => this.runConsolidationPass(agentId)
@@ -282,7 +288,9 @@ export class MemoryPresenter implements MemoryRuntimePort {
   }
 
   writeMemoriesSync(candidates: MemoryCandidate[], options: WriteMemoriesOptions): string[] {
-    return this.writeCoordinator.writeMemoriesSync(candidates, options)
+    const ids = this.writeCoordinator.writeMemoriesSync(candidates, options)
+    if (ids.length > 0) this.retrieval.invalidateKeywordStats(options.agentId)
+    return ids
   }
 
   processPendingEmbeddings(agentId: string, limit = 50): Promise<void> {
@@ -382,6 +390,19 @@ export class MemoryPresenter implements MemoryRuntimePort {
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {
     return this.retrieval.buildInjection(agentId, query)
+  }
+
+  recordInjectionAccess(
+    agentId: string,
+    memoryIds: string[],
+    accessedAt: number = Date.now()
+  ): void {
+    if (!this.runtime.canReadAgentMemory(agentId)) return
+    const uniqueIds = [...new Set(memoryIds.map((id) => id.trim()).filter(Boolean))]
+    if (!uniqueIds.length) return
+    const ownedIds = this.runtime.deps.repository.listByIds(agentId, uniqueIds).map((row) => row.id)
+    if (!ownedIds.length) return
+    this.runtime.deps.repository.recordAccessBatch(ownedIds, accessedAt)
   }
 
   refreshWorkingMemory(agentId: string): void {

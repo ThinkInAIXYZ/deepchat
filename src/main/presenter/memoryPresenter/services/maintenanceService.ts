@@ -13,6 +13,7 @@ import { normalizeMemoryCandidate } from '../core/candidates'
 import { estimateTokens } from '../core/injectionPort'
 import {
   CONSOLIDATION_COOLDOWN_MS,
+  CONSOLIDATION_FAILURE_COOLDOWN_MS,
   CONSOLIDATION_IDLE_MS,
   CONSOLIDATION_MAX_INPUT_TOKENS,
   CONSOLIDATION_MAX_LLM_CALLS,
@@ -30,8 +31,9 @@ import {
   type AgentMemoryRow,
   type ConsolidationScanCursor,
   FORGET_HALF_LIFE_MS,
-  type MemoryPersonaDraftResult,
-  type MemoryReflectionResult
+  type MemoryMaintenancePersonaResult,
+  type MemoryMaintenanceReflectionResult,
+  type MemoryMaintenanceStepResult
 } from '../types'
 import type { MemoryRowMutations } from './rowMutations'
 import { embeddingFingerprint, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
@@ -40,6 +42,7 @@ export class MaintenanceService {
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
   private readonly consolidationTimerDueAt = new Map<string, number>()
   private readonly lastConsolidationAt = new Map<string, number>()
+  private readonly lastConsolidationFailureAt = new Map<string, number>()
   private readonly consolidationScanCursor = new Map<string, ConsolidationScanCursor>()
   private readonly consolidationRuns = new Set<Promise<unknown>>()
   private maintenanceStartTimer: NodeJS.Timeout | null = null
@@ -72,12 +75,15 @@ export class MaintenanceService {
       maybeReflect: (
         agentId: string,
         model: MemoryModelRef
-      ) => Promise<MemoryReflectionResult | null>
+      ) => Promise<MemoryMaintenanceReflectionResult>
       maybeEvolvePersona: (
         agentId: string,
         model: MemoryModelRef
-      ) => Promise<MemoryPersonaDraftResult | null>
-      runChallengeResolutionPass: (agentId: string, model: MemoryModelRef) => Promise<boolean>
+      ) => Promise<MemoryMaintenancePersonaResult>
+      runChallengeResolutionPass: (
+        agentId: string,
+        model: MemoryModelRef
+      ) => Promise<MemoryMaintenanceStepResult>
       runConsolidationPass: (agentId: string) => Promise<void>
     }
   ) {}
@@ -118,6 +124,7 @@ export class MaintenanceService {
     this.consolidationTimers.clear()
     this.consolidationTimerDueAt.clear()
     this.lastConsolidationAt.clear()
+    this.lastConsolidationFailureAt.clear()
     this.consolidationScanCursor.clear()
   }
 
@@ -250,6 +257,11 @@ export class MaintenanceService {
       await this.runCheapMaintenance(agentId, now, true)
       return
     }
+    const latestFailureAt = this.getLatestMaintenanceFailureAt(agentId)
+    if (latestFailureAt !== null && now - latestFailureAt < CONSOLIDATION_FAILURE_COOLDOWN_MS) {
+      await this.runCheapMaintenance(agentId, now, true)
+      return
+    }
     await this.runCheapMaintenance(agentId, now, false)
     const model = this.ctx.resolveConsolidationModel(agentId)
     if (!model) {
@@ -264,76 +276,109 @@ export class MaintenanceService {
       })
       return
     }
+    const previousLast = last
     this.lastConsolidationAt.set(agentId, now)
 
     let touched = false
+    const llmStats: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
+    let completedHeavyPass = false
     try {
-      touched = await this.mergeNearDuplicates(agentId, now, model)
-    } catch (error) {
-      logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
-    }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return
-    try {
-      if (await this.ports.runChallengeResolutionPass(agentId, model)) touched = true
-    } catch (error) {
-      logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
-    }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return
-    try {
-      const reflection = await this.ports.maybeReflect(agentId, model)
-      if (reflection) {
-        this.ctx.writeAudit(agentId, {
-          eventType: 'memory/reflect',
-          actorType: 'scheduler',
-          status: 'completed',
-          inputRefs: { memoryIds: reflection.sourceMemoryIds },
-          outputRefs: { memoryIds: reflection.reflectionIds },
-          model
-        })
-        touched = true
+      try {
+        const merge = await this.mergeNearDuplicates(agentId, now, model)
+        this.addLlmStats(llmStats, merge)
+        if (merge.touched) touched = true
+      } catch (error) {
+        logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
       }
-    } catch (error) {
-      logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
-    }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return
-    try {
-      const personaDraft = await this.ports.maybeEvolvePersona(agentId, model)
-      if (personaDraft) {
-        this.ctx.writeAudit(agentId, {
-          eventType: 'persona/evolve',
-          actorType: 'scheduler',
-          status: 'completed',
-          outputRefs: {
-            draftId: personaDraft.draftId,
-            needsReview: personaDraft.needsReview,
-            changeRatio: personaDraft.changeRatio
-          },
-          model
-        })
+      if (!this.ctx.canWriteAgentMemory(agentId)) return
+      try {
+        const challenge = await this.ports.runChallengeResolutionPass(agentId, model)
+        this.addLlmStats(llmStats, challenge)
+        if (challenge.touched) touched = true
+      } catch (error) {
+        logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
       }
-    } catch (error) {
-      logger.warn(`[Memory] background persona evolution failed for ${agentId}: ${String(error)}`)
-    }
-    if (!this.ctx.canWriteAgentMemory(agentId)) return
-    this.refreshDecayScores(agentId, now)
-    this.archiveStale(agentId, now)
-    await this.pruneDeadVectors(agentId)
-    this.ports.syncWorkingMemoryAfterMutation(agentId)
-    this.stampConsolidation(agentId, now)
-    this.ctx.writeAudit(agentId, {
-      eventType: 'memory/maintenance_llm',
-      actorType: 'scheduler',
-      status: 'completed',
-      outputRefs: { touched },
-      model,
-      createdAt: now
-    })
-
-    if (touched) {
-      void this.ports.triggerEmbedding(agentId).catch((error) => {
-        logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+      if (!this.ctx.canWriteAgentMemory(agentId)) return
+      try {
+        const reflectionPass = await this.ports.maybeReflect(agentId, model)
+        this.addLlmStats(llmStats, reflectionPass)
+        const reflection = reflectionPass.result
+        if (reflection) {
+          this.ctx.writeAudit(agentId, {
+            eventType: 'memory/reflect',
+            actorType: 'scheduler',
+            status: 'completed',
+            inputRefs: { memoryIds: reflection.sourceMemoryIds },
+            outputRefs: { memoryIds: reflection.reflectionIds },
+            model
+          })
+          touched = true
+        }
+      } catch (error) {
+        logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
+      }
+      if (!this.ctx.canWriteAgentMemory(agentId)) return
+      try {
+        const personaPass = await this.ports.maybeEvolvePersona(agentId, model)
+        this.addLlmStats(llmStats, personaPass)
+        const personaDraft = personaPass.result
+        if (personaDraft) {
+          this.ctx.writeAudit(agentId, {
+            eventType: 'persona/evolve',
+            actorType: 'scheduler',
+            status: 'completed',
+            outputRefs: {
+              draftId: personaDraft.draftId,
+              needsReview: personaDraft.needsReview,
+              changeRatio: personaDraft.changeRatio
+            },
+            model
+          })
+        }
+      } catch (error) {
+        logger.warn(`[Memory] background persona evolution failed for ${agentId}: ${String(error)}`)
+      }
+      if (!this.ctx.canWriteAgentMemory(agentId)) return
+      if (this.didAllAttemptedLlmCallsFail(llmStats)) {
+        this.lastConsolidationAt.set(agentId, previousLast)
+        this.lastConsolidationFailureAt.set(agentId, now)
+        this.ctx.writeAudit(agentId, {
+          eventType: 'memory/maintenance_llm',
+          actorType: 'scheduler',
+          status: 'failed',
+          reason: 'all-llm-steps-failed',
+          outputRefs: { calls: llmStats.calls, failures: llmStats.failures },
+          model,
+          createdAt: now
+        })
+        return
+      }
+      this.refreshDecayScores(agentId, now)
+      this.archiveStale(agentId, now)
+      await this.pruneDeadVectors(agentId)
+      this.ports.syncWorkingMemoryAfterMutation(agentId)
+      this.stampConsolidation(agentId, now)
+      this.ctx.writeAudit(agentId, {
+        eventType: 'memory/maintenance_llm',
+        actorType: 'scheduler',
+        status: 'completed',
+        outputRefs: { touched },
+        model,
+        createdAt: now
       })
-      this.ctx.emitChanged(agentId, 'extract')
+      completedHeavyPass = true
+      this.lastConsolidationFailureAt.delete(agentId)
+
+      if (touched) {
+        void this.ports.triggerEmbedding(agentId).catch((error) => {
+          logger.warn(`[Memory] background embedding failed: ${String(error)}`)
+        })
+        this.ctx.emitChanged(agentId, 'extract')
+      }
+    } finally {
+      if (!completedHeavyPass && this.lastConsolidationAt.get(agentId) === now) {
+        this.lastConsolidationAt.set(agentId, previousLast)
+      }
     }
   }
 
@@ -341,147 +386,187 @@ export class MaintenanceService {
     agentId: string,
     now: number,
     model: MemoryModelRef
-  ): Promise<boolean> {
-    const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
-    if (!embedding?.providerId || !embedding?.modelId) return false
-    const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
-    const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-    const dimensions = this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
-    if (dimensions === null) return false
-    await this.ports.warmVectorStore(agentId, currentEmbedding)
-    if (!this.ctx.canWriteAgentMemory(agentId)) return false
+  ): Promise<MemoryMaintenanceStepResult> {
+    const result: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
+    try {
+      const embedding = this.ctx.deps.resolveAgentConfig(agentId)?.memoryEmbedding
+      if (!embedding?.providerId || !embedding?.modelId) return result
+      const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
+      const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
+      const dimensions = this.ctx.deps.repository.getCurrentEmbeddingDimension(agentId, fingerprint)
+      if (dimensions === null) return result
+      await this.ports.warmVectorStore(agentId, currentEmbedding)
+      if (!this.ctx.canWriteAgentMemory(agentId)) return result
 
-    const cursor = this.consolidationScanCursor.get(agentId)
-    let scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
-      embeddingDim: dimensions,
-      embeddingModel: fingerprint,
-      after: cursor,
-      limit: CONSOLIDATION_MAX_NEIGHBOR_SCANS + 1
-    })
-    if (cursor && scanRows.length === 0) {
-      scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
+      const cursor = this.consolidationScanCursor.get(agentId)
+      let scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
         embeddingDim: dimensions,
         embeddingModel: fingerprint,
+        after: cursor,
         limit: CONSOLIDATION_MAX_NEIGHBOR_SCANS + 1
       })
-    }
-    const hasMore = scanRows.length > CONSOLIDATION_MAX_NEIGHBOR_SCANS
-    scanRows = scanRows.slice(0, CONSOLIDATION_MAX_NEIGHBOR_SCANS)
-    if (!scanRows.length) {
-      this.consolidationScanCursor.delete(agentId)
-      return false
-    }
-
-    let calls = 0
-    let inputTokens = 0
-    const merged = new Set<string>()
-    let lastScanned: AgentMemoryRow | null = null
-    let touched = false
-
-    for (const row of scanRows) {
-      if (calls >= CONSOLIDATION_MAX_LLM_CALLS || inputTokens >= CONSOLIDATION_MAX_INPUT_TOKENS) {
-        break
+      if (cursor && scanRows.length === 0) {
+        scanRows = this.ctx.deps.repository.listConsolidationScanRows(agentId, {
+          embeddingDim: dimensions,
+          embeddingModel: fingerprint,
+          limit: CONSOLIDATION_MAX_NEIGHBOR_SCANS + 1
+        })
       }
-      lastScanned = row
-      if (merged.has(row.id)) continue
-      const source = this.ctx.deps.repository.getById(row.id)
-      if (!this.isCurrentEmbeddedConsolidationRow(agentId, source, dimensions, fingerprint))
-        continue
-
-      let matches: Array<{ memoryId: string; distance: number }> = []
-      try {
-        matches = await this.ports.queryNeighborsByMemoryId(
-          agentId,
-          currentEmbedding,
-          dimensions,
-          source.id,
-          DECISION_NEIGHBOR_TOP_S
-        )
-      } catch {
-        continue
+      const hasMore = scanRows.length > CONSOLIDATION_MAX_NEIGHBOR_SCANS
+      scanRows = scanRows.slice(0, CONSOLIDATION_MAX_NEIGHBOR_SCANS)
+      if (!scanRows.length) {
+        this.consolidationScanCursor.delete(agentId)
+        return result
       }
-      if (!this.ctx.canWriteAgentMemory(agentId)) break
-      let neighbor: AgentMemoryRow | null = null
-      for (const match of matches) {
-        if (match.memoryId === source.id || merged.has(match.memoryId)) continue
-        if (distanceToSimilarity(match.distance) < CONSOLIDATION_MERGE_SIMILARITY) continue
-        const neighborRow = this.ctx.deps.repository.getById(match.memoryId)
-        if (!this.isCurrentEmbeddedConsolidationRow(agentId, neighborRow, dimensions, fingerprint))
+
+      let calls = 0
+      let inputTokens = 0
+      const merged = new Set<string>()
+      let lastScanned: AgentMemoryRow | null = null
+      let touched = false
+
+      for (const row of scanRows) {
+        if (calls >= CONSOLIDATION_MAX_LLM_CALLS || inputTokens >= CONSOLIDATION_MAX_INPUT_TOKENS) {
+          break
+        }
+        lastScanned = row
+        if (merged.has(row.id)) continue
+        const source = this.ctx.deps.repository.getById(row.id)
+        if (!this.isCurrentEmbeddedConsolidationRow(agentId, source, dimensions, fingerprint))
           continue
-        neighbor = neighborRow
-        break
-      }
-      if (!neighbor) continue
 
-      const promptCandidate = normalizeMemoryCandidate({
-        kind: source.kind === 'episodic' ? 'episodic' : 'semantic',
-        category: source.category,
-        content: source.content,
-        importance: source.importance
-      })
-      if (!promptCandidate) continue
-      const prompt = buildDecisionPrompt(promptCandidate, [{ content: neighbor.content }])
-      calls += 1
-      inputTokens += estimateTokens(prompt)
-      let decision: MemoryDecision = ADD_DECISION
-      try {
-        const raw = await this.ctx.deps.generateText(model.providerId, model.modelId, prompt)
-        decision = parseDecision(raw, 1)
-      } catch (error) {
-        logger.warn(`[Memory] consolidation decision failed: ${String(error)}`)
-        continue
-      }
-      if (!this.ctx.canWriteAgentMemory(agentId)) break
-
-      if (decision.decision === 'UPDATE' || decision.decision === 'SUPERSEDE') {
-        const [primary, secondary] =
-          source.created_at >= neighbor.created_at ? [source, neighbor] : [neighbor, source]
-        const mergedContent = decision.mergedContent ?? primary.content
-        const secondaryCategory = isAgentMemoryCategory(secondary.category)
-          ? secondary.category
-          : null
-        const update = this.rows.applyContentUpdate(
-          agentId,
-          primary,
-          mergedContent,
-          now,
-          secondaryCategory
-        )
-        if (update.action === 'suppressed') {
-          this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
-          this.ctx.deps.repository.setLastConsolidatedAt(neighbor.id, now)
-          merged.add(source.id)
-          merged.add(neighbor.id)
+        let matches: Array<{ memoryId: string; distance: number }> = []
+        try {
+          matches = await this.ports.queryNeighborsByMemoryId(
+            agentId,
+            currentEmbedding,
+            dimensions,
+            source.id,
+            DECISION_NEIGHBOR_TOP_S
+          )
+        } catch {
           continue
         }
-        const survivorId = update.id
-        this.rows.bumpConfidence(survivorId)
-        this.ctx.deps.repository.setImportance(survivorId, secondary.importance)
-        this.ctx.deps.repository.updateStatus(survivorId, 'pending_embedding')
-        if (secondary.id !== survivorId) {
-          this.ctx.deps.repository.markSuperseded(secondary.id, survivorId)
+        if (!this.ctx.canWriteAgentMemory(agentId)) break
+        let neighbor: AgentMemoryRow | null = null
+        for (const match of matches) {
+          if (match.memoryId === source.id || merged.has(match.memoryId)) continue
+          if (distanceToSimilarity(match.distance) < CONSOLIDATION_MERGE_SIMILARITY) continue
+          const neighborRow = this.ctx.deps.repository.getById(match.memoryId)
+          if (
+            !this.isCurrentEmbeddedConsolidationRow(agentId, neighborRow, dimensions, fingerprint)
+          )
+            continue
+          neighbor = neighborRow
+          break
         }
-        merged.add(primary.id)
-        merged.add(secondary.id)
-        merged.add(survivorId)
-        touched = true
+        if (!neighbor) continue
+
+        const promptCandidate = normalizeMemoryCandidate({
+          kind: source.kind === 'episodic' ? 'episodic' : 'semantic',
+          category: source.category,
+          content: source.content,
+          importance: source.importance
+        })
+        if (!promptCandidate) continue
+        const prompt = buildDecisionPrompt(promptCandidate, [{ content: neighbor.content }])
+        calls += 1
+        result.calls += 1
+        inputTokens += estimateTokens(prompt)
+        let decision: MemoryDecision = ADD_DECISION
+        try {
+          const raw = await this.ctx.deps.generateText(model.providerId, model.modelId, prompt)
+          decision = parseDecision(raw, 1)
+        } catch (error) {
+          result.failures += 1
+          logger.warn(`[Memory] consolidation decision failed: ${String(error)}`)
+          continue
+        }
+        if (!this.ctx.canWriteAgentMemory(agentId)) break
+
+        if (decision.decision === 'UPDATE' || decision.decision === 'SUPERSEDE') {
+          const [primary, secondary] =
+            source.created_at >= neighbor.created_at ? [source, neighbor] : [neighbor, source]
+          const mergedContent = decision.mergedContent ?? primary.content
+          const secondaryCategory = isAgentMemoryCategory(secondary.category)
+            ? secondary.category
+            : null
+          const update = this.rows.applyContentUpdate(
+            agentId,
+            primary,
+            mergedContent,
+            now,
+            secondaryCategory
+          )
+          if (update.action === 'suppressed') {
+            this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
+            this.ctx.deps.repository.setLastConsolidatedAt(neighbor.id, now)
+            merged.add(source.id)
+            merged.add(neighbor.id)
+            continue
+          }
+          const survivorId = update.id
+          this.rows.bumpConfidence(survivorId)
+          this.ctx.deps.repository.setImportance(survivorId, secondary.importance)
+          this.ctx.deps.repository.updateStatus(survivorId, 'pending_embedding')
+          if (secondary.id !== survivorId) {
+            this.ctx.deps.repository.markSuperseded(secondary.id, survivorId)
+          }
+          merged.add(primary.id)
+          merged.add(secondary.id)
+          merged.add(survivorId)
+          touched = true
+          result.touched = true
+        }
+        this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
       }
-      this.ctx.deps.repository.setLastConsolidatedAt(source.id, now)
+      const windowFullyScanned =
+        !!lastScanned &&
+        scanRows.length > 0 &&
+        lastScanned.id === scanRows[scanRows.length - 1].id &&
+        lastScanned.created_at === scanRows[scanRows.length - 1].created_at
+      if (lastScanned && (hasMore || !windowFullyScanned)) {
+        this.consolidationScanCursor.set(agentId, {
+          createdAt: lastScanned.created_at,
+          id: lastScanned.id
+        })
+      } else {
+        this.consolidationScanCursor.delete(agentId)
+      }
+      result.touched = result.touched || touched
+      return result
+    } catch (error) {
+      logger.warn(`[Memory] consolidation merge scan aborted for ${agentId}: ${String(error)}`)
+      return result
     }
-    const windowFullyScanned =
-      !!lastScanned &&
-      scanRows.length > 0 &&
-      lastScanned.id === scanRows[scanRows.length - 1].id &&
-      lastScanned.created_at === scanRows[scanRows.length - 1].created_at
-    if (lastScanned && (hasMore || !windowFullyScanned)) {
-      this.consolidationScanCursor.set(agentId, {
-        createdAt: lastScanned.created_at,
-        id: lastScanned.id
-      })
-    } else {
-      this.consolidationScanCursor.delete(agentId)
+  }
+
+  private addLlmStats(
+    total: MemoryMaintenanceStepResult,
+    next: { touched?: boolean; calls: number; failures: number }
+  ): void {
+    total.calls += next.calls
+    total.failures += next.failures
+    total.touched = total.touched || next.touched === true
+  }
+
+  private didAllAttemptedLlmCallsFail(stats: { calls: number; failures: number }): boolean {
+    return stats.calls > 0 && stats.failures >= stats.calls
+  }
+
+  private getLatestMaintenanceFailureAt(agentId: string): number | null {
+    const localFailureAt = this.lastConsolidationFailureAt.get(agentId)
+    if (localFailureAt !== undefined) return localFailureAt
+    const persisted = this.ctx.deps.auditRepository?.listByAgent(agentId, {
+      eventType: 'memory/maintenance_llm',
+      status: 'failed',
+      limit: 1
+    })[0]?.created_at
+    if (persisted !== undefined) {
+      this.lastConsolidationFailureAt.set(agentId, persisted)
+      return persisted
     }
-    return touched
+    return null
   }
 
   private isLiveConsolidationNeighbor(
@@ -591,6 +676,7 @@ export class MaintenanceService {
 
   clearCooldown(agentId: string): void {
     this.lastConsolidationAt.delete(agentId)
+    this.lastConsolidationFailureAt.delete(agentId)
   }
 
   cleanupAgent(agentId: string): void {
@@ -600,6 +686,7 @@ export class MaintenanceService {
     this.consolidationTimers.delete(agentId)
     this.consolidationTimerDueAt.delete(agentId)
     this.lastConsolidationAt.delete(agentId)
+    this.lastConsolidationFailureAt.delete(agentId)
     this.consolidationScanCursor.delete(agentId)
   }
 

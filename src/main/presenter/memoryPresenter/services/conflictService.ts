@@ -8,7 +8,12 @@ import {
 } from '../core/decision'
 import { normalizeMemoryCandidate } from '../core/candidates'
 import { buildMemoryProvenanceKey } from '../core/scoring'
-import type { AgentMemoryRow, MemoryConflictPair, MemoryConflictResolution } from '../types'
+import type {
+  AgentMemoryRow,
+  MemoryConflictPair,
+  MemoryConflictResolution,
+  MemoryMaintenanceStepResult
+} from '../types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 
 interface ConflictResolutionOptions {
@@ -152,8 +157,13 @@ export class ConflictService {
       .filter((row) => row.id !== excludeChallengerId && row.conflict_with === targetId)
   }
 
-  async runChallengeResolutionPass(agentId: string, model: MemoryModelRef): Promise<boolean> {
+  async runChallengeResolutionPass(
+    agentId: string,
+    model: MemoryModelRef
+  ): Promise<MemoryMaintenanceStepResult> {
     let touched = false
+    let calls = 0
+    let failures = 0
     for (const pair of this.listConflicts(agentId)) {
       const promptCandidate = normalizeMemoryCandidate({
         kind: pair.challenger.kind === 'episodic' ? 'episodic' : 'semantic',
@@ -165,9 +175,11 @@ export class ConflictService {
       const prompt = buildDecisionPrompt(promptCandidate, [{ content: pair.target.content }])
       let decision: MemoryDecision = ADD_DECISION
       try {
+        calls += 1
         const raw = await this.ctx.deps.generateText(model.providerId, model.modelId, prompt)
         decision = parseDecision(raw, 1)
       } catch (error) {
+        failures += 1
         logger.warn(`[Memory] challenge decision failed: ${String(error)}`)
         continue
       }
@@ -190,6 +202,6 @@ export class ConflictService {
         touched = true
       }
     }
-    return touched
+    return { touched, calls, failures }
   }
 }

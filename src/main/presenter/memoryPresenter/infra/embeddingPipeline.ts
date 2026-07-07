@@ -302,7 +302,9 @@ export class EmbeddingPipeline {
   private async runBackfill(agentId: string): Promise<void> {
     await Promise.resolve()
     if (!this.ctx.canContinueAgentMemoryTask(agentId)) return
-    this.ctx.deps.repository.requeueForEmbedding(agentId, ['fts_only'])
+    if (this.ctx.deps.repository.listEmbeddingStatusIds(agentId, ['fts_only'], 1).length) {
+      this.ctx.deps.repository.requeueForEmbedding(agentId, ['fts_only'])
+    }
     await this.drainUntilExhausted(agentId)
   }
 

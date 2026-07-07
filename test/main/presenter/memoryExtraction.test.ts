@@ -140,7 +140,7 @@ describe('buildExtractionPrompt', () => {
 
 // extractAndStore end-to-end (fake LLM + fake repo): exercises the decoupled extraction chain.
 describe('MemoryPresenter.extractAndStore', () => {
-  it('extracts, dedupes, and writes pending memories; no-op when disabled', async () => {
+  it('extracts, dedupes, and writes pending memories; returns retryable failure when disabled', async () => {
     const { MemoryPresenter } = await import('@/presenter/memoryPresenter')
     const repo = makeFakeRepo()
     const generateText = vi.fn(
@@ -165,13 +165,21 @@ describe('MemoryPresenter.extractAndStore', () => {
       })
     })
 
-    // disabled → no LLM call, no writes
+    // Disabled non-empty spans are retryable because they may have been queued while enabled.
     const none = await presenter.extractAndStore({
       agentId: 'off',
       spanText: 'User: hi',
       model: { providerId: 'p', modelId: 'm' }
     })
-    expect(none).toEqual({ ok: true, createdIds: [] })
+    expect(none).toEqual({ ok: false })
+    expect(generateText).not.toHaveBeenCalled()
+
+    const empty = await presenter.extractAndStore({
+      agentId: 'off',
+      spanText: '   ',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    expect(empty).toEqual({ ok: true, createdIds: [] })
     expect(generateText).not.toHaveBeenCalled()
 
     // enabled → extracts and writes
@@ -328,6 +336,39 @@ describe('MemoryPresenter.extractAndStore triage gate, cheap model, lineage', ()
     })
     expect(result).toEqual({ ok: true, createdIds: [] })
     expect(generateText).toHaveBeenCalledTimes(1) // triage only, no full extraction
+    expect(repo.countByAgent('a')).toBe(0)
+  })
+
+  it('returns ok:false when memory is disabled while a non-empty span is awaiting triage', async () => {
+    let memoryEnabled = true
+    let resolveTriage: (value: string) => void = () => {}
+    const triageGate = new Promise<string>((resolve) => {
+      resolveTriage = resolve
+    })
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return triageGate
+      return '[{"kind":"semantic","content":"user prefers redis"}]'
+    })
+    const { presenter, repo } = await build(
+      {
+        get memoryEnabled() {
+          return memoryEnabled
+        }
+      },
+      generateText
+    )
+
+    const extraction = presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer redis',
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    await Promise.resolve()
+    memoryEnabled = false
+    resolveTriage('KEEP')
+
+    await expect(extraction).resolves.toEqual({ ok: false })
+    expect(generateText).toHaveBeenCalledTimes(1)
     expect(repo.countByAgent('a')).toBe(0)
   })
 

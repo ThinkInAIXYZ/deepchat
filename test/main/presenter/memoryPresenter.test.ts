@@ -943,6 +943,39 @@ describe('MemoryPresenter recall + injection', () => {
     expect(payload?.memories.length).toBeGreaterThan(0)
   })
 
+  it('records injection access only through the runtime-selected manifest seam', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    const payload = await presenter.buildInjection('a', 'redis')
+    expect(payload?.memories.map((memory) => memory.id)).toContain(id)
+    expect(repo.getById(id)?.access_count).toBe(0)
+
+    presenter.recordInjectionAccess('a', [id, id], 1234)
+    expect(repo.getById(id)?.access_count).toBe(1)
+    expect(repo.getById(id)?.last_accessed).toBe(1234)
+  })
+
+  it('records injection access only for rows owned by the requested agent', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const [aId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'a redis fact' }], {
+      agentId: 'a'
+    })
+    const [bId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'b redis fact' }], {
+      agentId: 'b'
+    })
+
+    presenter.recordInjectionAccess('a', [aId, bId], 1234)
+
+    expect(repo.getById(aId)?.access_count).toBe(1)
+    expect(repo.getById(aId)?.last_accessed).toBe(1234)
+    expect(repo.getById(bId)?.access_count).toBe(0)
+    expect(repo.getById(bId)?.last_accessed).toBeNull()
+  })
+
   it('buildInjection does not request heavy retrieval breakdown by default', async () => {
     const { presenter } = makePresenter(enabledConfig)
     presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis fact' }], { agentId: 'a' })
@@ -1809,6 +1842,28 @@ describe('MemoryPresenter management', () => {
     const recalled = await presenter.recall('a', 'please redis setup')
 
     expect(recalled.map((item) => item.id)).toEqual(['m1'])
+  })
+
+  it('caches recall keyword stats per agent term and invalidates them on writes', async () => {
+    const { presenter, repo } = makePresenter({ memoryEnabled: true })
+    repo.insert({
+      id: 'm1',
+      agentId: 'a',
+      kind: 'semantic',
+      content: 'redis setup',
+      status: 'fts_only'
+    })
+    const statsSpy = vi.spyOn(repo, 'getRecallKeywordTermStats')
+
+    await presenter.recall('a', 'please redis setup')
+    await presenter.recall('a', 'please redis setup')
+    expect(statsSpy).toHaveBeenCalledTimes(1)
+
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis follow-up' }], {
+      agentId: 'a'
+    })
+    await presenter.recall('a', 'please redis setup')
+    expect(statsSpy).toHaveBeenCalledTimes(2)
   })
 
   it('agent-facing recall keeps a single domain term even when it is frequent', async () => {
@@ -3459,7 +3514,7 @@ describe('MemoryPresenter async write guards', () => {
         spanText: 'User: remember this later',
         model: { providerId: 'p', modelId: 'm' }
       })
-    ).resolves.toEqual({ ok: true, createdIds: [] })
+    ).resolves.toEqual({ ok: false })
 
     expect(generateText).not.toHaveBeenCalled()
     expect(repo.countByAgent('a')).toBe(0)
@@ -3503,7 +3558,7 @@ describe('MemoryPresenter async write guards', () => {
     managed = false
     releaseExtraction()
 
-    await expect(pending).resolves.toEqual({ ok: true, createdIds: [] })
+    await expect(pending).resolves.toEqual({ ok: false })
     expect(repo.countByAgent('a')).toBe(0)
   })
 
@@ -4031,6 +4086,15 @@ describe('MemoryPresenter embedding reindex (T5, AC-3.x)', () => {
 
     expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
     expect(repo.listByAgent('a')[0]?.embedding_model).toBe('p:m')
+  })
+
+  it('does not issue an empty fts_only requeue during backfill', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const requeueSpy = vi.spyOn(repo, 'requeueForEmbedding')
+
+    await presenter.backfillEmbeddings('a')
+
+    expect(requeueSpy).not.toHaveBeenCalled()
   })
 
   it('re-drains rows a failed reindex left pending on the next backfill (P1-B)', async () => {
@@ -5166,6 +5230,62 @@ describe('MemoryPresenter offline consolidation (T-B4..T-B6)', () => {
     await presenter.runConsolidationPass('a', 1_000 * DAY)
     // Every iteration finds a mergeable neighbor, so the pass consumes the full budget exactly once.
     expect(decisionCalls(generateText)).toBe(8)
+  })
+
+  it('records failed maintenance and throttles heavy passes when every LLM call fails', async () => {
+    const generateText = routedLLM({ throwDecision: true })
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now
+    repo.rows.get(secondId)!.created_at = now + 1
+
+    await presenter.runConsolidationPass('a', now)
+    const callsAfterFailure = decisionCalls(generateText)
+    expect(callsAfterFailure).toBeGreaterThan(0)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+    expect(auditRepo.listByAgent('a')[0]).toMatchObject({
+      event_type: 'memory/maintenance_llm',
+      status: 'failed',
+      reason: 'all-llm-steps-failed'
+    })
+    expect(repo.getLastConsolidatedAt('a')).toBeNull()
+
+    await presenter.runConsolidationPass('a', now + 5 * 60 * 1000)
+    expect(decisionCalls(generateText)).toBe(callsAfterFailure)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+
+    await presenter.runConsolidationPass('a', now + 31 * 60 * 1000)
+    expect(decisionCalls(generateText)).toBeGreaterThan(callsAfterFailure)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+  })
+
+  it('does not keep completed cooldown when heavy maintenance aborts after memory is disabled', async () => {
+    const config: DeepChatAgentConfig = { ...embeddingConfig }
+    const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
+      if (prompt.includes('Choose exactly ONE decision')) {
+        config.memoryEnabled = false
+        return '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+      }
+      return ''
+    })
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText, config)
+    const now = 1_000 * DAY
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now
+    repo.rows.get(secondId)!.created_at = now + 1
+
+    await presenter.runConsolidationPass('a', now)
+    expect(decisionCalls(generateText)).toBe(1)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
+
+    config.memoryEnabled = true
+    await presenter.runConsolidationPass('a', now + 60 * 1000)
+
+    expect(decisionCalls(generateText)).toBeGreaterThan(1)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBeNull()
   })
 
   it('does not archive a just-merged old row in the same pass (T-B5)', async () => {
@@ -6919,7 +7039,7 @@ describe('MemoryPresenter lifecycle revival (SDD-8)', () => {
     resolveTriage()
     const result = await extraction
 
-    expect(result).toEqual({ ok: true, createdIds: [] })
+    expect(result).toEqual({ ok: false })
     // Only the triage call ran; the extraction LLM is never fired after teardown begins.
     expect(generateText).toHaveBeenCalledTimes(1)
     expect(generateText.mock.calls[0][2]).toContain('KEEP or SKIP')

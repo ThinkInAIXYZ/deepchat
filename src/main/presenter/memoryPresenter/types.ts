@@ -211,7 +211,6 @@ export interface MemoryVectorMatch {
 
 export interface MemoryVectorQueryOptions {
   topK: number
-  threshold?: number
 }
 
 export interface MemoryVectorRef {
@@ -416,6 +415,24 @@ export type MemoryExtractionResult = { ok: true; createdIds: string[] } | { ok: 
 export interface MemoryReflectionResult {
   reflectionIds: string[]
   sourceMemoryIds: string[]
+}
+
+export interface MemoryMaintenanceStepResult {
+  touched: boolean
+  calls: number
+  failures: number
+}
+
+export interface MemoryMaintenanceReflectionResult {
+  result: MemoryReflectionResult | null
+  calls: number
+  failures: number
+}
+
+export interface MemoryMaintenancePersonaResult {
+  result: MemoryPersonaDraftResult | null
+  calls: number
+  failures: number
 }
 
 // Outcome of a guarded persona-evolution pass: the new draft (never auto-active) plus the measured

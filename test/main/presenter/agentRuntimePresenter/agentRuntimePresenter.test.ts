@@ -689,6 +689,7 @@ describe('AgentRuntimePresenter', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
       ;(agent as any).memoryPort = {
         isEnabled: vi.fn(() => true),
+        recordInjectionAccess: vi.fn(),
         buildInjection: vi.fn(async () => ({
           selfModel: null,
           working: null,
@@ -720,6 +721,92 @@ describe('AgentRuntimePresenter', () => {
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: 's1', name: 'memory/view_assembled' })
       )
+    })
+
+    it('records access only for selected injected memories and dedupes by message', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({ agent_id: 'a' })
+      const recordInjectionAccess = vi.fn()
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        recordInjectionAccess,
+        buildInjection: vi.fn(async () => ({
+          selfModel: null,
+          working: null,
+          memories: [
+            { id: 'selected', kind: 'semantic', content: 'redis fact' },
+            { id: 'dropped', kind: 'semantic', content: 'x'.repeat(10_000) }
+          ],
+          payload: {
+            selfModel: null,
+            working: null,
+            memories: [
+              { id: 'selected', kind: 'semantic', content: 'redis fact' },
+              { id: 'dropped', kind: 'semantic', content: 'x'.repeat(10_000) }
+            ],
+            tokenBudget: 80
+          },
+          manifest: {
+            policyVersion: 1,
+            selected: [],
+            dropped: [],
+            tokenBudget: 80,
+            estimatedTokens: 0,
+            queryHash: 'query-hash'
+          }
+        }))
+      }
+
+      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
+      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', 'user-message-1')
+      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
+      await (agent as any).appendMemoryInjection('s1', 'base prompt', 'redis', null)
+
+      expect(recordInjectionAccess.mock.calls).toEqual([
+        ['a', ['selected']],
+        ['a', ['selected']],
+        ['a', ['selected']]
+      ])
+    })
+
+    it('bounds injection access dedupe state per session and clears it on destroy', async () => {
+      const recordInjectionAccess = vi.fn()
+      ;(agent as any).memoryPort = {
+        recordInjectionAccess
+      }
+
+      for (let index = 0; index < 130; index += 1) {
+        ;(agent as any).recordMemoryInjectionAccess(
+          'a',
+          's1',
+          [{ id: `selected-${index}` }],
+          `message-${index}`
+        )
+      }
+
+      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
+      const sessionKeys = [...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))
+      expect(sessionKeys).toHaveLength(128)
+      expect(recordInjectionAccess).toHaveBeenCalledTimes(130)
+
+      await agent.destroySession('s1')
+      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toHaveLength(0)
+    })
+
+    it('expires old injection access dedupe turns for active sessions', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      ;(agent as any).memoryPort = {
+        recordInjectionAccess: vi.fn()
+      }
+
+      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'old' }], 'old-message')
+      nowSpy.mockReturnValue(31 * 60 * 1000)
+      ;(agent as any).recordMemoryInjectionAccess('a', 's1', [{ id: 'new' }], 'new-message')
+
+      const accessByTurn = (agent as any).memoryInjectionAccessByTurn as Map<string, unknown>
+      expect([...accessByTurn.keys()].filter((key) => key.startsWith('s1\u0000'))).toEqual([
+        's1\u0000new-message'
+      ])
+      nowSpy.mockRestore()
     })
   })
 
@@ -921,6 +1008,25 @@ describe('AgentRuntimePresenter', () => {
         's1',
         2
       )
+    })
+
+    it('keeps the cursor unchanged when extraction returns ok:false', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const extractAndStore = vi.fn().mockResolvedValue({ ok: false })
+      ;(agent as any).memoryPort = {
+        isEnabled: vi.fn(() => true),
+        extractAndStore
+      }
+      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
+      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
+
+      await startExtraction(10)
+
+      expect(extractAndStore).toHaveBeenCalledTimes(1)
+      expect(
+        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
+      ).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
     })
 
     it('computes tool admission signals from one tape read', async () => {

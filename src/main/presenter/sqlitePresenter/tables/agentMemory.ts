@@ -1217,8 +1217,8 @@ export class AgentMemoryTable extends BaseTable {
     this.db.prepare("UPDATE agent_memory SET status = 'archived' WHERE id = ?").run(id)
   }
 
-  // SQL-expressible subset of the archive conditions: active, aged out, decayed, and exempt rows
-  // (anchors / persona) excluded. The zero-interaction check runs in the caller on this result.
+  // SQL-expressible subset of the archive conditions: active, never accessed, aged out, decayed,
+  // and exempt rows (anchors / persona) excluded. The caller may still defensively recheck.
   listArchiveCandidates(agentId: string, before: number, decayBelow: number): AgentMemoryRow[] {
     return this.db
       .prepare(
@@ -1229,6 +1229,7 @@ export class AgentMemoryTable extends BaseTable {
            AND status != 'conflicted'
            AND is_anchor = 0
            AND kind NOT IN ('persona', 'working')
+           AND access_count = 0
            AND created_at < ?
            AND decay_score IS NOT NULL
            AND decay_score < ?`
