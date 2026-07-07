@@ -75,6 +75,15 @@ const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.4-mini',
   'gpt-5.3-codex-spark'
 ]
+// Keep this aligned with the OpenCode Go docs table for models served by /messages.
+const OPENCODE_GO_ANTHROPIC_MODEL_IDS = new Set([
+  'minimax-m3',
+  'minimax-m2.7',
+  'minimax-m2.5',
+  'qwen3.7-max',
+  'qwen3.7-plus',
+  'qwen3.6-plus'
+])
 const DEFAULT_NEW_API_BASE_URL = 'https://www.newapi.ai'
 
 type RouteDecision = {
@@ -309,6 +318,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   private getBehaviorPreset(decision: RouteDecision): AiSdkBehaviorPreset {
     switch (this.getRouteStrategy()) {
       case 'new-api':
+      case 'opencode-go':
       case 'zenmux':
         if (decision.providerKind === 'anthropic' || decision.providerKind === 'aws-bedrock') {
           return 'anthropic'
@@ -463,6 +473,17 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerPatch: {
           apiType: 'anthropic',
           baseUrl: this.getConfiguredAnthropicBaseUrl(),
+          capabilityProviderId: 'anthropic'
+        }
+      }
+    }
+
+    if (strategy === 'opencode-go' && OPENCODE_GO_ANTHROPIC_MODEL_IDS.has(modelId)) {
+      return {
+        providerKind: 'anthropic',
+        providerPatch: {
+          apiType: 'anthropic',
+          baseUrl: this.provider.baseUrl,
           capabilityProviderId: 'anthropic'
         }
       }
@@ -1508,6 +1529,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
       case 'openai-codex':
         return this.mapOpenAICodexModels()
+      case 'opencode-go':
+        return this.fetchOpenCodeGoModels()
       case 'kimi-for-coding':
         return this.mapKimiForCodingModels()
       case 'github': {
@@ -1853,6 +1876,38 @@ export class AiSdkProvider extends BaseLLMProvider {
         model.id.startsWith('anthropic.')
       )
     }
+  }
+
+  private async fetchOpenCodeGoModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+
+    return records
+      .filter((model): model is Record<string, unknown> & { id: string } => {
+        return typeof model.id === 'string' && model.id.trim().length > 0
+      })
+      .map((model) => {
+        const modelId = model.id.trim()
+        const isAnthropicModel = OPENCODE_GO_ANTHROPIC_MODEL_IDS.has(modelId)
+        const existingConfig = this.getProviderModelConfig(modelId)
+        const endpointType = isAnthropicModel ? 'anthropic' : 'openai'
+
+        return {
+          id: modelId,
+          name: modelId,
+          group: isAnthropicModel ? 'Messages' : 'Chat Completions',
+          providerId: this.provider.id,
+          isCustom: false,
+          endpointType,
+          supportedEndpointTypes: [endpointType],
+          ownedBy: typeof model.owned_by === 'string' ? model.owned_by : 'opencode',
+          contextLength: existingConfig.contextLength || DEFAULT_MODEL_CONTEXT_LENGTH,
+          maxTokens: existingConfig.maxTokens || DEFAULT_MODEL_MAX_TOKENS,
+          vision: existingConfig.vision || false,
+          functionCall: existingConfig.functionCall || false,
+          reasoning: existingConfig.reasoning || false,
+          type: ModelType.Chat
+        } satisfies MODEL_META
+      })
   }
 
   private async fetchNewApiModels(): Promise<MODEL_META[]> {

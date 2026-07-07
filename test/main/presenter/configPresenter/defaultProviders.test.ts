@@ -78,5 +78,18 @@ describe('DEFAULT_PROVIDERS', () => {
       baseUrl: 'https://api.minimax.io/anthropic/v1',
       enable: false
     })
+    expect(providersById.get('opencode-go')).toMatchObject({
+      name: 'OpenCode Go',
+      apiType: 'openai-completions',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      enable: false,
+      websites: expect.objectContaining({
+        official: 'https://opencode.ai/auth',
+        apiKey: 'https://opencode.ai/auth',
+        docs: 'https://opencode.ai/docs/zh-cn/go/',
+        models: 'https://opencode.ai/zen/go/v1/models',
+        defaultBaseUrl: 'https://opencode.ai/zen/go/v1'
+      })
+    })
   })
 })
