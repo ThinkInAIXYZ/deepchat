@@ -226,7 +226,7 @@ describe('MessageBlockContent', () => {
       expect(markdown.attributes('data-smooth-streaming')).toBe('true')
       expect(markdown.attributes('data-streaming')).toBe('true')
       expect(markdown.attributes('data-final')).toBe('false')
-      expect(markdown.attributes('data-virtualize-nodes')).toBe('true')
+      expect(markdown.attributes('data-virtualize-nodes')).toBe('false')
     }
   )
 

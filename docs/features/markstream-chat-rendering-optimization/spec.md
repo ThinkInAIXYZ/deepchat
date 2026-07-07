@@ -2,42 +2,44 @@
 
 ## User need
 
-DeepChat's assistant messages can stream long Markdown responses with code blocks, Mermaid diagrams, tables, references, and search highlights. The chat UI should stay responsive during streaming and remain stable after completion, while preserving existing artifact preview, reference navigation, search, capture, jump, and scroll behavior.
+DeepChat's assistant messages can stream long Markdown responses with code blocks, Mermaid diagrams, tables, references, artifacts, and search highlights. Rendering must feel smooth while content is generating and stay fast when browsing completed long conversations.
 
 ## Goal
 
-Apply MarkStream's chat/streaming guidance to the existing per-message Markdown rendering path with the smallest safe combination of optimizations:
+Build a high-performance, high-experience Markdown rendering path using `markstream-vue` for both streaming and completed chat content while preserving DeepChat's current behavior.
 
-- make streaming/final state explicit when rendering Markdown;
-- use MarkStream's chat mode and streaming-friendly props for live assistant content;
-- enable conservative node-level rendering/virtualization helpers for completed Markdown;
-- keep Markdown nodes fully mounted while chat search is active or a message is a search result;
-- clear stale row height measurements across session switches;
-- avoid changing the outer `MessageList` virtualization or chat scroll model in this slice.
+The optimized path remains:
+
+`ChatPage` → `MessageList` / `MessageListRow` → `MessageItemAssistant` → `MessageBlockContent` → `MarkdownRenderer` → `markstream-vue` `NodeRenderer`
 
 ## Acceptance criteria
 
-- Streaming assistant text blocks pass `final=false` and completed text blocks pass `final=true` to `markstream-vue`.
-- Streaming blocks use MarkStream chat streaming defaults (`mode="chat"`, smooth streaming auto, typewriter, batching, code-block streaming) without reintroducing completion flicker.
-- Completed Markdown can opt into MarkStream node-level deferral/virtualization without changing DeepChat's outer message list semantics.
-- Chat search keeps all Markdown nodes mounted so DOM highlight/search behavior remains reliable.
-- Session changes reset message height measurements so jump/anchor estimates cannot reuse stale row heights.
-- Existing Markdown custom components for links, references, Mermaid, code blocks, and artifact preview remain wired.
-- Existing tests for `MarkdownRenderer`, `MessageBlockContent`, `MessageList`, and `ChatPage` are updated or continue to pass.
+- Streaming assistant text blocks pass explicit live state to `markstream-vue` (`mode="chat"`, `final=false`) and use MarkStream's streaming-friendly features.
+- Completed assistant text blocks pass `final=true` and use MarkStream's completed-content virtualization/deferral features for long Markdown.
+- Streaming Markdown uses incremental rendering settings that prioritize frame budget and smooth typing cadence instead of large per-token DOM commits.
+- Static/completed Markdown uses a virtualized node window for long documents to preserve scrollback responsiveness and memory usage.
+- Code blocks remain Monaco/custom-renderer backed and support DeepChat artifact preview behavior.
+- Mermaid, references, links, artifact previews, tool calls, message capture, spotlight jump, scroll anchoring, and inline chat search remain compatible.
+- Chat search and search-result messages keep Markdown DOM available by disabling node virtualization where DOM search/highlighting needs it.
+- Session changes reset message height measurements so old session row heights cannot affect new session windowing.
+- The implementation is explicit, documented, and covered by focused renderer/list/page tests.
+- The PR description clearly explains the concrete performance/UX behavior, non-goals, and validation.
 
 ## Constraints
 
-- Prefer local changes in the existing render chain and avoid broad refactors.
-- Do not replace `MessageList` with `MarkstreamVirtualTimeline` in this slice; DeepChat has row-level behaviors (tool calls, artifacts, search, jump, capture, scroll anchoring) that need a separate design.
-- Keep `fade=false` initially to avoid visible row repaint/flicker at stream completion.
+- Use `markstream-vue`; do not replace it with another renderer.
+- Prefer focused changes in the existing render chain and avoid broad unrelated refactors.
+- Do not replace the outer `MessageList` with `MarkstreamVirtualTimeline` in this slice; DeepChat's row-level tool/action/artifact/search/capture/jump/anchor behaviors need separate design before an outer virtual timeline can safely own them.
+- Keep `fade=false` to avoid opacity restart flicker during high-frequency streaming.
 - Preserve Monaco-backed code block rendering and artifact preview behavior.
+- Do not claim benchmark numbers unless measured in this task.
 
 ## Non-goals
 
 - Full outer chat-list virtualization.
 - Redesign of DOM-based chat search/highlight.
 - New performance instrumentation UI.
-- CSS layer reordering for MarkStream styles.
+- Replacing DeepChat's custom code block/artifact preview components.
 
 ## Open questions
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import type {
@@ -68,9 +68,13 @@ vi.mock('@/components/message/MessageBlockAction.vue', () => ({
   })
 }))
 
+const { isCapturingRef } = vi.hoisted(() => ({
+  isCapturingRef: { value: false }
+}))
+
 vi.mock('@/composables/message/useMessageCapture', () => ({
   useMessageCapture: () => ({
-    isCapturing: false,
+    isCapturing: isCapturingRef,
     captureMessage: vi.fn().mockResolvedValue(undefined)
   })
 }))
@@ -132,6 +136,10 @@ function createCompactionMessage(
 }
 
 describe('MessageList', () => {
+  beforeEach(() => {
+    isCapturingRef.value = false
+  })
+
   it('renders persisted compaction messages inline with the message list', () => {
     const wrapper = mount(MessageList, {
       props: {
@@ -214,6 +222,20 @@ describe('MessageList', () => {
       props: {
         messages: [createMessage('a1', 'assistant', 1)],
         disableMarkdownVirtualization: true
+      }
+    })
+
+    expect(wrapper.find('.assistant-item').attributes('data-disable-markdown-virtualization')).toBe(
+      'true'
+    )
+  })
+
+  it('disables markdown virtualization while capturing message screenshots', () => {
+    isCapturingRef.value = true
+
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('a1', 'assistant', 1)]
       }
     })
 

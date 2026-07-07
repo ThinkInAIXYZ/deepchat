@@ -93,6 +93,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
           type: String,
           default: undefined
         },
+        htmlPolicy: {
+          type: String,
+          default: undefined
+        },
         smoothStreaming: {
           type: [Boolean, String],
           default: false
@@ -128,6 +132,30 @@ const setup = async (props: Record<string, unknown> = {}) => {
         codeBlockStream: {
           type: Boolean,
           default: false
+        },
+        initialRenderBatchSize: {
+          type: Number,
+          default: undefined
+        },
+        renderBatchSize: {
+          type: Number,
+          default: undefined
+        },
+        renderBatchDelay: {
+          type: Number,
+          default: undefined
+        },
+        renderBatchBudgetMs: {
+          type: Number,
+          default: undefined
+        },
+        renderBatchIdleTimeoutMs: {
+          type: Number,
+          default: undefined
+        },
+        parseCoalesceMs: {
+          type: Number,
+          default: undefined
         }
       },
       setup(props) {
@@ -138,6 +166,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
               'data-testid': 'node-renderer',
               'data-final': String(props.final),
               'data-mode': props.mode,
+              'data-html-policy': props.htmlPolicy,
               'data-smooth-streaming': String(props.smoothStreaming),
               'data-typewriter': String(props.typewriter),
               'data-batch-rendering': String(props.batchRendering),
@@ -146,7 +175,13 @@ const setup = async (props: Record<string, unknown> = {}) => {
               'data-node-virtual': String(props.nodeVirtual),
               'data-max-live-nodes': String(props.maxLiveNodes),
               'data-live-node-buffer': String(props.liveNodeBuffer),
-              'data-code-block-stream': String(props.codeBlockStream)
+              'data-code-block-stream': String(props.codeBlockStream),
+              'data-initial-render-batch-size': String(props.initialRenderBatchSize),
+              'data-render-batch-size': String(props.renderBatchSize),
+              'data-render-batch-delay': String(props.renderBatchDelay),
+              'data-render-batch-budget-ms': String(props.renderBatchBudgetMs),
+              'data-render-batch-idle-timeout-ms': String(props.renderBatchIdleTimeoutMs),
+              'data-parse-coalesce-ms': String(props.parseCoalesceMs)
             },
             [
               customComponents.code_block?.({
@@ -284,6 +319,7 @@ describe('MarkdownRenderer', () => {
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
     expect(nodeRenderer.attributes('data-mode')).toBe('chat')
+    expect(nodeRenderer.attributes('data-html-policy')).toBe('safe')
     expect(nodeRenderer.attributes('data-final')).toBe('true')
     expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('false')
     expect(nodeRenderer.attributes('data-typewriter')).toBe('false')
@@ -291,9 +327,15 @@ describe('MarkdownRenderer', () => {
     expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('true')
     expect(nodeRenderer.attributes('data-viewport-priority')).toBe('true')
     expect(nodeRenderer.attributes('data-node-virtual')).toBe('auto')
-    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('220')
-    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('60')
+    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('260')
+    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('80')
     expect(nodeRenderer.attributes('data-code-block-stream')).toBe('false')
+    expect(nodeRenderer.attributes('data-initial-render-batch-size')).toBe('96')
+    expect(nodeRenderer.attributes('data-render-batch-size')).toBe('80')
+    expect(nodeRenderer.attributes('data-render-batch-delay')).toBe('0')
+    expect(nodeRenderer.attributes('data-render-batch-budget-ms')).toBe('8')
+    expect(nodeRenderer.attributes('data-render-batch-idle-timeout-ms')).toBe('16')
+    expect(nodeRenderer.attributes('data-parse-coalesce-ms')).toBe('0')
   })
 
   it('marks the root for scoped code block scrollbar stabilization', async () => {
@@ -317,6 +359,14 @@ describe('MarkdownRenderer', () => {
     expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
     expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
     expect(nodeRenderer.attributes('data-code-block-stream')).toBe('true')
+    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('false')
+    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('false')
+    expect(nodeRenderer.attributes('data-initial-render-batch-size')).toBe('10')
+    expect(nodeRenderer.attributes('data-render-batch-size')).toBe('14')
+    expect(nodeRenderer.attributes('data-render-batch-delay')).toBe('8')
+    expect(nodeRenderer.attributes('data-render-batch-budget-ms')).toBe('3')
+    expect(nodeRenderer.attributes('data-render-batch-idle-timeout-ms')).toBe('24')
+    expect(nodeRenderer.attributes('data-parse-coalesce-ms')).toBe('12')
   })
 
   it('disables smooth streaming when requested for live content', async () => {
@@ -341,13 +391,15 @@ describe('MarkdownRenderer', () => {
     expect(nodeRenderer.attributes('data-final')).toBe('true')
   })
 
-  it('allows callers to disable completed-node virtualization', async () => {
+  it('allows callers to disable completed-node virtualization and deferral', async () => {
     const { wrapper } = await setup({
       virtualizeNodes: false
     })
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
     expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
+    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('false')
+    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('false')
     expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
     expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
   })

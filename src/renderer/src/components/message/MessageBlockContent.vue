@@ -63,8 +63,11 @@ const shouldSmoothStream = computed(
   () => props.block.status === 'pending' || props.block.status === 'loading'
 )
 const isStreamingPart = (part: ProcessedPart) => shouldSmoothStream.value || Boolean(part.loading)
+const hasStreamingContent = computed(() =>
+  processedContent.value.some((part) => part.type === 'text' && isStreamingPart(part))
+)
 const shouldVirtualizeNodes = computed(
-  () => !props.disableMarkdownVirtualization && !props.isSearchResult
+  () => !props.disableMarkdownVirtualization && !props.isSearchResult && !hasStreamingContent.value
 )
 
 const artifactSnapshot = computed(() =>
