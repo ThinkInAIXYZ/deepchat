@@ -1,4 +1,4 @@
-# CUA Computer Use Workflow
+# Computer Use Workflow
 
 This skill uses DeepChat's plugin-provided Computer Use tools.
 

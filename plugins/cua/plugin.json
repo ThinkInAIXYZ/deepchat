@@ -37,7 +37,7 @@
       "mode": "user-confirmed",
       "provider": "trycua",
       "strategy": "bundled-plugin-helper",
-      "minVersion": "0.6.7",
+      "minVersion": "0.7.1",
       "guideUrl": "https://cua.ai/docs/cua-driver/guide/getting-started/installation"
     }
   },
@@ -59,8 +59,8 @@
   ],
   "skills": [
     {
-      "id": "cua-driver",
-      "path": "skills/cua-driver/SKILL.md",
+      "id": "computer-use",
+      "path": "skills/computer-use/SKILL.md",
       "scope": "agent"
     }
   ],
@@ -83,13 +83,13 @@
         "get_screen_size": "allow",
         "get_window_state": "allow",
         "get_accessibility_tree": "allow",
+        "get_desktop_state": "allow",
         "get_cursor_position": "allow",
         "get_config": "allow",
         "get_recording_state": "allow",
         "get_agent_cursor_state": "allow",
         "check_for_update": "allow",
         "health_report": "allow",
-        "debug_window_info": "allow",
         "start_session": "allow",
         "end_session": "allow",
         "launch_app": "ask",
@@ -99,14 +99,9 @@
         "right_click": "ask",
         "double_click": "ask",
         "drag": "ask",
-        "mouse_button_down": "ask",
-        "mouse_button_up": "ask",
-        "mouse_drag": "ask",
-        "parallel_mouse_drag": "ask",
         "scroll": "ask",
         "move_cursor": "ask",
         "type_text": "ask",
-        "type_text_chars": "ask",
         "press_key": "ask",
         "hotkey": "ask",
         "set_value": "ask",

@@ -102,6 +102,7 @@ const DEFAULT_RUNTIME_POLICY: SkillRuntimePolicy = {
 }
 
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
+const SKILL_NAME_ALIASES = new Map([['cua-driver', 'computer-use']])
 const BINARY_LIKE_EXTENSIONS = new Set([
   '.png',
   '.jpg',
@@ -2736,7 +2737,7 @@ export class SkillPresenter implements ISkillPresenter {
     if (await this.isNewAgentSession(conversationId)) {
       const skills = await this.loadNewSessionSkills(conversationId)
       const validSkills = await this.validateSkillNames(skills)
-      if (validSkills.length !== skills.length) {
+      if (!this.areSkillListsEqual(validSkills, skills)) {
         this.setPersistedNewSessionSkills(conversationId, validSkills)
       }
       return validSkills
@@ -2802,7 +2803,21 @@ export class SkillPresenter implements ISkillPresenter {
   async validateSkillNames(names: string[]): Promise<string[]> {
     const available = await this.getMetadataList()
     const availableNames = new Set(available.map((s) => s.name))
-    return names.filter((name) => availableNames.has(name))
+    const seen = new Set<string>()
+    const validNames: string[] = []
+    for (const name of names) {
+      const resolvedName = availableNames.has(name) ? name : (SKILL_NAME_ALIASES.get(name) ?? name)
+      if (!availableNames.has(resolvedName) || seen.has(resolvedName)) {
+        continue
+      }
+      seen.add(resolvedName)
+      validNames.push(resolvedName)
+    }
+    return validNames
+  }
+
+  private areSkillListsEqual(left: string[], right: string[]): boolean {
+    return left.length === right.length && left.every((skill, index) => skill === right[index])
   }
 
   /**

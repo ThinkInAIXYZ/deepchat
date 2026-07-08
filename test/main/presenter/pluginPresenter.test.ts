@@ -1142,7 +1142,7 @@ describe('PluginPresenter', () => {
     expect(mcpConfig.env).toEqual(server.env)
   })
 
-  it('keeps CUA v0.6.7 tool policies explicit and conservative', async () => {
+  it('keeps CUA v0.7.1 tool policies explicit and conservative', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const policy = JSON.parse(await readFile('plugins/cua/policies/tool-policy.json', 'utf8'))
     const manifestTools = manifest.toolPolicies.find(
@@ -1155,13 +1155,13 @@ describe('PluginPresenter', () => {
       'get_screen_size',
       'get_window_state',
       'get_accessibility_tree',
+      'get_desktop_state',
       'get_cursor_position',
       'get_config',
       'get_recording_state',
       'get_agent_cursor_state',
       'check_for_update',
       'health_report',
-      'debug_window_info',
       'start_session',
       'end_session'
     ]
@@ -1173,14 +1173,9 @@ describe('PluginPresenter', () => {
       'right_click',
       'double_click',
       'drag',
-      'mouse_button_down',
-      'mouse_button_up',
-      'mouse_drag',
-      'parallel_mouse_drag',
       'scroll',
       'move_cursor',
       'type_text',
-      'type_text_chars',
       'press_key',
       'hotkey',
       'set_value',
@@ -1207,8 +1202,20 @@ describe('PluginPresenter', () => {
 
     expect(manifestTools.screenshot).toBeUndefined()
     expect(manifestTools.set_recording).toBeUndefined()
+    expect(manifestTools.debug_window_info).toBeUndefined()
+    expect(manifestTools.mouse_button_down).toBeUndefined()
+    expect(manifestTools.mouse_button_up).toBeUndefined()
+    expect(manifestTools.mouse_drag).toBeUndefined()
+    expect(manifestTools.parallel_mouse_drag).toBeUndefined()
+    expect(manifestTools.type_text_chars).toBeUndefined()
     expect(policy.tools.screenshot).toBeUndefined()
     expect(policy.tools.set_recording).toBeUndefined()
+    expect(policy.tools.debug_window_info).toBeUndefined()
+    expect(policy.tools.mouse_button_down).toBeUndefined()
+    expect(policy.tools.mouse_button_up).toBeUndefined()
+    expect(policy.tools.mouse_drag).toBeUndefined()
+    expect(policy.tools.parallel_mouse_drag).toBeUndefined()
+    expect(policy.tools.type_text_chars).toBeUndefined()
   })
 
   it('tracks CUA as a pinned upstream release asset set', async () => {
@@ -1221,15 +1228,15 @@ describe('PluginPresenter', () => {
       sourceKind: 'upstream-release',
       upstreamRepo: 'https://github.com/trycua/cua.git',
       upstreamSubdir: 'libs/cua-driver/rust',
-      tag: 'cua-driver-rs-v0.6.7',
-      commit: '2cba1e769264a18f5a9d5f4e419729eb7fc17962',
-      version: '0.6.7',
+      tag: 'cua-driver-rs-v0.7.1',
+      commit: '7caf72bee2286f47a985c3121b56aaabdebd62b9',
+      version: '0.7.1',
       supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
       unsupportedTargets: ['linux/arm64']
     })
-    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.6.7-windows-x86_64.zip')
-    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.6.7-windows-arm64.zip')
-    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.6.7-linux-x86_64-binary.tar.gz')
+    expect(metadata.assets['windows-x64'].name).toBe('cua-driver-rs-0.7.1-windows-x86_64.zip')
+    expect(metadata.assets['windows-arm64'].name).toBe('cua-driver-rs-0.7.1-windows-arm64.zip')
+    expect(metadata.assets['linux-x64'].name).toBe('cua-driver-rs-0.7.1-linux-x86_64-binary.tar.gz')
     expect(buildScript).toContain('verifyChecksum')
     expect(buildScript).toContain('downloadFile')
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')
@@ -1263,12 +1270,22 @@ describe('PluginPresenter', () => {
   })
 
   it('keeps the CUA skill instructions aligned with DeepChat bundled tools', async () => {
+    const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
     const contents = await Promise.all(
-      files.map((file) => readFile(`plugins/cua/skills/cua-driver/${file}`, 'utf8'))
+      files.map((file) => readFile(`plugins/cua/skills/computer-use/${file}`, 'utf8'))
     )
     const combined = contents.join('\n')
 
+    expect(manifest.skills).toEqual([
+      {
+        id: 'computer-use',
+        path: 'skills/computer-use/SKILL.md',
+        scope: 'agent'
+      }
+    ])
+    expect(contents[0]).toContain('name: computer-use')
+    expect(contents[0]).toContain('# computer-use')
     expect(combined).toContain('list_apps')
     expect(combined).toContain('launch_app')
     expect(combined).toContain('get_window_state')

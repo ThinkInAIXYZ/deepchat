@@ -1,5 +1,5 @@
 ---
-name: cua-driver
+name: computer-use
 description: Drive native desktop apps through DeepChat's built-in Computer Use tools. Use when the user asks to operate, inspect, automate, or perform a GUI task in a real desktop application.
 platforms:
   - darwin
@@ -9,7 +9,7 @@ metadata:
   deepchatFeature: computer-use
 ---
 
-# cua-driver
+# computer-use
 
 Use DeepChat's plugin-provided Computer Use tools as the only action surface for this skill. Do not
 ask the user to install `cua-driver`, configure an external server, or put anything on PATH for the
@@ -70,12 +70,13 @@ Use this fallback order:
    pixels.
 3. Use `get_window_state` with vision capture for broad visual confirmation when window contents or
    active overlays are unclear.
-4. Use at most one `zoom({ pid, window_id, x1, y1, x2, y2 })` for small text or dense icons.
+4. Use `get_desktop_state` only for desktop-scope workflows where there is no stable target window.
+5. Use at most one `zoom({ pid, window_id, x1, y1, x2, y2 })` for small text or dense icons.
    Repeated zoom calls are a failure signal; return to the full-window snapshot or ask for
    clarification.
-5. Use pixel coordinates from the latest same-window state with `click({ pid, window_id, x, y })`,
+6. Use pixel coordinates from the latest same-window state with `click({ pid, window_id, x, y })`,
    or from the single zoom image with `click({ pid, window_id, x, y, from_zoom: true })`.
-6. Re-snapshot after each action and compare the resulting state.
+7. Re-snapshot after each action and compare the resulting state.
 
 Ask the user only when visible candidates are ambiguous, the requested action is destructive, or the
 target is outside the current visible window.

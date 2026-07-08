@@ -2449,6 +2449,27 @@ describe('SkillPresenter', () => {
       )
     })
 
+    it('migrates the old CUA active skill name to computer-use', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      newSessionActiveSkillsStore.set('new-session-cua', ['cua-driver'])
+      mockSkillTree(['computer-use'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'computer-use', description: 'Computer Use' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.getActiveSkills('new-session-cua')
+
+      expect(active).toEqual(['computer-use'])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-cua',
+        ['computer-use']
+      )
+    })
+
     it('repairs imported legacy sessions when persisted skills are empty', async () => {
       ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
       mockSkillTree(['skill-1', 'skill-2'])
@@ -2568,6 +2589,26 @@ describe('SkillPresenter', () => {
       expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
         'new-session-3',
         ['skill-1']
+      )
+    })
+
+    it('normalizes the old CUA skill name when setting active skills', async () => {
+      ;(skillSessionStatePort.hasNewSession as Mock).mockResolvedValue(true)
+      mockSkillTree(['computer-use'])
+      ;(fs.existsSync as Mock).mockReturnValue(true)
+      ;(fs.readFileSync as Mock).mockReturnValue('test')
+      ;(matter as unknown as Mock).mockReturnValue({
+        data: { name: 'computer-use', description: 'Computer Use' },
+        content: ''
+      })
+      await skillPresenter.discoverSkills()
+
+      const active = await skillPresenter.setActiveSkills('new-session-cua-set', ['cua-driver'])
+
+      expect(active).toEqual(['computer-use'])
+      expect(skillSessionStatePort.setPersistedNewSessionSkills).toHaveBeenCalledWith(
+        'new-session-cua-set',
+        ['computer-use']
       )
     })
   })
