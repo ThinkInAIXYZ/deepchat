@@ -52,6 +52,10 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
         type: String,
         default: ''
       },
+      mode: {
+        type: String,
+        default: undefined
+      },
       messageId: {
         type: String,
         default: undefined
@@ -82,7 +86,7 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
       }
     },
     template:
-      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)">{{ content }}</div>'
+      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)">{{ content }}</div>'
   })
 }))
 
@@ -180,6 +184,7 @@ describe('MessageBlockContent', () => {
     const markdown = wrapper.get('.markdown-stub')
     expect(markdown.attributes('data-message-id')).toBe('m3')
     expect(markdown.attributes('data-thread-id')).toBe('s3')
+    expect(markdown.attributes('data-mode')).toBe('chat')
     expect(markdown.attributes('data-link-source')).toBe('chat')
     expect(markdown.attributes('data-link-session-id')).toBe('s3')
     expect(markdown.text()).toContain('plain markdown content')

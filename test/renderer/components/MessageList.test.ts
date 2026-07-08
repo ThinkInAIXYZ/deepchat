@@ -69,15 +69,20 @@ vi.mock('@/components/message/MessageBlockAction.vue', () => ({
 }))
 
 const { isCapturingRef } = vi.hoisted(() => ({
-  isCapturingRef: { value: false }
+  isCapturingRef: { current: undefined as undefined | import('vue').Ref<boolean> }
 }))
 
-vi.mock('@/composables/message/useMessageCapture', () => ({
-  useMessageCapture: () => ({
-    isCapturing: isCapturingRef,
-    captureMessage: vi.fn().mockResolvedValue(undefined)
-  })
-}))
+vi.mock('@/composables/message/useMessageCapture', async () => {
+  const { ref } = await import('vue')
+  const isCapturing = ref(false)
+  isCapturingRef.current = isCapturing
+  return {
+    useMessageCapture: () => ({
+      isCapturing,
+      captureMessage: vi.fn().mockResolvedValue(undefined)
+    })
+  }
+})
 
 import MessageList from '@/components/chat/MessageList.vue'
 
@@ -137,7 +142,9 @@ function createCompactionMessage(
 
 describe('MessageList', () => {
   beforeEach(() => {
-    isCapturingRef.value = false
+    if (isCapturingRef.current) {
+      isCapturingRef.current.value = false
+    }
   })
 
   it('renders persisted compaction messages inline with the message list', () => {
@@ -231,7 +238,9 @@ describe('MessageList', () => {
   })
 
   it('disables markdown virtualization while capturing message screenshots', () => {
-    isCapturingRef.value = true
+    if (isCapturingRef.current) {
+      isCapturingRef.current.value = true
+    }
 
     const wrapper = mount(MessageList, {
       props: {

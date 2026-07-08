@@ -6,7 +6,7 @@
       :content="debouncedContent"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
-      mode="chat"
+      :mode="props.mode"
       :final="resolvedFinal"
       :smooth-streaming="resolvedSmoothStreaming"
       :typewriter="isStreaming"
@@ -65,12 +65,14 @@ const props = withDefaults(
     streaming?: boolean
     final?: boolean
     virtualizeNodes?: boolean
+    mode?: 'docs' | 'chat' | 'minimal'
   }>(),
   {
     smoothStreaming: true,
     streaming: false,
     final: undefined,
-    virtualizeNodes: true
+    virtualizeNodes: true,
+    mode: 'docs'
   }
 )
 const themeStore = useThemeStore()

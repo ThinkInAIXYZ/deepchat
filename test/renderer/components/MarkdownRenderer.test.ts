@@ -319,11 +319,11 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('renders static markdown as final chat content by default', async () => {
+  it('renders static markdown as final docs content by default', async () => {
     const { wrapper } = await setup()
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
-    expect(nodeRenderer.attributes('data-mode')).toBe('chat')
+    expect(nodeRenderer.attributes('data-mode')).toBe('docs')
     expect(nodeRenderer.attributes('data-html-policy')).toBe('safe')
     expect(nodeRenderer.attributes('data-final')).toBe('true')
     expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('false')
@@ -349,14 +349,16 @@ describe('MarkdownRenderer', () => {
     expect(wrapper.classes()).toContain('markdown-renderer-root')
   })
 
-  it('passes streaming options to NodeRenderer for live content', async () => {
+  it('passes the requested chat mode and streaming options to NodeRenderer for live content', async () => {
     const { wrapper } = await setup({
+      mode: 'chat',
       streaming: true,
       final: false,
       smoothStreaming: true
     })
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
+    expect(nodeRenderer.attributes('data-mode')).toBe('chat')
     expect(nodeRenderer.attributes('data-final')).toBe('false')
     expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('auto')
     expect(nodeRenderer.attributes('data-typewriter')).toBe('true')

@@ -6,6 +6,7 @@
       v-if="part.type === 'text'"
       :content="part.content"
       :loading="part.loading"
+      mode="chat"
       :smooth-streaming="shouldSmoothStream"
       :streaming="isStreamingPart(part)"
       :final="!isStreamingPart(part)"

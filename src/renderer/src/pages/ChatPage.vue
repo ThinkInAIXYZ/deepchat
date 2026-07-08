@@ -426,6 +426,9 @@ let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
+// The immediate session watcher can call clearMessageWindowMeasurements before
+// messageWindow exists; keep this no-op forward reference and rebind it to
+// messageWindow.clearMeasurements after useMessageWindow is created below.
 let clearMessageWindowMeasurements = () => {}
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null

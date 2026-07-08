@@ -3,6 +3,7 @@ import type { MessageListItem } from '@/components/chat/messageListItems'
 
 export type MessageLayoutEntry = {
   id: string
+  measurementKey: string
   orderSeq: number
   estimatedHeight: number
   measuredHeight?: number
@@ -98,6 +99,7 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
       const height = measured ?? estimated
       const entry: MessageLayoutEntry = {
         id: msg.id,
+        measurementKey,
         orderSeq: msg.orderSeq,
         estimatedHeight: estimated,
         measuredHeight: measured,
@@ -112,7 +114,7 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const totalHeight = computed(() => entries.value[entries.value.length - 1]?.bottom ?? 0)
 
   function getEntry(messageId: string): MessageLayoutEntry | undefined {
-    return entries.value.find((e) => e.id === messageId)
+    return entries.value.find((e) => e.id === messageId || e.measurementKey === messageId)
   }
 
   function setMeasuredHeight(messageId: string, height: number): number {
