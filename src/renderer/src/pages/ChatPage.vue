@@ -48,6 +48,7 @@
           :is-generating="isGenerating"
           :trace-message-ids="traceMessageIds"
           :is-read-only="isReadOnlySession"
+          :disable-markdown-virtualization="isChatSearchOpen"
           @retry="onMessageRetry"
           @delete="onMessageDelete"
           @fork="onMessageFork"
@@ -352,10 +353,6 @@ async function loadMessagesAndRehydrate(sessionId: string, count?: number) {
 const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
 const bottomScrollAnchor = ref<HTMLDivElement | null>(null)
-const messageListRef = ref<{
-  scrollToBottom?: () => void
-  forceUpdate?: (clear?: boolean) => void
-} | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 const pendingDeleteMessageId = ref<string | null>(null)
@@ -367,6 +364,7 @@ const pendingAssistantPlaceholder = ref<{
   baselineMessageOrderSeq: number
   baselineCreatedAt: number
 } | null>(null)
+const assistantRenderKeyByMessageId = ref<Record<string, string>>({})
 let pendingAssistantPlaceholderSeq = 0
 // Track whether user is near the bottom; if they scroll up, stop auto-following
 const isNearBottom = ref(true)
@@ -404,6 +402,7 @@ const displayMessageCache = new Map<
     modelId: string
     providerId: string
     status: DisplayMessage['status']
+    renderKey?: string
     message: DisplayMessage
   }
 >()
@@ -427,6 +426,10 @@ let userScrollAwayIntentUntil = 0
 let cancelSessionRestoreTask: (() => void) | null = null
 let cancelSessionRestoreScrollIntentListeners: (() => void) | null = null
 let cancelPlanUpdatedListener: (() => void) | null = null
+// The immediate session watcher can call clearMessageWindowMeasurements before
+// messageWindow exists; keep this no-op forward reference and rebind it to
+// messageWindow.clearMeasurements after useMessageWindow is created below.
+let clearMessageWindowMeasurements = () => {}
 let sessionRestoreRequestId = 0
 let planFloatResizeObserver: ResizeObserver | null = null
 let sessionRestoreResizeObserver: ResizeObserver | null = null
@@ -943,10 +946,12 @@ watch(
     pendingAssistantPlaceholder.value = null
     clearChatSearchState()
     displayMessageCache.clear()
+    assistantRenderKeyByMessageId.value = {}
     sessionRestoreRequestId += 1
     cancelSessionRestoreTask?.()
     cancelSessionRestoreTask = null
     cancelSessionRestoreScrollSettle()
+    clearMessageWindowMeasurements()
     messageStore.clear()
     pendingInputStore.clear()
     if (id) {
@@ -1016,7 +1021,8 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     cached.metadata === record.metadata &&
     cached.modelId === modelId &&
     cached.providerId === providerId &&
-    cached.status === record.status
+    cached.status === record.status &&
+    cached.renderKey === assistantRenderKeyByMessageId.value[record.id]
   ) {
     return cached.message
   }
@@ -1042,10 +1048,12 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
   } as const
 
+  const streamingRenderKey = assistantRenderKeyByMessageId.value[record.id]
   const nextMessage =
     record.role === 'assistant'
       ? ({
           ...baseMessage,
+          ...(streamingRenderKey ? { renderKey: streamingRenderKey } : {}),
           role: 'assistant',
           content: messageStore.getAssistantMessageBlocks(record)
         } as DisplayMessage)
@@ -1062,6 +1070,7 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
     modelId,
     providerId,
     status: record.status,
+    renderKey: streamingRenderKey,
     message: nextMessage
   })
 
@@ -1104,6 +1113,9 @@ const hasInlineStreamingTarget = computed(() => {
   if (!messageId) return false
   return messageStore.messageCache.has(messageId)
 })
+const hasFirstStreamingContent = computed(
+  () => messageStore.streamingBlocks.length > 0 && hasInlineStreamingTarget.value
+)
 
 const ephemeralRateLimitMessageId = computed(() => {
   const messageId = messageStore.currentStreamMessageId
@@ -1152,17 +1164,17 @@ const shouldShowPendingAssistantPlaceholder = computed(() => {
   return Boolean(
     pending &&
     pending.sessionId === props.sessionId &&
-    !messageStore.isStreaming &&
-    !hasInlineStreamingTarget.value &&
+    !hasFirstStreamingContent.value &&
     !hasNewAssistantMessageAfterPendingPlaceholder.value &&
     !ephemeralRateLimitBlock.value
   )
 })
 
 watch(
-  () => messageStore.isStreaming || hasNewAssistantMessageAfterPendingPlaceholder.value,
+  () => hasFirstStreamingContent.value || hasNewAssistantMessageAfterPendingPlaceholder.value,
   (shouldClearPendingAssistant) => {
     if (shouldClearPendingAssistant) {
+      bindPendingAssistantRenderKey()
       pendingAssistantPlaceholder.value = null
     }
   }
@@ -1236,6 +1248,29 @@ function clearPendingAssistantPlaceholder(id?: string): void {
   }
 }
 
+function bindPendingAssistantRenderKey(): void {
+  const pending = pendingAssistantPlaceholder.value
+  const streamMessageId = messageStore.currentStreamMessageId
+  if (
+    !pending ||
+    pending.sessionId !== props.sessionId ||
+    !streamMessageId ||
+    !hasInlineStreamingTarget.value ||
+    assistantRenderKeyByMessageId.value[streamMessageId] === pending.id
+  ) {
+    return
+  }
+  assistantRenderKeyByMessageId.value = {
+    ...assistantRenderKeyByMessageId.value,
+    [streamMessageId]: pending.id
+  }
+}
+
+watch(
+  () => [messageStore.currentStreamMessageId, hasInlineStreamingTarget.value] as const,
+  bindPendingAssistantRenderKey
+)
+
 const displayMessages = computed(() => {
   const msgs: DisplayMessage[] = []
   const activeMessageIds = new Set<string>()
@@ -1274,6 +1309,7 @@ const displayMessages = computed(() => {
 const messageWindow = useMessageWindow({
   messages: displayMessages
 })
+clearMessageWindowMeasurements = messageWindow.clearMeasurements
 
 const findFirstEntryWithBottomAtOrAfter = (
   entries: Array<{ bottom: number }>,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IConfigPresenter, LLM_PROVIDER } from '../../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../../src/main/presenter/llmProviderPresenter/providerRegistry'
@@ -7,6 +7,8 @@ const { mockGetProvider, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
   mockGetProvider: vi.fn(),
   mockRunAiSdkGenerateText: vi.fn()
 }))
+
+const originalFetch = global.fetch
 
 vi.mock('electron', () => ({
   app: {
@@ -98,7 +100,12 @@ const createConfigPresenter = (): IConfigPresenter =>
 describe('basic API-key provider registrations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    global.fetch = originalFetch
     mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
   })
 
   it('resolves OpenAI-compatible providers through provider-db backed definitions', () => {
@@ -130,6 +137,26 @@ describe('basic API-key provider registrations', () => {
     }
   })
 
+  it('resolves OpenCode Go through its mixed-route provider definition', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'opencode-go',
+          name: 'OpenCode Go',
+          baseUrl: 'https://opencode.ai/zen/go/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'opencode-go',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'opencode-go',
+      embeddingStrategy: 'none',
+      checkModelId: 'kimi-k2.7-code'
+    })
+  })
+
   it('resolves MiniMax global through the Anthropic-compatible runtime', () => {
     expect(
       resolveAiSdkProviderDefinition(
@@ -149,6 +176,67 @@ describe('basic API-key provider registrations', () => {
       credentialStrategy: 'api-key',
       checkModelId: 'MiniMax-M2.1'
     })
+  })
+
+  it('maps OpenCode Go model records and marks messages models for Anthropic routing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          { id: 'kimi-k2.7-code', object: 'model', owned_by: 'opencode' },
+          { id: 'minimax-m3', object: 'model', owned_by: 'opencode' },
+          { id: 'hy3-preview', object: 'model', owned_by: 'opencode' }
+        ]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      }),
+      createConfigPresenter()
+    )
+    const models = await provider.fetchModels()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/go/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'kimi-k2.7-code',
+        group: 'Chat Completions',
+        providerId: 'opencode-go',
+        endpointType: 'openai',
+        supportedEndpointTypes: ['openai'],
+        ownedBy: 'opencode'
+      }),
+      expect.objectContaining({
+        id: 'minimax-m3',
+        group: 'Messages',
+        providerId: 'opencode-go',
+        endpointType: 'anthropic',
+        supportedEndpointTypes: ['anthropic'],
+        ownedBy: 'opencode'
+      }),
+      expect.objectContaining({
+        id: 'hy3-preview',
+        group: 'Chat Completions',
+        providerId: 'opencode-go',
+        endpointType: 'openai',
+        supportedEndpointTypes: ['openai'],
+        ownedBy: 'opencode'
+      })
+    ])
   })
 
   it('maps provider DB metadata into built-in provider models', async () => {
@@ -191,6 +279,97 @@ describe('basic API-key provider registrations', () => {
         maxTokens: 8192
       })
     ])
+  })
+
+  it('routes OpenCode Go chat completions models through OpenAI-compatible runtime', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      }),
+      createConfigPresenter()
+    )
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({
+      isOk: true,
+      errorMsg: null
+    })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'opencode-go',
+          apiType: 'openai-completions',
+          baseUrl: 'https://opencode.ai/zen/go/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'kimi-k2.7-code',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
+  it('uses Anthropic behavior for OpenCode Go messages models', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      }),
+      createConfigPresenter()
+    )
+    ;(provider as any).isInitialized = true
+
+    await provider.summaryTitles(
+      [{ role: 'user', content: 'Explain provider routing' }],
+      'minimax-m3'
+    )
+
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'anthropic'
+      }),
+      expect.any(Array),
+      'minimax-m3',
+      expect.any(Object),
+      0.3,
+      50
+    )
+  })
+
+  it('routes OpenCode Go messages models through Anthropic runtime', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      }),
+      createConfigPresenter()
+    )
+    ;(provider as any).isInitialized = true
+
+    await provider.runText([{ role: 'user', content: 'Hello' }], 'minimax-m3')
+
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'anthropic',
+        provider: expect.objectContaining({
+          id: 'opencode-go',
+          apiType: 'anthropic',
+          baseUrl: 'https://opencode.ai/zen/go/v1',
+          capabilityProviderId: 'anthropic'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'minimax-m3',
+      expect.any(Object),
+      undefined,
+      undefined
+    )
   })
 
   it('uses the configured check model for MiniMax global', async () => {

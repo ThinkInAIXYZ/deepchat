@@ -194,7 +194,17 @@ describe('MessageItemAssistant', () => {
     stubs: {
       ModelIcon: componentStub('ModelIcon'),
       MessageInfo: componentStub('MessageInfo'),
-      MessageBlockContent: componentStub('MessageBlockContent'),
+      MessageBlockContent: defineComponent({
+        name: 'MessageBlockContent',
+        props: {
+          disableMarkdownVirtualization: {
+            type: Boolean,
+            default: false
+          }
+        },
+        template:
+          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><slot /></div>'
+      }),
       MessageBlockThink: componentStub('MessageBlockThink'),
       MessageBlockToolCall: componentStub('MessageBlockToolCall'),
       MessageBlockError: componentStub('MessageBlockError'),
@@ -250,6 +260,56 @@ describe('MessageItemAssistant', () => {
     })
 
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+    expect(wrapper.find('[data-message-content="true"]').exists()).toBe(true)
+  })
+
+  it('keeps the message content wrapper stable when the first pending content arrives', async () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+    const contentWrapper = wrapper.find('[data-message-content="true"]').element
+
+    await wrapper.setProps({
+      message: createMessage('pending', [
+        {
+          type: 'content',
+          content: 'first chunk',
+          status: 'loading',
+          timestamp: 2
+        }
+      ])
+    })
+
+    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-message-content="true"]').element).toBe(contentWrapper)
+  })
+
+  it('passes markdown virtualization disable state to message content blocks', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          {
+            type: 'content',
+            content: 'visible content',
+            status: 'loading',
+            timestamp: 2
+          }
+        ]),
+        isCapturingImage: false,
+        disableMarkdownVirtualization: true
+      },
+      global
+    })
+
+    expect(
+      wrapper
+        .get('[data-testid="message-block-content"]')
+        .attributes('data-disable-markdown-virtualization')
+    ).toBe('true')
   })
 
   it('renders video blocks from legacy content urls', () => {

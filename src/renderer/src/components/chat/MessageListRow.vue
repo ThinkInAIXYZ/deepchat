@@ -38,6 +38,7 @@
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
+      :disable-markdown-virtualization="disableMarkdownVirtualization"
       @retry="onRetry"
       @delete="onDelete"
       @fork="onFork"
@@ -67,12 +68,14 @@ const props = withDefaults(
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean
+    disableMarkdownVirtualization?: boolean
   }>(),
   {
     isGenerating: false,
     showTrace: false,
     isCapturing: false,
-    isReadOnly: false
+    isReadOnly: false,
+    disableMarkdownVirtualization: false
   }
 )
 
@@ -103,7 +106,7 @@ const emitMeasuredHeight = () => {
 
   measureFrame = window.requestAnimationFrame(() => {
     measureFrame = null
-    const messageId = props.item?.id
+    const messageId = props.item?.renderKey ?? props.item?.id
     if (!messageId) return
     const height = rowRef.value?.offsetHeight ?? 0
     if (height <= 0 || Math.abs(height - lastMeasuredHeight) < 1) return
@@ -123,7 +126,7 @@ onMounted(() => {
 })
 
 watch(
-  () => props.item?.id,
+  () => props.item?.renderKey ?? props.item?.id,
   () => {
     lastMeasuredHeight = 0
     emitMeasuredHeight()

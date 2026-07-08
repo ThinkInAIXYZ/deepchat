@@ -3,6 +3,7 @@ import type { MessageListItem } from '@/components/chat/messageListItems'
 
 export type MessageLayoutEntry = {
   id: string
+  measurementKey: string
   orderSeq: number
   estimatedHeight: number
   measuredHeight?: number
@@ -20,6 +21,8 @@ const MIN_HEIGHT = 96
 const MAX_HEIGHT = 1200
 const USER_BASE = 112
 const ASSISTANT_BASE = 136
+const PENDING_ASSISTANT_PLACEHOLDER_HEIGHT = 80
+const PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX = '__pending_assistant_'
 const CHARS_PER_LINE = 72
 const LINE_H = 22
 
@@ -37,6 +40,14 @@ function estimateHeight(msg: MessageListItem): number {
       USER_BASE + Math.ceil(Math.max(textLen, richLen) / CHARS_PER_LINE) * LINE_H + files * 34
     )
   }
+  if (
+    msg.status === 'pending' &&
+    msg.id.startsWith(PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX) &&
+    msg.content.length === 0
+  ) {
+    return PENDING_ASSISTANT_PLACEHOLDER_HEIGHT
+  }
+
   let h = ASSISTANT_BASE
   for (const block of msg.content) {
     switch (block.type) {
@@ -82,11 +93,13 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const entries = computed<MessageLayoutEntry[]>(() => {
     let offset = 0
     return options.messages.value.map((msg) => {
-      const measured = measuredHeights.value[msg.id]
+      const measurementKey = msg.renderKey ?? msg.id
+      const measured = measuredHeights.value[measurementKey]
       const estimated = estimateHeight(msg)
       const height = measured ?? estimated
       const entry: MessageLayoutEntry = {
         id: msg.id,
+        measurementKey,
         orderSeq: msg.orderSeq,
         estimatedHeight: estimated,
         measuredHeight: measured,
@@ -101,7 +114,7 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const totalHeight = computed(() => entries.value[entries.value.length - 1]?.bottom ?? 0)
 
   function getEntry(messageId: string): MessageLayoutEntry | undefined {
-    return entries.value.find((e) => e.id === messageId)
+    return entries.value.find((e) => e.id === messageId || e.measurementKey === messageId)
   }
 
   function setMeasuredHeight(messageId: string, height: number): number {

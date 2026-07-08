@@ -8,12 +8,13 @@
       />
       <MessageListRow
         v-for="item in allRenderedMessages"
-        :key="item.id"
+        :key="item.renderKey ?? item.id"
         :item="item"
         :is-generating="isGenerating"
         :show-trace="traceMessageIdSet.has(item.id)"
-        :is-capturing="isCapturing"
+        :is-capturing="isCapturingValue"
         :is-read-only="isReadOnly"
+        :disable-markdown-virtualization="shouldDisableMarkdownVirtualization"
         @retry="onRetry"
         @delete="onDelete"
         @fork="onFork"
@@ -42,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, unref } from 'vue'
 import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
@@ -64,6 +65,7 @@ const props = withDefaults(
     allMessagesForCapture?: MessageListItem[]
     beforeSpacerHeight?: number
     afterSpacerHeight?: number
+    disableMarkdownVirtualization?: boolean
   }>(),
   {
     conversationId: '',
@@ -74,7 +76,8 @@ const props = withDefaults(
     isReadOnly: false,
     allMessagesForCapture: () => [],
     beforeSpacerHeight: 0,
-    afterSpacerHeight: 0
+    afterSpacerHeight: 0,
+    disableMarkdownVirtualization: false
   }
 )
 
@@ -89,11 +92,15 @@ const emit = defineEmits<{
 }>()
 
 const traceMessageIdSet = computed(() => new Set(props.traceMessageIds))
+const { isCapturing, captureMessage } = useMessageCapture()
+const isCapturingValue = computed(() => Boolean(unref(isCapturing)))
+const shouldDisableMarkdownVirtualization = computed(
+  () => props.disableMarkdownVirtualization || isCapturingValue.value
+)
 const allRenderedMessages = computed(() => props.messages)
 const captureSearchMessages = computed(() =>
   props.allMessagesForCapture.length > 0 ? props.allMessagesForCapture : props.messages
 )
-const { isCapturing, captureMessage } = useMessageCapture()
 
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)

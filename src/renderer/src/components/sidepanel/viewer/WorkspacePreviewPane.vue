@@ -11,6 +11,9 @@
       <div class="min-h-full px-4 py-4">
         <MarkdownRenderer
           :content="resolvedContent"
+          :final="true"
+          :smooth-streaming="false"
+          :virtualize-nodes="false"
           :message-id="previewSourceId"
           :thread-id="props.sessionId"
           :link-context="markdownLinkContext"

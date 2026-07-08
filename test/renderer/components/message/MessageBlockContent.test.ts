@@ -52,6 +52,10 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
         type: String,
         default: ''
       },
+      mode: {
+        type: String,
+        default: undefined
+      },
       messageId: {
         type: String,
         default: undefined
@@ -64,13 +68,25 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
         type: Boolean,
         default: false
       },
+      streaming: {
+        type: Boolean,
+        default: false
+      },
+      final: {
+        type: Boolean,
+        default: true
+      },
+      virtualizeNodes: {
+        type: Boolean,
+        default: true
+      },
       linkContext: {
         type: Object as () => MarkdownLinkContext | undefined,
         default: undefined
       }
     },
     template:
-      '<div class="markdown-stub" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)">{{ content }}</div>'
+      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)">{{ content }}</div>'
   })
 }))
 
@@ -168,12 +184,13 @@ describe('MessageBlockContent', () => {
     const markdown = wrapper.get('.markdown-stub')
     expect(markdown.attributes('data-message-id')).toBe('m3')
     expect(markdown.attributes('data-thread-id')).toBe('s3')
+    expect(markdown.attributes('data-mode')).toBe('chat')
     expect(markdown.attributes('data-link-source')).toBe('chat')
     expect(markdown.attributes('data-link-session-id')).toBe('s3')
     expect(markdown.text()).toContain('plain markdown content')
   })
 
-  it('disables smooth streaming for completed content blocks', async () => {
+  it('marks completed content blocks as final static markdown', async () => {
     const wrapper = mount(MessageBlockContent, {
       props: {
         block: createBlock({
@@ -187,7 +204,11 @@ describe('MessageBlockContent', () => {
 
     await flushPromises()
 
-    expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('false')
+    const markdown = wrapper.get('.markdown-stub')
+    expect(markdown.attributes('data-smooth-streaming')).toBe('false')
+    expect(markdown.attributes('data-streaming')).toBe('false')
+    expect(markdown.attributes('data-final')).toBe('true')
+    expect(markdown.attributes('data-virtualize-nodes')).toBe('true')
   })
 
   it.each(['pending', 'loading'] as const)(
@@ -206,7 +227,47 @@ describe('MessageBlockContent', () => {
 
       await flushPromises()
 
-      expect(wrapper.get('.markdown-stub').attributes('data-smooth-streaming')).toBe('true')
+      const markdown = wrapper.get('.markdown-stub')
+      expect(markdown.attributes('data-smooth-streaming')).toBe('true')
+      expect(markdown.attributes('data-streaming')).toBe('true')
+      expect(markdown.attributes('data-final')).toBe('false')
+      expect(markdown.attributes('data-virtualize-nodes')).toBe('false')
     }
   )
+
+  it('keeps all nodes mounted for searchable result messages', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'success',
+          content: 'searchable markdown content'
+        }),
+        messageId: 'm6',
+        threadId: 's6',
+        isSearchResult: true
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-virtualize-nodes')).toBe('false')
+  })
+
+  it('keeps all nodes mounted when chat search disables markdown virtualization', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'success',
+          content: 'plain markdown content'
+        }),
+        messageId: 'm7',
+        threadId: 's7',
+        disableMarkdownVirtualization: true
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-virtualize-nodes')).toBe('false')
+  })
 })

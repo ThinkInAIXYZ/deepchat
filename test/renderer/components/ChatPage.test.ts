@@ -340,10 +340,14 @@ const setup = async (options: SetupOptions = {}) => {
         afterSpacerHeight: {
           type: Number,
           default: 0
+        },
+        disableMarkdownVirtualization: {
+          type: Boolean,
+          default: false
         }
       },
       template:
-        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))"><div v-for="message in messages" :key="message.id" class="message-item-stub" :data-message-id="message.id" /></div>'
+        '<div class="message-list-stub" :data-read-only="String(isReadOnly)" :data-has-rate-limit="String(Boolean(ephemeralRateLimitBlock))" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><div v-for="message in messages" :key="message.renderKey ?? message.id" class="message-item-stub" :data-message-id="message.id" :data-render-key="message.renderKey ?? message.id" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputBox.vue', () => ({
@@ -955,9 +959,42 @@ describe('ChatPage', () => {
     await flushPromises()
 
     const streamingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
-    expect(streamingMessages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(
-      false
+    const pendingAssistant = streamingMessages.find((message) =>
+      message.id.startsWith('__pending_assistant_')
     )
+    expect(pendingAssistant).toBeDefined()
+
+    const firstChunkMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'first chunk',
+          status: 'loading',
+          timestamp: 2
+        }
+      ]),
+      id: 'assistant-stream-1',
+      orderSeq: 2,
+      status: 'pending' as const
+    }
+    messageStore.currentStreamMessageId = firstChunkMessage.id
+    messageStore.streamingBlocks = JSON.parse(firstChunkMessage.content)
+    messageStore.messages.push(firstChunkMessage)
+    messageStore.messageIds.push(firstChunkMessage.id)
+    messageStore.messageCache.set(firstChunkMessage.id, firstChunkMessage)
+    await flushPromises()
+
+    const firstChunkMessages = messageList.props('messages') as Array<{
+      id: string
+      renderKey?: string
+    }>
+    const firstChunkAssistant = firstChunkMessages.find(
+      (message) => message.id === firstChunkMessage.id
+    )
+    expect(
+      firstChunkMessages.some((message) => message.id.startsWith('__pending_assistant_'))
+    ).toBe(false)
+    expect(firstChunkAssistant?.renderKey).toBe(pendingAssistant?.id)
 
     deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
     await flushPromises()
@@ -1917,10 +1954,16 @@ describe('ChatPage', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }))
     await flushPromises()
     expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(true)
+    expect(
+      wrapper.find('.message-list-stub').attributes('data-disable-markdown-virtualization')
+    ).toBe('true')
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(wrapper.find('.chat-search-bar-stub').exists()).toBe(false)
+    expect(
+      wrapper.find('.message-list-stub').attributes('data-disable-markdown-virtualization')
+    ).toBe('false')
   })
 
   it('renders subagent sessions as read-only display mode', async () => {

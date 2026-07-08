@@ -29,14 +29,14 @@
 
         <div class="flex flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
-          <Spinner
-            v-if="
-              currentContent.length === 0 &&
-              (currentMessage?.status ?? message.status) === 'pending'
-            "
-            class="size-3 text-muted-foreground"
-          />
-          <div v-else class="flex flex-col w-full gap-1.5" data-message-content="true">
+          <div class="flex flex-col w-full gap-1.5" data-message-content="true">
+            <Spinner
+              v-if="
+                currentContent.length === 0 &&
+                (currentMessage?.status ?? message.status) === 'pending'
+              "
+              class="size-3 text-muted-foreground"
+            />
             <template v-for="item in currentRenderItems" :key="item.key">
               <MessageBlockActivityGroup
                 v-if="item.kind === 'activity-group'"
@@ -55,6 +55,7 @@
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
+                :disable-markdown-virtualization="disableMarkdownVirtualization"
               />
               <MessageBlockThink
                 v-else-if="
@@ -248,6 +249,7 @@ const props = defineProps<{
   isInGeneratingThread?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
+  disableMarkdownVirtualization?: boolean
 }>()
 
 const themeStore = useThemeStore()

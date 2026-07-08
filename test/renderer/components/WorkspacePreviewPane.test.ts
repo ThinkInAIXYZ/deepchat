@@ -130,13 +130,25 @@ describe('WorkspacePreviewPane', () => {
                 type: String,
                 default: undefined
               },
+              final: {
+                type: Boolean,
+                default: undefined
+              },
+              smoothStreaming: {
+                type: Boolean,
+                default: true
+              },
+              virtualizeNodes: {
+                type: Boolean,
+                default: true
+              },
               linkContext: {
                 type: Object as () => MarkdownLinkContext | undefined,
                 default: undefined
               }
             },
             template:
-              '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-source-file-path="linkContext?.sourceFilePath">{{ content }}</div>'
+              '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId" :data-final="String(final)" :data-smooth-streaming="String(smoothStreaming)" :data-virtualize-nodes="String(virtualizeNodes)" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-source-file-path="linkContext?.sourceFilePath">{{ content }}</div>'
           }),
           HTMLArtifact: true,
           SvgArtifact: true,
@@ -158,6 +170,13 @@ describe('WorkspacePreviewPane', () => {
     expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-thread-id')).toBe(
       'session-1'
     )
+    expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-final')).toBe('true')
+    expect(
+      wrapper.get('[data-testid="markdown-renderer"]').attributes('data-smooth-streaming')
+    ).toBe('false')
+    expect(
+      wrapper.get('[data-testid="markdown-renderer"]').attributes('data-virtualize-nodes')
+    ).toBe('false')
     expect(wrapper.get('[data-testid="markdown-renderer"]').attributes('data-link-source')).toBe(
       'workspace'
     )

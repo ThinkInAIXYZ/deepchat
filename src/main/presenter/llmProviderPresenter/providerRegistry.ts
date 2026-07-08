@@ -12,6 +12,7 @@ export type AiSdkBehaviorPreset =
 export type AiSdkModelSourceStrategy =
   | 'openai'
   | 'openai-codex'
+  | 'opencode-go'
   | 'kimi-for-coding'
   | 'github'
   | 'together'
@@ -41,7 +42,7 @@ export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
 export type AiSdkCredentialStrategy = 'none' | 'api-key' | 'anthropic' | 'vertex' | 'bedrock'
 
-export type AiSdkRouteStrategy = 'none' | 'grok' | 'new-api' | 'zenmux'
+export type AiSdkRouteStrategy = 'none' | 'grok' | 'new-api' | 'opencode-go' | 'zenmux'
 
 export type AiSdkEmbeddingStrategy = 'none' | 'openai' | 'google' | 'new-api' | 'zenmux'
 
@@ -415,6 +416,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...TITLE_SUMMARY_OPENAI,
       modelSource: 'provider-db',
       providerDbGroup: 'o3fan'
+    })
+  ],
+  [
+    'opencode-go',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'opencode-go',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'opencode-go',
+      embeddingStrategy: 'none',
+      checkModelId: 'kimi-k2.7-code',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [

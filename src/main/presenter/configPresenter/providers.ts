@@ -323,6 +323,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    enable: false,
+    websites: {
+      official: 'https://opencode.ai/auth',
+      apiKey: 'https://opencode.ai/auth',
+      docs: 'https://opencode.ai/docs/zh-cn/go/',
+      models: 'https://opencode.ai/zen/go/v1/models',
+      defaultBaseUrl: 'https://opencode.ai/zen/go/v1'
+    }
+  },
+  {
     id: 'poe',
     name: 'Poe',
     apiType: 'poe',
