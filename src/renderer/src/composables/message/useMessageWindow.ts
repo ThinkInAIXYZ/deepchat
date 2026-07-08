@@ -20,6 +20,8 @@ const MIN_HEIGHT = 96
 const MAX_HEIGHT = 1200
 const USER_BASE = 112
 const ASSISTANT_BASE = 136
+const PENDING_ASSISTANT_PLACEHOLDER_HEIGHT = 80
+const PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX = '__pending_assistant_'
 const CHARS_PER_LINE = 72
 const LINE_H = 22
 
@@ -37,6 +39,14 @@ function estimateHeight(msg: MessageListItem): number {
       USER_BASE + Math.ceil(Math.max(textLen, richLen) / CHARS_PER_LINE) * LINE_H + files * 34
     )
   }
+  if (
+    msg.status === 'pending' &&
+    msg.id.startsWith(PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX) &&
+    msg.content.length === 0
+  ) {
+    return PENDING_ASSISTANT_PLACEHOLDER_HEIGHT
+  }
+
   let h = ASSISTANT_BASE
   for (const block of msg.content) {
     switch (block.type) {
