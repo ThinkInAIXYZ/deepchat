@@ -51,7 +51,8 @@ import {
   memoryRestoreRoute,
   memoryRollbackPersonaRoute,
   memorySearchRoute,
-  memorySetPersonaAnchorRoute
+  memorySetPersonaAnchorRoute,
+  memoryUpdateRoute
 } from './routes/memory.routes'
 import {
   configAddCustomPromptRoute,
@@ -871,6 +872,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryListRoute.name]: memoryListRoute,
   [memorySearchRoute.name]: memorySearchRoute,
   [memoryAddRoute.name]: memoryAddRoute,
+  [memoryUpdateRoute.name]: memoryUpdateRoute,
   [memoryGetByIdsRoute.name]: memoryGetByIdsRoute,
   [memoryGetStatusRoute.name]: memoryGetStatusRoute,
   [memoryGetHealthRoute.name]: memoryGetHealthRoute,

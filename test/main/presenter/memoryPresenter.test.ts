@@ -3690,7 +3690,12 @@ describe('MemoryPresenter agentId safety guards', () => {
     expect(presenter.getStatus('ghost')).toEqual({
       total: 0,
       pendingEmbedding: 0,
-      hasPersona: false
+      hasPersona: false,
+      activeMemoryCount: 0,
+      archivedMemoryCount: 0,
+      conflictCount: 0,
+      personaDraftCount: 0,
+      personaVersionCount: 0
     })
     expect(presenter.getHealth('ghost')).toEqual(createEmptyMemoryHealth())
     expect(await presenter.clearMemories('ghost')).toBe(0)

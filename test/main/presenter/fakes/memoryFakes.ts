@@ -387,6 +387,23 @@ export class FakeRepository implements MemoryRepositoryPort {
     }
   }
 
+  updateUserMetadata(
+    id: string,
+    patch: {
+      category?: string | null
+      importance?: number
+    }
+  ) {
+    const row = this.rows.get(id)
+    if (!row) return
+    if (Object.prototype.hasOwnProperty.call(patch, 'category')) {
+      row.category = patch.category ?? null
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'importance')) {
+      row.importance = patch.importance ?? row.importance
+    }
+  }
+
   setConfidence(id: string, confidence: number) {
     const row = this.rows.get(id)
     if (row)
@@ -591,13 +608,50 @@ export class FakeRepository implements MemoryRepositoryPort {
     const rows = [...this.rows.values()].filter(
       (row) =>
         row.agent_id === agentId &&
-        row.status !== 'archived' &&
         row.status !== 'conflicted' &&
+        row.superseded_by === null &&
+        row.kind !== 'persona' &&
         row.kind !== 'working'
     )
+    const activeMemoryCount = rows.filter((row) => row.status !== 'archived').length
+    const archivedMemoryCount = rows.filter((row) => row.status === 'archived').length
     return {
-      total: rows.length,
-      pendingEmbedding: rows.filter((row) => row.status === 'pending_embedding').length
+      total: activeMemoryCount,
+      pendingEmbedding: rows.filter((row) => row.status === 'pending_embedding').length,
+      activeMemoryCount,
+      archivedMemoryCount
+    }
+  }
+
+  // Mirrors AgentMemoryTable.countConflictPairs / ConflictService.listConflicts's pair-validity
+  // predicate: keep all three in sync.
+  countConflictPairs(agentId: string): number {
+    return [...this.rows.values()].filter((challenger) => {
+      if (
+        challenger.agent_id !== agentId ||
+        challenger.status !== 'conflicted' ||
+        challenger.superseded_by !== null ||
+        !challenger.conflict_with
+      ) {
+        return false
+      }
+      const target = this.rows.get(challenger.conflict_with)
+      return (
+        !!target &&
+        target.agent_id === agentId &&
+        target.conflict_state === 'challenged' &&
+        target.superseded_by === null
+      )
+    }).length
+  }
+
+  getPersonaCounts(agentId: string): { total: number; draft: number } {
+    const versions = this.listPersonaVersions(agentId)
+    return {
+      total: versions.filter(
+        (row) => row.persona_state !== 'draft' && row.persona_state !== 'rejected'
+      ).length,
+      draft: versions.filter((row) => row.persona_state === 'draft').length
     }
   }
 
@@ -959,7 +1013,10 @@ export const enabledConfig: DeepChatAgentConfig = {
 export function makePresenter(
   config: DeepChatAgentConfig | null,
   repo = new FakeRepository(),
-  options: { isManagedAgent?: (agentId: string) => boolean } = {}
+  options: {
+    isManagedAgent?: (agentId: string) => boolean
+    onMemoryChanged?: MemoryPresenterDeps['onMemoryChanged']
+  } = {}
 ) {
   const store = new FakeVectorStore()
   const auditRepo = new FakeAuditRepository()
@@ -978,6 +1035,7 @@ export function makePresenter(
     auditRepository: auditRepo,
     resolveAgentConfig: () => config,
     isManagedAgent: options.isManagedAgent,
+    onMemoryChanged: options.onMemoryChanged,
     getEmbeddings,
     getDimensions,
     generateText: vi.fn(async () => ''),

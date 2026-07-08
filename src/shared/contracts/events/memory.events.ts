@@ -12,6 +12,7 @@ export const MemoryUpdateReasonSchema = z.enum([
   'persona-approve',
   'persona-reject',
   'persona-rollback',
+  'manual-edit',
   'reindex'
 ])
 

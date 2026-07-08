@@ -105,6 +105,13 @@ export interface MemoryRepositoryPort {
     at?: number,
     category?: string | null
   ): void
+  updateUserMetadata(
+    id: string,
+    patch: {
+      category?: string | null
+      importance?: number
+    }
+  ): void
   setConfidence(id: string, confidence: number): void
   setImportance(id: string, importance: number): void
   markConflict(id: string, state: AgentMemoryConflictState | null): void
@@ -127,7 +134,16 @@ export interface MemoryRepositoryPort {
   delete(id: string): void
   clearByAgent(agentId: string): number
   countByAgent(agentId: string): number
-  countStatusView(agentId: string): { total: number; pendingEmbedding: number }
+  countStatusView(agentId: string): {
+    total: number
+    pendingEmbedding: number
+    activeMemoryCount: number
+    archivedMemoryCount: number
+  }
+  // Counts valid conflict pairs (challenger + its target); must mirror the pair-validity predicate
+  // in ConflictService.listConflicts exactly, or the two will silently drift.
+  countConflictPairs(agentId: string): number
+  getPersonaCounts(agentId: string): { total: number; draft: number }
   hasActiveMemory(agentId: string): boolean
   runInTransaction<T>(fn: () => T): T
   listWorkingCandidates(
@@ -341,6 +357,11 @@ export interface MemoryStatus {
   total: number
   pendingEmbedding: number
   hasPersona: boolean
+  activeMemoryCount: number
+  archivedMemoryCount: number
+  conflictCount: number
+  personaDraftCount: number
+  personaVersionCount: number
   // True while the agent's vectors are being rebuilt after an embedding model/dimension change.
   reindexing?: boolean
 }
@@ -390,6 +411,7 @@ export type MemoryUpdateReason =
   | 'persona-approve'
   | 'persona-reject'
   | 'persona-rollback'
+  | 'manual-edit'
   | 'reindex'
 
 export interface MemoryUpdateContext {

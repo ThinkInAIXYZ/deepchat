@@ -22,7 +22,8 @@ import type {
 import type {
   MemoryArchiveCandidateLifecyclePreview,
   MemoryHealthDto,
-  MemoryLifecycle
+  MemoryLifecycle,
+  MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import type {
   MemoryExtractionInput,
@@ -151,7 +152,7 @@ export class MemoryPresenter implements MemoryRuntimePort {
       scheduleConsolidation: (agentId) => this.maintenance.scheduleConsolidation(agentId)
     })
 
-    this.management = new ManagementService(this.runtime, {
+    this.management = new ManagementService(this.runtime, this.rows, {
       deleteVectorsForDeletedMemory: (agentId, memoryIds, embedding) =>
         this.vectorStore.deleteVectorsForMemoryIdsOpening(agentId, memoryIds, {
           embeddingModel: embedding.embeddingModel,
@@ -286,6 +287,18 @@ export class MemoryPresenter implements MemoryRuntimePort {
     sessionId?: string | null
   ): Promise<MemoryWriteOutcome> {
     return this.writeCoordinator.addUserMemory(agentId, input, sessionId)
+  }
+
+  updateMemory(
+    agentId: string,
+    memoryId: string,
+    patch: {
+      content?: string
+      category?: string | null
+      importance?: number
+    }
+  ): MemoryUpdateResult {
+    return this.management.updateMemory(agentId, memoryId, patch)
   }
 
   async buildInjection(agentId: string, query: string): Promise<MemoryInjectionResult | null> {

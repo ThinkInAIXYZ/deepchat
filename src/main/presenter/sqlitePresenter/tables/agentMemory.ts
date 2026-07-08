@@ -1047,6 +1047,28 @@ export class AgentMemoryTable extends BaseTable {
       .run(content, provenanceKey, at, id)
   }
 
+  updateUserMetadata(
+    id: string,
+    patch: {
+      category?: string | null
+      importance?: number
+    }
+  ): void {
+    const sets: string[] = []
+    const params: unknown[] = []
+    if (Object.prototype.hasOwnProperty.call(patch, 'category')) {
+      sets.push('category = ?')
+      params.push(patch.category ?? null)
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'importance')) {
+      sets.push('importance = ?')
+      params.push(patch.importance)
+    }
+    if (!sets.length) return
+    params.push(id)
+    this.db.prepare(`UPDATE agent_memory SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+  }
+
   // Confidence only ever rises: NULL seeds the first value, otherwise keep the larger.
   setConfidence(id: string, confidence: number): void {
     this.db
@@ -1327,22 +1349,75 @@ export class AgentMemoryTable extends BaseTable {
     return row?.count ?? 0
   }
 
-  countStatusView(agentId: string): { total: number; pendingEmbedding: number } {
+  countStatusView(agentId: string): {
+    total: number
+    pendingEmbedding: number
+    activeMemoryCount: number
+    archivedMemoryCount: number
+  } {
     const row = this.db
       .prepare(
-        `SELECT COUNT(*) AS total,
+        `SELECT
+                SUM(CASE WHEN status != 'archived' THEN 1 ELSE 0 END) AS activeMemoryCount,
+                SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archivedMemoryCount,
                 SUM(CASE WHEN status = 'pending_embedding' THEN 1 ELSE 0 END) AS pendingEmbedding
          FROM agent_memory
          WHERE agent_id = ?
-           AND status != 'archived'
            AND status != 'conflicted'
-           AND kind != 'working'`
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')`
       )
-      .get(agentId) as { total: number; pendingEmbedding: number | null } | undefined
+      .get(agentId) as
+      | {
+          activeMemoryCount: number | null
+          archivedMemoryCount: number | null
+          pendingEmbedding: number | null
+        }
+      | undefined
+    const activeMemoryCount = row?.activeMemoryCount ?? 0
+    const archivedMemoryCount = row?.archivedMemoryCount ?? 0
     return {
-      total: row?.total ?? 0,
-      pendingEmbedding: row?.pendingEmbedding ?? 0
+      total: activeMemoryCount,
+      pendingEmbedding: row?.pendingEmbedding ?? 0,
+      activeMemoryCount,
+      archivedMemoryCount
     }
+  }
+
+  // Mirrors the pair-validity predicate in ConflictService.listConflicts exactly (challenger is a
+  // live 'conflicted' row; its conflict_with target belongs to the same agent, is still
+  // 'challenged', and hasn't itself been superseded). Keep both in sync.
+  countConflictPairs(agentId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM agent_memory challenger
+         JOIN agent_memory target ON target.id = challenger.conflict_with
+         WHERE challenger.agent_id = ?
+           AND challenger.status = 'conflicted'
+           AND challenger.superseded_by IS NULL
+           AND target.agent_id = challenger.agent_id
+           AND target.conflict_state = 'challenged'
+           AND target.superseded_by IS NULL`
+      )
+      .get(agentId) as { count: number } | undefined
+    return row?.count ?? 0
+  }
+
+  getPersonaCounts(agentId: string): { total: number; draft: number } {
+    const row = this.db
+      .prepare(
+        `SELECT
+           SUM(CASE
+             WHEN persona_state IS NULL OR persona_state IN ('active', 'superseded') THEN 1
+             ELSE 0
+           END) AS total,
+           SUM(CASE WHEN persona_state = 'draft' THEN 1 ELSE 0 END) AS draft
+         FROM agent_memory
+         WHERE agent_id = ? AND kind = 'persona'`
+      )
+      .get(agentId) as { total: number | null; draft: number | null } | undefined
+    return { total: row?.total ?? 0, draft: row?.draft ?? 0 }
   }
 
   runInTransaction<T>(fn: () => T): T {

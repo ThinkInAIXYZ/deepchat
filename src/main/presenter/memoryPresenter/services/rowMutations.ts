@@ -24,7 +24,16 @@ export type ProvenanceHitResult =
 export type ContentUpdateResult =
   | { action: 'updated'; id: string }
   | { action: 'folded'; id: string }
+  | { action: 'superseded'; id: string; supersededId: string; created?: boolean }
   | { action: 'suppressed'; id: string; reason: string }
+
+// Which metadata fields the caller's edit patch actually touched, so a fold only overwrites the
+// surviving owner's fields the user explicitly set rather than whatever the edited row happened
+// to carry (e.g. its own untouched category/importance).
+export interface ManualEditFieldFlags {
+  category: boolean
+  importance: boolean
+}
 
 export class MemoryRowMutations {
   constructor(private readonly ctx: MemoryRuntimeContext) {}
@@ -156,6 +165,106 @@ export class MemoryRowMutations {
     }
     this.ctx.deps.repository.updateContent(row.id, content, newKey, now, nextCategory)
     return { action: 'updated', id: row.id }
+  }
+
+  applyManualContentEdit(
+    agentId: string,
+    row: AgentMemoryRow,
+    candidate: NormalizedMemoryCandidate,
+    content: string,
+    now: number,
+    options: WriteMemoriesOptions,
+    providedFields: ManualEditFieldFlags
+  ): ContentUpdateResult {
+    const newKey = buildMemoryProvenanceKey(agentId, row.kind, content)
+    const nextCategory = canCarryCategory(row.kind) ? candidate.category : undefined
+
+    if (newKey !== row.provenance_key) {
+      const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
+      if (owner && owner.id !== row.id) {
+        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
+      }
+    }
+
+    if (newKey === row.provenance_key) {
+      this.ctx.deps.repository.runInTransaction(() => {
+        this.ctx.deps.repository.updateContent(row.id, content, newKey, now, nextCategory)
+        this.ctx.deps.repository.updateUserMetadata(row.id, {
+          category: candidate.category,
+          importance: candidate.importance
+        })
+        this.ctx.deps.repository.updateStatus(row.id, 'pending_embedding')
+      })
+      return { action: 'updated', id: row.id }
+    }
+
+    let newId: string | null = null
+    this.ctx.deps.repository.runInTransaction(() => {
+      newId = this.insertMemory(agentId, candidate, content, newKey, options)
+      if (newId) this.ctx.deps.repository.markSuperseded(row.id, newId)
+    })
+
+    if (!newId) {
+      const owner = this.ctx.deps.repository.getByProvenanceKey(agentId, newKey)
+      if (owner && owner.id !== row.id) {
+        return this.resolveManualEditFold(agentId, row, owner, candidate, providedFields)
+      }
+      return { action: 'suppressed', id: row.id, reason: 'insert-skipped' }
+    }
+
+    return { action: 'superseded', id: newId, supersededId: row.id, created: true }
+  }
+
+  // Shared by the primary provenance-hit branch and the UNIQUE-constraint recovery branch above so
+  // both resolve a manual edit into an existing owner with identical semantics: refuse conflict
+  // participants outright (M1), and only overwrite metadata fields the caller's patch actually
+  // provided (M3) rather than whatever the edited row's fully-resolved candidate happens to carry.
+  private resolveManualEditFold(
+    agentId: string,
+    row: AgentMemoryRow,
+    owner: AgentMemoryRow,
+    candidate: NormalizedMemoryCandidate,
+    providedFields: ManualEditFieldFlags
+  ): ContentUpdateResult {
+    if (owner.status === 'conflicted' || owner.conflict_state === 'challenged') {
+      return { action: 'suppressed', id: owner.id, reason: 'conflict' }
+    }
+
+    const hit = this.handleProvenanceHit(agentId, owner, { allowDecisionForSuperseded: true })
+    if (hit.action === 'noop' && hit.reason !== 'duplicate') {
+      return { action: 'suppressed', id: owner.id, reason: hit.reason }
+    }
+
+    const isRetiredOwner = owner.status === 'archived' || owner.superseded_by !== null
+    const action: 'folded' | 'superseded' = isRetiredOwner ? 'superseded' : 'folded'
+
+    this.ctx.deps.repository.runInTransaction(() => {
+      if (hit.action === 'absorbed') {
+        this.ctx.deps.repository.updateStatus(owner.id, 'pending_embedding')
+      }
+      if (hit.action === 'continue') {
+        this.reviveSupersededAfterDecision(agentId, owner)
+      }
+      const metadataPatch: { category?: string | null; importance?: number } = {}
+      if (
+        providedFields.category &&
+        canCarryCategory(owner.kind) &&
+        owner.category !== candidate.category
+      ) {
+        metadataPatch.category = candidate.category
+      }
+      if (providedFields.importance && owner.importance !== candidate.importance) {
+        metadataPatch.importance = candidate.importance
+      }
+      if (Object.keys(metadataPatch).length > 0) {
+        this.ctx.deps.repository.updateUserMetadata(owner.id, metadataPatch)
+      }
+      this.ctx.deps.repository.markSuperseded(row.id, owner.id)
+    })
+
+    return action === 'folded'
+      ? { action: 'folded', id: owner.id }
+      : { action: 'superseded', id: owner.id, supersededId: row.id, created: false }
   }
 
   supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {

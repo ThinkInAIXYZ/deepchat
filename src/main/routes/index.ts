@@ -111,6 +111,7 @@ import {
   memoryRollbackPersonaRoute,
   memorySearchRoute,
   memorySetPersonaAnchorRoute,
+  memoryUpdateRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   deviceGetAppVersionRoute,
@@ -2370,6 +2371,20 @@ export async function dispatchDeepchatRoute(
         input.sessionId
       )
       return memoryAddRoute.output.parse({ result: toMemoryAddResultDto(outcome) })
+    }
+
+    case memoryUpdateRoute.name: {
+      const input = memoryUpdateRoute.input.parse(rawInput)
+      const agentType = await runtime.configPresenter.getAgentType(input.agentId)
+      if (agentType !== 'deepchat') {
+        return memoryUpdateRoute.output.parse({ result: { action: 'noop' } })
+      }
+      const result = runtime.memoryPresenter.updateMemory(
+        input.agentId,
+        input.memoryId,
+        input.patch
+      )
+      return memoryUpdateRoute.output.parse({ result })
     }
 
     case memoryGetByIdsRoute.name: {

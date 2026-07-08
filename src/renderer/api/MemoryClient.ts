@@ -24,6 +24,7 @@ import {
   memoryRollbackPersonaRoute,
   memorySearchRoute,
   memorySetPersonaAnchorRoute,
+  memoryUpdateRoute,
   type MemoryAddResult,
   type MemoryArchiveCandidateLifecyclePreview,
   type MemoryConflictItem,
@@ -34,6 +35,7 @@ import {
   type MemorySearchResult,
   type MemorySourceSpan,
   type MemoryStatusDto,
+  type MemoryUpdateResult,
   type MemoryViewManifest
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
@@ -64,6 +66,11 @@ type MemoryAddPayload = {
   category?: AgentMemoryCategory
   importance?: number
   sessionId?: string
+}
+type MemoryUpdateInput = {
+  content?: string
+  category?: AgentMemoryCategory | null
+  importance?: number
 }
 
 export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -123,6 +130,15 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     }
 
     const result = await bridge.invoke(memoryAddRoute.name, payload)
+    return result.result
+  }
+
+  async function update(
+    agentId: string,
+    memoryId: string,
+    patch: MemoryUpdateInput
+  ): Promise<MemoryUpdateResult> {
+    const result = await bridge.invoke(memoryUpdateRoute.name, { agentId, memoryId, patch })
     return result.result
   }
 
@@ -257,6 +273,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     getArchiveCandidateLifecyclePreview,
     search,
     add,
+    update,
     getByIds,
     listAuditEvents,
     listViewManifests,

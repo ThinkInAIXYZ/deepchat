@@ -9,10 +9,12 @@ import {
   memoryGetByIdsRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
+  memoryGetStatusRoute,
   memoryListRoute,
   memoryReindexRoute,
   memoryRestoreRoute,
-  memorySearchRoute
+  memorySearchRoute,
+  memoryUpdateRoute
 } from '@shared/contracts/routes'
 import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
 import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
@@ -452,6 +454,97 @@ describe('memory.add route contract', () => {
   })
 })
 
+describe('memory.update route contract', () => {
+  it('round-trips editable patches and rejects empty patches', () => {
+    expect(
+      memoryUpdateRoute.input.parse({
+        agentId: 'deepchat',
+        memoryId: 'm1',
+        patch: { content: 'redis on 6379', category: null, importance: 0.2 }
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      memoryId: 'm1',
+      patch: { content: 'redis on 6379', category: null, importance: 0.2 }
+    })
+    expect(
+      memoryUpdateRoute.input.safeParse({ agentId: 'deepchat', memoryId: 'm1', patch: {} }).success
+    ).toBe(false)
+    expect(
+      memoryUpdateRoute.input.safeParse({
+        agentId: 'bad/id',
+        memoryId: 'm1',
+        patch: { importance: 0.2 }
+      }).success
+    ).toBe(false)
+    expect(
+      memoryUpdateRoute.input.safeParse({
+        agentId: 'deepchat',
+        memoryId: 'm1',
+        patch: { category: 'unknown' }
+      }).success
+    ).toBe(false)
+    expect(
+      memoryUpdateRoute.input.parse({
+        agentId: 'deepchat',
+        memoryId: 'm1',
+        patch: { content: '' }
+      }).patch.content
+    ).toBe('')
+  })
+
+  it('accepts each manual edit outcome shape on output', () => {
+    expect(
+      memoryUpdateRoute.output.parse({ result: { action: 'updated', memoryId: 'm1' } }).result
+        .action
+    ).toBe('updated')
+    expect(
+      memoryUpdateRoute.output.parse({
+        result: { action: 'superseded', memoryId: 'm2', supersededId: 'm1' }
+      }).result.supersededId
+    ).toBe('m1')
+    expect(
+      memoryUpdateRoute.output.parse({
+        result: { action: 'folded', memoryId: 'm2', supersededId: 'm1' }
+      }).result.memoryId
+    ).toBe('m2')
+    expect(memoryUpdateRoute.output.parse({ result: { action: 'noop' } }).result.action).toBe(
+      'noop'
+    )
+    expect(
+      memoryUpdateRoute.output.parse({ result: { action: 'noop', reason: 'conflict' } }).result
+        .reason
+    ).toBe('conflict')
+    expect(
+      memoryUpdateRoute.output.safeParse({ result: { action: 'noop', reason: 'not-a-reason' } })
+        .success
+    ).toBe(false)
+  })
+})
+
+describe('memory.getStatus route contract', () => {
+  it('requires the extended visible-count fields', () => {
+    const status = {
+      total: 3,
+      pendingEmbedding: 1,
+      hasPersona: true,
+      activeMemoryCount: 3,
+      archivedMemoryCount: 2,
+      conflictCount: 1,
+      personaDraftCount: 1,
+      personaVersionCount: 4,
+      reindexing: false
+    }
+
+    expect(memoryGetStatusRoute.output.parse({ status }).status).toEqual(status)
+    expect(
+      memoryGetStatusRoute.output.safeParse({
+        status: { total: 3, pendingEmbedding: 1, hasPersona: true }
+      }).success
+    ).toBe(false)
+  })
+})
+
 describe('memory.getByIds route contract', () => {
   it('round-trips input and rejects oversized batches', () => {
     expect(
@@ -524,6 +617,22 @@ describe('memory.updated event contract', () => {
         createdIds: Array.from({ length: 51 }, (_, index) => `m${index}`)
       }).success
     ).toBe(false)
+  })
+
+  it('accepts manual-edit as a distinct reason from extract', () => {
+    expect(
+      memoryUpdatedEvent.payload.parse({
+        agentId: 'deepchat',
+        reason: 'manual-edit',
+        version: 1000,
+        memoryId: 'm1'
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      reason: 'manual-edit',
+      version: 1000,
+      memoryId: 'm1'
+    })
   })
 })
 

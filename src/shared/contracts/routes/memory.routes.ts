@@ -41,6 +41,8 @@ export const MemorySearchResultSchema = MemoryItemSchema.extend({
   similarity: z.number().optional()
 })
 
+const NonnegativeCountSchema = z.number().int().nonnegative()
+
 // Flattened write outcome for a user-added memory: the decision ring may create, dedupe-update,
 // supersede, challenge a conflicting row, or no-op on an exact duplicate.
 export const MemoryAddResultSchema = z.object({
@@ -51,14 +53,26 @@ export const MemoryAddResultSchema = z.object({
   reason: z.string().optional()
 })
 
+export const MemoryUpdateResultSchema = z.object({
+  action: z.enum(['updated', 'superseded', 'folded', 'noop']),
+  memoryId: z.string().optional(),
+  supersededId: z.string().optional(),
+  // Only populated on a 'noop' outcome, explaining why the edit was refused/ignored.
+  reason: z.enum(['not-editable', 'conflict', 'suppressed', 'duplicate', 'empty']).optional()
+})
+
 export const MemoryStatusSchema = z.object({
   total: z.number(),
   pendingEmbedding: z.number(),
   hasPersona: z.boolean(),
+  activeMemoryCount: NonnegativeCountSchema,
+  archivedMemoryCount: NonnegativeCountSchema,
+  conflictCount: NonnegativeCountSchema,
+  personaDraftCount: NonnegativeCountSchema,
+  personaVersionCount: NonnegativeCountSchema,
   reindexing: z.boolean().optional()
 })
 
-const NonnegativeCountSchema = z.number().int().nonnegative()
 export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200
 export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT = 25
 export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT = 200
@@ -373,6 +387,28 @@ export const memoryAddRoute = defineRouteContract({
   output: z.object({ result: MemoryAddResultSchema })
 })
 
+export const memoryUpdateRoute = defineRouteContract({
+  name: 'memory.update',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryId: z.string().min(1),
+    patch: z
+      .object({
+        content: z.string().optional(),
+        category: z.enum(AGENT_MEMORY_CATEGORIES).nullable().optional(),
+        importance: z.number().min(0).max(1).optional()
+      })
+      .refine(
+        (patch) =>
+          patch.content !== undefined ||
+          patch.category !== undefined ||
+          patch.importance !== undefined,
+        { message: 'patch must include at least one field' }
+      )
+  }),
+  output: z.object({ result: MemoryUpdateResultSchema })
+})
+
 export const memoryGetByIdsRoute = defineRouteContract({
   name: 'memory.getByIds',
   input: z.object({
@@ -509,6 +545,7 @@ export const memorySetPersonaAnchorRoute = defineRouteContract({
 export type MemoryItem = z.infer<typeof MemoryItemSchema>
 export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>
 export type MemoryAddResult = z.infer<typeof MemoryAddResultSchema>
+export type MemoryUpdateResult = z.infer<typeof MemoryUpdateResultSchema>
 export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
 export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
 export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>
