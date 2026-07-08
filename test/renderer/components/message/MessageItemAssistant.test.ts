@@ -250,6 +250,32 @@ describe('MessageItemAssistant', () => {
     })
 
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
+    expect(wrapper.find('[data-message-content="true"]').exists()).toBe(true)
+  })
+
+  it('keeps the message content wrapper stable when the first pending content arrives', async () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+    const contentWrapper = wrapper.find('[data-message-content="true"]').element
+
+    await wrapper.setProps({
+      message: createMessage('pending', [
+        {
+          type: 'content',
+          content: 'first chunk',
+          status: 'loading',
+          timestamp: 2
+        }
+      ])
+    })
+
+    expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-message-content="true"]').element).toBe(contentWrapper)
   })
 
   it('renders video blocks from legacy content urls', () => {

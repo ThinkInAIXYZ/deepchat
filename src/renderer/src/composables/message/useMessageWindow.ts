@@ -92,7 +92,8 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const entries = computed<MessageLayoutEntry[]>(() => {
     let offset = 0
     return options.messages.value.map((msg) => {
-      const measured = measuredHeights.value[msg.id]
+      const measurementKey = msg.renderKey ?? msg.id
+      const measured = measuredHeights.value[measurementKey]
       const estimated = estimateHeight(msg)
       const height = measured ?? estimated
       const entry: MessageLayoutEntry = {

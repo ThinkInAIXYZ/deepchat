@@ -59,6 +59,33 @@ const createPendingAssistantPlaceholder = (): MessageListItem => ({
   content: []
 })
 
+const createStreamingAssistant = (): MessageListItem => ({
+  id: 'assistant-real-1',
+  renderKey: '__pending_assistant_1',
+  role: 'assistant',
+  timestamp: 2,
+  updatedAt: 2,
+  avatar: '',
+  name: 'Assistant',
+  model_name: 'Assistant',
+  model_id: 'model-1',
+  model_provider: 'provider-1',
+  status: 'pending',
+  error: '',
+  usage,
+  conversationId: 'session-1',
+  is_variant: 0,
+  orderSeq: 1,
+  content: [
+    {
+      type: 'content',
+      content: 'hello',
+      status: 'loading',
+      timestamp: 2
+    }
+  ]
+})
+
 const createMessages = (count: number): MessageListItem[] =>
   Array.from({ length: count }, (_, index) => createUserMessage(`message-${index}`, index))
 
@@ -113,6 +140,19 @@ describe('useMessageWindow', () => {
 
     expect(entry?.estimatedHeight).toBe(80)
     expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(-2)
+  })
+
+  it('reuses a pending placeholder measurement through the real streaming row render key', () => {
+    const messages = ref([createPendingAssistantPlaceholder()])
+    const window = useMessageWindow({ messages })
+
+    expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(-2)
+
+    messages.value = [createStreamingAssistant()]
+
+    const entry = window.getEntry('assistant-real-1')
+    expect(entry?.measuredHeight).toBe(78)
+    expect(entry?.bottom).toBe(78)
   })
 
   it('clearMeasurements resets to estimated heights', () => {

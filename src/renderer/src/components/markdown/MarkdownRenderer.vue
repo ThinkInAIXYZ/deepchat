@@ -202,6 +202,11 @@ const updateContentSlow = useDebounceFn(
 const updateContent = (value: string) => {
   const revision = ++contentRevision
 
+  if (isStreaming.value && debouncedContent.value.length === 0 && value.length > 0) {
+    debouncedContent.value = value
+    return
+  }
+
   if (props.smoothStreaming && value.length > 12_000) {
     updateContentSlow(revision, value)
     return

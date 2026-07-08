@@ -156,6 +156,10 @@ const setup = async (props: Record<string, unknown> = {}) => {
         parseCoalesceMs: {
           type: Number,
           default: undefined
+        },
+        content: {
+          type: String,
+          default: ''
         }
       },
       setup(props) {
@@ -181,7 +185,8 @@ const setup = async (props: Record<string, unknown> = {}) => {
               'data-render-batch-delay': String(props.renderBatchDelay),
               'data-render-batch-budget-ms': String(props.renderBatchBudgetMs),
               'data-render-batch-idle-timeout-ms': String(props.renderBatchIdleTimeoutMs),
-              'data-parse-coalesce-ms': String(props.parseCoalesceMs)
+              'data-parse-coalesce-ms': String(props.parseCoalesceMs),
+              'data-content': props.content
             },
             [
               customComponents.code_block?.({
@@ -367,6 +372,23 @@ describe('MarkdownRenderer', () => {
     expect(nodeRenderer.attributes('data-render-batch-budget-ms')).toBe('3')
     expect(nodeRenderer.attributes('data-render-batch-idle-timeout-ms')).toBe('24')
     expect(nodeRenderer.attributes('data-parse-coalesce-ms')).toBe('12')
+  })
+
+  it('renders the first non-empty streaming update immediately', async () => {
+    const { wrapper } = await setup({
+      content: '',
+      streaming: true,
+      final: false,
+      smoothStreaming: true
+    })
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-content')).toBe('')
+
+    await wrapper.setProps({ content: 'first chunk' })
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-content')).toBe(
+      'first chunk'
+    )
   })
 
   it('disables smooth streaming when requested for live content', async () => {

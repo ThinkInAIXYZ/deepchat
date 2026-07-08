@@ -80,4 +80,29 @@ describe('MessageListRow', () => {
 
     expect(wrapper.emitted('measure')).toEqual([[{ messageId: 'm1', height: 114 }]])
   })
+
+  it('emits renderKey measurements when a streaming row reuses a pending placeholder node', async () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(88)
+
+    const wrapper = mount(MessageListRow, {
+      props: {
+        item: {
+          ...baseItem,
+          id: 'assistant-real-1',
+          renderKey: '__pending_assistant_1'
+        } as never
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.emitted('measure')).toEqual([
+      [{ messageId: '__pending_assistant_1', height: 88 }]
+    ])
+  })
 })
