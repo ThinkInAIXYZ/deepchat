@@ -142,6 +142,22 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   },
 
   {
+    id: 'tokenlab',
+    name: 'TokenLab',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.tokenlab.sh/v1',
+    enable: false,
+    websites: {
+      official: 'https://tokenlab.sh/',
+      apiKey: 'https://tokenlab.sh/dashboard',
+      docs: 'https://docs.tokenlab.sh/',
+      models: 'https://api.tokenlab.sh/v1/models',
+      defaultBaseUrl: 'https://api.tokenlab.sh/v1'
+    }
+  },
+
+  {
     id: 'burncloud',
     name: 'BurnCloud',
     apiType: 'openai-completions',

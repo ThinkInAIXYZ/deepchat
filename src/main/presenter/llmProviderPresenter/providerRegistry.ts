@@ -520,6 +520,18 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'tokenlab',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'gpt-5.4-mini',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'upstage',
     createDefinition({
       ...OPENAI_BASE,
