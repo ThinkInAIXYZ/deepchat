@@ -176,6 +176,7 @@ type DisplayMessageBase = {
   conversationId: string
   is_variant: number
   variants?: DisplayMessage[]
+  renderKey?: string
   orderSeq: number
   messageType?: 'normal' | 'compaction'
   compactionStatus?: 'compacting' | 'compacted'

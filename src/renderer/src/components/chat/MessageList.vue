@@ -8,7 +8,7 @@
       />
       <MessageListRow
         v-for="item in allRenderedMessages"
-        :key="item.id"
+        :key="item.renderKey ?? item.id"
         :item="item"
         :is-generating="isGenerating"
         :show-trace="traceMessageIdSet.has(item.id)"
