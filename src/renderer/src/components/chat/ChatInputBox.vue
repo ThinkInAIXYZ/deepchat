@@ -217,11 +217,27 @@ function insertFileAttachmentNode(file: MessageFile) {
     .run()
 }
 
+type InlineNodeRange = { pos: number; size: number }
+
+function deleteInlineNodes(ranges: InlineNodeRange[]) {
+  if (ranges.length === 0) return
+
+  ranges
+    .sort((a, b) => b.pos - a.pos)
+    .forEach(({ pos, size }) => {
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from: pos, to: pos + size })
+        .run()
+    })
+}
+
 /** Ensure editor SkillChip nodes mirror skillsData.activeSkills */
 function syncSkillNodes() {
   if (isSyncingNodes) return
   const active = activeSkillNames.value
-  const existing = new Map<string, { pos: number; size: number }>()
+  const existing = new Map<string, InlineNodeRange>()
 
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name === 'skillChip') {
@@ -229,33 +245,29 @@ function syncSkillNodes() {
     }
   })
 
-  // Remove chips for deactivated skills
-  let chain = editor.chain().focus()
-  for (const [name, { pos, size }] of existing) {
-    if (!active.includes(name)) {
-      chain = chain.deleteRange({ from: pos, to: pos + size })
-    }
-  }
+  deleteInlineNodes(
+    Array.from(existing.entries())
+      .filter(([name]) => !active.includes(name))
+      .map(([, range]) => range)
+  )
 
-  // Insert chips at cursor position for newly activated skills
-  const cursorPos = editor.state.selection.from
-  for (const name of active) {
-    if (!existing.has(name)) {
-      chain = chain.insertContentAt(cursorPos, {
-        type: 'skillChip',
-        attrs: { skillName: name }
-      })
-    }
-  }
+  const newSkillNodes = active
+    .filter((name) => !existing.has(name))
+    .map((name) => ({
+      type: 'skillChip',
+      attrs: { skillName: name }
+    }))
 
-  chain.run()
+  if (newSkillNodes.length > 0) {
+    editor.chain().focus().insertContentAt(editor.state.selection.from, newSkillNodes).run()
+  }
 }
 
 /** Ensure editor FileAttachment nodes mirror files.selectedFiles */
 function syncFileNodes() {
   if (isSyncingNodes) return
   const currentFiles = files.selectedFiles.value
-  const existing = new Map<string, { pos: number; size: number }>()
+  const existing = new Map<string, InlineNodeRange>()
 
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name === 'fileAttachment') {
@@ -266,31 +278,29 @@ function syncFileNodes() {
 
   const currentPaths = new Set(currentFiles.map((f) => f.path || f.name))
 
-  // Remove chips for removed files
-  let chain = editor.chain().focus()
-  for (const [path, { pos, size }] of existing) {
-    if (!currentPaths.has(path)) {
-      chain = chain.deleteRange({ from: pos, to: pos + size })
-    }
-  }
+  deleteInlineNodes(
+    Array.from(existing.entries())
+      .filter(([path]) => !currentPaths.has(path))
+      .map(([, range]) => range)
+  )
 
-  // Insert chips for new files
-  for (const file of currentFiles) {
-    const path = file.path || file.name
-    if (!existing.has(path)) {
-      const insertPos = findFileInsertPos()
-      chain = chain.insertContentAt(insertPos, {
+  const newFileNodes = currentFiles
+    .filter((file) => !existing.has(file.path || file.name))
+    .map((file) => {
+      const path = file.path || file.name
+      return {
         type: 'fileAttachment',
         attrs: {
           fileName: file.name || 'file',
           filePath: path,
           mimeType: file.mimeType || ''
         }
-      })
-    }
-  }
+      }
+    })
 
-  chain.run()
+  if (newFileNodes.length > 0) {
+    editor.chain().focus().insertContentAt(findFileInsertPos(), newFileNodes).run()
+  }
 }
 
 function findFileInsertPos(): number {

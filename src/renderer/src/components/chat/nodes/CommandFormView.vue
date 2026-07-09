@@ -24,7 +24,7 @@
     </div>
 
     <div class="space-y-2">
-      <div v-for="field in parsedFields" :key="field.name" class="space-y-1">
+      <div v-for="(field, index) in parsedFields" :key="field.name" class="space-y-1">
         <Label :for="field.name" class="text-xs font-medium text-muted-foreground">
           {{ field.label || field.name }}
           <span v-if="field.required" class="text-destructive">*</span>
@@ -34,7 +34,7 @@
           v-model="formValues[field.name]"
           :placeholder="field.placeholder || field.description || ''"
           class="h-8 text-xs"
-          @keydown.enter.prevent="handleSubmit"
+          @keydown.enter.prevent.stop="handleFieldEnter(index, $event)"
         />
       </div>
     </div>
@@ -99,6 +99,17 @@ const canSubmit = computed(() => {
     return true
   })
 })
+
+function handleFieldEnter(index: number, event: KeyboardEvent) {
+  if (parsedFields.value.length === 1 || index === parsedFields.value.length - 1) {
+    handleSubmit()
+    return
+  }
+
+  const form = (event.currentTarget as HTMLInputElement | null)?.closest('[data-command-form]')
+  const nextInput = form?.querySelectorAll<HTMLInputElement>('input')[index + 1]
+  nextInput?.focus()
+}
 
 function handleSubmit() {
   if (!canSubmit.value) return

@@ -9,6 +9,7 @@
     <button
       type="button"
       class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm hover:bg-muted-foreground/20"
+      :aria-label="`${t('common.delete')} ${node.attrs.fileName}`"
       @mousedown.prevent="handleRemove"
     >
       <Icon icon="lucide:x" class="h-3 w-3" />
@@ -21,11 +22,13 @@ import { computed, inject } from 'vue'
 import { Icon } from '@iconify/vue'
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import type { NodeViewProps } from '@tiptap/vue-3'
+import { useI18n } from 'vue-i18n'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { INPUT_NODE_ACTIONS, type InputNodeActions } from './symbols'
 
 const props = defineProps<NodeViewProps>()
 const actions = inject<InputNodeActions>(INPUT_NODE_ACTIONS)
+const { t } = useI18n()
 
 const fileIcon = computed(() => {
   const mimeType = (props.node.attrs.mimeType as string) || ''
