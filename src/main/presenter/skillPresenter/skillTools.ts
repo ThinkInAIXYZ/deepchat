@@ -35,8 +35,8 @@ export class SkillTools {
     })
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
-      ? (await this.skillPresenter.getActiveSkills(conversationId)).filter(
-          (skillName) => listedSkillNames.has(skillName)
+      ? (await this.skillPresenter.getActiveSkills(conversationId)).filter((skillName) =>
+          listedSkillNames.has(skillName)
         )
       : []
     const activeSkills = (Array.isArray(activeSkillNames) ? activeSkillNames : pinnedSkills).filter(
