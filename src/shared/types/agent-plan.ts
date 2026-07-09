@@ -59,7 +59,12 @@ export function normalizeAgentPlanEntry(value: unknown): AgentPlanDisplayItem | 
     return null
   }
 
-  const rawStep = typeof value.step === 'string' ? value.step : value.content
+  const rawStep =
+    typeof value.step === 'string' && value.step.trim()
+      ? value.step
+      : typeof value.content === 'string'
+        ? value.content
+        : ''
   const step = typeof rawStep === 'string' ? rawStep.trim() : ''
   if (!step) {
     return null

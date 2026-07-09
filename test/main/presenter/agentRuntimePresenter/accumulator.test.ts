@@ -111,6 +111,29 @@ describe('accumulate', () => {
       revision: 2,
       updatedAt: '2026-05-18T00:00:01.000Z'
     })
+    expect(state.dirty).toBe(false)
+  })
+
+  it('marks dirty when a plan event finalizes trailing narrative content', () => {
+    accumulate(state, { type: 'text', content: 'Draft answer' })
+    state.dirty = false
+
+    accumulate(state, {
+      type: 'plan',
+      plan: [{ step: 'Continue work', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+
+    expect(state.blocks[0]).toMatchObject({
+      type: 'content',
+      status: 'success'
+    })
+    expect(state.latestAgentPlanSnapshot).toMatchObject({
+      plan: [{ step: 'Continue work', status: 'in_progress' }],
+      revision: 1
+    })
+    expect(state.dirty).toBe(true)
   })
 
   it('finalizes trailing content before a tool call starts', () => {
