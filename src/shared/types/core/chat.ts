@@ -23,6 +23,19 @@ export type UserMessageMentionBlock = {
   id: string
   category: string
 }
+export type UserMessageInlineItem =
+  | {
+      type: 'skill'
+      offset: number
+      skillName: string
+    }
+  | {
+      type: 'file'
+      offset: number
+      fileName: string
+      filePath: string
+      mimeType?: string
+    }
 
 export type UserMessageContent = {
   continue?: boolean
@@ -38,6 +51,7 @@ export type UserMessageContent = {
   search: boolean
   activeSkills?: string[]
   text: string
+  inlineItems?: UserMessageInlineItem[]
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }
 

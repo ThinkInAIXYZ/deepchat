@@ -330,6 +330,20 @@ export interface IAgentImplementation {
 
 // ---- Message Types ----
 
+export type UserMessageInlineItem =
+  | {
+      type: 'skill'
+      offset: number
+      skillName: string
+    }
+  | {
+      type: 'file'
+      offset: number
+      fileName: string
+      filePath: string
+      mimeType?: string
+    }
+
 export interface UserMessageContent {
   text: string
   files: MessageFile[]
@@ -337,6 +351,7 @@ export interface UserMessageContent {
   search: boolean
   think: boolean
   activeSkills?: string[]
+  inlineItems?: UserMessageInlineItem[]
 }
 
 export interface LegacyImportStatus {
@@ -374,6 +389,7 @@ export interface SendMessageInput {
   text: string
   files?: MessageFile[]
   activeSkills?: string[]
+  inlineItems?: UserMessageInlineItem[]
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'
@@ -883,6 +899,7 @@ export interface CreateSessionInput {
   agentId: string
   message: string
   files?: MessageFile[]
+  inlineItems?: UserMessageInlineItem[]
   projectDir?: string | null
   providerId?: string
   modelId?: string

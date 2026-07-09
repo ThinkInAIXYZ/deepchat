@@ -61,9 +61,10 @@ export interface IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[]
+      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
 

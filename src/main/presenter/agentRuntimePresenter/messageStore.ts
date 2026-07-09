@@ -742,13 +742,15 @@ export class DeepChatMessageStore {
 
       const rawUserContent = this.parseUserContent(row.content)
       const activeSkills = rawUserContent?.activeSkills ?? []
+      const inlineItems = rawUserContent?.inlineItems ?? []
       return JSON.stringify({
         text: userRow.text,
         files: fileRows.map((fileRow) => this.toMessageFile(fileRow)),
         links: linkRows.map((linkRow) => linkRow.url),
         search: userRow.search_enabled === 1,
         think: userRow.think_enabled === 1,
-        ...(activeSkills.length > 0 ? { activeSkills } : {})
+        ...(activeSkills.length > 0 ? { activeSkills } : {}),
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
       } satisfies UserMessageContent)
     }
 
@@ -786,7 +788,8 @@ export class DeepChatMessageStore {
           : [],
         search: parsed.search === true,
         think: parsed.think === true,
-        activeSkills: this.normalizeActiveSkills(parsed.activeSkills)
+        activeSkills: this.normalizeActiveSkills(parsed.activeSkills),
+        inlineItems: Array.isArray(parsed.inlineItems) ? parsed.inlineItems : []
       }
     } catch {
       return null

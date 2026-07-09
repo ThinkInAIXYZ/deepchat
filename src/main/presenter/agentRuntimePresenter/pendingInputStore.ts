@@ -7,6 +7,8 @@ import type {
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatPendingInputRow } from '../sqlitePresenter/tables/deepchatPendingInputs'
 
+type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
+
 function normalizeInput(input: string | SendMessageInput): SendMessageInput {
   if (typeof input === 'string') {
     return { text: input, files: [] }
@@ -22,11 +24,27 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
       )
     : []
 
+  const inlineItems = Array.isArray(input?.inlineItems) ? input.inlineItems : []
   return {
     text: typeof input?.text === 'string' ? input.text : '',
     files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
-    ...(activeSkills.length > 0 ? { activeSkills } : {})
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
+}
+
+function shiftInlineItems(
+  inlineItems: SendMessageInput['inlineItems'],
+  offset: number
+): InlineItem[] {
+  if (!Array.isArray(inlineItems) || inlineItems.length === 0) {
+    return []
+  }
+
+  return inlineItems.map((item) => ({
+    ...item,
+    offset: Math.max(0, item.offset + offset)
+  }))
 }
 
 export class DeepChatPendingInputStore {
@@ -117,16 +135,25 @@ export class DeepChatPendingInputStore {
 
     const existing = this.parsePayload(row.payload_json)
     const next = normalizeInput(input)
-    const text = [existing.text.trim(), next.text.trim()].filter(Boolean).join('\n\n')
+    const existingText = existing.text.trim()
+    const nextText = next.text.trim()
+    const separator = existingText && nextText ? '\n\n' : ''
+    const text = [existingText, nextText].filter(Boolean).join(separator)
+    const nextOffset = existingText.length + separator.length
     const files = [...(existing.files ?? []), ...(next.files ?? [])].filter(Boolean)
     const activeSkills = Array.from(
       new Set([...(existing.activeSkills ?? []), ...(next.activeSkills ?? [])])
     )
+    const inlineItems = [
+      ...(existing.inlineItems ?? []),
+      ...shiftInlineItems(next.inlineItems, nextOffset)
+    ]
     this.sqlitePresenter.deepchatPendingInputsTable.update(itemId, {
       payload_json: JSON.stringify({
         text,
         files,
-        ...(activeSkills.length > 0 ? { activeSkills } : {})
+        ...(activeSkills.length > 0 ? { activeSkills } : {}),
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
       })
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))

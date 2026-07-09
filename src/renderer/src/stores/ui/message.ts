@@ -381,6 +381,7 @@ export const useMessageStore = defineStore('message', () => {
           search: parsed.search ?? false,
           think: parsed.think ?? false,
           activeSkills: Array.isArray(parsed.activeSkills) ? parsed.activeSkills : [],
+          inlineItems: Array.isArray(parsed.inlineItems) ? parsed.inlineItems : [],
           continue: parsed.continue,
           resources: parsed.resources,
           prompts: parsed.prompts,
@@ -396,7 +397,8 @@ export const useMessageStore = defineStore('message', () => {
       links: [],
       search: false,
       think: false,
-      activeSkills: []
+      activeSkills: [],
+      inlineItems: []
     }
     return entry.userContent
   }
@@ -605,7 +607,8 @@ export const useMessageStore = defineStore('message', () => {
         links: [],
         search: false,
         think: false,
-        activeSkills: normalizedInput.activeSkills ?? []
+        activeSkills: normalizedInput.activeSkills ?? [],
+        inlineItems: normalizedInput.inlineItems ?? []
       }),
       status: 'sent',
       isContextEdge: 0,

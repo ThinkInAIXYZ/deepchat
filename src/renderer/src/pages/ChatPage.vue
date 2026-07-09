@@ -264,6 +264,7 @@ import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
+  UserMessageInlineItem,
   MessageMetadata,
   SendMessageInput,
   ToolInteractionResponse
@@ -1597,6 +1598,7 @@ const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
+  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
   consumePendingSkills?: () => string[]
   clearPendingSkills?: () => void
@@ -2132,12 +2134,18 @@ const clearComposerSkills = () => {
   chatInputRef.value?.clearPendingSkills?.()
 }
 
+const getComposerInlineItemsSnapshot = (): UserMessageInlineItem[] => {
+  return chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
+}
+
 const withMessageSkills = (text: string, files: MessageFile[]) => {
   const activeSkills = getComposerSkillsSnapshot()
+  const inlineItems = getComposerInlineItemsSnapshot()
   return {
     text,
     files,
-    ...(activeSkills.length > 0 ? { activeSkills } : {})
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 
@@ -2447,7 +2455,8 @@ async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
 
   await pendingInputStore.updateQueueInput(props.sessionId, payload.itemId, {
     text: payload.text,
-    files: target.payload.files ?? []
+    files: target.payload.files ?? [],
+    activeSkills: target.payload.activeSkills ?? []
   })
 }
 

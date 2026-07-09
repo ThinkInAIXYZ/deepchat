@@ -23,10 +23,12 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
       )
     : []
 
+  const inlineItems = Array.isArray(input?.inlineItems) ? input.inlineItems : []
   return {
     text: typeof input?.text === 'string' ? input.text : '',
     files: Array.isArray(input?.files) ? input.files.filter(Boolean) : [],
-    ...(activeSkills.length > 0 ? { activeSkills } : {})
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 

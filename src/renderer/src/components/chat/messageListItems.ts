@@ -1,4 +1,4 @@
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
 import {
   UPDATE_PLAN_TOOL_NAME,
   type AgentPlanDisplayItem,
@@ -36,6 +36,25 @@ export type DisplayUserMessageMentionBlock = {
   category: string
 }
 
+export type DisplayUserMessageSkillBlock = {
+  type: 'skill'
+  skillName: string
+}
+
+export type DisplayUserMessageFileBlock = {
+  type: 'file'
+  fileName: string
+  filePath: string
+  mimeType?: string
+}
+
+export type DisplayUserMessageInlineBlock =
+  | DisplayUserMessageTextBlock
+  | DisplayUserMessageMentionBlock
+  | DisplayUserMessageCodeBlock
+  | DisplayUserMessageSkillBlock
+  | DisplayUserMessageFileBlock
+
 export type DisplayUserMessageContent = {
   continue?: boolean
   files: MessageFile[]
@@ -46,6 +65,7 @@ export type DisplayUserMessageContent = {
   search: boolean
   activeSkills?: string[]
   text: string
+  inlineItems?: UserMessageInlineItem[]
   content?: (
     | DisplayUserMessageTextBlock
     | DisplayUserMessageMentionBlock
