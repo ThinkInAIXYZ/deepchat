@@ -308,7 +308,7 @@ describe('dispatch', () => {
       expect(toolBlock!.status).toBe('success')
     })
 
-    it('upserts a single plan block and publishes plan update events', async () => {
+    it('publishes plan update events without inserting plan blocks into messages', async () => {
       const tools = [makeAgentTool('update_plan')]
       const snapshot = {
         sessionId: 's1',
@@ -366,21 +366,19 @@ describe('dispatch', () => {
         'openai'
       )
 
-      const planBlock = state.blocks.find((block) => block.type === 'plan')
       const toolBlock = state.blocks.find((block) => block.type === 'tool_call')
 
-      expect(planBlock).toMatchObject({
-        type: 'plan',
-        content: 'Repository inspected',
-        extra: {
-          plan_entries: snapshot.plan,
-          plan_explanation: 'Repository inspected',
-          plan_revision: 1,
-          plan_updated_at: snapshot.updatedAt
-        }
-      })
-      expect(state.blocks.indexOf(planBlock!)).toBe(state.blocks.indexOf(toolBlock!) + 1)
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
       expect(toolBlock?.extra?.internalTool).toBe(true)
+      expect(state.latestAgentPlanSnapshot).toMatchObject({
+        sessionId: 's1',
+        messageId: 'm1',
+        toolCallId: 'tc-plan',
+        plan: snapshot.plan,
+        explanation: 'Repository inspected',
+        revision: 1,
+        updatedAt: snapshot.updatedAt
+      })
 
       const planEventCall = publishDeepchatEventMock.mock.calls.find(
         ([eventName]) => eventName === 'chat.plan.updated'
@@ -396,7 +394,7 @@ describe('dispatch', () => {
       })
     })
 
-    it('mutates the existing plan block across revisions without duplicating it', async () => {
+    it('publishes successive plan revisions without creating plan blocks', async () => {
       const tools = [makeAgentTool('update_plan')]
       const snapshots = [
         {
@@ -464,13 +462,17 @@ describe('dispatch', () => {
         'openai'
       )
 
-      const planBlocks = state.blocks.filter((block) => block.type === 'plan')
-      expect(planBlocks).toHaveLength(1)
-      expect(planBlocks[0].extra).toMatchObject({
-        plan_entries: snapshots[1].plan,
-        plan_revision: 2,
-        plan_updated_at: snapshots[1].updatedAt
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(state.latestAgentPlanSnapshot).toMatchObject({
+        plan: snapshots[1].plan,
+        revision: 2,
+        updatedAt: snapshots[1].updatedAt
       })
+      const planEventCalls = publishDeepchatEventMock.mock.calls.filter(
+        ([eventName]) => eventName === 'chat.plan.updated'
+      )
+      expect(planEventCalls).toHaveLength(2)
+      expect(planEventCalls.map(([, payload]) => payload.revision)).toEqual([1, 2])
     })
 
     it('ignores agent plan progress from parallel read-only tool batches', async () => {
@@ -3169,23 +3171,20 @@ describe('dispatch', () => {
       })
     })
 
-    it('stamps open plan blocks with max_steps before finalizing', () => {
+    it('publishes a max_steps terminal plan event before finalizing', () => {
       state.planTerminalReason = 'max_steps'
-      state.blocks.push({
-        type: 'plan',
-        content: '',
-        status: 'success',
-        timestamp: Date.now(),
-        extra: {
-          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
-          plan_revision: 3,
-          plan_updated_at: '2026-05-18T00:00:00.000Z'
-        }
-      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 3,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
 
       finalize(state, io)
 
-      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('max_steps')
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('max_steps')
       expect(io.messageStore.finalizeAssistantMessage).toHaveBeenCalledWith(
         'm1',
         state.blocks,
@@ -3251,32 +3250,25 @@ describe('dispatch', () => {
       expect(errorBlock!.content).toBe('string error')
     })
 
-    it('stamps open plan blocks with error before setMessageError', () => {
+    it('publishes an error terminal plan event before setMessageError', () => {
       const errorWrites: any[] = []
       ;(io.messageStore.setMessageError as ReturnType<typeof vi.fn>).mockImplementation(
         (_messageId, blocks) => {
           errorWrites.push(structuredClone(blocks))
         }
       )
-      state.blocks.push({
-        type: 'plan',
-        content: '',
-        status: 'success',
-        timestamp: Date.now(),
-        extra: {
-          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
-          plan_revision: 1,
-          plan_updated_at: '2026-05-18T00:00:00.000Z'
-        }
-      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
 
       finalizeError(state, io, new Error('boom'))
 
-      const persistedPlanBlock = errorWrites[0]?.find(
-        (block: { type: string }) => block.type === 'plan'
-      )
-      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('error')
-      expect(persistedPlanBlock?.extra?.plan_terminal_reason).toBe('error')
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('error')
+      expect(errorWrites[0]?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
       expect(io.messageStore.setMessageError).toHaveBeenCalledWith(
         'm1',
         state.blocks,
@@ -3290,21 +3282,17 @@ describe('dispatch', () => {
     })
 
     it('stamps user cancel as aborted', () => {
-      state.blocks.push({
-        type: 'plan',
-        content: '',
-        status: 'success',
-        timestamp: Date.now(),
-        extra: {
-          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
-          plan_revision: 1,
-          plan_updated_at: '2026-05-18T00:00:00.000Z'
-        }
-      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
 
       finalizeError(state, io, 'common.error.userCanceledGeneration')
 
-      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('aborted')
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
       expectDeepchatEvent('chat.plan.updated', {
         terminalReason: 'aborted'
       })
@@ -3312,54 +3300,60 @@ describe('dispatch', () => {
   })
 
   describe('persistAbortExceptionPlanState', () => {
-    it('persists the aborted terminal marker for abort-exception early returns', () => {
-      const persistedWrites: any[] = []
-      ;(io.messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mockImplementation(
-        (_messageId, blocks) => {
-          persistedWrites.push(structuredClone(blocks))
-        }
-      )
-      state.blocks.push({
-        type: 'plan',
-        content: '',
-        status: 'success',
-        timestamp: Date.now(),
-        extra: {
-          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
-          plan_revision: 1,
-          plan_updated_at: '2026-05-18T00:00:00.000Z'
-        }
-      })
+    it('publishes the aborted terminal marker for abort-exception early returns', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
 
       persistAbortExceptionPlanState(state, io)
 
-      expect(state.blocks[0].extra?.plan_terminal_reason).toBe('aborted')
-      expect(persistedWrites[0][0].extra?.plan_terminal_reason).toBe('aborted')
-      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
+      expect(state.latestAgentPlanSnapshot?.terminalReason).toBe('aborted')
+      expect(io.messageStore.updateAssistantContent).not.toHaveBeenCalled()
       expectDeepchatEvent('chat.plan.updated', {
         sessionId: 's1',
         messageId: 'm1',
         terminalReason: 'aborted'
       })
+    })
+
+    it('persists existing non-plan blocks for abort-exception early returns', () => {
+      state.blocks.push({
+        type: 'content',
+        content: 'Partial answer',
+        status: 'success',
+        timestamp: Date.now()
+      })
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
+
+      persistAbortExceptionPlanState(state, io)
+
+      expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', state.blocks)
       expectDeepchatEvent('chat.stream.updated', {
         sessionId: 's1',
         messageId: 'm1',
         requestId: 'req-1'
       })
+      expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
     })
 
-    it('is idempotent for already stamped plan blocks', () => {
-      state.blocks.push({
-        type: 'plan',
-        content: '',
-        status: 'success',
-        timestamp: Date.now(),
-        extra: {
-          plan_entries: [{ step: 'Still running', status: 'in_progress' }],
-          plan_revision: 1,
-          plan_updated_at: '2026-05-18T00:00:00.000Z'
-        }
-      })
+    it('is idempotent for already stamped plan snapshots', () => {
+      state.latestAgentPlanSnapshot = {
+        sessionId: 's1',
+        messageId: 'm1',
+        plan: [{ step: 'Still running', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      }
 
       persistAbortExceptionPlanState(state, io)
       publishDeepchatEventMock.mockClear()

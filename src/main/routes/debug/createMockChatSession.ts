@@ -34,7 +34,6 @@ type AssistantBlock = {
     | 'content'
     | 'search'
     | 'reasoning_content'
-    | 'plan'
     | 'error'
     | 'tool_call'
     | 'action'
@@ -75,7 +74,6 @@ const ASSISTANT_BLOCK_TYPES: AssistantBlock['type'][] = [
   'action',
   'image',
   'artifact-thinking',
-  'plan',
   'error'
 ]
 
@@ -424,25 +422,6 @@ function buildAssistantBlock(
         title: `Debug artifact ${index}`,
         type: 'text/markdown',
         language: 'markdown'
-      }
-    }
-  }
-
-  if (type === 'plan') {
-    return {
-      ...base,
-      content: `Plan snapshot for ${marker}.`,
-      extra: {
-        plan_entries: [
-          { step: 'Seed rewritten mock content', status: 'completed' },
-          {
-            step: 'Scroll through the virtual window',
-            status: index % 2 ? 'in_progress' : 'completed'
-          },
-          { step: 'Run full-data search count', status: 'pending' }
-        ],
-        plan_explanation: `Synthetic plan block ${index}`,
-        plan_revision: index
       }
     }
   }

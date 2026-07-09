@@ -1,11 +1,9 @@
 import {
-  normalizeAgentPlanStatus,
-  normalizeAgentPlanEntry as normalizeSharedAgentPlanEntry
-} from '@shared/types/agent-plan-block'
-import type {
-  AgentPlanDisplayItem,
-  AgentPlanItem,
-  AgentPlanStepStatus
+  type AgentPlanDisplayItem,
+  type AgentPlanItem,
+  type AgentPlanStepStatus,
+  normalizeAgentPlanEntry as normalizeSharedAgentPlanEntry,
+  normalizeAgentPlanStatus
 } from '@shared/types/agent-plan'
 
 type Translate = (key: string, params?: Record<string, unknown>) => string

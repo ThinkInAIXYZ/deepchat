@@ -222,6 +222,10 @@ import type {
   DisplayMessage,
   DisplayMessageUsage
 } from '@/components/chat/messageListItems'
+import {
+  filterRenderableAssistantBlocks,
+  hasRenderableAssistantBlocks
+} from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
@@ -264,7 +268,6 @@ import type {
   SendMessageInput,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
-import { snapshotFromAgentPlanBlock } from '@shared/types/agent-plan-block'
 
 const props = defineProps<{
   sessionId: string
@@ -294,6 +297,7 @@ const INITIAL_MESSAGE_RESTORE_COUNT = 40
 const MESSAGE_WINDOWING_THRESHOLD = 160
 const MESSAGE_INITIAL_WINDOW_COUNT = 90
 const MESSAGE_WINDOW_OVERSCAN_PX = 2400
+const PLAN_FLOAT_CLEAR_DELAY_MS = 1200
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -314,38 +318,8 @@ const applyRestoredSessionSummary = (session: unknown) => {
   }
 }
 
-function rehydrateAgentPlanFromMessages(sessionId: string): void {
-  let latestSnapshot: ReturnType<typeof snapshotFromAgentPlanBlock> = null
-  for (let messageIndex = messageStore.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const message = messageStore.messages[messageIndex]
-    if (message.role !== 'assistant') {
-      continue
-    }
-
-    const blocks = messageStore.getAssistantMessageBlocks(message)
-    for (let blockIndex = blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
-      const block = blocks[blockIndex]
-      const snapshot = snapshotFromAgentPlanBlock(sessionId, message.id, block)
-      if (snapshot) {
-        latestSnapshot = snapshot
-        break
-      }
-    }
-
-    if (latestSnapshot) {
-      break
-    }
-  }
-
-  agentPlanStore.clearSnapshot(sessionId)
-  if (latestSnapshot) {
-    agentPlanStore.applySnapshot(latestSnapshot)
-  }
-}
-
-async function loadMessagesAndRehydrate(sessionId: string, count?: number) {
+async function loadMessagesForSession(sessionId: string, count?: number) {
   const restoredSession = await messageStore.loadMessages(sessionId, count)
-  rehydrateAgentPlanFromMessages(sessionId)
   return restoredSession
 }
 
@@ -354,6 +328,7 @@ const scrollContainer = ref<HTMLDivElement>()
 const messageSearchRoot = ref<HTMLDivElement>()
 const bottomScrollAnchor = ref<HTMLDivElement | null>(null)
 const planFloatLayer = ref<HTMLDivElement | null>(null)
+const planFloatLingerBySession = ref<Record<string, boolean>>({})
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 const pendingDeleteMessageId = ref<string | null>(null)
 const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
@@ -419,6 +394,7 @@ let scrollReadFrame: number | null = null
 let pendingUserScrollMetrics = false
 let sessionRestoreScrollFrame: number | null = null
 let sessionRestoreScrollTimer: number | null = null
+const planSnapshotClearTimers = new Map<string, number>()
 let chatSearchRefreshFrame: number | null = null
 let programmaticScrollUntil = 0
 let sessionRestoreBottomScrollTop: number | null = null
@@ -963,7 +939,7 @@ watch(
 
         console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
         const [restoredSession] = await Promise.all([
-          loadMessagesAndRehydrate(id, INITIAL_MESSAGE_RESTORE_COUNT),
+          loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT),
           pendingInputStore.loadPendingInputs(id)
         ])
 
@@ -1055,7 +1031,7 @@ function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
           ...baseMessage,
           ...(streamingRenderKey ? { renderKey: streamingRenderKey } : {}),
           role: 'assistant',
-          content: messageStore.getAssistantMessageBlocks(record)
+          content: filterRenderableAssistantBlocks(messageStore.getAssistantMessageBlocks(record))
         } as DisplayMessage)
       : ({
           ...baseMessage,
@@ -1084,13 +1060,14 @@ function toStreamingMessage(
 ): DisplayMessage {
   const modelId = sessionStore.activeSession?.modelId ?? ''
   const now = Date.now()
+  const renderableBlocks = filterRenderableAssistantBlocks(blocks as DisplayAssistantMessageBlock[])
   return {
     // Key the streaming row by the real message id when we have one, so that when
     // the persisted copy arrives at stream end Vue patches the SAME node in place
     // (markdown DOM reused) instead of unmount/remount — no completion flash.
     // Falls back to a synthetic id only when the backend hasn't assigned one yet.
     id: messageId ?? '__streaming__',
-    content: blocks as DisplayAssistantMessageBlock[],
+    content: renderableBlocks,
     role: 'assistant',
     timestamp: now,
     updatedAt: now,
@@ -1106,6 +1083,22 @@ function toStreamingMessage(
     is_variant: 0,
     orderSeq: Number.MAX_SAFE_INTEGER
   }
+}
+
+function shouldRenderDisplayMessage(message: DisplayMessage): boolean {
+  if (message.role !== 'assistant') {
+    return true
+  }
+
+  if (message.messageType === 'compaction') {
+    return true
+  }
+
+  if (message.status === 'pending') {
+    return true
+  }
+
+  return hasRenderableAssistantBlocks(message.content)
 }
 
 const hasInlineStreamingTarget = computed(() => {
@@ -1179,20 +1172,6 @@ watch(
     }
   }
 )
-
-const latestPlanSnapshot = computed(() => {
-  if (!agentPlanStore.isVisible(props.sessionId)) {
-    return null
-  }
-
-  const snapshot = agentPlanStore.snapshots[props.sessionId]
-  if (!snapshot || snapshot.plan.length === 0) {
-    return null
-  }
-  return snapshot
-})
-
-const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
 
 const messageSearchRootStyle = computed(() => {
   if (planFloatReservedHeight.value <= 0) {
@@ -1277,7 +1256,10 @@ const displayMessages = computed(() => {
 
   for (const message of messageStore.messages) {
     activeMessageIds.add(message.id)
-    msgs.push(toDisplayMessage(message))
+    const displayMessage = toDisplayMessage(message)
+    if (shouldRenderDisplayMessage(displayMessage)) {
+      msgs.push(displayMessage)
+    }
   }
 
   for (const cachedId of displayMessageCache.keys()) {
@@ -1411,23 +1393,6 @@ const traceMessageIds = computed(() =>
   messageStore.messages
     .filter((msg) => msg.role === 'assistant' && (msg.traceCount ?? 0) > 0)
     .map((msg) => msg.id)
-)
-
-// Auto-scroll when displayMessages changes (new message added, streaming updates)
-watch(
-  [latestPlanSnapshot, isPlanFloatCollapsed],
-  async ([snapshot]) => {
-    if (!snapshot) {
-      disconnectPlanFloatResizeObserver()
-      planFloatReservedHeight.value = 0
-      return
-    }
-
-    await nextTick()
-    observePlanFloatLayer()
-    syncPlanFloatReservedHeight()
-  },
-  { flush: 'post', immediate: true }
 )
 
 watch(
@@ -1874,6 +1839,200 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 })
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
+
+function readSessionStatus(sessionId: string): 'working' | 'completed' | 'error' | 'none' | null {
+  if (sessionStore.activeSession?.id === sessionId) {
+    return sessionStore.activeSession.status
+  }
+
+  return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
+}
+
+function hasPendingInteractionForSession(sessionId: string): boolean {
+  return pendingInteractions.value.some((interaction) => interaction.sessionId === sessionId)
+}
+
+function isSessionPlanActive(sessionId: string): boolean {
+  if (sessionId === props.sessionId && messageStore.isStreaming) {
+    return true
+  }
+
+  return readSessionStatus(sessionId) === 'working'
+}
+
+function isPlanFloatLingerActive(sessionId: string): boolean {
+  return planFloatLingerBySession.value[sessionId] === true
+}
+
+function setPlanFloatLingerActive(sessionId: string, active: boolean): void {
+  const current = planFloatLingerBySession.value[sessionId] === true
+  if (current === active) {
+    return
+  }
+
+  const next = { ...planFloatLingerBySession.value }
+  if (active) {
+    next[sessionId] = true
+  } else {
+    delete next[sessionId]
+  }
+  planFloatLingerBySession.value = next
+}
+
+function shouldShowPlanSnapshotForSession(sessionId: string): boolean {
+  return (
+    isSessionPlanActive(sessionId) ||
+    hasPendingInteractionForSession(sessionId) ||
+    isPlanFloatLingerActive(sessionId)
+  )
+}
+
+const latestPlanSnapshot = computed(() => {
+  if (!shouldShowPlanSnapshotForSession(props.sessionId)) {
+    return null
+  }
+
+  if (!agentPlanStore.isVisible(props.sessionId)) {
+    return null
+  }
+
+  const snapshot = agentPlanStore.snapshots[props.sessionId]
+  if (!snapshot || snapshot.plan.length === 0) {
+    return null
+  }
+  return snapshot
+})
+
+const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
+
+function cancelPlanSnapshotClearTimer(sessionId: string) {
+  const timer = planSnapshotClearTimers.get(sessionId)
+  if (timer === undefined) {
+    return
+  }
+
+  window.clearTimeout(timer)
+  planSnapshotClearTimers.delete(sessionId)
+}
+
+function cancelAllPlanSnapshotClearTimers() {
+  for (const timer of planSnapshotClearTimers.values()) {
+    window.clearTimeout(timer)
+  }
+  planSnapshotClearTimers.clear()
+}
+
+function canLingerPlanSnapshot(sessionId: string): boolean {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (!snapshot || snapshot.plan.length === 0) {
+    return false
+  }
+
+  return (
+    Boolean(snapshot.terminalReason) || snapshot.plan.every((entry) => entry.status === 'completed')
+  )
+}
+
+function scheduleInactivePlanSnapshotClear(sessionId: string = props.sessionId) {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (!snapshot) {
+    cancelPlanSnapshotClearTimer(sessionId)
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  if (isSessionPlanActive(sessionId) || hasPendingInteractionForSession(sessionId)) {
+    cancelPlanSnapshotClearTimer(sessionId)
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  cancelPlanSnapshotClearTimer(sessionId)
+
+  if (!canLingerPlanSnapshot(sessionId)) {
+    setPlanFloatLingerActive(sessionId, false)
+    return
+  }
+
+  setPlanFloatLingerActive(sessionId, true)
+  const timer = window.setTimeout(() => {
+    planSnapshotClearTimers.delete(sessionId)
+    if (!isSessionPlanActive(sessionId) && !hasPendingInteractionForSession(sessionId)) {
+      agentPlanStore.clearSnapshot(sessionId)
+      setPlanFloatLingerActive(sessionId, false)
+    }
+  }, PLAN_FLOAT_CLEAR_DELAY_MS)
+  planSnapshotClearTimers.set(sessionId, timer)
+}
+
+function resetPlanSnapshotLifecycle(sessionId: string): void {
+  cancelPlanSnapshotClearTimer(sessionId)
+  setPlanFloatLingerActive(sessionId, false)
+}
+
+function beginPlanTurn(sessionId: string): void {
+  resetPlanSnapshotLifecycle(sessionId)
+  agentPlanStore.beginTurn(sessionId)
+}
+
+const planSnapshotLifecycleKey = computed(() =>
+  Object.values(agentPlanStore.snapshots)
+    .map((snapshot) => {
+      const terminal = snapshot.terminalReason ?? ''
+      const statuses = snapshot.plan.map((entry) => entry.status).join(',')
+      return `${snapshot.sessionId}:${snapshot.messageId ?? ''}:${snapshot.revision}:${terminal}:${statuses}`
+    })
+    .join('|')
+)
+
+const sessionStatusLifecycleKey = computed(() => {
+  const entries = sessionStore.sessions.map((session) => `${session.id}:${session.status}`)
+  const active = sessionStore.activeSession
+  if (active) {
+    entries.push(`${active.id}:${active.status}`)
+  }
+  entries.push(`${props.sessionId}:${messageStore.isStreaming ? 'streaming' : 'not-streaming'}`)
+  return entries.sort().join('|')
+})
+
+const pendingInteractionLifecycleKey = computed(() =>
+  pendingInteractions.value
+    .map(
+      (interaction) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
+    )
+    .join('|')
+)
+
+function syncPlanSnapshotLifecycle(): void {
+  for (const sessionId of Object.keys(agentPlanStore.snapshots)) {
+    scheduleInactivePlanSnapshotClear(sessionId)
+  }
+}
+
+watch(
+  [latestPlanSnapshot, isPlanFloatCollapsed],
+  async ([snapshot]) => {
+    if (!snapshot) {
+      disconnectPlanFloatResizeObserver()
+      planFloatReservedHeight.value = 0
+      return
+    }
+
+    await nextTick()
+    observePlanFloatLayer()
+    syncPlanFloatReservedHeight()
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  [planSnapshotLifecycleKey, sessionStatusLifecycleKey, pendingInteractionLifecycleKey],
+  () => {
+    syncPlanSnapshotLifecycle()
+  },
+  { flush: 'post' }
+)
+
 const hasInputText = computed(() => Boolean(message.value.trim()))
 const hasAttachments = computed(() => attachedFiles.value.length > 0)
 const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
@@ -1975,7 +2134,7 @@ const withMessageSkills = (text: string, files: MessageFile[]) => {
 function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
   const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
   const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(sessionId)
-  agentPlanStore.beginTurn(sessionId)
+  beginPlanTurn(sessionId)
   return { optimisticUserMessageId, pendingAssistantPlaceholderId }
 }
 
@@ -2065,7 +2224,7 @@ async function handleManualCompactionCommand(text: string): Promise<boolean> {
 
   try {
     const result = await sessionClient.compactSession(props.sessionId)
-    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
     if (!result.compacted) {
       toast({
         title: t('chat.compaction.noopTitle'),
@@ -2109,7 +2268,7 @@ async function onSteer() {
   if (await handleManualCompactionCommand(text)) {
     return
   }
-  agentPlanStore.beginTurn(props.sessionId)
+  beginPlanTurn(props.sessionId)
   await chatClient.steerActiveTurn(props.sessionId, withMessageSkills(text, files))
   message.value = ''
   attachedFiles.value = []
@@ -2156,7 +2315,7 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
       toolCallId: interaction.toolCallId,
       response
     })
-    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
     if (result.handledInline) {
       return
     }
@@ -2183,12 +2342,12 @@ async function onMessageRetry(messageId: string) {
   if (!messageId) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
-    agentPlanStore.beginTurn(props.sessionId)
+    beginPlanTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] retry message failed:', error)
-    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
   }
 }
 
@@ -2206,7 +2365,7 @@ async function confirmMessageDelete() {
   try {
     messageStore.clearStreamingState()
     await sessionClient.deleteMessage(props.sessionId, messageId)
-    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
   }
@@ -2252,12 +2411,12 @@ async function onMessageContinue(_conversationId: string, messageId: string) {
   if (isReadOnlySession.value) return
   if (!messageId) return
   try {
-    agentPlanStore.beginTurn(props.sessionId)
+    beginPlanTurn(props.sessionId)
     messageStore.clearStreamingState()
     await sessionClient.retryMessage(props.sessionId, messageId)
   } catch (error) {
     console.error('[ChatPage] continue message failed:', error)
-    applyRestoredSessionSummary(await loadMessagesAndRehydrate(props.sessionId))
+    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
   }
 }
 
@@ -2295,7 +2454,7 @@ async function onPendingInputSteer(itemId: string) {
   if (activePendingInteraction.value || isHandlingInteraction.value) return
   try {
     await pendingInputStore.steerPendingInput(props.sessionId, itemId)
-    agentPlanStore.beginTurn(props.sessionId)
+    beginPlanTurn(props.sessionId)
   } catch (error) {
     console.error('[ChatPage] steer queued input failed:', error)
     toast({
@@ -2313,9 +2472,8 @@ onMounted(() => {
   )
   window.addEventListener('keydown', handleWindowKeydown)
   cancelPlanUpdatedListener = chatClient.onPlanUpdated((payload) => {
-    if (payload.sessionId === props.sessionId) {
-      agentPlanStore.applySnapshot(payload)
-    }
+    agentPlanStore.applySnapshot(payload)
+    scheduleInactivePlanSnapshotClear(payload.sessionId)
   })
   // 初始化滚动状态
   const el = scrollContainer.value
@@ -2334,6 +2492,7 @@ onMounted(() => {
 onUnmounted(() => {
   removeModelConfigChangedListener()
   disconnectPlanFloatResizeObserver()
+  cancelAllPlanSnapshotClearTimers()
   cancelSessionRestoreScrollSettle()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null

@@ -45,6 +45,7 @@ const buildAssistantMessage = (content: unknown) => ({
 
 type SetupOptions = {
   messages?: Array<Record<string, unknown>>
+  sessions?: Array<Record<string, unknown>>
   isStreaming?: boolean
   streamingBlocks?: unknown[]
   currentStreamMessageId?: string | null
@@ -58,6 +59,7 @@ type SetupOptions = {
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
 
+  const activeStatus = String(options.activeSessionPatch?.status ?? 'idle')
   const sessionStore = reactive({
     activeSession: {
       id: 's1',
@@ -65,10 +67,21 @@ const setup = async (options: SetupOptions = {}) => {
       projectDir: 'C:/repo',
       providerId: 'acp',
       modelId: 'dimcode-acp',
-      status: 'idle',
+      status: activeStatus,
       sessionKind: options.sessionKind ?? 'regular',
       ...options.activeSessionPatch
     },
+    activeSessionId: 's1',
+    sessions: options.sessions ?? [
+      {
+        id: 's1',
+        title: 'Session',
+        agentId: 'default',
+        status: activeStatus,
+        projectDir: 'C:/repo',
+        sessionKind: options.sessionKind ?? 'regular'
+      }
+    ],
     sendMessage: vi.fn().mockResolvedValue(undefined),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined)
@@ -175,6 +188,7 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
+  let planUpdatedListener: ((payload: any) => void) | null = null
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({
       accepted: true,
@@ -186,7 +200,12 @@ const setup = async (options: SetupOptions = {}) => {
     }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
     respondToolInteraction: chatRespondToolInteraction,
-    onPlanUpdated: vi.fn().mockReturnValue(() => {})
+    onPlanUpdated: vi.fn((listener: (payload: any) => void) => {
+      planUpdatedListener = listener
+      return () => {
+        planUpdatedListener = null
+      }
+    })
   }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -416,8 +435,15 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
     default: defineComponent({
       name: 'AgentProgressFloat',
+      props: {
+        snapshot: {
+          type: Object,
+          default: null
+        }
+      },
       emits: ['toggle-collapse'],
-      template: '<button class="agent-progress-float-stub" @click="$emit(\'toggle-collapse\')" />'
+      template:
+        '<button class="agent-progress-float-stub" :data-session-id="snapshot?.sessionId ?? \'\'" :data-message-id="snapshot?.messageId ?? \'\'" @click="$emit(\'toggle-collapse\')" />'
     })
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
@@ -522,6 +548,9 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
+    emitPlanUpdated: (payload: any) => {
+      planUpdatedListener?.(payload)
+    },
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -628,7 +657,9 @@ describe('ChatPage', () => {
   })
 
   it('renders the agent plan inside an absolute overlay layer above the composer', async () => {
-    const { wrapper, agentPlanStore } = await setup()
+    const { wrapper, agentPlanStore } = await setup({
+      activeSessionPatch: { status: 'working' }
+    })
 
     agentPlanStore.snapshots.s1 = {
       sessionId: 's1',
@@ -649,6 +680,143 @@ describe('ChatPage', () => {
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
   })
 
+  it('keeps live plan snapshots for multiple sessions and renders only the active session', async () => {
+    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
+      activeSessionPatch: { status: 'working' },
+      sessions: [
+        { id: 's1', title: 'A', agentId: 'default', status: 'working', projectDir: 'C:/a' },
+        { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' },
+        { id: 's3', title: 'C', agentId: 'default', status: 'working', projectDir: 'C:/c' }
+      ]
+    })
+
+    emitPlanUpdated({
+      sessionId: 's1',
+      messageId: 'm-a',
+      plan: [{ step: 'A plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+    emitPlanUpdated({
+      sessionId: 's2',
+      messageId: 'm-b',
+      plan: [{ step: 'B plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:01.000Z'
+    })
+    emitPlanUpdated({
+      sessionId: 's3',
+      messageId: 'm-c',
+      plan: [{ step: 'C plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:02.000Z'
+    })
+    await flushPromises()
+
+    expect(Object.keys(agentPlanStore.snapshots).sort()).toEqual(['s1', 's2', 's3'])
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+    expect(wrapper.findAll('.agent-progress-float-stub')).toHaveLength(1)
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      id: 's2',
+      status: 'working'
+    }
+    sessionStore.activeSessionId = 's2'
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s2')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('A plan')
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      id: 's1',
+      status: 'working'
+    }
+    sessionStore.activeSessionId = 's1'
+    await wrapper.setProps({ sessionId: 's1' })
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+    expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
+  })
+
+  it('keeps an in-progress plan when the plan event arrives before working status', async () => {
+    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
+      activeSessionPatch: { status: 'none' },
+      sessions: [{ id: 's1', title: 'A', agentId: 'default', status: 'none', projectDir: 'C:/a' }]
+    })
+
+    emitPlanUpdated({
+      sessionId: 's1',
+      messageId: 'm-a',
+      plan: [{ step: 'Early plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+    await flushPromises()
+
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Early plan')
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
+
+    sessionStore.activeSession = {
+      ...sessionStore.activeSession,
+      status: 'working'
+    }
+    sessionStore.sessions = [
+      {
+        ...sessionStore.sessions[0],
+        status: 'working'
+      }
+    ]
+    await flushPromises()
+
+    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
+  })
+
+  it('clears a terminal plan without clearing another running session plan', async () => {
+    vi.useFakeTimers()
+    try {
+      const { agentPlanStore, emitPlanUpdated } = await setup({
+        activeSessionPatch: { status: 'idle' },
+        sessions: [
+          { id: 's1', title: 'A', agentId: 'default', status: 'idle', projectDir: 'C:/a' },
+          { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' }
+        ]
+      })
+
+      emitPlanUpdated({
+        sessionId: 's1',
+        messageId: 'm-a',
+        plan: [{ step: 'A plan', status: 'completed' }],
+        terminalReason: 'aborted',
+        revision: 2,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      })
+      emitPlanUpdated({
+        sessionId: 's2',
+        messageId: 'm-b',
+        plan: [{ step: 'B plan', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:01.000Z'
+      })
+      await flushPromises()
+
+      expect(agentPlanStore.snapshots.s1).toBeDefined()
+      expect(agentPlanStore.snapshots.s2).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(1_200)
+      await flushPromises()
+
+      expect(agentPlanStore.snapshots.s1).toBeUndefined()
+      expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('defers session restore until startup deferred tasks are released', async () => {
     const { messageStore, pendingInputStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true
@@ -665,7 +833,7 @@ describe('ChatPage', () => {
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
   })
 
-  it('rehydrates the latest persisted plan for each switched session', async () => {
+  it('does not rehydrate persisted plan blocks when switching sessions', async () => {
     const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true,
       messages: []
@@ -725,64 +893,88 @@ describe('ChatPage', () => {
 
     await flushStartupDeferredTasks()
 
-    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('Latest A plan')
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
 
     await wrapper.setProps({ sessionId: 's2' })
     await flushStartupDeferredTasks()
 
-    expect(agentPlanStore.snapshots.s2.plan[0]?.step).toBe('B plan')
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s2).toBeUndefined()
 
     await wrapper.setProps({ sessionId: 's1' })
     await flushStartupDeferredTasks()
 
-    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('Latest A plan')
+    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
   })
 
-  it('clears the active session snapshot when restored history has no plan block', async () => {
-    const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
+  it('keeps the active live plan snapshot while restoring messages', async () => {
+    const { messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true,
+      activeSessionPatch: { status: 'working' },
       messages: []
     })
-    messageStore.loadMessages.mockImplementation(async (sessionId: string) => {
-      messageStore.messages =
-        sessionId === 's1'
-          ? [
-              buildAssistantMessage([
-                {
-                  type: 'plan',
-                  content: '',
-                  status: 'success',
-                  extra: {
-                    plan_entries: [{ step: 'A plan', status: 'in_progress' }],
-                    plan_revision: 1,
-                    plan_updated_at: '2026-05-18T00:00:00.000Z'
-                  }
-                }
-              ])
-            ]
-          : [
-              {
-                ...buildAssistantMessage([
-                  {
-                    type: 'content',
-                    content: 'No plan here',
-                    status: 'success'
-                  }
-                ]),
-                id: 'm2',
-                sessionId
-              }
-            ]
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Live plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    messageStore.loadMessages.mockImplementation(async () => {
+      messageStore.messages = [
+        buildAssistantMessage([
+          {
+            type: 'content',
+            content: 'No plan here',
+            status: 'success'
+          }
+        ])
+      ]
     })
 
     await flushStartupDeferredTasks()
-    expect(agentPlanStore.snapshots.s1.plan[0]?.step).toBe('A plan')
 
-    await wrapper.setProps({ sessionId: 's2' })
-    await flushStartupDeferredTasks()
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Live plan')
+  })
 
-    expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s2')
-    expect(agentPlanStore.snapshots.s2).toBeUndefined()
+  it('does not render legacy plan-only assistant messages as empty rows', async () => {
+    const planOnlyMessage = buildAssistantMessage([
+      {
+        type: 'plan',
+        content: '',
+        status: 'success',
+        timestamp: 1,
+        extra: {
+          plan_entries: [{ step: 'Old plan', status: 'completed' }],
+          plan_revision: 1,
+          plan_updated_at: '2026-05-18T00:00:00.000Z'
+        }
+      }
+    ])
+    const contentMessage = {
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: 'Real response',
+          status: 'success',
+          timestamp: 2
+        }
+      ]),
+      id: 'm2',
+      orderSeq: 2
+    }
+
+    const { wrapper } = await setup({
+      messages: [planOnlyMessage, contentMessage]
+    })
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    const messages = messageList.props('messages') as Array<{ id: string }>
+
+    expect(messages.map((message) => message.id)).toEqual(['m2'])
+    expect(wrapper.findAll('.message-item-stub')).toHaveLength(1)
   })
 
   it('runs manual compaction instead of sending exact /compact in DeepChat sessions', async () => {

@@ -459,6 +459,7 @@ export class AcpProvider extends BaseLLMProvider {
         } catch (error) {
           console.warn('[ACP] cancel failed:', error)
         }
+        this.contentMapper.clearSession(session.sessionId)
         this.clearPendingPermissionsForSession(session.sessionId)
       }
     }

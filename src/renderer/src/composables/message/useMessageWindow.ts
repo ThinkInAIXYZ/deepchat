@@ -66,9 +66,6 @@ function estimateHeight(msg: MessageListItem): number {
       case 'artifact-thinking':
         h += 96
         break
-      case 'plan':
-        h += 160
-        break
       case 'image':
       case 'video':
         h += 260

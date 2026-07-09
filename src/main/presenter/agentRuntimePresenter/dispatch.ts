@@ -11,10 +11,6 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/presenters/tool.presenter'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
-import {
-  stampLatestAgentPlanBlockTerminal,
-  upsertAgentPlanBlock
-} from '@shared/chat/agentPlanBlock'
 import { parseQuestionToolArgs, QUESTION_TOOL_NAME } from '../../lib/agentRuntime/questionTool'
 import { UPDATE_PLAN_TOOL_NAME } from '../toolPresenter/agentTools/agentPlanTool'
 import type {
@@ -409,7 +405,7 @@ function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCall
   }
 }
 
-function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
+export function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
   publishDeepchatEvent('chat.plan.updated', {
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -431,16 +427,24 @@ function stampPlanTerminalIfOpen(
     return false
   }
 
-  const stamped = stampLatestAgentPlanBlockTerminal(state.blocks, reason)
-  if (!stamped) {
+  const current = state.latestAgentPlanSnapshot
+  if (
+    !current ||
+    current.terminalReason ||
+    !current.plan.some((entry) => entry.status === 'in_progress')
+  ) {
     return false
   }
 
-  publishPlanUpdated(io, {
-    ...stamped,
+  const snapshot: AgentPlanSnapshot = {
+    ...current,
     sessionId: io.sessionId,
-    messageId: io.messageId
-  })
+    messageId: io.messageId,
+    terminalReason: reason,
+    updatedAt: new Date().toISOString()
+  }
+  state.latestAgentPlanSnapshot = snapshot
+  publishPlanUpdated(io, snapshot)
   return true
 }
 
@@ -1161,8 +1165,14 @@ async function runToolCall(params: {
         allowProgressUpdates
       ) {
         markInternalPlanToolCallBlock(state.blocks, completedToolCall.id)
-        upsertAgentPlanBlock(state.blocks, update.snapshot, { toolCallId: completedToolCall.id })
-        publishPlanUpdated(io, update.snapshot)
+        const snapshot: AgentPlanSnapshot = {
+          ...update.snapshot,
+          sessionId: io.sessionId,
+          messageId: io.messageId,
+          toolCallId: update.snapshot.toolCallId ?? completedToolCall.id
+        }
+        state.latestAgentPlanSnapshot = snapshot
+        publishPlanUpdated(io, snapshot)
         state.dirty = true
         scheduleRendererFlush(state, rendererFlushHandle)
         return
@@ -1849,7 +1859,10 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 }
 
 export function persistAbortExceptionPlanState(state: StreamState, io: IoParams): void {
-  if (!stampPlanTerminalIfOpen(state, io, 'aborted')) {
+  const hadPlanSnapshot = Boolean(state.latestAgentPlanSnapshot)
+  stampPlanTerminalIfOpen(state, io, 'aborted')
+
+  if (!hadPlanSnapshot || state.blocks.length === 0) {
     return
   }
 

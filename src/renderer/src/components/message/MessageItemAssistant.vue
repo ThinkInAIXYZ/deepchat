@@ -67,7 +67,6 @@
                 :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
               />
-              <MessageBlockPlan v-else-if="item.block.type === 'plan'" :block="item.block" />
               <MessageBlockToolCall
                 v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
                 :block="item.block"
@@ -199,9 +198,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type {
-  DisplayAssistantMessage,
-  DisplayAssistantMessageBlock
+import {
+  type DisplayAssistantMessage,
+  type DisplayAssistantMessageBlock,
+  filterRenderableAssistantBlocks,
+  isInternalAssistantToolCallBlock
 } from '@/components/chat/messageListItems'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
@@ -218,7 +219,6 @@ import { useI18n } from 'vue-i18n'
 import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
-import MessageBlockPlan from './MessageBlockPlan.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
 import { buildAssistantRenderItems } from './messageActivityGroups'
 
@@ -277,7 +277,7 @@ const isAudioBlock = (block: DisplayAssistantMessageBlock): boolean => {
 }
 
 const isInternalToolCall = (block: DisplayAssistantMessageBlock): boolean => {
-  return block.tool_call?.name === 'update_plan' && block.extra?.internalTool === true
+  return isInternalAssistantToolCallBlock(block)
 }
 
 const isVideoUrl = (value: string): boolean => {
@@ -388,12 +388,14 @@ const totalVariants = computed(() => allVariants.value.length + 1)
 
 // 获取当前显示的内容
 const currentContent = computed(() => {
-  if (currentVariantIndex.value === 0) {
-    return props.message.content as DisplayAssistantMessageBlock[]
-  }
+  const blocks =
+    currentVariantIndex.value === 0
+      ? (props.message.content as DisplayAssistantMessageBlock[])
+      : ((allVariants.value[currentVariantIndex.value - 1]?.content || props.message.content) as
+          | DisplayAssistantMessageBlock[]
+          | undefined)
 
-  const variant = allVariants.value[currentVariantIndex.value - 1]
-  return (variant?.content || props.message.content) as DisplayAssistantMessageBlock[]
+  return filterRenderableAssistantBlocks(blocks ?? [])
 })
 
 const shouldGroupActivity = computed(() => {

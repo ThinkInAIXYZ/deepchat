@@ -223,7 +223,6 @@ describe('MessageItemAssistant', () => {
         template: '<div data-testid="video-block" />'
       }),
       MessageBlockAudio: componentStub('MessageBlockAudio'),
-      MessageBlockPlan: componentStub('MessageBlockPlan'),
       MessageBlockActivityGroup: defineComponent({
         name: 'MessageBlockActivityGroup',
         props: {
@@ -346,6 +345,49 @@ describe('MessageItemAssistant', () => {
     })
 
     expect(wrapper.find('[data-testid="video-block"]').exists()).toBe(false)
+  })
+
+  it('does not render persisted plan blocks in assistant message content', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          {
+            type: 'plan',
+            content: '',
+            status: 'success',
+            timestamp: 2,
+            extra: {
+              plan_entries: [{ step: 'Old plan', status: 'in_progress' }],
+              plan_revision: 1,
+              plan_updated_at: '2026-05-18T00:00:00.000Z'
+            }
+          }
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.text()).not.toContain('Old plan')
+  })
+
+  it('renders non-internal tool calls even when they are named update_plan', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          createToolCallBlock({
+            tool_call: {
+              id: 'external-plan-tool',
+              name: 'update_plan'
+            }
+          })
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
   })
 
   it('groups completed assistant activity blocks after the turn is settled', () => {
