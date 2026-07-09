@@ -680,6 +680,48 @@ describe('ChatPage', () => {
     expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
   })
 
+  it('constrains the combined plan and interaction panel to a scrollable viewport area', async () => {
+    const { wrapper, agentPlanStore } = await setup({
+      activeSessionPatch: { status: 'working' },
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            }
+          }
+        ])
+      ]
+    })
+
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: Array.from({ length: 12 }, (_, index) => ({
+        step: `Plan step ${index}`,
+        status: index === 0 ? 'in_progress' : 'pending'
+      })),
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+
+    await flushPromises()
+
+    const panel = wrapper.find('.agent-question-panel')
+
+    expect(panel.exists()).toBe(true)
+    expect(panel.classes()).toContain('max-h-[min(70vh,calc(100vh-12rem))]')
+    expect(panel.classes()).toContain('overflow-x-hidden')
+    expect(panel.classes()).toContain('overflow-y-auto')
+    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+  })
+
   it('keeps live plan snapshots for multiple sessions and renders only the active session', async () => {
     const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
       activeSessionPatch: { status: 'working' },
@@ -1665,6 +1707,46 @@ describe('ChatPage', () => {
     expect(sessionClient.deleteMessage).toHaveBeenCalledWith('s1', 'm1')
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
     expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
+  })
+
+  it('clears the live plan snapshot when deleting the associated assistant message', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm1',
+      plan: [{ step: 'Associated plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1).toBeUndefined()
+  })
+
+  it('keeps the live plan snapshot when deleting an unrelated message', async () => {
+    const { wrapper, agentPlanStore } = await setup()
+    agentPlanStore.snapshots.s1 = {
+      sessionId: 's1',
+      messageId: 'm2',
+      plan: [{ step: 'Unrelated plan', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    }
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+
+    messageList.vm.$emit('delete', 'm1')
+    await flushPromises()
+    await wrapper.findComponent({ name: 'AlertDialogAction' }).trigger('click')
+    await flushPromises()
+
+    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
+    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Unrelated plan')
   })
 
   it('does not delete when the message delete dialog closes without confirmation', async () => {

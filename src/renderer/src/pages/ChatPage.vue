@@ -92,7 +92,7 @@
                 <!-- Both plan + question: unified glassmorphism panel -->
                 <div
                   v-if="activePendingInteraction && latestPlanSnapshot"
-                  class="agent-question-panel pointer-events-auto mx-auto w-full max-w-2xl overflow-hidden rounded-[20px] text-foreground backdrop-blur-[26px]"
+                  class="agent-question-panel pointer-events-auto mx-auto max-h-[min(70vh,calc(100vh-12rem))] w-full max-w-2xl overflow-x-hidden overflow-y-auto rounded-[20px] text-foreground backdrop-blur-[26px]"
                 >
                   <div class="agent-question-panel__backdrop" aria-hidden="true" />
                   <AgentProgressFloat
@@ -1975,6 +1975,16 @@ function beginPlanTurn(sessionId: string): void {
   agentPlanStore.beginTurn(sessionId)
 }
 
+function clearPlanSnapshotForDeletedMessage(sessionId: string, messageId: string): void {
+  const snapshot = agentPlanStore.snapshots[sessionId]
+  if (snapshot?.messageId !== messageId) {
+    return
+  }
+
+  resetPlanSnapshotLifecycle(sessionId)
+  agentPlanStore.clearSnapshot(sessionId)
+}
+
 const planSnapshotLifecycleKey = computed(() =>
   Object.values(agentPlanStore.snapshots)
     .map((snapshot) => {
@@ -2361,11 +2371,15 @@ async function confirmMessageDelete() {
   const messageId = pendingDeleteMessageId.value
   if (!messageId) return
   if (isReadOnlySession.value) return
+  const sessionId = props.sessionId
   pendingDeleteMessageId.value = null
   try {
     messageStore.clearStreamingState()
-    await sessionClient.deleteMessage(props.sessionId, messageId)
-    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
+    await sessionClient.deleteMessage(sessionId, messageId)
+    clearPlanSnapshotForDeletedMessage(sessionId, messageId)
+    if (props.sessionId === sessionId) {
+      applyRestoredSessionSummary(await loadMessagesForSession(sessionId))
+    }
   } catch (error) {
     console.error('[ChatPage] delete message failed:', error)
   }
@@ -2535,6 +2549,9 @@ onUnmounted(() => {
 .agent-question-panel {
   isolation: isolate;
   border: 1px solid transparent;
+  max-height: min(70vh, calc(100vh - 12rem));
+  overflow-x: hidden;
+  overflow-y: auto;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, white 78%, hsl(var(--background)) 22%) 0%,
