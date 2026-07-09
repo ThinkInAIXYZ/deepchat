@@ -241,6 +241,40 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-mode')).toBe('edit')
   })
 
+  it('toggles the current row detail closed when selecting it again', async () => {
+    const { wrapper } = await setup()
+    const row = wrapper.find('[role="button"]')
+
+    await row.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
+
+    await row.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
+  })
+
+  it('uses the discard prompt before collapsing a dirty current row', async () => {
+    const { wrapper } = await setup()
+    const row = wrapper.find('[role="button"]')
+
+    await row.trigger('click')
+    await flushPromises()
+    const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
+    panel.vm.$emit('dirty', true)
+    await flushPromises()
+
+    await row.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MemoryInlinePanel' }).props('discardPrompt')).toBe(true)
+
+    wrapper.findComponent({ name: 'MemoryInlinePanel' }).vm.$emit('discard-pending')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
+  })
+
   it('uses a direct permanent-delete row action without opening the inline panel', async () => {
     const { wrapper, memoryClient } = await setup()
 

@@ -520,6 +520,10 @@ function setCreate(): void {
 }
 
 function selectMemory(memory: MemoryItem): void {
+  if (isExpanded(memory)) {
+    requestClosePanel()
+    return
+  }
   requestExpand(memory, 'view')
 }
 
