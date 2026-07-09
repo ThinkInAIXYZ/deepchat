@@ -108,6 +108,8 @@ export interface ProcessHooks {
     commitDecision: (granted: boolean) => void
   ) => void
   getActiveSkillNames?: () => string[]
+  getEnabledSkillNames?: () => string[] | null | undefined
+  getEnabledPluginIds?: () => string[] | null | undefined
   activateSkill?: (skillName: string) => Promise<string[]>
   normalizeToolResult?: (tool: {
     sessionId: string

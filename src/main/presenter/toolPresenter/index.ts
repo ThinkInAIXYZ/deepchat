@@ -79,9 +79,10 @@ export interface IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[]
+      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
   preCheckToolPermission?(
@@ -302,9 +303,10 @@ export class ToolPresenter implements IToolPresenter {
       signal?: AbortSignal
       permissionMode?: PermissionMode
       activeSkillNames?: string[]
+      enabledSkillNames?: string[] | null
       agentId?: string
       enabledMcpServerIds?: string[]
-      enabledPluginIds?: string[]
+      enabledPluginIds?: string[] | null
     }
   ): Promise<{ content: unknown; rawData: MCPToolResponse }> {
     const toolName = request.function.name
@@ -346,7 +348,9 @@ export class ToolPresenter implements IToolPresenter {
           onProgress: options?.onProgress,
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
-          activeSkillNames: options?.activeSkillNames
+          activeSkillNames: options?.activeSkillNames,
+          enabledSkillNames: options?.enabledSkillNames,
+          enabledPluginIds: options?.enabledPluginIds
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)

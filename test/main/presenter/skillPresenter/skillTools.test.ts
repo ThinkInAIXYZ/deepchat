@@ -151,6 +151,16 @@ describe('SkillTools', () => {
         })
       ])
     })
+
+    it('does not treat current-message active skills as the agent allowlist', async () => {
+      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue([])
+
+      const result = await skillTools.handleSkillList('conv-123', undefined, [])
+
+      expect(result.totalCount).toBe(2)
+      expect(result.activeCount).toBe(0)
+      expect(result.skills.map((skill) => skill.name)).toEqual(['code-review', 'git-commit'])
+    })
   })
 
   describe('handleSkillView', () => {

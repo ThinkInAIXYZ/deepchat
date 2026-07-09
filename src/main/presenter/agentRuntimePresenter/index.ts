@@ -3447,6 +3447,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
 
     const streamSessionActiveSkillNames =
       await this.resolveActiveSkillNamesForToolProfile(sessionId)
+    const streamExtensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
     const getEffectiveRuntimeSkillNames = (baseSkillNames = streamSessionActiveSkillNames) =>
       this.resolveEffectiveActiveSkillNames(baseSkillNames, sessionId)
     const tools =
@@ -3853,6 +3854,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           Boolean(this.pendingInputCoordinator.getNextSteerInput(sessionId)),
         hooks: {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
+          getEnabledSkillNames: () =>
+            this.normalizeNullablePolicyList(streamExtensionPolicy.enabledSkillNames),
+          getEnabledPluginIds: () =>
+            this.normalizeNullablePolicyList(streamExtensionPolicy.enabledPluginIds),
           activateSkill: async (skillName) => {
             const policy = await this.resolveAgentExtensionPolicy(sessionId)
             if (this.filterSkillNamesByPolicy([skillName], policy).length === 0) {
@@ -6497,6 +6502,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       const extensionPolicy = await this.resolveAgentExtensionPolicy(sessionId)
       const result = await this.toolPresenter.callTool(request, {
         agentId: this.getSessionAgentId(sessionId) ?? 'deepchat',
+        enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
         enabledPluginIds: extensionPolicy.enabledPluginIds ?? undefined,
         onProgress: (update) => {
           if (
