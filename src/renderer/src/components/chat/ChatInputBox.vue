@@ -131,13 +131,17 @@ const files = useChatInputFiles(
 
 // ── Inline Node action wiring ──────────────────────────────────
 let isSyncingNodes = false
+let isSubmittingCommandForm = false
 
 const actions: InputNodeActions = {
+  prepareCommandFormSubmit: () => {
+    isSubmittingCommandForm = true
+  },
   removeSkill: (skillName) => {
     void skillsData.deactivateSkill(skillName)
   },
   removeFile: (filePath) => {
-    const idx = files.selectedFiles.value.findIndex((f) => f.path === filePath)
+    const idx = files.selectedFiles.value.findIndex((f) => (f.path || f.name) === filePath)
     if (idx >= 0) {
       files.deleteFile(idx)
     }
@@ -186,121 +190,166 @@ const setCaretToEnd = (editor: Editor) => {
   editor.view.dispatch(editor.state.tr.setSelection(end))
 }
 
-/** Insert a SkillChip node at the start of the first paragraph */
-function insertSkillChipNode(skillName: string) {
-  const firstChild = editor.state.doc.firstChild
-  if (!firstChild) return
-  const insertPos = 1
-  editor
-    .chain()
-    .focus()
-    .insertContentAt(insertPos, { type: 'skillChip', attrs: { skillName } })
-    .run()
-}
-
-/** Insert a FileAttachment node at the end of the first paragraph */
-function insertFileAttachmentNode(file: MessageFile) {
-  const firstChild = editor.state.doc.firstChild
-  if (!firstChild) return
-  const insertPos = 1
-  editor
-    .chain()
-    .focus()
-    .insertContentAt(insertPos, {
-      type: 'fileAttachment',
-      attrs: {
-        fileName: file.name || 'file',
-        filePath: file.path || file.name,
-        mimeType: file.mimeType || ''
-      }
-    })
-    .run()
-}
-
 type InlineNodeRange = { pos: number; size: number }
+const CHAT_INPUT_SYNC_META = 'chatInputSync'
+
+function syncEditorContent(applyChange: () => void) {
+  isSyncingNodes = true
+  try {
+    applyChange()
+  } finally {
+    isSyncingNodes = false
+  }
+}
 
 function deleteInlineNodes(ranges: InlineNodeRange[]) {
   if (ranges.length === 0) return
 
+  let tr = editor.state.tr
   ranges
     .sort((a, b) => b.pos - a.pos)
     .forEach(({ pos, size }) => {
-      editor
-        .chain()
-        .focus()
-        .deleteRange({ from: pos, to: pos + size })
-        .run()
+      tr = tr.delete(pos, pos + size)
     })
+
+  editor.view.dispatch(tr.setMeta(CHAT_INPUT_SYNC_META, true).setMeta('addToHistory', false))
+}
+
+function getEditorSkillNames(): string[] {
+  const names: string[] = []
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'skillChip') {
+      names.push(node.attrs.skillName as string)
+    }
+  })
+  return names
+}
+
+function getEditorFilePaths(): string[] {
+  const paths: string[] = []
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'fileAttachment') {
+      paths.push(node.attrs.filePath as string)
+    }
+  })
+  return paths
+}
+
+function hasCommandFormNode(): boolean {
+  let hasForm = false
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'commandForm') {
+      hasForm = true
+      return false
+    }
+    return true
+  })
+  return hasForm
+}
+
+function reconcileEditorNodes() {
+  if (isSyncingNodes) return
+
+  const editorSkillNames = new Set(getEditorSkillNames())
+  activeSkillNames.value
+    .filter((name) => !editorSkillNames.has(name))
+    .forEach((name) => {
+      void skillsData.deactivateSkill(name)
+    })
+
+  const editorFilePaths = new Set(getEditorFilePaths())
+  for (let i = files.selectedFiles.value.length - 1; i >= 0; i -= 1) {
+    const file = files.selectedFiles.value[i]
+    if (!editorFilePaths.has(file.path || file.name)) {
+      files.deleteFile(i)
+    }
+  }
+
+  if (!hasCommandFormNode() && !isSubmittingCommandForm) {
+    mentions.closeDialog()
+  }
 }
 
 /** Ensure editor SkillChip nodes mirror skillsData.activeSkills */
 function syncSkillNodes() {
   if (isSyncingNodes) return
-  const active = activeSkillNames.value
-  const existing = new Map<string, InlineNodeRange>()
 
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'skillChip') {
-      existing.set(node.attrs.skillName as string, { pos, size: node.nodeSize })
+  syncEditorContent(() => {
+    const active = activeSkillNames.value
+    const existing = new Map<string, InlineNodeRange>()
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'skillChip') {
+        existing.set(node.attrs.skillName as string, { pos, size: node.nodeSize })
+      }
+    })
+
+    deleteInlineNodes(
+      Array.from(existing.entries())
+        .filter(([name]) => !active.includes(name))
+        .map(([, range]) => range)
+    )
+
+    const newSkillNodes = active
+      .filter((name) => !existing.has(name))
+      .map((name) => ({
+        type: 'skillChip',
+        attrs: { skillName: name }
+      }))
+
+    if (newSkillNodes.length > 0) {
+      editor
+        .chain()
+        .insertContentAt(editor.state.selection.from, newSkillNodes, { updateSelection: false })
+        .run()
     }
   })
-
-  deleteInlineNodes(
-    Array.from(existing.entries())
-      .filter(([name]) => !active.includes(name))
-      .map(([, range]) => range)
-  )
-
-  const newSkillNodes = active
-    .filter((name) => !existing.has(name))
-    .map((name) => ({
-      type: 'skillChip',
-      attrs: { skillName: name }
-    }))
-
-  if (newSkillNodes.length > 0) {
-    editor.chain().focus().insertContentAt(editor.state.selection.from, newSkillNodes).run()
-  }
 }
 
 /** Ensure editor FileAttachment nodes mirror files.selectedFiles */
 function syncFileNodes() {
   if (isSyncingNodes) return
-  const currentFiles = files.selectedFiles.value
-  const existing = new Map<string, InlineNodeRange>()
 
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'fileAttachment') {
-      const path = node.attrs.filePath as string
-      existing.set(path, { pos, size: node.nodeSize })
-    }
-  })
+  syncEditorContent(() => {
+    const currentFiles = files.selectedFiles.value
+    const existing = new Map<string, InlineNodeRange>()
 
-  const currentPaths = new Set(currentFiles.map((f) => f.path || f.name))
-
-  deleteInlineNodes(
-    Array.from(existing.entries())
-      .filter(([path]) => !currentPaths.has(path))
-      .map(([, range]) => range)
-  )
-
-  const newFileNodes = currentFiles
-    .filter((file) => !existing.has(file.path || file.name))
-    .map((file) => {
-      const path = file.path || file.name
-      return {
-        type: 'fileAttachment',
-        attrs: {
-          fileName: file.name || 'file',
-          filePath: path,
-          mimeType: file.mimeType || ''
-        }
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'fileAttachment') {
+        const path = node.attrs.filePath as string
+        existing.set(path, { pos, size: node.nodeSize })
       }
     })
 
-  if (newFileNodes.length > 0) {
-    editor.chain().focus().insertContentAt(findFileInsertPos(), newFileNodes).run()
-  }
+    const currentPaths = new Set(currentFiles.map((f) => f.path || f.name))
+
+    deleteInlineNodes(
+      Array.from(existing.entries())
+        .filter(([path]) => !currentPaths.has(path))
+        .map(([, range]) => range)
+    )
+
+    const newFileNodes = currentFiles
+      .filter((file) => !existing.has(file.path || file.name))
+      .map((file) => {
+        const path = file.path || file.name
+        return {
+          type: 'fileAttachment',
+          attrs: {
+            fileName: file.name || 'file',
+            filePath: path,
+            mimeType: file.mimeType || ''
+          }
+        }
+      })
+
+    if (newFileNodes.length > 0) {
+      editor
+        .chain()
+        .insertContentAt(findFileInsertPos(), newFileNodes, { updateSelection: false })
+        .run()
+    }
+  })
 }
 
 function findFileInsertPos(): number {
@@ -350,7 +399,12 @@ const editor = new VueEditor({
     })
   ],
   content: toEditorDoc(props.modelValue || ''),
-  onUpdate: ({ editor }) => {
+  onUpdate: ({ editor, transaction }) => {
+    if (!transaction.getMeta(CHAT_INPUT_SYNC_META)) {
+      reconcileEditorNodes()
+    }
+    isSubmittingCommandForm = false
+
     const text = getEditorText(editor)
     if (text !== (props.modelValue || '')) {
       emit('update:modelValue', text)
@@ -369,10 +423,10 @@ watch(
     const current = getEditorText(editor)
     if (next === current) return
 
-    isSyncingNodes = true
-    editor.commands.setContent(toEditorDoc(next), false)
-    setCaretToEnd(editor)
-    isSyncingNodes = false
+    syncEditorContent(() => {
+      editor.commands.setContent(toEditorDoc(next), false)
+      setCaretToEnd(editor)
+    })
 
     // Re-sync chips after content replacement
     void nextTick(() => {
@@ -559,32 +613,6 @@ function insertRecognizedText(text: string) {
   editor.chain().focus().insertContent(normalizedText).run()
 }
 
-// ── Public helpers to extract skills/files from editor ─────────
-
-function getEditorSkillNames(): string[] {
-  const names: string[] = []
-  editor.state.doc.descendants((node) => {
-    if (node.type.name === 'skillChip') {
-      names.push(node.attrs.skillName as string)
-    }
-  })
-  return names
-}
-
-function getEditorFileAttachments(): { name: string; path: string; mimeType: string }[] {
-  const result: { name: string; path: string; mimeType: string }[] = []
-  editor.state.doc.descendants((node) => {
-    if (node.type.name === 'fileAttachment') {
-      result.push({
-        name: node.attrs.fileName as string,
-        path: node.attrs.filePath as string,
-        mimeType: node.attrs.mimeType as string
-      })
-    }
-  })
-  return result
-}
-
 function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
@@ -606,8 +634,6 @@ defineExpose({
   triggerAttach,
   insertRecognizedText,
   insertWorkspaceReference,
-  getEditorSkillNames,
-  getEditorFileAttachments,
   getPendingSkillsSnapshot,
   consumePendingSkills,
   clearPendingSkills,

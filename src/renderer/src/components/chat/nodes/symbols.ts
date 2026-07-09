@@ -1,6 +1,7 @@
 import type { InjectionKey } from 'vue'
 
 export interface InputNodeActions {
+  prepareCommandFormSubmit: () => void
   removeSkill: (skillName: string) => void
   removeFile: (filePath: string) => void
   submitCommandForm: (values: Record<string, string>) => void

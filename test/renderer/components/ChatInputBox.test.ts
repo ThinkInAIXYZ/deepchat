@@ -378,20 +378,15 @@ describe('ChatInputBox attachments', () => {
     expect(handleDropMock).not.toHaveBeenCalled()
   })
 
-  it('handles remove attached file via exposed helpers', async () => {
-    const wrapper = await mountComponent({
+  it('tracks attached file state via the files composable', async () => {
+    await mountComponent({
       files: [{ name: 'a.txt', path: '/tmp/a.txt' }]
     })
     selectedFilesRef.value = [{ name: 'a.txt', path: '/tmp/a.txt' }]
     await nextTick()
 
-    // Verify files are tracked in the editor node model
-    const attachments = (wrapper.vm as any).getEditorFileAttachments?.() ?? []
-    // The test mock doesn't render real nodes so no actual nodes exist,
-    // but the composable should still track the file
     expect(selectedFilesRef.value.length).toBe(1)
 
-    // Trigger delete through the composable
     deleteFileMock(0)
     expect(deleteFileMock).toHaveBeenCalledWith(0)
   })

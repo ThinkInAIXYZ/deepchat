@@ -113,6 +113,7 @@ function handleFieldEnter(index: number, event: KeyboardEvent) {
 
 function handleSubmit() {
   if (!canSubmit.value) return
+  actions?.prepareCommandFormSubmit()
   props.deleteNode()
   if (actions?.submitCommandForm) {
     actions.submitCommandForm({ ...formValues })

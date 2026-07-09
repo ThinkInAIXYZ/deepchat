@@ -340,16 +340,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
 
     if (action.kind === 'activate-skill') {
-      // Insert chip at the trigger position, then activate
-      editor
-        .chain()
-        .focus()
-        .insertContentAt(range, '')
-        .insertContentAt(range.from, {
-          type: 'skillChip',
-          attrs: { skillName: action.skillName }
-        })
-        .run()
+      editor.chain().focus().insertContentAt(range, '').run()
 
       if (options.onActivateSkill) {
         await options.onActivateSkill(action.skillName)
