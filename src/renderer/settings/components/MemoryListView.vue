@@ -564,6 +564,16 @@ function upsertMemory(memory: MemoryItem): void {
   } else {
     memories.value.unshift(memory)
   }
+  const searchIndex = searchResults.value.findIndex((row) => row.id === memory.id)
+  if (searchIndex >= 0) {
+    searchResults.value.splice(searchIndex, 1, { ...searchResults.value[searchIndex], ...memory })
+  }
+}
+
+function removeMemory(memoryId: string): void {
+  memories.value = memories.value.filter((row) => row.id !== memoryId)
+  searchResults.value = searchResults.value.filter((row) => row.id !== memoryId)
+  if (expandedMemory.value?.id === memoryId) closePanel()
 }
 
 function setPanelSelected(memory: MemoryItem): void {
@@ -626,17 +636,33 @@ function closePanel(): void {
 }
 
 async function archive(memory: MemoryItem): Promise<void> {
+  const agentId = props.agentId
   try {
-    await memoryClient.archive(props.agentId, memory.id)
+    const ok = await memoryClient.archive(agentId, memory.id)
+    if (props.agentId !== agentId) return
+    if (!ok) {
+      notifyFailed()
+      return
+    }
+    upsertMemory({ ...memory, status: 'archived' })
   } catch (error) {
+    if (props.agentId !== agentId) return
     notifyFailed(error)
   }
 }
 
 async function restore(memory: MemoryItem): Promise<void> {
+  const agentId = props.agentId
   try {
-    await memoryClient.restore(props.agentId, memory.id)
+    const ok = await memoryClient.restore(agentId, memory.id)
+    if (props.agentId !== agentId) return
+    if (!ok) {
+      notifyFailed()
+      return
+    }
+    upsertMemory({ ...memory, status: 'pending_embedding' })
   } catch (error) {
+    if (props.agentId !== agentId) return
     notifyFailed(error)
   }
 }
@@ -652,12 +678,20 @@ function onDeleteDialogOpen(open: boolean): void {
 async function confirmRemove(): Promise<void> {
   const memory = deleteTarget.value
   if (!memory) return
+  const agentId = props.agentId
   try {
-    await memoryClient.remove(props.agentId, memory.id)
+    const ok = await memoryClient.remove(agentId, memory.id)
+    if (props.agentId !== agentId) return
+    if (!ok) {
+      notifyFailed()
+      return
+    }
+    removeMemory(memory.id)
   } catch (error) {
+    if (props.agentId !== agentId) return
     notifyFailed(error)
   } finally {
-    deleteTarget.value = null
+    if (props.agentId === agentId) deleteTarget.value = null
   }
 }
 

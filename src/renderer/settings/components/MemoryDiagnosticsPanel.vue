@@ -388,11 +388,18 @@ async function reindex(): Promise<void> {
 }
 
 async function clearAll(): Promise<void> {
+  const agentId = props.agentId
+  if (!agentId || loading.value) return
+  loading.value = true
   try {
-    await memoryClient.clear(props.agentId)
+    await memoryClient.clear(agentId)
+    if (props.agentId !== agentId) return
     await load()
   } catch (error) {
+    if (props.agentId !== agentId) return
     notifyFailed(error)
+  } finally {
+    if (props.agentId === agentId) loading.value = false
   }
 }
 

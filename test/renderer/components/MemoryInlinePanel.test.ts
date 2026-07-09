@@ -247,6 +247,73 @@ describe('MemoryInlinePanel', () => {
     wrapper.unmount()
   })
 
+  it('archives from the footer and closes the inline panel on success', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    const archiveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.memory.redesign.archive')
+    await archiveButton!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('restores from the footer and keeps the inline panel open on success', async () => {
+    const { wrapper, memoryClient } = await setup({ item: memory({ status: 'archived' }) })
+
+    const restoreButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.deepchatAgents.memoryManager.restore')
+    await restoreButton!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.restore).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('permanently deletes from the footer and closes the inline panel on success', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    const deleteButton = wrapper
+      .findAll('button')
+      .find((button) =>
+        button.text().includes('settings.deepchatAgents.memoryManager.deletePermanent')
+      )
+    await deleteButton!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['archive', 'settings.memory.redesign.archive'],
+    ['restore', 'settings.deepchatAgents.memoryManager.restore'],
+    ['remove', 'settings.deepchatAgents.memoryManager.deletePermanent']
+  ] as const)('shows a toast when the footer %s action returns false', async (action, label) => {
+    const { wrapper, memoryClient, toast } = await setup({
+      item: action === 'restore' ? memory({ status: 'archived' }) : memory()
+    })
+    memoryClient[action].mockResolvedValueOnce(false)
+
+    const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
+    await button!.trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalled()
+    expect(wrapper.emitted('changed')).toBeUndefined()
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('drops stale source responses after switching to another memory', async () => {
     const sourceA = deferred<MemorySourceSpan>()
     const sourceB = deferred<MemorySourceSpan>()

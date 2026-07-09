@@ -135,6 +135,13 @@ function refreshButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
     .find((button) => button.text().includes('settings.memory.redesign.refresh'))!
 }
 
+function clearAllActionButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  return wrapper
+    .findAll('button')
+    .filter((button) => button.text().includes('settings.deepchatAgents.memoryManager.clearAll'))
+    .at(-1)!
+}
+
 describe('MemoryDiagnosticsPanel', () => {
   it('normalizes persisted audit event types to stable i18n keys', () => {
     expect(auditSentenceKey('memory/maintenance_llm')).toBe(
@@ -259,6 +266,50 @@ describe('MemoryDiagnosticsPanel', () => {
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(healthCallsAfterAgentSwitch)
     expect(reindexButton(wrapper).attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('reloads diagnostics after clearing all memories for the current agent', async () => {
+    const { wrapper, memoryClient } = await setup()
+
+    await clearAllActionButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('shows a failure toast when clearing all memories fails', async () => {
+    const { wrapper, memoryClient, toast } = await setup()
+    memoryClient.clear.mockRejectedValueOnce(new Error('clear failed'))
+
+    await clearAllActionButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('drops a stale clear-all response after the agent changes', async () => {
+    const { wrapper, memoryClient, toast } = await setup()
+    const pending = deferred<number>()
+    memoryClient.clear.mockReturnValueOnce(pending.promise)
+
+    await clearAllActionButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
+
+    await wrapper.setProps({ agentId: 'other-agent' })
+    await flushPromises()
+    const healthCallsAfterAgentSwitch = memoryClient.getHealth.mock.calls.length
+
+    pending.resolve(0)
+    await flushPromises()
+    await flushPromises()
+
+    expect(memoryClient.getHealth).toHaveBeenCalledTimes(healthCallsAfterAgentSwitch)
+    expect(toast).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

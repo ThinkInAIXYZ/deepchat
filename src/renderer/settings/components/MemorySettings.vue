@@ -358,6 +358,7 @@ function handleConfigSaved(): void {
 }
 
 watch(selectedAgentId, () => {
+  status.value = null
   // Children already react to the agentId prop change on their own; don't
   // also bump refreshToken here or they'd reload twice per switch.
   void Promise.all([loadResolved(), loadStatus()])

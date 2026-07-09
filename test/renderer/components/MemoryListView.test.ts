@@ -306,6 +306,47 @@ describe('MemoryListView', () => {
     await flushPromises()
 
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.text()).not.toContain('user likes redis')
+  })
+
+  it('shows a failure toast and keeps the row when permanent delete returns false', async () => {
+    const { wrapper, memoryClient, toast } = await setup()
+    memoryClient.remove.mockResolvedValueOnce(false)
+
+    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
+    await flushPromises()
+    const confirmButton = wrapper
+      .findAll('button')
+      .find((button) =>
+        button.text().includes('settings.deepchatAgents.memoryManager.deletePermanent')
+      )
+    await confirmButton!.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(toast).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('user likes redis')
+  })
+
+  it('removes an expanded row locally and closes its inline panel after permanent delete', async () => {
+    const { wrapper } = await setup()
+
+    await wrapper.find('[role="button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="memory-row-delete"]').trigger('click')
+    await flushPromises()
+    const confirmButton = wrapper
+      .findAll('button')
+      .find((button) =>
+        button.text().includes('settings.deepchatAgents.memoryManager.deletePermanent')
+      )
+    await confirmButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('user likes redis')
+    expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(false)
   })
 
   it('keeps the direct permanent-delete action available on archived rows', async () => {
@@ -319,6 +360,73 @@ describe('MemoryListView', () => {
     expect(wrapper.find('[data-testid="memory-row-restore"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="memory-row-delete"]').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'DropdownMenu' }).exists()).toBe(false)
+  })
+
+  it('updates the local list when archive succeeds and reports false archive results', async () => {
+    const { wrapper, memoryClient, toast } = await setup()
+
+    await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.text()).not.toContain('user likes redis')
+
+    memoryClient.list.mockResolvedValueOnce([memory({ id: 'm2', content: 'visible fact' })])
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    memoryClient.archive.mockResolvedValueOnce(false)
+
+    await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('visible fact')
+  })
+
+  it('updates the active search result when archive succeeds', async () => {
+    vi.useFakeTimers()
+    const { wrapper, memoryClient } = await setup({
+      rows: [memory({ content: 'redis search fact' })],
+      searchRows: [
+        { ...memory({ content: 'redis search fact' }), score: 1, sources: { fts: true } }
+      ]
+    })
+
+    await wrapper.find('input[type="search"]').setValue('redis')
+    vi.advanceTimersByTime(200)
+    await flushPromises()
+    expect(memoryClient.search).toHaveBeenLastCalledWith('deepchat', 'redis')
+    expect(wrapper.text()).toContain('redis search fact')
+
+    await wrapper.find('[data-testid="memory-row-archive"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('redis search fact')
+  })
+
+  it('updates the local archived row when restore succeeds and reports false restore results', async () => {
+    const archived = memory({ status: 'archived' })
+    const { wrapper, memoryClient, toast } = await setup({ rows: [archived] })
+
+    await wrapper.find('input[type="checkbox"]').setChecked(true)
+    await flushPromises()
+    await wrapper.find('[data-testid="memory-row-restore"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.restore).toHaveBeenCalledWith('deepchat', 'm1')
+    expect(wrapper.find('[data-testid="memory-row-archive"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="memory-row-restore"]').exists()).toBe(false)
+
+    memoryClient.list.mockResolvedValueOnce([archived])
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    memoryClient.restore.mockResolvedValueOnce(false)
+
+    await wrapper.find('[data-testid="memory-row-restore"]').trigger('click')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="memory-row-restore"]').exists()).toBe(true)
   })
 
   it('routes openCreate through the dirty-prompt guard instead of discarding unsaved edits', async () => {

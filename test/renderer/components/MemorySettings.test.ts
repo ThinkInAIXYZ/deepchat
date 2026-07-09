@@ -132,6 +132,10 @@ function statusSummary(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
   return wrapper.find('[data-testid="settings-memory-status-summary"]')
 }
 
+function inboxBar(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  return wrapper.findComponent({ name: 'MemoryInboxBar' })
+}
+
 describe('MemorySettings redesign shell', () => {
   it('defaults to the built-in deepchat agent', async () => {
     const { wrapper } = await setup([other, deepchat])
@@ -267,6 +271,44 @@ describe('MemorySettings redesign shell', () => {
     resolveOther({ memoryEnabled: false })
     await flushPromises()
     expect(listView(wrapper).props('memoryEnabled')).toBe(false)
+  })
+
+  it('clears status counts while the next agent status is pending', async () => {
+    let resolveOtherStatus!: (value: MemoryStatusDto) => void
+    const otherStatusPending = new Promise<MemoryStatusDto>((resolve) => {
+      resolveOtherStatus = resolve
+    })
+    const { wrapper } = await setup([deepchat, other], {
+      resolveImpl: async () => ({
+        memoryEnabled: true,
+        memoryEmbedding: { providerId: 'p', modelId: 'm' }
+      }),
+      statusImpl: (id) =>
+        id === 'deepchat'
+          ? Promise.resolve({
+              ...baseStatus,
+              activeMemoryCount: 7,
+              archivedMemoryCount: 3,
+              conflictCount: 5,
+              personaDraftCount: 4
+            })
+          : otherStatusPending
+    })
+
+    expect(statusSummary(wrapper).text()).toContain('7 active · 3 archived')
+    expect(inboxBar(wrapper).props('conflictCount')).toBe(5)
+    expect(inboxBar(wrapper).props('draftCount')).toBe(4)
+
+    wrapper.findComponent({ name: 'Select' }).vm.$emit('update:model-value', 'other')
+    await flushPromises()
+
+    expect(statusSummary(wrapper).text()).not.toContain('7 active · 3 archived')
+    expect(statusSummary(wrapper).text()).toContain('0 active · 0 archived')
+    expect(inboxBar(wrapper).props('conflictCount')).toBe(0)
+    expect(inboxBar(wrapper).props('draftCount')).toBe(0)
+
+    resolveOtherStatus(baseStatus)
+    await flushPromises()
   })
 
   it('fetches status and resolved config exactly once per mount and per agent switch', async () => {

@@ -433,7 +433,7 @@ function seed(): void {
   deleteDialogOpen.value = false
 }
 
-function notifyFailed(error: unknown): void {
+function notifyFailed(error?: unknown): void {
   notifyMemoryActionFailed(toast, t, error)
 }
 
@@ -518,10 +518,13 @@ async function save(): Promise<void> {
 async function archive(): Promise<void> {
   if (!props.memory) return
   try {
-    if (await memoryClient.archive(props.agentId, props.memory.id)) {
-      emit('changed')
-      emit('close')
+    const ok = await memoryClient.archive(props.agentId, props.memory.id)
+    if (!ok) {
+      notifyFailed()
+      return
     }
+    emit('changed')
+    emit('close')
   } catch (error) {
     notifyFailed(error)
   }
@@ -530,7 +533,12 @@ async function archive(): Promise<void> {
 async function restore(): Promise<void> {
   if (!props.memory) return
   try {
-    if (await memoryClient.restore(props.agentId, props.memory.id)) emit('changed')
+    const ok = await memoryClient.restore(props.agentId, props.memory.id)
+    if (!ok) {
+      notifyFailed()
+      return
+    }
+    emit('changed')
   } catch (error) {
     notifyFailed(error)
   }
@@ -539,10 +547,13 @@ async function restore(): Promise<void> {
 async function remove(): Promise<void> {
   if (!props.memory) return
   try {
-    if (await memoryClient.remove(props.agentId, props.memory.id)) {
-      emit('changed')
-      emit('close')
+    const ok = await memoryClient.remove(props.agentId, props.memory.id)
+    if (!ok) {
+      notifyFailed()
+      return
     }
+    emit('changed')
+    emit('close')
   } catch (error) {
     notifyFailed(error)
   }
