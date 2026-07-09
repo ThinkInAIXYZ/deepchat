@@ -1,4 +1,4 @@
 interface:
   display_name: "DeepChat SDD"
-  short_description: "Classify DeepChat changes before implementation"
-  default_prompt: "Use $deepchat-sdd before implementing DeepChat changes to choose the right feature, issue, or architecture artifact workflow."
+  short_description: "Spec substantial DeepChat changes only"
+  default_prompt: "Use $deepchat-sdd for substantial DeepChat changes that need SDD; skip trivial fixes and ask before GitHub issue sync."

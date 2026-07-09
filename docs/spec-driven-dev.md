@@ -4,15 +4,26 @@
 
 Specification-Driven Development (SDD) eliminates the gap between requirements and implementation by making specifications the primary artifact. Specifications don't serve code—code serves specifications. When implementing features in DeepChat, start with clear specifications that define WHAT users need and WHY, before deciding HOW to implement.
 
-In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and PR review. Prefer small, reviewable increments that keep spec → plan → code traceability.
+In practice, SDD works best when the spec is concrete enough to drive design decisions, tests, and
+PR review. Use it for substantial work that needs shared context or a durable decision record, not
+for every small edit. Prefer small, reviewable increments that keep spec → plan → code traceability.
 
 ## Required Artifacts
 
-Keep every active change in a lightweight SDD folder so reviewers can find the intent without hunting through code. Use one kebab-case folder per goal:
+Keep substantial active changes in a lightweight SDD folder so reviewers can find the intent without
+hunting through code. Use one kebab-case folder per goal when SDD is needed:
 
-- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools
-- `docs/issues/<goal>/` - small bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems
+- `docs/features/<goal>/` - new features, user-visible capabilities, integrations, and tools large
+  enough to need a shared plan
+- `docs/issues/<goal>/` - complex bug fixes, regressions, failing tests, CI failures, reliability
+  issues, and prompt/runtime problems
 - `docs/architecture/<goal>/` - refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design
+
+Skip SDD unless a developer explicitly asks for it when the change is trivial or tightly localized:
+
+- visual/style fixes, copy changes, and small UI layout adjustments
+- simple localized logic changes with a clear owner module
+- routine docs edits that do not change project direction
 
 Pure release metadata work is exempt from SDD. Version bumps, `CHANGELOG.md` updates, release branch
 management, tags, and release PR preparation should follow `docs/release-flow.md` without creating a
@@ -24,40 +35,58 @@ Feature and architecture goals use the full SDD set:
 - `plan.md` - architecture decisions, event flow, data model, compatibility, test strategy
 - `tasks.md` - small, ordered tasks that map to commits/PRs
 
-Small bug goals use one file:
+Complex bug goals use one file:
 
 - `spec.md` - issue description, impact, root cause or suspected location, fix plan, task checklist,
   validation, and linked GitHub issue if one exists
 
-A bug is small only when the failure is narrow, the owner module is clear, and the fix does not
-introduce a new user-visible capability, data migration, public contract, or cross-module redesign.
-If it does, classify the work as feature or architecture instead.
+A bug is SDD-worthy only when the root cause, blast radius, or fix path is complex enough that
+future developers benefit from the written record. For simple style defects or obvious local logic
+fixes, skip `docs/issues/*` and implement directly.
 
-If a change is tiny, keep the artifact short.
+If a bug fix introduces a new user-visible capability, data migration, public contract, or
+cross-module redesign, classify the work as feature or architecture instead.
+
+If a change is tiny, prefer skipping SDD over creating a token artifact.
 
 ## GitHub Issue Sync
 
-For feature and small bug work, create or link a GitHub issue when local `gh` is installed and
-authenticated:
+Do not sync GitHub issues by default. Issue sync is a follow-up record, not a gate for local SDD or
+implementation.
+
+Only create or link a GitHub issue when the developer explicitly asks, or after asking and getting
+approval once the SDD artifacts are written or the implementation is complete.
+
+Eligible work:
+
+- Complex bugs only; simple style defects and obvious local logic fixes should not get issues.
+- Whole new features or major feature rewrites only; single actions, small behavior tweaks, and
+  ordinary adjustments should not get issues.
+
+If eligibility is unclear, ask the developer after the work is understood. Never self-authorize issue
+creation just because local `gh` is installed and authenticated.
+
+When approved:
 
 - Feature work uses the `[feature]` label.
 - Bug work uses the `[bug]` label.
 - If the label is missing and `gh` has permission, create it.
 - Record the issue URL or number in the SDD artifact.
 - If `gh` is unavailable or unauthorized, continue local-only and note that no GitHub issue was
-  created.
+  created only when sync was requested or approved.
 
 When opening a PR for linked work, include `Closes #NNN` in the PR body so GitHub closes the issue
 after merge.
 
 ## Workflow
 
-1. **Classification** - Choose feature, small bug, or architecture.
-2. **Specification** - Write the required artifact set for that classification.
-3. **GitHub Sync** - Create or link a labeled GitHub issue for feature and small bug work when
-   local `gh` is usable.
-4. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality
+1. **Classification** - Decide whether SDD is needed, then choose feature, complex bug, or
+   architecture.
+2. **Specification** - Write the required artifact set for that classification when SDD is needed.
+3. **Implementation & Validation** - TDD (pragmatic), Presenter patterns, UI consistency, quality
    gates.
+4. **GitHub Sync** - Ask whether to sync an eligible GitHub issue only after the docs or
+   implementation clarify the scope, unless the developer already requested issue sync.
 
 Before implementation, inspect existing docs and code, choose the correct SDD folder, and resolve every `[NEEDS CLARIFICATION]` marker. For architecture work that changes or replaces a historical feature, update that feature's retained `spec.md` if it is still a maintained contract.
 
@@ -132,7 +161,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] Key UX states covered (loading/empty/error)
 - [ ] No `[NEEDS CLARIFICATION]` markers remain
 - [ ] Business value articulated
-- [ ] GitHub issue linked or local-only reason recorded for feature and small bug work
+- [ ] GitHub issue linked or sync decision recorded for eligible feature and complex bug work
 
 ### Planning Phase
 - [ ] Identify all involved Presenters
@@ -199,4 +228,4 @@ A change is “done” when:
 - Lint/typecheck/tests pass locally
 - User-facing strings use i18n keys
 - Any migrations or breaking changes are documented
-- Linked GitHub issues are referenced from the PR with `Closes #NNN`
+- Linked GitHub issues, when any, are referenced from the PR with `Closes #NNN`

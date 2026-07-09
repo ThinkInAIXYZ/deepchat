@@ -38,7 +38,7 @@
 ## Commit & Pull Request Guidelines
 - Conventional commits enforced by hook: `type(scope): subject` ≤ 50 chars; types: `feat|fix|docs|dx|style|refactor|perf|test|workflow|build|ci|chore|types|wip|release`.
 - Do not include AI co-authoring footers in commits.
-- PRs: clear description, link issues (`Closes #123`), screenshots/GIFs for UI, pass lint/typecheck/tests. Keep changes focused.
+- PRs: clear description, link synced issues when available (`Closes #123`), screenshots/GIFs for UI, pass lint/typecheck/tests. Keep changes focused.
 - Default PR base is `dev`; use `gh pr create --base dev` for routine feature, bugfix, docs, test, and refactor branches. Target `main` only for `release/<version>` branches following `docs/release-flow.md`.
 - UI changes: include BEFORE/AFTER ASCII layout blocks to communicate structure.
 
@@ -49,18 +49,20 @@
 
 ## Specification-Driven Development
 
-Follow the SDD methodology before changing code, tests, configuration, documentation, build scripts, or project structure. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
+Use SDD before substantial changes to code, tests, configuration, documentation, build scripts, or project structure when the work needs shared context or a durable decision record. Skip SDD for trivial or tightly localized work unless the developer explicitly asks for it. See [docs/spec-driven-dev.md](docs/spec-driven-dev.md).
 
 Pure release metadata work does not require SDD. Version bumps, `CHANGELOG.md` updates, release branch management, tags, and release PR preparation should follow [docs/release-flow.md](docs/release-flow.md) without creating
 `docs/features/*release*` folders.
 
-Create one kebab-case folder per goal and use the artifact set that matches the work:
+Create one kebab-case folder per goal when SDD is needed and use the artifact set that matches the work:
 
-- `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools; keep `spec.md`, `plan.md`, and `tasks.md`.
-- `docs/issues/<goal>/` for small bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems; keep one `spec.md` containing issue details, location/root cause, fix plan, task checklist, validation, and linked GitHub issue when available.
+- `docs/features/<goal>/` for new features, user-visible capabilities, integrations, and tools large enough to need a shared plan; keep `spec.md`, `plan.md`, and `tasks.md`.
+- `docs/issues/<goal>/` for complex bug fixes, regressions, failing tests, CI failures, reliability issues, and prompt/runtime problems; keep one `spec.md` containing issue details, location/root cause, fix plan, task checklist, validation, and linked GitHub issue when available.
 - `docs/architecture/<goal>/` for refactors, migrations, dependency boundaries, shared contracts, runtime architecture, and cross-module design; keep `spec.md`, `plan.md`, and `tasks.md`, and update affected historical feature specs when they remain maintained contracts.
 
-For feature and small bug work, create or link a GitHub issue with `[feature]` or `[bug]` when local `gh` is installed and authenticated. PR bodies for linked work must include `Closes #NNN`.
+Skip SDD for visual/style fixes, copy changes, small UI layout adjustments, simple localized logic changes, and routine docs edits that do not change project direction.
+
+Do not sync GitHub issues by default. Only create or link an issue when the developer explicitly asks, or after asking and getting approval once the SDD artifacts are written or implementation is complete. Eligible sync is limited to complex bugs and whole new features or major feature rewrites; simple bugs, single actions, small behavior tweaks, and ordinary adjustments should not get issues. PR bodies for linked work must include `Closes #NNN`.
 
 Resolve every `[NEEDS CLARIFICATION]` item before implementation. Run SDD cleanup only when the developer explicitly asks for it; use the dedicated cleanup skill to remove completed issue docs, stale plan/task files, and obsolete feature or architecture docs.
 
