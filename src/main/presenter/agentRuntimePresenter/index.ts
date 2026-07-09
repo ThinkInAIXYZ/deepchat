@@ -1330,7 +1330,8 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         think: false,
         ...(normalizedInput.activeSkills?.length
           ? { activeSkills: normalizedInput.activeSkills }
-          : {})
+          : {}),
+        ...(normalizedInput.inlineItems?.length ? { inlineItems: normalizedInput.inlineItems } : {})
       }
 
       let compactionIntent: CompactionIntent | null = null
@@ -5856,10 +5857,18 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           ? ((parsed as { activeSkills?: unknown }).activeSkills as string[])
           : []
       )
+      const inlineItems: NonNullable<SendMessageInput['inlineItems']> = Array.isArray(
+        (parsed as { inlineItems?: unknown }).inlineItems
+      )
+        ? ((parsed as { inlineItems?: unknown }).inlineItems as NonNullable<
+            SendMessageInput['inlineItems']
+          >)
+        : []
       return {
         text,
         files,
-        ...(activeSkills.length > 0 ? { activeSkills } : {})
+        ...(activeSkills.length > 0 ? { activeSkills } : {}),
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
       }
     } catch {
       return { text: content, files: [] }
@@ -5880,10 +5889,12 @@ export class AgentRuntimePresenter implements IAgentImplementation {
     const activeSkills = this.normalizeSkillNames(
       Array.isArray(input.activeSkills) ? input.activeSkills : []
     )
+    const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
     return {
       text,
       files,
-      ...(activeSkills.length > 0 ? { activeSkills } : {})
+      ...(activeSkills.length > 0 ? { activeSkills } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
   }
 
@@ -5933,6 +5944,7 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       }
 
       const next = { ...parsed, text } as Record<string, unknown>
+      delete next.inlineItems
 
       if (!Array.isArray(next.files)) {
         next.files = []
@@ -5967,6 +5979,10 @@ export class AgentRuntimePresenter implements IAgentImplementation {
           mapped.unshift({ type: 'text', content: text })
         }
         next.content = mapped
+      }
+
+      if (Array.isArray(next.inlineItems)) {
+        delete next.inlineItems
       }
 
       return JSON.stringify(next)

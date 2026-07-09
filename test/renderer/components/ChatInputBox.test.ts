@@ -13,7 +13,10 @@ const activeSkillsRef = ref<string[]>([])
 const pendingSkillsRef = ref<string[]>([])
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
+const closeDialogMock = vi.fn()
 let lastEditorOptions: any = null
+let lastEditorInstance: any = null
+let mockEditorText = ''
 const consumePendingSkillsMock = vi.fn(() => {
   const copied = [...pendingSkillsRef.value]
   pendingSkillsRef.value = []
@@ -35,6 +38,7 @@ vi.mock('@tiptap/vue-3', () => {
         },
         textBetween: vi.fn(() => ''),
         descendants: vi.fn(),
+        forEach: vi.fn(),
         firstChild: null,
         nodeAt: vi.fn(() => null)
       },
@@ -52,9 +56,10 @@ vi.mock('@tiptap/vue-3', () => {
     }
     constructor(options: any) {
       lastEditorOptions = options
+      lastEditorInstance = this
     }
     getText() {
-      return ''
+      return mockEditorText
     }
     chain() {
       const api = {
@@ -129,7 +134,7 @@ vi.mock('@/components/chat/composables/useChatInputMentions', () => ({
     slashSuggestion: {},
     dialogState: ref(null),
     submitDialog: vi.fn(),
-    closeDialog: vi.fn(),
+    closeDialog: closeDialogMock,
     isSuggestionMenuOpen: ref(false),
     shouldSuppressSubmit: vi.fn(() => false)
   })
@@ -182,6 +187,9 @@ describe('ChatInputBox attachments', () => {
     activeSkillsRef.value = []
     pendingSkillsRef.value = []
     lastEditorOptions = null
+    lastEditorInstance = null
+    mockEditorText = ''
+    closeDialogMock.mockClear()
     Object.assign(((window as any).api ??= {}), {
       toRelativePath: vi.fn((filePath: string, basePath?: string) => {
         if (typeof filePath !== 'string' || typeof basePath !== 'string') {
@@ -389,6 +397,111 @@ describe('ChatInputBox attachments', () => {
 
     deleteFileMock(0)
     expect(deleteFileMock).toHaveBeenCalledWith(0)
+  })
+
+  const textNode = (text: string) => ({ type: { name: 'text' }, text, attrs: {} })
+  const node = (name: string, attrs: Record<string, string>, nodeSize = 1) => ({
+    type: { name },
+    attrs,
+    nodeSize
+  })
+  const block = (children: any[]) => ({
+    forEach: (callback: (node: any) => void) => children.forEach(callback)
+  })
+
+  it('exposes inline item snapshots at plain text offsets', async () => {
+    const wrapper = await mountComponent()
+
+    expect(lastEditorOptions).toBeTruthy()
+    const editor = lastEditorInstance
+    expect(editor).toBeTruthy()
+    editor.state.doc.forEach = (callback: (block: any, offset: number, index: number) => void) => {
+      callback(
+        block([
+          textNode('我想要使用'),
+          node('skillChip', { skillName: 'skillA' }),
+          textNode(' ，把 '),
+          node('fileAttachment', {
+            fileName: 'file.pdf',
+            filePath: '/tmp/file.pdf',
+            mimeType: 'application/pdf'
+          })
+        ]),
+        0,
+        0
+      )
+      callback(block([textNode('文件怎么样怎么样')]), 0, 1)
+    }
+
+    expect((wrapper.vm as any).getInlineItemsSnapshot()).toEqual([
+      { type: 'skill', offset: 5, skillName: 'skillA' },
+      {
+        type: 'file',
+        offset: 9,
+        fileName: 'file.pdf',
+        filePath: '/tmp/file.pdf',
+        mimeType: 'application/pdf'
+      }
+    ])
+  })
+
+  it('syncs deleted inline editor nodes back to backing state on editor update', async () => {
+    await mountComponent()
+    activeSkillsRef.value = ['skillA']
+    selectedFilesRef.value = [
+      { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
+    ]
+    const editor = lastEditorInstance
+    expect(editor).toBeTruthy()
+    editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
+      callback(node('paragraph', {}, 1), 0)
+    }
+
+    lastEditorOptions.onUpdate({
+      editor,
+      transaction: { getMeta: vi.fn(() => false) }
+    })
+
+    expect(deactivateSkillMock).toHaveBeenCalledWith('skillA')
+    expect(deleteFileMock).toHaveBeenCalledWith(0)
+  })
+
+  it('clears pending command form data when the inline form node is removed by editor update', async () => {
+    await mountComponent()
+    const editor = lastEditorInstance
+    expect(editor).toBeTruthy()
+    editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
+      callback(node('paragraph', {}, 1), 0)
+    }
+
+    lastEditorOptions.onUpdate({
+      editor,
+      transaction: { getMeta: vi.fn(() => false) }
+    })
+
+    expect(closeDialogMock).toHaveBeenCalled()
+  })
+
+  it('does not reconcile inline nodes for internal sync transactions', async () => {
+    await mountComponent()
+    activeSkillsRef.value = ['skillA']
+    selectedFilesRef.value = [
+      { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
+    ]
+    const editor = lastEditorInstance
+    expect(editor).toBeTruthy()
+    editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
+      callback(node('paragraph', {}, 1), 0)
+    }
+
+    lastEditorOptions.onUpdate({
+      editor,
+      transaction: { getMeta: vi.fn(() => true) }
+    })
+
+    expect(deactivateSkillMock).not.toHaveBeenCalled()
+    expect(deleteFileMock).not.toHaveBeenCalled()
+    expect(closeDialogMock).not.toHaveBeenCalled()
   })
 
   it('exposes and clears deduplicated pending skills snapshot', async () => {

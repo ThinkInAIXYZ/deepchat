@@ -40,7 +40,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import {
   buildChatInputWorkspaceReferenceText,
@@ -613,6 +613,50 @@ function insertRecognizedText(text: string) {
   editor.chain().focus().insertContent(normalizedText).run()
 }
 
+function getInlineItemsSnapshot(): UserMessageInlineItem[] {
+  const inlineItems: UserMessageInlineItem[] = []
+  let offset = 0
+
+  editor.state.doc.forEach((block, _blockOffset, blockIndex) => {
+    if (blockIndex > 0) {
+      offset += 1
+    }
+
+    block.forEach((node) => {
+      if (node.type.name === 'text') {
+        offset += node.text?.length ?? 0
+        return
+      }
+
+      if (node.type.name === 'hardBreak') {
+        offset += 1
+        return
+      }
+
+      if (node.type.name === 'skillChip') {
+        inlineItems.push({
+          type: 'skill',
+          offset,
+          skillName: node.attrs.skillName as string
+        })
+        return
+      }
+
+      if (node.type.name === 'fileAttachment') {
+        inlineItems.push({
+          type: 'file',
+          offset,
+          fileName: node.attrs.fileName as string,
+          filePath: node.attrs.filePath as string,
+          mimeType: node.attrs.mimeType as string
+        })
+      }
+    })
+  })
+
+  return inlineItems
+}
+
 function getPendingSkillsSnapshot(): string[] {
   return Array.from(new Set(skillsData.pendingSkills.value))
 }
@@ -634,6 +678,7 @@ defineExpose({
   triggerAttach,
   insertRecognizedText,
   insertWorkspaceReference,
+  getInlineItemsSnapshot,
   getPendingSkillsSnapshot,
   consumePendingSkills,
   clearPendingSkills,

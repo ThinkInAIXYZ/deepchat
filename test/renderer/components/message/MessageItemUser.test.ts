@@ -94,11 +94,24 @@ vi.mock('@/components/message/MessageContent.vue', () => ({
     },
     emits: ['mentionClick'],
     methods: {
-      renderBlock(block: { type: string; content: string; id?: string; category?: string }) {
+      renderBlock(block: {
+        type: string
+        content?: string
+        id?: string
+        category?: string
+        skillName?: string
+        fileName?: string
+      }) {
         if (block.type === 'mention') {
           return getVisibleMentionLabel(block as DisplayUserMessageMentionBlock)
         }
-        return block.content
+        if (block.type === 'skill') {
+          return block.skillName || ''
+        }
+        if (block.type === 'file') {
+          return block.fileName || ''
+        }
+        return block.content || ''
       }
     },
     template: `
@@ -234,6 +247,8 @@ describe('MessageItemUser', () => {
           {},
           {
             text: '',
+            activeSkills: ['rich-skill'],
+            inlineItems: [{ type: 'skill', offset: 2, skillName: 'rich-skill' }],
             content: [
               {
                 type: 'text',
@@ -260,6 +275,7 @@ describe('MessageItemUser', () => {
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('prompt-name')
     expect(wrapper.text()).toContain('const answer = 42;')
+    expect(wrapper.findAll('[data-testid="user-message-active-skill"]')).toHaveLength(1)
   })
 
   it('shows message-scoped skills as metadata outside the message bubble', async () => {
@@ -274,6 +290,43 @@ describe('MessageItemUser', () => {
     expect(skills).toHaveLength(2)
     expect(skills.map((skill) => skill.text())).toEqual(['algorithmic-art', 'deep-research'])
     expect(wrapper.get('[data-message-content="true"]').text()).not.toContain('algorithmic-art')
+  })
+
+  it('renders inline skill and file chips at recorded text offsets without duplicate metadata', async () => {
+    const file = createFile({
+      name: 'file.pdf',
+      path: '/tmp/file.pdf',
+      mimeType: 'application/pdf'
+    })
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage(
+          {},
+          {
+            text: '我想要使用 ，把  文件怎么样怎么样',
+            files: [file],
+            activeSkills: ['skillA'],
+            inlineItems: [
+              { type: 'skill', offset: 5, skillName: 'skillA' },
+              {
+                type: 'file',
+                offset: 9,
+                fileName: file.name,
+                filePath: file.path,
+                mimeType: file.mimeType
+              }
+            ]
+          }
+        )
+      },
+      ...globalMountOptions
+    })
+
+    expect(wrapper.findAll('[data-testid="user-message-active-skill"]')).toHaveLength(0)
+    expect(wrapper.findAll('.attachment-stub')).toHaveLength(0)
+    expect(wrapper.get('[data-message-content="true"]').text()).toContain(
+      '我想要使用skillA ，把 file.pdf 文件怎么样怎么样'
+    )
   })
 
   it('keeps attachments visible when long text collapses', async () => {
