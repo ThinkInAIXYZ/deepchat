@@ -48,7 +48,6 @@ export interface SkillRunOptions {
 
 interface SkillExecutionServiceOptions {
   resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
-  killDirectProcess?: (pid: number) => boolean
 }
 
 export class CommandProbeContainmentError extends Error {
@@ -87,7 +86,6 @@ export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
-  private readonly killDirectProcess: (pid: number) => boolean
 
   constructor(
     private readonly skillPresenter: ISkillPresenter,
@@ -96,8 +94,6 @@ export class SkillExecutionService {
   ) {
     this.configPresenter = configPresenter
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
-    this.killDirectProcess =
-      options.killDirectProcess ?? ((pid: number) => process.kill(pid, 'SIGKILL'))
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -711,7 +707,6 @@ export class SkillExecutionService {
       let spawnFailed = false
       let settled = false
       let stopRequested = false
-      let closed = false
       let timeoutId: NodeJS.Timeout | null = null
       let reapTimeoutId: NodeJS.Timeout | null = null
 
@@ -747,7 +742,6 @@ export class SkillExecutionService {
         stopRequested = true
 
         let ownerKillSent = false
-        let fallbackKillSent = false
         try {
           ownerKillSent = child.kill('SIGKILL')
         } catch {
@@ -756,23 +750,12 @@ export class SkillExecutionService {
             phase: 'owner_kill'
           })
         }
-
-        if (!ownerKillSent && !closed && child.pid != null) {
-          try {
-            fallbackKillSent = this.killDirectProcess(child.pid)
-          } catch {
-            logger.error('[SkillExecutionService] Failed to kill command probe', {
-              reason,
-              phase: 'direct_kill_fallback'
-            })
-          }
-        }
+        if (settled) return
 
         reapTimeoutId = setTimeout(() => {
           logger.error('[SkillExecutionService] Command probe termination was not confirmed', {
             reason,
-            ownerKillSent,
-            fallbackKillSent
+            ownerKillSent
           })
           // Keep ownership listeners until a late close confirms reap. Containment failure is not
           // an ordinary availability miss, so the bounded caller receives a typed rejection.
@@ -799,7 +782,6 @@ export class SkillExecutionService {
         requestStop('child_error')
       }
       const onClose = (code: number | null) => {
-        closed = true
         if (settled) {
           cleanup()
           return

@@ -113,10 +113,12 @@ ceilings: workspace operations get the largest budget, while local system and av
 align with adjacent five/ten-second probes. A timeout must settle the caller once and must not be
 presented as successful output. Existing public failure semantics remain authoritative: Workspace
 Git APIs converge to `null`, device queries reject, and `hasCommand()` resolves `false` for normal
-absence or a timeout whose direct child has closed. If neither the child handle nor the same-owner
-direct PID fallback can produce a confirmed close within the reap grace period, `hasCommand()`
-rejects `CommandProbeContainmentError`; an unconfirmed containment failure is not an availability
-miss.
+absence or a timeout whose direct child has closed. Timeout containment uses only the owned
+`ChildProcess` handle and `child.kill('SIGKILL')`; it must never signal a cached raw PID. If the owner
+kill returns `false` or throws, the probe still waits up to the one-second reap grace for `close`.
+`close` resolves ordinary timeout failure as `false`; no confirmed `close` rejects
+`CommandProbeContainmentError`. The exception path reports only that containment is unconfirmed and
+must not claim the child was reaped.
 Process-tree containment remains a later PTG slice because a finite caller result alone does not
 prove that descendants stopped.
 
@@ -227,9 +229,11 @@ Each required row runs in real Electron with a disposable profile and unique mar
 - a hung `wmic`/`df` direct child is killed and reaped within 10 seconds plus grace, while the
   public device query keeps its existing rejection semantics;
 - a hung `SkillExecutionService.hasCommand()` direct child is killed and reaped within five seconds
-  plus grace, then resolves as unavailable; an unconfirmed reap rejects the typed containment error
-  instead of returning `false`;
-- each timeout settles once, clears timers/listeners, and never returns partial output as success;
+  plus grace, then resolves as unavailable; an owner-handle kill that has no confirmed `close`
+  rejects the typed containment error instead of returning `false`, with no raw-PID signal fallback;
+- each timeout settles once, clears its timers, and never returns partial output as success; normal
+  settlement removes listeners immediately, while typed containment rejection retains the ownership
+  listeners only until a late `close` removes them without settling the caller again;
 - existing successful Git, device-query, and command-availability results remain unchanged; and
 - tests prove the direct timeout behavior without claiming that it governs descendants. Descendant
   absence remains part of the later real Electron parent-loss matrix.
