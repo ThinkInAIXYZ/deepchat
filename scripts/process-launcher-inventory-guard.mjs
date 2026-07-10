@@ -13,6 +13,7 @@ const CHILD_PROCESS_METHODS = new Set([
   'spawn',
   'spawnSync'
 ])
+const ELECTRON_SHELL_ALLOWED_UNTRACKED_METHODS = new Set(['showItemInFolder'])
 const CATEGORIES = new Set([
   'deepchat-runtime',
   'external-opener',
@@ -117,6 +118,7 @@ function extractBindings(sourceUnits) {
   const stdioTransportBindings = new Set()
   const unsupportedSyntax = []
   const promisifyBindings = []
+  const allowedBindingUses = new Set()
 
   const addUnsupported = (unit, node, module, syntax) => {
     unsupportedSyntax.push({
@@ -276,7 +278,8 @@ function extractBindings(sourceUnits) {
       ) {
         promisifyBindings.push({
           local: node.name.text,
-          target: node.initializer.arguments[0].text
+          target: node.initializer.arguments[0].text,
+          targetNode: node.initializer.arguments[0]
         })
       }
       ts.forEachChild(node, visit)
@@ -284,9 +287,12 @@ function extractBindings(sourceUnits) {
     visit(unit.sourceFile)
   }
 
-  for (const { local, target } of promisifyBindings) {
+  for (const { local, target, targetNode } of promisifyBindings) {
     const launcher = functionBindings.get(target)
-    if (launcher) addFunctionBinding(functionBindings, local, launcher)
+    if (launcher) {
+      addFunctionBinding(functionBindings, local, launcher)
+      allowedBindingUses.add(targetNode)
+    }
   }
 
   return {
@@ -295,62 +301,163 @@ function extractBindings(sourceUnits) {
     functionBindings,
     namespaceBindings,
     stdioTransportBindings,
-    unsupportedSyntax
+    unsupportedSyntax,
+    allowedBindingUses
   }
+}
+
+function moduleForLauncher(launcher) {
+  if (launcher.startsWith('child_process.')) return 'child_process'
+  if (launcher.startsWith('cross-spawn.')) return 'cross-spawn'
+  if (launcher.startsWith('node-pty.')) return 'node-pty'
+  if (launcher.startsWith('electron.')) return 'electron'
+  return '@modelcontextprotocol/sdk/client/stdio.js'
+}
+
+function getStaticMemberAccess(expression) {
+  const member = ts.skipParentheses(expression)
+  if (ts.isPropertyAccessExpression(member)) {
+    const object = ts.skipParentheses(member.expression)
+    return ts.isIdentifier(object) ? { method: member.name.text, object } : null
+  }
+  if (ts.isElementAccessExpression(member)) {
+    const object = ts.skipParentheses(member.expression)
+    const method = getModuleName(member.argumentExpression)
+    return ts.isIdentifier(object) && method ? { method, object } : null
+  }
+  return null
 }
 
 function detectLaunches(filePath, source) {
   const sourceUnits = createSourceUnits(filePath, source)
   const bindings = extractBindings(sourceUnits)
   const matches = []
+  const allowedBindingUses = new Set(bindings.allowedBindingUses)
 
   const getCallLauncher = (expression) => {
-    if (ts.isIdentifier(expression)) {
-      return bindings.functionBindings.get(expression.text) ?? null
-    }
-    if (!ts.isPropertyAccessExpression(expression) || !ts.isIdentifier(expression.expression)) {
-      return null
+    const target = ts.skipParentheses(expression)
+    if (ts.isIdentifier(target)) {
+      const launcher = bindings.functionBindings.get(target.text)
+      return launcher ? { bindingNode: target, launcher } : null
     }
 
-    const local = expression.expression.text
-    const method = expression.name.text
+    const member = getStaticMemberAccess(target)
+    if (!member) return null
+    const local = member.object.text
+    const method = member.method
+    let launcher = null
     if (bindings.electronShellBindings.has(local)) {
-      return method === 'openExternal' || method === 'openPath'
+      if (ELECTRON_SHELL_ALLOWED_UNTRACKED_METHODS.has(method)) {
+        return { bindingNode: member.object, launcher: null }
+      }
+      launcher = method === 'openExternal' || method === 'openPath'
         ? `electron.shell.${method}`
         : null
+    } else if (bindings.electronUtilityBindings.has(local)) {
+      launcher = method === 'fork' ? 'electron.utilityProcess.fork' : null
+    } else if (bindings.namespaceBindings.get(local) === 'child_process') {
+      launcher = CHILD_PROCESS_METHODS.has(method) ? `child_process.${method}` : null
+    } else if (bindings.namespaceBindings.get(local) === 'node-pty') {
+      launcher = method === 'spawn' ? 'node-pty.spawn' : null
+    } else if (
+      bindings.namespaceBindings.get(local) === 'cross-spawn' ||
+      bindings.namespaceBindings.get(local) === 'cross-spawn-default'
+    ) {
+      launcher = method === 'sync'
+        ? 'cross-spawn.sync'
+        : bindings.namespaceBindings.get(local) === 'cross-spawn' && method === 'spawn'
+          ? 'cross-spawn.spawn'
+          : null
     }
-    if (bindings.electronUtilityBindings.has(local)) {
-      return method === 'fork' ? 'electron.utilityProcess.fork' : null
-    }
-
-    const module = bindings.namespaceBindings.get(local)
-    if (module === 'child_process') {
-      return CHILD_PROCESS_METHODS.has(method) ? `child_process.${method}` : null
-    }
-    if (module === 'node-pty') return method === 'spawn' ? 'node-pty.spawn' : null
-    if (module === 'cross-spawn' || module === 'cross-spawn-default') {
-      if (method === 'sync') return 'cross-spawn.sync'
-      return module === 'cross-spawn' && method === 'spawn' ? 'cross-spawn.spawn' : null
-    }
-    return null
+    return launcher ? { bindingNode: member.object, launcher } : null
   }
 
   for (const unit of sourceUnits) {
     const visit = (node) => {
       let launcher = null
+      let bindingNode = null
       if (ts.isCallExpression(node)) {
-        launcher = getCallLauncher(node.expression)
+        const call = getCallLauncher(node.expression)
+        launcher = call?.launcher ?? null
+        bindingNode = call?.bindingNode ?? null
       } else if (
         ts.isNewExpression(node) &&
-        ts.isIdentifier(node.expression) &&
-        bindings.stdioTransportBindings.has(node.expression.text)
+        ts.isIdentifier(ts.skipParentheses(node.expression)) &&
+        bindings.stdioTransportBindings.has(ts.skipParentheses(node.expression).text)
       ) {
         launcher = 'mcp.StdioClientTransport'
+        bindingNode = ts.skipParentheses(node.expression)
       }
+      if (bindingNode) allowedBindingUses.add(bindingNode)
       if (launcher) {
         matches.push({
           index: unit.offset + node.expression.getStart(unit.sourceFile),
           launcher
+        })
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(unit.sourceFile)
+  }
+
+  const bindingNames = new Set([
+    ...bindings.functionBindings.keys(),
+    ...bindings.namespaceBindings.keys(),
+    ...bindings.electronShellBindings,
+    ...bindings.electronUtilityBindings,
+    ...bindings.stdioTransportBindings
+  ])
+  const getBindingModule = (name) => {
+    const launcher = bindings.functionBindings.get(name)
+    if (launcher) return moduleForLauncher(launcher)
+    const namespace = bindings.namespaceBindings.get(name)
+    if (namespace) return namespace === 'cross-spawn-default' ? 'cross-spawn' : namespace
+    if (bindings.electronShellBindings.has(name) || bindings.electronUtilityBindings.has(name)) {
+      return 'electron'
+    }
+    return '@modelcontextprotocol/sdk/client/stdio.js'
+  }
+  const isInstanceofOperand = (node) => {
+    let expression = node
+    while (ts.isParenthesizedExpression(expression.parent)) expression = expression.parent
+    return (
+      ts.isBinaryExpression(expression.parent) &&
+      expression.parent.right === expression &&
+      expression.parent.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword
+    )
+  }
+  const isRuntimeExportReference = (node) => {
+    if (!ts.isExportSpecifier(node.parent)) return false
+    const declaration = node.parent.parent.parent
+    if (
+      !ts.isExportDeclaration(declaration) ||
+      declaration.isTypeOnly ||
+      node.parent.isTypeOnly
+    ) {
+      return false
+    }
+    return node.parent.propertyName ? node.parent.propertyName === node : node.parent.name === node
+  }
+
+  for (const unit of sourceUnits) {
+    const visit = (node) => {
+      const runtimeReference =
+        ts.isIdentifier(node) &&
+        (ts.isShorthandPropertyAssignment(node.parent) || isRuntimeExportReference(node))
+      if (
+        ts.isIdentifier(node) &&
+        bindingNames.has(node.text) &&
+        !allowedBindingUses.has(node) &&
+        (!ts.isDeclarationName(node) || runtimeReference) &&
+        !ts.isPartOfTypeNode(node) &&
+        !isInstanceofOperand(node) &&
+        !(ts.isBindingElement(node.parent) && node.parent.propertyName === node) &&
+        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
+      ) {
+        bindings.unsupportedSyntax.push({
+          index: unit.offset + node.getStart(unit.sourceFile),
+          module: getBindingModule(node.text),
+          syntax: 'opaque launcher binding use'
         })
       }
       ts.forEachChild(node, visit)

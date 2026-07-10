@@ -255,6 +255,89 @@ describe.sequential('process launcher inventory guard', () => {
         const child = localRequire('node:child_process')
         child.spawn('node')
       `
+    },
+    {
+      label: 'Electron shell static element access',
+      marker: 'electron.shell.openExternal#1 has no owner/category',
+      source: `
+        import { shell } from 'electron'
+        shell['openExternal']('https://example.com')
+      `
+    },
+    {
+      label: 'namespace launcher method alias',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import * as cp from 'node:child_process'
+        const launch = cp.spawn
+        launch('node')
+      `
+    },
+    {
+      label: 'parenthesized named launcher call',
+      marker: 'child_process.spawn#1 has no owner/category',
+      source: `
+        import { spawn } from 'node:child_process'
+        ;(spawn)('node')
+      `
+    },
+    {
+      label: 'launcher call helper',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { execFile } from 'node:child_process'
+        execFile.call(null, 'git')
+      `
+    },
+    {
+      label: 'launcher apply helper',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { execFile } from 'node:child_process'
+        execFile.apply(null, ['git'])
+      `
+    },
+    {
+      label: 'launcher bind helper',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { execFile } from 'node:child_process'
+        const launch = execFile.bind(null)
+        launch('git')
+      `
+    },
+    {
+      label: 'passed launcher binding',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { spawn } from 'node:child_process'
+        consume(spawn)
+      `
+    },
+    {
+      label: 'assigned launcher binding',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { spawn } from 'node:child_process'
+        const launch = spawn
+        launch('node')
+      `
+    },
+    {
+      label: 'launcher binding in object shorthand',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { spawn } from 'node:child_process'
+        consume({ spawn })
+      `
+    },
+    {
+      label: 'local launcher binding re-export',
+      marker: 'opaque launcher binding use for child_process',
+      source: `
+        import { spawn } from 'node:child_process'
+        export { spawn }
+      `
     }
   ])('fails closed for $label syntax', async ({ marker, source }) => {
     const trackedPath = 'src/main/tracked.ts'
@@ -283,6 +366,29 @@ describe.sequential('process launcher inventory guard', () => {
           import type { ChildProcess } from /* gap */ 'node:child_process'
           export type { ChildProcessWithoutNullStreams } from 'node:child_process'
           export { type SpawnOptions } from 'node:child_process'
+        `
+      },
+      [entry(trackedPath, 'child_process.spawn')]
+    )
+
+    const result = runGuard(fixture)
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('(1 classified sites)')
+  })
+
+  it('allows type-only checks and the explicit shell exemption', async () => {
+    const trackedPath = 'src/main/tracked.ts'
+    const fixture = await createFixture(
+      {
+        [trackedPath]: `import { spawn } from 'node:child_process'; spawn('node')`,
+        'src/main/non-launching.ts': `
+          import { shell } from 'electron'
+          import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+
+          shell.showItemInFolder('/tmp/example')
+          type Stdio = StdioClientTransport
+          const isStdio = transport instanceof StdioClientTransport
         `
       },
       [entry(trackedPath, 'child_process.spawn')]

@@ -199,19 +199,23 @@ Module bindings and direct call sites are read with the repository's existing Ty
 AST; this adds no parser dependency and handles legal JavaScript trivia consistently. It is still
 not a call-graph analyzer. Residuals are explicit:
 
-- computed member calls such as `shell['openExternal']` are not recognized;
-- aliases created after import, except the covered direct `promisify` form, and launchers hidden
-  behind factories or third-party/native code are not followed;
+- static string element access is classified like property access; dynamic computed access and
+  launcher aliases are not followed and fail closed as unsupported binding use;
+- direct calls/construction, the covered one-step `promisify` form, type-only/`instanceof` checks,
+  and the existing out-of-scope `shell.showItemInFolder` call are allowed. Passing, assigning,
+  re-exporting, or invoking a launcher through `call`/`apply`/`bind` fails closed;
+- launchers hidden behind factories or third-party/native code are not followed;
 - syntax that refers to a watched module through a statically known but unsupported import form
   fails closed and requires a focused scanner fixture or an explicit supported binding;
 - same-file sites use API ordinal order rather than a semantic call-site name. Reordering calls to
   the same API, or replacing one with different semantics while keeping the same file/API/count, is
   not detected by this guard and still requires code review.
 
-Computed access and opaque aliasing are therefore prohibited for these launcher APIs unless the
-guard and fixtures are extended in the same change. Code review and the later runtime process census
-remain required for native and dependency-hidden launchers. `PTG-M1` changes no runtime behavior,
-does not execute the native matrix, selects no containment mechanism, and does not unlock `FTL-002`.
+Dynamic computed access and opaque aliasing are therefore rejected for these launcher APIs unless
+the guard and fixtures are extended in the same change. Code review and the later runtime process
+census remain required for native and dependency-hidden launchers. `PTG-M1` changes no runtime
+behavior, does not execute the native matrix, selects no containment mechanism, and does not unlock
+`FTL-002`.
 
 ## Required contract
 
