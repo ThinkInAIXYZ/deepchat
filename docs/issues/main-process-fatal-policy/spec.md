@@ -113,8 +113,10 @@ The codebase already contains the intended local pattern:
   branch whose silent catch does not replace observation of the original connection promise. The
   audit already records this as intentional design I-09.
 
-Focused MCP tests already distinguish regular server notifications, plugin status ownership, and
-cancelled startup. These are owner decisions; a process-level text classifier cannot reproduce them.
+Focused `ServerManager` tests distinguish regular, plugin-owned, and cancelled connection outcomes;
+`ToolManager` code records tool-list failures and chooses between plugin status and global toast
+surfaces. Together they provide representative owner evidence, not proof for every MCP or network
+path. A process-level text classifier cannot reproduce these decisions.
 
 ### Lifecycle and restart behavior
 
@@ -205,14 +207,17 @@ Two harness modes produced different results:
 - `ELECTRON_RUN_AS_NODE=1` confirmed ordinary bundled Node 24.15.0 semantics: synchronous throw and
   unhandled rejection exited `1`; an immediate catch exited `0`; a `setImmediate` catch was too late.
 - A real Electron 40.10.5 main-process harness already had a framework `uncaughtException` listener
-  before application code ran. With only `uncaughtExceptionMonitor` added, synchronous throw,
-  non-`Error` rejection, and late catch were observed but did **not** terminate the Electron process.
-  An immediate catch still produced no fatal event.
+  before application code ran. With only `uncaughtExceptionMonitor` added, a synchronous throw
+  reached the monitor and then remained alive after the framework listener ran. Non-`Error`
+  rejection and late catch only produced Electron main-process rejection warnings and also remained
+  alive; neither reached the monitor or uncaught-exception path. An immediate catch produced no
+  warning or fatal event.
 
 Therefore run-as-Node evidence proves only Node semantics; it cannot represent Electron main-process
-listener behavior. A monitor/default-exit design is invalid for DeepChat because a later framework
-listener can consume the exception after the monitor returns. `FTL-002` must explicitly terminate
-from DeepChat's first process listener.
+listener behavior. A monitor/default-exit design is invalid for DeepChat: a later framework listener
+can consume a synchronous exception, while Electron's rejection handling may warn without promoting
+the rejection to uncaught. `FTL-002` must explicitly terminate from DeepChat's first listeners for
+both events.
 
 ## Intent assessment and conservative inference
 
@@ -652,9 +657,11 @@ semantics without another dependency.
 ### Use `uncaughtExceptionMonitor` and Node's default exit
 
 Rejected by real Electron 40.10.5 evidence. Electron had already installed an
-`uncaughtException` listener; after the monitor returned, that listener consumed synchronous throws,
-non-`Error` rejections, and late-catch failures without terminating. `ELECTRON_RUN_AS_NODE=1` did exit,
-which proves why run-as-Node cannot stand in for a real Electron main-process harness.
+`uncaughtException` listener; after the monitor returned, that listener consumed a synchronous throw
+without terminating. Non-`Error` rejection and late catch only emitted Electron main-process
+rejection warnings and remained alive; they did not reach the monitor or uncaught-exception path.
+`ELECTRON_RUN_AS_NODE=1` did exit, which proves why run-as-Node cannot stand in for a real Electron
+main-process harness.
 
 ### Add a first-event-wins guard
 
