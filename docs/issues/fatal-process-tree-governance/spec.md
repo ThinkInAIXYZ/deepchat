@@ -111,8 +111,10 @@ add another owner without reducing scope. `PTG-H0` adds a 30-second workspace Gi
 device-query limit, and a five-second skill command-probe limit. These are conservative initial
 ceilings: workspace operations get the largest budget, while local system and availability probes
 align with adjacent five/ten-second probes. A timeout must settle the caller once and must not be
-presented as successful output. Process-tree containment remains a later PTG slice because a finite
-caller result alone does not prove that descendants stopped.
+presented as successful output. Existing public failure semantics remain authoritative: Workspace
+Git APIs converge to `null`, device queries reject, and `hasCommand()` resolves `false`.
+Process-tree containment remains a later PTG slice because a finite caller result alone does not
+prove that descendants stopped.
 
 For every row, implementation must also add a marked parent-loss case, route it through a proven
 governed launcher, or record why a JavaScript fatal cannot overlap that synchronous call.
@@ -215,7 +217,8 @@ Each required row runs in real Electron with a disposable profile and unique mar
 
 `PTG-H0` is accepted before mechanism work only when:
 
-- a hung workspace Git command rejects within 30 seconds plus a bounded test grace period;
+- a hung workspace Git child is terminated within 30 seconds plus a bounded test grace period, and
+  the public Workspace API resolves to its existing `null` failure sentinel;
 - a hung `wmic`/`df` query rejects within 10 seconds plus grace;
 - a hung `SkillExecutionService.hasCommand()` resolves as unavailable within five seconds plus
   grace;
