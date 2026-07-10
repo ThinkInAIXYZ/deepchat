@@ -58,6 +58,16 @@
 | Agent plan block 从 message block 重构为独立 plan state | 属于另一个已有 architecture contract，不是本轮 AgentRuntime owner 拆分 | 不把它加进审计整改，避免扩大范围 |
 | `package.json` 仍声明 `cron-parser`，当前本地 install 仍无法解析 | 这是验证环境前置，不是审计 finding | 开工前先同步 pnpm install 并记录 baseline；若同步后仍失败，再单独建 issue，不塞进任一整改 PR |
 
+## 实施台账
+
+所有修复从独立分支以 PR 合入 `docs/audit-remediation-plan`。本表是交付状态、自动验证和
+无法完全自动验证范围的唯一台账；后续 PR 必须在同一切片内更新对应行。
+
+| Task | 状态 | PR / merge | 自动验证证据 | 未完全自动覆盖的范围 |
+| --- | --- | --- | --- | --- |
+| `BASE-001` | 已完成 | 无代码变更 | 同步 pnpm 依赖后 typecheck/lint 通过；基线全量测试为 4,463 passed / 5 failed | 5 个基线失败另立切片，不让不相关 PR 顺手修复 |
+| `CRD-001` | 已合入 | [#1921](https://github.com/ThinkInAIXYZ/deepchat/pull/1921) / `8b6506f8` | focused 5/5、typecheck、format、i18n、lint 通过；合入后全量 4,465 passed / 5 failed，失败集与基线完全一致 | 不响应 `AbortSignal` 且永不 settle 的底层任务仍会占用 lane；提前释放会破坏并发上限，强制终止属于任务 owner |
+
 ## 先反驳一种错误排法
 
 不能单纯按“从易到难”执行。这样会先删除 feature flag、Compat 壳等低价值代码，却继续保留 prompt
