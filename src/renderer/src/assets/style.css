@@ -1107,12 +1107,21 @@
     background: rgba(148, 163, 184, 0.8);
   }
 
+  .dark,
+  html.dark {
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  }
+
+  .dark::-webkit-scrollbar-thumb,
   .dark *::-webkit-scrollbar-thumb,
+  html.dark::-webkit-scrollbar-thumb,
   html.dark *::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.45);
   }
 
+  .dark::-webkit-scrollbar-thumb:hover,
   .dark *::-webkit-scrollbar-thumb:hover,
+  html.dark::-webkit-scrollbar-thumb:hover,
   html.dark *::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.7);
   }

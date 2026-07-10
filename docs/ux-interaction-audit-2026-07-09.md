@@ -23,7 +23,7 @@
 |---|---|---|---|
 | 1 | 消息窗口化估算偏差：tool_call +150、thinking +96、image +260，折叠态 tool pill 实际约 28px | `useMessageWindow.ts` `#L52-L86` | 高 |
 | 2 | 流式 debounce：fast 32ms / maxWait 64ms，>12k 内容 slow 96ms/180ms，成段出现不跟手 | `MarkdownRenderer.vue` `#L185-L200` | 高 |
-| 3 | 权限/提问出现时 ChatInputBox + ChatStatusBar 整体 v-if unmount | `ChatPage.vue` `#L139`, `#L175` | 高 |
+| 3 | 权限/提问出现时 ChatInputBox + ChatStatusBar 曾整体 v-if unmount；当前已改为 v-show + inert 保持挂载 | `ChatPage.vue` 输入区 mounted-but-hidden 处理 | 高（已修复） |
 | 4 | Activity Group：CSS 220ms vs BODY_UNMOUNT_DELAY_MS 260ms，展开先 mount 再切 grid | `MessageBlockActivityGroup.vue` `#L88`, `#L22-L28` | 中高 |
 | 5 | Tool Call：只有 opacity/scale/translateY，无高度过渡 | `MessageBlockToolCall.vue` `#L51-L57` | 中高 |
 | 6 | ThinkContent 标题区无 cursor-pointer、chevron 无旋转过渡 | `ThinkContent.vue` `#L5-L26` | 中 |
@@ -70,11 +70,11 @@
 
 **位置**：`ChatInputBox.vue` `#L50-L55`
 
-- 输入框使用 TipTap `EditorContent`，有 `@compositionstart` / `@compositionend` 处理
-- 但第 3.1 节（权限 unmount ChatInputBox）发生时，TipTap editor 实例随组件销毁，所有 draft state、IME 组合态、光标位置全部丢失
-- 恢复后需要重建 editor，当前未见 draft 恢复逻辑
+- 输入框使用 TipTap `EditorContent`，有 `@compositionstart` / `@compositionend` 处理。
+- 历史风险：权限/提问态曾通过 `v-if` 卸载 ChatInputBox / ChatStatusBar，TipTap editor 实例会随组件销毁，draft state、IME 组合态和光标位置都有丢失风险。
+- 当前实现已改为 `v-show` + `inert` 的 mounted-but-hidden 方案，保留 editor 实例与 StatusBar watcher，避免权限/提问面板出现时反复销毁输入区。
 
-**建议**：改为 v-show + inert 而非 v-if，保留 editor 实例；或 unmount 前序列化 draft 到 store
+**建议**：保持 mounted-but-hidden 方案；后续仅评估是否需要在异常 unmount 场景补充 draft 序列化兜底。
 
 ---
 
@@ -243,7 +243,7 @@ class="h-1.5 rounded-full bg-primary transition-all duration-300"
 
 | # | 问题 | 位置 |
 |---|---|---|
-| 1 | 权限/提问时不要 unmount 输入框 → 丢焦点 + 丢 draft + 布局硬切 | `ChatPage.vue` #L139, #L175 |
+| 1 | 权限/提问时保持输入框 mounted-but-hidden，避免丢焦点、丢 draft 和布局硬切 | `ChatPage.vue` 输入区 v-show + inert |
 | 2 | 流式期间 measure + scroll 合并到单 rAF | `ChatPage.vue`, `MessageListRow.vue` |
 | 3 | 窗口化估高按真实折叠态修正 | `useMessageWindow.ts` #L52-L86 |
 
@@ -255,7 +255,7 @@ class="h-1.5 rounded-full bg-primary transition-all duration-300"
 | 5 | Pending lane / Memory chip / Spotlight 补过渡动画 | 多个组件 |
 | 6 | ChatStatusBar 拆分 + 去 deep watch | `ChatStatusBar.vue` |
 | 7 | 图片占位与最终尺寸一致 | `MessageBlockImage.vue` |
-| 8 | Backdrop-blur 统一为一个 token | 10 个组件 |
+| 8 | Backdrop-blur 统一到 soft / panel / overlay 语义 token，避免组件内重复内联 | 多个组件 |
 | 9 | 会话切换轻过渡 / 缓存（避免闪白） | `ChatTabView.vue` |
 
 ### P2（打磨项）

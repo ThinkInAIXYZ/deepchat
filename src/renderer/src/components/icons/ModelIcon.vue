@@ -124,8 +124,13 @@ const handleIconLoad = () => {
       :class="[
         'size-full object-contain',
         { invert },
-        invert ? 'opacity-50' : '',
-        iconLoaded ? 'opacity-100' : 'opacity-0'
+        invert
+          ? iconLoaded
+            ? 'opacity-50'
+            : 'opacity-0'
+          : iconLoaded
+            ? 'opacity-100'
+            : 'opacity-0'
       ]"
       decoding="async"
       @load="handleIconLoad"
