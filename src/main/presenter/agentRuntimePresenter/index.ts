@@ -219,6 +219,7 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
+const SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS = 200
 
 function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
@@ -4750,20 +4751,41 @@ export class AgentRuntimePresenter implements IAgentImplementation {
       this.logSlowPreStreamStep(sessionId, 'system-prompt.pinned-skills-load', stepStartedAt)
     }
 
-    let envPrompt = ''
-    try {
-      stepStartedAt = Date.now()
-      envPrompt = await buildSystemEnvPrompt({
-        providerId,
-        modelId,
-        workdir,
-        now,
-        modelLookup: this.providerCatalogPort
-      })
-      this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', stepStartedAt)
-    } catch (error) {
-      console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
-    }
+    const sourceLookupDeadlineAt = Date.now() + SYSTEM_PROMPT_SOURCE_LOOKUP_BUDGET_MS
+    const envPromptStartedAt = Date.now()
+    const envPromptPromise = buildSystemEnvPrompt({
+      providerId,
+      modelId,
+      workdir,
+      now,
+      modelLookup: this.providerCatalogPort,
+      deadlineAt: sourceLookupDeadlineAt
+    }).then(
+      (prompt) => {
+        this.logSlowPreStreamStep(sessionId, 'system-prompt.env-prompt', envPromptStartedAt)
+        return prompt
+      },
+      (error) => {
+        console.warn(`[DeepChatAgent] Failed to build env prompt for session ${sessionId}:`, error)
+        return ''
+      }
+    )
+    const verificationPolicyStartedAt = Date.now()
+    const verificationPolicyPromptPromise = buildVerificationPolicyPrompt(workdir, {
+      deadlineAt: sourceLookupDeadlineAt
+    }).then((prompt) => {
+      this.logSlowPreStreamStep(
+        sessionId,
+        'system-prompt.verification-policy',
+        verificationPolicyStartedAt
+      )
+      return prompt
+    })
+
+    const [envPrompt, verificationPolicyPrompt] = await Promise.all([
+      envPromptPromise,
+      verificationPolicyPromptPromise
+    ])
 
     let toolingPrompt = ''
     if (this.toolPresenter) {
@@ -4781,10 +4803,6 @@ export class AgentRuntimePresenter implements IAgentImplementation {
         )
       }
     }
-
-    stepStartedAt = Date.now()
-    const verificationPolicyPrompt = await buildVerificationPolicyPrompt(workdir)
-    this.logSlowPreStreamStep(sessionId, 'system-prompt.verification-policy', stepStartedAt)
 
     stepStartedAt = Date.now()
     const composedPrompt = this.composePromptSections([

@@ -345,6 +345,31 @@ describe('system prompt source snapshots', () => {
     expect(missingAgain.revision).toBe(missing.revision)
   })
 
+  it('keeps the package last-known-good policy across a transient I/O failure', async () => {
+    vi.mocked(fs.promises.readFile)
+      .mockResolvedValueOnce('{"name":"DeepChat","scripts":{}}')
+      .mockRejectedValueOnce(fileError('EIO'))
+      .mockResolvedValueOnce('{"name":"other","scripts":{"test":"vitest"}}')
+    const options = { workdir: '/tmp/prm-002a-package-lkg' }
+
+    const initial = await buildVerificationPolicySnapshot(options)
+    expect(initial.prompt).toContain('In the DeepChat repository')
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(await buildVerificationPolicySnapshot(options)).toEqual(initial)
+    await settleRefresh()
+    expect(await buildVerificationPolicySnapshot(options)).toEqual(initial)
+    expect(fs.promises.readFile).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(await buildVerificationPolicySnapshot(options)).toEqual(initial)
+    await settleRefresh()
+    const recovered = await buildVerificationPolicySnapshot(options)
+    expect(recovered.prompt).not.toContain('In the DeepChat repository')
+    expect(recovered.prompt).toContain('`test`')
+    expect(recovered.revision).not.toBe(initial.revision)
+  })
+
   it('shares package pending reads and lets one waiter abort independently', async () => {
     const read = deferred<string>()
     vi.mocked(fs.promises.readFile).mockReturnValue(

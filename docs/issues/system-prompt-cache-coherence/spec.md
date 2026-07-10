@@ -548,7 +548,7 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 
 | Slice | Depends on | 独立交付内容 | 独立运行条件 | 独立回滚 |
 | --- | --- | --- | --- | --- |
-| `PRM-002A` source snapshots | `PRM-001` | `SystemEnvPromptSnapshot`、`VerificationPolicySnapshot`、shared pending/30s retry 状态机；保留现有 string builder compatibility wrapper | focused source tests、typecheck/lint/full baseline 通过；outer cache behavior 暂不宣称已修复 | 可单独 revert；旧 builder call sites/outer key 仍可运行 |
+| `PRM-002A` source snapshots | `PRM-001` | `SystemEnvPromptSnapshot`、`VerificationPolicySnapshot`、shared pending/30s retry 状态机；保留现有 string builder compatibility wrapper，并让生产 compatibility calls 共享同一个 `200ms` deadline 并行启动 | focused source tests、生产链并行 deadline test、typecheck/lint/full baseline 通过；outer cache behavior 暂不宣称已修复 | 可单独 revert；旧 outer key 仍可运行 |
 | `PRM-002B` skill immutable snapshot/epoch | `PRM-002A` | staged source version、immutable published LKG snapshot、quarantine/reconcile、odd/even publish epoch、abortable/deadline-bound wait；现有 skill APIs 改为从 published snapshot 读取 | 所有 SkillPresenter/ToolPresenter tests 通过；尚未要求 outer prompt 使用新 epoch | 可在 `PRM-002C` 合入前单独 revert，`PRM-002A` 保留 |
 | `PRM-002C` orchestration cache wiring | `PRM-002A` + `PRM-002B` | env/verification/skill 并行 shared deadline；同一 immutable skill snapshot 生成 prompt/tool pair；outer/tool profile fingerprints 接 revisions/epoch | 真实组合测试、完整 baseline、manual smoke 全部通过；此 slice 才关闭 P-07 | 可先单独 revert C，恢复旧 orchestration 但保留 A/B owner invariants；随后才允许按 B→A 逆序回滚 |
 
@@ -559,6 +559,8 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 - [x] 导出 `SystemEnvPromptSnapshot`；准确缓存 `.git` marker-presence observation。
 - [x] 将 verification policy 改为单次 async read/parse 的 `VerificationPolicySnapshot`。
 - [x] 给两个 lookup 接入 `AbortSignal`/absolute deadline 参数；保留 compatibility wrappers。
+- [x] 生产 outer cache miss 链立即并行启动两个 compatibility lookup，共享一个 absolute `200ms`
+      deadline；不接 source revision fingerprint。
 - [x] 验证 A 单独 merge 后输出 bytes/首轮预算兼容，记录 outer coherence 尚待 C。
 
 `PRM-002A` 只发布 source-owner snapshots。外层 `systemPromptCache` fingerprint、skill snapshot/epoch 和
@@ -581,7 +583,7 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 ### `PRM-002C` tasks
 
 - [ ] 先写真实 outer + A/B source owner 的 failing integration tests。
-- [ ] 建一个 absolute `200ms` pre-stream source deadline，并行启动 env、verification 和 stable skill lookup。
+- [ ] 把 stable skill lookup 接入 A 已建立的 absolute `200ms` pre-stream source deadline；三者保持并行。
 - [ ] 从同一个 immutable skill snapshot 构造 metadata/content/tool pair。
 - [ ] composed prompt/tool profile cache entry 与 fingerprint 加入 source revisions/stable epoch。
 - [ ] 实现一次 bounded rebuild、fully matching previous stable fallback 和 typed
