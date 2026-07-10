@@ -61,6 +61,7 @@ type StartupTaskRecord<T> = {
   resolve: (value: T | PromiseLike<T>) => void
   reject: (reason?: unknown) => void
   promise: Promise<T>
+  settled: boolean
 }
 
 const PHASE_PRIORITY: Record<StartupWorkloadPhase, number> = {
@@ -114,19 +115,9 @@ export class StartupWorkloadCoordinator {
 
     const tasks = [...runState.tasks]
     for (const task of tasks) {
-      if (task.state === 'pending') {
-        this.removePendingTask(task.internalKey)
-      }
-
       if (task.state === 'pending' || task.state === 'running') {
         task.controller.abort()
-        task.state = 'cancelled'
-        task.updatedAt = Date.now()
-        task.reject(this.createAbortError(task.id))
-      }
-
-      if (!task.visibleId) {
-        runState.tasks.delete(task)
+        this.settleTask(task, 'cancelled', this.createAbortError(task.id), false)
       }
     }
 
@@ -197,7 +188,8 @@ export class StartupWorkloadCoordinator {
       run: options.run,
       resolve: resolveTask,
       reject: rejectTask,
-      promise
+      promise,
+      settled: false
     }
 
     runState.tasks.add(task as StartupTaskRecord<unknown>)
@@ -290,13 +282,12 @@ export class StartupWorkloadCoordinator {
   private async startTask(task: StartupTaskRecord<unknown>): Promise<void> {
     const runState = this.runs.get(task.target)
     if (!runState || runState.runId !== task.runId) {
-      task.reject(this.createAbortError(task.id))
-      this.finishTask(task, 'cancelled')
+      this.settleTask(task, 'cancelled', this.createAbortError(task.id))
       return
     }
 
     if (task.controller.signal.aborted) {
-      this.finishTask(task, 'cancelled')
+      this.settleTask(task, 'cancelled', this.createAbortError(task.id))
       return
     }
 
@@ -321,32 +312,45 @@ export class StartupWorkloadCoordinator {
     try {
       const result = await task.run(context)
       if (task.controller.signal.aborted) {
-        task.reject(this.createAbortError(task.id))
-        this.finishTask(task, 'cancelled')
+        this.settleTask(task, 'cancelled', this.createAbortError(task.id))
         return
       }
 
-      task.resolve(result)
-      this.finishTask(task, 'completed')
+      this.settleTask(task, 'completed', result)
     } catch (error) {
       if (task.controller.signal.aborted || this.isAbortError(error)) {
-        task.reject(this.createAbortError(task.id))
-        this.finishTask(task, 'cancelled')
+        this.settleTask(task, 'cancelled', this.createAbortError(task.id))
         return
       }
 
-      task.reject(error)
-      this.finishTask(task, 'failed')
+      this.settleTask(task, 'failed', error)
     } finally {
       this.runningCounts[task.resource] -= 1
       this.pump()
     }
   }
 
-  private finishTask(task: StartupTaskRecord<unknown>, finalState: StartupWorkloadState): void {
+  private settleTask(
+    task: StartupTaskRecord<unknown>,
+    finalState: 'cancelled' | 'completed' | 'failed',
+    result: unknown,
+    shouldPublish = true
+  ): void {
+    if (task.settled) {
+      return
+    }
+
+    task.settled = true
     task.state = finalState
     task.updatedAt = Date.now()
+    this.removePendingTask(task.internalKey)
     this.inFlightByDedupeKey.delete(task.dedupeKey)
+
+    if (finalState === 'completed') {
+      task.resolve(result)
+    } else {
+      task.reject(result)
+    }
 
     const runState = this.runs.get(task.target)
     if (!runState || runState.runId !== task.runId) {
@@ -359,7 +363,9 @@ export class StartupWorkloadCoordinator {
       runState.visibleTasks.set(task.visibleId, task)
     }
 
-    this.publishSnapshot(task.target)
+    if (shouldPublish) {
+      this.publishSnapshot(task.target)
+    }
   }
 
   private removePendingTask(internalKey: string): void {
