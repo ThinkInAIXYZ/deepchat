@@ -72,7 +72,8 @@ describe('OpenAI Codex adapter', () => {
       method: 'POST',
       headers: {
         'api-key': 'old-api-key',
-        'x-api-key': 'old-x-api-key'
+        'x-api-key': 'old-x-api-key',
+        'User-Agent': 'DeepChat/1.0.0'
       }
     })
 
@@ -83,6 +84,11 @@ describe('OpenAI Codex adapter', () => {
     expect(firstHeaders.get('Authorization')).toBe('Bearer old-token')
     expect(firstHeaders.get('ChatGPT-Account-ID')).toBe('acct-1')
     expect(firstHeaders.get('OAI-Product-Sku')).toBe('codex')
+    expect(firstHeaders.get('Originator')).toBe('codex_cli_rs')
+    expect(firstHeaders.get('Version')).toBe('0.144.1')
+    expect(firstHeaders.get('User-Agent')).toBe(
+      'codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color'
+    )
     expect(firstHeaders.get('Accept')).toBe('text/event-stream')
     expect(firstHeaders.has('api-key')).toBe(false)
     expect(firstHeaders.has('x-api-key')).toBe(false)

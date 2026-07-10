@@ -71,6 +71,9 @@ const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
 const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.5',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
   'gpt-5.4',
   'gpt-5.4-mini',
   'gpt-5.3-codex-spark'

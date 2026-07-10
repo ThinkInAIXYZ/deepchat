@@ -104,7 +104,7 @@ const OPENAI_CODEX = createDefinition({
   embeddingStrategy: 'none',
   providerDbSourceId: 'openai',
   providerDbGroup: 'Codex',
-  checkModelId: 'gpt-5.5',
+  checkModelId: 'gpt-5.6-luna',
   checkPrompt: 'Hello',
   checkTemperature: 0.2,
   checkMaxTokens: 16

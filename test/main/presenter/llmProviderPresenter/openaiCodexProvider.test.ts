@@ -1,3 +1,4 @@
+import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/presenter', () => ({
@@ -13,6 +14,8 @@ import { providerDbLoader } from '../../../../src/main/presenter/configPresenter
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../../src/main/presenter/llmProviderPresenter/providerRegistry'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
+
+const CODEX_5_6_RESOURCE_MODEL_IDS = ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra']
 
 describe('OpenAI Codex provider registration', () => {
   it('keeps OpenAI Codex separate from the OpenAI API-key provider', () => {
@@ -41,7 +44,19 @@ describe('OpenAI Codex provider registration', () => {
     expect(definition?.runtimeKind).toBe('openai-codex')
     expect(definition?.modelSource).toBe('openai-codex')
     expect(definition?.providerDbSourceId).toBe('openai')
-    expect(definition?.checkModelId).toBe('gpt-5.5')
+    expect(definition?.checkModelId).toBe('gpt-5.6-luna')
+  })
+
+  it('has Codex 5.6 models in the bundled OpenAI provider database', async () => {
+    const fs = await vi.importActual<typeof import('fs')>('fs')
+    const providerDbPath = path.join(process.cwd(), 'resources', 'model-db', 'providers.json')
+    const db = JSON.parse(fs.readFileSync(providerDbPath, 'utf-8'))
+    const openaiProvider = db.providers.openai
+    const modelIds = new Set(openaiProvider.models.map((model: { id: string }) => model.id))
+
+    for (const modelId of CODEX_5_6_RESOURCE_MODEL_IDS) {
+      expect(modelIds.has(modelId)).toBe(true)
+    }
   })
 
   it('loads current Codex recommended models from the OpenAI provider database', async () => {
@@ -79,6 +94,38 @@ describe('OpenAI Codex provider registration', () => {
           reasoning: { supported: true }
         },
         {
+          id: 'gpt-5.6',
+          display_name: 'GPT-5.6',
+          modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+          limit: { context: 1050000, output: 128000 },
+          tool_call: true,
+          reasoning: { supported: true }
+        },
+        {
+          id: 'gpt-5.6-sol',
+          display_name: 'GPT-5.6 Sol',
+          modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+          limit: { context: 1050000, output: 128000 },
+          tool_call: true,
+          reasoning: { supported: true }
+        },
+        {
+          id: 'gpt-5.6-luna',
+          display_name: 'GPT-5.6 Luna',
+          modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+          limit: { context: 1050000, output: 128000 },
+          tool_call: true,
+          reasoning: { supported: true }
+        },
+        {
+          id: 'gpt-5.6-terra',
+          display_name: 'GPT-5.6 Terra',
+          modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+          limit: { context: 1050000, output: 128000 },
+          tool_call: true,
+          reasoning: { supported: true }
+        },
+        {
           id: 'gpt-5.5',
           display_name: 'GPT-5.5',
           modalities: { input: ['text', 'image'], output: ['text'] },
@@ -111,13 +158,17 @@ describe('OpenAI Codex provider registration', () => {
 
     expect(models.map((model) => model.id)).toEqual([
       'gpt-5.5',
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
       'gpt-5.4',
       'gpt-5.4-mini',
       'gpt-5.3-codex-spark'
     ])
+    expect(models.some((model) => model.id === 'gpt-5.6')).toBe(false)
     expect(models.every((model) => model.group === 'Codex')).toBe(true)
     expect(models.every((model) => model.providerId === 'openai-codex')).toBe(true)
-    expect(models.find((model) => model.id === 'gpt-5.5')?.reasoning).toBe(true)
+    expect(models.find((model) => model.id === 'gpt-5.6-luna')?.reasoning).toBe(true)
     expect(configPresenter.setProviderModels).toHaveBeenCalledWith('openai-codex', models)
   })
 })
