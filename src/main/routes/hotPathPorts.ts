@@ -1,7 +1,10 @@
 import type {
   IAgentSessionPresenter,
   IConfigPresenter,
-  ILlmProviderPresenter
+  ILlmProviderPresenter,
+  ActiveSessionResolution,
+  SessionResolutionListFilters,
+  SessionResolutionResult
 } from '@shared/presenter'
 import type { DeepchatEventName, DeepchatEventPayload } from '@shared/contracts/events'
 import type {
@@ -21,20 +24,15 @@ import type {
 } from '../presenter/runtimePorts'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 
-export type SessionListFilters = {
-  agentId?: string
-  projectDir?: string
-  includeSubagents?: boolean
-  parentSessionId?: string
-}
+export type SessionListFilters = SessionResolutionListFilters
 
 export interface SessionRepository {
   create(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
-  get(sessionId: string): Promise<SessionWithState | null>
-  list(filters?: SessionListFilters): Promise<SessionWithState[]>
+  resolve(sessionId: string): Promise<SessionResolutionResult>
+  resolveList(filters?: SessionListFilters): Promise<SessionResolutionResult[]>
   activate(webContentsId: number, sessionId: string): Promise<void>
   deactivate(webContentsId: number): Promise<void>
-  getActive(webContentsId: number): Promise<SessionWithState | null>
+  resolveActive(webContentsId: number): Promise<ActiveSessionResolution>
 }
 
 export interface MessageRepository {
@@ -83,11 +81,11 @@ export function createPresenterHotPathPorts(deps: {
   agentSessionPresenter: Pick<
     IAgentSessionPresenter,
     | 'createSession'
-    | 'getSession'
-    | 'getSessionList'
+    | 'resolveSession'
+    | 'resolveSessionList'
     | 'activateSession'
     | 'deactivateSession'
-    | 'getActiveSession'
+    | 'resolveActiveSession'
     | 'getMessages'
     | 'listMessagesPage'
     | 'getMessage'
@@ -112,14 +110,14 @@ export function createPresenterHotPathPorts(deps: {
     sessionRepository: {
       create: async (input, webContentsId) =>
         await deps.agentSessionPresenter.createSession(input, webContentsId),
-      get: async (sessionId) => await deps.agentSessionPresenter.getSession(sessionId),
-      list: async (filters) => await deps.agentSessionPresenter.getSessionList(filters),
+      resolve: async (sessionId) => await deps.agentSessionPresenter.resolveSession(sessionId),
+      resolveList: async (filters) => await deps.agentSessionPresenter.resolveSessionList(filters),
       activate: async (webContentsId, sessionId) =>
         await deps.agentSessionPresenter.activateSession(webContentsId, sessionId),
       deactivate: async (webContentsId) =>
         await deps.agentSessionPresenter.deactivateSession(webContentsId),
-      getActive: async (webContentsId) =>
-        await deps.agentSessionPresenter.getActiveSession(webContentsId)
+      resolveActive: async (webContentsId) =>
+        await deps.agentSessionPresenter.resolveActiveSession(webContentsId)
     },
     messageRepository: {
       listBySession: async (sessionId) => await deps.agentSessionPresenter.getMessages(sessionId),

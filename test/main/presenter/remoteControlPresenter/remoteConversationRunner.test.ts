@@ -21,6 +21,11 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
+const available = (session: ReturnType<typeof createSession>) => ({
+  availability: 'available' as const,
+  session
+})
+
 const createConfigPresenter = (overrides: Record<string, unknown> = {}) => ({
   getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
   getDefaultProjectPath: vi.fn(() => null),
@@ -64,6 +69,82 @@ describe('RemoteConversationRunner', () => {
     expect(bindingStore.setBinding).toHaveBeenCalledWith('telegram:100:0', session.id)
   })
 
+  it.each([
+    {
+      availability: 'unavailable' as const,
+      sessionId: 'session-bound',
+      record: createSession({ id: 'session-bound' }),
+      reason: 'agent_unknown' as const
+    },
+    {
+      availability: 'transient_error' as const,
+      sessionId: 'session-bound',
+      record: createSession({ id: 'session-bound' }),
+      error: {
+        code: 'SESSION_RESOLUTION_FAILED' as const,
+        stage: 'state_read' as const,
+        retryable: true as const,
+        cause: new Error('temporary state read failure')
+      }
+    }
+  ])('retains remote binding for $availability resolution', async (resolution) => {
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({
+        sessionId: 'session-bound',
+        updatedAt: 1
+      }),
+      clearBinding: vi.fn()
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          resolveSession: vi.fn().mockResolvedValue(resolution)
+        } as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      bindingStore as any
+    )
+
+    await expect(runner.getCurrentSession('telegram:100:0')).rejects.toMatchObject({
+      name: 'SessionResolutionError',
+      availability: resolution.availability
+    })
+    expect(bindingStore.clearBinding).not.toHaveBeenCalled()
+  })
+
+  it('clears remote binding only after an authoritative record miss', async () => {
+    const bindingStore = {
+      getBinding: vi.fn().mockReturnValue({
+        sessionId: 'session-bound',
+        updatedAt: 1
+      }),
+      clearBinding: vi.fn()
+    }
+    const runner = new RemoteConversationRunner(
+      {
+        configPresenter: createConfigPresenter() as any,
+        agentSessionPresenter: {
+          resolveSession: vi.fn().mockResolvedValue({
+            availability: 'missing',
+            sessionId: 'session-bound'
+          })
+        } as any,
+        agentRuntimePresenter: {} as any,
+        windowPresenter: {} as any,
+        tabPresenter: {} as any,
+        resolveDefaultAgentId: vi.fn()
+      },
+      bindingStore as any
+    )
+
+    await expect(runner.getCurrentSession('telegram:100:0')).resolves.toBeNull()
+    expect(bindingStore.clearBinding).toHaveBeenCalledWith('telegram:100:0')
+  })
+
   it('creates a new bound session after the default agent changes', async () => {
     const agentSessionPresenter = {
       createDetachedSession: vi.fn().mockResolvedValue(
@@ -72,11 +153,13 @@ describe('RemoteConversationRunner', () => {
           agentId: 'deepchat-new'
         })
       ),
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-legacy',
-          agentId: 'deepchat-legacy'
-        })
+      resolveSession: vi.fn().mockResolvedValue(
+        available(
+          createSession({
+            id: 'session-legacy',
+            agentId: 'deepchat-legacy'
+          })
+        )
       ),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
@@ -140,7 +223,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -217,7 +300,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -318,7 +401,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -411,7 +494,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -491,7 +574,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValue([]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(null)
@@ -678,7 +761,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: workspace
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(assistantMessage),
@@ -773,7 +856,7 @@ describe('RemoteConversationRunner', () => {
       projectDir: null
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
       sendMessage: vi.fn().mockResolvedValue(undefined),
       getMessage: vi.fn().mockResolvedValue(assistantMessage),
@@ -820,23 +903,29 @@ describe('RemoteConversationRunner', () => {
 
   it('lists recent sessions for the currently bound agent before falling back to default agent', async () => {
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-bound',
-          agentId: 'deepchat-bound'
-        })
+      resolveSession: vi.fn().mockResolvedValue(
+        available(
+          createSession({
+            id: 'session-bound',
+            agentId: 'deepchat-bound'
+          })
+        )
       ),
-      getSessionList: vi.fn().mockResolvedValue([
-        createSession({
-          id: 'session-a',
-          agentId: 'deepchat-bound',
-          updatedAt: 5
-        }),
-        createSession({
-          id: 'session-b',
-          agentId: 'deepchat-bound',
-          updatedAt: 10
-        })
+      resolveSessionList: vi.fn().mockResolvedValue([
+        available(
+          createSession({
+            id: 'session-a',
+            agentId: 'deepchat-bound',
+            updatedAt: 5
+          })
+        ),
+        available(
+          createSession({
+            id: 'session-b',
+            agentId: 'deepchat-bound',
+            updatedAt: 10
+          })
+        )
       ])
     }
     const bindingStore = {
@@ -860,7 +949,7 @@ describe('RemoteConversationRunner', () => {
 
     const sessions = await runner.listSessions('telegram:100:0')
 
-    expect(agentSessionPresenter.getSessionList).toHaveBeenCalledWith({
+    expect(agentSessionPresenter.resolveSessionList).toHaveBeenCalledWith({
       agentId: 'deepchat-bound'
     })
     expect(sessions.map((session) => session.id)).toEqual(['session-b', 'session-a'])
@@ -872,11 +961,13 @@ describe('RemoteConversationRunner', () => {
 
   it('delegates remote model switching to the bound session', async () => {
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(
-        createSession({
-          id: 'session-bound',
-          agentId: 'deepchat-bound'
-        })
+      resolveSession: vi.fn().mockResolvedValue(
+        available(
+          createSession({
+            id: 'session-bound',
+            agentId: 'deepchat-bound'
+          })
+        )
       ),
       setSessionModel: vi.fn().mockResolvedValue(
         createSession({
@@ -920,7 +1011,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: {
-          getSession: vi.fn()
+          resolveSession: vi.fn()
         } as any,
         agentRuntimePresenter: {} as any,
         windowPresenter: {
@@ -952,7 +1043,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
+          resolveSession: vi.fn().mockResolvedValue(available(createSession())),
           activateSession
         } as any,
         agentRuntimePresenter: {} as any,
@@ -1001,7 +1092,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(session),
+          resolveSession: vi.fn().mockResolvedValue(available(session)),
           activateSession
         } as any,
         agentRuntimePresenter: {} as any,
@@ -1050,7 +1141,7 @@ describe('RemoteConversationRunner', () => {
     }
 
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(session),
+      resolveSession: vi.fn().mockResolvedValue(available(session)),
       getMessages: vi
         .fn()
         .mockResolvedValueOnce([
@@ -1128,7 +1219,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
+          resolveSession: vi.fn().mockResolvedValue(available(createSession())),
           sendMessage: vi.fn().mockResolvedValue(undefined),
           getMessages: vi.fn().mockResolvedValue([
             {
@@ -1210,7 +1301,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         agentSessionPresenter: {
-          getSession: vi.fn().mockResolvedValue(createSession()),
+          resolveSession: vi.fn().mockResolvedValue(available(createSession())),
           getMessages: vi.fn().mockResolvedValue([
             {
               id: 'assistant-1',
@@ -1289,7 +1380,7 @@ describe('RemoteConversationRunner', () => {
       ])
     })
     const agentSessionPresenter = {
-      getSession: vi.fn().mockResolvedValue(createSession()),
+      resolveSession: vi.fn().mockResolvedValue(available(createSession())),
       getMessages: vi
         .fn()
         .mockResolvedValueOnce([

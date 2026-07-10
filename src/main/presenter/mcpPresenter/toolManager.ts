@@ -18,6 +18,10 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import {
+  reportTerminalSessionResolution,
+  requireAvailableSession
+} from '../agentSessionPresenter/sessionResolution'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 
@@ -381,23 +385,22 @@ export class ToolManager {
       return null
     }
 
-    try {
-      const session = await presenter.agentSessionPresenter.getSession(sessionId)
-      const agentId = session?.agentId?.trim()
-      const providerId = session?.providerId?.trim()
-      if (session && providerId === 'acp' && agentId) {
-        return {
+    const resolution = await presenter.agentSessionPresenter.resolveSession(sessionId)
+    if (resolution.availability === 'missing') {
+      reportTerminalSessionResolution('mcp.resolveAcpSessionContext', resolution)
+      return null
+    }
+
+    const session = requireAvailableSession('mcp.resolveAcpSessionContext', resolution)
+    const agentId = session.agentId.trim()
+    const providerId = session.providerId.trim()
+    return providerId === 'acp' && agentId
+      ? {
           agentId,
           providerId,
           projectDir: session.projectDir?.trim() || null
         }
-      }
-
-      return null
-    } catch (error) {
-      console.warn('[ToolManager] Failed to resolve new session MCP context:', error)
-      return null
-    }
+      : null
   }
 
   // 检查工具调用权限

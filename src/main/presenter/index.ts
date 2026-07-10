@@ -68,6 +68,12 @@ import { HooksNotificationsService } from './hooksNotifications'
 import { NewSessionHooksBridge } from './hooksNotifications/newSessionBridge'
 import { CronJobsService } from './cronJobs'
 import { AgentSessionPresenter } from './agentSessionPresenter'
+import {
+  SessionResolutionError,
+  getResolutionRecord,
+  reportTerminalSessionResolution,
+  requireAvailableSession
+} from './agentSessionPresenter/sessionResolution'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { MemoryPresenter, isSafeAgentId } from './memoryPresenter'
 import { MemoryVectorStore } from './memoryPresenter/infra/memoryVectorStore'
@@ -240,26 +246,27 @@ export class Presenter implements IPresenter {
 
     const agentToolRuntime: AgentToolRuntimePort = {
       resolveConversationWorkdir: async (conversationId) => {
-        try {
-          const session = await this.agentSessionPresenter?.getSession(conversationId)
-          const normalized = session?.projectDir?.trim()
-          if (normalized) {
-            return normalized
-          }
-        } catch (error) {
-          console.warn('[Presenter] Failed to resolve new session workdir:', {
-            conversationId,
-            error
-          })
-        }
-
-        return null
-      },
-      resolveConversationSessionInfo: async (conversationId) => {
-        const session = await this.agentSessionPresenter?.getSession(conversationId)
-        if (!session) {
+        if (!this.agentSessionPresenter) {
           return null
         }
+
+        const resolution = await this.agentSessionPresenter.resolveSession(conversationId)
+        const record = getResolutionRecord(resolution)
+        if (resolution.availability !== 'available') {
+          reportTerminalSessionResolution('tools.resolveConversationWorkdir', resolution)
+        }
+        if (!record && resolution.availability === 'transient_error') {
+          throw new SessionResolutionError('tools.resolveConversationWorkdir', resolution)
+        }
+
+        return record?.projectDir?.trim() || null
+      },
+      resolveConversationSessionInfo: async (conversationId) => {
+        if (!this.agentSessionPresenter) {
+          return null
+        }
+        const resolution = await this.agentSessionPresenter.resolveSession(conversationId)
+        const session = requireAvailableSession('tools.resolveConversationSessionInfo', resolution)
 
         const agent = await this.configPresenter.getAgent(session.agentId)
         const agentType = await this.configPresenter.getAgentType(session.agentId)
@@ -440,11 +447,22 @@ export class Presenter implements IPresenter {
 
     const skillSessionStatePort: SkillSessionStatePort = {
       hasNewSession: async (conversationId) => {
-        try {
-          return Boolean(await this.agentSessionPresenter?.getSession(conversationId))
-        } catch {
+        if (!this.agentSessionPresenter) {
           return false
         }
+        const resolution = await this.agentSessionPresenter.resolveSession(conversationId)
+        if (resolution.availability === 'available') {
+          return true
+        }
+
+        reportTerminalSessionResolution('skills.hasNewSession', resolution)
+        if (resolution.availability === 'missing') {
+          return false
+        }
+        if (resolution.availability === 'unavailable' || resolution.record) {
+          return true
+        }
+        throw new SessionResolutionError('skills.hasNewSession', resolution)
       },
       getPersistedNewSessionSkills: (conversationId) =>
         (
@@ -676,7 +694,16 @@ export class Presenter implements IPresenter {
 
     // Update hooksNotifications with actual dependencies now that agentSessionPresenter is ready
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: this.agentSessionPresenter.getSession.bind(this.agentSessionPresenter),
+      getSession: async (sessionId) => {
+        const resolution = await this.agentSessionPresenter.resolveSession(sessionId)
+        if (resolution.availability === 'available') {
+          return resolution.session
+        }
+
+        reportTerminalSessionResolution('hooks.getSession', resolution)
+        const record = getResolutionRecord(resolution)
+        return record ? { projectDir: record.projectDir } : null
+      },
       getMessage: this.agentSessionPresenter.getMessage.bind(this.agentSessionPresenter)
     })
 

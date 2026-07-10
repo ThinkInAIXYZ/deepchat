@@ -890,13 +890,13 @@ semantics and smaller regression ambiguity before later AgentRuntime refactors.
 
 ### Implementation (`SES-002`)
 
-- [ ] Add failing main tests from this spec.
-- [ ] Implement Presenter-port four-state `resolve*` APIs plus typed legacy adapters.
-- [ ] Migrate the fixed consumer inventory, enforce the legacy allowlist and preserve list isolation.
-- [ ] Remove unsafe cast and preserve the built-in registry fast path.
-- [ ] Fix window and remote binding decisions without adding a deletion reverse index.
-- [ ] Activate bounded transient read retry.
-- [ ] Enforce terminal-only diagnostics, keep legacy route shapes and run repository validation.
+- [x] Add failing main tests from this spec.
+- [x] Implement Presenter-port four-state `resolve*` APIs plus typed legacy adapters.
+- [x] Migrate the fixed consumer inventory, enforce the legacy allowlist and preserve list isolation.
+- [x] Remove unsafe cast and preserve the built-in registry fast path.
+- [x] Fix window and remote binding decisions without adding a deletion reverse index.
+- [x] Activate bounded transient read retry.
+- [x] Enforce terminal-only diagnostics, keep legacy route shapes and run repository validation.
 
 ### Renderer contract (`SES-003`)
 

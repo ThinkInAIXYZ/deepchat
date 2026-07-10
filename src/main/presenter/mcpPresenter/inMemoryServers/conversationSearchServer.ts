@@ -6,6 +6,10 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { isSafeRegexPattern } from '@shared/regexValidator'
+import {
+  SessionResolutionError,
+  requireAvailableSession
+} from '../../agentSessionPresenter/sessionResolution'
 
 // Schema definitions
 const SearchConversationsArgsSchema = z.object({
@@ -266,10 +270,8 @@ export class ConversationSearchServer {
   // 获取对话历史
   private async getConversationHistory(conversationId: string, includeSystem: boolean = false) {
     try {
-      const session = await presenter.agentSessionPresenter.getSession(conversationId)
-      if (!session) {
-        throw new Error(`Session not found: ${conversationId}`)
-      }
+      const resolution = await presenter.agentSessionPresenter.resolveSession(conversationId)
+      const session = requireAvailableSession('mcp.conversationHistory', resolution)
       const records = await presenter.agentSessionPresenter.getMessages(conversationId)
 
       const filteredMessages = includeSystem
@@ -296,6 +298,9 @@ export class ConversationSearchServer {
         }))
       }
     } catch (error) {
+      if (error instanceof SessionResolutionError) {
+        throw error
+      }
       console.error('Error getting conversation history:', error)
       throw new Error(
         `Failed to get conversation history: ${error instanceof Error ? error.message : String(error)}`
