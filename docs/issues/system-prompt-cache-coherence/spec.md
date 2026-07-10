@@ -412,8 +412,10 @@ interface SkillRuntimeSnapshotPort {
    previous LKG。rollback 失败或磁盘状态 unknown 时，也不得把 unknown bytes 宣称为 stable：
    - 有 previous LKG：继续发布 previous LKG runtime entry，标记 `reconcile_required`；
    - 无 previous LKG：发布 quarantine/unavailable diagnostic，不向 prompt/tool 暴露；
-   - 两者都触发 bounded reconcile/re-discovery。reconcile 只有在重新 stage 出完整 candidate 后才 atomic
-     publish；reconcile 再失败仍保持 LKG/quarantine。
+   - 每次 repo-owned mutation failure 结束前只执行一次 immediate bounded reconcile。它只有在重新 stage
+     出完整 candidate 后才 atomic publish；本次 reconcile 再失败则保持 LKG/quarantine，不创建 timer、
+     worker 或其他后台 retry loop。后续只由新的 watcher event、显式 discovery 或下一次 repo-owned
+     mutation 重新触发 reconcile。
 7. success、完整 rollback、rollback failure 和 invalid candidate 都必须在 `finally` 中关闭 publish
    bookkeeping；但只有 coherent snapshot 已被选定/published 后才能从 odd 进入 even。即使最终仍是旧
    bytes，也进入新的 even epoch；这是可接受的低频 false invalidation。
@@ -510,6 +512,9 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 - [ ] 同名 skill 的 `allowedTools` 变化后，`toolProfileCache` miss 并重建 tool definitions。
 - [ ] 每个 published `ready` skill entry 的 metadata、rendered content、runtime instructions 和
       `allowedTools` 都有同一个 `sourceVersion`；prompt/tool build 没有 runtime disk body read。
+- [ ] `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()` 和 `listSkillScripts()` 的
+      runtime/compatibility path 只读 captured published snapshot；hard-check 在这些调用期间发生 source disk
+      read 时直接失败。
 - [ ] watcher update 的 parse/render deferred 时 reader 继续得到完整 previous LKG；valid candidate stage
       完成后才进入 odd atomic publish window。invalid existing update 保留整条 LKG 并标 source error；
       invalid new skill 不发布。
@@ -517,8 +522,8 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
       failure 的 atomic rollback 成功时继续发布 previous LKG；stage parse-null 时尚未写盘，直接保留
       previous LKG。
 - [ ] rollback failed/disk unknown 时 unknown bytes 从不成为 stable runtime entry：有 LKG 时保留 LKG，
-      无 LKG 时 quarantine/unavailable；reconcile deferred/success/failure 各自只在 coherent snapshot 已选定
-      后进入 even。
+      无 LKG 时 quarantine/unavailable；每次失败只做一次 immediate bounded reconcile，失败后没有后台
+      retry loop，只由 watcher 新事件、显式 discovery 或下一 mutation 重触发。
 - [ ] stable snapshot wait 接收 pre-stream signal/deadline：abort 立即结束 caller；odd/hung worker 到 overall
       `200ms` 不会永久挂。只有完全 matching previous stable prompt/tool pair 可 fallback，否则抛
       retryable `SkillRuntimeUpdatingError`。
@@ -565,8 +570,9 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 - [ ] 实现 invalid existing/new、rollback-failed LKG/quarantine 和 reconcile state machine。
 - [ ] 实现 odd/even publish epoch、shared settlement barrier 和
       `waitForStableRuntimeSnapshot({ signal, deadlineAt })`。
-- [ ] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()` compatibility API
-      只读 published snapshot，不在 runtime build 路径重读磁盘。
+- [ ] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()`、
+      `listSkillScripts()` compatibility API 只读 published snapshot，并用 hard-check 阻止 runtime path 重读
+      source disk。
 - [ ] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
 
 ### `PRM-002C` tasks
@@ -636,9 +642,10 @@ MCP 自身仍由 `toolRegistryRevision` 管理；不合并两种 revision owner�
 3. repo-owned update parse-null 在任何 disk write 前失败，previous LKG 和 disk bytes 不变；
 4. repo update staged candidate valid 后进入 odd，disk/config 后半段 deferred；并发 reader 的
    `waitForStableRuntimeSnapshot()` 挂在 shared barrier，不能读磁盘中间态；
-5. rollback failed 后 deferred reconcile：runtime 始终只暴露 previous LKG；无 LKG install 则 quarantine。
-   reconcile success 才 publish ready entry，reconcile failure 继续 LKG/quarantine，epoch 不宣称 unknown
-   disk bytes stable；
+5. rollback failed 后在 mutation failure 结束前只执行一次 immediate bounded reconcile：runtime 始终只
+   暴露 previous LKG；无 LKG install 则 quarantine。reconcile success 才 publish ready entry；failure 继续
+   LKG/quarantine，epoch 不宣称 unknown disk bytes stable。fake timer/worker 断言失败后没有后台 retry，
+   只有 watcher 新事件、显式 discovery 或下一 mutation 会启动下一次 reconcile；
 6. reader 在 even epoch E 取得 snapshot 后 publish E+1/E+2；second epoch read 检出 changed，丢弃
    candidate，在原 deadline 内只重建一次；第二次仍变化时不写 cache；
 7. fake timer 下 odd worker永久 pending：`199ms` 仍等待，`200ms` 使用 fully matching previous pair 或抛
@@ -783,7 +790,8 @@ env/verification I/O 并行开始。
    stable tool/prompt pair，且其 structural/env/verification inputs 也必须匹配。没有 matching stable pair
    时会得到 retryable pre-stream failure，而不是发送已知 mixed pair。这是低概率但明确可见的稳定性
    取舍。
-7. rollback/reconcile 长期失败时 runtime 会安全地停留在 LKG 或 quarantine，但磁盘与运行态可能长期不同；
+7. rollback/reconcile 失败后没有后台 retry loop；若 watcher、显式 discovery 和后续 mutation 都未触发，
+   runtime 会安全地停留在 LKG 或 quarantine，但磁盘与运行态可能长期不同；
    `sourceError/reconcile_required` 必须有日志与诊断可见性，不能静默假装用户的新文件已生效。
 
 ## 完成定义
