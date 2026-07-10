@@ -37,6 +37,7 @@ type StartupWorkloadTaskOptions<T> = {
 
 type StartupWorkloadRunState = {
   runId: string
+  controller: AbortController
   visibleTasks: Map<StartupWorkloadTaskId, StartupTaskRecord<unknown>>
   tasks: Set<StartupTaskRecord<unknown>>
 }
@@ -62,6 +63,14 @@ type StartupTaskRecord<T> = {
   reject: (reason?: unknown) => void
   promise: Promise<T>
   settled: boolean
+  finishedPromise: Promise<void>
+  resolveFinished: () => void
+}
+
+type StartupIdleBarrierToken = {
+  order: number
+  cutoffSequence: number
+  generation: StartupTaskRecord<unknown>[]
 }
 
 const PHASE_PRIORITY: Record<StartupWorkloadPhase, number> = {
@@ -82,9 +91,12 @@ export class StartupWorkloadCoordinator {
     cpu: 0,
     io: 0
   }
+  private readonly activeTasks = new Set<StartupTaskRecord<unknown>>()
+  private readonly activeIdleBarriers = new Set<StartupIdleBarrierToken>()
   private readonly inFlightByDedupeKey = new Map<string, StartupTaskRecord<unknown>>()
   private sequence = 0
   private runSequence = 0
+  private idleBarrierSequence = 0
   private pumping = false
 
   createRun(target: StartupWorkloadTarget): string {
@@ -92,6 +104,7 @@ export class StartupWorkloadCoordinator {
     const runId = `${target}:${Date.now()}:${++this.runSequence}`
     this.runs.set(target, {
       runId,
+      controller: new AbortController(),
       visibleTasks: new Map(),
       tasks: new Set()
     })
@@ -113,6 +126,7 @@ export class StartupWorkloadCoordinator {
       return
     }
 
+    runState.controller.abort()
     const tasks = [...runState.tasks]
     for (const task of tasks) {
       if (task.state === 'pending' || task.state === 'running') {
@@ -133,9 +147,7 @@ export class StartupWorkloadCoordinator {
   }
 
   isIdle(): boolean {
-    return (
-      this.pendingTasks.length === 0 && this.runningCounts.cpu === 0 && this.runningCounts.io === 0
-    )
+    return this.activeTasks.size === 0
   }
 
   async scheduleTask<T>(options: StartupWorkloadTaskOptions<T>): Promise<T> {
@@ -169,6 +181,10 @@ export class StartupWorkloadCoordinator {
       resolveTask = resolve
       rejectTask = reject
     })
+    let resolveFinished!: () => void
+    const finishedPromise = new Promise<void>((resolve) => {
+      resolveFinished = resolve
+    })
 
     const now = Date.now()
     const task: StartupTaskRecord<T> = {
@@ -189,10 +205,13 @@ export class StartupWorkloadCoordinator {
       resolve: resolveTask,
       reject: rejectTask,
       promise,
-      settled: false
+      settled: false,
+      finishedPromise,
+      resolveFinished
     }
 
     runState.tasks.add(task as StartupTaskRecord<unknown>)
+    this.activeTasks.add(task as StartupTaskRecord<unknown>)
     if (options.visibleId) {
       runState.visibleTasks.set(options.visibleId, task as StartupTaskRecord<unknown>)
     }
@@ -205,21 +224,35 @@ export class StartupWorkloadCoordinator {
   }
 
   async whenIdle<T>(target: StartupWorkloadTarget, callback: () => Promise<T>): Promise<T> {
-    if (this.isIdle()) {
+    const generation = [...this.activeTasks]
+    const cutoffSequence = this.sequence
+    if (generation.length === 0) {
       return await callback()
     }
 
-    return await this.scheduleTask({
-      id: `${target}:idle`,
-      target,
-      phase: 'background',
-      resource: 'io',
-      labelKey: 'startup.workload.idle',
-      dedupeKey: `${target}:idle`,
-      run: async () => {
-        return await callback()
-      }
-    })
+    const runId = this.ensureRun(target)
+    const runState = this.runs.get(target)
+    if (!runState || runState.runId !== runId) {
+      throw this.createAbortError(`${target}:idle`)
+    }
+
+    const barrier: StartupIdleBarrierToken = {
+      order: ++this.idleBarrierSequence,
+      cutoffSequence,
+      generation
+    }
+    this.activeIdleBarriers.add(barrier)
+    try {
+      await this.waitForGeneration(generation, runState.controller.signal, `${target}:idle`)
+    } finally {
+      this.activeIdleBarriers.delete(barrier)
+    }
+
+    if (this.runs.get(target)?.runId !== runId) {
+      throw this.createAbortError(`${target}:idle`)
+    }
+
+    return await callback()
   }
 
   static async yieldToMain(signal?: AbortSignal): Promise<void> {
@@ -259,6 +292,16 @@ export class StartupWorkloadCoordinator {
   }
 
   private pickNextTask(): StartupTaskRecord<unknown> | null {
+    const cutoffByResource: Partial<Record<StartupWorkloadResource, number>> = {}
+    const barriers = [...this.activeIdleBarriers].sort((left, right) => left.order - right.order)
+    for (const barrier of barriers) {
+      for (const task of barrier.generation) {
+        if (task.state === 'pending' && cutoffByResource[task.resource] === undefined) {
+          cutoffByResource[task.resource] = barrier.cutoffSequence
+        }
+      }
+    }
+
     const sortedPending = [...this.pendingTasks].sort((left, right) => {
       const phaseDelta = PHASE_PRIORITY[left.phase] - PHASE_PRIORITY[right.phase]
       if (phaseDelta !== 0) {
@@ -268,6 +311,10 @@ export class StartupWorkloadCoordinator {
     })
 
     for (const task of sortedPending) {
+      const cutoffSequence = cutoffByResource[task.resource]
+      if (cutoffSequence !== undefined && task.sequence > cutoffSequence) {
+        continue
+      }
       if (this.runningCounts[task.resource] >= MAX_CONCURRENCY[task.resource]) {
         continue
       }
@@ -326,6 +373,7 @@ export class StartupWorkloadCoordinator {
       this.settleTask(task, 'failed', error)
     } finally {
       this.runningCounts[task.resource] -= 1
+      this.finishTaskExecution(task)
       this.pump()
     }
   }
@@ -340,6 +388,7 @@ export class StartupWorkloadCoordinator {
       return
     }
 
+    const wasPending = task.state === 'pending'
     task.settled = true
     task.state = finalState
     task.updatedAt = Date.now()
@@ -350,6 +399,9 @@ export class StartupWorkloadCoordinator {
       task.resolve(result)
     } else {
       task.reject(result)
+    }
+    if (wasPending) {
+      this.finishTaskExecution(task)
     }
 
     const runState = this.runs.get(task.target)
@@ -365,6 +417,36 @@ export class StartupWorkloadCoordinator {
 
     if (shouldPublish) {
       this.publishSnapshot(task.target)
+    }
+  }
+
+  private finishTaskExecution(task: StartupTaskRecord<unknown>): void {
+    if (!this.activeTasks.delete(task)) {
+      return
+    }
+
+    task.resolveFinished()
+  }
+
+  private async waitForGeneration(
+    generation: StartupTaskRecord<unknown>[],
+    signal: AbortSignal,
+    taskId: string
+  ): Promise<void> {
+    if (signal.aborted) {
+      throw this.createAbortError(taskId)
+    }
+
+    let abortListener!: () => void
+    const aborted = new Promise<never>((_, reject) => {
+      abortListener = () => reject(this.createAbortError(taskId))
+      signal.addEventListener('abort', abortListener, { once: true })
+    })
+
+    try {
+      await Promise.race([Promise.all(generation.map((task) => task.finishedPromise)), aborted])
+    } finally {
+      signal.removeEventListener('abort', abortListener)
     }
   }
 
