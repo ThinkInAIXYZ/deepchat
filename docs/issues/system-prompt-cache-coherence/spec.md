@@ -618,11 +618,11 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 
 ### `PRM-002C` tasks
 
-- [ ] 先写真实 outer + A/B source owner 的 failing integration tests。
-- [ ] 把 stable skill lookup 接入 A 已建立的 absolute `200ms` pre-stream source deadline；三者保持并行。
-- [ ] 从同一个 immutable skill snapshot 构造 metadata/content/tool pair。
-- [ ] composed prompt/tool profile cache entry 与 fingerprint 加入 source revisions/stable epoch。
-- [ ] 实现一次 bounded rebuild、fully matching previous stable fallback 和 typed
+- [x] 先写真实 outer + A/B source owner 的 failing integration tests。
+- [x] 把 stable skill lookup 接入 A 已建立的 absolute `200ms` pre-stream source deadline；三者保持并行。
+- [x] 从同一个 immutable skill snapshot 构造 metadata/content/tool pair。
+- [x] composed prompt/tool profile cache entry 与 fingerprint 加入 source revisions/stable epoch。
+- [x] 实现一次 bounded rebuild、fully matching previous stable fallback 和 typed
       `SkillRuntimeUpdatingError` propagation。
 - [ ] 完成 latency upper-bound、full baseline、manual validation；仅在 C 验证完成后关闭 P-07。
 

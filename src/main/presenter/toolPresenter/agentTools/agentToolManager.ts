@@ -8,7 +8,7 @@ import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
-import type { SkillManageResult } from '@shared/types/skill'
+import type { SkillManageResult, SkillRuntimeSnapshot } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
 import { AgentFileSystemHandler } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
@@ -22,6 +22,7 @@ import {
 import { FffSearchService, type FffSearchMetadata } from '@/lib/agentRuntime/fffSearchService'
 import { SkillTools } from '../../skillPresenter/skillTools'
 import { SkillExecutionService } from '../../skillPresenter/skillExecutionService'
+import { normalizeSkillAllowedTools } from '../../skillPresenter/toolNameMapping'
 import { questionToolSchema, QUESTION_TOOL_NAME } from '@/lib/agentRuntime/questionTool'
 import {
   ChatSettingsToolHandler,
@@ -367,6 +368,7 @@ export class AgentToolManager {
     agentWorkspacePath: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    skillRuntimeSnapshot?: SkillRuntimeSnapshot
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
@@ -447,7 +449,11 @@ export class AgentToolManager {
 
       if (
         context.conversationId &&
-        (await this.hasRunnableSkillScripts(context.conversationId, context.activeSkillNames))
+        (await this.hasRunnableSkillScripts(
+          context.conversationId,
+          context.activeSkillNames,
+          context.skillRuntimeSnapshot
+        ))
       ) {
         defs.push(this.getSkillRunToolDefinition())
       }
@@ -460,10 +466,12 @@ export class AgentToolManager {
           context.activeSkillNames ??
           (await this.getSkillPresenter().getActiveSkills(context.conversationId))
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
-          const allowedTools = await this.getSkillPresenter().getActiveSkillsAllowedTools(
-            context.conversationId,
-            activeSkills
-          )
+          const allowedTools = context.skillRuntimeSnapshot
+            ? this.getAllowedToolsFromRuntimeSnapshot(context.skillRuntimeSnapshot, activeSkills)
+            : await this.getSkillPresenter().getActiveSkillsAllowedTools(
+                context.conversationId,
+                activeSkills
+              )
           const requiredSettingsTools = Object.values(CHAT_SETTINGS_TOOL_NAMES)
           const nonOpenSettingsTools = requiredSettingsTools.filter(
             (tool) => tool !== CHAT_SETTINGS_TOOL_NAMES.open
@@ -1940,11 +1948,17 @@ export class AgentToolManager {
 
   private async hasRunnableSkillScripts(
     conversationId: string,
-    activeSkillNames?: string[]
+    activeSkillNames?: string[],
+    skillRuntimeSnapshot?: SkillRuntimeSnapshot
   ): Promise<boolean> {
     try {
       const activeSkills =
         activeSkillNames ?? (await this.getSkillPresenter().getActiveSkills(conversationId))
+      if (skillRuntimeSnapshot) {
+        return activeSkills.some((skillName) =>
+          skillRuntimeSnapshot.entries.get(skillName)?.scripts?.some((script) => script.enabled)
+        )
+      }
       for (const skillName of activeSkills) {
         const scripts = await this.getSkillPresenter().listSkillScripts(skillName)
         if (scripts.some((script) => script.enabled)) {
@@ -1959,6 +1973,21 @@ export class AgentToolManager {
     }
 
     return false
+  }
+
+  private getAllowedToolsFromRuntimeSnapshot(
+    snapshot: SkillRuntimeSnapshot,
+    activeSkillNames: string[]
+  ): string[] {
+    const allowedTools = activeSkillNames.flatMap((skillName) => {
+      const entry = snapshot.entries.get(skillName)
+      return entry?.availability === 'ready' ? [...entry.allowedTools] : []
+    })
+    const normalized = normalizeSkillAllowedTools(allowedTools)
+    for (const warning of normalized.warnings) {
+      logger.warn(warning)
+    }
+    return normalized.tools
   }
 
   /**

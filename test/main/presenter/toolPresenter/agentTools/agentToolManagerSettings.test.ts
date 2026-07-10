@@ -167,6 +167,57 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(defs.map((def) => def.function.name)).toContain('skill_run')
   })
 
+  it('derives skill-gated definitions only from the captured runtime snapshot', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillPresenter.listSkillScripts.mockResolvedValue([])
+    const manager = buildManager()
+    const metadata = {
+      name: CHAT_SETTINGS_SKILL_NAME,
+      description: 'DeepChat settings',
+      path: '/tmp/deepchat-settings/SKILL.md',
+      skillRoot: '/tmp/deepchat-settings'
+    }
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      activeSkillNames: [CHAT_SETTINGS_SKILL_NAME],
+      skillRuntimeSnapshot: {
+        epoch: 2,
+        entries: new Map([
+          [
+            CHAT_SETTINGS_SKILL_NAME,
+            {
+              sourceVersion: 'captured-v2',
+              availability: 'ready',
+              metadata,
+              renderedContent: '# DeepChat settings',
+              allowedTools: [CHAT_SETTINGS_TOOL_NAMES.toggle],
+              scripts: [
+                {
+                  name: 'apply.js',
+                  relativePath: 'scripts/apply.js',
+                  absolutePath: '/tmp/deepchat-settings/scripts/apply.js',
+                  runtime: 'node',
+                  enabled: true
+                }
+              ]
+            }
+          ]
+        ])
+      }
+    })
+
+    const names = defs.map((def) => def.function.name)
+    expect(names).toContain(CHAT_SETTINGS_TOOL_NAMES.toggle)
+    expect(names).toContain('skill_run')
+    expect(skillPresenter.getActiveSkillsAllowedTools).not.toHaveBeenCalled()
+    expect(skillPresenter.listSkillScripts).not.toHaveBeenCalled()
+  })
+
   it('exposes skill inspection and draft tools without skill_control', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])

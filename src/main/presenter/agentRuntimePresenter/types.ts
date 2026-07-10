@@ -192,11 +192,10 @@ export interface ProcessResult {
 export interface ProcessParams {
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
-  refreshTools?: (activeSkillNames?: string[]) => Promise<MCPToolDefinition[]>
-  refreshSystemPrompt?: (
-    activeSkillNames: string[] | undefined,
-    toolDefinitions: MCPToolDefinition[]
-  ) => Promise<string>
+  refreshRuntimePair?: (activeSkillNames?: string[]) => Promise<{
+    tools: MCPToolDefinition[]
+    systemPrompt: string
+  }>
   toolPresenter: IToolPresenter | null
   coreStream: (
     messages: ChatMessage[],
