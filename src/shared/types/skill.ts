@@ -48,6 +48,45 @@ export interface SkillContent {
   content: string
 }
 
+export type PublishedSkillAvailability = 'metadata_only' | 'ready' | 'quarantined'
+
+export interface PublishedSkillSourceError {
+  code: string
+  message: string
+}
+
+export interface PublishedSkillEntry {
+  sourceVersion: string
+  availability: PublishedSkillAvailability
+  metadata: Readonly<SkillMetadata>
+  renderedContent?: string
+  allowedTools: readonly string[]
+  extension?: Readonly<SkillExtensionConfig>
+  scripts?: readonly Readonly<SkillScriptDescriptor>[]
+  sourceError?: Readonly<PublishedSkillSourceError>
+}
+
+export interface SkillRuntimeSnapshot {
+  epoch: number
+  entries: ReadonlyMap<string, PublishedSkillEntry>
+}
+
+export interface WaitForStableSkillRuntimeOptions {
+  requiredSkillNames: readonly string[]
+  signal: AbortSignal
+  deadlineAt: number
+}
+
+export class SkillRuntimeUpdatingError extends Error {
+  readonly code = 'SKILL_RUNTIME_UPDATING'
+  readonly retryable = true
+
+  constructor(message: string = 'Skill runtime is still updating') {
+    super(message)
+    this.name = 'SkillRuntimeUpdatingError'
+  }
+}
+
 export type SkillRuntimePreference = 'auto' | 'system' | 'builtin'
 
 export interface SkillRuntimePolicy {
@@ -272,6 +311,10 @@ export interface ISkillPresenter {
   getMetadataPrompt(): Promise<string>
   getSkillManagementState(): Promise<SkillManagementState>
   setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
+  getPublishedRuntimeSnapshot(): SkillRuntimeSnapshot
+  waitForStableRuntimeSnapshot(
+    options: WaitForStableSkillRuntimeOptions
+  ): Promise<SkillRuntimeSnapshot>
 
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>

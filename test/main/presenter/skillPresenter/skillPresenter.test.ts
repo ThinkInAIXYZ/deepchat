@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { IConfigPresenter } from '../../../../src/shared/presenter'
-import type { SkillMetadata } from '../../../../src/shared/types/skill'
+import type { PublishedSkillEntry, SkillMetadata } from '../../../../src/shared/types/skill'
 import { app } from 'electron'
 
 const DEFAULT_SKILLS_DIR = '/mock/home/.deepchat/skills'
@@ -144,7 +144,8 @@ vi.mock('node:child_process', () => ({
   )
 }))
 
-vi.mock('node:crypto', () => ({
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:crypto')>()),
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
@@ -244,6 +245,23 @@ function createSkillMetadata(name: string, dirName: string): SkillMetadata {
     path: `${DEFAULT_SKILLS_DIR}/${dirName}/SKILL.md`,
     skillRoot: `${DEFAULT_SKILLS_DIR}/${dirName}`,
     category: null
+  }
+}
+
+function createPublishedSkillEntry(metadata: SkillMetadata): PublishedSkillEntry {
+  return {
+    sourceVersion: `source-${metadata.name}`,
+    availability: 'ready',
+    metadata,
+    renderedContent: `# ${metadata.name}`,
+    allowedTools: metadata.allowedTools ?? [],
+    extension: {
+      version: 1,
+      env: {},
+      runtimePolicy: { python: 'auto', node: 'auto' },
+      scriptOverrides: {}
+    },
+    scripts: []
   }
 }
 
@@ -1411,7 +1429,11 @@ describe('SkillPresenter', () => {
       })
       expect(fs.copyFileSync).toHaveBeenCalledWith(
         `${draftPath}/SKILL.md`,
-        `${DEFAULT_SKILLS_DIR}/draft-skill/SKILL.md`
+        expect.stringContaining('/.draft-skill.install-')
+      )
+      expect(fs.renameSync).toHaveBeenCalledWith(
+        expect.stringContaining('/.draft-skill.install-'),
+        `${DEFAULT_SKILLS_DIR}/draft-skill`
       )
       expect(fs.rmSync).toHaveBeenCalledWith(draftPath, { recursive: true, force: true })
     })
@@ -1598,7 +1620,7 @@ describe('SkillPresenter', () => {
       expect(result.error).toContain('already exists')
     })
 
-    it('should reinstall over stale residue without backup rename', async () => {
+    it('should atomically retire stale residue without creating a permanent backup', async () => {
       const targetDir = `${DEFAULT_SKILLS_DIR}/reloaded-skill`
       let removed = false
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
@@ -1622,8 +1644,14 @@ describe('SkillPresenter', () => {
       const result = await skillPresenter.installFromFolder('/source/reloaded', { overwrite: true })
 
       expect(result).toMatchObject({ success: true, skillName: 'reloaded-skill' })
-      expect(fs.rmSync).toHaveBeenCalledWith(targetDir, { recursive: true, force: true })
-      expect(fs.renameSync).not.toHaveBeenCalled()
+      expect(fs.renameSync).toHaveBeenCalledWith(
+        targetDir,
+        expect.stringContaining('/.reloaded-skill.replaced-')
+      )
+      expect(fs.renameSync).not.toHaveBeenCalledWith(
+        targetDir,
+        expect.stringContaining('/backups/skill-installs/')
+      )
     })
 
     it('should return target_locked when overwrite backup rename is denied', async () => {
@@ -1764,6 +1792,7 @@ describe('SkillPresenter', () => {
     })
 
     it('installs a conflicting Git skill with the rename strategy and records provenance', async () => {
+      let rewrittenManifest = ''
       ;(fs.existsSync as Mock).mockImplementation((target: string) => {
         if (target.endsWith('/SKILL.md')) return true
         if (target === `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill`) return true
@@ -1771,6 +1800,26 @@ describe('SkillPresenter', () => {
         return true
       })
       ;(fs.readdirSync as Mock).mockReturnValue([createFileEntry('SKILL.md')])
+      ;(fs.readFileSync as Mock).mockImplementation((target: string) => {
+        if (target.includes('/.guizang-ppt-skill-1.install-') && rewrittenManifest) {
+          return rewrittenManifest
+        }
+        return '---\nname: guizang-ppt-skill\ndescription: PPT\n---\n# PPT'
+      })
+      ;(fs.writeFileSync as Mock).mockImplementation((target: string, content: string) => {
+        if (target.includes('/.guizang-ppt-skill-1.install-')) {
+          rewrittenManifest = content
+        }
+      })
+      ;(matter as unknown as Mock).mockImplementation((content: string) => ({
+        data: {
+          name: content.includes('name: guizang-ppt-skill-1')
+            ? 'guizang-ppt-skill-1'
+            : 'guizang-ppt-skill',
+          description: 'Create PPT files'
+        },
+        content: '# PPT'
+      }))
 
       const results = await skillPresenter.installSkillsFromGit({
         repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
@@ -1787,7 +1836,7 @@ describe('SkillPresenter', () => {
       ])
       expect(fs.copyFileSync).toHaveBeenCalledWith(
         expect.stringContaining('/SKILL.md'),
-        `${DEFAULT_SKILLS_DIR}/guizang-ppt-skill-1/SKILL.md`
+        expect.stringContaining('/.guizang-ppt-skill-1.install-')
       )
       expect((matter as any).stringify).toHaveBeenCalledWith(
         '# PPT',
@@ -2078,8 +2127,8 @@ describe('SkillPresenter', () => {
         content: 'content'
       })
       ;(fs.existsSync as Mock).mockImplementation((target: string) => target === skillDir)
-      ;(fs.rmSync as Mock).mockImplementation(() => {
-        throw lockError
+      ;(fs.renameSync as Mock).mockImplementation((source: string) => {
+        if (source === skillDir) throw lockError
       })
       publishDeepchatEventMock.mockClear()
 
@@ -2092,7 +2141,7 @@ describe('SkillPresenter', () => {
         targetPath: skillDir
       })
       expect((skillPresenter as any).metadataCache.has('locked-skill')).toBe(true)
-      expect((skillPresenter as any).contentCache.has('locked-skill')).toBe(true)
+      expect(skillPresenter.getPublishedRuntimeSnapshot().entries.has('locked-skill')).toBe(true)
       expect(publishDeepchatEventMock).not.toHaveBeenCalled()
     })
   })
@@ -2159,9 +2208,13 @@ describe('SkillPresenter', () => {
 
       expect(result).toEqual({ success: true, skillName: 'test-skill' })
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('/test-skill/SKILL.md'),
+        expect.stringContaining('/test-skill/.SKILL.md.'),
         'new content',
         'utf-8'
+      )
+      expect(fs.renameSync).toHaveBeenCalledWith(
+        expect.stringContaining('/test-skill/.SKILL.md.'),
+        expect.stringContaining('/test-skill/SKILL.md')
       )
       const state = configSettings.get('skills.managementState') as any
       expect(state.skills['test-skill'].extension).toEqual(extension)
@@ -2187,7 +2240,7 @@ describe('SkillPresenter', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('management state write failed')
       expect(fs.writeFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('/test-skill/SKILL.md'),
+        expect.stringContaining('/test-skill/.SKILL.md.'),
         'old skill content',
         'utf-8'
       )
@@ -2806,17 +2859,20 @@ describe('SkillPresenter', () => {
 
       metadataCache.set(originalMetadata.name, originalMetadata)
       metadataCache.set(existingDuplicate.name, existingDuplicate)
-      ;(skillPresenter as any).parseSkillMetadata = vi
+      ;(skillPresenter as any).stagePublishedSkillEntry = vi
         .fn()
-        .mockResolvedValue(createSkillMetadata('skill-b', 'skill-a'))
+        .mockResolvedValue(createPublishedSkillEntry(createSkillMetadata('skill-b', 'skill-a')))
 
       await skillPresenter.watchSkillFiles()
       const watcher = fakeWatcherService.watchers.at(-1)
 
       await watcher?.emit([{ type: 'update', path: originalMetadata.path }])
 
-      expect(metadataCache.has('skill-a')).toBe(false)
+      expect(metadataCache.has('skill-a')).toBe(true)
       expect(metadataCache.get('skill-b')).toEqual(existingDuplicate)
+      expect(
+        skillPresenter.getPublishedRuntimeSnapshot().entries.get('skill-a')?.sourceError
+      ).toEqual(expect.objectContaining({ code: 'DUPLICATE_SKILL_NAME' }))
       expect(logger.warn).toHaveBeenCalledWith(
         '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
         expect.objectContaining({
@@ -2834,7 +2890,9 @@ describe('SkillPresenter', () => {
       const renamedMetadata = createSkillMetadata('skill-c', 'skill-a')
 
       metadataCache.set(originalMetadata.name, originalMetadata)
-      ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(renamedMetadata)
+      ;(skillPresenter as any).stagePublishedSkillEntry = vi
+        .fn()
+        .mockResolvedValue(createPublishedSkillEntry(renamedMetadata))
 
       await skillPresenter.watchSkillFiles()
       const watcher = fakeWatcherService.watchers.at(-1)
@@ -2860,7 +2918,9 @@ describe('SkillPresenter', () => {
       const duplicateMetadata = createSkillMetadata('skill-b', 'skill-candidate')
 
       metadataCache.set(existingMetadata.name, existingMetadata)
-      ;(skillPresenter as any).parseSkillMetadata = vi.fn().mockResolvedValue(duplicateMetadata)
+      ;(skillPresenter as any).stagePublishedSkillEntry = vi
+        .fn()
+        .mockResolvedValue(createPublishedSkillEntry(duplicateMetadata))
 
       await skillPresenter.watchSkillFiles()
       const watcher = fakeWatcherService.watchers.at(-1)

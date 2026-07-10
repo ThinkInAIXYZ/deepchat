@@ -568,17 +568,17 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 
 ### `PRM-002B` tasks
 
-- [ ] 定义 immutable `PublishedSkillEntry`/`SkillRuntimeSnapshot` 与 content-derived `sourceVersion`。
-- [ ] 让 metadata/body/runtime instructions/`allowedTools` 从同一次 staged source version 产生。
-- [ ] 保留 progressive loading：active `metadata_only` entry 必须通过 staged atomic publish 变成 `ready`。
-- [ ] 实现 repo mutation stage → atomic disk replace → atomic snapshot publish；实现 atomic rollback。
-- [ ] 实现 invalid existing/new、rollback-failed LKG/quarantine 和 reconcile state machine。
-- [ ] 实现 odd/even publish epoch、shared settlement barrier 和
+- [x] 定义 immutable `PublishedSkillEntry`/`SkillRuntimeSnapshot` 与 content-derived `sourceVersion`。
+- [x] 让 metadata/body/runtime instructions/`allowedTools` 从同一次 staged source version 产生。
+- [x] 保留 progressive loading：active `metadata_only` entry 必须通过 staged atomic publish 变成 `ready`。
+- [x] 实现 repo mutation stage → atomic disk replace → atomic snapshot publish；实现 atomic rollback。
+- [x] 实现 invalid existing/new、rollback-failed LKG/quarantine 和 reconcile state machine。
+- [x] 实现 odd/even publish epoch、shared settlement barrier 和
       `waitForStableRuntimeSnapshot({ signal, deadlineAt })`。
-- [ ] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()`、
+- [x] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()`、
       `listSkillScripts()` compatibility API 只读 published snapshot，并用 hard-check 阻止 runtime path 重读
       source disk。
-- [ ] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
+- [x] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
 
 ### `PRM-002C` tasks
 
@@ -605,7 +605,7 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
       failure/reconcile 和 cache hit contract。
 - [x] `PRM-001`: 拆分 `PRM-002A`–`PRM-002C` 的 depends-on、validation 与 rollback order。
 - [x] `PRM-002A`: source snapshots。
-- [ ] `PRM-002B`: skill immutable snapshot/epoch。
+- [x] `PRM-002B`: skill immutable snapshot/epoch。
 - [ ] `PRM-002C`: orchestration cache wiring and final validation。
 
 ## Test design
