@@ -156,8 +156,10 @@ const handleChildCollapseToggle = (isCollapsed: boolean) => {
   emit('toggle-collapse', isCollapsed)
 }
 
-const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string =>
-  block.id ?? block.tool_call?.id ?? `${block.type}:${block.timestamp}:${index}`
+const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string => {
+  const stableId = block.id ?? block.tool_call?.id
+  return stableId ? `${stableId}:${index}` : `${block.type}:${block.timestamp}:${index}`
+}
 
 onBeforeUnmount(() => {
   cancelBodyUnmount()
