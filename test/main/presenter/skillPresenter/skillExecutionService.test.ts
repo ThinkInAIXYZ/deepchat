@@ -4,7 +4,10 @@ import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ISkillPresenter } from '../../../../src/shared/types/skill'
-import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
+import {
+  CommandProbeContainmentError,
+  SkillExecutionService
+} from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
@@ -48,10 +51,21 @@ import { spawn } from 'child_process'
 import * as shellEnvHelper from '../../../../src/main/lib/agentRuntime/shellEnvHelper'
 import { rtkRuntimeService } from '../../../../src/main/lib/agentRuntime/rtkRuntimeService'
 
+class MockProbeChild extends EventEmitter {
+  pid: number | undefined
+  kill = vi.fn(() => true)
+
+  constructor(pid?: number) {
+    super()
+    this.pid = pid
+  }
+}
+
 describe('SkillExecutionService', () => {
   let skillPresenter: ISkillPresenter
   let service: SkillExecutionService
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
+  let rawProcessKill: ReturnType<typeof vi.spyOn>
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
   beforeEach(() => {
@@ -62,6 +76,7 @@ describe('SkillExecutionService', () => {
     vi.mocked(fs.promises.stat).mockResolvedValue({
       isDirectory: () => true
     } as never)
+    rawProcessKill = vi.spyOn(process, 'kill').mockReturnValue(true)
 
     skillPresenter = {
       getActiveSkills: vi.fn().mockResolvedValue(['ocr']),
@@ -106,6 +121,7 @@ describe('SkillExecutionService', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    rawProcessKill.mockRestore()
     if (originalPlatform) {
       Object.defineProperty(process, 'platform', originalPlatform)
     }
@@ -223,6 +239,160 @@ describe('SkillExecutionService', () => {
     await expect(
       (service as never).resolvePythonRuntime('auto', { PATH: '/bin' }, '/skill')
     ).rejects.toThrow('No compatible Python runtime found for this skill')
+  })
+
+  it('bounds command probes and preserves successful availability', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+
+    expect(spawn).toHaveBeenCalledWith('node', ['--version'], {
+      env: { PATH: '/bin' },
+      stdio: 'ignore',
+      shell: false
+    })
+    child.emit('close', 0)
+
+    await expect(resultPromise).resolves.toBe(true)
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('resolves a timed-out command probe as unavailable after close', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    child.emit('close', null, 'SIGKILL')
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('settles a failed command probe once after error and close', async () => {
+    const child = new MockProbeChild()
+    const settled = vi.fn()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never)
+      .hasCommand('missing', [], { PATH: '/bin' })
+      .then((result: boolean) => {
+        settled(result)
+        return result
+      })
+
+    child.emit('error', new Error('spawn failed'))
+    child.emit('close', null)
+    child.emit('close', 0)
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(settled).toHaveBeenCalledTimes(1)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('resolves false when owner kill returns false but the child closes within grace', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    child.kill.mockImplementation(() => {
+      child.emit('close', null)
+      return false
+    })
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(child.kill).toHaveBeenCalledOnce()
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(rawProcessKill).not.toHaveBeenCalled()
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('rejects with a containment error when owner kill returns false and close is unconfirmed', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    child.kill.mockReturnValue(false)
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    const rejection = expect(resultPromise).rejects.toMatchObject({
+      name: 'CommandProbeContainmentError',
+      code: 'COMMAND_PROBE_CONTAINMENT_FAILED'
+    })
+    await vi.advanceTimersByTimeAsync(6_000)
+
+    await rejection
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(rawProcessKill).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(child.listenerCount('error')).toBe(1)
+    expect(child.listenerCount('close')).toBe(1)
+  })
+
+  it('rejects with a containment error when owner kill throws and close is unconfirmed', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    child.kill.mockImplementation(() => {
+      throw new Error('owner kill failed')
+    })
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    const rejection = expect(resultPromise).rejects.toBeInstanceOf(CommandProbeContainmentError)
+    await vi.advanceTimersByTimeAsync(6_000)
+
+    await rejection
+    expect(child.kill).toHaveBeenCalledOnce()
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(rawProcessKill).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(child.listenerCount('error')).toBe(1)
+    expect(child.listenerCount('close')).toBe(1)
+  })
+
+  it('settles containment once and removes ownership listeners on a late close', async () => {
+    vi.useFakeTimers()
+    const child = new MockProbeChild(123)
+    child.kill.mockReturnValue(false)
+    const rejected = vi.fn()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never)
+      .hasCommand('node', ['--version'], { PATH: '/bin' })
+      .catch((error: unknown) => {
+        rejected(error)
+        throw error
+      })
+    const rejection = expect(resultPromise).rejects.toBeInstanceOf(CommandProbeContainmentError)
+    await vi.advanceTimersByTimeAsync(6_000)
+
+    await rejection
+    expect(rejected).toHaveBeenCalledOnce()
+    expect(rawProcessKill).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(child.listenerCount('error')).toBe(1)
+    expect(child.listenerCount('close')).toBe(1)
+
+    child.emit('close', null)
+    child.emit('close', null)
+    await vi.runAllTimersAsync()
+
+    expect(rejected).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
   })
 
   it('switches to shell spawn mode when RTK rewrites the command', async () => {

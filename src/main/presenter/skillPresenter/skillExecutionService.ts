@@ -29,6 +29,8 @@ const FOREGROUND_OFFLOAD_THRESHOLD = 10000
 const FOREGROUND_PREVIEW_CHARS = 12000
 const FOREGROUND_KILL_GRACE_MS = 2000
 const FOREGROUND_FORCE_SETTLE_MS = 500
+const COMMAND_PROBE_TIMEOUT_MS = 5_000
+const COMMAND_PROBE_REAP_GRACE_MS = 1_000
 
 export interface SkillRunRequest {
   skill: string
@@ -46,6 +48,15 @@ export interface SkillRunOptions {
 
 interface SkillExecutionServiceOptions {
   resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
+}
+
+export class CommandProbeContainmentError extends Error {
+  readonly code = 'COMMAND_PROBE_CONTAINMENT_FAILED'
+
+  constructor() {
+    super('Command probe containment could not be confirmed')
+    this.name = 'CommandProbeContainmentError'
+  }
 }
 
 interface SkillExecutionResult {
@@ -686,15 +697,101 @@ export class SkillExecutionService {
     args: string[],
     env: Record<string, string>
   ): Promise<boolean> {
-    return await new Promise((resolve) => {
+    return await new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         env,
         stdio: 'ignore',
         shell: false
       })
 
-      child.on('error', () => resolve(false))
-      child.on('close', (code) => resolve(code === 0))
+      let spawnFailed = false
+      let settled = false
+      let stopRequested = false
+      let timeoutId: NodeJS.Timeout | null = null
+      let reapTimeoutId: NodeJS.Timeout | null = null
+
+      const cleanupTimers = () => {
+        if (timeoutId) clearTimeout(timeoutId)
+        if (reapTimeoutId) clearTimeout(reapTimeoutId)
+        timeoutId = null
+        reapTimeoutId = null
+      }
+
+      const cleanup = () => {
+        cleanupTimers()
+        child.removeListener('error', onError)
+        child.removeListener('close', onClose)
+      }
+
+      const settle = (available: boolean) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(available)
+      }
+
+      const rejectContainment = () => {
+        if (settled) return
+        settled = true
+        cleanupTimers()
+        reject(new CommandProbeContainmentError())
+      }
+
+      const requestStop = (reason: 'timeout' | 'child_error') => {
+        if (stopRequested || settled) return
+        stopRequested = true
+
+        let ownerKillSent = false
+        try {
+          ownerKillSent = child.kill('SIGKILL')
+        } catch {
+          logger.error('[SkillExecutionService] Failed to kill command probe', {
+            reason,
+            phase: 'owner_kill'
+          })
+        }
+        if (settled) return
+
+        reapTimeoutId = setTimeout(() => {
+          logger.error('[SkillExecutionService] Command probe termination was not confirmed', {
+            reason,
+            ownerKillSent
+          })
+          // Keep ownership listeners until a late close confirms reap. Containment failure is not
+          // an ordinary availability miss, so the bounded caller receives a typed rejection.
+          rejectContainment()
+        }, COMMAND_PROBE_REAP_GRACE_MS)
+      }
+
+      const onError = (_error: Error) => {
+        spawnFailed = true
+        if (settled) {
+          logger.error(
+            '[SkillExecutionService] Command probe error after unconfirmed termination',
+            { phase: 'late_child_error' }
+          )
+          return
+        }
+        if (child.pid == null) {
+          settle(false)
+          return
+        }
+        logger.error('[SkillExecutionService] Command probe child error', {
+          phase: 'child_error'
+        })
+        requestStop('child_error')
+      }
+      const onClose = (code: number | null) => {
+        if (settled) {
+          cleanup()
+          return
+        }
+        settle(!spawnFailed && !stopRequested && code === 0)
+      }
+
+      child.on('error', onError)
+      child.once('close', onClose)
+      timeoutId = setTimeout(() => requestStop('timeout'), COMMAND_PROBE_TIMEOUT_MS)
     })
   }
 

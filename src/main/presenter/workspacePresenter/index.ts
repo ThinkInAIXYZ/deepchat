@@ -41,6 +41,7 @@ import type {
 } from '@shared/presenter'
 
 const execFileAsync = promisify(execFile)
+const WORKSPACE_GIT_TIMEOUT_MS = 30_000
 
 const TEXT_LIKE_MIME_TYPES = new Set([
   'application/json',
@@ -681,7 +682,9 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       const result = await execFileAsync('git', args, {
         cwd: workspacePath,
         windowsHide: true,
-        maxBuffer: 8 * 1024 * 1024
+        maxBuffer: 8 * 1024 * 1024,
+        timeout: WORKSPACE_GIT_TIMEOUT_MS,
+        killSignal: 'SIGKILL'
       })
       return result.stdout.trimEnd()
     } catch (error) {
@@ -1027,11 +1030,22 @@ export class WorkspacePresenter implements IWorkspacePresenter {
         {
           cwd: workspacePath,
           windowsHide: true,
-          maxBuffer: 8 * 1024 * 1024
+          maxBuffer: 8 * 1024 * 1024,
+          timeout: WORKSPACE_GIT_TIMEOUT_MS,
+          killSignal: 'SIGKILL'
         }
       )
       return result.stdout.trimEnd()
     } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'killed' in error &&
+        (error as { killed?: boolean }).killed === true
+      ) {
+        throw error
+      }
+
       if (
         typeof error === 'object' &&
         error !== null &&
