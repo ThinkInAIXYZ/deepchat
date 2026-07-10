@@ -1,8 +1,62 @@
-# 09 - 实施任务拆分与路线图
+# 09 - 统一实施计划：从审计发现到可验证交付
+
+| 项目 | 值 |
+| --- | --- |
+| 文档状态 | 待实施 |
+| 审计基线 | `f9de202a`（`v1.0.8-beta.4`） |
+| 最新 `main` 复核基线 | `65bd1d6e` |
+| 合并后工作基线 | `ad597256` |
+| 文档 owner | 本文件是本轮审计整改的唯一总计划；`01`–`08` 只提供证据和决策输入 |
 
 本路线图基于本目录 A-01–A-13、P-01–P-12、D-01–D-10、Ponytail cut list 和旧审计对账生成。
 它把 [`07-prioritized-actions.md`](./07-prioritized-actions.md) 的决策输入拆成可独立评审、验证和回滚的
 实施切片；不代表所有切片已经获得实施授权。
+
+用户明确要求一篇统一实施文档，因此本文件同时承担总目标、优先级、任务依赖、
+影响/收益、风险和验收门槛。不再建一份并行的总 `spec/plan/tasks` 集合。但某个具体切片若改动
+跨模块 contract、数据迁移或 lifecycle，开工前仍须在对应 `docs/architecture/*`、`docs/issues/*`
+或 `docs/features/*` 中完成仓库要求的 SDD。
+
+## 先用大白话说结论
+
+整个整改不是“把大文件拆小”，而是按下面五步走：
+
+| 阶段 | 大白话 | 用户能得到什么 | 开发者能得到什么 | 为什么现在做 |
+| --- | --- | --- | --- | --- |
+| 0. 恢复可验证基线 | 先确保依赖、typecheck 和基线测试可靠 | 不把环境故障当产品回归 | 后续每个 PR 都有可比对的绿色基线 | 当前本地安装未解析已声明的 `cron-parser`，完整 typecheck 不能作为门槛 |
+| 1. 先修错语义 | 先处理“超时了但任务还在跑”、“暂时失败被当成不存在”等问题 | 更少错误解绑、重复执行和旧 prompt | 错误、取消、retry 的 contract 变得可测 | 这些是已证明的正确性问题，不需要等 profiler |
+| 2. 修确定性热点 | 先减少重复读全部历史、全表扫描和无效 fallback | 长对话、历史搜索、启动更稳定 | SQL 次数和 query plan 有明确上限 | 调用链和 SQL 已闭环，收益比大重构更直接 |
+| 3. 测完再改复杂性能路径 | 对 streaming、FFF、存储放大先记录真实数据 | 避免为了“优化”带来丢流、搜索失效或数据丢失 | 只在证据超预算时承担 delta/migration 复杂度 | 这些热点有静态风险，但还没有真实负载数据 |
+| 4. 最后拆边界和清理 | 再处理 God object、route root、optional capability 和兼容壳 | 用户功能原则上不变 | 改一个 domain 不再牵动半个 main process | 先稳定行为再搬家，否则难以区分“修复”和“重构”带来的回归 |
+
+这个顺序的核心只有一句话：**先让行为正确，再让热路径少做事，最后才让代码看起来更干净。**
+
+本文反复使用的几个词，用大白话解释如下：
+
+| 词 | 本文中的含义 |
+| --- | --- |
+| owner | 最终对这份状态或资源负责的模块；不能两个地方都以为对方会收尾 |
+| contract | 调用双方事先约定的输入、输出、错误和状态语义；不只是 TypeScript interface |
+| fallback | 主路径失败后的备用路径；只有在文档允许且不掩盖错误时才是可靠性 |
+| watermark | 记录“已处理到哪里”的指针，避免每次从第一条数据重新检查 |
+| snapshot | 某一时刻的完整状态副本；好处是容易收敛，代价是内容越大、重复传输越贵 |
+| migration | 让旧用户数据进入新 schema/contract 的过程；只测新数据库不算完成 |
+| measurement gate | 数据达到事先定义条件后，后续复杂方案才允许开工 |
+| growth guard | 允许历史债务暂时存在，但阻止它继续增长的 CI 规则 |
+
+## 合并最新 main 后的复核
+
+`f9de202a..65bd1d6e` 修改了 118 个文件，其中包含 renderer UX performance 优化、agent plan
+重构、inline input item 和部分 runtime 更新。不能因为 commit 名称含“performance”就宣布本轮问题
+已修，因此重新对照了受影响路径：
+
+| 最新 main 变化 | 与本审计的关系 | 计划调整 |
+| --- | --- | --- |
+| `AgentRuntimePresenter`、`AgentSessionPresenter`、`messageStore` 增加 inline item/扩展策略处理 | 没有改变 Scheduler cancellation、session availability、history 重复物化、Tape watermark 或 prompt cache 契约 | A-04/A-05/P-01/P-03/P-07 任务保留，但后续 fixture 需包含 inline item |
+| `pendingInputCoordinator/store` 增加 inline item offset 保留 | 未改变 consumed steer retention 和 claimed-state index；也不是 A-10 的 startup workload coordinator | P-11/A-10 任务保留，避免把两个 coordinator 混为一个 owner |
+| `ChatPage`/message window 等 renderer UX 性能优化 | 可能降低部分 renderer commit/scroll 成本，但 main `echo` 全量 snapshot、全窗口 fan-out 和 DB full replace 未改 | P-04 不直接实施 delta；`STR-001` 必须用最新 main 重建 baseline，不沿用旧 renderer 数据 |
+| Agent plan block 从 message block 重构为独立 plan state | 属于另一个已有 architecture contract，不是本轮 AgentRuntime owner 拆分 | 不把它加进审计整改，避免扩大范围 |
+| `package.json` 仍声明 `cron-parser`，当前本地 install 仍无法解析 | 这是验证环境前置，不是审计 finding | 开工前先同步 pnpm install 并记录 baseline；若同步后仍失败，再单独建 issue，不塞进任一整改 PR |
 
 ## 先反驳一种错误排法
 
@@ -39,6 +93,31 @@
 | XL | 超过 2 周或涉及核心状态所有权 | 不得直接开工，必须继续拆分 |
 
 难度是相对估算，不包含 review/fix 循环，也不是交付承诺。
+
+### 收益和影响怎么计
+
+本计划不用“感觉更快”做验收。每类收益使用不同口径：
+
+| 维度 | 验收方式 | 不接受的说法 |
+| --- | --- | --- |
+| 正确性 | 失败、timeout、cancel、retry 的状态转移测试；数据/绑定最终收敛 | “大部分时候没事” |
+| 用户体验 | 明确的 loading/unavailable/unknown-outcome 状态；不丢草稿、绑定和已完成结果 | “多 catch 一下更稳” |
+| 性能 | 调用次数、SQL query plan、处理 rows/bytes、main-thread duration、IPC fan-out | 没有 fixture/profiler 的毫秒或百分比 |
+| 存储 | 不同 payload 的物理 pages/bytes、migration time、写放大和备份影响 | 只看表数量就说“存了五遍” |
+| 可维护性 | owner 和 contract 单一、严格类型检查可运行、root 不再增长、单 domain PR 影响面收窄 | 只报 LOC 下降 |
+| 安全/故障处理 | fatal 不被吞、required capability 不 fail-open、workspace scope/revoke 可解释 | 为了“不报错”返回 `full_access`/`null`/`[]` |
+
+### 实施前置（BASE-001）
+
+这一步不修审计问题，但没有它就无法证明后续 PR 没有回归：
+
+1. 按当前 `package.json` 同步 pnpm 依赖，先确认 `cron-parser` 可解析。
+2. 运行 `pnpm run typecheck`、`pnpm run lint`、`pnpm test`，记录最新 main 的通过项和已知失败。
+3. 若依赖同步后 typecheck 仍失败，单独立 issue/spec；不允许后续任务把环境失败当成自己的
+   baseline，也不在业务 PR 里顺手改依赖。
+4. 固定性能 fixture 的机器、SQLite 版本、数据量和重复次数；不跨机器直接比毫秒。
+
+`BASE-001` 的退出条件是“有可重复的基线”，不是“所有历史问题全绿”。
 
 ## P0：先修正确性与状态机
 
@@ -166,8 +245,8 @@ A-02 的唯一任务真源仍是
 ## 推荐实施波次
 
 ```text
-Wave 0  Freeze growth
-        ARC-001
+Wave 0  Restore baseline and freeze growth
+        BASE-001 → ARC-001
 
 Wave 1  P0 bounded fixes / decisions
         PRM-001 → PRM-002 ─────────┐
@@ -197,9 +276,20 @@ Wave 5  Product/owner decisions and cleanup
         P2 decisions → their implementations → P3 opportunistic cleanup
 ```
 
+### 每个波次什么时候算完成
+
+| 波次 | 退出条件 | 不允许带到下一波的未完成项 |
+| --- | --- | --- |
+| Wave 0 | 依赖可解析，typecheck/lint/test baseline 已记录；增长 guard 可用 | “本地本来就失败”这种无法归因的验证环境 |
+| Wave 1 | timeout/cancel/fatal/session/prompt 的 contract 和 failure test 全部闭环 | 仍用 `null`/silent no-op/重叠 retry 掩盖未定义语义 |
+| Wave 2 | FTS/index/declaration/lifecycle 等可独立收益已交付，数据库读写代价已记录 | 只改 fresh schema、不测旧 DB migration 的 index 变更 |
+| Wave 3 | history/Tape 达到明确调用/row 目标；streaming/FFF 只有过 gate 的方案进入实施 | 没有数据便引入 delta、breaker 或 blob store |
+| Wave 4 | 选定 domain 已脱离 route root；runtime split 每个 service 有真实 integration test | 只搬文件、仍由旧 God object 偷偷持有状态的“假拆分” |
+| Wave 5 | owner/产品决策已记录，高优先级回归稳定，低收益清理不抢 review | 没有支持窗口证据就删兼容 route，或把有意的 MCP 双保险当重复删掉 |
+
 ### 第一批最合理的实际开工集合
 
-如果下一步立即实施，建议只开以下 4 个互不混杂的工作流：
+先完成 `BASE-001`。基线可重复后，建议只开以下 4 个互不混杂的工作流：
 
 1. `PRM-001`：先固定用户输出正确性的 cache contract，再进入实现。
 2. `CRD-001`：先修确定的 cancel settlement 泄漏；同模块后续接 `CRD-002` idle barrier。
@@ -223,42 +313,45 @@ Wave 5  Product/owner decisions and cleanup
 - Route domain extraction 必须在 `ARC-001` baseline 后执行。
 - P-04 delta、P-10 resumable filesystem cursor、P-12 offload/retention 都必须经过 measurement gate。
 
-## Finding 覆盖矩阵
+## 每个 finding 怎么处理、有什么影响和收益
 
-| Finding | Task / disposition |
-| --- | --- |
-| A-01 | `ARC-001`, `RTE-002` |
-| A-02 | 复用 AgentRuntime split T2–T7 |
-| A-03 | `ARC-001`, `DCL-001`, `DCL-002`，后续按 feature touch 提取 domain declaration |
-| A-04 | `SCH-001`–`SCH-003` |
-| A-05 | `SES-001`–`SES-003` |
-| A-06 | `FTL-001`, `FTL-002` |
-| A-07 | `LIF-001`, `LIF-002` |
-| A-08 | `EVT-001`；`EVT-002` 条件执行 |
-| A-09 | `LIF-003`, `LIF-004` |
-| A-10 | `CRD-001`, `CRD-002` |
-| A-11 | `ARC-001` |
-| A-12 | `WSP-001`；`WSP-002` 条件执行 |
-| A-13 | `WIN-001` |
-| P-01/P-02 | `HIS-001`–`HIS-004` |
-| P-03 | `TAP-001`–`TAP-003` |
-| P-04 | `STR-001`；`STR-002` measurement gate 后执行 |
-| P-05/P-06 | `DB-001`, `DB-002` |
-| P-07 | `PRM-001`, `PRM-002` |
-| P-08 | `DB-001`, `SES-LIST-001`, `SES-LIST-002` |
-| P-09 | `SEA-001` |
-| P-10 | `FFF-001`, `FFF-002`；`FFF-003` 条件执行 |
-| P-11 | `DB-001`, `DB-002`, `STEER-001`, `STEER-002` |
-| P-12 | `STO-001`；offload/retention 只在超预算后另立任务 |
-| D-01/D-02/D-03 | `RMT-001`–`RMT-004` |
-| D-04/D-10 | `CAP-001`–`CAP-003`, `CAP-PORT-*` |
-| D-05 | `CHAT-001`, `CHAT-002` |
-| D-06 | `RTE-001` |
-| D-07 | `SHD-001`；保留 MCP double shutdown |
-| D-08 | `CMP-001`, `CMP-002` |
-| D-09 | `FLG-001` |
-| F11 residual | `ICON-001` |
-| Ponytail #12 | `PERM-001` |
+下表是从审计结论到实施任务的唯一覆盖矩阵。“用户收益”写可感结果，“工程收益/代价”
+明确为达成该结果需要承担的复杂度；不把代码更少自动当成用户价值。
+
+| Finding | 当前影响 | 准备怎么处理 | 用户收益 | 工程收益/代价 | Task / disposition |
+| --- | --- | --- | --- | --- | --- |
+| A-01 | route root 同时做 dispatch 和 domain policy，一个改动容易牵动大文件 | 先用 guard 冻结增长，再选一个高变更 domain 提取 handler | 直接体感不大，但降低新功能破坏旧 route 的几率 | review 范围收窄；代价是搬迁期会有两种组织形态 | `ARC-001`, `RTE-002` |
+| A-02 | runtime/session God object 让不相关功能共享状态和 review 范围 | 不新建方案，复用现有 split T2–T7，等热路径 contract 稳定后逐服务提取 | 新改动带来的回归更少 | 是长期收益，不承诺直接提速；搬迁期回归面大 | 复用 AgentRuntime split T2–T7 |
+| A-03 | shared declaration 反向依赖 main，部分错误被 `skipLibCheck` 隐藏 | 先修真实声明错误并加 strict check，再随 domain 改动提取 | 减少升级/打包时才暴露的类型回归 | boundary 可被 CI 强制；初期会暴露一批存量错误 | `ARC-001`, `DCL-001`, `DCL-002` |
+| A-04 | timeout/retry 可让上一次 mutation 仍在运行，调用方却已重试 | 先区分可取消、幂等、不可取消 operation；前者传 `AbortSignal`，后者引入 operation identity/reconciliation | 减少重复创建、晚到结果和“界面说失败但后台成功” | contract 变清楚；代价是不可取消 mutation 需新状态和查询途径 | `SCH-001`–`SCH-003` |
+| A-05 | session 不存在、永久不可用、暂时失败都变成 `null`，可误解绑 | 定义四态 result，先改内部，再迁移 route/renderer 兼容 | 暂时故障不再让当前会话“消失”，真不可用时有明确说明 | 错误语义可测；代价是 schema/UI state 需迁移 | `SES-001`–`SES-003` |
+| A-06 | 为 network toast 安装的顶层 handler 会吞掉其他 fatal exception | network 错误回归请求 owner；顶层只做已决策的落盘、退出/重启 | 减少应用带着未知损坏状态继续运行 | fatal 可诊断；代价是某些真正 fatal 将变成可见退出/重启，不再假装可恢复 | `FTL-001`, `FTL-002` |
+| A-07 | HooksNotifications 两次构造，runtime bridge 长期指向 dummy instance | 选 late-bound dispatcher 或两阶段 `seal()`，用真实 Presenter factory 测试 | 避免部分 hook 通知在特定构造顺序下丢失 | 单一 identity；代价是需要重写构造时序测试 | `LIF-001`, `LIF-002` |
+| A-08 | event 文档、ambient sink 和 startup drop 语义不一致 | 先标记 event 是 ephemeral/replayable/durable；只在 query 无法回放 durable state 时引入 buffer/port | 启动阶段不再偶发丢必要状态 | 事件 contract 可解释；代价是 durable event 需 retention 和顺序策略 | `EVT-001`；`EVT-002` 条件执行 |
+| A-09 | shared FileWatcher utility 没有明确生产 teardown owner | 决定 process-final teardown 或零 active request idle-stop，再实施 | 长时运行/重启 watcher 后更少残留进程和句柄 | lifecycle 可测；代价是要覆盖多平台重启时序 | `LIF-003`, `LIF-004` |
+| A-10 | `whenIdle()` 不是真 idle barrier，pending cancel 又会留 dedupe record | 先统一 settlement/cleanup，再定义 generation-aware idle barrier | 启动后台任务不再重复、过早或永久卡住 | coordinator 语义可信；代价是某些 warmup 执行时机会改变 | `CRD-001`, `CRD-002` |
+| A-11 | architecture guard 的名称大于实际覆盖面 | 建分类 baseline/trend guard，先阻止新增债务 | 无直接 UI 收益，但减少同类回归重现 | 架构约束可自动执行；代价是 guard 需避免误报和“刷数字” | `ARC-001` |
+| A-12 | workspace register 的 app/session/webContents scope 和 revoke 语义不明 | 先做 owner/安全决策；只在选 session/webContents scope 时做 refcount/revoke | workspace 授权生命周期更符合用户预期 | 减少隐式权限保留；代价是 tab/window 关闭时需处理并发 revoke | `WSP-001`；`WSP-002` 条件执行 |
+| A-13 | window binding map 保留历史 `webContents` key | 确认 `null` 无独立语义后在 unbind/destroy 直接 delete | 长时多开关窗口时少量降低内存增长 | 状态简化；收益低，不应抢高优先级 review | `WIN-001` |
+| P-01/P-02 | 一次 send 重复完整物化 history，rich read 又全局聚合 trace | 先埋点，再分 existence/predicate 和 UI rich view，最后复用单次 history snapshot | 长会话发送前等待更稳定，trace 很多时不拖累正常对话 | SQL/物化次数有硬上限；代价是 snapshot 传递必须防止过期 | `HIS-001`–`HIS-004` |
+| P-03 | Tape 每次 ensure 都全量核对 message 和 tape | 增 migration version/source watermark，覆盖 crash、partial migration 和 live append | Tape 搜索/回放和发送不再重复打扫整段历史 | 无变化 ensure 进入 O(1)/增量路径；代价是 migration state 本身必须可恢复 | `TAP-001`–`TAP-003` |
+| P-04 | streaming 全量 snapshot 在 JSON/Zod/IPC/renderer/DB 放大 | 先用最新 main 重测；超预算后先 targeted fan-out/stable block/upsert，delta 最后 | 大输出/大 tool response 场景可能更顺，但不牺牲丢包后收敛 | 先拿数据再买复杂度；delta 需 revision/order/recovery，是最高代价备选 | `STR-001`；`STR-002` measurement gate 后执行 |
+| P-05/P-06 | keyset cursor 和 pending recovery 缺匹配 index，可扫描/排序大表 | 用 10k/100k fixture 选 index，再走旧 DB migration | 大历史数据时启动、迁移和恢复更可预期 | 读成本下降；代价是 index 占磁盘且增加写入成本，不能盲加 | `DB-001`, `DB-002` |
+| P-07 | 200ms 内层 fallback 被日级外层 cache 放大，late `AGENTS.md` 可整天不生效 | 先定义 revision/invalidation contract，再改 composed prompt cache | prompt/技能文档更新能按契约生效，不用重启碰运气 | 正确性收益大于纯性能；代价是可能增加少量有界重读 | `PRM-001`, `PRM-002` |
+| P-08 | session list 缺 filter/order index，每行 Cron metadata 又 N+1 | 基于 DB-001 增复合 index，metadata 改 batch/join | 会话很多时首屏/翻页更稳定 | page query 数不再随行数线性增长；代价同样是 index 写放大 | `DB-001`, `SES-LIST-001`, `SES-LIST-002` |
+| P-09 | FTS 正常零结果也进入 structured/raw `%LIKE%` 扫描 | 分开 available、migration incomplete、zero-hit 和 throw | 搜不到内容时不再反而最慢 | fallback 语义与 spec 一致；代价是 migration 状态必须可查 | `SEA-001` |
+| P-10 | FFF 失败后新 query 仍重试，timeout 场景可重复付出 budget | 先分 native/init、workspace timeout、query-specific、transient IO，再做有界 cooldown/half-open | 大 workspace 连续输入时减少重复等待，好 query 不被坏 pattern 连坐 | breaker 有可恢复状态；代价是分类错了可压掉可恢复请求，必须先测 | `FFF-001`, `FFF-002`；`FFF-003` 条件执行 |
+| P-11 | consumed steer tombstone 永久保留，claimed startup query 又缺匹配 index | 先确认审计需求，再选 delete/TTL/精简 tombstone；index 随 DB-002 | 长期使用后 DB 和启动恢复不被无限历史拖累 | 有明确 retention；代价是删除完整 payload 可损失未确认的审计价值 | `DB-001`, `DB-002`, `STEER-001`, `STEER-002` |
+| P-12 | message/structured/search/Tape 多层表示没有 size/retention budget | 只做 `dbstat`/fixture 测量；超预算才新建 offload/retention 设计 | 若证明超预算，可降低大图/工具结果对磁盘、备份的压力 | 先分清完整副本与搜索投影；不过早引入 blob store/TTL | `STO-001`；超预算后另立任务 |
+| D-01/D-02/D-03 | Remote descriptor 四份且已漂移，Compat 壳和专用 status route 延续旧交通层 | 先决定 shared catalog/main authority，再删无策略 wrapper；专用 route 等支持窗口结束 | 通道能力不再在不同页面互相矛盾；后端失败时显示 unavailable 而不是假“未启用” | 单一真源；代价是故障会更可见，且不能过早删跨版本 route | `RMT-001`–`RMT-004` |
+| D-04/D-10 | 唯一 runtime 之上有大量 optional method，缺能力时可默认 `full_access`/noop/empty | 先删 required-method fail-open，再定义真正 capability descriptor，最后分组收紧 port | 缺安全/确认能力时明确报错，不会假成功 | 无效 fallback 减少；代价是会暴露原先被隐藏的 implementation gap | `CAP-001`–`CAP-003`, `CAP-PORT-*` |
+| D-05 | `ChatService.activeControllers` 只管 enqueue 窗口，名称却像 generation owner | 决定它是 enqueue owner 还是 generation owner；前者删假 controller，后者返回可观测 handle | cancel/timeout 行为不再与真实生成脱节 | lifecycle owner 单一；代价是可能改 service API | `CHAT-001`, `CHAT-002` |
+| D-06 | route runtime 使用 fake `ISQLitePresenter` cast，测试 seam 与生产真相不一致 | 要求真实 SQLite dependency；若只需 activity，注入两方法窄 port | 无直接可感收益，但减少测试通过、生产爆炸 | 测试 seam 诚实；代价低 | `RTE-001` |
+| D-07 | shutdown 多 owner 有些是双保险，有些是无文档重复 | 明确 Cron/floating/window owner；保留 MCP early stop + final fallback | 退出时少残留进程，也不因过度去重删掉救命保险 | 清理语义明确；代价是每类资源需单独判断，不能造通用 shutdown framework | `SHD-001`；保留 MCP double shutdown |
+| D-08 | auto-compaction default/limit 多处复制，global 与 per-agent normalization 不同 | 先确认 step=5 与任意整数是否有意，再共享 defaults/limits 但显式保留策略差异 | 不同设置入口不再出现未说明的取整差异 | 默认值不漂移；代价是需一次产品决策，不可用“去重”代替 | `CMP-001`, `CMP-002` |
+| D-09 | 常量为 true 的 feature flag 保留死分支 | 删 flag/guards；若真需 kill switch，另建 runtime config | 行为不变 | 少一层假灵活性；收益低，后做 | `FLG-001` |
+| F11 residual | provider icon registry/大 SVG 仍可能影响 bundle，旧数据已过时 | 用最新 build 重测资产体积/加载，只在超预算时实施 | 若真超预算，可减少设置/首次图标加载成本 | 避免重复优化已解决部分；代价是需 build 产物数据 | `ICON-001` |
+| Ponytail #12 | `normalizePermissionMode` 在 main/runtime/renderer 三份 | 收敛到 shared domain helper，保留一组 contract test | 权限模式在不同入口的 normalize 结果一致 | 删重复规则；收益低，与高优先级文件不冲突时再做 | `PERM-001` |
 
 ## 明确保留，不创建修复任务
 
@@ -275,6 +368,21 @@ Wave 5  Product/owner decisions and cleanup
 - hot-path ports 的 focused test seam；
 - FileWatcher、Cron、background exec 使用不同 process mechanism。
 
+## 兼容、回滚和发布策略
+
+| 变更类型 | 实施规则 | 回滚方式 | 最大风险 |
+| --- | --- | --- | --- |
+| 纯内部语义（cache/coordinator/fatal） | 先加失败测试，一个 task 一个 PR，不同时搬文件 | 直接 revert 该 task commit/PR | 新语义与某个未记录 caller 的隐式假设冲突 |
+| Route/event/schema contract | 先加新字段/状态和兼容映射，迁移 main/renderer，最后才删旧 route | 回滚实现但保留向后兼容 schema；不在同一发布删旧字段 | 新旧 renderer/app 跨版本调用不兼容 |
+| SQLite index/migration | expand-first：先增 index/metadata，旧 reader 仍可运行；数据删除/压缩另立任务 | 回滚代码时不回滚已安全创建的兼容 index/metadata；后续 migration 再清理 | 大库 migration 锁住 main process，或 index 写放大超过读收益 |
+| Tape/retention | 先写 watermark 并验证可重建；删 payload/TTL 前先完成审计需求决策 | 保留 legacy full-scan repair path 一个支持窗口，但不让它默认走热路径 | watermark 错误导致漏 backfill，或过早删除可回放事实 |
+| Streaming transport | 先 measurement，再 targeted snapshot/upsert；只有前者不足才设计 revisioned delta | 保留周期性全量收敛通道，直到 delta 的丢包/乱序测试稳定 | 丢包、乱序、跨窗口 fan-out 让 renderer 与 main 状态分叉 |
+| 安全/权限 | required capability 缺失时 fail closed；workspace scope 改动需明确 UI state 和 revoke 时机 | 优先回滚调用链，不回滚为默认 `full_access` | 为了兼容重新引入 fail-open，或 revoke race 中断正在使用的 workspace |
+| 纯结构提取 | 行为测试先锁定，只搬一个 domain/service，不同时改 contract | revert 整个提取 PR，不在新旧两套 owner 之间打补丁 | 新 service 只是代理壳，状态 owner 仍留在 God object，形成又一层假抽象 |
+
+默认不为每个修复新增 feature flag。只有无法通过单 PR/revert 安全回滚的跨版本 migration 才考虑
+临时 runtime gate，并必须在同一 SDD 写清删除条件和后续 task。
+
 ## 每个实施切片的统一交付门槛
 
 1. 先有 focused failure/timeout/cancel test，不只覆盖 happy path。
@@ -286,3 +394,6 @@ Wave 5  Product/owner decisions and cleanup
 7. SQLite 变更必须包含已有 DB migration fixture、query plan 和规模数据。
 8. UI 行为变化必须给 BEFORE/AFTER ASCII layout；当前路线图本身不改 UI。
 9. 每个 PR 只交付一个 task ID；不得创建总括性的 `architecture cleanup` PR。
+10. measurement task 必须保存机器/数据量/重复次数/原始结果，并明确 go/no-go；“有点慢”不解锁后续复杂方案。
+11. 需产品/owner 决策的 task 在文档中记录最终结论和被否决方案；不把决策留在 PR 评论或聊天里。
+12. 任务合并后回填本文件的 task 状态/验证链接；若实际证据否定原 finding，标记“证据否定”而不为了完成路线图强行改代码。

@@ -51,8 +51,8 @@ compatibility declaration，以及大量“接口可选 + 静默默认”的兼�
 5. 架构治理按 domain 小步做：先冻结 `routes/index.ts`、`core.presenter.d.ts` 和
    `AgentRuntimePresenter` 的继续增长，再逐域迁移，不做 big-bang rewrite。
 
-决策级排序和验证门槛见[行动清单](./07-prioritized-actions.md)；可独立交付的任务、依赖和实施波次见
-[实施路线图](./09-implementation-roadmap.md)。
+决策级排序和验证门槛见[行动清单](./07-prioritized-actions.md)；最终的处理方式、影响/收益、任务依赖和实施波次
+以[统一实施计划](./09-implementation-roadmap.md)为准。
 
 ## 报告索引
 
@@ -64,7 +64,7 @@ compatibility declaration，以及大量“接口可选 + 静默默认”的兼�
 - [06 - 与 2026-07-04 性能审计的逐项对账](./06-prior-audit-reconciliation.md)
 - [07 - 分级行动、测量与回归要求](./07-prioritized-actions.md)
 - [08 - Ponytail 复杂度删减清单](./08-ponytail-audit.md)
-- [09 - 实施任务拆分与路线图](./09-implementation-roadmap.md)
+- [09 - 统一实施计划：从审计发现到可验证交付](./09-implementation-roadmap.md)
 
 ## 代码规模快照
 
