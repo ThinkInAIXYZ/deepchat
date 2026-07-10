@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import ts from 'typescript'
 
 const SOURCE_EXTENSIONS = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx', '.vue'])
 const CHILD_PROCESS_METHODS = new Set([
@@ -64,123 +65,83 @@ async function collectSourceFiles(entryPath) {
   return files
 }
 
-function parseNamedImports(clause) {
-  const start = clause.indexOf('{')
-  const end = clause.lastIndexOf('}')
-  if (start === -1 || end === -1 || end < start) return []
-
-  return clause
-    .slice(start + 1, end)
-    .split(',')
-    .map((entry) => entry.trim().replace(/^type\s+/, ''))
-    .filter(Boolean)
-    .map((entry) => {
-      const [imported, local = imported] = entry.split(/\s+as\s+/)
-      return { imported: imported.trim(), local: local.trim() }
-    })
+function getModuleName(node) {
+  if (!node) return null
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : null
 }
 
-function parseDefaultImport(clause) {
-  const candidate = clause.split(',')[0].trim()
-  return /^[A-Za-z_$][\w$]*$/.test(candidate) ? candidate : null
-}
+function createSourceUnits(filePath, source) {
+  if (path.extname(filePath) !== '.vue') {
+    return [
+      {
+        offset: 0,
+        sourceFile: ts.createSourceFile(
+          filePath,
+          source,
+          ts.ScriptTarget.Latest,
+          true,
+          ts.ScriptKind.TSX
+        )
+      }
+    ]
+  }
 
-function parseNamespaceImport(clause) {
-  return /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause)?.[1] ?? null
-}
-
-function extractImports(sourceWithoutComments) {
-  const imports = []
-  const pattern = /\bimport\s+(?!type\b)(?!['"])([\s\S]*?)\s+from\s+(['"])([^'"]+)\2/g
+  const units = []
+  const scriptPattern = /<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi
   let match
-
-  while ((match = pattern.exec(sourceWithoutComments)) !== null) {
-    imports.push({ clause: match[1].trim(), index: match.index, module: match[3] })
+  while ((match = scriptPattern.exec(source)) !== null) {
+    const script = match[1]
+    units.push({
+      offset: match.index + match[0].indexOf(script),
+      sourceFile: ts.createSourceFile(
+        filePath,
+        script,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TSX
+      )
+    })
   }
-
-  return imports
-}
-
-function detectUnsupportedSyntax(source) {
-  const matches = []
-  const moduleAlternation = [...WATCHED_MODULES].map(escapePattern).join('|')
-  const addMatches = (pattern, syntax) => {
-    let match
-    while ((match = pattern.exec(source)) !== null) {
-      matches.push({ index: match.index, module: match.groups.module, syntax })
-    }
-  }
-
-  addMatches(
-    new RegExp(
-      `\\brequire\\s*\\(\\s*['\"](?<module>${moduleAlternation})['\"]\\s*\\)`,
-      'g'
-    ),
-    'CommonJS require'
-  )
-  addMatches(
-    new RegExp(
-      `\\bexport\\s+(?:\\*|\\{[\\s\\S]*?\\})\\s+from\\s+['\"](?<module>${moduleAlternation})['\"]`,
-      'g'
-    ),
-    'launcher re-export'
-  )
-
-  const supportedDynamicElectronImports = new Set()
-  const dynamicElectronPattern =
-    /\bconst\s*{([^}]+)}\s*=\s*(?:await\s+)?import\s*\(\s*['"]electron['"]\s*\)/g
-  let dynamicElectronMatch
-  while ((dynamicElectronMatch = dynamicElectronPattern.exec(source)) !== null) {
-    supportedDynamicElectronImports.add(
-      dynamicElectronMatch.index + dynamicElectronMatch[0].lastIndexOf('import')
-    )
-  }
-
-  const dynamicImportPattern = new RegExp(
-    `\\bimport\\s*\\(\\s*['\"](?<module>${moduleAlternation})['\"]\\s*\\)`,
-    'g'
-  )
-  let dynamicImportMatch
-  while ((dynamicImportMatch = dynamicImportPattern.exec(source)) !== null) {
-    if (
-      dynamicImportMatch.groups.module !== 'electron' ||
-      !supportedDynamicElectronImports.has(dynamicImportMatch.index)
-    ) {
-      matches.push({
-        index: dynamicImportMatch.index,
-        module: dynamicImportMatch.groups.module,
-        syntax: 'dynamic import'
-      })
-    }
-  }
-
-  for (const { clause, index, module } of extractImports(source)) {
-    if (
-      (module === 'electron' || module === '@modelcontextprotocol/sdk/client/stdio.js') &&
-      (parseDefaultImport(clause) || parseNamespaceImport(clause))
-    ) {
-      matches.push({ index, module, syntax: 'default/namespace import' })
-    }
-  }
-
-  return matches.sort((left, right) => left.index - right.index)
+  return units
 }
 
 function addFunctionBinding(bindings, local, launcher) {
   if (/^[A-Za-z_$][\w$]*$/.test(local)) bindings.set(local, launcher)
 }
 
-function extractBindings(sourceWithoutComments) {
+function extractBindings(sourceUnits) {
   const functionBindings = new Map()
-  const namespaceBindings = []
+  const namespaceBindings = new Map()
   const electronShellBindings = new Set()
   const electronUtilityBindings = new Set()
   const stdioTransportBindings = new Set()
+  const unsupportedSyntax = []
+  const promisifyBindings = []
 
-  for (const importEntry of extractImports(sourceWithoutComments)) {
-    const { clause, module } = importEntry
-    const named = parseNamedImports(clause)
-    const namespace = parseNamespaceImport(clause)
+  const addUnsupported = (unit, node, module, syntax) => {
+    unsupportedSyntax.push({
+      index: unit.offset + node.getStart(unit.sourceFile),
+      module,
+      syntax
+    })
+  }
+
+  const addStaticImport = (unit, node, module) => {
+    const clause = node.importClause
+    if (!clause || clause.isTypeOnly) return
+
+    const defaultImport = clause.name?.text ?? null
+    const namespace = clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)
+      ? clause.namedBindings.name.text
+      : null
+    const named = clause.namedBindings && ts.isNamedImports(clause.namedBindings)
+      ? clause.namedBindings.elements
+          .filter((entry) => !entry.isTypeOnly)
+          .map((entry) => ({
+            imported: (entry.propertyName ?? entry.name).text,
+            local: entry.name.text
+          }))
+      : []
 
     if (module === 'child_process' || module === 'node:child_process') {
       for (const { imported, local } of named) {
@@ -188,55 +149,144 @@ function extractBindings(sourceWithoutComments) {
           addFunctionBinding(functionBindings, local, `child_process.${imported}`)
         }
       }
-      if (namespace) namespaceBindings.push({ local: namespace, module: 'child_process' })
-      const defaultImport = parseDefaultImport(clause)
-      if (defaultImport) namespaceBindings.push({ local: defaultImport, module: 'child_process' })
+      if (namespace) namespaceBindings.set(namespace, 'child_process')
+      if (defaultImport) {
+        namespaceBindings.set(defaultImport, 'child_process')
+      }
     } else if (module === 'cross-spawn') {
-      const defaultImport = parseDefaultImport(clause)
       if (defaultImport) {
         addFunctionBinding(functionBindings, defaultImport, 'cross-spawn.spawn')
-        namespaceBindings.push({ local: defaultImport, module: 'cross-spawn-default' })
+        namespaceBindings.set(defaultImport, 'cross-spawn-default')
       }
       for (const { imported, local } of named) {
         if (imported === 'sync') addFunctionBinding(functionBindings, local, 'cross-spawn.sync')
       }
-      if (namespace) namespaceBindings.push({ local: namespace, module: 'cross-spawn' })
+      if (namespace) namespaceBindings.set(namespace, 'cross-spawn')
     } else if (module === 'node-pty') {
       for (const { imported, local } of named) {
         if (imported === 'spawn') addFunctionBinding(functionBindings, local, 'node-pty.spawn')
       }
-      if (namespace) namespaceBindings.push({ local: namespace, module: 'node-pty' })
-      const defaultImport = parseDefaultImport(clause)
-      if (defaultImport) namespaceBindings.push({ local: defaultImport, module: 'node-pty' })
+      if (namespace) namespaceBindings.set(namespace, 'node-pty')
+      if (defaultImport) namespaceBindings.set(defaultImport, 'node-pty')
     } else if (module === 'electron') {
+      if (defaultImport || namespace || named.some(({ imported }) => imported === 'default')) {
+        addUnsupported(unit, node, module, 'default/namespace import')
+        return
+      }
       for (const { imported, local } of named) {
         if (imported === 'shell') electronShellBindings.add(local)
         if (imported === 'utilityProcess') electronUtilityBindings.add(local)
       }
     } else if (module === '@modelcontextprotocol/sdk/client/stdio.js') {
+      if (defaultImport || namespace || named.some(({ imported }) => imported === 'default')) {
+        addUnsupported(unit, node, module, 'default/namespace import')
+        return
+      }
       for (const { imported, local } of named) {
         if (imported === 'StdioClientTransport') stdioTransportBindings.add(local)
       }
     }
   }
 
-  const dynamicElectronPattern =
-    /\bconst\s*{([^}]+)}\s*=\s*(?:await\s+)?import\s*\(\s*['"]electron['"]\s*\)/g
-  let dynamicMatch
-  while ((dynamicMatch = dynamicElectronPattern.exec(sourceWithoutComments)) !== null) {
-    for (const entry of dynamicMatch[1].split(',')) {
-      const [imported, local = imported] = entry.trim().split(/\s*:\s*/)
+  const addDynamicElectronImport = (unit, node) => {
+    if (node.arguments.length !== 1) return false
+    const initializer = ts.isAwaitExpression(node.parent) ? node.parent : node
+    const declaration = initializer.parent
+    if (
+      !ts.isVariableDeclaration(declaration) ||
+      declaration.initializer !== initializer ||
+      !ts.isObjectBindingPattern(declaration.name) ||
+      !ts.isVariableDeclarationList(declaration.parent) ||
+      !(declaration.parent.flags & ts.NodeFlags.Const)
+    ) {
+      return false
+    }
+
+    const bindings = []
+    for (const element of declaration.name.elements) {
+      if (
+        element.dotDotDotToken ||
+        element.initializer ||
+        !ts.isIdentifier(element.name) ||
+        (element.propertyName && !ts.isIdentifier(element.propertyName))
+      ) {
+        return false
+      }
+      bindings.push({
+        imported: (element.propertyName ?? element.name).text,
+        local: element.name.text
+      })
+    }
+    if (bindings.some(({ imported }) => imported === 'default')) return false
+
+    for (const { imported, local } of bindings) {
       if (imported === 'shell') electronShellBindings.add(local)
       if (imported === 'utilityProcess') electronUtilityBindings.add(local)
     }
+    return true
   }
 
-  const promisifyPattern =
-    /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*promisify\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/g
-  let promisifyMatch
-  while ((promisifyMatch = promisifyPattern.exec(sourceWithoutComments)) !== null) {
-    const launcher = functionBindings.get(promisifyMatch[2])
-    if (launcher) addFunctionBinding(functionBindings, promisifyMatch[1], launcher)
+  for (const unit of sourceUnits) {
+    const visit = (node) => {
+      if (ts.isImportDeclaration(node)) {
+        const module = getModuleName(node.moduleSpecifier)
+        if (WATCHED_MODULES.has(module)) addStaticImport(unit, node, module)
+      } else if (ts.isImportEqualsDeclaration(node)) {
+        const module = ts.isExternalModuleReference(node.moduleReference)
+          ? getModuleName(node.moduleReference.expression)
+          : null
+        if (!node.isTypeOnly && WATCHED_MODULES.has(module)) {
+          addUnsupported(unit, node, module, 'CommonJS require')
+        }
+      } else if (ts.isExportDeclaration(node)) {
+        const module = node.moduleSpecifier ? getModuleName(node.moduleSpecifier) : null
+        const typeOnly =
+          node.isTypeOnly ||
+          (node.exportClause &&
+            ts.isNamedExports(node.exportClause) &&
+            node.exportClause.elements.length > 0 &&
+            node.exportClause.elements.every((entry) => entry.isTypeOnly))
+        if (!typeOnly && WATCHED_MODULES.has(module)) {
+          addUnsupported(unit, node, module, 'launcher re-export')
+        }
+      } else if (ts.isCallExpression(node)) {
+        const module = node.arguments[0] ? getModuleName(node.arguments[0]) : null
+        if (!WATCHED_MODULES.has(module)) {
+          ts.forEachChild(node, visit)
+          return
+        }
+        if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+          addUnsupported(unit, node, module, 'CommonJS require')
+        } else if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          if (module !== 'electron' || !addDynamicElectronImport(unit, node)) {
+            addUnsupported(unit, node, module, 'dynamic import')
+          }
+        } else {
+          addUnsupported(unit, node, module, 'opaque module loader')
+        }
+      } else if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        ts.isCallExpression(node.initializer) &&
+        ts.isIdentifier(node.initializer.expression) &&
+        node.initializer.expression.text === 'promisify' &&
+        node.initializer.arguments.length === 1 &&
+        ts.isIdentifier(node.initializer.arguments[0])
+      ) {
+        promisifyBindings.push({
+          local: node.name.text,
+          target: node.initializer.arguments[0].text
+        })
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(unit.sourceFile)
+  }
+
+  for (const { local, target } of promisifyBindings) {
+    const launcher = functionBindings.get(target)
+    if (launcher) addFunctionBinding(functionBindings, local, launcher)
   }
 
   return {
@@ -244,82 +294,76 @@ function extractBindings(sourceWithoutComments) {
     electronUtilityBindings,
     functionBindings,
     namespaceBindings,
-    stdioTransportBindings
+    stdioTransportBindings,
+    unsupportedSyntax
   }
 }
 
-function escapePattern(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function collectPatternMatches(source, pattern, launcher, matches) {
-  let match
-  while ((match = pattern.exec(source)) !== null) {
-    matches.push({ index: match.index, launcher })
-  }
-}
-
-function detectLaunches(source) {
-  const bindings = extractBindings(source)
+function detectLaunches(filePath, source) {
+  const sourceUnits = createSourceUnits(filePath, source)
+  const bindings = extractBindings(sourceUnits)
   const matches = []
 
-  for (const [local, launcher] of bindings.functionBindings) {
-    collectPatternMatches(
-      source,
-      new RegExp(`(?<![\\w$.])${escapePattern(local)}\\s*\\(`, 'g'),
-      launcher,
-      matches
-    )
-  }
-
-  for (const { local, module } of bindings.namespaceBindings) {
-    const methods =
-      module === 'node-pty' ? ['spawn'] : module === 'cross-spawn-default' ? ['sync'] : [...CHILD_PROCESS_METHODS]
-    for (const method of methods) {
-      const launcher = module.startsWith('cross-spawn')
-        ? `cross-spawn.${method}`
-        : `${module}.${method}`
-      collectPatternMatches(
-        source,
-        new RegExp(`\\b${escapePattern(local)}\\s*\\.\\s*${method}\\s*\\(`, 'g'),
-        launcher,
-        matches
-      )
+  const getCallLauncher = (expression) => {
+    if (ts.isIdentifier(expression)) {
+      return bindings.functionBindings.get(expression.text) ?? null
     }
-  }
-
-  for (const local of bindings.electronShellBindings) {
-    for (const method of ['openExternal', 'openPath']) {
-      collectPatternMatches(
-        source,
-        new RegExp(`\\b${escapePattern(local)}\\s*\\.\\s*${method}\\s*\\(`, 'g'),
-        `electron.shell.${method}`,
-        matches
-      )
+    if (!ts.isPropertyAccessExpression(expression) || !ts.isIdentifier(expression.expression)) {
+      return null
     }
+
+    const local = expression.expression.text
+    const method = expression.name.text
+    if (bindings.electronShellBindings.has(local)) {
+      return method === 'openExternal' || method === 'openPath'
+        ? `electron.shell.${method}`
+        : null
+    }
+    if (bindings.electronUtilityBindings.has(local)) {
+      return method === 'fork' ? 'electron.utilityProcess.fork' : null
+    }
+
+    const module = bindings.namespaceBindings.get(local)
+    if (module === 'child_process') {
+      return CHILD_PROCESS_METHODS.has(method) ? `child_process.${method}` : null
+    }
+    if (module === 'node-pty') return method === 'spawn' ? 'node-pty.spawn' : null
+    if (module === 'cross-spawn' || module === 'cross-spawn-default') {
+      if (method === 'sync') return 'cross-spawn.sync'
+      return module === 'cross-spawn' && method === 'spawn' ? 'cross-spawn.spawn' : null
+    }
+    return null
   }
 
-  for (const local of bindings.electronUtilityBindings) {
-    collectPatternMatches(
-      source,
-      new RegExp(`\\b${escapePattern(local)}\\s*\\.\\s*fork\\s*\\(`, 'g'),
-      'electron.utilityProcess.fork',
-      matches
-    )
-  }
-
-  for (const local of bindings.stdioTransportBindings) {
-    collectPatternMatches(
-      source,
-      new RegExp(`\\bnew\\s+${escapePattern(local)}\\s*\\(`, 'g'),
-      'mcp.StdioClientTransport',
-      matches
-    )
+  for (const unit of sourceUnits) {
+    const visit = (node) => {
+      let launcher = null
+      if (ts.isCallExpression(node)) {
+        launcher = getCallLauncher(node.expression)
+      } else if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        bindings.stdioTransportBindings.has(node.expression.text)
+      ) {
+        launcher = 'mcp.StdioClientTransport'
+      }
+      if (launcher) {
+        matches.push({
+          index: unit.offset + node.expression.getStart(unit.sourceFile),
+          launcher
+        })
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(unit.sourceFile)
   }
 
   const uniqueMatches = new Map()
   for (const match of matches) uniqueMatches.set(`${match.index}:${match.launcher}`, match)
-  return [...uniqueMatches.values()].sort((left, right) => left.index - right.index)
+  return {
+    matches: [...uniqueMatches.values()].sort((left, right) => left.index - right.index),
+    unsupportedSyntax: bindings.unsupportedSyntax
+  }
 }
 
 function lineForIndex(source, index) {
@@ -337,7 +381,8 @@ async function scanLaunchers(root) {
     const occurrences = new Map()
     const relativePath = toPosix(path.relative(root, filePath))
 
-    for (const match of detectUnsupportedSyntax(source)) {
+    const detection = detectLaunches(filePath, source)
+    for (const match of detection.unsupportedSyntax) {
       unsupportedSyntax.push({
         ...match,
         line: lineForIndex(source, match.index),
@@ -345,7 +390,7 @@ async function scanLaunchers(root) {
       })
     }
 
-    for (const match of detectLaunches(source)) {
+    for (const match of detection.matches) {
       const occurrence = (occurrences.get(match.launcher) ?? 0) + 1
       occurrences.set(match.launcher, occurrence)
       sites.push({

@@ -186,21 +186,24 @@ Named import aliases, named Electron imports, dynamic Electron destructuring, an
 one-step `promisify(exec|execFile)` wrappers are covered. A new detected site is unclassified;
 file, launcher API, or same-file API count drift fails lint until a reviewer assigns an explicit
 owner and category. CommonJS launcher imports, non-Electron dynamic launcher imports, Electron
-default/namespace imports, launcher re-exports, and other explicitly detected unsupported binding
-forms fail closed instead of disappearing from the inventory.
+default/namespace imports, runtime launcher re-exports, opaque module-loader calls, and other
+explicitly detected unsupported binding forms fail closed instead of disappearing from the
+inventory. Type-only imports and re-exports do not create runtime launcher capability and are
+ignored.
 
 The categories distinguish DeepChat runtime trees, utility hosts, bounded helpers, termination
 helpers, synchronous exclusions, Electron/system openers, and the intentionally user-owned terminal
 surface. Category assignment is evidence metadata, not proof that a process is bounded or contained.
 
-This is a standard-library lexical scanner, not a TypeScript AST or call-graph analyzer. Residuals
-are explicit:
+Module bindings and direct call sites are read with the repository's existing TypeScript compiler
+AST; this adds no parser dependency and handles legal JavaScript trivia consistently. It is still
+not a call-graph analyzer. Residuals are explicit:
 
 - computed member calls such as `shell['openExternal']` are not recognized;
 - aliases created after import, except the covered direct `promisify` form, and launchers hidden
-  behind re-exports, factories, or third-party/native code are not followed;
-- regex scanning can treat launcher-shaped text in comments or strings as a site, so unusual syntax
-  may fail closed and require a focused scanner fixture or source clarification;
+  behind factories or third-party/native code are not followed;
+- syntax that refers to a watched module through a statically known but unsupported import form
+  fails closed and requires a focused scanner fixture or an explicit supported binding;
 - same-file sites use API ordinal order rather than a semantic call-site name. Reordering calls to
   the same API, or replacing one with different semantics while keeping the same file/API/count, is
   not detected by this guard and still requires code review.

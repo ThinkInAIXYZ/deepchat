@@ -199,8 +199,64 @@ describe.sequential('process launcher inventory guard', () => {
         const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
         new StdioClientTransport({ command: 'node' })
       `
+    },
+    {
+      label: 'static import with from trivia',
+      marker: 'child_process.spawn#1 has no owner/category',
+      source: `
+        import { spawn } from /* gap */ 'node:child_process'
+        spawn('node')
+      `
+    },
+    {
+      label: 'CommonJS require with argument trivia',
+      marker: 'CommonJS require for node:child_process',
+      source: `const child = require(/* gap */ 'node:child_process'); child.spawn('node')`
+    },
+    {
+      label: 'dynamic import with argument trivia',
+      marker: 'dynamic import for node:child_process',
+      source: `const child = await import(/* gap */ 'node:child_process'); child.spawn('node')`
+    },
+    {
+      label: 'dynamic Electron destructuring with argument trivia',
+      marker: 'electron.utilityProcess.fork#1 has no owner/category',
+      source: `
+        const { utilityProcess: electronUtility } = await import(/* gap */ 'electron')
+        electronUtility.fork('host.js')
+      `
+    },
+    {
+      label: 'launcher re-export with from trivia',
+      marker: 'launcher re-export for node:child_process',
+      source: `export { spawn } from /* gap */ 'node:child_process'`
+    },
+    {
+      label: 'dynamic import with a no-substitution template literal',
+      marker: 'dynamic import for node:child_process',
+      source: "const child = await import(`node:child_process`); child.spawn('node')"
+    },
+    {
+      label: 'dynamic import with options',
+      marker: 'dynamic import for node:child_process',
+      source: `const child = await import('node:child_process', {}); child.spawn('node')`
+    },
+    {
+      label: 'module.require loader',
+      marker: 'opaque module loader for node:child_process',
+      source: `const child = module.require('node:child_process'); child.spawn('node')`
+    },
+    {
+      label: 'createRequire alias loader',
+      marker: 'opaque module loader for node:child_process',
+      source: `
+        import { createRequire } from 'node:module'
+        const localRequire = createRequire(import.meta.url)
+        const child = localRequire('node:child_process')
+        child.spawn('node')
+      `
     }
-  ])('fails closed for unsupported $label syntax', async ({ marker, source }) => {
+  ])('fails closed for $label syntax', async ({ marker, source }) => {
     const trackedPath = 'src/main/tracked.ts'
     const unsupportedPath = 'src/main/unsupported.ts'
     const fixture = await createFixture(
@@ -214,10 +270,28 @@ describe.sequential('process launcher inventory guard', () => {
     const result = runGuard(fixture)
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain(
-      `[process-launcher-unsupported-syntax] ${unsupportedPath}:`
-    )
+    expect(result.stderr).toContain(`${unsupportedPath}:`)
     expect(result.stderr).toContain(marker)
+  })
+
+  it('ignores type-only imports and re-exports from watched modules', async () => {
+    const trackedPath = 'src/main/tracked.ts'
+    const fixture = await createFixture(
+      {
+        [trackedPath]: `import { spawn } from 'node:child_process'; spawn('node')`,
+        'src/main/types.ts': `
+          import type { ChildProcess } from /* gap */ 'node:child_process'
+          export type { ChildProcessWithoutNullStreams } from 'node:child_process'
+          export { type SpawnOptions } from 'node:child_process'
+        `
+      },
+      [entry(trackedPath, 'child_process.spawn')]
+    )
+
+    const result = runGuard(fixture)
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('(1 classified sites)')
   })
 
   it('fails when a classified launcher file is renamed', async () => {
