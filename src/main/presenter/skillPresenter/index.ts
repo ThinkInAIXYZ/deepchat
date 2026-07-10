@@ -11,6 +11,7 @@ import {
   createWatcherRequestId,
   getFileWatcherService,
   type IFileWatcherService,
+  type WatchEventType,
   type WatcherEventBatch,
   type WatcherStatus,
   type WatchHandle
@@ -41,7 +42,11 @@ import {
   SkillScriptDescriptor,
   SkillScriptRuntime,
   SkillViewResult,
-  SkillLinkedFile
+  SkillLinkedFile,
+  PublishedSkillEntry,
+  PublishedSkillSourceError,
+  SkillRuntimeSnapshot,
+  WaitForStableSkillRuntimeOptions
 } from '@shared/types/skill'
 import type {
   SkillManagementItem,
@@ -55,6 +60,16 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
+import {
+  createQuarantinedEntry,
+  createMetadataOnlyEntry,
+  createSkillSourceVersion,
+  freezeScriptDescriptors,
+  freezeSkillExtension,
+  freezeSkillMetadata,
+  SkillRuntimeSnapshotCoordinator,
+  withPublishedSourceError
+} from './runtimeSnapshot'
 
 const execFileAsync = promisify(execFile)
 
@@ -137,6 +152,7 @@ const DRAFT_CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ID_PATTERN = /^[A-Za-z0-9._-]+$/
 const DRAFT_ACTIVITY_MARKER = '.lastActivity'
 const SKILL_MANAGEMENT_STATE_KEY = 'skills.managementState'
+const SKILL_RUNTIME_WAIT_BUDGET_MS = 200
 const DRAFT_INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /disregard\s+all\s+prior/i,
@@ -231,6 +247,19 @@ export class SkillPresenter implements ISkillPresenter {
   private draftsRoot: string
   private metadataCache: Map<string, SkillMetadata> = new Map()
   private contentCache: Map<string, SkillContent> = new Map()
+  private runtimeContentViews = new WeakMap<PublishedSkillEntry, SkillContent>()
+  private readonly runtimeSnapshots = new SkillRuntimeSnapshotCoordinator({
+    stageEntry: (metadata) => this.stagePublishedSkillEntry(metadata),
+    onPublished: (entries) => this.syncCompatibilityCaches(entries),
+    onStageError: (metadata, error) => {
+      logger.warn('[SkillPresenter] Failed to stage skill runtime source.', {
+        name: metadata.name,
+        path: metadata.path,
+        error
+      })
+    }
+  })
+  private runtimeSnapshotReadDepth = 0
   private pluginSkillContributions: Map<
     string,
     { ownerPluginId: string; skillRoot: string; pluginRoot?: string }
@@ -316,6 +345,201 @@ export class SkillPresenter implements ISkillPresenter {
     return this.skillsDir
   }
 
+  getPublishedRuntimeSnapshot(): SkillRuntimeSnapshot {
+    return this.runtimeSnapshots.snapshot
+  }
+
+  async waitForStableRuntimeSnapshot(
+    options: WaitForStableSkillRuntimeOptions
+  ): Promise<SkillRuntimeSnapshot> {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
+    return await this.runtimeSnapshots.wait(options)
+  }
+
+  private seedRuntimeSnapshotFromCompatibilityCache(): void {
+    this.runtimeSnapshots.seedFromMetadata(this.metadataCache.values())
+  }
+
+  private beginRuntimePublish(): () => void {
+    return this.runtimeSnapshots.beginPublish()
+  }
+
+  private beginRuntimePublishIfCurrent(sourcePath: string, sequence: number): (() => void) | null {
+    return this.runtimeSnapshots.beginPublishIfCurrent(sourcePath, sequence)
+  }
+
+  private publishRuntimeEntry(entry: PublishedSkillEntry, previousName?: string): void {
+    this.runtimeSnapshots.publishEntry(entry, previousName)
+  }
+
+  private publishRuntimeEntryIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    entry: PublishedSkillEntry,
+    previousName?: string
+  ): boolean {
+    return this.runtimeSnapshots.publishEntryIfCurrent(sourcePath, sequence, entry, previousName)
+  }
+
+  private publishRuntimeSourceError(
+    name: string,
+    error: { code: string; message: string },
+    sourcePath?: string
+  ): void {
+    this.runtimeSnapshots.publishSourceError(name, error, sourcePath)
+  }
+
+  private publishRuntimeSourceErrorIfCurrent(
+    sourcePath: string,
+    sequence: number,
+    name: string,
+    error: { code: string; message: string }
+  ): boolean {
+    return this.runtimeSnapshots.publishSourceErrorIfCurrent(sourcePath, sequence, name, error)
+  }
+
+  private syncCompatibilityCaches(entries: ReadonlyMap<string, PublishedSkillEntry>): void {
+    this.metadataCache.clear()
+    this.contentCache.clear()
+    for (const [name, entry] of entries) {
+      if (entry.availability === 'quarantined') continue
+      this.metadataCache.set(name, entry.metadata as SkillMetadata)
+      if (entry.availability === 'ready' && entry.renderedContent !== undefined) {
+        this.contentCache.set(name, this.getRuntimeContentView(entry))
+      }
+    }
+  }
+
+  private getRuntimeContentView(entry: PublishedSkillEntry): SkillContent {
+    const cached = this.runtimeContentViews.get(entry)
+    if (cached) return cached
+    const content = Object.freeze({
+      name: entry.metadata.name,
+      content: entry.renderedContent ?? ''
+    })
+    this.runtimeContentViews.set(entry, content)
+    return content
+  }
+
+  private async stagePublishedSkillEntry(
+    metadataHint: SkillMetadata,
+    options: {
+      rawContent?: string
+      extension?: SkillExtensionConfig
+      scriptSourceRoot?: string
+    } = {}
+  ): Promise<PublishedSkillEntry | null> {
+    this.assertSourceReadAllowed()
+    let rawContent = options.rawContent
+    if (rawContent === undefined) {
+      const stats = await fs.promises.stat(metadataHint.path)
+      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
+        throw new Error(
+          `Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+        )
+      }
+      rawContent = await fs.promises.readFile(metadataHint.path, 'utf-8')
+    }
+
+    const parsed = this.parseSkillMetadataFromContent(
+      rawContent,
+      metadataHint.path,
+      path.basename(metadataHint.skillRoot),
+      metadataHint.ownerPluginId
+    )
+    if (!parsed) {
+      return null
+    }
+
+    const extension = sanitizeSkillExtensionConfig(
+      options.extension ?? (await this.loadSkillExtensionForStage(parsed.name))
+    )
+    const scriptSourceRoot = options.scriptSourceRoot ?? parsed.skillRoot
+    const scripts = await this.collectStagedScriptDescriptors(
+      scriptSourceRoot,
+      parsed.skillRoot,
+      extension
+    )
+    const linkedFiles = await this.listSkillLinkedFiles(scriptSourceRoot)
+    const parsedContent = matter(rawContent).content
+    const renderedBody = this.replacePathVariables(parsedContent, parsed).trim()
+    const runtimeInstructions = this.buildRuntimeInstructionsFromScripts(parsed, scripts)
+    const renderedContent = [renderedBody, runtimeInstructions].filter(Boolean).join('\n\n')
+    const pluginContribution = this.getPluginContributionForSkillRoot(parsed.skillRoot)
+    const frozenMetadata = freezeSkillMetadata(parsed)
+    const frozenExtension = freezeSkillExtension(extension)
+    const frozenScripts = freezeScriptDescriptors(scripts)
+    const frozenLinkedFiles = Object.freeze(
+      linkedFiles.map((linkedFile) => Object.freeze({ ...linkedFile }))
+    )
+    const allowedTools = Object.freeze([...(frozenMetadata.allowedTools ?? [])])
+    const sourceVersion = createSkillSourceVersion({
+      rawContent,
+      extension: frozenExtension,
+      scripts: frozenScripts.map(({ relativePath, runtime, enabled, description }) => ({
+        relativePath,
+        runtime,
+        enabled,
+        description
+      })),
+      linkedFiles: frozenLinkedFiles,
+      skillRoot: parsed.skillRoot,
+      skillsDir: this.skillsDir,
+      pluginRoot: pluginContribution?.pluginRoot ?? null,
+      ownerPluginId: parsed.ownerPluginId ?? pluginContribution?.ownerPluginId ?? null,
+      processArch: process.arch
+    })
+
+    return Object.freeze({
+      sourceVersion,
+      availability: 'ready' as const,
+      metadata: frozenMetadata,
+      renderedContent,
+      allowedTools,
+      extension: frozenExtension,
+      scripts: frozenScripts,
+      linkedFiles: frozenLinkedFiles
+    })
+  }
+
+  private async collectStagedScriptDescriptors(
+    sourceRoot: string,
+    publishedRoot: string,
+    extension: SkillExtensionConfig
+  ): Promise<SkillScriptDescriptor[]> {
+    const scriptsDir = path.join(sourceRoot, 'scripts')
+    if (!(await this.pathExists(scriptsDir))) {
+      return []
+    }
+    const descriptors = await this.collectScriptDescriptors(scriptsDir, sourceRoot)
+    return descriptors
+      .map((script) => {
+        const override = extension.scriptOverrides[script.relativePath] ?? {}
+        return {
+          ...script,
+          absolutePath: path.join(publishedRoot, script.relativePath),
+          enabled: override.enabled ?? true,
+          description: override.description
+        }
+      })
+      .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+  }
+
+  private assertSourceReadAllowed(): void {
+    if (this.runtimeSnapshotReadDepth > 0) {
+      throw new Error('Skill source disk read attempted inside a published runtime snapshot read')
+    }
+  }
+
+  private readCapturedRuntimeSnapshot<T>(reader: (snapshot: SkillRuntimeSnapshot) => T): T {
+    this.runtimeSnapshotReadDepth += 1
+    try {
+      return reader(this.runtimeSnapshots.snapshot)
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
+    }
+  }
+
   /**
    * Initialize the skill system - discover skills and start watching
    */
@@ -333,10 +557,9 @@ export class SkillPresenter implements ISkillPresenter {
    * Discover all skills from the skills directory
    */
   async discoverSkills(): Promise<SkillMetadata[]> {
-    this.metadataCache.clear()
-    this.contentCache.clear()
-
+    const discoveryObservation = this.runtimeSnapshots.beginCatalogObservation()
     if (!fs.existsSync(this.skillsDir)) {
+      this.runtimeSnapshots.replaceIfCatalogCurrent(discoveryObservation, new Map())
       return []
     }
 
@@ -354,21 +577,74 @@ export class SkillPresenter implements ISkillPresenter {
       discoveredSkills = await this.discoverSkillsOnMainThread()
     }
 
+    const previousEntries = this.runtimeSnapshots.snapshot.entries
+    const nextEntries = new Map<string, PublishedSkillEntry>()
+    const observedPaths = new Set<string>()
     for (const metadata of [
       ...discoveredSkills,
       ...(await this.discoverPluginSkillsOnMainThread())
     ]) {
-      if (this.metadataCache.has(metadata.name)) {
+      observedPaths.add(metadata.path)
+      if (nextEntries.has(metadata.name)) {
         logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
           name: metadata.name,
           path: metadata.path
         })
         continue
       }
-      this.metadataCache.set(metadata.name, metadata)
+      const previous = previousEntries.get(metadata.name)
+      if (previous?.availability === 'ready' && previous.metadata.path === metadata.path) {
+        try {
+          const staged = await this.stagePublishedSkillEntry(metadata)
+          if (staged) {
+            nextEntries.set(staged.metadata.name, staged)
+            continue
+          }
+        } catch (error) {
+          logger.warn('[SkillPresenter] Failed to refresh a ready skill during discovery.', {
+            name: metadata.name,
+            path: metadata.path,
+            error
+          })
+        }
+        nextEntries.set(
+          metadata.name,
+          withPublishedSourceError(previous, {
+            code: 'DISCOVERY_REFRESH_FAILED',
+            message: 'Skill discovery could not refresh the source'
+          })
+        )
+        continue
+      }
+      nextEntries.set(metadata.name, createMetadataOnlyEntry(metadata))
     }
 
-    const skills = this.getVisibleMetadataFromCache()
+    for (const [name, previous] of previousEntries) {
+      if (nextEntries.has(name) || observedPaths.has(previous.metadata.path)) {
+        continue
+      }
+      const pluginStillRegistered = previous.metadata.ownerPluginId
+        ? Array.from(this.pluginSkillContributions.values()).some(
+            (contribution) =>
+              contribution.ownerPluginId === previous.metadata.ownerPluginId &&
+              path.join(contribution.skillRoot, 'SKILL.md') === previous.metadata.path
+          )
+        : true
+      if (pluginStillRegistered && fs.existsSync(previous.metadata.path)) {
+        nextEntries.set(
+          name,
+          withPublishedSourceError(previous, {
+            code: 'INVALID_SOURCE',
+            message: 'Skill source is invalid'
+          })
+        )
+      }
+    }
+
+    if (!this.runtimeSnapshots.replaceIfCatalogCurrent(discoveryObservation, nextEntries)) {
+      return this.getVisibleMetadataFromSnapshot(this.runtimeSnapshots.snapshot)
+    }
+    const skills = this.getVisibleMetadataFromSnapshot(this.runtimeSnapshots.snapshot)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'discovered',
       skills,
@@ -442,21 +718,30 @@ export class SkillPresenter implements ISkillPresenter {
   ): Promise<SkillMetadata | null> {
     try {
       const content = await fs.promises.readFile(skillPath, 'utf-8')
-      const { data } = matter(content)
+      return this.parseSkillMetadataFromContent(content, skillPath, dirName, ownerPluginId)
+    } catch (error) {
+      console.error(`[SkillPresenter] Error parsing skill metadata at ${skillPath}:`, error)
+      return null
+    }
+  }
 
-      // Validate required fields
+  private parseSkillMetadataFromContent(
+    content: string,
+    skillPath: string,
+    dirName: string,
+    ownerPluginId?: string
+  ): SkillMetadata | null {
+    try {
+      const { data } = matter(content)
       if (!data.name || !data.description) {
         console.warn(`[SkillPresenter] Skill ${dirName} missing required frontmatter fields`)
         return null
       }
-
-      // Ensure name matches directory name
       if (data.name !== dirName) {
         console.warn(
           `[SkillPresenter] Skill name "${data.name}" doesn't match directory "${dirName}"`
         )
       }
-
       return {
         name: data.name || dirName,
         description: data.description || '',
@@ -471,7 +756,7 @@ export class SkillPresenter implements ISkillPresenter {
             ? (data.metadata as Record<string, unknown>)
             : undefined,
         allowedTools: Array.isArray(data.allowedTools)
-          ? data.allowedTools.filter((t): t is string => typeof t === 'string')
+          ? data.allowedTools.filter((tool): tool is string => typeof tool === 'string')
           : undefined,
         ownerPluginId
       }
@@ -486,7 +771,8 @@ export class SkillPresenter implements ISkillPresenter {
    * Uses discoveryPromise pattern to prevent race conditions
    */
   async getMetadataList(): Promise<SkillMetadata[]> {
-    if (this.metadataCache.size === 0) {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
+    if (this.runtimeSnapshots.snapshot.entries.size === 0) {
       if (!this.discoveryPromise) {
         this.discoveryPromise = this.discoverSkills().finally(() => {
           this.discoveryPromise = null
@@ -494,12 +780,17 @@ export class SkillPresenter implements ISkillPresenter {
       }
       await this.discoveryPromise
     }
-    return this.getVisibleMetadataFromCache()
+    return this.readCapturedRuntimeSnapshot((snapshot) =>
+      this.getVisibleMetadataFromSnapshot(snapshot)
+    )
   }
 
-  private getVisibleMetadataFromCache(): SkillMetadata[] {
+  private getVisibleMetadataFromSnapshot(snapshot: SkillRuntimeSnapshot): SkillMetadata[] {
     return this.sortSkillMetadata(
-      Array.from(this.metadataCache.values()).filter((skill) => this.isSkillVisible(skill))
+      Array.from(snapshot.entries.values())
+        .filter((entry) => entry.availability !== 'quarantined')
+        .map((entry) => entry.metadata as SkillMetadata)
+        .filter((skill) => this.isSkillVisible(skill))
     )
   }
 
@@ -639,22 +930,25 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-    if (!this.metadataCache.has(name)) {
+    await this.getMetadataList()
+    const metadata = this.runtimeSnapshots.snapshot.entries.get(name)?.metadata
+    if (!metadata) {
       throw new Error(`Skill "${name}" not found`)
     }
 
-    this.updateSkillManagementItem(name, (item) => ({
-      ...item,
-      canonicalPath: this.metadataCache.get(name)?.skillRoot ?? item.canonicalPath,
-      deepchat: {
-        ...item.deepchat,
-        disabled
-      }
-    }))
-    this.contentCache.delete(name)
+    const endPublish = this.beginRuntimePublish()
+    try {
+      this.updateSkillManagementItem(name, (item) => ({
+        ...item,
+        canonicalPath: metadata.skillRoot,
+        deepchat: {
+          ...item.deepchat,
+          disabled
+        }
+      }))
+    } finally {
+      endPublish()
+    }
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'disabled-updated',
       name,
@@ -663,12 +957,15 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
+    await this.getMetadataList()
 
     const state = this.getStoredManagementState()
-    return this.sortSkillMetadata(Array.from(this.metadataCache.values())).map((skill) => {
+    const metadata = this.readCapturedRuntimeSnapshot((snapshot) =>
+      Array.from(snapshot.entries.values())
+        .filter((entry) => entry.availability !== 'quarantined')
+        .map((entry) => entry.metadata as SkillMetadata)
+    )
+    return this.sortSkillMetadata(metadata).map((skill) => {
       const item = state.skills[skill.name] ?? this.createDefaultManagementItem(skill.name)
       return {
         ...skill,
@@ -726,51 +1023,27 @@ export class SkillPresenter implements ISkillPresenter {
    * Load full skill content (lazy loading)
    */
   async loadSkillContent(name: string): Promise<SkillContent | null> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    // Get metadata to find the path
-    const metadata = this.metadataCache.get(name)
-    if (!metadata || !this.isSkillVisible(metadata)) {
+    await this.getMetadataList()
+    const snapshot = await this.waitForStableRuntimeSnapshot({
+      requiredSkillNames: [name],
+      signal: new AbortController().signal,
+      deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+    })
+    const entry = snapshot.entries.get(name)
+    if (
+      !entry ||
+      entry.availability !== 'ready' ||
+      entry.renderedContent === undefined ||
+      !this.isSkillVisible(entry.metadata as SkillMetadata)
+    ) {
       console.warn(`[SkillPresenter] Skill not found: ${name}`)
       return null
     }
-
-    // Check content cache after feature visibility so disabled managed skills stay hidden.
-    if (this.contentCache.has(name)) {
-      return this.contentCache.get(name)!
-    }
-
+    this.runtimeSnapshotReadDepth += 1
     try {
-      // Check file size before reading to prevent memory exhaustion
-      const stats = await fs.promises.stat(metadata.path)
-      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-        console.error(
-          `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
-        )
-        return null
-      }
-
-      const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
-      const { content } = matter(rawContent)
-      const renderedContent = this.replacePathVariables(content, metadata)
-      const runtimeInstructions = await this.buildRuntimeInstructions(metadata)
-
-      const skillContent: SkillContent = {
-        name,
-        content: [renderedContent.trim(), runtimeInstructions].filter(Boolean).join('\n\n')
-      }
-
-      // Discovery may have refreshed the caches while we were reading from disk;
-      // only cache when this skill's metadata entry is still the one we read from.
-      if (this.metadataCache.get(name) === metadata) {
-        this.contentCache.set(name, skillContent)
-      }
-      return skillContent
-    } catch (error) {
-      console.error(`[SkillPresenter] Error loading skill content for ${name}:`, error)
-      return null
+      return this.getRuntimeContentView(entry)
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
     }
   }
 
@@ -781,11 +1054,10 @@ export class SkillPresenter implements ISkillPresenter {
       conversationId?: string
     }
   ): Promise<SkillViewResult> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    const metadata = this.metadataCache.get(name)
+    await this.getMetadataList()
+    const metadata = this.runtimeSnapshots.snapshot.entries.get(name)?.metadata as
+      | SkillMetadata
+      | undefined
     if (!metadata || !this.isSkillVisible(metadata)) {
       return {
         success: false,
@@ -793,30 +1065,30 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    const pinnedSkills = options?.conversationId
-      ? await this.getActiveSkills(options.conversationId)
-      : []
-    const isPinned = pinnedSkills.includes(metadata.name)
+    const requestedFilePath = options?.filePath?.trim()
+    const requestedPath = requestedFilePath
+      ? this.resolveSkillRelativePath(metadata.skillRoot, requestedFilePath)
+      : metadata.path
+    const isRootView =
+      requestedPath !== null && path.resolve(requestedPath) === path.resolve(metadata.path)
 
-    if (options?.filePath?.trim()) {
+    if (requestedFilePath && !isRootView) {
       try {
-        const requestedFilePath = options.filePath.trim()
-        const resolvedPath = this.resolveSkillRelativePath(metadata.skillRoot, requestedFilePath)
-        if (!resolvedPath) {
+        if (!requestedPath) {
           return {
             success: false,
             error: 'Requested skill file is outside the skill root'
           }
         }
 
-        if (!(await this.pathExists(resolvedPath))) {
+        if (!(await this.pathExists(requestedPath))) {
           return {
             success: false,
             error: `Skill file not found: ${requestedFilePath}`
           }
         }
 
-        const stats = await fs.promises.stat(resolvedPath)
+        const stats = await fs.promises.stat(requestedPath)
         if (!stats.isFile()) {
           return {
             success: false,
@@ -829,29 +1101,32 @@ export class SkillPresenter implements ISkillPresenter {
             error: 'Requested skill file is too large to load inline'
           }
         }
-        if (this.isBinaryLikeFile(resolvedPath)) {
+        if (this.isBinaryLikeFile(requestedPath)) {
           return {
             success: false,
             error: 'Binary skill files cannot be loaded with skill_view'
           }
         }
 
+        const pinnedSkills = options?.conversationId
+          ? await this.getActiveSkills(options.conversationId)
+          : []
         return {
           success: true,
           name: metadata.name,
           category: metadata.category ?? null,
           skillRoot: metadata.skillRoot,
-          filePath: path.relative(metadata.skillRoot, resolvedPath),
-          content: await fs.promises.readFile(resolvedPath, 'utf-8'),
+          filePath: path.relative(metadata.skillRoot, requestedPath),
+          content: await fs.promises.readFile(requestedPath, 'utf-8'),
           platforms: metadata.platforms,
           metadata: metadata.metadata,
-          isPinned
+          isPinned: pinnedSkills.includes(metadata.name)
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('[SkillPresenter] Failed to load requested skill file for skill_view:', {
           name: metadata.name,
-          filePath: options.filePath.trim(),
+          filePath: requestedFilePath,
           error
         })
         return {
@@ -861,42 +1136,44 @@ export class SkillPresenter implements ISkillPresenter {
       }
     }
 
-    try {
-      const stats = await fs.promises.stat(metadata.path)
-      if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-        const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
-        console.error(errorMessage)
-        return {
-          success: false,
-          error: errorMessage
-        }
-      }
-
-      const rawContent = await fs.promises.readFile(metadata.path, 'utf-8')
-      const { content } = matter(rawContent)
-      return {
-        success: true,
-        name: metadata.name,
-        category: metadata.category ?? null,
-        skillRoot: metadata.skillRoot,
-        filePath: null,
-        content: this.replacePathVariables(content, metadata),
-        platforms: metadata.platforms,
-        metadata: metadata.metadata,
-        linkedFiles: await this.listSkillLinkedFiles(metadata.skillRoot),
-        isPinned
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[SkillPresenter] Failed to load skill_view content:', {
-        name: metadata.name,
-        path: metadata.path,
-        error
-      })
+    const snapshot = await this.waitForStableRuntimeSnapshot({
+      requiredSkillNames: [name],
+      signal: new AbortController().signal,
+      deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+    })
+    const entry = snapshot.entries.get(name)
+    if (
+      !entry ||
+      entry.availability !== 'ready' ||
+      entry.renderedContent === undefined ||
+      !this.isSkillVisible(entry.metadata as SkillMetadata)
+    ) {
       return {
         success: false,
-        error: `Failed to load skill view: ${errorMessage}`
+        error: `Skill "${name}" not found`
       }
+    }
+
+    const pinnedSkills = options?.conversationId
+      ? await this.getActiveSkills(options.conversationId)
+      : []
+    const capturedMetadata = entry.metadata as SkillMetadata
+    this.runtimeSnapshotReadDepth += 1
+    try {
+      return {
+        success: true,
+        name: capturedMetadata.name,
+        category: capturedMetadata.category ?? null,
+        skillRoot: capturedMetadata.skillRoot,
+        filePath: null,
+        content: entry.renderedContent,
+        platforms: capturedMetadata.platforms,
+        metadata: capturedMetadata.metadata,
+        linkedFiles: (entry.linkedFiles ?? []).map((linkedFile) => ({ ...linkedFile })),
+        isPinned: pinnedSkills.includes(capturedMetadata.name)
+      }
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
     }
   }
 
@@ -1219,8 +1496,11 @@ export class SkillPresenter implements ISkillPresenter {
       )
   }
 
-  private async buildRuntimeInstructions(metadata: SkillMetadata): Promise<string> {
-    const scripts = (await this.listSkillScripts(metadata.name)).filter((script) => script.enabled)
+  private buildRuntimeInstructionsFromScripts(
+    metadata: SkillMetadata,
+    stagedScripts: readonly SkillScriptDescriptor[]
+  ): string {
+    const scripts = stagedScripts.filter((script) => script.enabled)
     const lines = [
       '## DeepChat Runtime Context',
       `- Skill root: \`${metadata.skillRoot}\`.`,
@@ -1667,16 +1947,68 @@ export class SkillPresenter implements ISkillPresenter {
       throw new Error(`Plugin skill "${input.id}" is missing SKILL.md`)
     }
 
-    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, {
+    const contribution = {
       ownerPluginId: input.ownerPluginId,
       skillRoot,
       pluginRoot: input.pluginRoot ? path.resolve(input.pluginRoot) : undefined
-    })
-    this.metadataCache.clear()
-    this.contentCache.clear()
-    if (this.initialized) {
-      await this.discoverSkills()
     }
+    this.pluginSkillContributions.set(`${input.ownerPluginId}:${input.id}`, contribution)
+    await this.discoverSkills()
+    await this.ensurePluginContributionPublished(contribution)
+  }
+
+  private async ensurePluginContributionPublished(contribution: {
+    ownerPluginId: string
+    skillRoot: string
+    pluginRoot?: string
+  }): Promise<void> {
+    const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const sequence = this.runtimeSnapshots.nextObservation(skillPath)
+      const metadata = await this.parseSkillMetadata(
+        skillPath,
+        path.basename(contribution.skillRoot),
+        contribution.ownerPluginId
+      )
+      if (!metadata) {
+        throw new Error(`Plugin skill at "${contribution.skillRoot}" is invalid`)
+      }
+      const candidate = await this.stagePublishedSkillEntry(metadata)
+      if (!candidate) {
+        throw new Error(`Plugin skill at "${contribution.skillRoot}" is invalid`)
+      }
+
+      const conflict = this.runtimeSnapshots.snapshot.entries.get(candidate.metadata.name)
+      if (conflict && conflict.metadata.path !== skillPath) {
+        throw new Error(`Plugin skill name "${candidate.metadata.name}" is already registered`)
+      }
+      const current = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find(
+        (entry) =>
+          entry.metadata.path === skillPath &&
+          entry.metadata.ownerPluginId === contribution.ownerPluginId
+      )
+      if (
+        current?.sourceVersion === candidate.sourceVersion &&
+        this.runtimeSnapshots.isCurrentObservation(skillPath, sequence)
+      ) {
+        return
+      }
+
+      const previousName = Array.from(this.runtimeSnapshots.snapshot.entries.entries()).find(
+        ([, entry]) => entry.metadata.path === skillPath
+      )?.[0]
+      if (this.publishRuntimeEntryIfCurrent(skillPath, sequence, candidate, previousName)) {
+        publishDeepchatEvent('skills.catalog.changed', {
+          reason: 'installed',
+          name: candidate.metadata.name,
+          skill: candidate.metadata,
+          version: Date.now()
+        })
+        return
+      }
+    }
+
+    throw new Error(`Plugin skill at "${contribution.skillRoot}" changed during registration`)
   }
 
   async registerAdoptedSkill(input: SkillAdoptionRegistration): Promise<void> {
@@ -1685,28 +2017,44 @@ export class SkillPresenter implements ISkillPresenter {
     if (!metadata || metadata.name !== input.name) {
       throw new Error(`Adopted skill "${input.name}" is invalid`)
     }
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+    const candidate = await this.stagePublishedSkillEntry(metadata)
+    if (!candidate) {
+      throw new Error(`Adopted skill "${input.name}" is invalid`)
+    }
 
-    this.metadataCache.set(input.name, metadata)
-    this.contentCache.delete(input.name)
-    this.updateSkillManagementItem(input.name, (item) => ({
-      ...item,
-      canonicalPath: skillRoot,
-      source: {
-        type: 'adopted',
-        agentId: input.agentId,
-        originalPath: input.originalPath,
-        adoptedAt: new Date().toISOString()
-      },
-      agentLinks: {
-        ...item.agentLinks,
-        [input.agentId]: {
-          path: input.agentPath,
-          state: 'linked',
-          createdByDeepChat: true,
-          linkedAt: new Date().toISOString()
+    const previousState = this.getStoredManagementState()
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      throw new Error(`Adopted skill "${input.name}" changed while registration was staged`)
+    }
+    try {
+      this.updateSkillManagementItem(input.name, (item) => ({
+        ...item,
+        canonicalPath: skillRoot,
+        source: {
+          type: 'adopted',
+          agentId: input.agentId,
+          originalPath: input.originalPath,
+          adoptedAt: new Date().toISOString()
+        },
+        agentLinks: {
+          ...item.agentLinks,
+          [input.agentId]: {
+            path: input.agentPath,
+            state: 'linked',
+            createdByDeepChat: true,
+            linkedAt: new Date().toISOString()
+          }
         }
-      }
-    }))
+      }))
+      this.publishRuntimeEntry(candidate)
+    } catch (error) {
+      this.saveManagementState(previousState)
+      throw error
+    } finally {
+      endPublish()
+    }
 
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'installed',
@@ -1717,10 +2065,8 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-    const metadata = this.metadataCache.get(input.skillName)
+    await this.getMetadataList()
+    const metadata = this.runtimeSnapshots.snapshot.entries.get(input.skillName)?.metadata
     if (!metadata) {
       throw new Error(`Skill "${input.skillName}" not found`)
     }
@@ -1764,21 +2110,45 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> {
-    let changed = false
+    const removedContributions: Array<{
+      ownerPluginId: string
+      skillRoot: string
+      pluginRoot?: string
+    }> = []
     for (const [key, contribution] of this.pluginSkillContributions.entries()) {
       if (contribution.ownerPluginId === ownerPluginId) {
+        removedContributions.push(contribution)
         this.pluginSkillContributions.delete(key)
-        changed = true
       }
     }
 
-    if (changed && this.initialized) {
-      this.metadataCache.clear()
-      this.contentCache.clear()
-      await this.discoverSkills()
-    } else if (changed) {
-      this.metadataCache.clear()
-      this.contentCache.clear()
+    if (removedContributions.length === 0) return
+    await this.discoverSkills()
+
+    let removedPublishedEntry = false
+    for (const contribution of removedContributions) {
+      const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
+      const sequence = this.runtimeSnapshots.nextObservation(skillPath)
+      const names = Array.from(this.runtimeSnapshots.snapshot.entries.entries())
+        .filter(
+          ([, entry]) =>
+            entry.metadata.path === skillPath && entry.metadata.ownerPluginId === ownerPluginId
+        )
+        .map(([name]) => name)
+      for (const name of names) {
+        if (!this.runtimeSnapshots.removeIfCurrent(skillPath, sequence, name)) {
+          throw new Error(`Plugin skill "${name}" changed during unregistration`)
+        }
+        removedPublishedEntry = true
+      }
+    }
+
+    if (removedPublishedEntry) {
+      publishDeepchatEvent('skills.catalog.changed', {
+        reason: 'uninstalled',
+        ownerPluginId,
+        version: Date.now()
+      })
     }
   }
 
@@ -1872,47 +2242,129 @@ export class SkillPresenter implements ISkillPresenter {
         }
       }
 
-      if (fs.existsSync(resolvedTarget)) {
-        if (!options?.overwrite) {
-          return {
-            success: false,
-            error: `Skill "${finalSkillName}" already exists`,
-            errorCode: 'conflict',
-            existingSkillName: finalSkillName
-          }
+      const targetExists = fs.existsSync(resolvedTarget)
+      if (targetExists && !options?.overwrite) {
+        return {
+          success: false,
+          error: `Skill "${finalSkillName}" already exists`,
+          errorCode: 'conflict',
+          existingSkillName: finalSkillName
         }
-        const replaceResult = this.prepareExistingSkillTargetForInstall(
-          finalSkillName,
-          resolvedTarget
-        )
-        if (replaceResult) {
-          return replaceResult
-        }
-        this.metadataCache.delete(finalSkillName)
-        this.contentCache.delete(finalSkillName)
       }
 
-      this.copyDirectory(resolvedSource, resolvedTarget)
+      const stagingDir = path.join(
+        this.skillsDir,
+        `.${finalSkillName}.install-${process.pid}-${randomUUID()}`
+      )
+      this.copyDirectory(resolvedSource, stagingDir)
       if (finalSkillName !== skillName) {
-        this.rewriteSkillManifestName(resolvedTarget, finalSkillName)
+        this.rewriteSkillManifestName(stagingDir, finalSkillName)
       }
-
-      const metadata = await this.parseSkillMetadata(
+      const stagedContent = fs.readFileSync(path.join(stagingDir, 'SKILL.md'), 'utf-8')
+      const metadata = this.parseSkillMetadataFromContent(
+        stagedContent,
         path.join(resolvedTarget, 'SKILL.md'),
         finalSkillName
       )
-      if (metadata) {
-        this.metadataCache.set(finalSkillName, metadata)
+      if (!metadata) {
+        fs.rmSync(stagingDir, { recursive: true, force: true })
+        return { success: false, error: 'Staged skill is invalid', errorCode: 'invalid_skill' }
       }
-      this.updateSkillManagementItem(finalSkillName, (item) => ({
-        ...item,
-        canonicalPath: resolvedTarget,
-        source: {
-          type: sourceType,
-          installedAt: new Date().toISOString(),
-          ...sourcePatch
+      const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+      const candidate = await this.stagePublishedSkillEntry(metadata, {
+        rawContent: stagedContent,
+        scriptSourceRoot: stagingDir
+      })
+      if (!candidate || candidate.metadata.name !== finalSkillName) {
+        fs.rmSync(stagingDir, { recursive: true, force: true })
+        return { success: false, error: 'Staged skill is invalid', errorCode: 'invalid_skill' }
+      }
+
+      this.seedRuntimeSnapshotFromCompatibilityCache()
+      const previousEntry = this.runtimeSnapshots.snapshot.entries.get(finalSkillName)
+      const previousState = this.getStoredManagementState()
+      const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+      if (!endPublish) {
+        fs.rmSync(stagingDir, { recursive: true, force: true })
+        return {
+          success: false,
+          error: `Skill "${finalSkillName}" changed while installation was staged`,
+          errorCode: 'conflict'
         }
-      }))
+      }
+      let backupDir: string | null = null
+      let retiredTargetDir: string | null = null
+      let installedTarget = false
+      try {
+        if (targetExists) {
+          if (fs.existsSync(path.join(resolvedTarget, 'SKILL.md'))) {
+            backupDir = this.backupExistingSkill(finalSkillName)
+          } else {
+            retiredTargetDir = path.join(
+              this.skillsDir,
+              `.${finalSkillName}.replaced-${process.pid}-${randomUUID()}`
+            )
+            fs.renameSync(resolvedTarget, retiredTargetDir)
+          }
+        }
+        fs.renameSync(stagingDir, resolvedTarget)
+        installedTarget = true
+        this.updateSkillManagementItem(finalSkillName, (item) => ({
+          ...item,
+          canonicalPath: resolvedTarget,
+          source: {
+            type: sourceType,
+            installedAt: new Date().toISOString(),
+            ...sourcePatch
+          }
+        }))
+        this.publishRuntimeEntry(candidate)
+      } catch (error) {
+        let rollbackFailed = false
+        try {
+          if (installedTarget) {
+            fs.rmSync(resolvedTarget, { recursive: true, force: true })
+          }
+          if (backupDir) {
+            fs.renameSync(backupDir, resolvedTarget)
+          } else if (retiredTargetDir) {
+            fs.renameSync(retiredTargetDir, resolvedTarget)
+          }
+          this.saveManagementState(previousState)
+          if (previousEntry) {
+            this.publishRuntimeSourceError(finalSkillName, {
+              code: 'MUTATION_ROLLED_BACK',
+              message: error instanceof Error ? error.message : String(error)
+            })
+          }
+        } catch (rollbackError) {
+          rollbackFailed = true
+          logger.warn('[SkillPresenter] Failed to rollback skill installation.', {
+            name: finalSkillName,
+            error,
+            rollbackError
+          })
+          await this.reconcileUnknownSkillSource(finalSkillName, metadata, previousEntry)
+        }
+        const failure = this.createTargetOperationFailure(
+          finalSkillName,
+          resolvedTarget,
+          'replace',
+          error
+        )
+        if (rollbackFailed) {
+          failure.error = `${failure.error} (rollback failed)`
+        }
+        return failure
+      } finally {
+        endPublish()
+        if (fs.existsSync(stagingDir)) {
+          fs.rmSync(stagingDir, { recursive: true, force: true })
+        }
+      }
+      if (retiredTargetDir) {
+        fs.rmSync(retiredTargetDir, { recursive: true, force: true })
+      }
 
       publishDeepchatEvent('skills.catalog.changed', {
         reason: 'installed',
@@ -1927,37 +2379,12 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
-  private prepareExistingSkillTargetForInstall(
-    skillName: string,
-    targetDir: string
-  ): SkillInstallResult | null {
-    try {
-      const existingSkillPath = path.join(targetDir, 'SKILL.md')
-      if (fs.existsSync(existingSkillPath)) {
-        this.backupExistingSkill(skillName)
-      } else {
-        fs.rmSync(targetDir, { recursive: true, force: true })
-        if (fs.existsSync(targetDir)) {
-          return this.createTargetLockedFailure(skillName, targetDir, 'replace')
-        }
-      }
-      return null
-    } catch (error) {
-      return this.createTargetOperationFailure(skillName, targetDir, 'replace', error)
-    }
-  }
-
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
     fs.mkdirSync(backupRoot, { recursive: true })
-    let backupDir = path.join(backupRoot, `${skillName}-${timestamp}`)
-    let counter = 0
-    while (fs.existsSync(backupDir)) {
-      counter += 1
-      backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${counter}`)
-    }
+    const backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${randomUUID()}`)
     fs.renameSync(sourceDir, backupDir)
     return backupDir
   }
@@ -2365,20 +2792,77 @@ export class SkillPresenter implements ISkillPresenter {
    * Uninstall a skill
    */
   async uninstallSkill(name: string): Promise<SkillInstallResult> {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
+    const previousEntry = this.runtimeSnapshots.snapshot.entries.get(name)
+    const previousState = this.getStoredManagementState()
+    const skillDir = path.join(this.skillsDir, name)
+    const trashDir = path.join(this.skillsDir, `.${name}.uninstall-${process.pid}-${randomUUID()}`)
+    const sourcePath = previousEntry?.metadata.path ?? path.join(skillDir, 'SKILL.md')
+    const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
     try {
-      const skillDir = path.join(this.skillsDir, name)
-
       if (!fs.existsSync(skillDir)) {
-        this.cleanupUninstalledSkillState(name)
+        if (!previousEntry) {
+          if (previousState.skills[name]) this.cleanupUninstalledSkillManagementState(name)
+          return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
+        }
+
+        const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
+        if (!endPublish) {
+          return { success: false, error: `Skill "${name}" changed before cleanup` }
+        }
+        try {
+          this.cleanupUninstalledSkillState(name, sourcePath, sequence)
+        } finally {
+          endPublish()
+        }
         return { success: false, error: `Skill "${name}" not found`, errorCode: 'not_found' }
       }
 
-      fs.rmSync(skillDir, { recursive: true, force: true })
-      if (fs.existsSync(skillDir)) {
-        return this.createTargetLockedFailure(name, skillDir, 'remove')
+      const endPublish = this.beginRuntimePublishIfCurrent(sourcePath, sequence)
+      if (!endPublish) {
+        return { success: false, error: `Skill "${name}" changed before uninstall` }
+      }
+      try {
+        fs.renameSync(skillDir, trashDir)
+        this.cleanupUninstalledSkillState(name, sourcePath, sequence)
+      } catch (error) {
+        try {
+          if (fs.existsSync(trashDir)) {
+            fs.renameSync(trashDir, skillDir)
+          }
+          this.saveManagementState(previousState)
+          if (previousEntry) {
+            this.publishRuntimeEntry(previousEntry)
+          }
+        } catch (rollbackError) {
+          logger.warn('[SkillPresenter] Failed to rollback skill uninstall.', {
+            name,
+            error,
+            rollbackError
+          })
+          if (previousEntry) {
+            this.publishRuntimeEntry(
+              withPublishedSourceError(previousEntry, {
+                code: 'RECONCILE_REQUIRED',
+                message: 'Skill source requires reconciliation'
+              })
+            )
+          }
+        }
+        return this.createTargetOperationFailure(name, skillDir, 'remove', error)
+      } finally {
+        endPublish()
       }
 
-      this.cleanupUninstalledSkillState(name)
+      try {
+        fs.rmSync(trashDir, { recursive: true, force: true })
+      } catch (error) {
+        logger.warn('[SkillPresenter] Failed to remove retired skill directory.', {
+          name,
+          path: trashDir,
+          error
+        })
+      }
 
       publishDeepchatEvent('skills.catalog.changed', {
         reason: 'uninstalled',
@@ -2397,7 +2881,20 @@ export class SkillPresenter implements ISkillPresenter {
     }
   }
 
-  private cleanupUninstalledSkillState(name: string): void {
+  private cleanupUninstalledSkillState(name: string, sourcePath: string, sequence: number): void {
+    if (!this.runtimeSnapshots.isCurrentObservation(sourcePath, sequence)) {
+      throw new Error(`Skill "${name}" changed before cleanup`)
+    }
+    this.cleanupUninstalledSkillManagementState(name)
+
+    if (this.runtimeSnapshots.snapshot.entries.has(name)) {
+      if (!this.runtimeSnapshots.removeIfCurrent(sourcePath, sequence, name)) {
+        throw new Error(`Skill "${name}" changed before cleanup`)
+      }
+    }
+  }
+
+  private cleanupUninstalledSkillManagementState(name: string): void {
     if (this.isSafeSkillName(name)) {
       try {
         this.deleteSkillManagementItem(name)
@@ -2408,9 +2905,6 @@ export class SkillPresenter implements ISkillPresenter {
         })
       }
     }
-
-    this.metadataCache.delete(name)
-    this.contentCache.delete(name)
   }
 
   private isSafeSkillName(name: string): boolean {
@@ -2421,25 +2915,51 @@ export class SkillPresenter implements ISkillPresenter {
    * Update a skill's SKILL.md content
    */
   async updateSkillFile(name: string, content: string): Promise<SkillInstallResult> {
+    await this.getMetadataList()
+    const previousEntry = this.runtimeSnapshots.snapshot.entries.get(name)
+    const metadata = previousEntry?.metadata as SkillMetadata | undefined
+    if (!metadata) {
+      return { success: false, error: `Skill "${name}" not found` }
+    }
+
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+    const candidate = await this.stagePublishedSkillEntry(metadata, { rawContent: content })
+    if (!candidate || candidate.metadata.name !== name) {
+      return { success: false, error: `Skill "${name}" content is invalid` }
+    }
+
+    const previousContent = await this.readSkillFile(name)
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      return { success: false, error: `Skill "${name}" changed while the update was staged` }
+    }
+    let wroteSource = false
     try {
-      const metadata = this.metadataCache.get(name)
-      if (!metadata) {
-        return { success: false, error: `Skill "${name}" not found` }
-      }
-
-      fs.writeFileSync(metadata.path, content, 'utf-8')
-
-      // Invalidate caches
-      this.contentCache.delete(name)
-      const newMetadata = await this.parseSkillMetadata(metadata.path, name)
-      if (newMetadata) {
-        this.metadataCache.set(name, newMetadata)
-      }
-
+      this.atomicWriteFile(metadata.path, content)
+      wroteSource = true
+      this.publishRuntimeEntry(candidate)
       return { success: true, skillName: name }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      return { success: false, error: errorMsg }
+      let rollbackError: unknown
+      if (wroteSource) {
+        try {
+          this.atomicWriteFile(metadata.path, previousContent)
+          this.publishRuntimeSourceError(name, {
+            code: 'MUTATION_ROLLED_BACK',
+            message: errorMsg
+          })
+        } catch (rollbackFailure) {
+          rollbackError = rollbackFailure
+          await this.reconcileUnknownSkillSource(name, metadata, previousEntry)
+        }
+      }
+      const rollbackMessage = rollbackError
+        ? ` (rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)})`
+        : ''
+      return { success: false, error: `${errorMsg}${rollbackMessage}` }
+    } finally {
+      endPublish()
     }
   }
 
@@ -2449,65 +2969,74 @@ export class SkillPresenter implements ISkillPresenter {
     config: SkillExtensionConfig
   ): Promise<SkillInstallResult> {
     this.ensureSkillsDir()
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    const metadata = this.metadataCache.get(name)
+    await this.getMetadataList()
+    const previousEntry = this.runtimeSnapshots.snapshot.entries.get(name)
+    const metadata = previousEntry?.metadata as SkillMetadata | undefined
     if (!metadata) {
       return { success: false, error: `Skill "${name}" not found` }
     }
 
-    const previousSkillContent = fs.readFileSync(metadata.path, 'utf-8')
+    const previousSkillContent = await this.readSkillFile(name)
     const previousState = this.getStoredManagementState()
     const sanitized = sanitizeSkillExtensionConfig(config)
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+    const candidate = await this.stagePublishedSkillEntry(metadata, {
+      rawContent: content,
+      extension: sanitized
+    })
+    if (!candidate || candidate.metadata.name !== name) {
+      return { success: false, error: `Skill "${name}" content is invalid` }
+    }
 
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      return { success: false, error: `Skill "${name}" changed while the update was staged` }
+    }
+    let wroteSource = false
     try {
-      fs.writeFileSync(metadata.path, content, 'utf-8')
+      this.atomicWriteFile(metadata.path, content)
+      wroteSource = true
       this.updateSkillManagementItem(name, (item) => ({
         ...item,
         canonicalPath: metadata.skillRoot,
         extension: sanitized
       }))
 
-      this.contentCache.delete(name)
-      const newMetadata = await this.parseSkillMetadata(metadata.path, name)
-      if (newMetadata) {
-        this.metadataCache.set(name, newMetadata)
-      }
-
+      this.publishRuntimeEntry(candidate)
       return { success: true, skillName: name }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-
+      let rollbackError: unknown
       try {
-        fs.writeFileSync(metadata.path, previousSkillContent, 'utf-8')
+        if (wroteSource) {
+          this.atomicWriteFile(metadata.path, previousSkillContent)
+        }
         this.saveManagementState(previousState)
-      } catch (rollbackError) {
-        const rollbackMessage =
-          rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        this.publishRuntimeSourceError(name, {
+          code: 'MUTATION_ROLLED_BACK',
+          message: errorMsg
+        })
+      } catch (rollbackFailure) {
+        rollbackError = rollbackFailure
         logger.warn('[SkillPresenter] Failed to rollback combined skill save', {
           name,
           error,
-          rollbackError
+          rollbackError: rollbackFailure
         })
-        return {
-          success: false,
-          error: `${errorMsg} (rollback failed: ${rollbackMessage})`
-        }
+        await this.reconcileUnknownSkillSource(name, metadata, previousEntry)
       }
-
-      this.contentCache.delete(name)
-      return { success: false, error: errorMsg }
+      const rollbackMessage = rollbackError
+        ? ` (rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)})`
+        : ''
+      return { success: false, error: `${errorMsg}${rollbackMessage}` }
+    } finally {
+      endPublish()
     }
   }
 
   async readSkillFile(name: string): Promise<string> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    const metadata = this.metadataCache.get(name)
+    await this.getMetadataList()
+    const metadata = this.runtimeSnapshots.snapshot.entries.get(name)?.metadata
     if (!metadata) {
       throw new Error(`Skill "${name}" not found`)
     }
@@ -2522,11 +3051,61 @@ export class SkillPresenter implements ISkillPresenter {
     return await fs.promises.readFile(metadata.path, 'utf-8')
   }
 
+  private async reconcileUnknownSkillSource(
+    name: string,
+    metadata: SkillMetadata,
+    previousEntry?: PublishedSkillEntry
+  ): Promise<void> {
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+    const reconcileError: PublishedSkillSourceError = {
+      code: 'RECONCILE_REQUIRED',
+      message: 'Skill source requires reconciliation'
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const staged = this.stagePublishedSkillEntry(metadata)
+      const candidate = await Promise.race([
+        staged,
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), SKILL_RUNTIME_WAIT_BUDGET_MS)
+        })
+      ])
+      if (candidate && candidate.metadata.name === name) {
+        this.publishRuntimeEntryIfCurrent(metadata.path, sequence, candidate)
+        return
+      }
+    } catch (error) {
+      logger.warn('[SkillPresenter] Immediate skill reconcile failed.', { name, error })
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+
+    if (!this.runtimeSnapshots.isCurrentObservation(metadata.path, sequence)) {
+      return
+    }
+
+    if (previousEntry) {
+      this.publishRuntimeEntryIfCurrent(
+        metadata.path,
+        sequence,
+        withPublishedSourceError(previousEntry, reconcileError)
+      )
+      return
+    }
+
+    this.publishRuntimeEntryIfCurrent(
+      metadata.path,
+      sequence,
+      createQuarantinedEntry(metadata, reconcileError)
+    )
+  }
+
   /**
    * Get folder tree for a skill
    */
   async getSkillFolderTree(name: string): Promise<SkillFolderNode[]> {
-    const metadata = this.metadataCache.get(name)
+    await this.getMetadataList()
+    const metadata = this.runtimeSnapshots.snapshot.entries.get(name)?.metadata
     if (!metadata) {
       return []
     }
@@ -2589,6 +3168,23 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   async getSkillExtension(name: string): Promise<SkillExtensionConfig> {
+    await this.getMetadataList()
+    if (this.runtimeSnapshots.snapshot.entries.has(name)) {
+      const snapshot = await this.waitForStableRuntimeSnapshot({
+        requiredSkillNames: [name],
+        signal: new AbortController().signal,
+        deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+      })
+      const extension = snapshot.entries.get(name)?.extension
+      if (extension) {
+        return structuredClone(extension) as SkillExtensionConfig
+      }
+    }
+    return await this.loadSkillExtensionForStage(name)
+  }
+
+  private async loadSkillExtensionForStage(name: string): Promise<SkillExtensionConfig> {
+    this.assertSourceReadAllowed()
     this.ensureSkillsDir()
     const item = this.getStoredManagementState().skills[name]
     if (item) {
@@ -2641,53 +3237,73 @@ export class SkillPresenter implements ISkillPresenter {
 
   async saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void> {
     this.ensureSkillsDir()
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    if (!this.metadataCache.has(name)) {
+    await this.getMetadataList()
+    const previousEntry = this.runtimeSnapshots.snapshot.entries.get(name)
+    const metadata = previousEntry?.metadata as SkillMetadata | undefined
+    if (!metadata) {
       throw new Error(`Skill "${name}" not found`)
     }
 
     const sanitized = sanitizeSkillExtensionConfig(config)
-    const metadata = this.metadataCache.get(name)
-    this.updateSkillManagementItem(name, (item) => ({
-      ...item,
-      canonicalPath: metadata?.skillRoot ?? item.canonicalPath,
-      extension: sanitized
-    }))
-    this.contentCache.delete(name)
+    const previousState = this.getStoredManagementState()
+    const sequence = this.runtimeSnapshots.nextObservation(metadata.path)
+    const candidate = await this.stagePublishedSkillEntry(metadata, { extension: sanitized })
+    if (!candidate || candidate.metadata.name !== name) {
+      throw new Error(`Skill "${name}" source is invalid`)
+    }
+
+    const endPublish = this.beginRuntimePublishIfCurrent(metadata.path, sequence)
+    if (!endPublish) {
+      throw new Error(`Skill "${name}" changed while the extension was staged`)
+    }
+    try {
+      this.updateSkillManagementItem(name, (item) => ({
+        ...item,
+        canonicalPath: metadata.skillRoot,
+        extension: sanitized
+      }))
+      this.publishRuntimeEntry(candidate)
+    } catch (error) {
+      try {
+        this.saveManagementState(previousState)
+        this.publishRuntimeSourceError(name, {
+          code: 'MUTATION_ROLLED_BACK',
+          message: error instanceof Error ? error.message : String(error)
+        })
+      } catch (rollbackError) {
+        logger.warn('[SkillPresenter] Failed to rollback skill extension save.', {
+          name,
+          error,
+          rollbackError
+        })
+        await this.reconcileUnknownSkillSource(name, metadata, previousEntry)
+      }
+      throw error
+    } finally {
+      endPublish()
+    }
   }
 
   async listSkillScripts(name: string): Promise<SkillScriptDescriptor[]> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
-    const metadata = this.metadataCache.get(name)
-    if (!metadata) {
+    await this.getMetadataList()
+    if (!this.runtimeSnapshots.snapshot.entries.has(name)) {
       return []
     }
-
-    const scriptsDir = path.join(metadata.skillRoot, 'scripts')
-    if (!(await this.pathExists(scriptsDir))) {
+    const snapshot = await this.waitForStableRuntimeSnapshot({
+      requiredSkillNames: [name],
+      signal: new AbortController().signal,
+      deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+    })
+    const entry = snapshot.entries.get(name)
+    if (entry?.availability !== 'ready') {
       return []
     }
-
-    const extension = await this.getSkillExtension(name)
-    const descriptors = (await this.collectScriptDescriptors(scriptsDir, metadata.skillRoot)).map(
-      (script) => {
-        const override = extension.scriptOverrides[script.relativePath] ?? {}
-        return {
-          ...script,
-          enabled: override.enabled ?? true,
-          description: override.description
-        }
-      }
-    )
-
-    descriptors.sort((left, right) => left.relativePath.localeCompare(right.relativePath))
-    return descriptors
+    this.runtimeSnapshotReadDepth += 1
+    try {
+      return (entry.scripts ?? []).map((script) => ({ ...script }))
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
+    }
   }
 
   private async isNewAgentSession(conversationId: string): Promise<boolean> {
@@ -2827,18 +3443,28 @@ export class SkillPresenter implements ISkillPresenter {
     conversationId: string,
     activeSkillNamesOverride?: string[]
   ): Promise<string[]> {
-    if (this.metadataCache.size === 0) {
-      await this.discoverSkills()
-    }
-
+    await this.getMetadataList()
     const activeSkills = activeSkillNamesOverride ?? (await this.getActiveSkills(conversationId))
+    const snapshot = await this.waitForStableRuntimeSnapshot({
+      requiredSkillNames: activeSkills,
+      signal: new AbortController().signal,
+      deadlineAt: Date.now() + SKILL_RUNTIME_WAIT_BUDGET_MS
+    })
     const allowedTools: Set<string> = new Set()
 
-    for (const skillName of activeSkills) {
-      const metadata = this.metadataCache.get(skillName)
-      if (metadata?.allowedTools && this.isSkillVisible(metadata)) {
-        metadata.allowedTools.forEach((tool) => allowedTools.add(tool))
+    this.runtimeSnapshotReadDepth += 1
+    try {
+      for (const skillName of activeSkills) {
+        const entry = snapshot.entries.get(skillName)
+        if (
+          entry?.availability === 'ready' &&
+          this.isSkillVisible(entry.metadata as SkillMetadata)
+        ) {
+          entry.allowedTools.forEach((tool) => allowedTools.add(tool))
+        }
       }
+    } finally {
+      this.runtimeSnapshotReadDepth -= 1
     }
 
     const result = normalizeSkillAllowedTools(Array.from(allowedTools))
@@ -2930,6 +3556,9 @@ export class SkillPresenter implements ISkillPresenter {
 
     for (const event of batch.events) {
       if (!this.isWatchedSkillMarkdownPath(event.path)) {
+        if (event.type === 'create' || event.type === 'update' || event.type === 'delete') {
+          await this.handlePublishedSkillAuxiliarySourceChanged(event.path, event.type)
+        }
         continue
       }
 
@@ -2977,83 +3606,182 @@ export class SkillPresenter implements ISkillPresenter {
     const segments = relativePath.split(/[\\/]+/).filter(Boolean)
     return (
       !segments.includes(SKILL_CONFIG.SIDECAR_DIR) &&
+      !segments.slice(0, -1).some((segment) => this.shouldIgnoreSkillsRootEntry(segment)) &&
       segments.length - 1 <= SKILL_CONFIG.FOLDER_TREE_MAX_DEPTH
     )
   }
 
   private async handleSkillFileChanged(filePath: string): Promise<void> {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
     const previousName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
-    this.contentCache.delete(previousName)
-
-    const metadata = await this.parseSkillMetadata(filePath, path.basename(path.dirname(filePath)))
-    if (!metadata) {
-      return
-    }
-
-    const existingMetadata = this.metadataCache.get(metadata.name)
-    if (existingMetadata && existingMetadata.path !== metadata.path) {
-      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
-        name: metadata.name,
-        path: metadata.path,
-        existingPath: existingMetadata.path
+    const previousEntry = this.runtimeSnapshots.snapshot.entries.get(previousName)
+    const hint =
+      (previousEntry?.metadata as SkillMetadata | undefined) ??
+      this.createStageMetadataHint(filePath, previousName)
+    const sequence = this.runtimeSnapshots.nextObservation(filePath)
+    let candidate: PublishedSkillEntry | null
+    try {
+      candidate = await this.stagePublishedSkillEntry(hint)
+    } catch (error) {
+      logger.warn('[SkillPresenter] Failed to stage watcher skill update.', {
+        name: previousName,
+        path: filePath,
+        error
       })
-      const previousMetadata = this.metadataCache.get(previousName)
-      if (previousName !== metadata.name && previousMetadata?.path === metadata.path) {
-        this.metadataCache.delete(previousName)
-      }
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
+      return
+    }
+    if (!candidate) {
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
+        code: 'INVALID_SOURCE',
+        message: 'Skill source is invalid'
+      })
       return
     }
 
-    if (previousName !== metadata.name) {
-      const previousMetadata = this.metadataCache.get(previousName)
-      if (previousMetadata?.path === metadata.path) {
-        this.metadataCache.delete(previousName)
-      }
+    const existingEntry = this.runtimeSnapshots.snapshot.entries.get(candidate.metadata.name)
+    if (existingEntry && existingEntry.metadata.path !== candidate.metadata.path) {
+      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        name: candidate.metadata.name,
+        path: candidate.metadata.path,
+        existingPath: existingEntry.metadata.path
+      })
+      this.publishRuntimeSourceErrorIfCurrent(filePath, sequence, previousName, {
+        code: 'DUPLICATE_SKILL_NAME',
+        message: 'Skill source conflicts with an existing skill name'
+      })
+      return
     }
 
-    this.metadataCache.set(metadata.name, metadata)
+    if (!this.publishRuntimeEntryIfCurrent(filePath, sequence, candidate, previousName)) return
+    this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'metadata-updated',
-      name: metadata.name,
-      skill: metadata,
+      name: candidate.metadata.name,
+      skill: candidate.metadata,
       version: Date.now()
     })
   }
 
   private async handleSkillFileAdded(filePath: string): Promise<void> {
-    const metadata = await this.parseSkillMetadata(filePath, path.basename(path.dirname(filePath)))
-    if (!metadata) {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
+    const hint = this.createStageMetadataHint(filePath, path.basename(path.dirname(filePath)))
+    const sequence = this.runtimeSnapshots.nextObservation(filePath)
+    let candidate: PublishedSkillEntry | null
+    try {
+      candidate = await this.stagePublishedSkillEntry(hint)
+    } catch (error) {
+      logger.warn('[SkillPresenter] Failed to stage watcher skill addition.', {
+        path: filePath,
+        error
+      })
+      this.runtimeSnapshots.setDiagnosticIfCurrent(filePath, sequence, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
       return
     }
-
-    const existingMetadata = this.metadataCache.get(metadata.name)
-    if (existingMetadata && existingMetadata.path !== metadata.path) {
-      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
-        name: metadata.name,
-        path: metadata.path,
-        existingPath: existingMetadata.path
+    if (!candidate) {
+      this.runtimeSnapshots.setDiagnosticIfCurrent(filePath, sequence, {
+        code: 'INVALID_SOURCE',
+        message: 'Skill source is invalid'
       })
       return
     }
 
-    this.metadataCache.set(metadata.name, metadata)
+    const existingEntry = this.runtimeSnapshots.snapshot.entries.get(candidate.metadata.name)
+    if (existingEntry && existingEntry.metadata.path !== candidate.metadata.path) {
+      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        name: candidate.metadata.name,
+        path: candidate.metadata.path,
+        existingPath: existingEntry.metadata.path
+      })
+      return
+    }
+
+    if (!this.publishRuntimeEntryIfCurrent(filePath, sequence, candidate)) return
+    this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'installed',
-      name: metadata.name,
-      skill: metadata,
+      name: candidate.metadata.name,
+      skill: candidate.metadata,
       version: Date.now()
     })
   }
 
   private handleSkillFileDeleted(filePath: string): void {
+    this.seedRuntimeSnapshotFromCompatibilityCache()
     const skillName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
-    this.metadataCache.delete(skillName)
-    this.contentCache.delete(skillName)
+    const sequence = this.runtimeSnapshots.nextObservation(filePath)
+    if (!this.runtimeSnapshots.removeIfCurrent(filePath, sequence, skillName)) return
+    this.runtimeSnapshots.deleteDiagnostic(filePath)
     publishDeepchatEvent('skills.catalog.changed', {
       reason: 'uninstalled',
       name: skillName,
       version: Date.now()
     })
+  }
+
+  private createStageMetadataHint(filePath: string, name: string): SkillMetadata {
+    return {
+      name,
+      description: '',
+      path: filePath,
+      skillRoot: path.dirname(filePath),
+      category: this.deriveSkillCategory(path.dirname(filePath))
+    }
+  }
+
+  private async handlePublishedSkillAuxiliarySourceChanged(
+    filePath: string,
+    eventType: WatchEventType
+  ): Promise<void> {
+    const entry = Array.from(this.runtimeSnapshots.snapshot.entries.values()).find((candidate) => {
+      const relativePath = path.relative(candidate.metadata.skillRoot, filePath)
+      const sourceDirectory = relativePath.split(/[\\/]+/)[0]
+      const affectsPublishedSnapshot =
+        sourceDirectory === 'scripts' ||
+        (eventType !== 'update' && ['assets', 'references', 'templates'].includes(sourceDirectory))
+      return (
+        relativePath !== '' &&
+        !relativePath.startsWith('..') &&
+        !path.isAbsolute(relativePath) &&
+        affectsPublishedSnapshot
+      )
+    })
+    if (!entry) {
+      return
+    }
+
+    const sourcePath = entry.metadata.path
+    const sequence = this.runtimeSnapshots.nextObservation(sourcePath)
+    if (entry.availability !== 'ready') {
+      return
+    }
+    try {
+      const candidate = await this.stagePublishedSkillEntry(entry.metadata as SkillMetadata)
+      if (candidate) {
+        this.publishRuntimeEntryIfCurrent(sourcePath, sequence, candidate)
+      } else {
+        this.publishRuntimeSourceErrorIfCurrent(sourcePath, sequence, entry.metadata.name, {
+          code: 'INVALID_SOURCE',
+          message: 'Skill source is invalid'
+        })
+      }
+    } catch (error) {
+      logger.warn('[SkillPresenter] Failed to stage watcher script update.', {
+        name: entry.metadata.name,
+        path: filePath,
+        error
+      })
+      this.publishRuntimeSourceErrorIfCurrent(sourcePath, sequence, entry.metadata.name, {
+        code: 'SOURCE_READ_FAILED',
+        message: 'Skill source could not be read'
+      })
+    }
   }
 
   /**
@@ -3086,8 +3814,10 @@ export class SkillPresenter implements ISkillPresenter {
    */
   async destroy(): Promise<void> {
     await this.stopWatching()
+    this.runtimeSnapshots.reset()
     this.metadataCache.clear()
     this.contentCache.clear()
+    this.runtimeContentViews = new WeakMap()
     this.discoveryPromise = null
     this.initialized = false
   }
@@ -3456,8 +4186,14 @@ export class SkillPresenter implements ISkillPresenter {
       path.dirname(targetPath),
       `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`
     )
-    fs.writeFileSync(tempPath, content, 'utf-8')
-    fs.renameSync(tempPath, targetPath)
+    try {
+      fs.writeFileSync(tempPath, content, 'utf-8')
+      fs.renameSync(tempPath, targetPath)
+    } finally {
+      if (fs.existsSync(tempPath)) {
+        fs.rmSync(tempPath, { force: true })
+      }
+    }
   }
 
   private cleanupExpiredDrafts(): void {
@@ -3493,9 +4229,9 @@ export class SkillPresenter implements ISkillPresenter {
   }
 
   private findSkillNameByPath(skillPath: string): string | null {
-    for (const metadata of this.metadataCache.values()) {
-      if (metadata.path === skillPath) {
-        return metadata.name
+    for (const entry of this.runtimeSnapshots.snapshot.entries.values()) {
+      if (entry.metadata.path === skillPath) {
+        return entry.metadata.name
       }
     }
     return null

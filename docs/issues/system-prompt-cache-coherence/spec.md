@@ -343,6 +343,7 @@ interface PublishedSkillEntry {
   metadata: Readonly<SkillMetadata>
   renderedContent?: string
   allowedTools: readonly string[]
+  linkedFiles?: readonly Readonly<{ path: string; kind: string }>[]
   sourceError?: Readonly<{ code: string; message: string }>
 }
 
@@ -372,16 +373,24 @@ interface SkillRuntimeSnapshotPort {
    `SkillPresenter` 必须从同一次 raw source/config/script snapshot stage 出完整 `ready` entry，再 atomic
    publish；`waitForStableRuntimeSnapshot({ requiredSkillNames })` 负责共享该 readiness stage，reader 不能
    直接从磁盘补 body。
-4. `sourceVersion` 是 staged inputs 的 content digest，至少覆盖 raw `SKILL.md`、normalized extension、
-   normalized runnable script descriptors，以及会影响 path-variable/runtime rendering 的 skill/plugin root、
-   owner id 和 process arch。不能只用 name/mtime。
-5. stable state 使用 even safe integer，publish window 使用 odd integer。应用重启可从 `0` 开始，因为
+4. `skill_view` 的 root `SKILL.md`（包括显式 `filePath: 'SKILL.md'`）是 model/runtime reader：content、
+   metadata 和 linked-file path listing 必须来自同一个 captured `ready` entry，调用期间不 stat、readdir
+   或 read skill source。显式查看非 root linked file 是独立的用户请求，允许在 captured catalog metadata
+   授权的 skill root 内有界读盘，并明确可能观察到比 root LKG 更新的 linked-file bytes；该内容不参与
+   prompt/tool coherent pair，也不会替换 published root snapshot。
+5. `sourceVersion` 是 staged inputs 的 content digest，至少覆盖 raw `SKILL.md`、normalized extension、
+   normalized runnable script descriptors、linked-file path listing，以及会影响 path-variable/runtime
+   rendering 的 skill/plugin root、owner id 和 process arch。不能只用 name/mtime。
+6. stable state 使用 even safe integer，publish window 使用 odd integer。应用重启可从 `0` 开始，因为
    published snapshot 和所有依赖 cache 同时清空。
-6. 进入新的 even epoch 前必须已经选择并 atomic publish 以下三者之一：
+7. 进入新的 even epoch 前必须已经选择并 atomic publish 以下三者之一：
    - fully validated candidate snapshot；
    - previous last-known-good snapshot（可附带新的 diagnostic `sourceError`）；
    - 对没有 last-known-good 的 source 发布 `quarantined/unavailable` 状态，且它不进入 available/active
      prompt 或 `allowedTools`。
+8. published `sourceError` 是 runtime contract 的一部分，只允许稳定、受控、无 source content 的
+   code/message。raw exception、绝对路径、文件内容和底层错误消息只写 main-process local log，不得进入
+   immutable snapshot、IPC 或 renderer cache。
 
 仅仅“disk operation 返回了”或“worker Promise settle 了”不是进入 even 的充分条件。
 
@@ -391,9 +400,11 @@ interface SkillRuntimeSnapshotPort {
    和 script descriptors，计算 `sourceVersion` 并形成 immutable candidate。stage 期间 reader 继续使用旧
    stable snapshot，不会读取正在变化的磁盘。
 2. candidate 完整后才开启很短的 odd publish window，atomic swap snapshot reference，然后进入新的
-   even epoch。每个 stage 带 source observation sequence；publish 按 skill/source 串行 compare-and-swap，
-   旧 stage 不得覆盖已发布的新 observation。重叠 publish 使用 active publish count/shared settlement
-   barrier，直到所有 publish settlement 完成都保持 odd。
+   even epoch。每个 stage 带 source observation sequence；sequence 的 compare-and-swap 与开启 odd
+   publish/update 必须是同一个同步原子步骤，不能先检查、跨越 `await` 后再 publish。discovery 使用
+   catalog observation sequence，并只在该 sequence 仍是最新 observation 时 whole-map replace；其间任一
+   watcher 或 mutation observation 都使旧 discovery result 失效。重叠 publish 使用 active publish
+   count/shared settlement barrier，直到所有 publish settlement 完成都保持 odd。
 3. repo-owned mutation 在写盘前先用 proposed bytes stage/validate candidate。需要写盘时，在第一个
    externally visible write 前进入 odd，使用 temp file + atomic replace；多资源写入失败且已经改变磁盘时，
    必须用 previous raw/config 做 atomic rollback，然后才能选择 previous LKG snapshot 并进入 even。
@@ -419,6 +430,22 @@ interface SkillRuntimeSnapshotPort {
 7. success、完整 rollback、rollback failure 和 invalid candidate 都必须在 `finally` 中关闭 publish
    bookkeeping；但只有 coherent snapshot 已被选定/published 后才能从 odd 进入 even。即使最终仍是旧
    bytes，也进入新的 even epoch；这是可接受的低频 false invalidation。
+8. publication observer/callback 不是 publication truth。snapshot reference 已 swap 后，即使 observer
+   抛错，本次 publication 仍保持成功的 even snapshot；调用方同步收到 observer error，但 shared
+   settlement 必须在 `finally` resolve 并清空，不能留下 even epoch 搭配永久 pending waiter。
+9. `reset()`/`destroy()` 遇到 active publish 时必须原子拒绝：snapshot、observation sequences、readiness
+   stages、diagnostics 和 publish bookkeeping 全部保持不变。owner 应先停止 watcher/阻止新 mutation，等
+   active publish settlement 后重试 reset；成功 reset 必须推进单调 observation floor，使 reset 前已经
+   stage 的 late result 永远不能在 reset 后重新 publish。
+10. plugin contribution register/unregister API 返回成功前，贡献 map 与 published snapshot 必须收敛。
+    whole-catalog discovery 的 CAS 若被并发 watcher/mutation observation 淘汰，register 使用 bounded
+    per-source stage/CAS publish，并且只有 published `sourceVersion` 与当前 contribution stage 的完整
+    revision（owner/plugin root/body/extension/scripts）一致时才可返回；相同 path/owner 不是 revision
+    identity。unregister 为每个 removed source 推进 observation 并 direct CAS remove，不能把 stale catalog
+    snapshot 当作成功。所有 uninstall（包括目录已不存在的 `not_found`）都先推进 source observation，
+    从而使 cleanup 前已开始的 watcher stage 永远不能复活已删除 entry；只有确实存在 published entry
+    需要移除时才打开 atomic publish window。pure missing no-op 和 management-only cleanup 不推进 runtime
+    epoch。
 
 #### C3. bounded stable read
 
@@ -426,7 +453,10 @@ interface SkillRuntimeSnapshotPort {
    `AbortSignal` 传给 `waitForStableRuntimeSnapshot()`。retry/rebuild 不得重置 deadline。
 2. required entry 仍是 `metadata_only` 时，wait 启动/复用 shared readiness staging Promise；epoch odd 时
    复用 shared publish settlement Promise。每个 caller 独立 race 自己的 signal/deadline；一个 caller
-   timeout/abort 不取消 shared stage/mutation，也不影响其他 waiter。
+   timeout/abort 不取消 shared stage/mutation，也不影响其他 waiter。shared readiness stage 若得到 invalid
+   candidate 或 read failure：有 previous `ready` LKG 时保留该 LKG 并附稳定 `sourceError`；没有 ready
+   LKG 时 atomic publish `quarantined`。后续 waiter 直接观察同一稳定结果，不重复读盘；只有新的 watcher
+   event、显式 discovery 或下一次 mutation 才能重新触发 staging，不创建 `30s` timer 或后台 retry loop。
 3. signal 先触发时立即抛现有 abort error，不回退 cache。deadline 先到且 required readiness stage 或 odd
    publish 仍 pending/hung 时，抛：
 
@@ -568,17 +598,23 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
 
 ### `PRM-002B` tasks
 
-- [ ] 定义 immutable `PublishedSkillEntry`/`SkillRuntimeSnapshot` 与 content-derived `sourceVersion`。
-- [ ] 让 metadata/body/runtime instructions/`allowedTools` 从同一次 staged source version 产生。
-- [ ] 保留 progressive loading：active `metadata_only` entry 必须通过 staged atomic publish 变成 `ready`。
-- [ ] 实现 repo mutation stage → atomic disk replace → atomic snapshot publish；实现 atomic rollback。
-- [ ] 实现 invalid existing/new、rollback-failed LKG/quarantine 和 reconcile state machine。
-- [ ] 实现 odd/even publish epoch、shared settlement barrier 和
+- [x] 定义 immutable `PublishedSkillEntry`/`SkillRuntimeSnapshot` 与 content-derived `sourceVersion`。
+- [x] 让 metadata/body/runtime instructions/`allowedTools` 从同一次 staged source version 产生。
+- [x] 保留 progressive loading：active `metadata_only` entry 必须通过 staged atomic publish 变成 `ready`。
+- [x] 实现 repo mutation stage → atomic disk replace → atomic snapshot publish；实现 atomic rollback。
+- [x] 实现 invalid existing/new、rollback-failed LKG/quarantine 和 reconcile state machine。
+- [x] 实现 odd/even publish epoch、shared settlement barrier 和
       `waitForStableRuntimeSnapshot({ signal, deadlineAt })`。
-- [ ] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()`、
+- [x] 让现有 `getMetadataList()`、`loadSkillContent()`、`getActiveSkillsAllowedTools()`、
       `listSkillScripts()` compatibility API 只读 published snapshot，并用 hard-check 阻止 runtime path 重读
       source disk。
-- [ ] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
+- [x] 完成 invalid parse、deferred stage、rollback/reconcile、abort/deadline/hung worker tests。
+- [x] 完成最终 mutation lifecycle audit：catalog discovery 使用 catalog observation CAS；root/linked-source
+      watcher 使用 per-source observation CAS；repo-owned save/install/adopt 使用先 stage、再 odd publish
+      window、失败 rollback/reconcile；plugin contribution register/unregister 在 catalog CAS 丢失后逐源收敛；
+      plugin re-register 用完整 `sourceVersion` 证明当前 revision；uninstall（含 `not_found` cleanup）先推进
+      observation，仅在 snapshot 真正变化时推进 epoch。`references`、`templates`、`scripts`、`assets`
+      的目录变化都重建 linked-file listing snapshot。
 
 ### `PRM-002C` tasks
 
@@ -605,7 +641,7 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
       failure/reconcile 和 cache hit contract。
 - [x] `PRM-001`: 拆分 `PRM-002A`–`PRM-002C` 的 depends-on、validation 与 rollback order。
 - [x] `PRM-002A`: source snapshots。
-- [ ] `PRM-002B`: skill immutable snapshot/epoch。
+- [x] `PRM-002B`: skill immutable snapshot/epoch。
 - [ ] `PRM-002C`: orchestration cache wiring and final validation。
 
 ## Test design
@@ -660,6 +696,17 @@ prompt/tool orchestration 仍分别等待 `PRM-002B`、`PRM-002C`；本 slice �
    candidate 都只从单一 source version publish；
 10. 外部文件先改变、watcher event 尚未送达，以及 event 已送达但 private stage deferred 时，旧 LKG 可继续
    命中；测试明确该 unavoidable observation window 不代表新 disk bytes 已 stable。
+11. root `skill_view`（含显式 `SKILL.md`）从一个 captured ready entry 返回 content/metadata/linked-file
+    listing，期间不 stat/readdir/read source；显式非 root linked-file view 仍可执行有界读盘。
+12. plugin register/unregister 的 catalog CAS 被并发 watcher 淘汰时，API 在逐源 publish/remove 收敛后才
+    返回成功。
+13. `not_found` uninstall cleanup 与已开始但未完成的 watcher stage 交错时，旧 candidate 不得复活 entry。
+14. linked-file 目录新增、删除事件会重建 published listing；linked-file 内容显式查看可读取比 root LKG
+    更新的 bytes，但不替换 root snapshot。
+15. 相同 path/owner 的 plugin 用新 plugin root/body re-register，且 catalog CAS 被无关 watcher 淘汰时，
+    API 必须发布与当前 contribution staged `sourceVersion` 一致的 revision，不能接受旧 entry。
+16. pure missing uninstall 和 management-only missing cleanup 保持 snapshot reference/epoch 不变；两者仍推进
+    per-source observation，使更早开始的 late stage 失效。
 
 ### Validation commands
 
