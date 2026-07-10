@@ -67,6 +67,7 @@
 | --- | --- | --- | --- | --- |
 | `BASE-001` | 已完成 | 无代码变更 | 同步 pnpm 依赖后 typecheck/lint 通过；基线全量测试为 4,463 passed / 5 failed | 5 个基线失败另立切片，不让不相关 PR 顺手修复 |
 | `CRD-001` | 已合入 | [#1921](https://github.com/ThinkInAIXYZ/deepchat/pull/1921) / `8b6506f8` | focused 5/5、typecheck、format、i18n、lint 通过；合入后全量 4,465 passed / 5 failed，失败集与基线完全一致 | 不响应 `AbortSignal` 且永不 settle 的底层任务仍会占用 lane；提前释放会破坏并发上限，强制终止属于任务 owner |
+| `ARC-001` | 已合入 | [#1923](https://github.com/ThinkInAIXYZ/deepchat/pull/1923) / `bcd5daff` | focused 21/21、typecheck、format、i18n、lint 通过；合入后全量 4,479 passed / 5 failed，失败集与基线完全一致 | 静态 literal/regex guard 不覆盖 computed import、CommonJS `require()` 和间接 helper；指标下降后需人工同步收紧 baseline，baseline 变更本身仍依赖 review |
 
 ## 先反驳一种错误排法
 
