@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { IDevicePresenter, DeviceInfo, MemoryInfo, DiskInfo } from '../../../shared/presenter'
 import os from 'os'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
@@ -11,7 +11,8 @@ import axios from 'axios'
 import { is } from '@electron-toolkit/utils'
 import { svgSanitizer } from '../../lib/svgSanitizer'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+const DEVICE_QUERY_TIMEOUT_MS = 10_000
 
 type DeviceResetRuntime = {
   closeSqlite?: () => void
@@ -147,7 +148,11 @@ export class DevicePresenter implements IDevicePresenter {
   async getDiskSpace(): Promise<DiskInfo> {
     if (process.platform === 'win32') {
       // Windows implementation
-      const { stdout } = await execAsync('wmic logicaldisk get size,freespace')
+      const { stdout } = await execFileAsync('wmic', ['logicaldisk', 'get', 'size,freespace'], {
+        timeout: DEVICE_QUERY_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+        windowsHide: true
+      })
       const lines = stdout.trim().split('\n').slice(1)
       let total = 0
       let free = 0
@@ -167,7 +172,11 @@ export class DevicePresenter implements IDevicePresenter {
       }
     } else {
       // Unix-like systems implementation
-      const { stdout } = await execAsync('df -k /')
+      const { stdout } = await execFileAsync('df', ['-k', '/'], {
+        timeout: DEVICE_QUERY_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+        windowsHide: true
+      })
       const [, line] = stdout.trim().split('\n')
       const [, total, , used, free] = line.split(/\s+/)
 

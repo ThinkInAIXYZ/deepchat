@@ -29,6 +29,7 @@ const FOREGROUND_OFFLOAD_THRESHOLD = 10000
 const FOREGROUND_PREVIEW_CHARS = 12000
 const FOREGROUND_KILL_GRACE_MS = 2000
 const FOREGROUND_FORCE_SETTLE_MS = 500
+const COMMAND_PROBE_TIMEOUT_MS = 5_000
 
 export interface SkillRunRequest {
   skill: string
@@ -690,11 +691,27 @@ export class SkillExecutionService {
       const child = spawn(command, args, {
         env,
         stdio: 'ignore',
-        shell: false
+        shell: false,
+        timeout: COMMAND_PROBE_TIMEOUT_MS,
+        killSignal: 'SIGKILL'
       })
 
-      child.on('error', () => resolve(false))
-      child.on('close', (code) => resolve(code === 0))
+      let spawnFailed = false
+      let settled = false
+
+      const onError = () => {
+        spawnFailed = true
+      }
+      const onClose = (code: number | null) => {
+        if (settled) return
+        settled = true
+        child.removeListener('error', onError)
+        child.removeListener('close', onClose)
+        resolve(!spawnFailed && code === 0)
+      }
+
+      child.once('error', onError)
+      child.once('close', onClose)
     })
   }
 

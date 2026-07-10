@@ -225,6 +225,60 @@ describe('SkillExecutionService', () => {
     ).rejects.toThrow('No compatible Python runtime found for this skill')
   })
 
+  it('bounds command probes and preserves successful availability', async () => {
+    const child = new EventEmitter()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+
+    expect(spawn).toHaveBeenCalledWith('node', ['--version'], {
+      env: { PATH: '/bin' },
+      stdio: 'ignore',
+      shell: false,
+      timeout: 5_000,
+      killSignal: 'SIGKILL'
+    })
+    child.emit('close', 0)
+
+    await expect(resultPromise).resolves.toBe(true)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('resolves a timed-out command probe as unavailable after close', async () => {
+    const child = new EventEmitter()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never).hasCommand('node', ['--version'], { PATH: '/bin' })
+    child.emit('close', null, 'SIGKILL')
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
+  it('settles a failed command probe once after error and close', async () => {
+    const child = new EventEmitter()
+    const settled = vi.fn()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const resultPromise = (service as never)
+      .hasCommand('missing', [], { PATH: '/bin' })
+      .then((result: boolean) => {
+        settled(result)
+        return result
+      })
+
+    child.emit('error', new Error('spawn failed'))
+    child.emit('close', null)
+    child.emit('close', 0)
+
+    await expect(resultPromise).resolves.toBe(false)
+    expect(settled).toHaveBeenCalledTimes(1)
+    expect(child.listenerCount('error')).toBe(0)
+    expect(child.listenerCount('close')).toBe(0)
+  })
+
   it('switches to shell spawn mode when RTK rewrites the command', async () => {
     vi.mocked(rtkRuntimeService.prepareShellCommand).mockResolvedValueOnce({
       originalCommand: 'node /skills/ocr/scripts/run.py',

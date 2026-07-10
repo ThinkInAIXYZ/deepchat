@@ -631,3 +631,106 @@ describe('workspacePreviewProtocol helpers', () => {
     expect(resolveWorkspacePreviewRequest(previewUrl)).toBeNull()
   })
 })
+
+describe('WorkspacePresenter Git process limits', () => {
+  let workspacePath: string
+  let presenter: WorkspacePresenter
+
+  beforeEach(async () => {
+    execFileMock.mockReset()
+    workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-git-'))
+    presenter = new WorkspacePresenter({ prepareFileCompletely: vi.fn() } as any)
+    await presenter.registerWorkspace(workspacePath)
+  })
+
+  afterEach(async () => {
+    await presenter.destroy()
+    fs.rmSync(workspacePath, { recursive: true, force: true })
+  })
+
+  it('preserves Git output and applies the direct-child timeout', async () => {
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string; stderr: string }) => void
+      ) => {
+        callback(null, {
+          stdout:
+            args[0] === 'rev-parse'
+              ? `${workspacePath}\n`
+              : '## main...origin/main [ahead 1]\n M src/app.ts\n',
+          stderr: ''
+        })
+      }
+    )
+
+    const result = await presenter.getGitStatus(workspacePath)
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        branch: 'main',
+        ahead: 1,
+        behind: 0,
+        changes: [expect.objectContaining({ relativePath: 'src/app.ts' })]
+      })
+    )
+    for (const call of execFileMock.mock.calls) {
+      expect(call[2]).toEqual(expect.objectContaining({ timeout: 30_000, killSignal: 'SIGKILL' }))
+    }
+  })
+
+  it('returns null after a timed-out Git command settles', async () => {
+    const timeoutError = Object.assign(new Error('Git timed out'), {
+      killed: true,
+      signal: 'SIGKILL'
+    })
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string; stderr: string }) => void
+      ) => {
+        if (args[0] === 'rev-parse') {
+          callback(null, { stdout: `${workspacePath}\n`, stderr: '' })
+          return
+        }
+        callback(timeoutError)
+      }
+    )
+
+    await expect(presenter.getGitStatus(workspacePath)).resolves.toBeNull()
+  })
+
+  it('does not turn a timed-out untracked-file diff into partial success', async () => {
+    const filePath = path.join(workspacePath, 'new.txt')
+    fs.writeFileSync(filePath, 'new content')
+    const timeoutError = Object.assign(new Error('Git timed out'), {
+      killed: true,
+      signal: 'SIGKILL'
+    })
+    execFileMock.mockImplementation(
+      (
+        _command: string,
+        args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string; stderr: string }) => void
+      ) => {
+        if (args[0] === 'rev-parse') {
+          callback(null, { stdout: `${workspacePath}\n`, stderr: '' })
+        } else if (args.includes('--no-index')) {
+          callback(timeoutError)
+        } else if (args[0] === 'ls-files') {
+          callback(null, { stdout: 'new.txt\n', stderr: '' })
+        } else {
+          callback(null, { stdout: '', stderr: '' })
+        }
+      }
+    )
+
+    await expect(presenter.getGitDiff(workspacePath, filePath)).resolves.toBeNull()
+    expect(execFileMock.mock.calls.some((call) => call[1].includes('--no-index'))).toBe(true)
+  })
+})
