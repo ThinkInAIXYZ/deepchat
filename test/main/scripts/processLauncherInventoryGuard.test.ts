@@ -171,6 +171,55 @@ describe.sequential('process launcher inventory guard', () => {
     expect(result.stderr).toContain(`${addedPath}:1 child_process.execFile#1`)
   })
 
+  it.each([
+    {
+      label: 'CommonJS child_process require',
+      marker: 'CommonJS require for node:child_process',
+      source: `const child = require('node:child_process'); child.spawn('node')`
+    },
+    {
+      label: 'dynamic node:child_process import',
+      marker: 'dynamic import for node:child_process',
+      source: `const child = await import('node:child_process'); child.spawn('node')`
+    },
+    {
+      label: 'Electron namespace import',
+      marker: 'default/namespace import for electron',
+      source: `import * as electron from 'electron'; electron.utilityProcess.fork('host.js')`
+    },
+    {
+      label: 'Electron default import',
+      marker: 'default/namespace import for electron',
+      source: `import electron from 'electron'; electron.shell.openPath('/tmp/example')`
+    },
+    {
+      label: 'dynamic StdioClientTransport import',
+      marker: 'dynamic import for @modelcontextprotocol/sdk/client/stdio.js',
+      source: `
+        const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+        new StdioClientTransport({ command: 'node' })
+      `
+    }
+  ])('fails closed for unsupported $label syntax', async ({ marker, source }) => {
+    const trackedPath = 'src/main/tracked.ts'
+    const unsupportedPath = 'src/main/unsupported.ts'
+    const fixture = await createFixture(
+      {
+        [trackedPath]: `import { spawn } from 'node:child_process'; spawn('node')`,
+        [unsupportedPath]: source
+      },
+      [entry(trackedPath, 'child_process.spawn')]
+    )
+
+    const result = runGuard(fixture)
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain(
+      `[process-launcher-unsupported-syntax] ${unsupportedPath}:`
+    )
+    expect(result.stderr).toContain(marker)
+  })
+
   it('fails when a classified launcher file is renamed', async () => {
     const oldPath = 'src/main/old-owner.ts'
     const newPath = 'src/main/new-owner.ts'

@@ -177,15 +177,17 @@ unclassified child becomes an inventory failure rather than being ignored.
 [`process-launcher-inventory-guard.mjs`](../../../scripts/process-launcher-inventory-guard.mjs)
 scans `src/` during `pnpm run lint:process-launchers`. The tracked
 [`process-launcher-inventory.json`](../../../scripts/process-launcher-inventory.json) records each
-detected site's exact repository path, launcher API, same-file API occurrence, owner, and category.
-It does not accept a count-only baseline.
+repository path, launcher API, same-file API ordinal, owner, and category. This is more specific than
+a repository-wide count, but the ordinal is not a semantic call-site identity.
 
 The guard recognizes `child_process`/`node:child_process`, `cross-spawn`, `node-pty`, Electron
 `utilityProcess.fork`, MCP SDK `StdioClientTransport`, `shell.openExternal`, and `shell.openPath`.
-Named import aliases, Electron import aliases, dynamic Electron destructuring, and the existing
-one-step `promisify(exec|execFile)` wrappers are covered. A new site is unclassified; deleting,
-renaming, moving, or changing the API/occurrence of a tracked site produces inventory drift. Both
-fail lint until a reviewer assigns an explicit owner and category.
+Named import aliases, named Electron imports, dynamic Electron destructuring, and the existing
+one-step `promisify(exec|execFile)` wrappers are covered. A new detected site is unclassified;
+file, launcher API, or same-file API count drift fails lint until a reviewer assigns an explicit
+owner and category. CommonJS launcher imports, non-Electron dynamic launcher imports, Electron
+default/namespace imports, launcher re-exports, and other explicitly detected unsupported binding
+forms fail closed instead of disappearing from the inventory.
 
 The categories distinguish DeepChat runtime trees, utility hosts, bounded helpers, termination
 helpers, synchronous exclusions, Electron/system openers, and the intentionally user-owned terminal
@@ -199,8 +201,9 @@ are explicit:
   behind re-exports, factories, or third-party/native code are not followed;
 - regex scanning can treat launcher-shaped text in comments or strings as a site, so unusual syntax
   may fail closed and require a focused scanner fixture or source clarification;
-- same-file sites use API occurrence order rather than a semantic call-site name, so reorder-only
-  changes with the same API count still require human review of the tracked classification.
+- same-file sites use API ordinal order rather than a semantic call-site name. Reordering calls to
+  the same API, or replacing one with different semantics while keeping the same file/API/count, is
+  not detected by this guard and still requires code review.
 
 Computed access and opaque aliasing are therefore prohibited for these launcher APIs unless the
 guard and fixtures are extended in the same change. Code review and the later runtime process census

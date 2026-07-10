@@ -22,6 +22,14 @@ const CATEGORIES = new Set([
   'utility-host'
 ])
 const DEFAULT_INVENTORY_PATH = 'scripts/process-launcher-inventory.json'
+const WATCHED_MODULES = new Set([
+  '@modelcontextprotocol/sdk/client/stdio.js',
+  'child_process',
+  'cross-spawn',
+  'electron',
+  'node-pty',
+  'node:child_process'
+])
 
 function getConfiguredPaths() {
   const testRoot = process.env.DEEPCHAT_TEST_PROCESS_LAUNCHER_ROOT
@@ -87,10 +95,75 @@ function extractImports(sourceWithoutComments) {
   let match
 
   while ((match = pattern.exec(sourceWithoutComments)) !== null) {
-    imports.push({ clause: match[1].trim(), module: match[3] })
+    imports.push({ clause: match[1].trim(), index: match.index, module: match[3] })
   }
 
   return imports
+}
+
+function detectUnsupportedSyntax(source) {
+  const matches = []
+  const moduleAlternation = [...WATCHED_MODULES].map(escapePattern).join('|')
+  const addMatches = (pattern, syntax) => {
+    let match
+    while ((match = pattern.exec(source)) !== null) {
+      matches.push({ index: match.index, module: match.groups.module, syntax })
+    }
+  }
+
+  addMatches(
+    new RegExp(
+      `\\brequire\\s*\\(\\s*['\"](?<module>${moduleAlternation})['\"]\\s*\\)`,
+      'g'
+    ),
+    'CommonJS require'
+  )
+  addMatches(
+    new RegExp(
+      `\\bexport\\s+(?:\\*|\\{[\\s\\S]*?\\})\\s+from\\s+['\"](?<module>${moduleAlternation})['\"]`,
+      'g'
+    ),
+    'launcher re-export'
+  )
+
+  const supportedDynamicElectronImports = new Set()
+  const dynamicElectronPattern =
+    /\bconst\s*{([^}]+)}\s*=\s*(?:await\s+)?import\s*\(\s*['"]electron['"]\s*\)/g
+  let dynamicElectronMatch
+  while ((dynamicElectronMatch = dynamicElectronPattern.exec(source)) !== null) {
+    supportedDynamicElectronImports.add(
+      dynamicElectronMatch.index + dynamicElectronMatch[0].lastIndexOf('import')
+    )
+  }
+
+  const dynamicImportPattern = new RegExp(
+    `\\bimport\\s*\\(\\s*['\"](?<module>${moduleAlternation})['\"]\\s*\\)`,
+    'g'
+  )
+  let dynamicImportMatch
+  while ((dynamicImportMatch = dynamicImportPattern.exec(source)) !== null) {
+    if (
+      dynamicImportMatch.groups.module !== 'electron' ||
+      !supportedDynamicElectronImports.has(dynamicImportMatch.index)
+    ) {
+      matches.push({
+        index: dynamicImportMatch.index,
+        module: dynamicImportMatch.groups.module,
+        syntax: 'dynamic import'
+      })
+    }
+  }
+
+  for (const { clause, index, module } of extractImports(source)) {
+    if (
+      (module === 'electron' || module === '@modelcontextprotocol/sdk/client/stdio.js') &&
+      (parseDefaultImport(clause) || parseNamespaceImport(clause))
+    ) {
+      matches.push({ index, module, syntax: 'default/namespace import' })
+    }
+  }
+
+  return matches.sort((left, right) => left.index - right.index)
 }
 
 function addFunctionBinding(bindings, local, launcher) {
@@ -257,10 +330,20 @@ async function scanLaunchers(root) {
   const sourceRoot = path.join(root, 'src')
   const files = await collectSourceFiles(sourceRoot)
   const sites = []
+  const unsupportedSyntax = []
 
   for (const filePath of files.sort()) {
     const source = await fs.readFile(filePath, 'utf8')
     const occurrences = new Map()
+    const relativePath = toPosix(path.relative(root, filePath))
+
+    for (const match of detectUnsupportedSyntax(source)) {
+      unsupportedSyntax.push({
+        ...match,
+        line: lineForIndex(source, match.index),
+        path: relativePath
+      })
+    }
 
     for (const match of detectLaunches(source)) {
       const occurrence = (occurrences.get(match.launcher) ?? 0) + 1
@@ -269,12 +352,12 @@ async function scanLaunchers(root) {
         launcher: match.launcher,
         line: lineForIndex(source, match.index),
         occurrence,
-        path: toPosix(path.relative(root, filePath))
+        path: relativePath
       })
     }
   }
 
-  return sites
+  return { sites, unsupportedSyntax }
 }
 
 function siteId(site) {
@@ -338,10 +421,13 @@ async function main() {
     return
   }
 
-  const detectedSites = await scanLaunchers(root)
+  const { sites: detectedSites, unsupportedSyntax } = await scanLaunchers(root)
   const detectedById = new Map(detectedSites.map((site) => [siteId(site), site]))
   const expectedById = new Map(inventory.entries.map((entry) => [siteId(entry), entry]))
-  const violations = []
+  const violations = unsupportedSyntax.map(
+    (match) =>
+      `[process-launcher-unsupported-syntax] ${match.path}:${match.line} ${match.syntax} for ${match.module}`
+  )
 
   for (const site of detectedSites) {
     if (!expectedById.has(siteId(site))) {
