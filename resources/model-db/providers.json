@@ -14141,6 +14141,29 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
           "attachment": true,
           "open_weights": false,
           "knowledge": "2026-02-16",
@@ -14234,6 +14257,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -14853,6 +14899,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -20216,7 +20285,9 @@
           "display_name": "Muse Spark 1.1",
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "pdf"
             ],
             "output": [
               "text"
@@ -20576,7 +20647,7 @@
           "cost": {
             "input": 0.14,
             "output": 0.28,
-            "cache_read": 0.0028
+            "cache_read": 0.028
           },
           "type": "chat"
         },
@@ -56101,7 +56172,25 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
             }
           },
           "attachment": true,
@@ -57078,6 +57167,29 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
           "attachment": true,
           "open_weights": false,
           "knowledge": "2026-02-16",
@@ -57188,6 +57300,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -58166,6 +58301,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -86375,6 +86533,29 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
           "attachment": true,
           "open_weights": false,
           "knowledge": "2026-02-16",
@@ -86547,6 +86728,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -89374,6 +89578,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "open_weights": false,
@@ -217385,7 +217612,249 @@
           },
           "attachment": true,
           "open_weights": false,
-          "last_updated": "2026-04-24",
+          "knowledge": "2025-12-01",
+          "release_date": "2026-04-23",
+          "last_updated": "2026-04-23",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6",
+          "name": "GPT-5.6",
+          "display_name": "GPT-5.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 5,
+            "output": 30,
+            "cache_read": 0.5,
+            "cache_write": 6.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "name": "GPT-5.6 Luna",
+          "display_name": "GPT-5.6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 1,
+            "output": 6,
+            "cache_read": 0.1,
+            "cache_write": 1.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-sol",
+          "name": "GPT-5.6 Sol",
+          "display_name": "GPT-5.6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 5,
+            "output": 30,
+            "cache_read": 0.5,
+            "cache_write": 6.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "display_name": "GPT-5.6 Terra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 2.5,
+            "output": 15,
+            "cache_read": 0.25,
+            "cache_write": 3.125
+          },
           "type": "chat"
         },
         {
@@ -217857,13 +218326,129 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
             }
           },
           "cost": {
             "input": 5,
             "output": 30,
             "cache_read": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "name": "gpt-5.6-luna",
+          "display_name": "gpt-5.6-luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 1050000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "cost": {
+            "input": 1,
+            "output": 6,
+            "cache_read": 0.1
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "gpt-5.6-terra",
+          "display_name": "gpt-5.6-terra",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 1050000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "cost": {
+            "input": 2.5,
+            "output": 15,
+            "cache_read": 0.25
           },
           "type": "chat"
         },
@@ -225285,6 +225870,29 @@
           "type": "chat"
         },
         {
+          "id": "wan2.6-t2v",
+          "name": "wan2.6-t2v",
+          "display_name": "wan2.6-t2v",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "wan2.6-i2v",
           "name": "wan2.6-i2v",
           "display_name": "wan2.6-i2v",
@@ -225309,9 +225917,9 @@
           "type": "chat"
         },
         {
-          "id": "wan2.6-t2v",
-          "name": "wan2.6-t2v",
-          "display_name": "wan2.6-t2v",
+          "id": "wan2.5-t2v-preview",
+          "name": "wan2.5-t2v-preview",
+          "display_name": "wan2.5-t2v-preview",
           "modalities": {
             "input": [
               "text"
@@ -225363,29 +225971,6 @@
             "input": [
               "text",
               "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "wan2.5-t2v-preview",
-          "name": "wan2.5-t2v-preview",
-          "display_name": "wan2.5-t2v-preview",
-          "modalities": {
-            "input": [
-              "text"
             ]
           },
           "limit": {
@@ -237522,9 +238107,14 @@
           "type": "chat"
         },
         {
-          "id": "text-davinci-003",
-          "name": "text-davinci-003",
-          "display_name": "text-davinci-003",
+          "id": "tts-1",
+          "name": "tts-1",
+          "display_name": "tts-1",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
           "limit": {
             "context": 8192,
             "output": 8192
@@ -237534,28 +238124,9 @@
             "supported": false
           },
           "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-davinci-edit-001",
-          "name": "text-davinci-edit-001",
-          "display_name": "text-davinci-edit-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
+            "input": 15,
+            "output": 15
+          }
         },
         {
           "id": "tts-1-1106",
@@ -237580,14 +238151,9 @@
           }
         },
         {
-          "id": "tts-1",
-          "name": "tts-1",
-          "display_name": "tts-1",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
+          "id": "text-search-ada-doc-001",
+          "name": "text-search-ada-doc-001",
+          "display_name": "text-search-ada-doc-001",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -237597,9 +238163,64 @@
             "supported": false
           },
           "cost": {
-            "input": 15,
-            "output": 15
-          }
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-stable",
+          "name": "text-moderation-stable",
+          "display_name": "text-moderation-stable",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-latest",
+          "name": "text-moderation-latest",
+          "display_name": "text-moderation-latest",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-007",
+          "name": "text-moderation-007",
+          "display_name": "text-moderation-007",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
         },
         {
           "id": "tts-1-hd-1106",
@@ -237622,42 +238243,6 @@
             "input": 30,
             "output": 30
           }
-        },
-        {
-          "id": "text-search-ada-doc-001",
-          "name": "text-search-ada-doc-001",
-          "display_name": "text-search-ada-doc-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-moderation-latest",
-          "name": "text-moderation-latest",
-          "display_name": "text-moderation-latest",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
         },
         {
           "id": "whisper-1",
@@ -237727,46 +238312,6 @@
             "output": 5.556
           },
           "type": "chat"
-        },
-        {
-          "id": "text-moderation-007",
-          "name": "text-moderation-007",
-          "display_name": "text-moderation-007",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "tts-1-hd",
-          "name": "tts-1-hd",
-          "display_name": "tts-1-hd",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30,
-            "output": 30
-          }
         },
         {
           "id": "text-embedding-v1",
@@ -237859,6 +238404,46 @@
             "output": 0.13
           },
           "type": "embedding"
+        },
+        {
+          "id": "tts-1-hd",
+          "name": "tts-1-hd",
+          "display_name": "tts-1-hd",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 30,
+            "output": 30
+          }
+        },
+        {
+          "id": "text-davinci-edit-001",
+          "name": "text-davinci-edit-001",
+          "display_name": "text-davinci-edit-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
         },
         {
           "id": "yi-large",
@@ -237969,9 +238554,9 @@
           "type": "chat"
         },
         {
-          "id": "text-moderation-stable",
-          "name": "text-moderation-stable",
-          "display_name": "text-moderation-stable",
+          "id": "text-davinci-003",
+          "name": "text-davinci-003",
+          "display_name": "text-davinci-003",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -237981,8 +238566,8 @@
             "supported": false
           },
           "cost": {
-            "input": 0.2,
-            "output": 0.2
+            "input": 20,
+            "output": 20
           },
           "type": "chat"
         },
@@ -239469,6 +240054,28 @@
             "supported": false
           },
           "type": "imageGeneration"
+        },
+        {
+          "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+          "name": "Venice: Uncensored",
+          "display_name": "Venice: Uncensored",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
         },
         {
           "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
@@ -244313,7 +244920,32 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -244363,7 +244995,32 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -244413,7 +245070,32 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium",
+            "verbosity": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -247872,8 +248554,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 1024000,
+            "output": 128000
           },
           "temperature": true,
           "tool_call": true,
@@ -254612,7 +255294,7 @@
           "cost": {
             "input": 0.14,
             "output": 0.28,
-            "cache_read": 0.0028
+            "cache_read": 0.028
           },
           "type": "chat"
         },
@@ -255025,47 +255707,6 @@
           "knowledge": "2025-01",
           "release_date": "2026-05-07",
           "last_updated": "2026-05-07",
-          "cost": {
-            "input": 0.25,
-            "output": 1.5,
-            "cache_read": 0.03
-          },
-          "type": "chat"
-        },
-        {
-          "id": "google/gemini-3.1-flash-lite-preview",
-          "name": "Google: Gemini 3.1 Flash Lite Preview",
-          "display_name": "Google: Gemini 3.1 Flash Lite Preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 65000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "knowledge": "2025-01",
-          "release_date": "2026-03-03",
-          "last_updated": "2026-03-03",
           "cost": {
             "input": 0.25,
             "output": 1.5,
@@ -257351,6 +257992,126 @@
           "cost": {
             "input": 30,
             "output": 180
+          },
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-5.6-luna",
+          "name": "OpenAI: GPT-5.6 Luna",
+          "display_name": "OpenAI: GPT-5.6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 1,
+            "output": 6,
+            "cache_read": 0.1,
+            "cache_write": 1.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-5.6-sol",
+          "name": "OpenAI: GPT-5.6 Sol",
+          "display_name": "OpenAI: GPT-5.6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "verbosity": "medium",
+              "verbosity_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "visibility": "hidden"
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "cost": {
+            "input": 5,
+            "output": 30,
+            "cache_read": 0.5,
+            "cache_write": 6.25
           },
           "type": "chat"
         },
