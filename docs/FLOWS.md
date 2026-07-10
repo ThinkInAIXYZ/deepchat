@@ -56,8 +56,10 @@ flowchart TD
 - `sessions.compact` 触发手动上下文压缩；自动压缩设置保存在 agent/session 配置中。
 - message trace 独立落库，renderer 通过 `sessions.listMessageTraces` 查询。
 - 失败消息会保留恢复上下文，tool output guard 会限制过大的工具输出进入后续上下文。
-- `agent-core/update_plan` 工具只更新 plan state 和 `chat.plan.updated` event，不把内部 tool call
-  暴露成普通消息块。
+- `agent-core/update_plan` 工具只更新实时 plan snapshot 和 `chat.plan.updated` event；plan 是
+  生成中的临时浮窗 UI，不写入 assistant 正文 block。renderer 按 session 保存当前 app
+  运行内的 live plan snapshot；切换会话时只显示当前 session 的 plan，且不从历史消息
+  rehydrate。reload 后不恢复旧 plan float。内部 tool call 仍隐藏，不暴露成普通消息块。
 
 ## 3. 工具调用、权限和 Subagents
 

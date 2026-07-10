@@ -1,6 +1,6 @@
 <template>
   <div
-    class="chat-search-bar flex w-full max-w-[24rem] items-center gap-2 rounded-2xl border bg-background/90 px-2.5 py-2 shadow-lg backdrop-blur-xl"
+    class="chat-search-bar dc-blur-overlay flex w-full max-w-[24rem] items-center gap-2 rounded-2xl border bg-background/90 px-2.5 py-2 shadow-lg"
   >
     <div class="relative min-w-0 flex-1">
       <Icon

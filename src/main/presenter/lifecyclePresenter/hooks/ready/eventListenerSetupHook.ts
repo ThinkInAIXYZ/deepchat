@@ -12,7 +12,6 @@ import { WINDOW_EVENTS, TRAY_EVENTS, FLOATING_BUTTON_EVENTS } from '@/events'
 import { handleShowHiddenWindow } from '@/utils'
 import { presenter } from '@/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
-import { activateAppOnMac } from '@/lib/activateApp'
 
 export const eventListenerSetupHook: LifecycleHook = {
   name: 'event-listener-setup',
@@ -32,31 +31,29 @@ export const eventListenerSetupHook: LifecycleHook = {
       optimizer.watchWindowShortcuts(window)
     })
 
-    // Handle app activation event (like clicking Dock icon on macOS)
+    // Restore a main window hidden by close-to-tray when the Dock activates the app.
+    // Keep native macOS Hide behavior intact by restoring only explicitly tracked close events.
     app.on('activate', function () {
-      // On macOS, it's common to re-create a window when the dock icon is clicked
-      // Also handle showing hidden windows
+      if (presenter.windowPresenter.restoreMainWindowHiddenByClose()) {
+        return
+      }
+
       const allWindows = presenter.windowPresenter.getAllWindows()
       if (allWindows.length === 0) {
         presenter.windowPresenter.createAppWindow({
           initialRoute: 'chat'
         })
-      } else {
-        // Try to show the most recently focused window, otherwise show the first window
-        const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
-        if (!targetWindow.isDestroyed()) {
-          targetWindow.show()
-          targetWindow.focus() // Ensure window gets focus
-          activateAppOnMac()
-        } else {
-          console.warn(
-            'eventListenerSetupHook: App activated but target window is destroyed, creating new window.'
-          )
-          presenter.windowPresenter.createAppWindow({
-            initialRoute: 'chat'
-          })
-        }
       }
+    })
+
+    // Electron exposes no dedicated event for the application-level native macOS Hide command.
+    // Wait for AppKit to update the hidden state before clearing close-to-hide restoration.
+    app.on('did-resign-active', () => {
+      setTimeout(() => {
+        if (app.isHidden()) {
+          presenter.windowPresenter.clearMainWindowHiddenByClose()
+        }
+      }, 0)
     })
 
     // Listen for floating button configuration change events

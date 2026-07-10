@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.8 (2026-07-10)
+- Added the main-window Plugins Hub, Feishu/Lark install authentication, and streaming card delivery for remote control
+- Added MCP OAuth authentication, agent-scoped plugin controls for skills, MCP servers, and tools, plus improved skill sync workflows
+- Expanded Agent Memory with task-aware recall, redesigned settings, health and lifecycle diagnostics, in-chat visibility, and reliability improvements
+- Reworked scheduled tasks into Cron Jobs with a dedicated scheduler runtime, delivery routing, settings UI, and agent tool support
+- Added TokenLab, OpenCode Go, and GPT-5.6/Codex 5.6 support with configurable effort levels
+- Upgraded the provider and runtime stack to AI SDK v7, Zod v4, Electron 40.10.5, and DuckDB 1.5.4, while improving startup, chat rendering, scrolling, and responsive interaction performance
+- Fixed New API response handling, endpoint debug selection, memory first-turn stalls, context-overflow auto-handoff, ACP permission requests, assistant loading state, attachment replay, draft cleanup, and macOS window restoration and hide behavior
+- 新增主窗口插件中心、飞书/Lark 安装认证，以及远程控制流式卡片推送
+- 新增 MCP OAuth 认证、Agent 级 skills、MCP servers 与 tools 控制，并改进 skill sync 工作流
+- 扩展 Agent Memory，支持任务感知召回、重做设置页、健康与生命周期诊断、聊天内可见性，并提升可靠性
+- 将 scheduled tasks 重构为 Cron Jobs，支持独立 scheduler runtime、delivery routing、设置 UI 和 Agent tool
+- 新增 TokenLab、OpenCode Go 和 GPT-5.6/Codex 5.6 支持，并提供可配置的 effort levels
+- 将 provider 与 runtime 栈升级至 AI SDK v7、Zod v4、Electron 40.10.5 和 DuckDB 1.5.4，同时提升启动、聊天渲染、滚动与响应式交互性能
+- 修复 New API 响应处理、endpoint debug 选择、memory 首轮卡顿、context overflow 自动 handoff、ACP 权限请求、Assistant loading state、附件内容回放、草稿清理，以及 macOS 窗口恢复与隐藏行为
+
 ## v1.0.8-beta.4 (2026-07-09)
 - Added TokenLab and OpenCode Go provider support
 - Redesigned Agent Memory settings with inline configuration, inbox, diagnostics, persona, and list views

@@ -5,7 +5,7 @@
       class="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-muted/20"
     >
       <div class="flex h-full min-h-0 flex-col">
-        <div class="min-h-0 flex-1 overflow-auto pb-2">
+        <div class="dc-overscroll-contain min-h-0 flex-1 overflow-auto pb-2">
           <section>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"

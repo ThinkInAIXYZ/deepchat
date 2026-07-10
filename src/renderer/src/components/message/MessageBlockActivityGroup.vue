@@ -85,7 +85,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const isExpanded = ref(false)
 const shouldRenderBody = ref(false)
-const BODY_UNMOUNT_DELAY_MS = 260
+// Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
+const BODY_UNMOUNT_DELAY_MS = 240
 let bodyUnmountTimer: number | null = null
 
 const cancelBodyUnmount = () => {
@@ -155,8 +156,10 @@ const handleChildCollapseToggle = (isCollapsed: boolean) => {
   emit('toggle-collapse', isCollapsed)
 }
 
-const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string =>
-  block.id ?? block.tool_call?.id ?? `${block.type}:${block.timestamp}:${index}`
+const buildActivityBlockKey = (block: DisplayAssistantMessageBlock, index: number): string => {
+  const stableId = block.id ?? block.tool_call?.id
+  return stableId ? `${stableId}:${index}` : `${block.type}:${block.timestamp}:${index}`
+}
 
 onBeforeUnmount(() => {
   cancelBodyUnmount()

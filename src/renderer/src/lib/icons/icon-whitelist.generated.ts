@@ -164,6 +164,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'move-right',
     'music',
     'music-2',
+    'notebook-tabs',
     'panel-left-close',
     'panel-left-open',
     'panel-right-close',

@@ -190,6 +190,7 @@ import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type {
   DeepChatAgentConfig,
   MessageFile,
+  UserMessageInlineItem,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
@@ -233,6 +234,7 @@ const isVoiceInputEnabled = ref(false)
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
+  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
   focusInput?: () => void
@@ -842,10 +844,12 @@ async function submitText(text: string, files: MessageFile[]) {
     const pendingSkillsSnapshot =
       chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
     const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
+    const inlineItems = chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
     const messagePayload = {
       text,
       files,
-      ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {})
+      ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
 
     if (isAcp && acpDraftSessionId.value) {
@@ -877,6 +881,7 @@ async function submitText(text: string, files: MessageFile[]) {
     await sessionStore.createSession({
       message: messagePayload.text,
       files: messagePayload.files,
+      inlineItems: messagePayload.inlineItems,
       projectDir: selectedSessionProjectDir.value,
       agentId,
       providerId,

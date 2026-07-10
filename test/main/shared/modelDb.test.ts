@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   getReasoningControlMode,
   getReasoningControlModeForProvider,
@@ -9,6 +9,34 @@ import {
   sanitizeAggregate,
   type ReasoningPortrait
 } from '../../../src/shared/types/model-db'
+
+describe('GPT-5.6 provider resource', () => {
+  it('keeps the official OpenAI effort and verbosity portraits exact', async () => {
+    const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const actualPath = await vi.importActual<typeof import('node:path')>('node:path')
+    const resourcePath = actualPath.resolve(process.cwd(), 'resources/model-db/providers.json')
+    const aggregate = sanitizeAggregate(JSON.parse(actualFs.readFileSync(resourcePath, 'utf-8')))
+    const modelIds = ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']
+
+    expect(aggregate).not.toBeNull()
+
+    for (const modelId of modelIds) {
+      const model = aggregate?.providers.openai.models.find((item) => item.id === modelId)
+
+      expect(model?.type).toBe('chat')
+      expect(model?.extra_capabilities?.reasoning).toMatchObject({
+        supported: true,
+        default_enabled: true,
+        mode: 'effort',
+        effort: 'medium',
+        effort_options: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        verbosity: 'medium',
+        verbosity_options: ['low', 'medium', 'high']
+      })
+      expect(model?.extra_capabilities?.reasoning?.effort_options).not.toContain('minimal')
+    }
+  })
+})
 
 describe('sanitizeAggregate', () => {
   it('keeps extra_capabilities.reasoning portraits alongside legacy reasoning', () => {

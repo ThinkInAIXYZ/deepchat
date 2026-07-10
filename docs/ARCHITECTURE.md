@@ -78,7 +78,9 @@ flowchart LR
   message trace 和结构化消息持久化。
 - `DeepChatMessageStore` 采用头表 + 结构化子表模型，并在读路径缺行时回退旧 JSON。
 - 历史搜索使用 `deepchat_search_documents` 与 FTS5，FTS 不可用时回退 `LIKE`。
-- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划。
+- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划；
+  plan 是按 session 保存的 transient progress UI，不作为 assistant 正文历史持久化或
+  rehydrate。切换 session 只显示当前 session 的 live plan，reload 后不恢复旧 plan。
 
 ### 4. Provider And Media Runtime
 

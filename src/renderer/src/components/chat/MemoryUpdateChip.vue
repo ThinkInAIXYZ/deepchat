@@ -33,7 +33,7 @@
           </p>
         </div>
 
-        <div class="max-h-80 overflow-y-auto p-2">
+        <div class="dc-overscroll-contain max-h-80 overflow-y-auto p-2">
           <div
             v-for="item in memoryActivity.displayChipItems"
             :key="item.id"

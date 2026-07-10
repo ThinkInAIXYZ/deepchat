@@ -213,6 +213,34 @@ describe('LegacyChatImportService', () => {
     )
   })
 
+  it.each(['none', 'xhigh', 'max'] as const)(
+    'preserves extended reasoning effort %s when importing legacy sessions',
+    async (reasoningEffort) => {
+      await (service as any).importRows({
+        conversations: [
+          {
+            conv_id: `conv-${reasoningEffort}`,
+            title: 'Imported Chat',
+            provider_id: 'openai',
+            model_id: 'gpt-5.6-sol',
+            reasoning_effort: reasoningEffort
+          }
+        ],
+        messageRows: [],
+        attachmentRows: [],
+        acpSessionRows: []
+      })
+
+      expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
+        `legacy-session-conv-${reasoningEffort}`,
+        'openai',
+        'gpt-5.6-sol',
+        'full_access',
+        expect.objectContaining({ reasoningEffort })
+      )
+    }
+  )
+
   it('keeps the import successful when rebuilding environments fails', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     sqlitePresenter.newEnvironmentsTable.rebuildFromSessions.mockImplementation(() => {

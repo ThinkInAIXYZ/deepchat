@@ -1,7 +1,7 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpConfigState } from '@shared/presenter'
 import type { AssistantMessageBlock } from '@shared/chat'
-import { createAgentPlanBlock, normalizeAgentPlanStatus } from '@shared/chat/agentPlanBlock'
+import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
@@ -55,6 +55,18 @@ const now = () => Date.now()
 
 export class AcpContentMapper {
   private readonly toolCallStates = new Map<string, ToolCallState>()
+  private readonly planRevisions = new Map<string, number>()
+
+  clearSession(sessionId: string): void {
+    this.planRevisions.delete(sessionId)
+
+    const keyPrefix = `${sessionId}:`
+    for (const key of this.toolCallStates.keys()) {
+      if (key.startsWith(keyPrefix)) {
+        this.toolCallStates.delete(key)
+      }
+    }
+  }
 
   map(notification: schema.SessionNotification): MappedContent {
     const { update, sessionId } = notification
@@ -73,7 +85,7 @@ export class AcpContentMapper {
         break
       case 'plan':
         console.info('[ACP] Plan update received:', JSON.stringify(update))
-        this.handlePlanUpdate(update, payload)
+        this.handlePlanUpdate(sessionId, update, payload)
         break
       case 'current_mode_update':
         console.info('[ACP] Mode update received:', update)
@@ -228,6 +240,7 @@ export class AcpContentMapper {
   }
 
   private handlePlanUpdate(
+    sessionId: string,
     update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'plan' }>,
     payload: MappedContent
   ) {
@@ -242,14 +255,9 @@ export class AcpContentMapper {
     }))
 
     const updatedAt = new Date().toISOString()
-    payload.events.push(createStreamEvent.plan(payload.planEntries, { revision: 1, updatedAt }))
-    payload.blocks.push(
-      createAgentPlanBlock({
-        plan: payload.planEntries,
-        revision: 1,
-        updatedAt
-      }) as AssistantMessageBlock
-    )
+    const revision = (this.planRevisions.get(sessionId) ?? 0) + 1
+    this.planRevisions.set(sessionId, revision)
+    payload.events.push(createStreamEvent.plan(payload.planEntries, { revision, updatedAt }))
   }
 
   private handleModeUpdate(

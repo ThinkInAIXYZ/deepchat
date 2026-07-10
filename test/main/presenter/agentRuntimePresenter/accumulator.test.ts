@@ -85,7 +85,7 @@ describe('accumulate', () => {
     expect(state.blocks[1].type).toBe('content')
   })
 
-  it('upserts plan events into a plan block', () => {
+  it('stores plan events as live snapshots without inserting plan blocks', () => {
     accumulate(state, {
       type: 'plan',
       plan: [{ step: 'Inspect runtime', status: 'in_progress' }],
@@ -102,16 +102,38 @@ describe('accumulate', () => {
       updatedAt: '2026-05-18T00:00:01.000Z'
     })
 
-    const planBlocks = state.blocks.filter((block) => block.type === 'plan')
-    expect(planBlocks).toHaveLength(1)
-    expect(planBlocks[0].extra).toMatchObject({
-      plan_entries: [
+    expect(state.blocks.some((block) => block.type === 'plan')).toBe(false)
+    expect(state.latestAgentPlanSnapshot).toMatchObject({
+      plan: [
         { step: 'Inspect runtime', status: 'completed' },
         { step: 'Write tests', status: 'in_progress' }
       ],
-      plan_revision: 2,
-      plan_updated_at: '2026-05-18T00:00:01.000Z'
+      revision: 2,
+      updatedAt: '2026-05-18T00:00:01.000Z'
     })
+    expect(state.dirty).toBe(false)
+  })
+
+  it('marks dirty when a plan event finalizes trailing narrative content', () => {
+    accumulate(state, { type: 'text', content: 'Draft answer' })
+    state.dirty = false
+
+    accumulate(state, {
+      type: 'plan',
+      plan: [{ step: 'Continue work', status: 'in_progress' }],
+      revision: 1,
+      updatedAt: '2026-05-18T00:00:00.000Z'
+    })
+
+    expect(state.blocks[0]).toMatchObject({
+      type: 'content',
+      status: 'success'
+    })
+    expect(state.latestAgentPlanSnapshot).toMatchObject({
+      plan: [{ step: 'Continue work', status: 'in_progress' }],
+      revision: 1
+    })
+    expect(state.dirty).toBe(true)
   })
 
   it('finalizes trailing content before a tool call starts', () => {

@@ -7,7 +7,7 @@ import {
   ProjectSchema,
   UsageStatsBackfillStatusSchema
 } from '@shared/contracts/domainSchemas'
-import { agentPlanItemSchema } from '@shared/types/agent-plan'
+import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@shared/types/agent-plan'
 import { questionToolSchema } from '../../../src/main/lib/agentRuntime/questionTool'
 
 describe('Zod 4 migration contracts', () => {
@@ -128,6 +128,32 @@ describe('Zod 4 migration contracts', () => {
     })
 
     expect(parsed.success).toBe(false)
+  })
+
+  it('falls back to content when normalizing blank agent plan steps', () => {
+    expect(
+      normalizeAgentPlanEntry({
+        step: '   ',
+        content: 'Fallback text',
+        status: 'in_progress'
+      })
+    ).toEqual({
+      step: 'Fallback text',
+      status: 'in_progress'
+    })
+  })
+
+  it('prefers non-blank steps when normalizing agent plan entries', () => {
+    expect(
+      normalizeAgentPlanEntry({
+        step: 'Primary text',
+        content: 'Fallback text',
+        status: 'completed'
+      })
+    ).toEqual({
+      step: 'Primary text',
+      status: 'completed'
+    })
   })
 
   it('preserves usage stats backfill progress fields across contract parsing', () => {

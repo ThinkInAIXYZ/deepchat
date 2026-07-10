@@ -3,7 +3,7 @@
     data-testid="chat-side-panel-shell"
     class="chat-side-panel-shell h-full min-h-0 overflow-hidden"
     :class="[
-      isWorkspaceFullscreenActive ? 'absolute inset-0 z-30 w-full' : 'relative shrink-0',
+      isWorkspaceFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
       { 'chat-side-panel-shell--resizing': isResizing }
     ]"
     :style="shellStyle"
@@ -119,7 +119,8 @@ const isWorkspaceFullscreenActive = computed(() => {
 
 const shellStyle = computed(() => {
   return {
-    width: isWorkspaceFullscreenActive.value ? '100%' : `${layoutWidth.value}px`
+    width: isWorkspaceFullscreenActive.value ? '100%' : `${layoutWidth.value}px`,
+    ...(isWorkspaceFullscreenActive.value ? { zIndex: 'var(--dc-z-sidepanel)' } : {})
   }
 })
 

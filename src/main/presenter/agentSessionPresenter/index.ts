@@ -4126,10 +4126,12 @@ export class AgentSessionPresenter {
       ? content.files.filter((file): file is MessageFile => Boolean(file))
       : []
     const activeSkills = this.normalizeActiveSkills(content.activeSkills)
+    const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
     return {
       text,
       files,
-      ...(activeSkills.length > 0 ? { activeSkills } : {})
+      ...(activeSkills.length > 0 ? { activeSkills } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
   }
 
@@ -4138,7 +4140,15 @@ export class AgentSessionPresenter {
     const files = Array.isArray(input.files)
       ? input.files.filter((file): file is MessageFile => Boolean(file))
       : []
-    return this.withInitialMessageActiveSkills({ text, files }, input.activeSkills)
+    const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
+    return this.withInitialMessageActiveSkills(
+      {
+        text,
+        files,
+        ...(inlineItems.length > 0 ? { inlineItems } : {})
+      },
+      input.activeSkills
+    )
   }
 
   private withInitialMessageActiveSkills(

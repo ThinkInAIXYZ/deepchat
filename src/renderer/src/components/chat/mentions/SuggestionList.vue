@@ -1,6 +1,6 @@
 <template>
   <div class="min-w-64 max-w-96 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-    <div v-if="filteredItems.length > 0" class="max-h-72 overflow-y-auto">
+    <div v-if="filteredItems.length > 0" class="dc-overscroll-contain max-h-72 overflow-y-auto">
       <button
         v-for="(item, index) in filteredItems"
         :key="item.id"

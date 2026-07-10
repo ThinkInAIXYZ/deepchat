@@ -84,6 +84,35 @@ describe('AcpContentMapper tool call handling', () => {
     expect(firstStart && firstStart.tool_call_name).toBe('list_files')
     expect(secondStart && secondStart.tool_call_name).toBe('write_file')
   })
+
+  it('clears pending tool call state for a session', () => {
+    const mapper = new AcpContentMapper()
+
+    mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'shared-id',
+        title: 'first_tool',
+        status: 'in_progress'
+      })
+    )
+    mapper.clearSession('session-1')
+
+    const restarted = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'shared-id',
+        title: 'second_tool',
+        status: 'in_progress'
+      })
+    )
+
+    expect(restarted.events.find((event) => event.type === 'tool_call_start')).toMatchObject({
+      type: 'tool_call_start',
+      tool_call_id: 'shared-id',
+      tool_call_name: 'second_tool'
+    })
+  })
 })
 
 describe('AcpContentMapper plan handling', () => {
@@ -113,7 +142,7 @@ describe('AcpContentMapper plan handling', () => {
     })
   })
 
-  it('emits a plan block alongside the structured plan entries', () => {
+  it('emits a plan event without adding content blocks', () => {
     const mapper = new AcpContentMapper()
 
     const result = mapper.map(
@@ -136,13 +165,61 @@ describe('AcpContentMapper plan handling', () => {
       revision: 1
     })
 
-    const planBlock = result.blocks.find((block) => block.type === 'plan')
-    expect(planBlock?.extra).toMatchObject({
-      plan_entries: [
-        { step: 'Step 1', status: 'completed' },
-        { step: 'Step 2', status: 'in_progress' }
-      ]
-    })
+    expect(result.blocks.some((block) => block.type === 'plan')).toBe(false)
+  })
+
+  it('increments plan revisions for successive updates in the same session', () => {
+    const mapper = new AcpContentMapper()
+
+    const first = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Step 1', status: 'in_progress' }]
+      })
+    )
+    const second = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Step 1', status: 'completed' }]
+      })
+    )
+
+    expect(first.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 1 })
+    expect(second.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 2 })
+  })
+
+  it('clears per-session plan revisions without affecting other sessions', () => {
+    const mapper = new AcpContentMapper()
+
+    mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Step 1', status: 'in_progress' }]
+      })
+    )
+    mapper.map(
+      createNotification('session-2', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Other step', status: 'in_progress' }]
+      })
+    )
+    mapper.clearSession('session-1')
+
+    const reset = mapper.map(
+      createNotification('session-1', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Next step', status: 'in_progress' }]
+      })
+    )
+    const preserved = mapper.map(
+      createNotification('session-2', {
+        sessionUpdate: 'plan',
+        entries: [{ content: 'Other step', status: 'completed' }]
+      })
+    )
+
+    expect(reset.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 1 })
+    expect(preserved.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 2 })
   })
 
   it('preserves plan entry statuses in the structured payload', () => {

@@ -99,17 +99,33 @@ const { t } = useI18n()
 const rowRef = ref<HTMLElement | null>(null)
 let resizeObserver: ResizeObserver | null = null
 let measureFrame: number | null = null
+let measureRetryTimer: number | null = null
 let lastMeasuredHeight = 0
+
+const isParentListScrolling = () => Boolean(rowRef.value?.closest('.dc-list-scrolling'))
+
+const scheduleMeasureRetry = () => {
+  if (measureRetryTimer !== null) return
+  measureRetryTimer = window.setTimeout(() => {
+    measureRetryTimer = null
+    emitMeasuredHeight()
+  }, 160)
+}
 
 const emitMeasuredHeight = () => {
   if (measureFrame !== null) return
 
   measureFrame = window.requestAnimationFrame(() => {
     measureFrame = null
+    if (isParentListScrolling()) {
+      scheduleMeasureRetry()
+      return
+    }
     const messageId = props.item?.renderKey ?? props.item?.id
     if (!messageId) return
     const height = rowRef.value?.offsetHeight ?? 0
-    if (height <= 0 || Math.abs(height - lastMeasuredHeight) < 1) return
+    // Match useMessageWindow MEASURE_DELTA_EPSILON_PX: skip sub-threshold noise.
+    if (height <= 0 || Math.abs(height - lastMeasuredHeight) < 4) return
     lastMeasuredHeight = height
     emit('measure', { messageId, height })
   })
@@ -140,6 +156,10 @@ onBeforeUnmount(() => {
   if (measureFrame !== null) {
     window.cancelAnimationFrame(measureFrame)
     measureFrame = null
+  }
+  if (measureRetryTimer !== null) {
+    window.clearTimeout(measureRetryTimer)
+    measureRetryTimer = null
   }
 })
 

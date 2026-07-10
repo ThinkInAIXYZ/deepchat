@@ -157,10 +157,26 @@ export const MessageFileSchema = z.object({
   metadata: z.record(z.string(), FileMetadataValueSchema).optional()
 })
 
+export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('skill'),
+    offset: z.number().int().nonnegative(),
+    skillName: z.string()
+  }),
+  z.object({
+    type: z.literal('file'),
+    offset: z.number().int().nonnegative(),
+    fileName: z.string(),
+    filePath: z.string(),
+    mimeType: z.string().optional()
+  })
+])
+
 export const SendMessageInputSchema = z.object({
   text: z.string(),
   files: z.array(MessageFileSchema).optional(),
-  activeSkills: z.array(z.string()).optional()
+  activeSkills: z.array(z.string()).optional(),
+  inlineItems: z.array(UserMessageInlineItemSchema).optional()
 })
 
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [

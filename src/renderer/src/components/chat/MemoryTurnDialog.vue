@@ -5,7 +5,7 @@
         <DialogTitle class="text-base">{{ t('chat.memory.turn.title') }}</DialogTitle>
       </DialogHeader>
 
-      <div class="max-h-[60vh] overflow-y-auto px-5 py-4">
+      <div class="dc-overscroll-contain max-h-[60vh] overflow-y-auto px-5 py-4">
         <div
           v-if="turn?.status === 'loading'"
           class="py-8 text-center text-sm text-muted-foreground"

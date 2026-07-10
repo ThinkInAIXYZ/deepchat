@@ -16,6 +16,7 @@ import {
   finalize,
   finalizeError,
   finalizePaused,
+  publishPlanUpdated,
   persistAbortExceptionPlanState
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
@@ -400,6 +401,14 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
 
         accumulate(state, event)
+        if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
+          state.latestAgentPlanSnapshot = {
+            ...state.latestAgentPlanSnapshot,
+            sessionId: io.sessionId,
+            messageId: io.messageId
+          }
+          publishPlanUpdated(io, state.latestAgentPlanSnapshot)
+        }
         echo.schedule()
       }
 
@@ -556,7 +565,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       }
     }
-    if (state.blocks.length === 0) {
+    if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
       finalizeError(state, io, NO_MODEL_RESPONSE_ERROR)
       return {
         status: 'error' as const,

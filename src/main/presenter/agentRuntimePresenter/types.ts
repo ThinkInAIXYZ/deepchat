@@ -11,7 +11,7 @@ import type { ModelConfig } from '@shared/presenter'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { DeepChatMessageStore } from './messageStore'
 import type { ToolOutputGuard } from './toolOutputGuard'
-import type { AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -49,6 +49,7 @@ export interface StreamState {
   completedToolCalls: ToolCallResult[]
   pendingInteractions?: PendingToolInteraction[]
   stopReason: 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens'
+  latestAgentPlanSnapshot?: AgentPlanSnapshot
   planTerminalReason?: AgentPlanTerminalReason
   dirty: boolean
 }
@@ -108,6 +109,8 @@ export interface ProcessHooks {
     commitDecision: (granted: boolean) => void
   ) => void
   getActiveSkillNames?: () => string[]
+  getEnabledSkillNames?: () => string[] | null | undefined
+  getEnabledPluginIds?: () => string[] | null | undefined
   activateSkill?: (skillName: string) => Promise<string[]>
   normalizeToolResult?: (tool: {
     sessionId: string

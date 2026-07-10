@@ -61,10 +61,13 @@ export class TrayPresenter {
 
     this.tray.setContextMenu(contextMenu)
 
-    // 点击托盘图标时显示窗口
-    this.tray.on('click', () => {
-      eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, true)
-    })
+    // On macOS, clicking the status item opens the system menu. Do not also reveal the window,
+    // otherwise the menu's Open/Hide item can never hide the app reliably.
+    if (process.platform !== 'darwin') {
+      this.tray.on('click', () => {
+        eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, true)
+      })
+    }
   }
 
   public init(): void {

@@ -8,6 +8,9 @@ type FetchInitWithDispatcher = RequestInit & {
 }
 
 const OPENAI_CODEX_PRODUCT_SKU = 'codex'
+const OPENAI_CODEX_ORIGINATOR = 'codex_cli_rs'
+const OPENAI_CODEX_CLIENT_VERSION = '0.144.1'
+const OPENAI_CODEX_USER_AGENT = `${OPENAI_CODEX_ORIGINATOR}/${OPENAI_CODEX_CLIENT_VERSION} (Ubuntu 22.4.0; x86_64) xterm-256color`
 
 function stripResponsesSuffix(pathname: string): string {
   return pathname.replace(/\/responses\/?$/i, '') || '/'
@@ -166,6 +169,9 @@ function applyCodexHeaders(
     headers.set('ChatGPT-Account-ID', auth.accountId)
   }
   headers.set('OAI-Product-Sku', OPENAI_CODEX_PRODUCT_SKU)
+  headers.set('Originator', OPENAI_CODEX_ORIGINATOR)
+  headers.set('Version', OPENAI_CODEX_CLIENT_VERSION)
+  headers.set('User-Agent', OPENAI_CODEX_USER_AGENT)
   if (!headers.has('Accept')) {
     headers.set('Accept', 'text/event-stream')
   }

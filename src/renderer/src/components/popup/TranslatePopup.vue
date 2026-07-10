@@ -3,7 +3,8 @@
     <div
       v-if="isOpen"
       ref="popupRef"
-      class="translate-popup fixed left-0 top-0 z-50 w-[500px] rounded-lg border bg-background shadow-lg"
+      class="translate-popup fixed left-0 top-0 w-[500px] rounded-lg border bg-background shadow-lg"
+      style="z-index: var(--dc-z-popover)"
       :style="popupStyle"
       data-translate-popup="true"
     >

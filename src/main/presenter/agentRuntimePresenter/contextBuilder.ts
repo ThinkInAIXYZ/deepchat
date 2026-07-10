@@ -177,12 +177,14 @@ export function normalizeUserInput(input: string | SendMessageInput): SendMessag
         )
       )
     : []
+  const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
   return {
     text: typeof input.text === 'string' ? input.text : '',
     files: Array.isArray(input.files)
       ? (input.files.filter((file): file is MessageFile => Boolean(file)) as MessageFile[])
       : [],
-    ...(activeSkills.length > 0 ? { activeSkills } : {})
+    ...(activeSkills.length > 0 ? { activeSkills } : {}),
+    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 
@@ -402,13 +404,45 @@ function buildImageMetadataContext(files: MessageFile[]): string {
     .join('\n\n')
 }
 
+function buildInlineDisplayText(input: SendMessageInput): string {
+  const text = input.text ?? ''
+  const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
+  if (inlineItems.length === 0) {
+    return text
+  }
+
+  const validItems = inlineItems
+    .map((item, index) => ({ item, index }))
+    .filter(
+      ({ item }) => Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= text.length
+    )
+    .sort((left, right) => left.item.offset - right.item.offset || left.index - right.index)
+  if (validItems.length === 0) {
+    return text
+  }
+
+  const parts: string[] = []
+  let cursor = 0
+  for (const { item } of validItems) {
+    if (item.offset > cursor) {
+      parts.push(text.slice(cursor, item.offset))
+    }
+    parts.push(item.type === 'skill' ? `[Skill: ${item.skillName}]` : `[File: ${item.fileName}]`)
+    cursor = item.offset
+  }
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor))
+  }
+  return parts.join('')
+}
+
 export function buildUserMessageContent(
   input: SendMessageInput,
   supportsVision: boolean,
   supportsAudioInput: boolean = false,
   options: UserMessageContentBuildOptions = {}
 ): ChatMessage['content'] {
-  const text = input.text ?? ''
+  const text = buildInlineDisplayText(input)
   const files = Array.isArray(input.files) ? input.files : []
   const includeImageData = options.includeImageData !== false
   const includeAudioData = options.includeAudioData !== false

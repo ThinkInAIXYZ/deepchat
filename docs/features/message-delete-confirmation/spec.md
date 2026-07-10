@@ -51,7 +51,7 @@ message toolbar
 4. 只允许同时存在一个待删除消息；再次点击其他消息删除按钮时，待删除目标更新为最新消息。
 5. `isReadOnlySession` 为 true 时仍不展示删除入口，也不能触发确认。
 6. 确认期间如果 `messageId` 为空、会话变为只读或 session id 变化，确认动作 no-op 并关闭弹窗。
-7. 删除成功后继续执行现有 `clearStreamingState()` 和 `loadMessagesAndRehydrate()` 流程。
+7. 删除成功后继续执行现有 `clearStreamingState()` 和 `loadMessagesForSession()` 流程。
 8. 删除失败时保持现有 console error 行为；弹窗关闭，消息列表以实际数据为准。
 9. 用户可见文案走 i18n，不硬编码在组件中。
 10. Alert dialog 满足键盘和焦点基础行为：初始焦点、Escape 关闭、取消/确认按钮可 Tab 到达。

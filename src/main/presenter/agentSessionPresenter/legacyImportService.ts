@@ -9,6 +9,7 @@ import type {
   UserMessageContent
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
+import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@/presenter/configPresenter/acpRegistryConstants'
 import { DeepChatMessageStore } from '../agentRuntimePresenter/messageStore'
 
@@ -408,6 +409,7 @@ export class LegacyChatImportService {
         }
 
         if (!this.sqlitePresenter.deepchatSessionsTable.get(sessionId)) {
+          const reasoningEffort = this.pickString(conversation, ['reasoning_effort'])
           this.sqlitePresenter.deepchatSessionsTable.create(
             sessionId,
             providerId,
@@ -419,17 +421,7 @@ export class LegacyChatImportService {
               contextLength: this.pickNumber(conversation, ['context_length']) ?? undefined,
               maxTokens: this.pickNumber(conversation, ['max_tokens']) ?? undefined,
               thinkingBudget: this.pickNumber(conversation, ['thinking_budget']) ?? undefined,
-              reasoningEffort:
-                this.pickString(conversation, ['reasoning_effort']) === 'minimal' ||
-                this.pickString(conversation, ['reasoning_effort']) === 'low' ||
-                this.pickString(conversation, ['reasoning_effort']) === 'medium' ||
-                this.pickString(conversation, ['reasoning_effort']) === 'high'
-                  ? (this.pickString(conversation, ['reasoning_effort']) as
-                      | 'minimal'
-                      | 'low'
-                      | 'medium'
-                      | 'high')
-                  : undefined,
+              reasoningEffort: isReasoningEffort(reasoningEffort) ? reasoningEffort : undefined,
               verbosity:
                 this.pickString(conversation, ['verbosity']) === 'low' ||
                 this.pickString(conversation, ['verbosity']) === 'medium' ||

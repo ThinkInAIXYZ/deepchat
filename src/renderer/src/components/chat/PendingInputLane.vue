@@ -1,7 +1,11 @@
 <template>
   <div v-if="showLane" class="w-full max-w-4xl" data-testid="pending-rail">
     <div
-      class="rounded-xl border border-border/70 bg-card/55 px-2.5 py-2 shadow-sm backdrop-blur-lg"
+      class="rounded-xl border border-border/70 bg-card/55 px-2.5 py-2 shadow-sm"
+      style="
+        backdrop-filter: blur(var(--dc-blur-panel));
+        -webkit-backdrop-filter: blur(var(--dc-blur-panel));
+      "
     >
       <div class="mb-1.5 flex items-center justify-between gap-2" data-testid="pending-rail-header">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -23,7 +27,9 @@
       <div
         :class="[
           'space-y-1',
-          isScrollable ? `${listMaxHeightClass} overflow-y-auto pr-1` : 'overflow-visible'
+          isScrollable
+            ? `${listMaxHeightClass} overflow-y-auto overscroll-contain pr-1`
+            : 'overflow-visible'
         ]"
         data-testid="pending-rail-list"
         :data-scrollable="isScrollable ? 'true' : 'false'"

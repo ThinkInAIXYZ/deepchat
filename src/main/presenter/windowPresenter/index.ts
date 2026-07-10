@@ -59,6 +59,8 @@ export class WindowPresenter implements IWindowPresenter {
   private focusedWindowId: number | null = null
   // Main window ID
   private mainWindowId: number | null = null
+  // Tracks close-to-hide separately from the native macOS Hide command.
+  private mainWindowHiddenByClose = false
   private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
   private settingsWindowReady = false
@@ -318,6 +320,9 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     targetWindow.show()
+    if (targetWindow.id === this.mainWindowId) {
+      this.mainWindowHiddenByClose = false
+    }
     if (shouldFocus) {
       targetWindow.focus() // Bring to foreground
       activateAppOnMac()
@@ -742,6 +747,13 @@ export class WindowPresenter implements IWindowPresenter {
       }
     })
 
+    // Clear close-to-hide state for every main-window show path, including direct BrowserWindow.show().
+    appWindow.on('show', () => {
+      if (windowId === this.mainWindowId) {
+        this.mainWindowHiddenByClose = false
+      }
+    })
+
     // 窗口获得焦点
     appWindow.on('focus', () => {
       logger.info(`Window ${windowId} gained focus.`)
@@ -867,6 +879,7 @@ export class WindowPresenter implements IWindowPresenter {
         if (shouldPreventDefault) {
           logger.info(`Window ${windowId}: Preventing default close behavior, hiding instead.`)
           event.preventDefault() // 阻止默认窗口关闭行为
+          this.mainWindowHiddenByClose = true
 
           // 处理全屏窗口隐藏时的黑屏问题 (同 hide 方法)
           if (appWindow.isFullScreen()) {
@@ -911,6 +924,9 @@ export class WindowPresenter implements IWindowPresenter {
       appWindow.removeListener('restore', handleRestore)
 
       this.windows.delete(windowIdBeingClosed) // 从 Map 中移除
+      if (windowIdBeingClosed === this.mainWindowId) {
+        this.mainWindowHiddenByClose = false
+      }
       managedWindowState.unmanage() // 停止管理窗口状态
       eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
       this.publishWindowStateChanged(windowIdBeingClosed, false)
@@ -1452,8 +1468,21 @@ export class WindowPresenter implements IWindowPresenter {
 
     mainWindow.show()
     mainWindow.focus()
+    this.mainWindowHiddenByClose = false
     activateAppOnMac()
     return true
+  }
+
+  public restoreMainWindowHiddenByClose(): boolean {
+    if (!this.mainWindowHiddenByClose) {
+      return false
+    }
+
+    return this.focusMainWindow()
+  }
+
+  public clearMainWindowHiddenByClose(): void {
+    this.mainWindowHiddenByClose = false
   }
 
   public setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void {

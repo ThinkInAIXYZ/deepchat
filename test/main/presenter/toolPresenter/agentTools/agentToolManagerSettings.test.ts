@@ -205,6 +205,28 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     ])
   })
 
+  it('does not use active skills as the skill_list allowlist', async () => {
+    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+
+    const manager = buildManager()
+    const result = (await manager.callTool('skill_list', {}, 'conv-1', {
+      activeSkillNames: []
+    })) as { content: string }
+    const content = JSON.parse(result.content) as {
+      skills: Array<{ name: string; active: boolean }>
+      totalCount: number
+    }
+
+    expect(content.totalCount).toBe(1)
+    expect(content.skills).toEqual([
+      expect.objectContaining({
+        name: 'code-review',
+        active: false
+      })
+    ])
+  })
+
   it('returns runtime skill_view activation metadata without persisting session skills', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])

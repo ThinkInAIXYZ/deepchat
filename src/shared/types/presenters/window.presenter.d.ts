@@ -45,6 +45,8 @@ export interface IWindowPresenter {
   closeSettingsWindow(): void
   getSettingsWindowId(): number | null
   focusMainWindow(): boolean
+  restoreMainWindowHiddenByClose(): boolean
+  clearMainWindowHiddenByClose(): void
   notifySettingsReady(senderWebContentsId: number): void
   setPendingSettingsProviderInstall(preview: ProviderInstallPreview): void
   consumePendingSettingsProviderInstall(): ProviderInstallPreview | null

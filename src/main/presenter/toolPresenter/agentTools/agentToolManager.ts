@@ -105,6 +105,8 @@ interface AgentToolExecutionOptions {
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
+  enabledSkillNames?: string[] | null
+  enabledPluginIds?: string[] | null
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -2135,11 +2137,21 @@ export class AgentToolManager {
       return undefined
     }
 
+    return this.normalizeSkillNameList(activeSkillNames)
+  }
+
+  private normalizeNullableSkillOption(skillNames?: string[] | null): string[] | null | undefined {
+    if (skillNames === null || skillNames === undefined) {
+      return skillNames
+    }
+
+    return this.normalizeSkillNameList(skillNames)
+  }
+
+  private normalizeSkillNameList(skillNames: string[]): string[] {
     return Array.from(
       new Set(
-        activeSkillNames
-          .map((skillName) => skillName.trim())
-          .filter((skillName) => skillName.length > 0)
+        skillNames.map((skillName) => skillName.trim()).filter((skillName) => skillName.length > 0)
       )
     )
   }
@@ -2161,9 +2173,16 @@ export class AgentToolManager {
 
     const skillTools = this.getSkillTools()
     const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
+    const enabledSkillNames = this.normalizeNullableSkillOption(options?.enabledSkillNames)
+    const enabledPluginIds = this.normalizeNullableSkillOption(options?.enabledPluginIds)
 
     if (toolName === 'skill_list') {
-      const result = await skillTools.handleSkillList(conversationId, effectiveActiveSkills)
+      const result = await skillTools.handleSkillList(
+        conversationId,
+        enabledSkillNames,
+        effectiveActiveSkills,
+        enabledPluginIds
+      )
       return { content: JSON.stringify(result) }
     }
 
@@ -2181,7 +2200,8 @@ export class AgentToolManager {
       const result = await skillTools.handleSkillView(
         conversationId,
         validationResult.data,
-        effectiveActiveSkills
+        enabledSkillNames,
+        enabledPluginIds
       )
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activeSkillNamesForResult = effectiveActiveSkills ?? []

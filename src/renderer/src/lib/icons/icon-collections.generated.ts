@@ -467,6 +467,9 @@ export const lucideIconCollection = {
     'music-2': {
       body: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/></g>'
     },
+    'notebook-tabs': {
+      body: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2 6h4m-4 4h4m-4 4h4m-4 4h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M15 2v20m0-15h5m-5 5h5m-5 5h5"/></g>'
+    },
     'panel-left-close': {
       body: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18m7-6l-3-3l3-3"/></g>'
     },
@@ -740,7 +743,7 @@ export const lucideIconCollection = {
       parent: 'circle-x'
     }
   },
-  lastModified: 1781845775,
+  lastModified: 1779346445,
   width: 24,
   height: 24
 } as const
@@ -801,7 +804,7 @@ export const vscodeIconCollection = {
     }
   },
   aliases: {},
-  lastModified: 1782279587,
+  lastModified: 1779168064,
   width: 32,
   height: 32
 } as const

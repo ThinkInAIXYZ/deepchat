@@ -2,19 +2,19 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { StreamState } from './types'
-import { upsertAgentPlanBlock } from '@shared/chat/agentPlanBlock'
 
-export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): void {
+export function finalizeTrailingPendingNarrativeBlocks(blocks: AssistantMessageBlock[]): boolean {
   const last = blocks[blocks.length - 1]
   if (
     !last ||
     last.status !== 'pending' ||
     (last.type !== 'content' && last.type !== 'reasoning_content')
   ) {
-    return
+    return false
   }
 
   last.status = 'success'
+  return true
 }
 
 function getCurrentBlock(
@@ -109,16 +109,18 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       break
     }
     case 'plan': {
-      finalizeTrailingPendingNarrativeBlocks(state.blocks)
-      upsertAgentPlanBlock(state.blocks, {
+      if (finalizeTrailingPendingNarrativeBlocks(state.blocks)) {
+        state.dirty = true
+      }
+      const revision = event.revision ?? (state.latestAgentPlanSnapshot?.revision ?? 0) + 1
+      state.latestAgentPlanSnapshot = {
         sessionId: '',
         plan: event.plan,
         ...(event.explanation ? { explanation: event.explanation } : {}),
-        revision: event.revision ?? 1,
+        revision,
         updatedAt: event.updatedAt ?? new Date().toISOString(),
         ...(event.terminalReason ? { terminalReason: event.terminalReason } : {})
-      })
-      state.dirty = true
+      }
       break
     }
     case 'tool_call_start': {

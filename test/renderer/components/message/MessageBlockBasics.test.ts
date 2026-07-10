@@ -3,7 +3,6 @@ import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import MessageBlockError from '@/components/message/MessageBlockError.vue'
-import MessageBlockPlan from '@/components/message/MessageBlockPlan.vue'
 import MessageBlockQuestionRequest from '@/components/message/MessageBlockQuestionRequest.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
@@ -12,14 +11,6 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
       const messages: Record<string, string> = {
-        'chat.workspace.plan.section': 'Plan',
-        'chat.workspace.plan.completedCount': '{completed}/{total} completed',
-        'chat.workspace.plan.empty': 'No tasks yet',
-        'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
-        'chat.workspace.plan.status.completed': 'Completed',
-        'chat.workspace.plan.status.in_progress': 'In Progress',
-        'chat.workspace.plan.status.pending': 'Pending',
-        'chat.workspace.plan.status.interrupted': 'Interrupted',
         'chat.skillDraft.confirmationTitle': 'Skill Draft',
         'chat.skillDraft.confirmationQuestion': '已生成 skill draft：{name}',
         'chat.skillDraft.actions.view': '查看内容',
@@ -193,46 +184,6 @@ describe('MessageBlock basics', () => {
     expect(wrapper.text()).toContain('A')
     expect(wrapper.text()).toContain('B')
     expect(wrapper.text()).toContain('components.messageBlockQuestionRequest.answerLabel')
-  })
-
-  it('renders plan summary from plan entries', () => {
-    const wrapper = mount(MessageBlockPlan, {
-      props: {
-        block: createBlock({
-          type: 'plan',
-          extra: {
-            plan_entries: [
-              { step: 'Inspect runtime', status: 'completed' },
-              { step: 'Write tests', status: 'pending' }
-            ]
-          }
-        })
-      }
-    })
-
-    expect(wrapper.text()).toContain('Plan')
-    expect(wrapper.text()).toContain('1/2 completed')
-    expect(wrapper.text()).toContain('Inspect runtime')
-    expect(wrapper.text()).toContain('Write tests')
-    expect(wrapper.find('[aria-label="Completed: Inspect runtime"]').exists()).toBe(true)
-    expect(wrapper.find('[aria-label="Pending: Write tests"]').exists()).toBe(true)
-  })
-
-  it('renders terminal in-progress plan entries without a spinner', () => {
-    const wrapper = mount(MessageBlockPlan, {
-      props: {
-        block: createBlock({
-          type: 'plan',
-          extra: {
-            plan_entries: [{ step: 'Write tests', status: 'in_progress' }],
-            plan_terminal_reason: 'error'
-          }
-        })
-      }
-    })
-
-    expect(wrapper.find('.animate-spin').exists()).toBe(false)
-    expect(wrapper.find('[aria-label="Interrupted: Write tests"]').exists()).toBe(true)
   })
 
   it('expands error details and explanation', async () => {

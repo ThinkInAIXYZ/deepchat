@@ -1010,7 +1010,43 @@ describe('processStream', () => {
     expect((coreStream as ReturnType<typeof vi.fn>).mock.calls.length).toBeLessThanOrEqual(129)
   })
 
-  it('stamps open plan blocks when the max tool calls limit stops the loop', async () => {
+  it('completes a plan-only stream without writing an error or plan block', async () => {
+    const finalWrites: any[] = []
+    messageStore.finalizeAssistantMessage.mockImplementation((_messageId, blocks) => {
+      finalWrites.push(structuredClone(blocks))
+    })
+    const coreStream = vi.fn(async function* () {
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Inspect runtime state', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      stopReason: 'complete'
+    })
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledWith('m1', [], expect.any(String))
+    expect(finalWrites.at(-1)?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      revision: 1
+    })
+    expectDeepchatEvent('chat.stream.completed', {
+      sessionId: 's1',
+      messageId: 'm1',
+      requestId: 'req-1'
+    })
+  })
+
+  it('publishes a terminal plan event when the max tool calls limit stops the loop', async () => {
     const finalWrites: any[] = []
     messageStore.finalizeAssistantMessage.mockImplementation((_messageId, blocks) => {
       finalWrites.push(structuredClone(blocks))
@@ -1053,8 +1089,7 @@ describe('processStream', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    const planBlock = finalWrites.at(-1)?.find((block: { type: string }) => block.type === 'plan')
-    expect(planBlock?.extra?.plan_terminal_reason).toBe('max_steps')
+    expect(finalWrites.at(-1)?.some((block: { type: string }) => block.type === 'plan')).toBe(false)
     expectDeepchatEvent('chat.plan.updated', {
       sessionId: 's1',
       messageId: 'm1',
@@ -1062,11 +1097,7 @@ describe('processStream', () => {
     })
   })
 
-  it('persists an aborted terminal marker when AbortError is thrown after a plan event', async () => {
-    const persistedWrites: any[] = []
-    messageStore.updateAssistantContent.mockImplementation((_messageId, blocks) => {
-      persistedWrites.push(structuredClone(blocks))
-    })
+  it('publishes an aborted terminal marker when AbortError is thrown after a plan event', async () => {
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     const coreStream = vi.fn(async function* () {
@@ -1086,12 +1117,49 @@ describe('processStream', () => {
       stopReason: 'user_stop',
       errorMessage: 'common.error.userCanceledGeneration'
     })
-    const planBlock = persistedWrites
-      .at(-1)
-      ?.find((block: { type: string }) => block.type === 'plan')
-    expect(planBlock?.extra?.plan_terminal_reason).toBe('aborted')
+    expect(messageStore.updateAssistantContent).not.toHaveBeenCalled()
     expect(messageStore.setMessageError).not.toHaveBeenCalled()
     expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expectDeepchatEvent('chat.plan.updated', {
+      sessionId: 's1',
+      messageId: 'm1',
+      terminalReason: 'aborted'
+    })
+  })
+
+  it('persists finalized narrative blocks when AbortError is thrown after text and plan events', async () => {
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'text', content: 'Partial answer' } as LLMCoreStreamEvent
+      yield {
+        type: 'plan',
+        plan: [{ step: 'Current work', status: 'in_progress' }],
+        revision: 1,
+        updatedAt: '2026-05-18T00:00:00.000Z'
+      } as LLMCoreStreamEvent
+      throw abortError
+    }) as unknown as ProcessParams['coreStream']
+
+    const result = await processStream(createParams({ coreStream }))
+
+    expect(result).toMatchObject({
+      status: 'aborted',
+      stopReason: 'user_stop',
+      errorMessage: 'common.error.userCanceledGeneration'
+    })
+    expect(messageStore.setMessageError).not.toHaveBeenCalled()
+    expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateAssistantContent).toHaveBeenLastCalledWith(
+      'm1',
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'content',
+          content: 'Partial answer',
+          status: 'success'
+        })
+      ])
+    )
     expectDeepchatEvent('chat.plan.updated', {
       sessionId: 's1',
       messageId: 'm1',
