@@ -112,7 +112,11 @@ device-query limit, and a five-second skill command-probe limit. These are conse
 ceilings: workspace operations get the largest budget, while local system and availability probes
 align with adjacent five/ten-second probes. A timeout must settle the caller once and must not be
 presented as successful output. Existing public failure semantics remain authoritative: Workspace
-Git APIs converge to `null`, device queries reject, and `hasCommand()` resolves `false`.
+Git APIs converge to `null`, device queries reject, and `hasCommand()` resolves `false` for normal
+absence or a timeout whose direct child has closed. If neither the child handle nor the same-owner
+direct PID fallback can produce a confirmed close within the reap grace period, `hasCommand()`
+rejects `CommandProbeContainmentError`; an unconfirmed containment failure is not an availability
+miss.
 Process-tree containment remains a later PTG slice because a finite caller result alone does not
 prove that descendants stopped.
 
@@ -223,7 +227,8 @@ Each required row runs in real Electron with a disposable profile and unique mar
 - a hung `wmic`/`df` direct child is killed and reaped within 10 seconds plus grace, while the
   public device query keeps its existing rejection semantics;
 - a hung `SkillExecutionService.hasCommand()` direct child is killed and reaped within five seconds
-  plus grace, while the public probe resolves as unavailable;
+  plus grace, then resolves as unavailable; an unconfirmed reap rejects the typed containment error
+  instead of returning `false`;
 - each timeout settles once, clears timers/listeners, and never returns partial output as success;
 - existing successful Git, device-query, and command-availability results remain unchanged; and
 - tests prove the direct timeout behavior without claiming that it governs descendants. Descendant
