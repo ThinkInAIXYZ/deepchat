@@ -1,7 +1,8 @@
 # Fatal Process Tree Governance
 
-Status: `PTG-001` specification complete; implementation not started. This issue is a blocking
-dependency for `FTL-002`.
+Status: `PTG-001` specification complete; `PTG-M1` static launcher inventory guard implemented.
+Runtime parent-loss fixtures, containment, and the native matrix are not implemented. This issue
+remains a blocking dependency for `FTL-002`.
 
 Runtime owners: every main-process domain that launches an OS process, plus utility hosts that
 launch or retain resources on behalf of the main process.
@@ -171,6 +172,41 @@ Static search cannot prove that a native addon or third-party library never laun
 test harness must record a process-tree census before and after activating each surface; any new
 unclassified child becomes an inventory failure rather than being ignored.
 
+### Static inventory gate (`PTG-M1`)
+
+[`process-launcher-inventory-guard.mjs`](../../../scripts/process-launcher-inventory-guard.mjs)
+scans `src/` during `pnpm run lint:process-launchers`. The tracked
+[`process-launcher-inventory.json`](../../../scripts/process-launcher-inventory.json) records each
+detected site's exact repository path, launcher API, same-file API occurrence, owner, and category.
+It does not accept a count-only baseline.
+
+The guard recognizes `child_process`/`node:child_process`, `cross-spawn`, `node-pty`, Electron
+`utilityProcess.fork`, MCP SDK `StdioClientTransport`, `shell.openExternal`, and `shell.openPath`.
+Named import aliases, Electron import aliases, dynamic Electron destructuring, and the existing
+one-step `promisify(exec|execFile)` wrappers are covered. A new site is unclassified; deleting,
+renaming, moving, or changing the API/occurrence of a tracked site produces inventory drift. Both
+fail lint until a reviewer assigns an explicit owner and category.
+
+The categories distinguish DeepChat runtime trees, utility hosts, bounded helpers, termination
+helpers, synchronous exclusions, Electron/system openers, and the intentionally user-owned terminal
+surface. Category assignment is evidence metadata, not proof that a process is bounded or contained.
+
+This is a standard-library lexical scanner, not a TypeScript AST or call-graph analyzer. Residuals
+are explicit:
+
+- computed member calls such as `shell['openExternal']` are not recognized;
+- aliases created after import, except the covered direct `promisify` form, and launchers hidden
+  behind re-exports, factories, or third-party/native code are not followed;
+- regex scanning can treat launcher-shaped text in comments or strings as a site, so unusual syntax
+  may fail closed and require a focused scanner fixture or source clarification;
+- same-file sites use API occurrence order rather than a semantic call-site name, so reorder-only
+  changes with the same API count still require human review of the tracked classification.
+
+Computed access and opaque aliasing are therefore prohibited for these launcher APIs unless the
+guard and fixtures are extended in the same change. Code review and the later runtime process census
+remain required for native and dependency-hidden launchers. `PTG-M1` changes no runtime behavior,
+does not execute the native matrix, selects no containment mechanism, and does not unlock `FTL-002`.
+
 ## Required contract
 
 Every DeepChat-owned child tree must have an owner-independent termination guarantee when its owning
@@ -252,7 +288,7 @@ close the issue.
 - [ ] Reproduce the exploratory macOS utility callback observation in a reusable PTG fixture, retain
       the result, and run the same probe on Windows and Linux.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
-- [ ] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
+- [x] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
       `node-pty`, Electron `utilityProcess.fork`, MCP SDK `StdioClientTransport`,
       `shell.openExternal`, and `shell.openPath`, and fails when a new direct or wrapped launcher is
       unclassified.
