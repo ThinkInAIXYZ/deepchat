@@ -42,12 +42,14 @@ used Electron 40.10.5 and the production background-exec launch path:
 
 Observed macOS result: `[utility host exited, shell alive, grandchild alive]`.
 
-The same branch ran a narrower parent-loss probe. The utility process registered `parentPort`
+The same branch ran a narrower exploratory parent-loss probe. The utility process registered `parentPort`
 `close`, `disconnect`, `exit`, and `error` listeners and process `disconnect`, `beforeExit`, `exit`,
 `SIGTERM`, `SIGHUP`, and `SIGINT` listeners before main-process exit. The main side observed utility
 exit code `0`, but none of those utility-side JavaScript callbacks recorded an event; the shell and
-grandchild were reparented and remained alive. This rejects a utility-side JavaScript event handler
-as the macOS solution for forced main-process exit. It is not evidence for Windows or Linux.
+grandchild were reparented and remained alive. No reusable fixture or result artifact was preserved,
+so this is branch-local exploratory observation, not acceptance evidence and not enough to eliminate
+a candidate. The PTG harness must reproduce it before any mechanism decision. It says nothing about
+Windows or Linux.
 
 ## Existing code truth
 
@@ -61,8 +63,9 @@ as the macOS solution for forced main-process exit. It is not evidence for Windo
 - The background-exec proxy asks the utility manager to shut down before killing the utility host
   during healthy shutdown. Fatal `process.exit(1)` intentionally skips that path.
 - Background-exec, file-watcher, and cron utility hosts register cleanup from `beforeExit` or an
-  explicit message. Node documents that `beforeExit` is not emitted for explicit termination, and
-  the macOS probe confirms that utility teardown did not deliver a usable JavaScript cleanup event.
+  explicit message. Node documents that `beforeExit` is not emitted for explicit termination. The
+  exploratory macOS probe was consistent with that limitation, but PTG must preserve a reproducible
+  fixture before using the result to reject an implementation candidate.
 - Electron documents utility `parentPort` with only `message` and `postMessage`; it does not promise
   a close or disconnect event. Node's `process.disconnect` contract applies to a Node child-process
   IPC channel, not Electron's Chromium Services utility-process MessagePort.
@@ -99,34 +102,61 @@ does not control individually.
 | File watcher in [`watcherHostClient.ts`](../../../src/main/lib/fileWatcher/watcherHostClient.ts) | Main → content or Git utility host; host owns native watcher handles | RPC shutdown followed by utility `kill()` | Direct utility host not measured in the full matrix; static source shows no further OS-process launcher in the host |
 | Cron scheduler in [`schedulerProcessManager.ts`](../../../src/main/presenter/cronJobs/schedulerProcessManager.ts) | Main → scheduler utility host; due work is posted back to main | STOP message followed by utility `kill()` | Direct utility host not measured in the full matrix; static source shows no scheduler-spawned command |
 
-### Bounded helper launchers that still need disposition
+### Helper launchers that still need disposition
 
-Short expected duration is not a containment guarantee. For each row, the implementation work must
-either add a marked parent-loss case, route it through a proven governed launcher, or record why a
-JavaScript fatal cannot overlap that synchronous call.
+Short expected duration is not a containment guarantee. Three helpers have no finite healthy-path
+limit today. The smallest executable decision is to keep them inside PTG and deliver a first,
+separately reviewed `PTG-H0` slice before the parent-loss mechanism work; a parallel issue/spec would
+add another owner without reducing scope. `PTG-H0` adds a 30-second workspace Git limit, a 10-second
+device-query limit, and a five-second skill command-probe limit. These are conservative initial
+ceilings: workspace operations get the largest budget, while local system and availability probes
+align with adjacent five/ten-second probes. A timeout must settle the caller once and must not be
+presented as successful output. Process-tree containment remains a later PTG slice because a finite
+caller result alone does not prove that descendants stopped.
 
-| Launch site | Purpose and current bound | Required disposition |
+For every row, implementation must also add a marked parent-loss case, route it through a proven
+governed launcher, or record why a JavaScript fatal cannot overlap that synchronous call.
+
+| Launch site | Healthy-path bound today | Required disposition |
 | --- | --- | --- |
-| [`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts) | RTK health/rewrite child with timeout and direct-child TERM/KILL | Prove direct child and any marked grandchild disappear, or use governed helper execution |
-| [`shellEnvHelper.ts`](../../../src/main/lib/agentRuntime/shellEnvHelper.ts) | Login-shell environment probe with timeout and direct `kill()` | Marked parent-loss probe |
-| [`acpInitHelper.ts`](../../../src/main/presenter/configPresenter/acpInitHelper.ts) | Dependency check and `which`/`where` commands with five-second timeout | Marked representative probe or governed helper path |
-| [`pluginPresenter/index.ts`](../../../src/main/presenter/pluginPresenter/index.ts) | Runtime version and permission probes with five/ten-second timeouts | Marked representative probe; plugin runtime may itself create descendants |
-| [`skillPresenter/index.ts`](../../../src/main/presenter/skillPresenter/index.ts) | `git clone` for skill installation with download timeout | Marked Git child/descendant probe |
-| [`workspacePresenter/index.ts`](../../../src/main/presenter/workspacePresenter/index.ts) | Git status/diff helpers, currently without a local timeout | Marked Git probe and bounded healthy behavior |
-| [`ollamaProvider.ts`](../../../src/main/presenter/llmProviderPresenter/providers/ollamaProvider.ts) | Local `ollama list` with timeout | Marked CLI probe |
-| [`devicePresenter/index.ts`](../../../src/main/presenter/devicePresenter/index.ts) | `wmic` or `df` device query | Marked helper probe or bounded governed path |
-| [`skillExecutionService.ts`](../../../src/main/presenter/skillPresenter/skillExecutionService.ts) | Runtime availability probe plus foreground execution | Availability probe may share a helper case; foreground remains in the required runtime matrix |
+| [`rtkRuntimeService.ts`](../../../src/main/lib/agentRuntime/rtkRuntimeService.ts) | Bounded: configured timeout with direct-child TERM/KILL | Prove direct child and any marked grandchild disappear, or use governed helper execution |
+| [`shellEnvHelper.ts`](../../../src/main/lib/agentRuntime/shellEnvHelper.ts) | Bounded: login-shell probe has a timeout and direct `kill()` | Marked parent-loss probe |
+| [`acpInitHelper.ts`](../../../src/main/presenter/configPresenter/acpInitHelper.ts) | Bounded: dependency and `which`/`where` probes use five seconds | Marked representative probe or governed helper path |
+| [`pluginPresenter/index.ts`](../../../src/main/presenter/pluginPresenter/index.ts) | Bounded: runtime version and permission probes use five/ten seconds | Marked representative probe; plugin runtime may itself create descendants |
+| [`skillPresenter/index.ts`](../../../src/main/presenter/skillPresenter/index.ts) | Bounded: `git clone` uses the download timeout | Marked Git child/descendant probe |
+| [`workspacePresenter/index.ts`](../../../src/main/presenter/workspacePresenter/index.ts) | **Unbounded:** Git status/diff helpers have no local timeout | `PTG-H0`: add and test a 30-second limit; then add marked Git parent-loss coverage |
+| [`ollamaProvider.ts`](../../../src/main/presenter/llmProviderPresenter/providers/ollamaProvider.ts) | Bounded: local `ollama list` uses a timeout | Marked CLI probe |
+| [`devicePresenter/index.ts`](../../../src/main/presenter/devicePresenter/index.ts) | **Unbounded:** `wmic` and `df` queries have no timeout | `PTG-H0`: add and test a 10-second limit; then add marked helper coverage |
+| [`skillExecutionService.ts`](../../../src/main/presenter/skillPresenter/skillExecutionService.ts) | Mixed: foreground execution is bounded; `hasCommand()` is **unbounded** | `PTG-H0`: add and test a five-second `hasCommand` limit; foreground remains in the runtime matrix |
 
 ### Explicit exclusions and unresolved edges
 
 | Surface | Disposition |
 | --- | --- |
 | [`TerminalHelper`](../../../src/main/lib/terminalHelper.ts) | No repository caller exists on this baseline. Its purpose is explicitly opening a user terminal that may remain open. Do not silently govern or activate it; if made reachable, first define the user-owned lifetime contract. |
-| Windows browser opening in [`githubCopilotDeviceFlow.ts`](../../../src/main/presenter/githubCopilotDeviceFlow.ts) | `explorer`/`start` hands a URL to a user-owned external application. The transient launcher must settle, but the browser is not a DeepChat-owned child tree. |
+| Electron `shell.openExternal` | Real call surfaces are [`externalUrl.ts`](../../../src/main/lib/externalUrl.ts), GitHub device flow, MCP OAuth, OpenAI Codex auth, plugin guide/CUA links, and upgrade links. Electron/system owns the transient opener; the selected browser or protocol handler is a user/system-owned external lifetime and may outlive DeepChat. PTG asserts only that the opener promise settles or rejects and excludes the target app from DeepChat-child absence checks. |
+| Electron `shell.openPath` | Real call surfaces open the log folder, plugin helper app, project path, skills directory, sync folder, downloaded file, or workspace path from Config, Plugin, Project, Skill, Sync, Window, and Workspace presenters. Electron/system owns the transient opener; the chosen file manager or default application is external. PTG must classify these calls in the inventory guard and assert opener settlement, not target-app exit. |
+| Windows browser fallback in [`githubCopilotDeviceFlow.ts`](../../../src/main/presenter/githubCopilotDeviceFlow.ts) | `explorer`/`start` is a separate transient opener for the same external-browser contract. Its launcher callback must settle; the browser itself is not a DeepChat-owned child tree. |
 | Synchronous tar extraction in [`acpLaunchSpecService.ts`](../../../src/main/presenter/configPresenter/acpLaunchSpecService.ts) | `execFileSync` blocks the JavaScript turn, so the `FTL-002` JavaScript fatal handler cannot interleave with it. Native process death remains outside the JavaScript-fatal scope. |
 | `taskkill`, `pkill`, and helpers spawned by [`processTree.ts`](../../../src/main/lib/agentRuntime/processTree.ts) | These are termination mechanisms, not product workloads. They need settlement tests inside the selected governance design, not independent lifetime ownership. |
 | `worker_threads` discovery/scan/inline workers | Threads are part of the main OS process rather than independently surviving child processes. Runtime census must still detect if a native dependency secretly launches a process. |
 | Electron renderer, GPU, network-service, and crash infrastructure | Chromium-owned processes are not application launcher sites in this inventory. Electron process-gone policy is separate, but the runtime census must distinguish them from DeepChat-owned utilities. |
+
+The concrete Electron shell call inventory is:
+
+- `openExternal`: [`externalUrl.ts`](../../../src/main/lib/externalUrl.ts),
+  [`githubCopilotDeviceFlow.ts`](../../../src/main/presenter/githubCopilotDeviceFlow.ts),
+  [`mcpOAuthProvider.ts`](../../../src/main/presenter/mcpPresenter/mcpOAuthProvider.ts),
+  [`openaiCodexAuth/index.ts`](../../../src/main/presenter/openaiCodexAuth/index.ts),
+  [`pluginPresenter/index.ts`](../../../src/main/presenter/pluginPresenter/index.ts), and
+  [`upgradePresenter/index.ts`](../../../src/main/presenter/upgradePresenter/index.ts).
+- `openPath`: [`configPresenter/index.ts`](../../../src/main/presenter/configPresenter/index.ts),
+  [`pluginPresenter/index.ts`](../../../src/main/presenter/pluginPresenter/index.ts),
+  [`projectPresenter/index.ts`](../../../src/main/presenter/projectPresenter/index.ts),
+  [`skillPresenter/index.ts`](../../../src/main/presenter/skillPresenter/index.ts),
+  [`syncPresenter/index.ts`](../../../src/main/presenter/syncPresenter/index.ts),
+  [`windowPresenter/index.ts`](../../../src/main/presenter/windowPresenter/index.ts), and
+  [`workspacePresenter/index.ts`](../../../src/main/presenter/workspacePresenter/index.ts).
 
 Static search cannot prove that a native addon or third-party library never launches a child. The
 test harness must record a process-tree census before and after activating each surface; any new
@@ -153,7 +183,7 @@ No implementation mechanism is selected by this spec.
 
 | Candidate | Current evidence | Evidence required before selection |
 | --- | --- | --- |
-| Utility-side parentPort/disconnect/exit cleanup | Rejected for the measured macOS forced-exit path: no registered JavaScript callback ran | Do not revive without contradictory real Electron evidence |
+| Utility-side parentPort/disconnect/exit cleanup | Branch-local exploratory macOS observation saw no callback, but no reusable fixture/result was preserved | Reproduce in the PTG harness on all target platforms; reject only where preserved evidence proves the callback is not delivered in time |
 | Cleanup from the fatal helper or Presenter lifecycle | Rejected: it violates the built-in-only fail-stop boundary and trusts potentially inconsistent state | None; out of contract |
 | Remove `detached` | Rejected as a guarantee; Node documents that ordinary children can outlive a parent | May still be an incidental simplification only after containment is independently proven |
 | External watchdog/supervisor | Not measured | Prove startup-race handling, reliable owner-loss signal, exact tree identity, bounded self-exit, no second orphan, and healthy-shutdown compatibility on all three platforms |
@@ -181,7 +211,18 @@ Each required row runs in real Electron with a disposable profile and unique mar
 | ACP protocol and install PTYs | PTY and all `D` gone ≤5s | Same | Same | input/output, resize, wait, release, init cancellation |
 | File-watcher content/Git utilities | `U` gone; watcher handles released ≤5s | Same | Same | watch, unwatch, restart, shutdown |
 | Cron scheduler utility | `U` gone; DB/heartbeat resources released ≤5s | Same | Same | reconcile, run-now, idle stop, restart, shutdown |
-| Bounded helper group | Every activated marked child/descendant gone ≤5s | Same | Same | original timeout/result semantics remain bounded |
+| Helper launcher group | Every activated marked child/descendant gone ≤5s | Same | Same | all helpers have finite limits; timeout settles once as failure; the three `PTG-H0` ceilings are 30s/10s/5s |
+
+`PTG-H0` is accepted before mechanism work only when:
+
+- a hung workspace Git command rejects within 30 seconds plus a bounded test grace period;
+- a hung `wmic`/`df` query rejects within 10 seconds plus grace;
+- a hung `SkillExecutionService.hasCommand()` resolves as unavailable within five seconds plus
+  grace;
+- each timeout settles once, clears timers/listeners, and never returns partial output as success;
+- existing successful Git, device-query, and command-availability results remain unchanged; and
+- tests prove the direct timeout behavior without claiming that it governs descendants. Descendant
+  absence remains part of the later real Electron parent-loss matrix.
 
 Assertions must use PID plus a unique command marker and a captured start identity; ports and PTYs
 must be checked when applicable. PID absence alone is insufficient because of reuse. The harness
@@ -194,12 +235,17 @@ close the issue.
 ## Ordered implementation tasks
 
 - [x] Record the branch-local macOS background-exec orphan and bounded result.
-- [x] Record the macOS utility JavaScript parent-loss callback probe.
+- [ ] Reproduce the exploratory macOS utility callback observation in a reusable PTG fixture, retain
+      the result, and run the same probe on Windows and Linux.
 - [x] Complete the baseline source launcher inventory and explicit exclusions.
-- [ ] Add an inventory guard or generated census that fails when a new launcher is unclassified.
+- [ ] Add an inventory guard or generated census that classifies `child_process`, `cross-spawn`,
+      `node-pty`, `utilityProcess.fork`, `shell.openExternal`, and `shell.openPath`, and fails when a
+      new launcher is unclassified.
+- [ ] Deliver `PTG-H0`: add the 30-second workspace Git, 10-second device query, and five-second
+      `SkillExecutionService.hasCommand` healthy-path limits with deterministic timeout tests.
 - [ ] Build a mechanism-neutral real Electron marked-tree harness independent of the `FTL-002`
       fatal helper; trigger forced main exit directly.
-- [ ] Implement every required launcher and bounded-helper fixture without changing runtime
+- [ ] Implement every required runtime and helper-launcher fixture without changing runtime
       behavior.
 - [ ] Run the pre-change matrix on native macOS, Windows, and Linux and record exact results.
 - [ ] Compare external watchdog and platform containment candidates against the measured matrix.
