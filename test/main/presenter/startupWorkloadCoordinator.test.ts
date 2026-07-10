@@ -16,6 +16,22 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+type TaskSettlementHooks = {
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+}
+
+type CoordinatorInternals = {
+  runs: Map<string, { tasks: Set<TaskSettlementHooks> }>
+  pendingTasks: unknown[]
+  runningCounts: { cpu: number; io: number }
+  inFlightByDedupeKey: Map<string, unknown>
+}
+
+function getInternals(coordinator: object): CoordinatorInternals {
+  return coordinator as unknown as CoordinatorInternals
+}
+
 describe('StartupWorkloadCoordinator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -164,6 +180,112 @@ describe('StartupWorkloadCoordinator', () => {
 
     expect(maxRunningCpu).toBe(1)
     expect(maxRunningIo).toBe(2)
+  })
+
+  it('cleans pending task records across repeated target cancellation', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('main')
+
+    const blockerStarted = createDeferred<void>()
+    const blockerGate = createDeferred<void>()
+    const blockerTask = coordinator.scheduleTask({
+      id: 'main:blocker',
+      target: 'main',
+      phase: 'deferred',
+      resource: 'cpu',
+      labelKey: 'startup.main.blocker',
+      run: async () => {
+        blockerStarted.resolve()
+        await blockerGate.promise
+      }
+    })
+
+    await blockerStarted.promise
+
+    const internals = getInternals(coordinator)
+    expect(internals.runningCounts.cpu).toBe(1)
+
+    for (let index = 0; index < 20; index += 1) {
+      coordinator.createRun('settings')
+      const pendingTask = coordinator.scheduleTask({
+        id: `settings:pending:${index}`,
+        target: 'settings',
+        phase: 'deferred',
+        resource: 'cpu',
+        labelKey: 'startup.settings.pending',
+        run: async () => {}
+      })
+      const cancellation = expect(pendingTask).rejects.toMatchObject({ name: 'AbortError' })
+
+      coordinator.cancelTarget('settings')
+      await cancellation
+
+      expect(internals.pendingTasks).toHaveLength(0)
+      expect(internals.inFlightByDedupeKey.size).toBe(1)
+      expect(internals.runs.has('settings')).toBe(false)
+      expect([...internals.runs.values()].reduce((sum, run) => sum + run.tasks.size, 0)).toBe(1)
+    }
+
+    blockerGate.resolve()
+    await blockerTask
+
+    expect(coordinator.isIdle()).toBe(true)
+    expect(internals.pendingTasks).toHaveLength(0)
+    expect(internals.inFlightByDedupeKey.size).toBe(0)
+    expect([...internals.runs.values()].reduce((sum, run) => sum + run.tasks.size, 0)).toBe(0)
+  })
+
+  it('settles a cancelled running task only once and restores its lane', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('settings')
+
+    const started = createDeferred<void>()
+    const runGate = createDeferred<void>()
+    const runSettled = createDeferred<void>()
+    const taskPromise = coordinator.scheduleTask({
+      id: 'settings:running',
+      target: 'settings',
+      phase: 'interactive',
+      resource: 'cpu',
+      labelKey: 'startup.settings.running',
+      run: async () => {
+        started.resolve()
+        try {
+          await runGate.promise
+        } finally {
+          runSettled.resolve()
+        }
+      }
+    })
+
+    await started.promise
+
+    const internals = getInternals(coordinator)
+    const task = [...(internals.runs.get('settings')?.tasks ?? [])][0]!
+    const originalResolve = task.resolve
+    const originalReject = task.reject
+    const resolveSpy = vi.fn((value: unknown) => originalResolve(value))
+    const rejectSpy = vi.fn((reason?: unknown) => originalReject(reason))
+    task.resolve = resolveSpy
+    task.reject = rejectSpy
+    const cancellation = expect(taskPromise).rejects.toMatchObject({ name: 'AbortError' })
+
+    coordinator.cancelTarget('settings')
+    await cancellation
+    expect(rejectSpy).toHaveBeenCalledTimes(1)
+
+    runGate.reject(new Error('late failure'))
+    await runSettled.promise
+    await vi.waitFor(() => expect(coordinator.isIdle()).toBe(true))
+
+    expect(rejectSpy).toHaveBeenCalledTimes(1)
+    expect(resolveSpy).not.toHaveBeenCalled()
+    expect(internals.pendingTasks).toHaveLength(0)
+    expect(internals.inFlightByDedupeKey.size).toBe(0)
+    expect(internals.runs.has('settings')).toBe(false)
+    expect(internals.runningCounts.cpu).toBe(0)
   })
 
   it('cancels visible settings tasks and publishes the cancelled state', async () => {
